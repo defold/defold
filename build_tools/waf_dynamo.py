@@ -200,6 +200,8 @@ def exec_with_output(bld, cmd, env=None):
 def default_flags(self):
     build_util = create_build_utility(self.env)
 
+    cross_use_cl = 'win32' in self.env['BUILD_PLATFORM'] # or with-clang
+
     opt_level = Options.options.opt_level
     if opt_level == "2" and 'web' == build_util.get_target_os():
         opt_level = "3" # emscripten highest opt level
@@ -326,10 +328,7 @@ def default_flags(self):
             self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
         self.env.append_value('LINKFLAGS', ['-g'])
     else: # *-win32
-
-        use_cl = 'win32' in self.env['BUILD_PLATFORM'] # or with-clang
-
-        if use_cl:
+        if cross_use_cl:
             for f in ['CCFLAGS', 'CXXFLAGS']:
                 # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
                 # 0x0600 = _WIN32_WINNT_VISTA
@@ -356,13 +355,16 @@ def default_flags(self):
                 # good command line: https://www.bountysource.com/issues/56805751-strdup-is-deprecated-in-msvc-use-the-iso-c-conformant-_strdup-instead
                 # '-fno-exceptions',
                 self.env.append_value(f, ['-msse4.2', '-fno-rtti', '-fms-compatibility','-fdelayed-template-parsing','-fms-extensions','-Wno-nonportable-include-path', '-Wno-ignored-attributes', '-target', 'x86_64-pc-win32-msvc', '-m64', '-g', '-gcodeview', '-Wall', '-Werror=format', '-fvisibility=hidden','-Wno-expansion-to-defined', '-Wno-c++11-narrowing'])
-                self.env.append_value(f, ['-DLUA_BYTECODE_ENABLE', '-D_CRT_SECURE_NO_WARNINGS', '-D_SCL_SECURE_NO_WARNINGS', '-D_WINSOCK_DEPRECATED_NO_WARNINGS', '-D__STDC_LIMIT_MACROS', '-DWINVER=0x0600', '-D_WIN32_WINNT=0x0600', '-DWIN32', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-DVC_EXTRALEAN', '-DWIN32_LEAN_AND_MEAN'])
+                self.env.append_value(f, ['-mincremental-linker-compatible', '-mthread-model', 'posix'])
+                self.env.append_value(f, ['-DLUA_BYTECODE_ENABLE', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D_CRT_SECURE_NO_WARNINGS', '-D_SCL_SECURE_NO_WARNINGS', '-D_WINSOCK_DEPRECATED_NO_WARNINGS', '-D__STDC_LIMIT_MACROS', '-DWINVER=0x0600', '-D_WIN32_WINNT=0x0600', '-DWIN32', '-D_MT', '-DVC_EXTRALEAN', '-DWIN32_LEAN_AND_MEAN'])
                 
                 for i in clang_includes + sdk_includes + llvm_includes:
                     self.env.append_value(f, ['-isystem', '%s'%i])
 
-            self.env.append_value('LINKFLAGS', ['-fuse-ld=lld', '-target', 'x86_64-pc-win32-msvc', '-m64', '-g'])
-            self.env.append_value('LIBPATH', ['%s/MicrosoftVisualStudio14.0/VC/lib/amd64' % sdk_ext_path, '%s/MicrosoftVisualStudio14.0/VC/atlmfc/lib/amd64' % sdk_ext_path, '%s/WindowsKits/10/Lib/10.0.10240.0/ucrt/x64' % sdk_ext_path, '%s/WindowsKits/8.1/Lib/winv6.3/um/x64' % sdk_ext_path, '%s/lib'%llvm_path])
+            self.env.append_value('LINKFLAGS', ['-fuse-ld=lld', '-target', 'x86_64-pc-win32-msvc', '-m64', '-g', '-lmsvcrt'])
+            for l in ['shell32', 'WS2_32', 'IPHlpApi']:
+                    self.env.append_value('LINKFLAGS', ['-l%s' % l])
+
             self.env.append_value('shlib_LINKFLAGS', ['-shared'])
 
             remove_flag(self.env.shlib_CCFLAGS, '-fPIC', 0)
@@ -396,6 +398,10 @@ def default_flags(self):
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('include'))
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('include', build_util.get_target_platform()))
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
+
+    if not cross_use_cl and 'win' == build_util.get_target_os():
+        sdk_ext_path = build_util.get_dynamo_ext('SDKs','Win32')
+        self.env.append_value('LIBPATH', ['%s/MicrosoftVisualStudio14.0/VC/lib/amd64' % sdk_ext_path, '%s/MicrosoftVisualStudio14.0/VC/atlmfc/lib/amd64' % sdk_ext_path, '%s/WindowsKits/10/Lib/10.0.10240.0/ucrt/x64' % sdk_ext_path, '%s/WindowsKits/8.1/Lib/winv6.3/um/x64' % sdk_ext_path, '%s/lib'%llvm_path])
 
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
 @after('apply_obj_vars')
@@ -1231,8 +1237,10 @@ def run_gtests(valgrind = False, configfile = None):
     if not getattr(Options.options, 'with_valgrind', False):
         valgrind = False
 
+    Build.bld.env.HAS_PYTHON = True
     wine = False
     if 'win32' in Build.bld.env.PLATFORM and 'win32' not in Build.bld.env.BUILD_PLATFORM:
+        Build.bld.env.HAS_PYTHON = False
         wine = True
         valgrind = False
 
@@ -1459,8 +1467,8 @@ def detect(conf):
 
     if 'win32' in platform:
 
-        use_cl = "win32" in build_platform # or with-clang
-        if use_cl:
+        cross_use_cl = "win32" in build_platform # or with-clang
+        if cross_use_cl:
             target_map = {'win32': 'x86',
                           'x86_64-win32': 'x64'}
             platform_map = {'win32': 'x86',
@@ -1609,17 +1617,15 @@ def detect(conf):
     conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % build_util.get_target_platform(), conf.env)
 
     if re.match('.*?linux', platform):
-        conf.env['LIB_PLATFORM_SOCKET'] = ''
         conf.env['LIB_DL'] = 'dl'
         conf.env['LIB_UUID'] = 'uuid'
-    elif 'darwin' in platform:
-        conf.env['LIB_PLATFORM_SOCKET'] = ''
-    elif 'android' in platform:
-        conf.env['LIB_PLATFORM_SOCKET'] = ''
-    elif platform == 'win32':
+    
+    if 'win32' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 Iphlpapi'.split()
+        conf.env['LIB_PLATFORM_SYS'] = 'Shell32'.split()
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
+        conf.env['LIB_PLATFORM_SYS'] = ''
 
     use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
     if build_util.get_target_os() == 'web':

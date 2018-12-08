@@ -3,7 +3,7 @@ import Task, TaskGen
 from TaskGen import extension, declare_extension
 
 def build(bld):
-    libs = 'SCRIPT EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT'
+    libs = 'SCRIPT EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT PLATFORM_SYS PLATFORM_SOCKET'
 
     if bld.env.PLATFORM in ('darwin', 'x86_64-darwin', 'win32', 'x86_64-win32', 'linux', 'x86_64-linux'):
 

@@ -6,6 +6,7 @@ APPNAME = 'dlib'
 srcdir = '.'
 blddir = 'build'
 
+import Build
 import Options
 import os, sys, tempfile, ConfigParser
 import waf_dynamo
@@ -103,7 +104,7 @@ def shutdown():
 
     waf_dynamo.run_gtests(valgrind = True, configfile = configfilepath)
 
-    if sys.platform != 'win32':
+    if sys.platform != 'win32' and Build.bld.env.HAS_PYTHON:
         import subprocess
         proc = subprocess.Popen('./scripts/run_test_memprofile.sh', shell = True)
         ret = proc.wait()

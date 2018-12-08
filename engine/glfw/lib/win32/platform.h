@@ -36,9 +36,15 @@
 #define _GLFW_WIN32
 
 // We don't need all the fancy stuff
-#define NOMINMAX
-#define WIN32_LEAN_AND_MEAN
-#define VC_EXTRALEAN
+#if !defined(NOMINMAX)
+  #define NOMINMAX
+#endif
+#if !defined(WIN32_LEAN_AND_MEAN)
+  #define WIN32_LEAN_AND_MEAN
+#endif
+#if !defined(VC_EXTRALEAN)
+  #define VC_EXTRALEAN
+#endif
 
 // Include files
 #include <windows.h>

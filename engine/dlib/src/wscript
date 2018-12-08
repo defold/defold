@@ -190,7 +190,7 @@ def build(bld):
                                 uselib_local = 'axtls_noasan',
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
-                                uselib = 'UUID PLATFORM_SOCKET')
+                                uselib = 'UUID PLATFORM_SOCKET PLATFORM_SYS')
         dlib.find_sources_in_dirs(source_dirs)
         dlib.source.extend(webp_source_no_neon)
         if not 'darwin' in bld.env.PLATFORM:

@@ -14,6 +14,8 @@
 #include "../dlib/hash.h"
 #include "../dlib/network_constants.h"
 
+#if !defined(DM_NO_PYTHON)
+
 class dmHttpServerTest: public ::testing::Test
 {
 public:
@@ -323,6 +325,8 @@ TEST_F(dmHttpServerTest, TestServerClient)
 
     dmThread::Join(thread);
 }
+
+#endif
 
 int main(int argc, char **argv)
 {

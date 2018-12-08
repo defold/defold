@@ -44,7 +44,7 @@ def configure(conf):
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="CRASH"')
 
     if operating_sys == "win":
-        conf.env.append_value('LINKFLAGS', ['dbghelp.lib'])
+        conf.env.append_value('LINKFLAGS', ['-lDbgHelp'])
 
 def build(bld):
     bld.add_subdirs('src')

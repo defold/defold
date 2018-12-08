@@ -183,6 +183,7 @@ TEST(Socket, New_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, New_IPv6)
 {
     dmSocket::Socket instance = 0;
@@ -198,6 +199,7 @@ TEST(Socket, New_IPv6)
     result = dmSocket::Delete(instance);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
+#endif
 
 TEST(Socket, New_InvalidDomain)
 {
@@ -422,6 +424,7 @@ TEST(Socket, Connect_IPv4_ThreadServer)
     dmThread::Join(thread);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, Connect_IPv6_ThreadServer)
 {
     // Setup server thread
@@ -461,6 +464,7 @@ TEST(Socket, Connect_IPv6_ThreadServer)
 
     dmThread::Join(thread);
 }
+#endif
 
 static void RefusingServerThread(void* arg)
 {
@@ -501,6 +505,7 @@ TEST(Socket, Connect_IPv4_ConnectionRefused)
     dmThread::Join(thread);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, Connect_IPv6_ConnectionRefused)
 {
     dmSocket::Socket server = GetSocket(dmSocket::DOMAIN_IPV6);
@@ -532,6 +537,7 @@ TEST(Socket, Connect_IPv6_ConnectionRefused)
 
     dmThread::Join(thread);
 }
+#endif
 
 // Listen
 
@@ -583,6 +589,7 @@ TEST(Socket, GetName_IPv4_Connected)
     dmThread::Join(thread);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, GetName_IPv6_Connected)
 {
     // Setup server thread
@@ -631,6 +638,7 @@ TEST(Socket, GetName_IPv6_Connected)
 
     dmThread::Join(thread);
 }
+#endif
 
 TEST(Socket, SetBlocking_IPv4)
 {
@@ -649,6 +657,7 @@ TEST(Socket, SetBlocking_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, SetBlocking_IPv6)
 {
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
@@ -665,6 +674,7 @@ TEST(Socket, SetBlocking_IPv6)
     result = dmSocket::Delete(instance);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
+#endif
 
 TEST(Socket, SetNoDelay_IPv4)
 {
@@ -917,6 +927,7 @@ TEST(Socket, ServerSocketIPv4)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_OK) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, ServerSocketIPv6)
 {
     dmSocket::Socket socket;
@@ -942,6 +953,7 @@ TEST(Socket, ServerSocketIPv6)
     ASSERT_EQ(dmSocket::RESULT_OK, r)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_OK) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 }
+#endif
 
 TEST(Socket, ServerSocketIPv4_MultipleBind)
 {
@@ -981,6 +993,7 @@ TEST(Socket, ServerSocketIPv4_MultipleBind)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_OK) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, ServerSocketIPv6_MultipleBind)
 {
     dmSocket::Socket socket1, socket2;
@@ -1018,6 +1031,7 @@ TEST(Socket, ServerSocketIPv6_MultipleBind)
     ASSERT_EQ(dmSocket::RESULT_OK, r)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_OK) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 }
+#endif
 
 TEST(Socket, ServerSocketIPv4_Accept)
 {
@@ -1055,6 +1069,7 @@ TEST(Socket, ServerSocketIPv4_Accept)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_OK) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, ServerSocketIPv6_Accept)
 {
     dmSocket::Socket socket;
@@ -1090,6 +1105,7 @@ TEST(Socket, ServerSocketIPv6_Accept)
     ASSERT_EQ(dmSocket::RESULT_OK, r)
         << "  Expected(" << dmSocket::ResultToString(dmSocket::RESULT_OK) << "), Actual(" << dmSocket::ResultToString(r) << ")" << std::endl;
 }
+#endif
 
 static void PrintFlags(uint32_t f) {
     if (f & dmSocket::FLAGS_UP) {
@@ -1129,7 +1145,8 @@ TEST(Socket, GetIfAddrs)
     }
 }
 
-TEST(Socket, Timeout)
+#if !defined(DM_NO_IPV6)
+TEST(Socket, Timeout_IPv6)
 {
     const uint64_t timeout = 50 * 1000;
     dmSocket::Socket server_socket;
@@ -1210,6 +1227,7 @@ TEST(Socket, Timeout)
     dmSocket::Delete(server_socket);
     dmSocket::Delete(client_socket);
 }
+#endif
 
 int main(int argc, char **argv)
 {
