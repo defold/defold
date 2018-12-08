@@ -5,7 +5,7 @@
 #include <psapi.h>
 
 #if defined(PSAPI_VERSION)
-#pragma comment(lib, "psapi.lib")
+#pragma comment(lib, "Psapi.lib")
 #endif
 
 namespace dmCrash

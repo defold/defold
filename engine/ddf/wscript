@@ -12,6 +12,7 @@ blddir = 'build'
 import os, sys, re
 sys.path = ["src"] + sys.path
 import waf_ddf, waf_dynamo
+import Options
 
 def init():
     pass
@@ -39,8 +40,16 @@ def configure(conf):
 
     conf.find_program('ddfc_cxx', var='DDFC_CXX', path_list = [os.path.abspath('src')], mandatory = True)
 
+    platform = None
+    if getattr(Options.options, 'platform', None):
+        platform=getattr(Options.options, 'platform')
+
+    if 'win32' in platform:
+        conf.env['STATICLIB_PROTOBUF'] = 'libprotobuf'
+    else:
+        conf.env['STATICLIB_PROTOBUF'] = 'protobuf'
+
     conf.env['STATICLIB_DLIB'] = 'dlib'
-    conf.env['STATICLIB_PROTOBUF'] = 'protobuf'
     conf.env['LIB_GTEST'] = 'gtest'
     if conf.env.PLATFORM == 'linux':
         conf.env['LIB_PTHREAD'] = 'pthread'
