@@ -24,3 +24,49 @@ index 777b91ed4..4ab4524c6 100644
  
    # For building the gtest libraries.
    set(cxx_strict "${cxx_default} ${cxx_strict_flags}")
+diff --git a/googletest/include/gtest/internal/gtest-port.h b/googletest/include/gtest/internal/gtest-port.h
+index 0094ed507..02fe68f69 100644
+--- a/googletest/include/gtest/internal/gtest-port.h
++++ b/googletest/include/gtest/internal/gtest-port.h
+@@ -400,6 +400,32 @@
+ // This assumption is verified by
+ // WindowsTypesTest.CRITICAL_SECTIONIs_RTL_CRITICAL_SECTION.
+ struct _RTL_CRITICAL_SECTION;
++
++// DEFOLD: To get reid of POSIX name warnings
++#if defined(_MSC_VER)
++    #include <io.h>
++    #if !defined(close)
++        #define close _close
++    #endif
++    #if !defined(write)
++        #define write _write
++    #endif
++    #if !defined(read)
++        #define read _read
++    #endif
++
++    #include <direct.h>
++    #if !defined(chdir)
++        #define chdir _chdir
++    #endif
++
++    #include <stdio.h>
++    #if !defined(fdopen)
++        #define fdopen _fdopen
++    #endif
++#endif
++
++
+ #else
+ // This assumes that non-Windows OSes provide unistd.h. For OSes where this
+ // is not the case, we need to include headers that provide the functions
+@@ -942,7 +968,7 @@ using ::std::tuple_size;
+ #endif
+ 
+ // _LIBCPP_VERSION is defined by the libc++ library from the LLVM project.
+-#if defined(__GLIBCXX__) || defined(_LIBCPP_VERSION)
++# if defined(__GLIBCXX__) || (defined(_LIBCPP_VERSION) && !defined(_MSC_VER))
+ # define GTEST_HAS_CXXABI_H_ 1
+ #else
+ # define GTEST_HAS_CXXABI_H_ 0
