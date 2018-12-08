@@ -4,7 +4,7 @@
 #include <windows.h>
 #include <psapi.h>
 
-#if PSAPI_VERSION=1
+#if defined(PSAPI_VERSION)
 #pragma comment(lib, "psapi.lib")
 #endif
 

@@ -77,7 +77,7 @@ int PlatformInit(char* path, PlatformInfo& info)
             char* msg;
             DWORD err = GetLastError();
             FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR) &msg, 0, 0);
-            fprintf(stderr, "Failed to launch application %s: %s (%d)", path, msg, err);
+            fprintf(stderr, "Failed to launch application %s: %s (%d)", path, msg, (int)err);
             LocalFree((HLOCAL) msg);
 
             return 0;
@@ -169,13 +169,13 @@ uintptr_t GetProcessBaseAddress(PlatformInfo& pinfo, DWORD processID)
             {
             	fprintf(stderr, "Failed to get module filename");
             }
-            
+
             fprintf(stderr, "module: %s\n", path);
 
             MODULEINFO info;
             if (GetModuleInformation(process, mods[i], &info, sizeof(info)))
             {
-            fprintf(stderr, "  size: 0x%08x\n", (uintptr_t)info.lpBaseOfDll);
+            fprintf(stderr, "  size: 0x%016llX\n", (unsigned long long)(uintptr_t)info.lpBaseOfDll);
             }
         }
     }
@@ -186,7 +186,7 @@ uintptr_t GetProcessBaseAddress(PlatformInfo& pinfo, DWORD processID)
         char* msg;
         DWORD err = GetLastError();
         FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR) &msg, 0, 0);
-        fprintf(stderr, "Error: %s (%d)\n", msg, err);
+        fprintf(stderr, "Error: %s (%d)\n", msg, (int)err);
         LocalFree((HLOCAL) msg);
     }
 
