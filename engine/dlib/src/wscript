@@ -3,12 +3,14 @@
 import os, re, sys
 from TaskGen import feature, after
 from waf_dynamo import dmsdk_add_files
+import Options
 
 def set_options(opt):
     pass
 
 def build(bld):
-    bld.add_subdirs('test')
+    if not Options.options.skip_build_tests:
+        bld.add_subdirs('test')
     bld.add_subdirs('examples')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')

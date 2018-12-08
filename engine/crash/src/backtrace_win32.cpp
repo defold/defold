@@ -32,14 +32,14 @@ namespace dmCrash
 
             if( !rv )
             {
-                fprintf(stderr, "MiniDumpWriteDump failed. Error: %u \n", GetLastError() );
+                fprintf(stderr, "MiniDumpWriteDump failed. Error: %u \n", (uint32_t)GetLastError() );
             }
 
             CloseHandle( hFile );
         }
         else
         {
-            fprintf(stderr, "CreateFile failed: %s. Error: %u \n", path, GetLastError() );
+            fprintf(stderr, "CreateFile failed: %s. Error: %u \n", path, (uint32_t)GetLastError() );
         }
     }
 
