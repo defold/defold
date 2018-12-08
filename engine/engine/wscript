@@ -10,7 +10,7 @@ import os, sys, re, subprocess
 import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render, waf_resource
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 import Logs
-import Options
+import Build, Options
 
 def init():
     pass
@@ -176,5 +176,5 @@ def build(bld):
 
 def shutdown():
     # unit tests disabled on win32 for now
-    if sys.platform != "win32":
+    if not 'win32' in Build.bld.env.PLATFORM:
         waf_dynamo.run_gtests(valgrind = True)

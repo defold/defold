@@ -17,4 +17,4 @@ def build(bld):
                                          source = '../crash.cpp crashtool.cpp')
 
         if sys.platform == 'win32':
-            crashtool.env.append_value('LINKFLAGS', ['Dbghelp.lib', 'psapi.lib'])
+            crashtool.env.append_value('LINKFLAGS', ['-lDbgHelp', '-Lpsapi'])

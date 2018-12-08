@@ -356,7 +356,7 @@ def default_flags(self):
                 # '-fno-exceptions',
                 self.env.append_value(f, ['-msse4.2', '-fno-rtti', '-fms-compatibility','-fdelayed-template-parsing','-fms-extensions','-Wno-nonportable-include-path', '-Wno-ignored-attributes', '-target', 'x86_64-pc-win32-msvc', '-m64', '-g', '-gcodeview', '-Wall', '-Werror=format', '-fvisibility=hidden','-Wno-expansion-to-defined', '-Wno-c++11-narrowing'])
                 self.env.append_value(f, ['-mincremental-linker-compatible', '-mthread-model', 'posix'])
-                self.env.append_value(f, ['-DLUA_BYTECODE_ENABLE', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D_CRT_SECURE_NO_WARNINGS', '-D_SCL_SECURE_NO_WARNINGS', '-D_WINSOCK_DEPRECATED_NO_WARNINGS', '-D__STDC_LIMIT_MACROS', '-DWINVER=0x0600', '-D_WIN32_WINNT=0x0600', '-DWIN32', '-D_MT', '-DVC_EXTRALEAN', '-DWIN32_LEAN_AND_MEAN'])
+                self.env.append_value(f, ['-DLUA_BYTECODE_ENABLE', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D_CRT_SECURE_NO_WARNINGS', '-D_SCL_SECURE_NO_WARNINGS', '-D_WINSOCK_DEPRECATED_NO_WARNINGS', '-D__STDC_LIMIT_MACROS', '-DWINVER=0x0600', '-D_WIN32_WINNT=0x0600', '-DWIN32', '-D_MT'])
                 
                 for i in clang_includes + sdk_includes + llvm_includes:
                     self.env.append_value(f, ['-isystem', '%s'%i])
@@ -1226,10 +1226,10 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
 def run_gtests(valgrind = False, configfile = None):
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
         return
-
-# TODO: Add something similar to this
-# http://code.google.com/p/v8/source/browse/trunk/tools/run-valgrind.py
-# to find leaks and set error code
+    
+    # TODO: Add something similar to this
+    # http://code.google.com/p/v8/source/browse/trunk/tools/run-valgrind.py
+    # to find leaks and set error code
 
     if not Build.bld.env['VALGRIND']:
         valgrind = False
