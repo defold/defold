@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 from waf_dynamo import copy_file_task
+import Options
 
 def configure(conf):
     pass
@@ -16,11 +17,12 @@ def build(bld):
     texc_shared = bld.new_task_gen(features = 'cxx cshlib skip_asan',
                                    includes = ['.'],
                                    target = 'texc_shared',
-                                   uselib = 'PVRTEXLIB WEBP DLIB_NOASAN',
+                                   uselib = 'PVRTEXLIB WEBP DLIB_NOASAN PLATFORM_SYS PLATFORM_SOCKET',
                                    source = ['texc.cpp', 'texc_webp.cpp', 'texc_webp_pvrtc.cpp', 'texc_webp_etc.cpp', 'texc_webp_convert_cs.cpp'])
 
     platform = bld.env['PLATFORM']
 
     bld.install_files('${PREFIX}/include/texc', 'texc.h')
 
-    bld.add_subdirs('test')
+    if not Options.options.skip_build_tests:
+      bld.add_subdirs('test')

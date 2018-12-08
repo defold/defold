@@ -38,4 +38,11 @@
     #if !defined(fdopen)
         #define fdopen _fdopen
     #endif
+    #if !defined(popen)
+        #define popen _popen
+    #endif
+    #if !defined(pclose)
+        #define pclose _pclose
+    #endif
+
 #endif

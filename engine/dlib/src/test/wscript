@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import os, re
+from BuildUtility import create_build_utility
 
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
                 extra_includes = None, extra_defines = None):
@@ -37,6 +38,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     test.install_path = None
 
 def build(bld):
+    build_util = create_build_utility(bld.env)
 
     bld.new_task_gen(features='javac seq',
                      classpath='../ext/jetty-all-7.0.2.v20100331.jar' + os.pathsep + '../ext/servlet-api-2.5.jar',
@@ -48,6 +50,10 @@ def build(bld):
     if re.match('arm.*?darwin', bld.env.PLATFORM):
         extra_defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
+    # for some reason, the IPV6 fails under Wine
+    if 'win' == build_util.get_target_os() and 'win32' != bld.env.BUILD_PLATFORM:
+        extra_defines.extend(['DM_NO_IPV6', 'DM_NO_PYTHON'])
+
     create_test(bld, 'test_memory')
     create_test(bld, 'test_align', extra_libs = ['THREAD'])
     create_test(bld, 'test_buffer')
@@ -57,7 +63,7 @@ def build(bld):
     create_test(bld, 'test_array')
     create_test(bld, 'test_indexpool')
     create_test(bld, 'test_dlib', extra_libs = ['THREAD'])
-    create_test(bld, 'test_socket', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
+    create_test(bld, 'test_socket', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines)
     create_test(bld, 'test_time')
     create_test(bld, 'test_thread', extra_libs = ['THREAD'])
     create_test(bld, 'test_mutex', extra_libs =['THREAD'])
@@ -88,7 +94,7 @@ def build(bld):
     create_test(bld, 'test_template', extra_libs = ['THREAD'])
     create_test(bld, 'test_ssdp_internals', extra_libs = ['THREAD'])
     create_test(bld, 'test_ssdp', extra_libs = ['THREAD'])
-    create_test(bld, 'test_log', extra_libs = ['THREAD'])
+    create_test(bld, 'test_log', extra_libs = ['THREAD'], extra_defines = extra_defines)
     create_test(bld, 'test_path', extra_libs = ['THREAD'])
     create_test(bld, 'test_trig_lookup', extra_libs = ['THREAD'])
     create_test(bld, 'test_vmath', extra_libs = ['THREAD'])
@@ -124,7 +130,7 @@ def build(bld):
                 )
 
     create_test(bld, 'test_connection_pool', extra_features = ['embed'], extra_libs = ['THREAD'],
-                extra_includes = ['.'])
+                extra_includes = ['.'], extra_defines = extra_defines)
 
     create_test(bld, 'test_pprint', extra_libs = ['THREAD'])
     create_test(bld, 'test_md5', extra_libs = ['THREAD'])

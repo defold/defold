@@ -7,6 +7,8 @@
 #include "../dlib/hash.h"
 #include "../dlib/dstrings.h"
 
+#if !defined(DM_NO_PYTHON)
+
 class dmHttpCacheTest : public ::testing::Test
 {
     virtual void SetUp()
@@ -667,6 +669,8 @@ TEST_F(dmHttpCacheTest, Persist)
     ASSERT_EQ(0U, dmHttpCache::GetEntryCount(cache));
     dmHttpCache::Close(cache);
 }
+
+#endif
 
 int main(int argc, char **argv)
 {

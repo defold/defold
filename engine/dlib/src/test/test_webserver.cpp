@@ -11,6 +11,8 @@
 #include "../dlib/web_server.h"
 #include "../dlib/hash.h"
 
+#if !defined(DM_NO_PYTHON)
+
 class dmWebServerTest: public ::testing::Test
 {
 public:
@@ -134,6 +136,8 @@ TEST_F(dmWebServerTest, TestServer)
 }
 
 #endif
+
+#endif //DM_NO_PYTHON
 
 int main(int argc, char **argv)
 {
