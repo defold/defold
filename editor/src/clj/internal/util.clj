@@ -58,6 +58,24 @@
                     xs seen)))]
      (step coll #{}))))
 
+(defn separate-into
+  "Returns a pair of collections. The first collection contains all the elements
+  of coll where the supplied predicate function returned true, the second the
+  elements where it returned false. The empty collections must be supplied."
+  [empty-true-elements empty-false-elements coll pred]
+  (loop [elements coll
+         true-elements (transient empty-true-elements)
+         false-elements (transient empty-false-elements)]
+    (if-some [element (first elements)]
+      (let [passed? (pred element)]
+        (recur (next elements)
+               (if passed? (conj! true-elements element) true-elements)
+               (if passed? false-elements (conj! false-elements element))))
+      [(persistent! true-elements)
+       (persistent! false-elements)])))
+
+(def separate-by (partial separate-into [] []))
+
 (defn group-into
   "Like core.group-by, but you can specify the empty collection used for the groups."
   [empty-group key-fn coll]
