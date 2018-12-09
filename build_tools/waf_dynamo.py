@@ -328,13 +328,16 @@ def default_flags(self):
             self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
         self.env.append_value('LINKFLAGS', ['-g'])
     else: # *-win32
+
+        # 0x0600 = _WIN32_WINNT_VISTA
+        for f in ['CCDEFINES', 'CXXDEFINES']:
+            self.env.append_value(f, ['LUA_BYTECODE_ENABLE','DDF_EXPOSE_DESCRIPTORS','GOOGLE_PROTOBUF_NO_RTTI','_CRT_SECURE_NO_WARNINGS','_SCL_SECURE_NO_WARNINGS','_WINSOCK_DEPRECATED_NO_WARNINGS','__STDC_LIMIT_MACROS','WINVER=0x0600','_WIN32_WINNT=0x0600','_MT','WIN32'])
+
         if cross_use_cl:
             for f in ['CCFLAGS', 'CXXFLAGS']:
                 # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
-                # 0x0600 = _WIN32_WINNT_VISTA
-                self.env.append_value(f, ['/Oy-', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/DWINVER=0x0600', '/D_WIN32_WINNT=0x0600', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
+                self.env.append_value(f, ['/Oy-', '/Z7', '/MT', '/wd4996', '/wd4200'])
             self.env.append_value('LINKFLAGS', '/DEBUG')
-            self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB'])
             self.env.append_unique('ARFLAGS', '/WX')
         else:
             sdk_ext_path = build_util.get_dynamo_ext('SDKs','Win32')
@@ -348,23 +351,14 @@ def default_flags(self):
             clang_includes = [x.strip() for x in clang_includes.strip().split()]
 
             for f in ['CCFLAGS', 'CXXFLAGS']:
-                # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
-                # 0x0600 = _WIN32_WINNT_VISTA
-                #self.env.append_value(f, ['/Oy-', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/DWINVER=0x0600', '/D_WIN32_WINNT=0x0600', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
-                
-                # good command line: https://www.bountysource.com/issues/56805751-strdup-is-deprecated-in-msvc-use-the-iso-c-conformant-_strdup-instead
                 # '-fno-exceptions',
                 self.env.append_value(f, ['-msse4.2', '-fno-rtti', '-fms-compatibility','-fdelayed-template-parsing','-fms-extensions','-Wno-nonportable-include-path', '-Wno-ignored-attributes', '-target', 'x86_64-pc-win32-msvc', '-m64', '-g', '-gcodeview', '-gno-column-info', '-Wall', '-Werror=format', '-fvisibility=hidden','-Wno-expansion-to-defined', '-Wno-c++11-narrowing'])
                 self.env.append_value(f, ['-flto', '-mthread-model', 'posix'])
-                self.env.append_value(f, ['-DLUA_BYTECODE_ENABLE', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D_CRT_SECURE_NO_WARNINGS', '-D_SCL_SECURE_NO_WARNINGS', '-D_WINSOCK_DEPRECATED_NO_WARNINGS', '-D__STDC_LIMIT_MACROS', '-DWINVER=0x0600', '-D_WIN32_WINNT=0x0600', '-DWIN32', '-D_MT'])
-                
+
                 for i in clang_includes + sdk_includes + llvm_includes:
                     self.env.append_value(f, ['-isystem', '%s'%i])
 
             self.env.append_value('LINKFLAGS', ['-defaultlib:libcmt', '-fuse-ld=lld', '-target', 'x86_64-pc-win32-msvc', '-m64', '-g'])
-            for l in ['shell32', 'WS2_32', 'IPHlpApi']:
-                self.env.append_value('LINKFLAGS', ['-l%s' % l])
-
             self.env.append_value('shlib_LINKFLAGS', ['-shared'])
 
             remove_flag(self.env.shlib_CCFLAGS, '-fPIC', 0)
@@ -1625,7 +1619,7 @@ def detect(conf):
     
     if 'win32' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 Iphlpapi'.split()
-        conf.env['LIB_PLATFORM_SYS'] = 'Shell32'.split()
+        conf.env['LIB_PLATFORM_SYS'] = 'shell32 User32'.split()
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
         conf.env['LIB_PLATFORM_SYS'] = ''
