@@ -363,7 +363,7 @@ def default_flags(self):
 
             self.env.append_value('LINKFLAGS', ['-defaultlib:libcmt', '-fuse-ld=lld', '-target', 'x86_64-pc-win32-msvc', '-m64', '-g'])
             for l in ['shell32', 'WS2_32', 'IPHlpApi']:
-                    self.env.append_value('LINKFLAGS', ['-l%s' % l])
+                self.env.append_value('LINKFLAGS', ['-l%s' % l])
 
             self.env.append_value('shlib_LINKFLAGS', ['-shared'])
 
@@ -1497,8 +1497,8 @@ def detect(conf):
             else:
                 path = '/usr/bin'
 
-            conf.find_program('windres', var='WINRC', mandatory = True)
-            conf.check_tool('winres')
+                conf.find_program('windres', var='WINRC', mandatory = True)
+                conf.check_tool('winres')
             
             os.environ['CC'] = '%s/clang' % path
             os.environ['CXX'] = '%s/clang++' % path

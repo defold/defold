@@ -118,7 +118,8 @@ def build(bld):
         jars = android_jar_paths)
 
     if 'win32' in bld.env['PLATFORM']:
-        obj.source.append('engine.rc') # Needs to bundle with icons, or IconExe.java won't be able to replace them (it cannot add them)
+        if bld.env.WINRC:
+          obj.source.append('engine.rc') # Needs to bundle with icons, or IconExe.java won't be able to replace them (it cannot add them)
         bld.install_files('${PREFIX}/lib/%s' % bld.env['PLATFORM'], 'defold.ico')
         bld.install_files('${PREFIX}/lib/%s' % bld.env['PLATFORM'], 'engine.rc')
 
@@ -144,9 +145,9 @@ def build(bld):
         jars = android_jar_paths)
 
     if 'win32' in bld.env.PLATFORM:
-        obj.source.append('engine.rc')
-        print bld.env
-        if 'clang' in bld.env.CC:
+        if bld.env.WINRC:
+          obj.source.append('engine.rc')
+        if bld.env.CC_NAME in ['gcc', 'clang']:
           obj.env.append_value('LINKFLAGS', ['-Wl,/subsystem:windows'])
         else:
           obj.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', '/ENTRY:mainCRTStartup'])
