@@ -354,14 +354,14 @@ def default_flags(self):
                 
                 # good command line: https://www.bountysource.com/issues/56805751-strdup-is-deprecated-in-msvc-use-the-iso-c-conformant-_strdup-instead
                 # '-fno-exceptions',
-                self.env.append_value(f, ['-msse4.2', '-fno-rtti', '-fms-compatibility','-fdelayed-template-parsing','-fms-extensions','-Wno-nonportable-include-path', '-Wno-ignored-attributes', '-target', 'x86_64-pc-win32-msvc', '-m64', '-g', '-gcodeview', '-Wall', '-Werror=format', '-fvisibility=hidden','-Wno-expansion-to-defined', '-Wno-c++11-narrowing'])
+                self.env.append_value(f, ['-msse4.2', '-fno-rtti', '-fms-compatibility','-fdelayed-template-parsing','-fms-extensions','-Wno-nonportable-include-path', '-Wno-ignored-attributes', '-target', 'x86_64-pc-win32-msvc', '-m64', '-g', '-gcodeview', '-gno-column-info', '-Wall', '-Werror=format', '-fvisibility=hidden','-Wno-expansion-to-defined', '-Wno-c++11-narrowing'])
                 self.env.append_value(f, ['-mincremental-linker-compatible', '-mthread-model', 'posix'])
                 self.env.append_value(f, ['-DLUA_BYTECODE_ENABLE', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D_CRT_SECURE_NO_WARNINGS', '-D_SCL_SECURE_NO_WARNINGS', '-D_WINSOCK_DEPRECATED_NO_WARNINGS', '-D__STDC_LIMIT_MACROS', '-DWINVER=0x0600', '-D_WIN32_WINNT=0x0600', '-DWIN32', '-D_MT'])
                 
                 for i in clang_includes + sdk_includes + llvm_includes:
                     self.env.append_value(f, ['-isystem', '%s'%i])
 
-            self.env.append_value('LINKFLAGS', ['-fuse-ld=lld', '-target', 'x86_64-pc-win32-msvc', '-m64', '-g', '-lmsvcrt'])
+            self.env.append_value('LINKFLAGS', ['-defaultlib:libcmt', '-fuse-ld=lld', '-target', 'x86_64-pc-win32-msvc', '-m64', '-g'])
             for l in ['shell32', 'WS2_32', 'IPHlpApi']:
                     self.env.append_value('LINKFLAGS', ['-l%s' % l])
 
