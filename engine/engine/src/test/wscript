@@ -11,9 +11,15 @@ def build(bld):
     if re.match('arm.*?darwin', bld.env.PLATFORM):
         defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
+    # Psapi.lib is needed by ProfilerExt
+    extra_libs = []
+    if 'win32' in bld.env.PLATFORM:
+        extra_libs = ['Psapi']
+        #obj.env.append_value('LINKFLAGS', ['-lPsapi'])
+
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram test',
-        uselib = 'RECORD VPX GTEST PROFILEREXT GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING SOUND_NULL DLIB DMGLFW LIVEUPDATE',
+        uselib = 'RECORD VPX GTEST PROFILEREXT GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET PLATFORM_SYS SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING SOUND_NULL DLIB DMGLFW LIVEUPDATE'.split() + extra_libs,
         exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine engine_service',
         includes = '../../proto .',
@@ -23,9 +29,6 @@ def build(bld):
 
     obj.install_path = None
 
-    # Psapi.lib is needed by ProfilerExt
-    if 'win32' in bld.env.PLATFORM:
-        obj.env.append_value('LINKFLAGS', ['-lPsapi'])
 
     builtins_src = "content/builtins"
     builtins_dst = "src/test/builtins"
