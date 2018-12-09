@@ -117,10 +117,8 @@ def build(bld):
         extra_packages = extra_packages,
         jars = android_jar_paths)
 
-    if 'win32' in bld.env.BUILD_PLATFORM:
-        obj.source.append('engine.rc') # Needs to bundle with icons, or IconExe.java won't be able to replace them (it cannot add them)
-
     if 'win32' in bld.env['PLATFORM']:
+        obj.source.append('engine.rc') # Needs to bundle with icons, or IconExe.java won't be able to replace them (it cannot add them)
         bld.install_files('${PREFIX}/lib/%s' % bld.env['PLATFORM'], 'defold.ico')
         bld.install_files('${PREFIX}/lib/%s' % bld.env['PLATFORM'], 'engine.rc')
 
@@ -145,9 +143,13 @@ def build(bld):
         extra_packages = extra_packages,
         jars = android_jar_paths)
 
-    if 'win32' in bld.env.BUILD_PLATFORM:
+    if 'win32' in bld.env.PLATFORM:
         obj.source.append('engine.rc')
-        obj.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', '/ENTRY:mainCRTStartup'])
+        print bld.env
+        if 'clang' in bld.env.CC:
+          obj.env.append_value('LINKFLAGS', ['-Wl,/subsystem:windows'])
+        else:
+          obj.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', '/ENTRY:mainCRTStartup'])
 
     if 'android' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_release.android/dmengine_release.apk')
