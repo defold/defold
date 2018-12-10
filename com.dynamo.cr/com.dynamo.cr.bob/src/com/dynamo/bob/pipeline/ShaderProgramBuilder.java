@@ -200,34 +200,48 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
     public ShaderDesc compile(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, IResource resource, String resourceOutput, String platform, boolean isDebug) throws IOException, CompileExceptionError {
         ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
 
-        // Always build GLSL (for now)
-        {
-        	ShaderDesc.Shader.Builder builder = tranformGLSL(is, resource, resourceOutput, platform, isDebug);
-            shaderDescBuilder.addShaders(builder);
-            is.reset();
-        }
-
         // Build platform specific shader targets (e.g SPIRV, MSL, ..)
         Platform platformKey = Platform.get(platform);
         if(platformKey != null) {
-            ShaderDesc.Shader.Builder builder = null;
          	switch(platformKey) {
          		case X86Darwin:
         		case X86_64Darwin:
-                    builder = compileSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_MSL, resource, resourceOutput, "", isDebug);
+        		{
+        			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
+                    is.reset();
+                    shaderDescBuilder.addShaders(compileSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_MSL, resource, resourceOutput, "", isDebug));
+        		}
                 break;
+
+        		case X86Win32:
+        		case X86_64Win32:
+        			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
+        		break;
+
+        		case X86Linux:
+        		case X86_64Linux:
+        			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
+        		break;
+
         		case Armv7Darwin:
         		case Arm64Darwin:
-                    builder = compileSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_MSL, resource, resourceOutput, "es", isDebug);
+        		{
+        			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
+                    is.reset();
+                    shaderDescBuilder.addShaders(compileSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_MSL, resource, resourceOutput, "es", isDebug));
+        		}
      			break;
 
-     			default:
-     				// Disabled for now..
-                    // builder = ShaderDesc.Shader.Builder builder = compileSPIRV(is, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "", isDebug);
-                break;
-         	}
-         	if(builder != null) {
-                shaderDescBuilder.addShaders(builder);
+        		case Armv7Android:
+        			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
+                    is.reset();
+                    shaderDescBuilder.addShaders(compileSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "", isDebug));
+        		break;
+
+        		case JsWeb:
+        		case WasmWeb:
+        			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
+        		break;
          	}
         }
 
