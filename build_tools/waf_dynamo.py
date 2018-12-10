@@ -1373,6 +1373,16 @@ def detect(conf):
     if not platform:
         platform = build_platform
 
+    if platform == "win32":
+        bob_build_platform = "x86-win32"
+    elif platform == "linux":
+        bob_build_platform = "x86-linux"
+    elif platform == "darwin":
+        bob_build_platform = "x86-darwin"
+    else:
+        bob_build_platform = platform
+
+    conf.env['BOB_BUILD_PLATFORM'] = bob_build_platform
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = build_platform
 
