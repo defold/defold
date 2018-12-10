@@ -708,29 +708,18 @@ public class Fontc {
             setHighQuality(g);
             g.drawImage(image, 0, 0, null);
 
-            // This is an experimental approach to improve the visuals of the distance field shadow.
-            // The rationale to this approach is two-fold:
-            // 	1) The lower limit makes sure that the shadow distance values inside the glyph face
-            //     have a smooth edge. This is due to the "if (distance_to_edge_normalized > sdf_outline)"
-            //     condition in the bitmap generation pass above that otherwise introduces jaggies to the edge.
-            //  2) The upper limit adds a little bit of high frequency smoothing so that we can even out
-            //     a little bit of the valleys that occur due to sharp corners in the glyphs.
-            int numBlurs = Math.max(1,Math.min(2,fontDesc.getShadowBlur() / 4));
+            // When the blur kernel is != 0, make sure to always blur the DF data set
+            // at least once so we can avoid the jaggies around the face edges. This is mostly
+            // prominent when the blur size is small and the offset is large.
+            BufferedImage tmp = blurredShadowImage.getSubimage(0, 0, width, height);
+            shadowConvolve.filter(tmp, blurredShadowImage);
 
-            if (numBlurs > 0)
-            {
-                for (int pass = 0; pass < numBlurs; ++pass) {
-                    BufferedImage tmp = blurredShadowImage.getSubimage(0, 0, width, height);
-                    shadowConvolve.filter(tmp, blurredShadowImage);
-                }
+            for (int v=0;v<height;v++) {
+                for (int u=0;u<width;u++) {
+                    int edge_outline_channel = image.getRGB(u,v);
+                    int shadow_channel = blurredShadowImage.getRGB(u,v);
 
-                for (int v=0;v<height;v++) {
-                    for (int u=0;u<width;u++) {
-                        int edge_outline_channel = image.getRGB(u,v);
-                        int shadow_channel = blurredShadowImage.getRGB(u,v);
-
-                        image.setRGB(u,v,edge_outline_channel & 0xFFFF00 | shadow_channel & 0xFF);
-                    }
+                    image.setRGB(u,v,edge_outline_channel & 0xFFFF00 | shadow_channel & 0xFF);
                 }
             }
         }

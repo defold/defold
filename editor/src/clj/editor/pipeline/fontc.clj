@@ -583,17 +583,17 @@
               shadow-cs (ColorSpace/getInstance ColorSpace/CS_sRGB)
               shadow-cm (ComponentColorModel. shadow-cs shadow-n-bits false false Transparency/TRANSLUCENT DataBuffer/TYPE_BYTE)
               shadow-image (BufferedImage. shadow-cm shadow-raster false nil)
-              num-shadow-blurs (max 1 (min 2 (/ shadow-blur 4)))]
-          (when (> num-shadow-blurs 0)
-            (dotimes [n num-shadow-blurs]
-              (let [^BufferedImage tmp (.getSubimage shadow-image 0 0 width height)]
-                (.filter shadow-convolve tmp shadow-image)))
-            (doseq [^int v (range height)
+              ;; When the blur kernel is != 0, make sure to always blur the DF data set
+              ;; at least once so we can avoid the jaggies around the face edges. This is mostly
+              ;; prominent when the blur size is small and the offset is large.
+              ^BufferedImage tmp (.getSubimage shadow-image 0 0 width height)]
+          (.filter shadow-convolve tmp shadow-image)
+          (doseq [^int v (range height)
                     ^int u (range width)]
               (let [df-offset (+ (* v width) u)
                     shadow-offset (+ (* df-offset channel-count) 2)
                     shadow-pixel (.getRGB shadow-image u v)]
-                (aset image shadow-offset (unchecked-byte shadow-pixel)))))))
+                (aset image shadow-offset (unchecked-byte shadow-pixel))))))
       {:field image
        :width width
        :height height})))
