@@ -242,7 +242,14 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         		case WasmWeb:
         			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
         		break;
+        		default:
+                    System.err.println("Unsupported platform: " + platformKey);
+                break;
          	}
+        }
+        else
+        {
+            System.err.println("Unknown platform: " + platform);
         }
 
         return shaderDescBuilder.build();
