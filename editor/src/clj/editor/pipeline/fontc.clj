@@ -482,7 +482,7 @@
      :glyph-channels channel-count
      :glyph-data (ByteString/copyFrom glyph-data-bank)}))
 
-(defn- calculate-ttf-distance-field-edge-limit [width spread edge]
+(defn- calculate-ttf-distance-field-edge-limit [^double width ^double spread ^double edge]
   (let [sdf-limit-value (- (/ width spread))]
     (+ (* sdf-limit-value (- 1.0 edge)) edge)))
 
@@ -504,7 +504,10 @@
         ^double sdf-spread sdf-spread
         ^double sdf-shadow-spread sdf-shadow-spread
         ^double edge edge
+        ^double shadow-alpha shadow-alpha
+        ^double sdf-outline sdf-outline
         ^int channel-count channel-count
+        ^int shadow-blur shadow-blur
         {^int width :width ^int height :height} (pad-wh padding (glyph-wh glyph))
         ^Shape glyph-outline (.getGlyphOutline glyph-vector 0)
         ^PathIterator outline-iterator (FlatteningPathIterator. (.getPathIterator glyph-outline identity-transform) 0.1)
@@ -568,7 +571,7 @@
           (when (> channel-count 1)
             (aset image out-outline-offset (unchecked-byte 0))
             (aset image out-shadow-offset (unchecked-byte df-outline-channel)))))
-      (when (and (> shadow-alpha 0.0) (> (int shadow-blur) 0) (> channel-count 1))
+      (when (and (> shadow-alpha 0.0) (> shadow-blur 0) (> channel-count 1))
         (let [
               image-byte-length (* width height channel-count)
               shadow-image' (byte-array image-byte-length)
@@ -580,7 +583,7 @@
               shadow-cs (ColorSpace/getInstance ColorSpace/CS_sRGB)
               shadow-cm (ComponentColorModel. shadow-cs shadow-n-bits false false Transparency/TRANSLUCENT DataBuffer/TYPE_BYTE)
               shadow-image (BufferedImage. shadow-cm shadow-raster false nil)
-              num-shadow-blurs (max 1 (min 2 (/ (int shadow-blur) 4)))]
+              num-shadow-blurs (max 1 (min 2 (/ shadow-blur 4)))]
           (when (> num-shadow-blurs 0)
             (dotimes [n num-shadow-blurs]
               (let [^BufferedImage tmp (.getSubimage shadow-image 0 0 width height)]
@@ -590,8 +593,7 @@
               (let [df-offset (+ (* v width) u)
                     shadow-offset (+ (* df-offset channel-count) 2)
                     shadow-pixel (.getRGB shadow-image u v)]
-                (aset image shadow-offset (unchecked-byte shadow-pixel))))
-            )))
+                (aset image shadow-offset (unchecked-byte shadow-pixel)))))))
       {:field image
        :width width
        :height height})))
