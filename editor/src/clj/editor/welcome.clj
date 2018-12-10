@@ -1,5 +1,6 @@
 (ns editor.welcome
-  (:require [clojure.edn :as edn]
+  (:require [camel-snake-kebab :as camel]
+            [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.pprint :as pprint]
             [clojure.string :as string]
@@ -14,6 +15,7 @@
             [editor.settings-core :as settings-core]
             [editor.system :as system]
             [editor.ui :as ui]
+            [editor.ui.bindings :as b]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.updater :as updater]
             [schema.core :as s]
@@ -21,19 +23,18 @@
             [util.thread-util :refer [preset!]]
             [util.time :as time])
   (:import (clojure.lang ExceptionInfo)
-           (com.dynamo.cr.protocol.proto Protocol$ProjectInfoList)
            (java.io File FileOutputStream PushbackReader)
            (java.net MalformedURLException SocketException SocketTimeoutException URL UnknownHostException)
+           (javax.net.ssl SSLException)
            (java.time Instant)
            (java.util.zip ZipInputStream)
            (javafx.animation AnimationTimer)
-           (javafx.beans.binding Bindings)
            (javafx.beans.property SimpleObjectProperty StringProperty)
            (javafx.event Event)
            (javafx.scene Node Parent Scene)
            (javafx.scene.control Button ButtonBase Label ListView ProgressBar RadioButton TextArea TextField ToggleGroup)
            (javafx.scene.image ImageView Image)
-           (javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent)
+           (javafx.scene.input KeyEvent MouseEvent)
            (javafx.scene.layout HBox Priority Region StackPane VBox)
            (javafx.scene.shape Rectangle)
            (javafx.scene.text Text TextFlow)
@@ -226,94 +227,6 @@
             (recur (.getNextEntry zip))))))))
 
 ;; -----------------------------------------------------------------------------
-;; Dashboard client
-;; -----------------------------------------------------------------------------
-
-(defn- sign-in-state [^SimpleObjectProperty sign-in-state-property]
-  (.get sign-in-state-property))
-
-(defn- set-sign-in-state! [^SimpleObjectProperty sign-in-state-property sign-in-state]
-  (assert (case sign-in-state (:not-signed-in :browser-open :signed-in) true false))
-  (.set sign-in-state-property sign-in-state))
-
-(defn- make-dashboard-client [prefs]
-  (let [client (client/make-client prefs)
-        sign-in-response-server-atom (atom nil)
-        sign-in-state-property (doto (SimpleObjectProperty.)
-                                 (set-sign-in-state! (if (login/logged-in? prefs client)
-                                                       :signed-in
-                                                       :not-signed-in)))]
-    {:sign-in-response-server-atom sign-in-response-server-atom
-     :sign-in-state-property sign-in-state-property
-     :prefs prefs}))
-
-(defn- shutdown-dashboard-client! [{:keys [sign-in-response-server-atom] :as _dashboard-client}]
-  (when-some [sign-in-response-server (preset! sign-in-response-server-atom nil)]
-    (login/stop-server-now! sign-in-response-server)))
-
-(defn- restart-server! [old-sign-in-response-server client server-opts]
-  (when (some? old-sign-in-response-server)
-    (login/stop-server-now! old-sign-in-response-server))
-  (login/make-server client server-opts))
-
-(defn- begin-sign-in!
-  "If the user is already signed in, does nothing. Otherwise, open a sign-in
-  page in the system-configured web browser. Start a server that awaits the
-  oauth response redirect from the browser."
-  [{:keys [prefs sign-in-response-server-atom sign-in-state-property] :as _dashboard-client}]
-  (assert (= :not-signed-in (sign-in-state sign-in-state-property)))
-  (let [client (client/make-client prefs)]
-    (if (login/logged-in? prefs client)
-      (set-sign-in-state! sign-in-state-property :signed-in)
-      (let [server-opts {:on-success (fn [exchange-info]
-                                       (ui/run-later
-                                         (login/stop-server-soon! (preset! sign-in-response-server-atom nil))
-                                         (login/set-prefs-from-successful-login! prefs exchange-info)
-                                         (set-sign-in-state! sign-in-state-property :signed-in)))
-                         :on-error (fn [exception]
-                                     (ui/run-later
-                                       (login/stop-server-soon! (preset! sign-in-response-server-atom nil))
-                                       (set-sign-in-state! sign-in-state-property :not-signed-in)
-                                       (error-reporting/report-exception! exception)))}
-            sign-in-response-server (swap! sign-in-response-server-atom restart-server! client server-opts)
-            sign-in-page-url (login/login-page-url sign-in-response-server)]
-        (set-sign-in-state! sign-in-state-property :browser-open)
-        (ui/open-url sign-in-page-url)))))
-
-(defn- cancel-sign-in!
-  "Cancel the sign-in process and return to the :not-signed-in screen."
-  [{:keys [sign-in-response-server-atom sign-in-state-property] :as _dashboard-client}]
-  (assert (= :browser-open (sign-in-state sign-in-state-property)))
-  (login/stop-server-now! (preset! sign-in-response-server-atom nil))
-  (set-sign-in-state! sign-in-state-property :not-signed-in))
-
-(defn- copy-sign-in-url!
-  "Copy the sign-in url from the sign-in response server to the clipboard.
-  If the sign-in response server is not running, does nothing."
-  [{:keys [sign-in-response-server-atom sign-in-state-property] :as _dashboard-client} ^Clipboard clipboard]
-  (assert (= :browser-open (sign-in-state sign-in-state-property)))
-  (when-some [sign-in-response-server @sign-in-response-server-atom]
-    (let [sign-in-page-url (login/login-page-url sign-in-response-server)]
-      (.setContent clipboard (doto (ClipboardContent.)
-                               (.putString sign-in-page-url)
-                               (.putUrl sign-in-page-url))))))
-
-(defn- sign-out!
-  "Sign out the active user from the Defold dashboard."
-  [{:keys [prefs sign-in-state-property] :as _dashboard-client}]
-  (assert (= :signed-in (sign-in-state sign-in-state-property)))
-  (login/logout prefs)
-  (set-sign-in-state! sign-in-state-property :not-signed-in))
-
-(defn- compare-project-names [p1 p2]
-  (.compareToIgnoreCase ^String (:name p1) ^String (:name p2)))
-
-(defn- fetch-dashboard-projects [{:keys [prefs] :as _dashboard-client}]
-  (let [client (client/make-client prefs)]
-    (let [project-info-list (client/cr-get client ["projects" -1] Protocol$ProjectInfoList)]
-      (sort compare-project-names (:projects project-info-list)))))
-
-;; -----------------------------------------------------------------------------
 ;; Location field control
 ;; -----------------------------------------------------------------------------
 
@@ -431,9 +344,9 @@
           (ui/on-action! open-from-disk-button show-open-from-disk-dialog!))
         (ui/on-action! show-new-project-pane-button (fn [_] (show-new-project-pane!)))
         (ui/on-action! open-selected-project-button (fn [_] (open-selected-project!)))
-        (ui/bind-presence! state-empty-recent-projects-list (Bindings/isEmpty (.getItems recent-projects-list)))
-        (ui/bind-presence! state-non-empty-recent-projects-list (Bindings/isNotEmpty (.getItems recent-projects-list)))
-        (ui/bind-enabled-to-selection! open-selected-project-button recent-projects-list)
+        (b/bind-presence! state-empty-recent-projects-list (b/empty? (.getItems recent-projects-list)))
+        (b/bind-presence! state-non-empty-recent-projects-list (b/not (b/empty? (.getItems recent-projects-list))))
+        (b/bind-enabled-to-selection! open-selected-project-button recent-projects-list)
         (doto recent-projects-list
           (.setFixedCellSize 56.0)
           (ui/items! recent-projects)
@@ -493,19 +406,25 @@
 (defn- category-button->templates [category-button]
   (ui/user-data category-button :templates))
 
+(defn- new-project-screen-name
+  ^String [^ButtonBase selected-template-category-button]
+  (str "new-project-"
+       (-> (.getText selected-template-category-button)
+           (string/replace " " "-")
+           (string/lower-case))))
+
 (defn- make-new-project-pane
-  ^Parent [new-project-location-directory download-template! welcome-settings]
+  ^Parent [new-project-location-directory download-template! welcome-settings ^ToggleGroup category-buttons-toggle-group]
   (doto (ui/load-fxml "welcome/new-project-pane.fxml")
     (ui/with-controls [^ButtonBase create-new-project-button new-project-location-field ^TextField new-project-title-field template-categories ^ListVew template-list]
       (setup-location-field! new-project-location-field "Select New Project Location" new-project-location-directory)
-      (.bind (location-field-title-property new-project-location-field) (.textProperty new-project-title-field))
+      (b/bind! (location-field-title-property new-project-location-field) (.textProperty new-project-title-field))
       (doto template-list
         (ui/cell-factory! (fn [project-template]
                             {:graphic (make-template-entry project-template)})))
 
       ;; Configure template category toggle buttons.
-      (let [category-buttons-toggle-group (ToggleGroup.)
-            category-buttons (mapv make-category-button (get-in welcome-settings [:new-project :categories]))]
+      (let [category-buttons (mapv make-category-button (get-in welcome-settings [:new-project :categories]))]
 
         ;; Add the category buttons to top bar and configure them to toggle between the templates.
         (doseq [^RadioButton category-button category-buttons]
@@ -513,8 +432,10 @@
           (ui/add-child! template-categories category-button))
 
         (ui/observe (.selectedToggleProperty category-buttons-toggle-group)
-                    (fn [_ _ selected-category-button]
-                      (let [templates (category-button->templates selected-category-button)]
+                    (fn [_ old-selected-category-button new-selected-category-button]
+                      (when (some? old-selected-category-button)
+                        (analytics/track-screen! (new-project-screen-name new-selected-category-button)))
+                      (let [templates (category-button->templates new-selected-category-button)]
                         (ui/items! template-list templates)
                         (when (seq templates)
                           (ui/select-index! template-list 0)))))
@@ -529,7 +450,7 @@
                                 (ui/text! new-project-title-field selected-project-title))))
 
       ;; Configure create-new-project-button.
-      (ui/bind-enabled-to-selection! create-new-project-button template-list)
+      (b/bind-enabled-to-selection! create-new-project-button template-list)
       (ui/on-action! create-new-project-button
                      (fn [_]
                        (let [project-template (first (ui/selection template-list))
@@ -556,7 +477,7 @@
 ;; Import project pane
 ;; -----------------------------------------------------------------------------
 
-(defn- dashboard-project-name
+(defn dashboard-project-name
   ^String [dashboard-project]
   (or (not-empty (:name dashboard-project))
       "Unnamed"))
@@ -573,8 +494,8 @@
 
 (defn- make-import-project-pane
   ^Parent [new-project-location-directory clone-project! dashboard-client]
-  (doto (ui/load-fxml "welcome/import-project-pane.fxml")
-    (ui/with-controls [cancel-sign-in-button copy-sign-in-url-button create-account-button ^ListView dashboard-projects-list empty-dashboard-projects-list-text empty-dashboard-projects-list-overlay ^TextField filter-field filter-field-pane import-project-button import-project-location-field ^TextField import-project-folder-field sign-in-button state-not-signed-in state-sign-in-browser-open state-signed-in]
+  (let [import-project-pane (ui/load-fxml "welcome/import-project-pane.fxml")]
+    (ui/with-controls import-project-pane [^ListView dashboard-projects-list empty-dashboard-projects-list-text empty-dashboard-projects-list-overlay ^TextField filter-field filter-field-pane import-project-button import-project-location-field ^TextField import-project-folder-field state-signed-in]
       (let [sign-in-state-property ^SimpleObjectProperty (:sign-in-state-property dashboard-client)
             dashboard-projects-atom (atom nil)
             reload-dashboard-projects! (fn []
@@ -583,7 +504,8 @@
                                          (ui/text! filter-field "")
                                          (future
                                            (error-reporting/catch-all!
-                                             (reset! dashboard-projects-atom (fetch-dashboard-projects dashboard-client)))))
+                                             (with-open [client (client/make-client (:prefs dashboard-client))]
+                                               (reset! dashboard-projects-atom (client/fetch-projects client))))))
             refresh-dashboard-projects-list! (fn [filter-text dashboard-projects]
                                                (ui/text! empty-dashboard-projects-list-text
                                                          (if (empty? dashboard-projects)
@@ -591,27 +513,21 @@
                                                            "No matching projects."))
                                                (ui/items! dashboard-projects-list
                                                           (filter-dashboard-projects filter-text dashboard-projects)))]
+        ;; Configure sign-in UI elements.
+        (login/configure-sign-in-ui-elements! import-project-pane dashboard-client :access-projects)
 
-        ;; Show / hide various elements based on state.
-        (ui/bind-presence! state-not-signed-in (Bindings/equal :not-signed-in sign-in-state-property))
-        (ui/bind-presence! state-sign-in-browser-open (Bindings/equal :browser-open sign-in-state-property))
-        (ui/bind-presence! state-signed-in (Bindings/equal :signed-in sign-in-state-property))
-        (ui/bind-presence! filter-field-pane (Bindings/equal :signed-in sign-in-state-property))
-        (ui/bind-presence! empty-dashboard-projects-list-overlay (Bindings/isEmpty (.getItems dashboard-projects-list)))
+        ;; Show / hide various elements based on sign-in state.
+        (b/bind-presence! state-signed-in (b/= :signed-in sign-in-state-property))
+        (b/bind-presence! filter-field-pane (b/= :signed-in sign-in-state-property))
+        (b/bind-presence! empty-dashboard-projects-list-overlay (b/empty? (.getItems dashboard-projects-list)))
 
         ;; Configure location field.
         (setup-location-field! import-project-location-field "Select Import Location" new-project-location-directory)
-        (.bind (location-field-title-property import-project-location-field) (.textProperty import-project-folder-field))
-
-        ;; Configure simple button actions.
-        (ui/on-action! sign-in-button (fn [_] (begin-sign-in! dashboard-client)))
-        (ui/on-action! create-account-button (fn [_] (ui/open-url "https://www.defold.com")))
-        (ui/on-action! cancel-sign-in-button (fn [_] (cancel-sign-in! dashboard-client)))
-        (ui/on-action! copy-sign-in-url-button (fn [_] (copy-sign-in-url! dashboard-client (Clipboard/getSystemClipboard))))
+        (b/bind! (location-field-title-property import-project-location-field) (.textProperty import-project-folder-field))
 
         ;; Configure Import Project button.
         (doto import-project-button
-          (ui/bind-enabled-to-selection! dashboard-projects-list)
+          (b/bind-enabled-to-selection! dashboard-projects-list)
           (ui/on-action! (fn [_]
                            (let [dashboard-project (first (ui/selection dashboard-projects-list))
                                  project-title (:name dashboard-project)
@@ -659,11 +575,12 @@
 
         ;; Refresh the projects list whenever we sign-in.
         (ui/observe sign-in-state-property (fn [_ _ sign-in-state]
-                                         (when (= :signed-in sign-in-state) ; I.e. became :signed-in.
-                                           (reload-dashboard-projects!))))
+                                             (when (= :signed-in sign-in-state) ; I.e. became :signed-in.
+                                               (reload-dashboard-projects!))))
 
-        (when (= :signed-in (sign-in-state sign-in-state-property))
-          (reload-dashboard-projects!))))))
+        (when (= :signed-in (.get sign-in-state-property))
+          (reload-dashboard-projects!))))
+    import-project-pane))
 
 ;; -----------------------------------------------------------------------------
 ;; Automatic updates
@@ -701,6 +618,7 @@
 
 (defn- make-pane-button [label pane]
   (doto (RadioButton.)
+    (.setFocusTraversable false)
     (ui/user-data! :pane pane)
     (ui/add-style! "pane-button")
     (ui/text! label)))
@@ -731,9 +649,9 @@
     (.setVisible progress-overlay false)))
 
 (defn show-welcome-dialog!
-  ([prefs update-context open-project-fn]
-   (show-welcome-dialog! prefs update-context open-project-fn nil))
-  ([prefs update-context open-project-fn opts]
+  ([prefs dashboard-client update-context open-project-fn]
+   (show-welcome-dialog! prefs dashboard-client update-context open-project-fn nil))
+  ([prefs dashboard-client update-context open-project-fn opts]
    (let [[welcome-settings
           welcome-settings-load-error] (try
                                          [(load-welcome-settings "welcome/welcome.edn") nil]
@@ -749,7 +667,7 @@
                                           (when (fs/existing-file? project-file)
                                             (set-last-opened-project-directory! prefs (.getParentFile project-file))
                                             (ui/close! stage)
-                                            (analytics/track-event "welcome" "open-project" "")
+                                            (analytics/track-event! "welcome" "open-project")
                                             ;; NOTE: Old comment copied from old open-welcome function in boot.clj
                                             ;; We load the project in the same class-loader as welcome is loaded from.
                                             ;; In other words, we can't reuse the welcome page and it has to be closed.
@@ -762,7 +680,7 @@
                                 progress-bar (show-progress! root (str "Downloading " project-title) "Cancel Download" #(reset! cancelled-atom true))
                                 progress-monitor (git/make-clone-monitor progress-bar cancelled-atom)
                                 credentials (git/credentials prefs)]
-                            (analytics/track-event "welcome" "clone-project" "")
+                            (analytics/track-event! "welcome" "clone-project")
                             (future
                               (try
                                 (git/clone! credentials repository-url dest-directory progress-monitor)
@@ -784,7 +702,7 @@
                                                           (let [progress (/ (double done) (double total))]
                                                             (ui/run-later
                                                               (.setProgress progress-bar progress)))))]
-                                (analytics/track-event "welcome" "download-template" template-title)
+                                (analytics/track-event! "welcome" "download-template" template-title)
                                 (future
                                   (try
                                     (if-some [template-zip-file (download-proj-zip! zip-url progress-callback cancelled-atom)]
@@ -804,30 +722,48 @@
                                         (hide-progress! root)
                                         (cond
                                           (instance? UnknownHostException error)
-                                          (dialogs/make-message-box "No Internet Connection"
-                                                                    "You must be connected to the internet to download project content.")
+                                          (dialogs/make-error-dialog "No Internet Connection"
+                                                                     "You must be connected to the internet to download project content.")
 
                                           (instance? SocketException error)
-                                          (dialogs/make-message-box "Host Unreachable"
-                                                                    "A firewall might be blocking network connections.")
+                                          (dialogs/make-error-dialog "Host Unreachable"
+                                                                     "A firewall might be blocking network connections."
+                                                                     (.getMessage error))
 
                                           (instance? SocketTimeoutException error)
-                                          (dialogs/make-message-box "Host Not Responding"
-                                                                    "The connection timed out.")
+                                          (dialogs/make-error-dialog "Host Not Responding"
+                                                                     "The connection timed out."
+                                                                     (.getMessage error))
+
+                                          (instance? SSLException error)
+                                          (dialogs/make-error-dialog "SSL Connection Error"
+                                                                     (str "Could not establish an SSL connection. Common causes are:\n"
+                                                                          "\u00A0\u00A0\u2022\u00A0 Antivirus software configured to scan encrypted connections\n"
+                                                                          "\u00A0\u00A0\u2022\u00A0 Expired or misconfigured server certificate\n"
+                                                                          "\u00A0\u00A0\u2022\u00A0 Untrusted server certificate\n"
+                                                                          "\n"
+                                                                          "The following FAQ may apply:\n"
+                                                                          "[PKIX path building failed](https://github.com/defold/editor2-issues/blob/master/faq/pkixpathbuilding.md)")
+                                                                     (string/replace (.getMessage error) ": " ":\n\u00A0\u00A0"))
+
                                           :else
                                           (error-reporting/report-exception! error))))))))
-         dashboard-client (make-dashboard-client prefs)
-         sign-in-state-property ^SimpleObjectProperty (:sign-in-state-property dashboard-client)
          left-pane (.lookup root "#left-pane")
          pane-buttons-container (.lookup left-pane "#pane-buttons-container")
          sign-out-button (.lookup left-pane "#sign-out-button")
          update-link (.lookup left-pane "#update-link")
          pane-buttons-toggle-group (ToggleGroup.)
-         new-project-pane-button (make-pane-button "NEW PROJECT" (make-new-project-pane new-project-location-directory download-template! welcome-settings))
+         template-category-buttons-toggle-group (ToggleGroup.)
+         new-project-pane-button (make-pane-button "NEW PROJECT" (make-new-project-pane new-project-location-directory download-template! welcome-settings template-category-buttons-toggle-group))
          show-new-project-pane! (fn [] (.selectToggle pane-buttons-toggle-group new-project-pane-button))
          home-pane-button (make-pane-button "HOME" (make-home-pane last-opened-project-directory show-new-project-pane! close-dialog-and-open-project! recent-projects))
          import-project-button (make-pane-button "IMPORT PROJECT" (make-import-project-pane new-project-location-directory clone-project! dashboard-client))
-         pane-buttons [home-pane-button new-project-pane-button import-project-button]]
+         pane-buttons [home-pane-button new-project-pane-button import-project-button]
+         screen-name (fn [selected-pane-button selected-template-category-button]
+                       (condp = selected-pane-button
+                         home-pane-button "home"
+                         import-project-button "import-project"
+                         new-project-pane-button (new-project-screen-name selected-template-category-button)))]
 
      ;; Add Defold logo SVG paths.
      (doseq [pane (map pane-button->pane pane-buttons)]
@@ -836,8 +772,9 @@
      ;; Make ourselves the main stage.
      (ui/set-main-stage stage)
 
-     ;; Ensure any server started by the dashboard client is shut down when the stage is closed.
-     (ui/on-closed! stage (fn [_] (shutdown-dashboard-client! dashboard-client)))
+     ;; If a sign-in was initiated but never completed, make sure we start from
+     ;; the beginning on successive sign-in attempts.
+     (ui/on-closed! stage (fn [_] (login/abort-incomplete-sign-in! dashboard-client)))
 
      ;; Install pending update check.
      (when (some? update-context)
@@ -849,8 +786,10 @@
        (ui/add-child! pane-buttons-container pane-button))
 
      (ui/observe (.selectedToggleProperty pane-buttons-toggle-group)
-                 (fn [_ _ selected-pane-button]
-                   (let [pane (pane-button->pane selected-pane-button)]
+                 (fn [_ old-selected-pane-button new-selected-pane-button]
+                   (when (some? old-selected-pane-button)
+                     (analytics/track-screen! (screen-name new-selected-pane-button (.getSelectedToggle template-category-buttons-toggle-group))))
+                   (let [pane (pane-button->pane new-selected-pane-button)]
                      (ui/with-controls root [dialog-contents]
                        (ui/children! dialog-contents [left-pane pane])))))
 
@@ -858,9 +797,7 @@
      (.selectToggle pane-buttons-toggle-group home-pane-button)
 
      ;; Configure the sign-out button.
-     (doto sign-out-button
-       (ui/bind-presence! (Bindings/equal :signed-in sign-in-state-property))
-       (ui/on-action! (fn [_] (sign-out! dashboard-client))))
+     (login/configure-sign-out-button! sign-out-button dashboard-client)
 
      ;; Apply opts if supplied.
      (when-some [{:keys [x y pane-index]} opts]
@@ -876,7 +813,7 @@
                                   (when (and (.isShortcutDown key-event)
                                              (= "r" (.getText key-event)))
                                     (ui/close! stage)
-                                    (show-welcome-dialog! prefs update-context open-project-fn
+                                    (show-welcome-dialog! prefs dashboard-client update-context open-project-fn
                                                           {:x (.getX stage)
                                                            :y (.getY stage)
                                                            :pane-index (first (keep-indexed (fn [pane-index pane-button]
@@ -912,6 +849,7 @@
                                              (.positionCaret 0))]))))
 
      ;; Show the dialog.
-     (analytics/track-event "welcome" "show-welcome" "")
+     (analytics/track-event! "welcome" "show-welcome")
+     (analytics/track-screen! (screen-name (.getSelectedToggle pane-buttons-toggle-group) (.getSelectedToggle template-category-buttons-toggle-group)))
      (.setScene stage scene)
      (ui/show! stage))))

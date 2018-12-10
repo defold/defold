@@ -1,13 +1,13 @@
 (ns editor.boot
   (:require
    [clojure.java.io :as io]
-   [clojure.java.shell :as shell]
    [clojure.stacktrace :as stack]
-   [clojure.string :as string]
    [clojure.tools.cli :as cli]
+   [editor.analytics :as analytics]
    [editor.code.view :as code-view]
    [editor.dialogs :as dialogs]
    [editor.error-reporting :as error-reporting]
+   [editor.login :as login]
    [editor.gl :as gl]
    [editor.prefs :as prefs]
    [editor.progress :as progress]
@@ -15,9 +15,10 @@
    [editor.ui :as ui]
    [editor.updater :as updater]
    [editor.welcome :as welcome]
-   [service.log :as log])
+   [service.log :as log]
+   [util.repo :as repo])
   (:import
-   [java.io IOException]
+   [com.defold.editor Shutdown]
    [java.util Arrays]
    [javax.imageio ImageIO]))
 
@@ -47,7 +48,7 @@
     (require 'editor.boot-open-project)))
 
 (defn- open-project-with-progress-dialog
-  [namespace-loader prefs project update-context newly-created?]
+  [namespace-loader prefs project dashboard-client update-context newly-created?]
   (ui/modal-progress
    "Loading project"
    (fn [render-progress!]
@@ -61,35 +62,26 @@
        (code-view/initialize! prefs)
        (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [])
        (welcome/add-recent-project! prefs project-file)
-       (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-project-progress! update-context newly-created?])
+       (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-project-progress! dashboard-client update-context newly-created?])
        (reset! namespace-progress-reporter nil)))))
 
 (defn- select-project-from-welcome
-  [namespace-loader prefs update-context]
+  [namespace-loader prefs dashboard-client update-context]
   (ui/run-later
-    (welcome/show-welcome-dialog! prefs update-context
+    (welcome/show-welcome-dialog! prefs dashboard-client update-context
                                   (fn [project newly-created?]
-                                    (open-project-with-progress-dialog namespace-loader prefs project update-context newly-created?)))))
+                                    (open-project-with-progress-dialog namespace-loader prefs project dashboard-client update-context newly-created?)))))
 
 (defn notify-user
   [ex-map sentry-id-promise]
   (when (.isShowing (ui/main-stage))
     (ui/run-now
-      (dialogs/make-error-dialog ex-map sentry-id-promise))))
-
-(defn- try-shell-command! [command & args]
-  (try
-    (let [{:keys [out err]} (apply shell/sh command args)]
-      (when (empty? err)
-        (string/trim-newline out)))
-    (catch IOException _
-      ;; The specified command does not exist.
-      nil)))
+      (dialogs/make-unexpected-error-dialog ex-map sentry-id-promise))))
 
 (defn- set-sha1-revisions-from-repo! []
   ;; Use the sha1 of the HEAD commit as the editor revision.
   (when (empty? (system/defold-editor-sha1))
-    (when-some [editor-sha1 (try-shell-command! "git" "rev-list" "-n" "1" "HEAD")]
+    (when-some [editor-sha1 (repo/detect-editor-sha1)]
       (system/set-defold-editor-sha1! editor-sha1)))
 
   ;; Try to find the engine revision by looking at the VERSION file in the root
@@ -97,9 +89,8 @@
   ;; will correspond to a Git tag. If the tag is present, it will point to the
   ;; engine revision. This is required when building native extensions.
   (when (empty? (system/defold-engine-sha1))
-    (let [version (string/trim-newline (slurp "../VERSION"))]
-      (when-some [engine-sha1 (try-shell-command! "git" "rev-list" "-n" "1" version)]
-        (system/set-defold-engine-sha1! engine-sha1)))))
+    (when-some [engine-sha1 (repo/detect-engine-sha1)]
+      (system/set-defold-engine-sha1! engine-sha1))))
 
 (defn disable-imageio-cache!
   []
@@ -129,11 +120,17 @@
         prefs (if-let [prefs-path (get-in opts [:options :preferences])]
                 (prefs/load-prefs prefs-path)
                 (prefs/make-prefs "defold"))
-        update-context (:update-context (updater/start!))]
+        dashboard-client (login/make-dashboard-client prefs)
+        update-context (:update-context (updater/start!))
+        analytics-url "https://www.google-analytics.com/batch"
+        analytics-send-interval 300
+        invalidate-analytics-uid? (not (login/signed-in? dashboard-client))]
+    (analytics/start! analytics-url analytics-send-interval invalidate-analytics-uid?)
+    (Shutdown/addShutdownAction analytics/shutdown!)
     (try
       (if-let [game-project-path (get-in opts [:arguments 0])]
-        (open-project-with-progress-dialog namespace-loader prefs game-project-path update-context false)
-        (select-project-from-welcome namespace-loader prefs update-context))
+        (open-project-with-progress-dialog namespace-loader prefs game-project-path dashboard-client update-context false)
+        (select-project-from-welcome namespace-loader prefs dashboard-client update-context))
       (catch Throwable t
         (log/error :exception t)
         (stack/print-stack-trace t)

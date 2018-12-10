@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <assert.h>
 
+#include <dlib/align.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -300,7 +301,7 @@ namespace dmGameSystem
         }
 
         const uint32_t buffer_size = 4096;
-        uint8_t buffer[buffer_size];
+        uint8_t DM_ALIGNED(16) buffer[buffer_size];
         uint32_t buffer_pos = 0;
 
         dmGameObject::InstancePropertyBuffers prop_bufs;
@@ -326,7 +327,8 @@ namespace dmGameSystem
                     dmGameObject::InstancePropertyBuffer buf;
                     buf.property_buffer = buffer + buffer_pos;
                     buf.property_buffer_size = size;
-                    buffer_pos = buffer_pos + size;
+                    buffer_pos = DM_ALIGN(buffer_pos + size, 16);
+                    assert((buffer_pos&15)==0); // Making sure the start of the buffer is always aligned
 
                     prop_bufs.Put(instance_id, buf);
                     lua_pop(L, 1);

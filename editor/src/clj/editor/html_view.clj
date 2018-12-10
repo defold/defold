@@ -193,9 +193,9 @@
   [^WebEngine web-engine]
   (let [load-worker (.getLoadWorker web-engine)]
     (when-some [ex (.getException load-worker)]
-      (dialogs/make-alert-dialog (str (.getMessage load-worker)
-                                      ": "
-                                      (.getMessage ex))))))
+      (dialogs/make-error-dialog "Could not load page"
+                                 (.getMessage load-worker)
+                                 (.getMessage ex)))))
 
 (g/defnode WebViewNode
   (inherits view/WorkbenchView)

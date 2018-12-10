@@ -1,14 +1,18 @@
 (ns editor.console
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
-            [editor.code.util :refer [split-lines]]
+            [editor.code.util :refer [re-match-result-seq split-lines]]
             [editor.code.view :as view]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.resource :as resource]
             [editor.ui :as ui]
+            [editor.workspace :as workspace]
             [util.thread-util :refer [preset!]])
   (:import (editor.code.data Cursor CursorRange LayoutInfo Rect)
+           (java.util.regex MatchResult)
            (javafx.beans.property SimpleStringProperty)
            (javafx.scene Parent Scene)
            (javafx.scene.canvas Canvas GraphicsContext)
@@ -299,38 +303,84 @@
       (g/connect console-node :regions view-node :regions)))
   view-node)
 
-(defn- make-region
-  ^CursorRange [^long row [type line]]
+(def ^:private line-sub-regions-pattern #"(?<=^|\s|[<\"'`])(\/[^\s>\"'`:]+)(?::?)(\d+)?")
+
+(defn- make-resource-reference-region
+  ([row start-col end-col resource-proj-path on-click!]
+   (assert (string? (not-empty resource-proj-path)))
+   (assert (ifn? on-click!))
+   (assoc (data/->CursorRange (data/->Cursor row start-col)
+                              (data/->Cursor row end-col))
+     :type :resource-reference
+     :proj-path resource-proj-path
+     :on-click! on-click!))
+  ([row start-col end-col resource-proj-path resource-row on-click!]
+   (assert (integer? resource-row))
+   (assert (not (neg? ^long resource-row)))
+   (assoc (make-resource-reference-region row start-col end-col resource-proj-path on-click!)
+     :row resource-row)))
+
+(defn- make-line-sub-regions [resource-map on-region-click! row line]
+  (keep (fn [^MatchResult result]
+          (let [resource-proj-path (.group result 1)]
+            (when (contains? resource-map resource-proj-path)
+              (let [resource-row (some-> (.group result 2) Long/parseUnsignedLong)
+                    start-col (.start result)
+                    end-col (if (string/ends-with? (.group result) ":")
+                              (dec (.end result))
+                              (.end result))]
+                (if (nil? resource-row)
+                  (make-resource-reference-region row start-col end-col resource-proj-path on-region-click!)
+                  (make-resource-reference-region row start-col end-col resource-proj-path (dec (long resource-row)) on-region-click!))))))
+        (re-match-result-seq line-sub-regions-pattern line)))
+
+(defn- make-line-regions [resource-map on-region-click! ^long row [type line]]
   (assert (keyword? type))
   (assert (string? line))
-  (assoc (data/->CursorRange (data/->Cursor row 0)
-                             (data/->Cursor row (count line)))
-    :type type))
+  (cons (assoc (data/->CursorRange (data/->Cursor row 0)
+                                   (data/->Cursor row (count line)))
+          :type type)
+        (make-line-sub-regions resource-map on-region-click! row line)))
 
-(defn- append-distinct-lines [{:keys [lines regions] :as props} entries]
-  (merge props (data/append-distinct-lines lines regions (mapv second entries))))
+(defn- append-distinct-lines [{:keys [lines regions] :as props} entries resource-map on-region-click!]
+  (merge props
+         (data/append-distinct-lines lines regions
+                                     (mapv second entries)
+                                     (partial make-line-sub-regions resource-map on-region-click!))))
 
-(defn- append-regioned-lines [{:keys [lines regions] :as props} entries]
+(defn- append-regioned-lines [{:keys [lines regions] :as props} entries resource-map on-region-click!]
   (assoc props
     :lines (into lines (map second) entries)
-    :regions (into regions (map make-region (iterate inc (count lines)) entries))))
+    :regions (into regions
+                   (mapcat (partial make-line-regions resource-map on-region-click!)
+                           (iterate inc (count lines))
+                           entries))))
 
-(defn- repaint-console-view! [view-node elapsed-time]
+(defn- append-entries [props entries resource-map on-region-click!]
+  (assert (map? props))
+  (assert (vector? (not-empty (:lines props))))
+  (assert (vector? (:regions props)))
+  (reduce (fn [props entries]
+            (if (nil? (ffirst entries))
+              (append-distinct-lines props entries resource-map on-region-click!)
+              (append-regioned-lines props entries resource-map on-region-click!)))
+          props
+          (partition-by #(nil? (first %)) entries)))
+
+(defn- repaint-console-view! [view-node workspace on-region-click! elapsed-time]
   (let [{:keys [clear? entries]} (flip-pending!)]
     (when (or clear? (seq entries))
-      (let [^LayoutInfo prev-layout (g/node-value view-node :layout)
+      (let [resource-map (g/node-value workspace :resource-map)
+            ^LayoutInfo prev-layout (g/node-value view-node :layout)
             prev-lines (g/node-value view-node :lines)
+            prev-regions (g/node-value view-node :regions)
             prev-document-width (if clear? 0.0 (.document-width prev-layout))
             appended-width (data/max-line-width (.glyph prev-layout) (.tab-stops prev-layout) (mapv second entries))
             document-width (max prev-document-width ^double appended-width)
             was-scrolled-to-bottom? (data/scrolled-to-bottom? prev-layout (count prev-lines))
-            props (reduce (fn [props entries]
-                            (if (nil? (ffirst entries))
-                              (append-distinct-lines props entries)
-                              (append-regioned-lines props entries)))
-                          {:lines (if clear? [""] prev-lines)
-                           :regions (if clear? [] (g/node-value view-node :regions))}
-                          (partition-by #(nil? (first %)) entries))]
+            props (append-entries {:lines (if clear? [""] prev-lines)
+                                   :regions (if clear? [] prev-regions)}
+                                  entries resource-map on-region-click!)]
         (view/set-properties! view-node nil
                               (cond-> (assoc props :document-width document-width)
                                       was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
@@ -370,7 +420,7 @@
        ["editor.selection.background.inactive" (.interpolate selection-background-color background-color 0.25)]
        ["editor.selection.occurrence.outline" (Color/valueOf "#A2B0BE")]])))
 
-(defn make-console! [graph ^Tab console-tab ^GridPane console-grid-pane]
+(defn make-console! [graph workspace ^Tab console-tab ^GridPane console-grid-pane open-resource-fn]
   (let [^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
         canvas (Canvas. (.getWidth canvas-pane) (.getHeight canvas-pane))
         view-node (setup-view! (g/make-node! graph ConsoleNode)
@@ -385,9 +435,17 @@
                                              :line-height-factor 1.2
                                              :resize-reference :bottom))
         tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-tool-bar") view-node)
+        on-region-click! (fn on-region-click! [region]
+                           (when (= :resource-reference (:type region))
+                             (let [resource (workspace/find-resource workspace (:proj-path region))]
+                               (when (and (resource/openable-resource? resource)
+                                          (resource/exists? resource))
+                                 (let [opts (when-some [row (:row region)]
+                                              {:line (inc (long row))})]
+                                   (open-resource-fn resource opts))))))
         repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time]
                                                        (when (and (.isSelected console-tab) (not (ui/ui-disabled?)))
-                                                         (repaint-console-view! view-node elapsed-time))))
+                                                         (repaint-console-view! view-node workspace on-region-click! elapsed-time))))
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :term-field (.lookup tool-bar "#search-console")
                      :view-node view-node}]
