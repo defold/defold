@@ -177,7 +177,7 @@ def model_file(self, node):
     task.set_outputs([out_model, out_rigscene])
 
 
-Task.simple_task_type('vertexshader', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.VertexProgramBuilder ${SRC} ${TGT} --platform ${PLATFORM}',
+Task.simple_task_type('vertexshader', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.VertexProgramBuilder ${SRC} ${TGT} --platform ${BOB_BUILD_PLATFORM}',
                       color='PINK',
                       after='proto_gen_py',
                       before='cc cxx',
@@ -193,7 +193,7 @@ def vertexprogram_file(self, node):
     out = node.change_ext(obj_ext)
     shader.set_outputs(out)
 
-Task.simple_task_type('fragmentshader', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.FragmentProgramBuilder ${SRC} ${TGT} --platform ${PLATFORM}',
+Task.simple_task_type('fragmentshader', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.FragmentProgramBuilder ${SRC} ${TGT} --platform ${BOB_BUILD_PLATFORM}',
                       color='PINK',
                       after='proto_gen_py',
                       before='cc cxx',
