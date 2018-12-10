@@ -17,8 +17,8 @@ void main()
 
     lowp float sdf_edge      = var_sdf_params.x;
     lowp float sdf_outline   = var_sdf_params.y;
-    lowp float sdf_smoothing = var_sdf_params.z;
-    lowp float sdf_shadow    = var_sdf_params.w;
+    lowp float sdf_shadow    = var_sdf_params.z;
+    lowp float sdf_smoothing = var_sdf_params.w;
 
     // If there is no blur, the shadow should behave in the same way as the outline.
     lowp float sdf_shadow_as_outline = floor(sdf_shadow);
@@ -32,6 +32,6 @@ void main()
     shadow_alpha = mix(shadow_alpha,outline_alpha,sdf_shadow_as_outline);
 
     gl_FragColor = face_alpha * var_face_color * var_layer_mask.x +
-                   outline_alpha * var_outline_color * var_layer_mask.y * (1.0 - face_alpha * sdf_is_single_layer) +
-                   shadow_alpha * var_shadow_color * var_layer_mask.z * (1.0 - min(1.0,outline_alpha + face_alpha) * sdf_is_single_layer);
+        outline_alpha * var_outline_color * var_layer_mask.y * (1.0 - face_alpha * sdf_is_single_layer) +
+        shadow_alpha * var_shadow_color * var_layer_mask.z * (1.0 - min(1.0,outline_alpha + face_alpha) * sdf_is_single_layer);
 }

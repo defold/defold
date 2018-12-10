@@ -577,7 +577,6 @@ namespace dmRender
         const Vectormath::Aos::Vector4 r0 = te.m_Transform.getRow(0);
         const float sdf_edge_value = 0.75f;
         float sdf_world_scale = sqrtf(r0.getX() * r0.getX() + r0.getY() * r0.getY());
-        float sdf_scale   = font_map->m_SdfSpread;
         float sdf_outline = font_map->m_SdfOutline;
         float sdf_shadow  = font_map->m_SdfShadow;
         // For anti-aliasing, 0.25 represents the single-axis radius of half a pixel.
@@ -724,8 +723,8 @@ namespace dmRender
                             v.m_ShadowColor = shadow_color; \
                             v.m_SdfParams[0] = sdf_edge_value; \
                             v.m_SdfParams[1] = sdf_outline; \
-                            v.m_SdfParams[2] = sdf_smoothing; \
-                            v.m_SdfParams[3] = sdf_shadow;
+                            v.m_SdfParams[2] = sdf_shadow; \
+                            v.m_SdfParams[3] = sdf_smoothing;
 
                         SET_VERTEX_PARAMS(v1_layer_face)
                         SET_VERTEX_PARAMS(v2_layer_face)
