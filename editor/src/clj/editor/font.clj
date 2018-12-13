@@ -50,6 +50,11 @@
                                        :max 1.0
                                        :precision 0.01})
 
+(def ^:private shadows-outline-slider-edit-type {:type :slider
+                                       :min 0.0
+                                       :max 64.0
+                                       :precision 1.0})
+
 (vtx/defvertex ^:no-put DefoldVertex
   (vec3 position)
   (vec2 texcoord0)
@@ -589,14 +594,16 @@
             (dynamic edit-type (g/constantly alpha-slider-edit-type)))
   (property outline-width g/Num
             (dynamic visible output-format-defold-or-distance-field?)
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? outline-width)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? outline-width))
+            (dynamic edit-type (g/constantly shadows-outline-slider-edit-type)))
   (property shadow-alpha g/Num
             (dynamic visible output-format-defold-or-distance-field?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? shadow-alpha))
             (dynamic edit-type (g/constantly alpha-slider-edit-type)))
   (property shadow-blur g/Num
             (dynamic visible output-format-defold-or-distance-field?)
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? shadow-blur)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? shadow-blur))
+            (dynamic edit-type (g/constantly shadows-outline-slider-edit-type)))
   (property shadow-x g/Num
             (dynamic visible output-format-defold-or-distance-field?))
   (property shadow-y g/Num
