@@ -484,7 +484,6 @@
   (property tool-picking-rect Rect)
   (property list ListView)
   (property hidden-curves g/Any)
-  (property tool-user-data g/Any (default (atom [])))
   (property input-action-queue g/Any (default []))
   (property updatable-states g/Any (default (atom {})))
 

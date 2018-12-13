@@ -9,7 +9,7 @@
 <?import javafx.scene.image.Image?>
 <?import javafx.scene.layout.*?>
 
-<StackPane id="welcome-dialog" maxHeight="672" maxWidth="1000" minHeight="672" minWidth="1000" prefHeight="672" prefWidth="1000" stylesheets="/editor.css" xmlns="http://javafx.com/javafx/8">
+<StackPane id="welcome-dialog" styleClass="df-style" maxHeight="672" maxWidth="1000" minHeight="672" minWidth="1000" prefHeight="672" prefWidth="1000" stylesheets="/editor.css" xmlns="http://javafx.com/javafx/8">
     <HBox id="dialog-contents">
         <VBox id="left-pane">
             <VBox styleClass="defold-logo">
@@ -18,12 +18,12 @@
                 </ImageView>
             </VBox>
             <VBox id="pane-buttons-container" VBox.vgrow="ALWAYS" />
-            <Hyperlink id="update-link" text="Update Available" maxWidth="1000" alignment="CENTER" visible="false">
+            <Hyperlink id="update-link" text="Update Available" maxWidth="1000" alignment="CENTER" visible="false" focusTraversable="false">
                 <VBox.margin>
                     <Insets bottom="28" />
                 </VBox.margin>
             </Hyperlink>
-            <Button id="sign-out-button" text="Sign Out" styleClass="df-button, dim" maxWidth="1000" minHeight="30">
+            <Button id="sign-out-button" text="Sign Out" styleClass="df-button, dim" maxWidth="1000" minHeight="30" focusTraversable="false">
                 <VBox.margin>
                     <Insets bottom="24" left="19" right="19" />
                 </VBox.margin>
@@ -37,7 +37,7 @@
             <VBox alignment="CENTER">
                 <Label id="progress-header" text="Downloading Project" />
                 <ProgressBar id="progress-bar" maxWidth="1.7976931348623157E308" />
-                <Button id="progress-cancel-button" styleClass="df-button" text="Cancel Download" />
+                <Button id="progress-cancel-button" styleClass="df-button" text="Cancel Download" focusTraversable="false" />
             </VBox>
         </VBox>
     </StackPane>

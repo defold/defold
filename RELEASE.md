@@ -11,6 +11,8 @@ Alpha channel is automatically released when [cr-editor-dev](http://ci.defold.co
 ## Beta
 Important: *Make sure your branches are up to date!*
 
+ 1. If there is a pending Native Extension server change, [publish the stage server](https://github.com/defold/extender#releasing), which updates https://build-stage.defold.com
+
  1. Make sure dev is up to date:
 
         $ git checkout dev
@@ -35,7 +37,9 @@ Important: *Make sure your branches are up to date!*
  1. (Optional) Download and run beta:
 
     http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-darwin.dmg
+
     http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-win32.zip
+
     http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-linux.zip
 
     http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-macosx.cocoa.x86_64.dmg
@@ -55,7 +59,7 @@ Important: *Make sure your branches are up to date!*
 
     Important: *Make sure the SHA1 and channel is correct!*
 
- 1. Build QRT test apps on [Jenkins](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/).
+ 1. Build QRT test apps on [Jenkins](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt_pipeline/) ([old link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/)).
 
     Log in and open "Build with Parameters"
 
@@ -78,7 +82,7 @@ When the beta has been released the following apps needs to be bundled and sent 
 * BBS - iOS, Android, desktops
 * Presto - iOS, Android
 
-Here is a [Jenkins link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/) to a build job that can do this for you. It uploads to [MBDL/DefoldQRT](https://mbdl3.midasplayer.com/#/builds/DefoldQRT)
+Here is a [Jenkins](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt_pipeline/) ([old link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/)) to a build job that can do this for you. It uploads to [MBDL/DefoldQRT](https://mbdl3.midasplayer.com/#/builds/DefoldQRT)
 
 You can also download desktop and html5 versions from the artifacts on that page.
 
@@ -107,7 +111,9 @@ The following smoke tests are currently performed by the team on each platform (
  1. Fetch editor via:
 
     http://d.defold.com/editor2/`STABLE-SHA1`/editor2/Defold-x86_64-darwin.dmg
+
     http://d.defold.com/editor2/`STABLE-SHA1`/editor2/Defold-x86_64-win32.zip
+
     http://d.defold.com/editor2/`STABLE-SHA1`/editor2/Defold-x86_64-linux.zip
 
     http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-macosx.cocoa.x86_64.dmg
@@ -126,14 +132,18 @@ The following smoke tests are currently performed by the team on each platform (
 
 ### Publishing Stable Release
 
-1. If everything is OK, time to release stable:
+1. If everything is OK, time to release stable
+1. If there is a pending Native Extension server change, [publish the production server](https://github.com/defold/extender#releasing), which updates https://build.defold.com
+1. Next, release the stable engine/editor:
 
         $ ./scripts/build.py release
     Important: *Make sure the SHA1 and channel is correct!*
 
-1. Verify release by updating an old editor, OSX, Win and Linux.
-1. Publish latest documentation by logging into http://www.defold.com/ref/update/latest
-1. Post release notes on forum.defold.com and send notification email to defold-users@king.com and releasenotification@king.com
+1. Verify release by updating an old editor, OSX, Win and Linux. (Currently a bit deprecated workflow, since noone uses editor-stable)
+1. Publish latest API documentation by logging into http://www.defold.com/ref/update/latest
+1. If there are Documentation changes pending, public those according to [the Documentation repo](https://github.com/defold/doc#build-and-publish)
+1. Send notification email to defold-users@king.com and releasenotification@king.com
+1. Post release notes on forum.defold.com
 1. Post release notes on http://www.defold.com/admin/base/releasenote/
 
 1. Merge master into dev
@@ -151,4 +161,4 @@ The following smoke tests are currently performed by the team on each platform (
         > Message: "Bumped version to 1.2.xx"
         $ git push
 
-
+1. Tell the editor team to update and release the Editor 2

@@ -1385,7 +1385,10 @@ static GLboolean processSingleEvent( void )
     return GL_FALSE;
 }
 
-
+int _glfwPlatformGetWindowRefreshRate()
+{
+    return _glfwWin.refreshRate;
+}
 
 //************************************************************************
 //****               Platform implementation functions                ****

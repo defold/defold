@@ -15,7 +15,8 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [util.murmur :as murmur]
-            [integration.test-util :refer [with-loaded-project] :as test-util])
+            [integration.test-util :refer [with-loaded-project] :as test-util]
+            [editor.settings-core :as settings-core])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesystem.proto GameSystem$CollectionProxyDesc]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
@@ -425,12 +426,18 @@
         (is (instance? internal.graph.error_values.ErrorValue (:error build-results)))))))
 
 (deftest build-font
-  (testing "Building font"
+  (testing "Building TTF font"
     (with-build-results "/fonts/score.font"
       (let [content (get content-by-source "/fonts/score.font")
-            desc    (protobuf/bytes->map Font$FontMap content)]
+            desc (protobuf/bytes->map Font$FontMap content)]
         (is (= 1024 (:cache-width desc)))
-        (is (= 256 (:cache-height desc)))))))
+        (is (= 256 (:cache-height desc))))))
+  (testing "Building BMFont"
+    (with-build-results "/fonts/gradient.font"
+      (let [content (get content-by-source "/fonts/gradient.font")
+            desc (protobuf/bytes->map Font$FontMap content)]
+        (is (= 1024 (:cache-width desc)))
+        (is (= 512 (:cache-height desc)))))))
 
 (deftest build-script
   (testing "Buildling a valid script succeeds"
@@ -593,6 +600,62 @@
           _                   (g/set-property! atlas-resource-node :inner-padding -42)
           build-results       (project-build project resource-node (g/make-evaluation-context))]
       (is (instance? internal.graph.error_values.ErrorValue (:error build-results))))))
+
+(defn- check-project-setting [properties path expected-value]
+  (let [value (settings-core/get-setting properties path)]
+    (is (= expected-value value))))
+
+(deftest build-game-project-with-buildtime-conversion
+  (with-loaded-project "test/resources/buildtime_conversion"
+    (let [game-project (test-util/resource-node project "/game.project")]
+     (let [br (project-build project game-project (g/make-evaluation-context))]
+       (is (not (contains? br :error)))
+       (with-open [r (io/reader (build-path workspace "game.projectc"))]
+         (let [built-properties (settings-core/parse-settings r)]
+
+           ;; Check build-time conversion has taken place
+           ;; Having 'variable_dt' checked should map to 'vsync' 0 and 'update_frequency' 0
+           (check-project-setting built-properties ["display" "variable_dt"] "1")
+           (check-project-setting built-properties ["display" "vsync"] "0")
+           (check-project-setting built-properties ["display" "update_frequency"] "0")))))))
+
+(deftest build-game-project-properties
+  (with-loaded-project "test/resources/game_project_properties"
+                       (let [game-project (test-util/resource-node project "/game.project")]
+                         (let [br (project-build project game-project (g/make-evaluation-context))]
+                           (is (not (contains? br :error)))
+                           (with-open [r (io/reader (build-path workspace "game.projectc"))]
+                             (let [built-properties (settings-core/parse-settings r)]
+
+                               ;; Overwrite default value
+                               (check-project-setting built-properties ["project" "title"] "Game Project Properties")
+
+                               ;; Non existent property
+                               (check-project-setting built-properties ["project" "doesn't_exist"] nil)
+
+                               ;; Default boolean value
+                               (check-project-setting built-properties ["script" "shared_state"] "0")
+
+                               ;; Default number value
+                               (check-project-setting built-properties ["display" "width"] "960")
+
+                               ;; Custom property
+                               (check-project-setting built-properties ["custom" "love"] "defold")
+
+                               ;; project.dependencies entry should be removed
+                               (check-project-setting built-properties ["project" "dependencies"] nil)
+
+                               ;; Compiled resource
+                               (check-project-setting built-properties ["display" "display_profiles"] "/builtins/render/default.display_profilesc")
+
+                               ;; Copy-only resource
+                               (check-project-setting built-properties ["osx" "infoplist"] "/builtins/manifests/osx/Info.plist")
+
+                               ;; Check so that empty defaults are not included
+                               (check-project-setting built-properties ["tracking" "app_id"] nil)
+
+                               ;; Check so empty custom properties are included as empty strings
+                               (check-project-setting built-properties ["custom" "should_be_empty"] "")))))))
 
 (defmacro with-setting [path value & body]
   ;; assumes game-project in scope

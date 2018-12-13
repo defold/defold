@@ -56,6 +56,11 @@ void _glfwPlatformCloseWindow( void )
 {
 }
 
+int _glfwPlatformGetWindowRefreshRate()
+{
+    return 0;
+}
+
 int _glfwPlatformGetDefaultFramebuffer( )
 {
     return 0;

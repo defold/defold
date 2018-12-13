@@ -10,10 +10,10 @@ uniform lowp vec4 texture_size_recip;
 
 void main()
 {
-    lowp vec4 sample = texture2D(texture, var_texcoord0);
+    mediump vec4 sample = texture2D(texture, var_texcoord0);
 
-    lowp float distance        = sample.x;
-    lowp float distance_shadow = sample.z;
+    mediump float distance        = sample.x;
+    mediump float distance_shadow = sample.z;
 
     lowp float sdf_edge      = var_sdf_params.x;
     lowp float sdf_outline   = var_sdf_params.y;

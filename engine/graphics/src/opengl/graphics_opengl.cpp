@@ -758,6 +758,15 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             return 0;
     }
 
+    uint32_t GetWindowRefreshRate(HContext context)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+            return glfwGetWindowRefreshRate();
+        else
+            return 0;
+    }
+
     uint32_t GetDisplayDpi(HContext context)
     {
         assert(context);
