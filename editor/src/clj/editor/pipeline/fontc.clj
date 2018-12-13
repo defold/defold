@@ -1,8 +1,6 @@
 (ns editor.pipeline.fontc
   (:require [editor.resource :as resource]
-            [clojure.java.io :as io]
-            [clojure.string :as string]
-            [clojure.pprint :as pprint :refer [pprint print-table]])
+            [clojure.java.io :as io])
   (:import [com.defold.editor.pipeline BMFont BMFont$BMFontFormatException BMFont$Char DistanceFieldGenerator]
            [com.google.protobuf ByteString]
            [javax.imageio ImageIO]
@@ -11,7 +9,8 @@
            [java.awt.font FontRenderContext GlyphVector]
            [java.awt.geom AffineTransform PathIterator FlatteningPathIterator]
            [java.awt.image BufferedImage Kernel ConvolveOp Raster WritableRaster DataBuffer DataBufferByte ComponentColorModel]
-           [java.io InputStream ByteArrayOutputStream ByteArrayInputStream FileNotFoundException IOException]
+           [java.awt.color ColorSpace]
+           [java.io InputStream FileNotFoundException IOException]
            [java.nio.file Paths]
            [org.apache.commons.io FilenameUtils]))
 
