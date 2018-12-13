@@ -295,7 +295,7 @@
         identities (find-identities)
         result (atom nil)]
 
-    (ui/context! root :dialog {:root root :workspace workspace :prefs prefs :controls controls :stage stage :project project :result result} nil)
+    (ui/context! root :dialog {:root root :workspace workspace :prefs prefs :dashboard-client dashboard-client :controls controls :stage stage :project project :result result} nil)
     (ui/cell-factory! (:identities controls) (fn [i] {:text (second i)}))
 
     (ui/text! (:provisioning-profile controls) (prefs/get-prefs prefs "last-provisioning-profile" ""))
