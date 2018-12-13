@@ -240,8 +240,11 @@ public class Start extends Application {
 
     @Override
     public void stop() throws Exception {
+        Shutdown.runShutdownActions();
+
         // NOTE: We force exit here as it seems like the shutdown process
         // is waiting for all non-daemon threads to terminate, e.g. clojure agent thread
+        // TODO: See if we can shut down these threads gracefully and avoid this.
         System.exit(0);
     }
 

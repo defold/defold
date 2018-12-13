@@ -5,11 +5,11 @@
   (:import [clojure.lang ExceptionInfo]
            [com.defold.editor.client DefoldAuthFilter]
            [com.defold.editor.providers ProtobufProviders ProtobufProviders$ProtobufMessageBodyReader ProtobufProviders$ProtobufMessageBodyWriter]
-           [com.dynamo.cr.protocol.proto Protocol$UserInfo Protocol$NewProject Protocol$ProjectInfo]
-           [com.google.protobuf Message]
+           [com.dynamo.cr.protocol.proto Protocol$LoginInfo Protocol$NewProject Protocol$ProjectInfo Protocol$ProjectInfoList Protocol$TokenExchangeInfo Protocol$UserInfo]
            [com.sun.jersey.api.client Client ClientHandlerException ClientResponse WebResource WebResource$Builder UniformInterfaceException]
-           [com.sun.jersey.api.client.config ClientConfig DefaultClientConfig]
+           [com.sun.jersey.api.client.config DefaultClientConfig]
            [java.io InputStream ByteArrayInputStream]
+           [java.lang AutoCloseable]
            [java.net URI]
            [javax.ws.rs.core MediaType]))
 
@@ -21,20 +21,27 @@
     (.add (.getClasses cc) ProtobufProviders$ProtobufMessageBodyWriter)
     cc))
 
-(defn make-client [prefs]
+(defrecord ClientWrapper [^Client client prefs]
+  AutoCloseable
+  (close [_this] (.destroy client)))
+
+(defn make-client
+  ^AutoCloseable [prefs]
   (let [client (Client/create (make-client-config))
         email (prefs/get-prefs prefs "email" nil)
         token (prefs/get-prefs prefs "token" nil)]
     (when (and email token)
       (.addFilter client (DefoldAuthFilter. email token nil)))
-    {:client client
-     :prefs prefs}))
+    (->ClientWrapper client prefs)))
+
+(defn destroy-client! [{:keys [^Client client]}]
+  (.destroy client))
 
 (def ^"[Ljavax.ws.rs.core.MediaType;" ^:private
   media-types
   (into-array MediaType [ProtobufProviders/APPLICATION_XPROTOBUF_TYPE]))
 
-(defn- server-url
+(defn server-url
   ^URI [prefs]
   (let [server-url (URI. (prefs/get-prefs prefs "server-url" "https://cr.defold.com"))]
     (when-not (= "https" (.getScheme server-url))
@@ -42,16 +49,35 @@
                       {:server-url server-url})))
     server-url))
 
-(defn- cr-resource ^WebResource$Builder [client paths ^"[Ljavax.ws.rs.core.MediaType;" accept-types]
-  (let [{:keys [^Client client prefs]} client
-        ^WebResource resource (reduce (fn [^WebResource resource path] (.path resource (str path))) (.resource client (server-url prefs)) paths)]
+(def ^:private stage-server-host-regex #"^[^.]*stage[^.]*") ; Is the word "stage" somewhere before the first dot in the host name?
+
+(defn using-stage-server? [prefs]
+  (.find (re-matcher stage-server-host-regex (.getHost (server-url prefs)))))
+
+(defn- web-resource
+  ^WebResource [{:keys [^Client client prefs] :as _client} paths]
+  (reduce (fn [^WebResource resource path]
+            (.path resource (str path)))
+          (.resource client (server-url prefs))
+          paths))
+
+(defn- cr-resource
+  ^WebResource$Builder [client paths ^"[Ljavax.ws.rs.core.MediaType;" accept-types]
+  (let [resource (web-resource client paths)]
     (if (seq accept-types)
       (.accept resource accept-types)
       (.getRequestBuilder resource))))
 
-(defn cr-get [client paths ^Class pb-resp-class]
-  (let [builder (cr-resource client paths media-types)]
-    (protobuf/pb->map (.get builder pb-resp-class))))
+(defn- cr-get
+  ([client paths ^Class pb-resp-class]
+   (let [builder (cr-resource client paths media-types)]
+     (protobuf/pb->map (.get builder pb-resp-class))))
+  ([client paths headers ^Class pb-resp-class]
+   (let [^WebResource$Builder builder (reduce (fn [^WebResource$Builder builder [k v]]
+                                                (.header builder k v))
+                                              (cr-resource client paths media-types)
+                                              headers)]
+     (protobuf/pb->map (.get builder pb-resp-class)))))
 
 (defn- resp->clj [^ClientResponse resp]
   {:status (.getStatus resp)
@@ -83,6 +109,77 @@
   (let [stream (ByteArrayInputStream. (protobuf/map->bytes pb-class pb-map))]
     (cr-post client paths stream ProtobufProviders/APPLICATION_XPROTOBUF_TYPE pb-resp-class)))
 
+(defn login-with-email [client email password]
+  (assert (string? (not-empty email)))
+  (assert (string? (not-empty password)))
+  (try
+    (let [login-info (cr-get client ["login"] {"X-Email" email "X-Password" password} Protocol$LoginInfo)]
+      {:type :success
+       :login-info login-info})
+    (catch ClientHandlerException error
+      ;; This can happen if we do not have network access.
+      (log/error :exception error)
+      {:type :connection-error
+       :reason (.getMessage error)})
+    (catch UniformInterfaceException error
+      ;; A "401 Unauthorized" response means there is no Defold account for the
+      ;; specified e-mail address or the password did not match.
+      (let [status-info (.getStatusInfo (.getResponse error))
+            status-code (.getStatusCode status-info)]
+        (if (= 401 status-code)
+          {:type :unauthorized}
+          (do
+            (log/error :exception error)
+            {:type :bad-response
+             :reason (.getReasonPhrase status-info)
+             :code status-code}))))))
+
+(defn forgot-password [client ^String email]
+  (assert (string? (not-empty email)))
+  (try
+    (-> (web-resource client ["users" "password" "forgot"])
+        (.queryParam "email" email)
+        (.post))
+    ;; An e-mail with a password reset link was sent to the provided e-mail address.
+    {:type :success}
+    (catch ClientHandlerException error
+      ;; This can happen if we do not have network access.
+      (log/error :exception error)
+      {:type :connection-error
+       :reason (.getMessage error)})
+    (catch UniformInterfaceException error
+      ;; A "404 Not Found" response means there is no Defold account for the
+      ;; specified e-mail address.
+      (let [status-info (.getStatusInfo (.getResponse error))
+            status-code (.getStatusCode status-info)]
+        (if (= 404 status-code)
+          {:type :not-found}
+          (do
+            (log/error :exception error)
+            {:type :bad-response
+             :reason (.getReasonPhrase status-info)
+             :code status-code}))))))
+
+(defn exchange-info [client token]
+  (assert (string? (not-empty token)))
+  (try
+    (let [exchange-info (cr-get client ["login" "oauth" "exchange" token] Protocol$TokenExchangeInfo)]
+      (case (:type exchange-info)
+        :login {:type :success
+                :exchange-info exchange-info}
+        :signup {:type :signup-required}))
+    (catch ClientHandlerException error
+      ;; This can happen if we do not have network access.
+      (log/error :exception error)
+      {:type :connection-error
+       :reason (.getMessage error)})
+    (catch UniformInterfaceException error
+      (let [status-info (.getStatusInfo (.getResponse error))]
+        (log/error :exception error)
+        {:type :bad-response
+         :reason (.getReasonPhrase status-info)
+         :code (.getStatusCode status-info)}))))
+
 (defn user-info [client]
   (when-let [email (prefs/get-prefs (:prefs client) "email" nil)]
     (cr-get client ["users" email] Protocol$UserInfo)))
@@ -100,3 +197,10 @@
     (catch ExceptionInfo e
       (let [resp (ex-data e)]
         (throw (ex-info (format "Could not create new project %d: %s" (:status resp) (:message resp)) resp))))))
+
+(defn- compare-project-names [p1 p2]
+  (.compareToIgnoreCase ^String (:name p1) ^String (:name p2)))
+
+(defn fetch-projects [client]
+  (let [project-info-list (cr-get client ["projects" -1] Protocol$ProjectInfoList)]
+    (sort compare-project-names (:projects project-info-list))))
