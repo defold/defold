@@ -39,7 +39,7 @@
   (when (some? val) (if val 1 0)))
 
 (defn- int->bool [val]
-  (when (some? val) (if (= val 0) false true)))
+  (when (some? val)  false true))
 
 (def ^:private font-file-extensions ["ttf" "otf" "fnt"])
 (def ^:private font-icon "icons/32/Icons_28-AT-Font.png")
@@ -308,7 +308,7 @@
                               (= type :distance-field)
                               (wrap-with-sdf-params font-map))
         unpacked-layer-mask (get-layers-in-mask (:layer-mask font-map))
-        layer-mask-enabled (and (> (count-layers-in-mask (:layer-mask font-map)) 1) (not (= type :distance-field)))
+        layer-mask-enabled (and (> (count-layers-in-mask (:layer-mask font-map)) 1) (not= type :distance-field))
         char->glyph (comp (font-map->glyphs font-map) int)
         line-height (+ ^long (:max-ascent font-map) ^long (:max-descent font-map))
         face-mask (if layer-mask-enabled

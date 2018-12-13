@@ -23,13 +23,15 @@
 
 using namespace Vectormath::Aos;
 
-#define LAYER_FACE    0x1
-#define LAYER_OUTLINE 0x2
-#define LAYER_SHADOW  0x4
-#define HAS_LAYER(mask,layer) ((mask & layer) == layer)
-
 namespace dmRender
 {
+    enum RenderLayerMask
+    {
+        FACE    = 0x1,
+        OUTLINE = 0x2,
+        SHADOW  = 0x4
+    };
+
     FontMapParams::FontMapParams()
     : m_Glyphs()
     , m_ShadowX(0.0f)
@@ -47,7 +49,7 @@ namespace dmRender
     , m_CacheCellWidth(0)
     , m_CacheCellHeight(0)
     , m_CacheCellPadding(0)
-    , m_LayerMask(LAYER_FACE)
+    , m_LayerMask(FACE)
     , m_ImageFormat(dmRenderDDF::TYPE_BITMAP)
     {
 
@@ -74,7 +76,7 @@ namespace dmRender
         , m_CacheCellHeight(0)
         , m_CacheCellMaxAscent(0)
         , m_CacheCellPadding(0)
-        , m_LayerMask(LAYER_FACE)
+        , m_LayerMask(FACE)
         {
 
         }
@@ -588,7 +590,13 @@ namespace dmRender
         uint8_t  layer_count        = 1;
         uint8_t  layer_mask         = font_map->m_LayerMask;
 
-        assert(HAS_LAYER(layer_mask,LAYER_FACE));
+        #define HAS_LAYER(mask,layer) ((mask & layer) == layer)
+
+        if (!HAS_LAYER(layer_mask, FACE))
+        {
+            dmLogError("Encountered invalid layer mask when rendering font!");
+            return 0;
+        }
 
         // Vertex buffer consume strategy:
         // * For single-layered approach, we do as per usual and consume vertices based on offset 0.
@@ -596,9 +604,9 @@ namespace dmRender
         //     back to front layer in the order of shadow -> outline -> face, where the offset of each
         //     layer depends on how many glyphs we actually can place in the buffer. To get a valid count, we
         //     do a dry run first over the input string and place glyphs in the cache if they are renderable.
-        if (HAS_LAYER(layer_mask,LAYER_OUTLINE) || HAS_LAYER(layer_mask,LAYER_SHADOW))
+        if (HAS_LAYER(layer_mask,OUTLINE) || HAS_LAYER(layer_mask,SHADOW))
         {
-            layer_count += HAS_LAYER(layer_mask,LAYER_OUTLINE) + HAS_LAYER(layer_mask,LAYER_SHADOW);
+            layer_count += HAS_LAYER(layer_mask,OUTLINE) + HAS_LAYER(layer_mask,SHADOW);
 
             // Calculate number of valid glyphs
             for (int line = 0; line < line_count; ++line)
@@ -742,7 +750,7 @@ namespace dmRender
                             v.m_LayerMasks[2] = s;
 
                         // Set outline vertices
-                        if (HAS_LAYER(layer_mask,LAYER_OUTLINE))
+                        if (HAS_LAYER(layer_mask,OUTLINE))
                         {
                             uint32_t outline_index = vertexindex + vertices_per_quad * valid_glyph_count * (layer_count-2);
 
@@ -769,7 +777,7 @@ namespace dmRender
                         }
 
                         // Set shadow vertices
-                        if (HAS_LAYER(layer_mask,LAYER_SHADOW))
+                        if (HAS_LAYER(layer_mask,SHADOW))
                         {
                             uint32_t shadow_index = vertexindex;
                             float shadow_x        = font_map->m_ShadowX;
@@ -824,6 +832,8 @@ namespace dmRender
                 x += (int16_t)(g->m_Advance + tracking);
             }
         }
+
+        #undef HAS_LAYER
 
         return vertexindex * layer_count;
     }
