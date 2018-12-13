@@ -605,14 +605,15 @@
         font-metrics (font-metrics font)
         ^double outline-width (:outline-width font-desc)
         ^double shadow-blur (:shadow-blur font-desc)
+        ^double face-alpha (:alpha font-desc)
         ^double shadow-alpha (:shadow-alpha font-desc)
         padding (if antialias
                   (+ (int shadow-blur)
                      (int outline-width)
                      1)
                   0)
-        channel-count (if (and (> ^double shadow-alpha 0.0)
-                               (> ^double (:alpha font-desc) 0.0))
+        channel-count (if (and (> shadow-alpha 0.0)
+                               (> face-alpha 0.0))
                         3 1)
         glyph-cell-padding 1
         edge 0.75
@@ -637,7 +638,7 @@
                     {:keys [image-wh glyph-cell-wh ^int glyph-data-size ^int glyph-data-offset]} glyph-extents
                     ^int image-width (:width image-wh)
                     ^int image-height (:height image-wh)
-                    ^int row-size (* (:width glyph-cell-wh) channel-count)]
+                    row-size (* (int (:width glyph-cell-wh)) channel-count)]
                 (Arrays/fill glyph-data-bank glyph-data-offset (+ glyph-data-offset row-size) (unchecked-byte 0))
                 (doseq [^int y (range image-height)]
                   (let [y-offset (+ glyph-data-offset
