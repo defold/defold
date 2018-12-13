@@ -230,7 +230,7 @@
 
 (def ^:private blend-context (reify CompositeContext
                                (^void compose [this ^Raster src ^Raster dst-in ^WritableRaster dst-out]
-                                (do-blend-rasters src dst-in dst-out))
+                                 (do-blend-rasters src dst-in dst-out))
                                (^void dispose [this])))
 
 (def ^:private blend-composite (reify Composite
@@ -396,7 +396,7 @@
                               (> alpha 0.0)
                               (= render-mode :mode-multi-layer)
                               antialias)
-                        0x4 0x0)]
+                       0x4 0x0)]
     (bit-or face-layer outline-layer shadow-layer)))
 
 (defn- compile-ttf-bitmap [font-desc font-resource]
@@ -423,8 +423,8 @@
         line-height (+ cache-cell-max-ascent cache-cell-max-descent)
         ;; BOB: "Some hardware don't like doing subimage updates on non-aligned cell positions."
         cache-cell-wh (cond-> (max-glyph-cell-wh glyph-extents line-height padding glyph-cell-padding)
-                        (= channel-count 3)
-                        (update :width #(* (int (Math/ceil (/ ^double % 4.0))) 4)))
+                              (= channel-count 3)
+                              (update :width #(* (int (Math/ceil (/ ^double % 4.0))) 4)))
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
         glyph-data-bank (make-glyph-data-bank glyph-extents)
         layer-mask (calculate-ttf-layer-mask font-desc)]
@@ -589,11 +589,11 @@
               ^BufferedImage tmp (.getSubimage shadow-image 0 0 width height)]
           (.filter shadow-convolve tmp shadow-image)
           (doseq [^int v (range height)
-                    ^int u (range width)]
-              (let [df-offset (+ (* v width) u)
-                    shadow-offset (+ (* df-offset channel-count) 2)
-                    shadow-pixel (.getRGB shadow-image u v)]
-                (aset image shadow-offset (unchecked-byte shadow-pixel))))))
+                  ^int u (range width)]
+            (let [df-offset (+ (* v width) u)
+                  shadow-offset (+ (* df-offset channel-count) 2)
+                  shadow-pixel (.getRGB shadow-image u v)]
+              (aset image shadow-offset (unchecked-byte shadow-pixel))))))
       {:field image
        :width width
        :height height})))
@@ -646,7 +646,7 @@
                                     (* y row-size))]
                     (aset glyph-data-bank y-offset (unchecked-byte 0))
                     (System/arraycopy field (+ (* y image-width channel-count) 0) glyph-data-bank (+ y-offset channel-count) (* image-width channel-count))
-                  (aset glyph-data-bank (+ (+ y-offset channel-count) (* image-width channel-count)) (unchecked-byte 0))))
+                    (aset glyph-data-bank (+ (+ y-offset channel-count) (* image-width channel-count)) (unchecked-byte 0))))
                 (let [last-y-offset (- (+ glyph-data-offset glyph-data-size) row-size)]
                   (Arrays/fill glyph-data-bank last-y-offset (+ last-y-offset row-size) (unchecked-byte 0)))))
             (sequence positive-glyph-extent-pairs-xf
