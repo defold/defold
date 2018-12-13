@@ -39,7 +39,7 @@
   (when (some? val) (if val 1 0)))
 
 (defn- int->bool [val]
-  (when (some? val) (if (= val 0) false true)))
+  (when (some? val)  false true))
 
 (def ^:private font-file-extensions ["ttf" "otf" "fnt"])
 (def ^:private font-icon "icons/32/Icons_28-AT-Font.png")
@@ -91,18 +91,18 @@
       (put-pos-uv-fn bb x y z u v)
       (.putFloat bb sdf-edge) (.putFloat bb sdf-outline) (.putFloat bb sdf-smoothing) (.putFloat bb sdf-spread))))
 
-(defn- wrap-with-colors
-  [put-pos-uv-fn color outline shadow layer-mask]
+(defn- wrap-with-feature-data
+  [put-pos-uv-fn color outline shadow unpacked-layer-mask]
   (let [[color-r color-g color-b color-a] color
         [outline-r outline-g outline-b outline-a] outline
         [shadow-r shadow-g shadow-b shadow-a] shadow
-        [layer-mask-r layer-mask-g layer-mask-b] layer-mask]
+        [unpacked-layer-mask-r unpacked-layer-mask-g unpacked-layer-mask-b] unpacked-layer-mask]
     (fn [^ByteBuffer bb x y z u v]
       (put-pos-uv-fn bb x y z u v)
       (.putFloat bb color-r) (.putFloat bb color-g) (.putFloat bb color-b) (.putFloat bb color-a)
       (.putFloat bb outline-r) (.putFloat bb outline-g) (.putFloat bb outline-b) (.putFloat bb outline-a)
       (.putFloat bb shadow-r) (.putFloat bb shadow-g) (.putFloat bb shadow-b) (.putFloat bb shadow-a)
-      (.putFloat bb layer-mask-r) (.putFloat bb layer-mask-g) (.putFloat bb layer-mask-b))))
+      (.putFloat bb unpacked-layer-mask-r) (.putFloat bb unpacked-layer-mask-g) (.putFloat bb unpacked-layer-mask-b))))
 
 (defn- make-put-glyph-quad-fn
   [font-map]
@@ -248,7 +248,7 @@
 
 (defn- count-layers-in-mask
   [layer-mask]
-  (reduce + (get-layers-in-mask layer-mask)))
+  (Integer/bitCount layer-mask))
 
 (defn- make-vbuf
   [type text-entries layer-mask]
@@ -262,7 +262,7 @@
 (defn- fill-vertex-buffer-quads
   [vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn unpacked-layer-mask text-cursor-offset]
   (reduce (fn [vbuf entry]
-            (let [put-pos-uv-fn (wrap-with-colors put-pos-uv-fn (:color entry) (:outline entry) (:shadow entry) unpacked-layer-mask)
+            (let [put-pos-uv-fn (wrap-with-feature-data put-pos-uv-fn (:color entry) (:outline entry) (:shadow entry) unpacked-layer-mask)
                   text-layout (:text-layout entry)
                   text-tracking (* line-height ^long (:text-tracking text-layout 0))
                   text-cursor-offset (if (nil? text-cursor-offset)
@@ -308,7 +308,7 @@
                               (= type :distance-field)
                               (wrap-with-sdf-params font-map))
         unpacked-layer-mask (get-layers-in-mask (:layer-mask font-map))
-        layer-mask-enabled (and (> (count-layers-in-mask (:layer-mask font-map)) 1) (not (= type :distance-field)))
+        layer-mask-enabled (and (> (count-layers-in-mask (:layer-mask font-map)) 1) (not= type :distance-field))
         char->glyph (comp (font-map->glyphs font-map) int)
         line-height (+ ^long (:max-ascent font-map) ^long (:max-descent font-map))
         face-mask (if layer-mask-enabled
