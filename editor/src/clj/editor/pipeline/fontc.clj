@@ -196,20 +196,21 @@
             (sequence positive-glyph-extent-pairs-xf
                       semi-glyphs
                       glyph-extents)))
-    
-    {:glyphs (make-ddf-glyphs semi-glyphs glyph-extents padding)
-     :material (str (:material font-desc) "c")
-     :max-ascent (+ (float (reduce max 0 (map :ascent semi-glyphs))) padding)
-     :max-descent (+ (float (reduce max 0 (map :descent semi-glyphs))) padding)
-     :image-format (:output-format font-desc)
-     :cache-width (:width cache-wh)
-     :cache-height (:height cache-wh)
-     :glyph-padding glyph-cell-padding
-     :cache-cell-width (:width cache-cell-wh)
-     :cache-cell-height (:height cache-cell-wh)
-     :cache-cell-max-ascent :max-ascent
-     :glyph-channels channel-count
-     :glyph-data (ByteString/copyFrom glyph-data-bank)}))
+
+    (let [max-ascent (+ (float (reduce max 0 (map :ascent semi-glyphs))) padding)]
+      {:glyphs (make-ddf-glyphs semi-glyphs glyph-extents padding)
+       :material (str (:material font-desc) "c")
+       :max-ascent max-ascent
+       :max-descent (+ (float (reduce max 0 (map :descent semi-glyphs))) padding)
+       :image-format (:output-format font-desc)
+       :cache-width (:width cache-wh)
+       :cache-height (:height cache-wh)
+       :glyph-padding glyph-cell-padding
+       :cache-cell-width (:width cache-cell-wh)
+       :cache-cell-height (:height cache-cell-wh)
+       :cache-cell-max-ascent max-ascent
+       :glyph-channels channel-count
+       :glyph-data (ByteString/copyFrom glyph-data-bank)})))
 
 (defn- do-blend-rasters [^Raster src ^Raster dst-in ^WritableRaster dst-out]
   (let [width (min (.getWidth src) (.getWidth dst-in) (.getWidth dst-out))
@@ -657,8 +658,8 @@
      :material (str (:material font-desc) "c")
      :shadow-x (:shadow-x font-desc)
      :shadow-y (:shadow-y font-desc)
-     :max-ascent (+ (float (.getMaxAscent font-metrics)) padding)
-     :max-descent (+ (float (.getMaxDescent font-metrics)) padding)
+     :max-ascent (.getMaxAscent font-metrics)
+     :max-descent (.getMaxDescent font-metrics)
      :image-format (:output-format font-desc)
      :layer-mask layer-mask
      :render-mode (:render-mode font-desc)

@@ -23,15 +23,15 @@ void main()
     // sample 4 points around var_texcoord0
     lowp vec2 dtex = vec2(0.5 * texture_size_recip.xy);
     lowp vec4 dt = vec4(vec2(var_texcoord0 - dtex), vec2(var_texcoord0 + dtex));
-    lowp vec3 df_sample = 2.0 * (sample_df(var_texcoord0))
+    mediump vec3 df_sample = 2.0 * (sample_df(var_texcoord0))
                    + sample_df(dt.xy) // upper left
                    + sample_df(dt.xw) // bottom left
                    + sample_df(dt.zy) // upper right
                    + sample_df(dt.zw); // bottom right
     df_sample = (1.0 / 6.0) * df_sample;
 
-    lowp float distance        = df_sample.x;
-    lowp float distance_shadow = df_sample.z;
+    mediump float distance        = df_sample.x;
+    mediump float distance_shadow = df_sample.z;
 
     // If there is no blur, the shadow should behave in the same way as the outline.
     lowp float sdf_shadow_as_outline = floor(sdf_shadow);

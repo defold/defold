@@ -159,7 +159,7 @@ namespace dmRender
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters);
     void FinalizeTextContext(HRenderContext render_context);
 
-    const int MAX_FONT_RENDER_CONSTANTS = 4;
+    const int MAX_FONT_RENDER_CONSTANTS = 16;
     /**
      * Draw text params.
      */
