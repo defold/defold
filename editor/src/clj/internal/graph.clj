@@ -1,7 +1,6 @@
 (ns internal.graph
   (:require [clojure.set :as set]
             [clojure.core.reducers :as r]
-            [clojure.data :as data]
             [internal.graph.types :as gt]
             [internal.util :as util]
             [internal.node :as in])
@@ -352,19 +351,6 @@
 (defn arc-endpoints-p [p arc]
   (and (p (.source-id ^Arc arc))
        (p (.target-id ^Arc arc))))
-
-(defn- rebuild-sarcs
-  [basis graph-state]
-  (let [graph-id (:_graph-id graph-state)
-        all-graphs (vals (assoc (:graphs basis) graph-id graph-state))
-        all-arcs (mapcat (fn [graph] (mapcat (fn [[_ label-tarcs]] (mapcat second label-tarcs))
-                                             (:tarcs graph)))
-                         all-graphs)
-        all-arcs-filtered (filter (fn [^Arc arc] (= (gt/node-id->graph-id (.source-id arc)) graph-id)) all-arcs)]
-    (reduce
-      (fn [sarcs arc] (update-in sarcs [(.source-id ^Arc arc) (.source-label ^Arc arc)] util/conjv arc))
-      {}
-      all-arcs-filtered)))
 
 (defn empty-graph
   []
@@ -1004,32 +990,16 @@
   (let [graph-id (gt/override-id->graph-id override-id)]
     (get-in basis [:graphs graph-id :overrides override-id :traverse-fn])))
 
-(defn- sarcs->arcs [sarcs]
-  (into #{}
-        (comp (mapcat vals)
-              cat)
-        (vals sarcs)))
-
-(defn old-hydrate-after-undo
-  [basis graph-state]
-  (let [old-sarcs (get graph-state :sarcs)
-        sarcs (rebuild-sarcs basis graph-state)
-        sarcs-diff (clojure.set/difference (sarcs->arcs sarcs) (sarcs->arcs old-sarcs))
-        graph-id (:_graph-id graph-state)
-        new-basis (update basis :graphs assoc graph-id (assoc graph-state :sarcs sarcs))]
-    {:basis new-basis
-     :outputs-to-refresh (mapv (juxt :source-id :source-label) sarcs-diff)}))
-
 (defn- arc-source-id [^Arc arc]
   (.source-id arc))
 
 (defn- arc-source-label [^Arc arc]
   (.source-label arc))
 
-(defn new-hydrate-after-undo [basis graph-state]
+(defn hydrate-after-undo [basis graph-state]
   ;; NOTE: This was originally written in a simpler way. This longer-form
   ;; implementation is optimized in order to solve performance issues in graphs
-  ;; with a large amount of connections.
+  ;; with a large number of connections.
   (let [graph-id (:_graph-id graph-state)
         graphs (:graphs basis)
         other-graphs (dissoc graphs graph-id)
@@ -1101,33 +1071,6 @@
 
     {:basis (update basis :graphs assoc graph-id (assoc graph-state :sarcs new-sarcs))
      :outputs-to-refresh outputs-to-refresh}))
-
-(defn- hydrate-result->sarcs-by-graph-id [hydrate-result]
-  (into {}
-        (map (fn [[gid g]]
-               [gid (sarcs->arcs (:sarcs g))]))
-        (:graphs (:basis hydrate-result))))
-
-(def ^:private failing-hydrate-input (atom nil))
-
-(defn hydrate-after-undo [basis graph-state]
-  (let [old-result (old-hydrate-after-undo basis graph-state)
-        new-result (new-hydrate-after-undo basis graph-state)
-        [sarcs-only-in-old sarcs-only-in-new] (data/diff (hydrate-result->sarcs-by-graph-id old-result)
-                                                         (hydrate-result->sarcs-by-graph-id new-result))
-        [refreshed-outputs-only-in-old refreshed-outputs-only-in-new] (data/diff (set (:outputs-to-refresh old-result))
-                                                                                 (set (:outputs-to-refresh new-result)))]
-    (when-not (and (nil? sarcs-only-in-old)
-                   (nil? sarcs-only-in-new)
-                   (nil? refreshed-outputs-only-in-old)
-                   (nil? refreshed-outputs-only-in-new))
-      (reset! failing-hydrate-input [basis graph-state sarcs-only-in-old sarcs-only-in-new refreshed-outputs-only-in-old refreshed-outputs-only-in-new])
-      (throw (ex-info "New implementation of hydrate-after-undo is not equivalent!"
-                      {:sarcs-only-in-old sarcs-only-in-old
-                       :sarcs-only-in-new sarcs-only-in-new
-                       :refreshed-outputs-only-in-old refreshed-outputs-only-in-old
-                       :refreshed-outputs-only-in-new refreshed-outputs-only-in-new})))
-    new-result))
 
 (defn- input-deps [basis node-id]
   (some-> (gt/node-by-id-at basis node-id)
