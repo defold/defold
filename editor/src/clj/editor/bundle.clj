@@ -39,14 +39,14 @@
   (when-let [git (git/try-open (workspace/project-path workspace))]
     (try
       (when-let [remote-url (git/remote-origin-url git)]
-        (let [url (URL. remote-url)
-              host (.getHost url)]
-          (when (or (= host "cr.defold.se") (= host "cr.defold.com"))
-            (let [path (.getPath url)]
-              (try
-                (Long/parseLong (subs path (inc (string/last-index-of path "/"))))
-                (catch NumberFormatException e
-                  nil))))))
+        (when-let [^URL url (try (URL. remote-url) (catch Exception _ nil))]
+          (let [host (.getHost url)]
+            (when (or (= host "cr.defold.se") (= host "cr.defold.com"))
+              (let [path (.getPath url)]
+                (try
+                  (Long/parseLong (subs path (inc (string/last-index-of path "/"))))
+                  (catch NumberFormatException e
+                    nil)))))))
       (finally
         (.close git)))))
 
@@ -221,6 +221,11 @@
     (catch Exception e
       {:err e :message "Failed to upload a signed ipa to the project dashboard."})))
 
+(g/defnk open-ipa-directory [^File ipa-file]
+  (when-let [directory (.getParentFile ipa-file)]
+    (ui/open-file directory))
+  nil)
+
 (g/defnk noop [])
 
 (handler/defhandler ::sign :dialog
@@ -229,9 +234,10 @@
                             (.isDirectory (io/file (ui/text (:build-dir controls))))))
   (run [workspace prefs dashboard-client ^Stage stage root controls project result]
     ;; TODO: make all of this async, with progress bar & notification when done.
-    (let [ipa-dir (ui/text (:build-dir controls))
+    (let [settings (g/node-value project :settings)
+          ipa-dir (ui/text (:build-dir controls))
+          name (get settings ["project" "title"] "Unnamed")
           ipa (format "%s/%s.ipa" ipa-dir name)
-          settings (g/node-value project :settings)
           w (get settings ["display" "width"] 1)
           h (get settings ["display" "height"] 1)
           orient-props (if (> w h)
@@ -239,7 +245,6 @@
                           "UISupportedInterfaceOrientations~ipad" "UIInterfaceOrientationLandscapeRight"}
                          {"UISupportedInterfaceOrientations"      "UIInterfaceOrientationPortrait"
                           "UISupportedInterfaceOrientations~ipad" "UIInterfaceOrientationPortrait"})
-          name (get settings ["project" "title"] "Unnamed")
           props {"CFBundleDisplayName" name
                  "CFBundleExecutable" "dmengine"
                  "CFBundleIdentifier" (get settings ["ios" "bundle_identifier"] "dmengine")}
@@ -274,7 +279,7 @@
                           sign-ios-app
                           package-ipa
                           ;; only upload if hosted by us
-                          (if cr-project-id upload-ipa noop)
+                          (if cr-project-id upload-ipa open-ipa-directory)
                           (if cr-project-id (g/fnk [] (dialogs/make-alert-dialog success)) noop)]]
           (loop [steps sign-steps
                  env initial-env]
