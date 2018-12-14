@@ -45,6 +45,16 @@
         (.flush baos)
         (.toByteArray baos)))))
 
+(defn split-url
+  [url]
+  (let [u (URL. url)
+        port (.getPort u)]
+    (cond-> {:protocol (.getProtocol u)
+             :host     (.getHost u)
+             :path     (.getPath u)
+             :query    (.getQuery u)}
+      (not (neg? port)) (assoc :port port))))
+
 (defn request
   "Executes the HTTP request corresponding to the given Ring request map and
    returns the Ring response map corresponding to the resulting HTTP response.
