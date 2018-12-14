@@ -27,15 +27,26 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.google.protobuf.ByteString;
 
-import com.dynamo.graphics.proto.Graphics.ShaderDesc;
-
 public abstract class ShaderProgramBuilder extends Builder<Void> {
+
+    @Override
+    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+
+        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+            .setName(params.name())
+            .addInput(input);
+        taskBuilder.addOutput(input.changeExt(params.outExt()));
+
+        return taskBuilder.build();
+    }
 
     abstract void writeExtraDirectives(PrintWriter writer);
 
