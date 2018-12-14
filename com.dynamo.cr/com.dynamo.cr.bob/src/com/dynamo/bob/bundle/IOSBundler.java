@@ -364,17 +364,17 @@ public class IOSBundler implements IBundler {
                         InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
                         customEntitlements.load(is);
 
-	                    Iterator<String> keys = customEntitlements.getKeys();
-	                    while (keys.hasNext()) {
-	                        String key = keys.next();
+                        Iterator<String> keys = customEntitlements.getKeys();
+                        while (keys.hasNext()) {
+                            String key = keys.next();
 
-	                        if (entitlements.getProperty(key) == null) {
-	                            logger.log(Level.SEVERE, "No such key found in provisions profile entitlements '" + key + "'.");
-	                            throw new IOException("Invalid custom iOS entitlements key '" + key + "'.");
-	                        }
+                            if (entitlements.getProperty(key) == null) {
+                                logger.log(Level.SEVERE, "No such key found in provisions profile entitlements '" + key + "'.");
+                                throw new IOException("Invalid custom iOS entitlements key '" + key + "'.");
+                            }
                             entitlements.clearProperty(key);
-	                    }
-	                    entitlements.append(customEntitlements);
+                        }
+                        entitlements.append(customEntitlements);
                     }
                 }
 
