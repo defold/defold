@@ -114,9 +114,10 @@ public class Fontc {
         FORMAT_TRUETYPE, FORMAT_BMFONT
     };
 
-    static final int LAYER_FACE = 0x1;
+    // These values are the same as font_renderer.cpp
+    static final int LAYER_FACE    = 0x1;
     static final int LAYER_OUTLINE = 0x2;
-    static final int LAYER_SHADOW = 0x4;
+    static final int LAYER_SHADOW  = 0x4;
 
     static final float sdf_edge = 0.75f;
 
@@ -684,6 +685,9 @@ public class Fontc {
 
                 float sdf_outline = fontMapBuilder.getSdfOutline();
 
+                // This is needed to 'fill' the shadow body since
+                // we have no good way of knowing if the pixel is inside or outside
+                // of the shadow limit
                 if (distance_to_edge_normalized > sdf_outline)
                 {
                 	distance_to_border = edge;

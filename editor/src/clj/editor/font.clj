@@ -39,7 +39,7 @@
   (when (some? val) (if val 1 0)))
 
 (defn- int->bool [val]
-  (when (some? val) (if (= val 0) false true)))
+  (when (some? val) (not= val 0)))
 
 (def ^:private layer-mask-face 0x1)
 (def ^:private layer-mask-outline 0x2)
@@ -55,9 +55,9 @@
                                        :precision 0.01})
 
 (def ^:private shadows-outline-slider-edit-type {:type :slider
-                                       :min 0.0
-                                       :max 64.0
-                                       :precision 1.0})
+                                                 :min 0.0
+                                                 :max 64.0
+                                                 :precision 1.0})
 
 (vtx/defvertex ^:no-put DefoldVertex
   (vec3 position)
@@ -312,7 +312,7 @@
                               (= type :distance-field)
                               (wrap-with-sdf-params font-map))
         unpacked-layer-mask (get-layers-in-mask (:layer-mask font-map))
-        layer-mask-enabled (and (> (count-layers-in-mask (:layer-mask font-map)) 1) (not= type :distance-field))
+        layer-mask-enabled (> (count-layers-in-mask (:layer-mask font-map)) 1)
         char->glyph (comp (font-map->glyphs font-map) int)
         line-height (+ ^long (:max-ascent font-map) ^long (:max-descent font-map))
         face-mask (if layer-mask-enabled

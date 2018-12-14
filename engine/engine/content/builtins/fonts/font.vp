@@ -4,7 +4,7 @@ varying mediump vec2 var_texcoord0;
 varying lowp vec4 var_face_color;
 varying lowp vec4 var_outline_color;
 varying lowp vec4 var_shadow_color;
-varying lowp vec3 var_layer_mask;
+varying lowp vec4 var_layer_mask;
 varying lowp float var_is_single_layer;
 
 // positions are in world space
@@ -20,8 +20,8 @@ void main()
     var_texcoord0 = texcoord0;
     var_face_color = face_color;
     var_outline_color = outline_color;
-    var_layer_mask = layer_mask;
+    var_layer_mask.rgb = layer_mask;
+    var_layer_mask.a = var_layer_mask.x * var_layer_mask.y * var_layer_mask.z;
     var_shadow_color = shadow_color;
-    var_is_single_layer = var_layer_mask.x * var_layer_mask.y * var_layer_mask.z;
     gl_Position = view_proj * vec4(position.x, position.y, position.z, 1.0);
 }
