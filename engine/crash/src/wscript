@@ -13,7 +13,7 @@ def build(bld):
     file_handler = 'file_null.cpp'
 
     if 'android' in bld.env['PLATFORM']:
-        sig_handler = 'backtrace_android.cpp'
+        sig_handler = 'backtrace_libunwind.cpp'
         load_addrs = 'load_addrs_proc_smap.cpp'
         file_handler = 'file_posix.cpp'
     elif 'linux' in bld.env['PLATFORM']:
