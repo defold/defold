@@ -41,6 +41,10 @@
 (defn- int->bool [val]
   (when (some? val) (if (= val 0) false true)))
 
+(def ^:private layer-mask-face 0x1)
+(def ^:private layer-mask-outline 0x2)
+(def ^:private layer-mask-shadow 0x4)
+
 (def ^:private font-file-extensions ["ttf" "otf" "fnt"])
 (def ^:private font-icon "icons/32/Icons_28-AT-Font.png")
 (def ^:private resource-fields #{:font :material})
@@ -244,7 +248,7 @@
   [layer-mask]
   (map (fn [bit]
          (min (bit-and layer-mask bit) 1))
-       [0x1 0x2 0x4]))
+       [layer-mask-face layer-mask-outline layer-mask-shadow]))
 
 (defn- count-layers-in-mask
   [layer-mask]
