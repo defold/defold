@@ -890,12 +890,17 @@ static void Dispatch(dmMessage::Message* message, void* user_ptr)
         dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
         if (descriptor == dmResourceDDF::Reload::m_DDFDescriptor)
         {
-            dmResourceDDF::Reload* reload_resource = (dmResourceDDF::Reload*) message->m_Data;
-            const char* resource = (const char*) ((uintptr_t) reload_resource + (uintptr_t) reload_resource->m_Resource);
-
-            SResourceDescriptor* resource_descriptor;
-            ReloadResource(factory, resource, &resource_descriptor);
-
+            // NOTE use offsets instead of reading via ddf message
+            // Message: | offset to string-offsets | count | string offset | string offset | ... | string #1 | string #2 | ... |
+            dmResourceDDF::Reload* reload_resources = (dmResourceDDF::Reload*) message->m_Data;
+            uint32_t count = reload_resources->m_Resources.m_Count;
+            uint8_t* str_offset_cursor = (uint8_t*)((uintptr_t)reload_resources + *(uint32_t*)reload_resources);
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                const char* resource = (const char *) (uintptr_t)reload_resources + *(str_offset_cursor + i * sizeof(uint64_t));
+                SResourceDescriptor* resource_descriptor;
+                ReloadResource(factory, resource, &resource_descriptor);
+            }
         }
         else
         {
