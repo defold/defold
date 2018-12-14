@@ -170,6 +170,3 @@ message ShaderDesc
 
     repeated Shader shaders	= 1;
 }
-
-
-
