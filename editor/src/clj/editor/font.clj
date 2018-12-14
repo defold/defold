@@ -312,7 +312,7 @@
                               (= type :distance-field)
                               (wrap-with-sdf-params font-map))
         unpacked-layer-mask (get-layers-in-mask (:layer-mask font-map))
-        layer-mask-enabled (and (> (count-layers-in-mask (:layer-mask font-map)) 1) (not= type :distance-field))
+        layer-mask-enabled (> (count-layers-in-mask (:layer-mask font-map)) 1)
         char->glyph (comp (font-map->glyphs font-map) int)
         line-height (+ ^long (:max-ascent font-map) ^long (:max-descent font-map))
         face-mask (if layer-mask-enabled
