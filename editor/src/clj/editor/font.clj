@@ -39,7 +39,7 @@
   (when (some? val) (if val 1 0)))
 
 (defn- int->bool [val]
-  (when (some? val)  false true))
+  (when (some? val) (if (= val 0) false true)))
 
 (def ^:private font-file-extensions ["ttf" "otf" "fnt"])
 (def ^:private font-icon "icons/32/Icons_28-AT-Font.png")
