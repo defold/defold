@@ -264,9 +264,13 @@
 
 
 (defn- fill-vertex-buffer-quads
-  [vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn unpacked-layer-mask text-cursor-offset]
+  [vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn unpacked-layer-mask text-cursor-offset alpha outline-alpha shadow-alpha]
   (reduce (fn [vbuf entry]
-            (let [put-pos-uv-fn (wrap-with-feature-data put-pos-uv-fn (:color entry) (:outline entry) (:shadow entry) unpacked-layer-mask)
+            (let [put-pos-uv-fn (wrap-with-feature-data put-pos-uv-fn
+                                                        (mapv (partial * alpha) (:color entry))
+                                                        (update (:outline entry) 3 (partial * outline-alpha))
+                                                        (update (:shadow entry) 3 (partial * shadow-alpha))
+                                                        unpacked-layer-mask)
                   text-layout (:text-layout entry)
                   text-tracking (* line-height ^long (:text-tracking text-layout 0))
                   text-cursor-offset (if (nil? text-cursor-offset)
@@ -318,11 +322,14 @@
         face-mask (if layer-mask-enabled
                     [1 0 0]
                     [1 1 1])
-        shadow-offset {:x (:shadow-x font-map), :y (:shadow-y font-map)}]
+        shadow-offset {:x (:shadow-x font-map), :y (:shadow-y font-map)}
+        alpha (:alpha font-map)
+        outline-alpha (:outline-alpha font-map)
+        shadow-alpha (:shadow-alpha font-map)]
     ;; Output glyphs per layer in back to front, if enabled but always output face layer.
-    (when (and layer-mask-enabled (int->bool (nth unpacked-layer-mask 2))) (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn [0 0 1] shadow-offset))
-    (when (and layer-mask-enabled (int->bool (nth unpacked-layer-mask 1))) (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn [0 1 0] nil))
-    (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn face-mask nil)))
+    (when (and layer-mask-enabled (int->bool (nth unpacked-layer-mask 2))) (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn [0 0 1] shadow-offset alpha outline-alpha shadow-alpha))
+    (when (and layer-mask-enabled (int->bool (nth unpacked-layer-mask 1))) (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn [0 1 0] nil alpha outline-alpha shadow-alpha))
+    (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn face-mask nil alpha outline-alpha shadow-alpha)))
 
 (defn gen-vertex-buffer
   [^GL2 gl {:keys [type font-map] :as font-data} text-entries]
