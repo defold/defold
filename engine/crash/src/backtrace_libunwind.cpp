@@ -59,7 +59,6 @@ namespace dmCrash
             // Figure out the relative pc within the dylib
             // Currently only available on Android due to unw_map_* functions being
             // Android specific.
-            bool proc_path_found = false;
             const char* proc_path = NULL;
             bool proc_path_truncated = false;
 #ifdef ANDROID
@@ -70,7 +69,6 @@ namespace dmCrash
                 unw_map_local_cursor_get(&proc_map_cursor);
                 while (unw_map_cursor_get_next(&proc_map_cursor, &proc_map_item) > 0) {
                     if (pc >= proc_map_item.start && pc < proc_map_item.end) {
-                        proc_path_found = true;
                         proc_path = proc_map_item.path;
                         pc -= proc_map_item.start;
                         break;
@@ -93,14 +91,13 @@ namespace dmCrash
                 }
             }
             if (best_match_addr && best_match_name) {
-                proc_path_found = true;
                 proc_path = best_match_name;
                 pc -= (unw_word_t)best_match_addr;
             }
 #endif
 
             // If path is too long, truncate it to the last 32 chars where the "<lib>.so" would be visible
-            if (proc_path_found) {
+            if (proc_path) {
                 int proc_path_len = strlen(proc_path);
                 if (proc_path_len > 32) {
                     proc_path = proc_path + (proc_path_len-32);
@@ -127,7 +124,7 @@ namespace dmCrash
                 stack_index++,
                 (void*)(uintptr_t)pc,
                 proc_path_truncated ? "..." : "",
-                proc_path_found && proc_path ? proc_path : "",
+                proc_path ? proc_path : "",
                 found_sym ? sym : "<unknown>",
                 found_sym ? (uint32_t)offset : 0);
 
