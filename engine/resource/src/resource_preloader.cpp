@@ -286,6 +286,7 @@ namespace dmResource
         HFactory m_Factory;
         TPathInProgressTable m_InProgress;
         uint8_t m_PathInProgressData[PATH_IN_PROGRESS_HASHDATA_SIZE];
+        dmArray<int32_t> m_LoadingItems;
 
         // used instead of dynamic allocs as far as it lasts.
         BlockAllocator m_BlockAllocator;
@@ -551,9 +552,11 @@ namespace dmResource
         root->m_NextSibling = -1;
         preloader->m_PersistResourceCount++;
 
+        preloader->m_LoadQueueFull = false;
+        preloader->m_LoadingItems.SetCapacity(MAX_PRELOADER_REQUESTS / 64);
+
         // Post create setup
         preloader->m_PostCreateCallbacks.SetCapacity(MAX_PRELOADER_REQUESTS / 8);
-        preloader->m_LoadQueueFull = false;
         preloader->m_CreateComplete = false;
         preloader->m_PostCreateCallbackIndex = 0;
 
@@ -869,6 +872,15 @@ namespace dmResource
 
             dmLoadQueue::FreeLoad(preloader->m_LoadQueue, req->m_LoadRequest);
             req->m_LoadRequest = 0;
+
+            for (uint32_t i = 0; i < preloader->m_LoadingItems.Size(); ++i)
+            {
+                if (preloader->m_LoadingItems[i] == index)
+                {
+                    preloader->m_LoadingItems.EraseSwap(i);
+                    break;
+                }
+            }
             return 1;
         }
 
@@ -908,6 +920,8 @@ namespace dmResource
         DM_PROFILE(Resource, "DoPreloaderUpdateOneReq");
 
         PreloadRequest *req = &preloader->m_Request[index];
+        assert(!req->m_Resource);
+
         // If loading it must finish first before trying to go down to children
         if (req->m_LoadRequest)
         {
@@ -918,18 +932,51 @@ namespace dmResource
             }
             return 0;
         }
-        // If it does not have a load request, it would have a buffer if it
-        // had started a load.
-        if (!req->m_Buffer)
+
+        // If has a buffer if is waiting for children to complete first
+        if (req->m_Buffer)
         {
-            assert(!req->m_Resource);
-            // It might have been loaded by unhinted resource Gets, just grab & bump refcount
-            SResourceDescriptor* rd = GetByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
-            if (rd)
+            // traverse depth first
+            if (PreloaderUpdateOneItem(preloader, req->m_FirstChild))
             {
-                rd->m_ReferenceCount++;
-                req->m_Resource = rd->m_Resource;
-                req->m_LoadResult = RESULT_OK;
+                return 1;
+            }
+            return 0;
+        }
+
+        // It might have been loaded by unhinted resource Gets or loaded by a different preloader, just grab & bump refcount
+        SResourceDescriptor* rd = GetByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
+        if (rd)
+        {
+            rd->m_ReferenceCount++;
+            req->m_Resource = rd->m_Resource;
+            req->m_LoadResult = RESULT_OK;
+            if (PreloaderTryPrune(preloader, req->m_Parent))
+            {
+                return 1;
+            }
+            return 0;
+        }
+
+        if (preloader->m_LoadQueueFull)
+        {
+            return 0;
+        }
+
+        bool wait_on = IsPathInProgress(preloader, &req->m_PathDescriptor);
+        if (wait_on)
+        {
+            // A different item in the resource tree is already loading the same resource, just wait
+            return 0;
+        }
+
+        if (!req->m_ResourceType)
+        {
+            const char* ext = strrchr(req->m_PathDescriptor.m_InternalizedName, '.');
+            if (!ext)
+            {
+                dmLogWarning("Unable to load resource: '%s'. Missing file extension.", req->m_PathDescriptor.m_InternalizedName);
+                req->m_LoadResult = RESULT_MISSING_FILE_EXTENSION;
                 if (PreloaderTryPrune(preloader, req->m_Parent))
                 {
                     return 1;
@@ -937,70 +984,38 @@ namespace dmResource
                 return 0;
             }
 
-            if (preloader->m_LoadQueueFull)
-            {
-                // We must break here so we don't traverse children before
-                // we loaded parent
-                return 0;
-            }
-
-            bool wait_on = IsPathInProgress(preloader, &req->m_PathDescriptor);
-            if (wait_on)
-            {
-                // A different item in the resource tree is already loading the same resource, just wait
-                return 0;
-            }
-
+            req->m_ResourceType = FindResourceType(preloader->m_Factory, ext + 1);
             if (!req->m_ResourceType)
             {
-                const char* ext = strrchr(req->m_PathDescriptor.m_InternalizedName, '.');
-                if (!ext)
+                dmLogError("Unknown resource type: %s", ext);
+                req->m_LoadResult = RESULT_UNKNOWN_RESOURCE_TYPE;
+                if (PreloaderTryPrune(preloader, req->m_Parent))
                 {
-                    dmLogWarning("Unable to load resource: '%s'. Missing file extension.", req->m_PathDescriptor.m_InternalizedName);
-                    req->m_LoadResult = RESULT_MISSING_FILE_EXTENSION;
-                    if (PreloaderTryPrune(preloader, req->m_Parent))
-                    {
-                        return 1;
-                    }
-                    return 0;
+                    return 1;
                 }
-
-                req->m_ResourceType = FindResourceType(preloader->m_Factory, ext + 1);
-                if (!req->m_ResourceType)
-                {
-                    dmLogError("Unknown resource type: %s", ext);
-                    req->m_LoadResult = RESULT_UNKNOWN_RESOURCE_TYPE;
-                    if (PreloaderTryPrune(preloader, req->m_Parent))
-                    {
-                        return 1;
-                    }
-                    return 0;
-                }
+                return 0;
             }
-
-            dmLoadQueue::PreloadInfo info;
-            info.m_HintInfo.m_Preloader = preloader;
-            info.m_HintInfo.m_Parent = index;
-            info.m_Function = req->m_ResourceType->m_PreloadFunction;
-            info.m_Context = req->m_ResourceType->m_Context;
-
-            // Silently ignore if return null (means try later)"
-            if ((req->m_LoadRequest = dmLoadQueue::BeginLoad(preloader->m_LoadQueue, req->m_PathDescriptor.m_InternalizedName, req->m_PathDescriptor.m_InternalizedCanonicalPath, &info)))
-            {
-                MarkPathInProgress(preloader, &req->m_PathDescriptor);
-                return 1;
-            }
-
-            preloader->m_LoadQueueFull = true;
-            return 0;
         }
 
-        // traverse depth first
-        if (PreloaderUpdateOneItem(preloader, req->m_FirstChild))
+        dmLoadQueue::PreloadInfo info;
+        info.m_HintInfo.m_Preloader = preloader;
+        info.m_HintInfo.m_Parent = index;
+        info.m_Function = req->m_ResourceType->m_PreloadFunction;
+        info.m_Context = req->m_ResourceType->m_Context;
+
+        // Silently ignore if return null (means try later)"
+        if ((req->m_LoadRequest = dmLoadQueue::BeginLoad(preloader->m_LoadQueue, req->m_PathDescriptor.m_InternalizedName, req->m_PathDescriptor.m_InternalizedCanonicalPath, &info)))
         {
+            MarkPathInProgress(preloader, &req->m_PathDescriptor);
+            if (preloader->m_LoadingItems.Capacity() == preloader->m_LoadingItems.Size())
+            {
+                preloader->m_LoadingItems.OffsetCapacity(MAX_PRELOADER_REQUESTS / 64);
+            }
+            preloader->m_LoadingItems.Push(index);
             return 1;
         }
 
+        preloader->m_LoadQueueFull = true;
         return 0;
     }
 
@@ -1038,6 +1053,22 @@ namespace dmResource
         return ret;
     }
 
+    static bool TryFinishingLoadingOneItem(HPreloader preloader)
+    {
+        uint32_t count = preloader->m_LoadingItems.Size();
+        int32_t* items = preloader->m_LoadingItems.Begin();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            int32_t index = items[i];
+            if (PreloaderTryEndLoad(preloader, index))
+            {
+                preloader->m_LoadQueueFull = false;
+                return true;
+            }
+        }
+        return false;
+    }
+
     static Result StepPreloader(HPreloader preloader, FPreloaderCompleteCallback complete_callback, PreloaderCompleteCallbackParams* complete_callback_params, bool& out_empty_run)
     {
         Result root_result = preloader->m_Request[0].m_LoadResult;
@@ -1061,6 +1092,11 @@ namespace dmResource
         }
         if (root_result == RESULT_PENDING)
         {
+            if (TryFinishingLoadingOneItem(preloader))
+            {
+                out_empty_run = false;
+                return RESULT_PENDING;
+            }
             if (PreloaderUpdateOneItem(preloader, 0))
             {
                 out_empty_run = false;
@@ -1171,12 +1207,13 @@ namespace dmResource
                         ++pending_count;
                     }
                 }
-                if (!has_more_time)
-                {
-                    goto out_of_time;
-                }
 
-            } while (blocked_count < preloader_count);
+            } while (has_more_time && blocked_count < preloader_count);
+
+            if (!has_more_time)
+            {
+                break;
+            }
 
             if (pending_count == 0)
             {
@@ -1206,7 +1243,7 @@ namespace dmResource
                 dmTime::Sleep(1000);
             }
         } while(dmTime::GetTime() - start <= soft_time_limit);
-out_of_time:
+
         // All done!
         uint64_t main_thread_elapsed_ns = dmTime::GetTime() - start;
         for (uint32_t i = 0; i < preloader_count; ++i)
@@ -1232,10 +1269,15 @@ out_of_time:
         // To fix this:
         // * Make Get calls insta-fail on RESULT_ABORTED or something
         // * Make Queue only return RESULT_ABORTED always.
+        bool warn = false;
         while (UpdatePreloader(preloader) == RESULT_PENDING)
         {
-            dmLogWarning("Waiting for preloader to complete.");
+            if (warn)
+            {
+                dmLogWarning("Waiting for preloader to complete.");
+            }
             UpdatePreloaders(10000);
+            warn = true;
         }
 
         uint64_t start_excluding_update_ns = dmTime::GetTime();
