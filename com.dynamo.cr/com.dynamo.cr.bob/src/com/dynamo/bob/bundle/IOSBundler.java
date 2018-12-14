@@ -1,5 +1,6 @@
 package com.dynamo.bob.bundle;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -347,7 +348,7 @@ public class IOSBundler implements IBundler {
             }
 
             File entitlementOut = File.createTempFile("entitlement", ".xcent");
-            String customEntitlementsResource = projectProperties.getStringValue("ios", "entitlements");
+            String customEntitlementsProperty = projectProperties.getStringValue("ios", "entitlements");
 
             try {
                 XMLPropertyListConfiguration customEntitlements = new XMLPropertyListConfiguration();
@@ -357,11 +358,11 @@ public class IOSBundler implements IBundler {
                 XMLPropertyListConfiguration entitlements = new XMLPropertyListConfiguration();
                 entitlements.append(decodedProvision.configurationAt("Entitlements"));
 
-                if (customEntitlementsResource != null && customEntitlementsResource.length() > 0) {
-                    File customEntitlementsFile = new File(projectRoot, customEntitlementsResource);
-
-                    if (customEntitlementsFile != null) {
-	                    customEntitlements.load(customEntitlementsFile.getAbsolutePath());
+                if (customEntitlementsProperty != null && customEntitlementsProperty.length() > 0) {
+                    IResource customEntitlementsResource = project.getResource(customEntitlementsProperty);
+                    if (customEntitlementsResource.exists()) {
+                        InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
+                        customEntitlements.load(is);
 
 	                    Iterator<String> keys = customEntitlements.getKeys();
 	                    while (keys.hasNext()) {
@@ -369,7 +370,7 @@ public class IOSBundler implements IBundler {
 
 	                        if (entitlements.getProperty(key) == null) {
 	                            logger.log(Level.SEVERE, "No such key found in provisions profile entitlements '" + key + "'.");
-	                            throw new IOException("Invalid custom iOS entitlements key.");
+	                            throw new IOException("Invalid custom iOS entitlements key '" + key + "'.");
 	                        }
                             entitlements.clearProperty(key);
 	                    }
@@ -379,12 +380,11 @@ public class IOSBundler implements IBundler {
 
                 entitlementOut.deleteOnExit();
                 entitlements.save(entitlementOut);
-
             } catch (ConfigurationException e) {
                 logger.log(Level.SEVERE, "Error reading provisioning profile '" + provisioningProfile + "'. Make sure this is a valid provisioning profile file." );
                 throw new RuntimeException(e);
             } catch (IOException e) {
-                logger.log(Level.SEVERE, "Error merging custom entitlements '" + customEntitlementsResource +"' with entitlements in provisioning profile. Make sure that custom entitlements has corresponding wildcard entries in the provisioning profile.");
+                logger.log(Level.SEVERE, "Error merging custom entitlements '" + customEntitlementsProperty +"' with entitlements in provisioning profile. Make sure that custom entitlements has corresponding wildcard entries in the provisioning profile.");
                 throw new RuntimeException(e);
             }
 
