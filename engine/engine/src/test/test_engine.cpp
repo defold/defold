@@ -201,6 +201,13 @@ TEST_F(EngineTest, SpineIK)
 TEST_F(EngineTest, MemCpuProfiler)
 {
     #ifndef SANITIZE_ADDRESS
+        // DEF-3677
+        // DE 20181217
+        // When ASAN is enabled the amount of memory used (resident_size) actually increases after
+        // the test collection is loaded. This is likley caused by the OS shuffling memory around
+        // when ASAN is enabled since it add some overhead. Workaround is to disable this test.
+        // Tried adding a big OGG file to the test data set but still the same result. The difference
+        // between amount of allocated memory is over 20Mb less than before loading when ASAN is enabled.
         const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/profiler/profiler.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
         ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
     #endif
