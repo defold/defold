@@ -731,8 +731,8 @@ namespace dmRender
                             v.m_ShadowColor = shadow_color; \
                             v.m_SdfParams[0] = sdf_edge_value; \
                             v.m_SdfParams[1] = sdf_outline; \
-                            v.m_SdfParams[2] = sdf_shadow; \
-                            v.m_SdfParams[3] = sdf_smoothing;
+                            v.m_SdfParams[2] = sdf_smoothing; \
+                            v.m_SdfParams[3] = sdf_shadow;
 
                         SET_VERTEX_PARAMS(v1_layer_face)
                         SET_VERTEX_PARAMS(v2_layer_face)

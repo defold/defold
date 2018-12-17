@@ -93,7 +93,7 @@
         sdf-edge 0.75]
     (fn [^ByteBuffer bb x y z u v]
       (put-pos-uv-fn bb x y z u v)
-      (.putFloat bb sdf-edge) (.putFloat bb sdf-outline) (.putFloat bb sdf-shadow) (.putFloat bb sdf-smoothing))))
+      (.putFloat bb sdf-edge) (.putFloat bb sdf-outline) (.putFloat bb sdf-smoothing) (.putFloat bb sdf-shadow))))
 
 (defn- wrap-with-feature-data
   [put-pos-uv-fn color outline shadow unpacked-layer-mask]
