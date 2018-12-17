@@ -1,5 +1,14 @@
 #! /usr/bin/env bash
 
+# Note: I wasn't able to rename the top folder when packaging, since it messed up symlinks (also the packages became unnecessarily bloated)
+
+# You can unpack the tar files and prettify them in one go
+# $ mkdir iPhoneOS12.1.sdk && tar xf ../new_packages/iPhoneOS12.1.sdk.tar.gz -C iPhoneOS12.1.sdk --strip-components 1
+
+# Original command lines:
+# $ (cd /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs && tar zcf ~/work/defold/footest/iPhoneOS12.1.sdk.tar.gz iPhoneOS.sdk)
+# $ (cd /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs && tar zcf ~/work/defold/footest/iPhoneOS12.1.sdk.tar.gz iPhoneOS.sdk)
+
 set -e
 
 DEFOLD_HOME="${DYNAMO_HOME}/../.."
@@ -14,7 +23,7 @@ if [ ! -d "$TARGET_DIR" ]; then
 	mkdir -p "$TARGET_DIR"
 fi
 
-# E.g. make_archive ./iPhoneOS.sdk ./iPhoneOS12.1.sdk
+# E.g. make_archive ./iPhoneOS.sdk ./iPhoneOS12.1.sdk -> ${TARGET_DIR}/iPhoneOS12.1.sdk.tar.gz
 function make_archive() {
 	local src=$1
 	local tgtname=$(basename $2)
@@ -29,11 +38,9 @@ function make_archive() {
 		tarflags=${tarflags}v
 	fi
 
-	local sed_expr="-s /^${srcname}/${tgtname}/ ${srcname}/"
-
 	echo EXTRA ARGS: $@
-	echo tar ${tarflags} ${archive} $@ ${sed_expr} ${src}
-	tar ${tarflags} ${archive} $@ ${sed_expr} ${src}
+	echo tar ${tarflags} ${archive} $@ ${src}
+	tar ${tarflags} ${archive} $@ ${src}
 }
 
 function package_platform() {
@@ -57,20 +64,27 @@ function package_xcode() {
 	local version=$(/usr/bin/xcodebuild -version | grep -e "Xcode" | awk '{print $2}')
 	local target=${name}${version}.${namesuffix}
 
+	echo FOUND ${XCODE}/${_name} "->" ${target}
+
 	pushd ${XCODE}
-	echo FOUND ${folder} "->" ${target}
-	make_archive $(basename ${folder}) ${target} --exclude ${_name}/usr/lib/swift --exclude ${_name}/usr/lib/swift_static --exclude ${_name}/Developer/Platforms
+
+	EXTRA_ARGS="--exclude ${_name}/usr/lib/swift --exclude ${_name}/usr/lib/swift_static --exclude ${_name}/Developer/Platforms --exclude ${_name}/usr/lib/sourcekitd.framework"
+	for f in ${_name}/usr/bin/swift*
+	do
+		EXTRA_ARGS="--exclude ${f} ${EXTRA_ARGS}"
+	done
+
+	echo MAKING ARCHIVE ${_name} ${target}
+	make_archive ${_name} ${target} ${EXTRA_ARGS}
 	popd
 }
 
-# package_platform "iPhoneOS"
-# package_platform "iPhoneSimulator"
-# package_platform "MacOSX"
+package_platform "iPhoneOS"
+package_platform "iPhoneSimulator"
+package_platform "MacOSX"
 
 package_xcode "XcodeDefault"
 
 echo "PACKAGES"
 ls -la ${TARGET_DIR}/*.gz
 
-# NOTE: You can unpack the tar files and prettify them in one go
-# https://unix.stackexchange.com/questions/11018/how-to-choose-directory-name-during-untarring
