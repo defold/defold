@@ -200,8 +200,10 @@ TEST_F(EngineTest, SpineIK)
 
 TEST_F(EngineTest, MemCpuProfiler)
 {
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/profiler/profiler.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
-    ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
+    #ifndef SANITIZE_ADDRESS
+        const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/profiler/profiler.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
+        ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
+    #endif
 }
 
 // Verify that project.dependencies config entry is stripped during build.
