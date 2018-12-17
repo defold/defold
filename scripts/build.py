@@ -431,8 +431,10 @@ class Configuration(object):
         self.install_sdk()
 
     def install_sdk(self):
-        def download_sdk(url, targetfolder, tmpname=None): # tmpname is the top folder name inside the archive, which you wish to rename
+        def download_sdk(url, targetfolder):
             if not os.path.exists(targetfolder):
+                if not os.path.exists(os.path.dirname(targetfolder)):
+                    os.makedirs(os.path.dirname(targetfolder))
                 dlpath = self._download(url)
                 self._extract_tgz_rename_folder(dlpath, targetfolder)
 
@@ -451,10 +453,6 @@ class Configuration(object):
 
         if 'win32' in target_platform and not ('win32' in self.host):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
-            if not os.path.exists(win32_sdk_folder):
-                os.makedirs(win32_sdk_folder)
-            if not os.path.exists(join(win32_sdk_folder, 'WindowsKits')):
-                os.makedirs(join(win32_sdk_folder, 'WindowsKits'))
             download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )
             download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0') )
