@@ -17,8 +17,8 @@ void main()
 {
     lowp float sdf_edge      = var_sdf_params.x;
     lowp float sdf_outline   = var_sdf_params.y;
-    lowp float sdf_shadow    = var_sdf_params.z;
-    lowp float sdf_smoothing = var_sdf_params.w;
+    lowp float sdf_smoothing = var_sdf_params.z;
+    lowp float sdf_shadow    = var_sdf_params.w;
 
     // sample 4 points around var_texcoord0
     lowp vec2 dtex = vec2(0.5 * texture_size_recip.xy);

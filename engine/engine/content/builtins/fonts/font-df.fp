@@ -17,8 +17,8 @@ void main()
 
     lowp float sdf_edge      = var_sdf_params.x;
     lowp float sdf_outline   = var_sdf_params.y;
-    lowp float sdf_shadow    = var_sdf_params.z;
-    lowp float sdf_smoothing = var_sdf_params.w;
+    lowp float sdf_smoothing = var_sdf_params.z;
+    lowp float sdf_shadow    = var_sdf_params.w;
 
     // If there is no blur, the shadow should behave in the same way as the outline.
     lowp float sdf_shadow_as_outline = floor(sdf_shadow);
