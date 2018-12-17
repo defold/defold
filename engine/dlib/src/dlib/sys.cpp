@@ -245,7 +245,11 @@ namespace dmSys
     __attribute__((no_sanitize_address)) Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
         FSRef file;
-        FSFindFolder(kUserDomain, kApplicationSupportFolderType, kCreateFolder, &file);
+        OSErr err = FSFindFolder(kUserDomain, kApplicationSupportFolderType, kCreateFolder, &file);
+        if (err != 0)
+        {
+            return RESULT_INVAL;
+        }
         FSRefMakePath(&file, (UInt8*) path, path_len);
         if (dmStrlCat(path, "/", path_len) >= path_len)
             return RESULT_INVAL;
