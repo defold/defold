@@ -306,6 +306,14 @@ namespace dmGui
             return 1;
         }
 
+        NodeProxy* np1 = NodeProxy_Check(L, 1);
+        NodeProxy* np2 = NodeProxy_Check(L, 2);
+        if (np1->m_Scene != np2->m_Scene)
+        {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+
         HNode hn1, hn2;
         InternalNode* n1 = LuaCheckNode(L, 1, &hn1);
         InternalNode* n2 = LuaCheckNode(L, 2, &hn2);
