@@ -1,14 +1,17 @@
 (ns editor.engine.native-extensions
   (:require
    [clojure.java.io :as io]
+   [clojure.data.json :as json]
    [dynamo.graph :as g]
    [editor.prefs :as prefs]
    [editor.defold-project :as project]
    [editor.engine.build-errors :as engine-build-errors]
    [editor.fs :as fs]
+   [editor.library :as library]
    [editor.resource :as resource]
    [editor.system :as system]
-   [editor.workspace :as workspace])
+   [editor.workspace :as workspace]
+   [util.http-client :as http])
   (:import
    (java.io File)
    (java.net URI)
@@ -164,6 +167,46 @@
 
 ;;; Building
 
+(defn- make-cache-request
+  [server-url payload]
+  (let [parts (http/split-url server-url)]
+    {:request-method :post
+     :scheme         (get parts :protocol)
+     :server-name    (get parts :host)
+     :server-port    (get parts :port)
+     :uri            "/query"
+     :content-type   "application/json"
+     :headers        {"Accept" "application/json"}
+     :body           payload}))
+
+(defn- query-cached-files
+  [server-url resource-nodes-by-upload-path evaluation-context]
+  "Asks the server what files it already has.
+  This is to avoid uploading big files that rarely change"
+  (let [items (mapv (fn [[upload-path resource-node]]
+                      (let [key (g/node-value resource-node :sha256 evaluation-context)]
+                        {:path upload-path :key key}))
+                    resource-nodes-by-upload-path)
+        json (json/write-str {:files items})
+        request (make-cache-request server-url json)
+        response (http/request request)]
+    ; Make a list of all files we intend to upload
+    ; Make request to server with json
+    ; Returns a json document with the "cached" fields filled in
+    (when (= 200 (:status response))
+      (let [body (slurp (:body response))
+            items (get (json/read-str body) "files")]
+        items))))
+
+(defn- make-cached-info-map
+  [ne-cache-info]
+  "Parse the json doc into a mapping 'path' -> 'cached'"
+  (into {}
+        (map (fn [info]
+               [(get info "path")
+                (get info "cached")]))
+        ne-cache-info))
+
 (defn- build-engine-archive ^File
   [server-url platform sdk-version resource-nodes-by-upload-path evaluation-context]
   ;; NOTE:
@@ -182,10 +225,16 @@
                  (.setReadTimeout (int read-timeout-ms)))
         api-root (.resource client (URI. server-url))
         build-resource (.path api-root (build-url platform sdk-version))
-        builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))]
+        builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))
+        ne-cache-info (query-cached-files server-url resource-nodes-by-upload-path evaluation-context)
+        ne-cache-info-map (make-cached-info-map ne-cache-info)]
     (with-open [form (FormDataMultiPart.)]
+      ; upload the file to the server, basically telling it what we are sending (and what we aren't)
+      (.bodyPart form (StreamDataBodyPart. "ne-cache-info.json" (io/input-stream (.getBytes ^String (json/write-str {:files ne-cache-info})))))
       (doseq [[upload-path node] (sort-by first resource-nodes-by-upload-path)]
-        (.bodyPart form (StreamDataBodyPart. upload-path (resource-node-content-stream node evaluation-context))))
+        ; If the file is not cached on the server, then we upload it
+        (if (not (get ne-cache-info-map upload-path))
+          (.bodyPart form (StreamDataBodyPart. upload-path (resource-node-content-stream node evaluation-context)))))
       (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
             status (.getStatus cr)]
         (if (= 200 status)
