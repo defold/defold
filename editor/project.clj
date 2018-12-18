@@ -86,8 +86,7 @@
                       "../engine/render/proto/render"
                       "../engine/resource/proto"
                       "../engine/rig/proto"
-                      "../engine/script/src"
-                      "../engine/vscript/proto"]
+                      "../engine/script/src"]
 
   :protobuf-includes ["../engine/gameobject/proto"
                       "../engine/gamesys/proto"
