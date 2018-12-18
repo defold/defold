@@ -1,19 +1,16 @@
 (ns editor.engine
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [editor.process :as process]
+            [editor.engine.native-extensions :as native-extensions]
             [editor.prefs :as prefs]
-            [editor.error-reporting :as error-reporting]
+            [editor.process :as process]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.system :as system]
-            [editor.ui :as ui]
-            [editor.engine.native-extensions :as native-extensions])
+            [editor.system :as system])
   (:import [com.defold.editor Platform]
-           [java.net HttpURLConnection InetSocketAddress Socket URI URL]
-           [java.io SequenceInputStream BufferedReader File InputStream ByteArrayOutputStream IOException]
-           [java.nio.charset Charset StandardCharsets]
-           [java.lang Process ProcessBuilder]))
+           [com.dynamo.resource.proto Resource$Reload]
+           [java.io BufferedReader File InputStream IOException]
+           [java.net HttpURLConnection InetSocketAddress Socket URI]))
 
 (set! *warn-on-reflection* true)
 
@@ -37,14 +34,15 @@
         ;; For instance socket closed because engine was killed
         nil))))
 
-(defn reload-resource [target resource]
-  (let [uri  (URI. (str (:url target) "/post/@resource/reload"))
-        conn ^HttpURLConnection (get-connection uri)]
+(defn reload-build-resources! [target build-resources]
+  (let [uri (URI. (str (:url target) "/post/@resource/reload"))
+        conn ^HttpURLConnection (get-connection uri)
+        proj-paths (mapv resource/proj-path build-resources)]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
-                            com.dynamo.resource.proto.Resource$Reload
-                            {:resource (str (resource/proj-path resource) "c")})))
+                            Resource$Reload
+                            {:resources proj-paths})))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))
       (finally
