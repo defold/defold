@@ -1,21 +1,16 @@
 (ns editor.engine
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [editor.process :as process]
+            [editor.engine.native-extensions :as native-extensions]
             [editor.prefs :as prefs]
-            [editor.error-reporting :as error-reporting]
+            [editor.process :as process]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.system :as system]
-            [editor.ui :as ui]
-            [editor.defold-project :as project]
-            [editor.workspace :as workspace]
-            [editor.engine.native-extensions :as native-extensions])
+            [editor.system :as system])
   (:import [com.defold.editor Platform]
-           [java.net HttpURLConnection InetSocketAddress Socket URI URL]
-           [java.io SequenceInputStream BufferedReader File InputStream ByteArrayOutputStream IOException]
-           [java.nio.charset Charset StandardCharsets]
-           [java.lang Process ProcessBuilder]))
+           [com.dynamo.resource.proto Resource$Reload]
+           [java.io BufferedReader File InputStream IOException]
+           [java.net HttpURLConnection InetSocketAddress Socket URI]))
 
 (set! *warn-on-reflection* true)
 
@@ -39,14 +34,15 @@
         ;; For instance socket closed because engine was killed
         nil))))
 
-(defn reload-resource [target resource]
-  (let [uri  (URI. (str (:url target) "/post/@resource/reload"))
-        conn ^HttpURLConnection (get-connection uri)]
+(defn reload-build-resources! [target build-resources]
+  (let [uri (URI. (str (:url target) "/post/@resource/reload"))
+        conn ^HttpURLConnection (get-connection uri)
+        proj-paths (mapv resource/proj-path build-resources)]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
-                            com.dynamo.resource.proto.Resource$Reload
-                            {:resource (str (resource/proj-path resource) "c")})))
+                            Resource$Reload
+                            {:resources proj-paths})))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))
       (finally
@@ -120,35 +116,6 @@
              {:log-port log-port
               :address loopback-address}))))
 
-(defn- do-launch [^File path launch-dir prefs debug?]
-  (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
-                               (File.)
-                               (.getAbsolutePath))
-        command (.getAbsolutePath path)
-        args (cond-> []
-               defold-log-dir
-               (into ["--config=project.write_log=1"
-                      (format "--config=project.log_dir=%s" defold-log-dir)])
-
-               debug?
-               (into ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"]))
-        env {"DM_SERVICE_PORT" "dynamic"
-             "DM_QUIT_ON_ESC" (if (prefs/get-prefs prefs "general-quit-on-esc" false)
-                                "1" "0")}
-        opts {:directory launch-dir
-              :redirect-error-stream? true
-              :env env}]
-    ;; Closing "is" seems to cause any dmengine output to stdout/err
-    ;; to generate SIGPIPE and close/crash. Also we need to read
-    ;; the output of dmengine because there is a risk of the stream
-    ;; buffer filling up, stopping the process.
-    ;; https://www.securecoding.cert.org/confluence/display/java/FIO07-J.+Do+not+let+external+processes+block+on+IO+buffers
-    (let [p (process/start! command args opts)
-          is (.getInputStream p)]
-      {:process p
-       :name (.getName path)
-       :log-stream is})))
-
 (defn- bundled-engine [platform]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
         path   (format "%s/%s/bin/dmengine%s" (system/defold-unpack-path) platform suffix)]
@@ -166,15 +133,41 @@
           (assert (.exists file))
           file)))))
 
-(defn get-engine [project prefs platform]
+(defn get-engine ^File [project evaluation-context prefs platform]
   (or (custom-engine prefs platform)
-      (if (native-extensions/has-extensions? project)
-        (let [build-server (native-extensions/get-build-server-url prefs)
-              native-extension-roots (native-extensions/extension-roots project)]
-          (native-extensions/get-engine project native-extension-roots platform build-server))
+      (if (native-extensions/has-extensions? project evaluation-context)
+        (let [build-server (native-extensions/get-build-server-url prefs)]
+          (native-extensions/get-engine project evaluation-context platform build-server))
         (bundled-engine platform))))
 
-(defn launch! [project prefs debug?]
-  (let [launch-dir   (io/file (workspace/project-path (project/workspace project)))
-        ^File engine (get-engine project prefs (.getPair (Platform/getJavaPlatform)))]
-    (do-launch engine launch-dir prefs debug?)))
+(defn current-platform []
+  (.getPair (Platform/getJavaPlatform)))
+
+(defn launch! [^File engine project-directory prefs debug?]
+  (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
+                               (File.)
+                               (.getAbsolutePath))
+        command (.getAbsolutePath engine)
+        args (cond-> []
+               defold-log-dir
+               (into ["--config=project.write_log=1"
+                      (format "--config=project.log_dir=%s" defold-log-dir)])
+
+               debug?
+               (into ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"]))
+        env {"DM_SERVICE_PORT" "dynamic"
+             "DM_QUIT_ON_ESC" (if (prefs/get-prefs prefs "general-quit-on-esc" false)
+                                "1" "0")}
+        opts {:directory project-directory
+              :redirect-error-stream? true
+              :env env}]
+    ;; Closing "is" seems to cause any dmengine output to stdout/err
+    ;; to generate SIGPIPE and close/crash. Also we need to read
+    ;; the output of dmengine because there is a risk of the stream
+    ;; buffer filling up, stopping the process.
+    ;; https://www.securecoding.cert.org/confluence/display/java/FIO07-J.+Do+not+let+external+processes+block+on+IO+buffers
+    (let [p (process/start! command args opts)
+          is (.getInputStream p)]
+      {:process p
+       :name (.getName engine)
+       :log-stream is})))
