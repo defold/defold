@@ -3,6 +3,8 @@
 #include "../../../../graphics/src/graphics_private.h"
 #include "../../../../resource/src/resource_private.h"
 
+#include "gamesys/resources/res_textureset.h"
+
 #include <stdio.h>
 
 #include <dlib/dstrings.h>
@@ -102,6 +104,34 @@ TEST_P(ResourceTest, TestPreload)
 
     dmResource::DeletePreloader(pr);
     dmResource::Release(m_Factory, resource);
+}
+
+TEST_F(ResourceTest, TestReloadTextureSet)
+{
+    const char* texture_set_path_a   = "/textureset/valid_a.texturesetc";
+    const char* texture_set_path_b   = "/textureset/valid_b.texturesetc";
+    const char* texture_set_path_tmp = "/textureset/tmp.texturesetc";
+
+    dmGameSystem::TextureSetResource* resource = NULL;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, texture_set_path_a, (void**) &resource));
+    ASSERT_NE((void*)0, resource);
+
+    uint32_t original_width  = dmGraphics::GetOriginalTextureWidth(resource->m_Texture);
+    uint32_t original_height = dmGraphics::GetOriginalTextureHeight(resource->m_Texture);
+
+    // Swap compiled resources to simulate an atlas update
+    ASSERT_TRUE(CopyResource(texture_set_path_a, texture_set_path_tmp));
+    ASSERT_TRUE(CopyResource(texture_set_path_b, texture_set_path_a));
+    ASSERT_TRUE(CopyResource(texture_set_path_tmp, texture_set_path_b));
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, texture_set_path_a, 0));
+
+    // If the load truly was successful, we should have a new width/height for the internal image
+    ASSERT_NE(original_width,dmGraphics::GetOriginalTextureWidth(resource->m_Texture));
+    ASSERT_NE(original_height,dmGraphics::GetOriginalTextureHeight(resource->m_Texture));
+
+    dmResource::Release(m_Factory, (void**) resource);
 }
 
 TEST_P(ResourceFailTest, Test)
