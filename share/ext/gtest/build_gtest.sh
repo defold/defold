@@ -73,6 +73,9 @@ case $CONF_TARGET in
 			if [ "$CONF_TARGET" == "armv7-darwin" ]; then
 				CXXFLAGS="-miphoneos-version-min=${IOS_MIN_SDK_VERSION} ${CXXFLAGS}"
 			fi
+			if [ "$CONF_TARGET" == "x86_64-linux" ]; then
+				CXXFLAGS="-fPIC ${CXXFLAGS}"
+			fi
 
 			set -e
 		    pushd googletest/make

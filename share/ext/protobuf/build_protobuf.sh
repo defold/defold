@@ -7,6 +7,8 @@ readonly FILE_URL=protobuf-${VERSION}.tar.gz
 
 readonly CONFIGURE_ARGS="--with-protoc=../cross_tmp/src/protoc --disable-shared"
 
+export CONF_TARGET=$1
+
 . ../common.sh
 
 # The package is ancient
@@ -32,6 +34,11 @@ set -e
 set +e
 popd >/dev/null
 
+
+if [ "$CONF_TARGET" == "x86_64-linux" ]; then
+	export CXXFLAGS="-fPIC ${CXXFLAGS}"
+	export CCFLAGS="-fPIC ${CCFLAGS}"
+fi
 
 download
 cmi $1
