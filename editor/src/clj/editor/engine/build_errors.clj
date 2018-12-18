@@ -62,9 +62,9 @@
   (error-line [this] (.getLineNumber this))
   (error-severity [_this] :fatal))
 
-(defn- error-info-provider->cause [project e]
+(defn- error-info-provider->cause [project evaluation-context e]
   (let [node-id (when-let [path (error-path e)]
-                  (project/get-resource-node project path))
+                  (project/get-resource-node project path evaluation-context))
         line (error-line e)
         value (when (and (integer? line) (pos? line))
                 (reify IExceptionInfo
@@ -84,11 +84,11 @@
 (def ^:private manifest-ext-name-re1 #"(?m)^name:\s*\"(.+)\"\s*$") ; Double-quoted name
 (def ^:private manifest-ext-name-re2 #"(?m)^name:\s*'(.+)'\s*$") ; Single-quoted name
 
-(defn- invalid-lib-match->cause [project [all manifest-ext-name] manifest-ext-resources-by-name]
+(defn- invalid-lib-match->cause [project evaluation-context [all manifest-ext-name] manifest-ext-resources-by-name]
   (assert (string? (not-empty all)))
   (assert (string? (not-empty manifest-ext-name)))
   (let [manifest-ext-resource (manifest-ext-resources-by-name manifest-ext-name)
-        node-id (project/get-resource-node project manifest-ext-resource)]
+        node-id (project/get-resource-node project manifest-ext-resource evaluation-context)]
     {:_node-id node-id
      :message all
      :severity :fatal}))
@@ -102,40 +102,40 @@
 (defn- extension-manifest? [resource]
   (= "ext.manifest" (resource/resource-name resource)))
 
-(defn- extension-manifests [project]
-  (filterv extension-manifest? (g/node-value project :resources)))
+(defn- extension-manifests [project evaluation-context]
+  (filterv extension-manifest? (g/node-value project :resources evaluation-context)))
 
-(defn- extension-manifest-node-ids [project]
-  (keep (partial project/get-resource-node project) (extension-manifests project)))
+(defn- extension-manifest-node-ids [project evaluation-context]
+  (keep #(project/get-resource-node project % evaluation-context) (extension-manifests project evaluation-context)))
 
-(defn- get-manifest-ext-resources-by-name [project]
+(defn- get-manifest-ext-resources-by-name [project evaluation-context]
   (into {}
         (keep (fn [resource]
                 (when-let [manifest-ext-name (try-parse-manifest-ext-name resource)]
                   [manifest-ext-name resource])))
-        (extension-manifests project)))
+        (extension-manifests project evaluation-context)))
 
-(defn- try-parse-invalid-lib-error-causes [project log]
+(defn- try-parse-invalid-lib-error-causes [project evaluation-context log]
   (when-let [matches (not-empty (re-seq invalid-lib-re log))]
-    (let [manifest-ext-resources-by-name (get-manifest-ext-resources-by-name project)]
-      (mapv #(invalid-lib-match->cause project % manifest-ext-resources-by-name) matches))))
+    (let [manifest-ext-resources-by-name (get-manifest-ext-resources-by-name project evaluation-context)]
+      (mapv #(invalid-lib-match->cause project evaluation-context % manifest-ext-resources-by-name) matches))))
 
-(defn- try-parse-compiler-error-causes [project platform log]
+(defn- try-parse-compiler-error-causes [project evaluation-context platform log]
   (let [issue-resource-infos (ArrayList.)]
     (BundleHelper/parseLog platform log issue-resource-infos)
-    (not-empty (mapv (partial error-info-provider->cause project)
+    (not-empty (mapv (partial error-info-provider->cause project evaluation-context)
                      issue-resource-infos))))
 
-(defn- try-get-multiple-compile-exception-error-causes [project ^MultipleCompileException exception]
-  (not-empty (mapv (partial error-info-provider->cause project)
+(defn- try-get-multiple-compile-exception-error-causes [project evaluation-context ^MultipleCompileException exception]
+  (not-empty (mapv (partial error-info-provider->cause project evaluation-context)
                    (.issues exception))))
 
-(defn- generic-extension-error-causes [project log]
+(defn- generic-extension-error-causes [project evaluation-context log]
   ;; This is a catch-all that simply dumps the entire log output into the Build
   ;; Errors view in case we've failed to parse more meaningful errors from it.
   ;; It will split log lines across multiple build error entries, since the
   ;; control we use currently does not cope well with multi-line strings.
-  (let [node-id (first (extension-manifest-node-ids project))]
+  (let [node-id (first (extension-manifest-node-ids project evaluation-context))]
     (or (when-let [log-lines (seq (drop-while string/blank? (string/split-lines (string/trim-newline log))))]
           (vec (map-indexed (fn [index log-line]
                               {:_node-id node-id
@@ -146,8 +146,8 @@
           :message no-information-message
           :severity :fatal}])))
 
-(defn failed-tasks-error-causes [project failed-tasks]
-  (mapv (partial error-info-provider->cause project)
+(defn failed-tasks-error-causes [project evaluation-context failed-tasks]
+  (mapv (partial error-info-provider->cause project evaluation-context)
         failed-tasks))
 
 (defn unsupported-platform-error [platform]
@@ -158,8 +158,8 @@
 (defn unsupported-platform-error? [exception]
   (= ::unsupported-platform-error (:type (ex-data exception))))
 
-(defn unsupported-platform-error-causes [project]
-  [{:_node-id (first (extension-manifest-node-ids project))
+(defn unsupported-platform-error-causes [project evaluation-context]
+  [{:_node-id (first (extension-manifest-node-ids project evaluation-context))
     :message "Native Extensions are not yet supported for the target platform"
     :severity :fatal}])
 
@@ -187,31 +187,31 @@
 (defn build-error? [exception]
   (= ::build-error (:type (ex-data exception))))
 
-(defn build-error-causes [project exception]
+(defn- build-error-causes [project evaluation-context exception]
   (let [log (:log (ex-data exception))
         platform (:platform (ex-data exception))]
-    (or (try-parse-invalid-lib-error-causes project log)
-        (try-parse-compiler-error-causes project platform log)
-        (generic-extension-error-causes project log))))
+    (or (try-parse-invalid-lib-error-causes project evaluation-context log)
+        (try-parse-compiler-error-causes project evaluation-context platform log)
+        (generic-extension-error-causes project evaluation-context log))))
 
-(defn compile-exception-error-causes [project exception]
-  [(error-info-provider->cause project exception)])
+(defn- compile-exception-error-causes [project evaluation-context exception]
+  [(error-info-provider->cause project evaluation-context exception)])
 
-(defn multiple-compile-exception-error-causes [project ^MultipleCompileException exception]
+(defn- multiple-compile-exception-error-causes [project evaluation-context ^MultipleCompileException exception]
   (let [log (.getRawLog exception)]
-    (or (try-parse-invalid-lib-error-causes project log)
-        (try-get-multiple-compile-exception-error-causes project exception)
-        (generic-extension-error-causes project log))))
+    (or (try-parse-invalid-lib-error-causes project evaluation-context log)
+        (try-get-multiple-compile-exception-error-causes project evaluation-context exception)
+        (generic-extension-error-causes project evaluation-context log))))
 
-(defn library-exception-error-causes [project ^Throwable exception]
-  [{:_node-id (project/get-resource-node project "/game.project")
+(defn- library-exception-error-causes [project evaluation-context ^Throwable exception]
+  [{:_node-id (project/get-resource-node project "/game.project" evaluation-context)
     :message (.getMessage exception)
     :severity :fatal}])
 
-(defn handle-build-error! [render-error! project exception]
+(defn handle-build-error! [render-error! project evaluation-context exception]
   (cond
     (unsupported-platform-error? exception)
-    (do (render-error! {:causes (unsupported-platform-error-causes project)})
+    (do (render-error! {:causes (unsupported-platform-error-causes project evaluation-context)})
         true)
 
     (missing-resource-error? exception)
@@ -219,19 +219,19 @@
         true)
 
     (build-error? exception)
-    (do (render-error! {:causes (build-error-causes project exception)})
+    (do (render-error! {:causes (build-error-causes project evaluation-context exception)})
         true)
 
     (instance? CompileExceptionError exception)
-    (do (render-error! {:causes (compile-exception-error-causes project exception)})
+    (do (render-error! {:causes (compile-exception-error-causes project evaluation-context exception)})
         true)
 
     (instance? MultipleCompileException exception)
-    (do (render-error! {:causes (multiple-compile-exception-error-causes project exception)})
+    (do (render-error! {:causes (multiple-compile-exception-error-causes project evaluation-context exception)})
         true)
 
     (instance? LibraryException exception)
-    (do (render-error! {:causes (library-exception-error-causes project exception)})
+    (do (render-error! {:causes (library-exception-error-causes project evaluation-context exception)})
         true)
 
     :else
