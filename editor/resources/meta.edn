@@ -498,6 +498,13 @@
    :default "/builtins/manifests/ios/Info.plist",
    :path ["ios" "infoplist"]}
   {:type :resource,
+   :filter ["entitlements", "xcent", "plist"],
+   :preserve-extension true,
+   :help "custom entitlements to use when signing an iOS bundle. Can replace any wildcard entitlements in the supplied provisioning profile",
+   :label "Custom entitlements"
+   :default "",
+   :path ["ios" "entitlements"]}
+  {:type :resource,
    :filter "png",
    :preserve-extension true,
    :help "Android ldpi icon file (.png)",
