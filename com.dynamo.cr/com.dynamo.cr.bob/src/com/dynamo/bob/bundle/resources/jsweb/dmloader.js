@@ -280,6 +280,19 @@ var CanvasInput = {
 };
 
 /* ********************************************************************* */
+/* Manage context menu                                                   */
+/* ********************************************************************* */
+
+var ContextMenuHider = {
+    null_handler : function(e) {
+        e.preventDefault();
+    },
+    addToCanvas : function(canvas) {
+        canvas.oncontextmenu = this.null_handler;
+    }
+}
+
+/* ********************************************************************* */
 /* Module is Emscripten namespace                                        */
 /* ********************************************************************* */
 
@@ -453,6 +466,9 @@ var Module = {
 
             // Add progress visuals
             Progress.addProgress(Module.canvas);
+
+            // Set context menu handler
+            ContextMenuHider.addToCanvas(Module.canvas);
 
             // Load and assemble archive
             Combine.addCombineCompletedListener(Module.onArchiveFileLoaded);
