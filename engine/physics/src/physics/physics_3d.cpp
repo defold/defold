@@ -138,6 +138,7 @@ namespace dmPhysics
 
         m_RayCastRequests.SetCapacity(context->m_RayCastLimit);
         m_FixedDt = params.m_FixedDt;
+        m_DtAccum = 0.0f;
         OverlapCacheInit(&m_TriggerOverlaps);
     }
 
@@ -262,14 +263,13 @@ namespace dmPhysics
 
     static void UpdateOverlapCache(OverlapCache* cache, HContext3D context, btDispatcher* dispatcher, const StepWorldContext& step_context);
 
-    static float g_DtAcum = 0.0;
     static float EPSILON = 0.0001; // 0.1ms
 
     void StepWorld3D(HWorld3D world, const StepWorldContext& step_context)
     {
         float dt = step_context.m_DT;
         // dmLogWarning("dt: %f", dt);
-        g_DtAcum += dt;
+        world->m_DtAccum += dt;
         HContext3D context = world->m_Context;
         float scale = context->m_Scale;
         // Epsilon defining what transforms are considered noise and not
@@ -355,14 +355,14 @@ namespace dmPhysics
             DM_PROFILE(Physics, "StepSimulation");
 
             // dmLogInfo("----- FRAME -----");
-            while (g_DtAcum >= world->m_FixedDt - EPSILON)
+            while (world->m_DtAccum >= world->m_FixedDt - EPSILON)
             {
                 // dmLogWarning("step, world->m_FixedDt: %f", world->m_FixedDt);
                 // dt = world->m_FixedDt;
                 // 0 here means means we promise that dt is fixed; https://pybullet.org/Bullet/BulletFull/classbtDynamicsWorld.html#a5ab26a0d6e8b2b21fbde2ed8f8dd6294
                 world->m_DynamicsWorld->stepSimulation(world->m_FixedDt, 0);
                 // world->m_DynamicsWorld->stepSimulation(dt, max_substeps, world->m_FixedDt);
-                g_DtAcum -= world->m_FixedDt;
+                world->m_DtAccum -= world->m_FixedDt;
 
                 // Report collisions
                 bool requests_collision_callbacks = true;

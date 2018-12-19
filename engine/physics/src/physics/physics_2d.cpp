@@ -204,6 +204,7 @@ namespace dmPhysics
         world->m_World.SetContactListener(&world->m_ContactListener);
         world->m_World.SetContinuousPhysics(false);
         world->m_FixedDt = params.m_FixedDt;
+        world->m_DtAccum = 0.0f;
         context->m_Worlds.Push(world);
         return world;
     }
@@ -218,12 +219,12 @@ namespace dmPhysics
 
     static void UpdateOverlapCache(OverlapCache* cache, HContext2D context, b2Contact* contact_list, const StepWorldContext& step_context);
 
-    static float g_DtAcum = 0.0;
     static float EPSILON = 0.0001; // 0.1ms
 
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
     {
-        g_DtAcum += step_context.m_DT;
+        world->m_DtAccum += step_context.m_DT;
+        // dmLogWarning("world->m_DtAccum: %f", world->m_DtAccum);
 
         float dt = step_context.m_DT;
         HContext2D context = world->m_Context;
@@ -280,7 +281,7 @@ namespace dmPhysics
                     {
                         Vectormath::Aos::Point3 position;
 
-                        float alpha = dmMath::Min(1.0f, g_DtAcum / world->m_FixedDt);
+                        float alpha = dmMath::Min(1.0f, world->m_DtAccum / world->m_FixedDt);
                         // dmLogWarning("alpha: %f", alpha);
                         b2Vec2 interpolated_pos = alpha * body->GetPosition() + (1.0f - alpha) * body->m_prevXf.p;
                         FromB2(interpolated_pos, position, inv_scale);
@@ -290,7 +291,7 @@ namespace dmPhysics
 
                         (*world->m_SetWorldTransformCallback)(body->GetUserData(), position, rotation);
 
-                        if (g_DtAcum >= world->m_FixedDt - EPSILON)
+                        if (world->m_DtAccum >= world->m_FixedDt - EPSILON)
                         {
                             // dmLogInfo("prev angle: %f, current angle: %f")
                             body->m_prevAngle = body->GetAngle();
@@ -325,12 +326,12 @@ namespace dmPhysics
         // TODO raycasts should be sent every step as well!! --jbnn
         // Or should they? Ray casts are always sent from script->comp_collisionobject->physics
         // Will they actually benefit from being processed in "physics-time"?
-        while (g_DtAcum >= world->m_FixedDt - EPSILON)
+        while (world->m_DtAccum >= world->m_FixedDt - EPSILON)
         {
             dt = world->m_FixedDt;
             // dmLogWarning("step, dt: %f", dt);
             world->m_World.Step(dt, 10, 10);
-            g_DtAcum -= world->m_FixedDt;
+            world->m_DtAccum -= world->m_FixedDt;
             // Report sensor collisions
             if (step_context.m_CollisionCallback)
             {

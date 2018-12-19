@@ -26,6 +26,7 @@ namespace dmPhysics
         GetWorldTransformCallback               m_GetWorldTransform;
         SetWorldTransformCallback               m_SetWorldTransform;
         float                                   m_FixedDt;
+        float                                   m_DtAccum;
     };
 
     struct Context3D
