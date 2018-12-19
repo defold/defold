@@ -257,6 +257,16 @@ namespace dmGameSystem
             dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_Textures[i].m_Texture);
         }
 
+        for (uint32_t i = 0; i < scene_desc->m_SpineScenes.m_Count; ++i)
+        {
+            dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_SpineScenes[i].m_SpineScene);
+        }
+
+        for (uint32_t i = 0; i < scene_desc->m_Particlefxs.m_Count; ++i)
+        {
+            dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_Particlefxs[i].m_Particlefx);
+        }
+
         *params.m_PreloadData = scene_desc;
         return dmResource::RESULT_OK;
     }

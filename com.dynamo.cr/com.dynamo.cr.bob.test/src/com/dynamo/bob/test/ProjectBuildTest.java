@@ -107,12 +107,26 @@ public class ProjectBuildTest {
     {
         assertEquals(expectedValue, properties.getStringValue(category, key));
     }
+    
+    @Test
+    public void testGamePropertiesBuildtimeTransform() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
+    	projectName = "Game Project Properties Transform";
+    	createDefaultFiles();
+    	createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +"\ndependencies = http://test.com/test.zip\n\n[display]" + "\nvariable_dt = 1\n" + "vsync = 1\n" + "update_frequency = 30\n");
+    	build();
+    	BobProjectProperties outputProps = new BobProjectProperties();
+    	outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+    	
+    	checkProjectSetting(outputProps, "display", "vsync", "0");
+    	checkProjectSetting(outputProps, "display", "update_frequency", "0");
+    }
 
     @Test
     public void testGameProperties() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
         projectName = "Game Project Properties";
         createDefaultFiles();
         createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +"\ndependencies = http://test.com/test.zip\n\n[custom]\nlove = defold\n");
+        createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +"\ndependencies = http://test.com/test.zip\n\n[custom]\nlove = defold\nshould_be_empty =\n");
         build();
         BobProjectProperties outputProps = new BobProjectProperties();
         outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
@@ -124,6 +138,8 @@ public class ProjectBuildTest {
 
         // Default boolean value
         checkProjectSetting(outputProps, "script", "shared_state", "0");
+        checkProjectSetting(outputProps, "display", "vsync", "1");
+        checkProjectSetting(outputProps, "display", "update_frequency", "0");
 
         // Default number value
         checkProjectSetting(outputProps, "display", "width", "960");
@@ -133,6 +149,18 @@ public class ProjectBuildTest {
 
         // project.dependencies entry should be removed
         checkProjectSetting(outputProps, "project", "dependencies", null);
+
+        // Compiled resource
+        checkProjectSetting(outputProps, "display", "display_profiles", "/builtins/render/default.display_profilesc");
+
+        // Copy-only resource
+        checkProjectSetting(outputProps, "osx", "infoplist", "/builtins/manifests/osx/Info.plist");
+
+        // Check so that empty defaults are not included
+        checkProjectSetting(outputProps, "tracking", "app_id", null);
+
+        // Check so empty custom properties are included as empty strings
+        checkProjectSetting(outputProps, "custom", "should_be_empty", "");
     }
 
     private String createFile(String root, String name, String content) throws IOException {

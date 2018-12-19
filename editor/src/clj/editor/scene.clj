@@ -48,7 +48,7 @@
            [javafx.scene.layout AnchorPane Pane StackPane]
            [java.lang Runnable Math]
            [java.nio IntBuffer ByteBuffer ByteOrder]
-           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLException GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
+           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLAutoDrawable GLOffscreenAutoDrawable]
            [com.jogamp.opengl.glu GLU]
            [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]
            [sun.awt.image IntegerComponentRaster]
@@ -172,67 +172,6 @@
         (gl/gl-load-matrix-4d gl (c/camera-view-matrix camera)))
       (pass/prepare-gl pass gl glu))))
 
-
-(def ^:private last-make-current-failure (atom 0))
-
-(defn- time-to-log? []
-  (let [now (System/currentTimeMillis)]
-    (when (> (- now @last-make-current-failure) (* 1000 60))
-      (reset! last-make-current-failure now)
-      true)))
-
-(defn make-current ^GLContext [^GLAutoDrawable drawable]
-  (when-let [^GLContext context (.getContext drawable)]
-    (try
-      (let [result (.makeCurrent context)]
-        (if (= result GLContext/CONTEXT_NOT_CURRENT)
-          (do
-            (when (time-to-log?)
-              (log/warn :message "Failed to set gl context as current."))
-            nil)
-          context))
-      (catch Exception e
-        (when (time-to-log?)
-          (log/error :exception e))
-        nil))))
-
-(defmacro with-drawable-as-current [^GLAutoDrawable drawable & forms]
-  `(when-let [^GLContext ~'gl-context (make-current ~drawable)]
-     (try
-       (let [^GL2 ~'gl (.getGL ~'gl-context)]
-         ~@forms)
-       (finally (.release ~'gl-context)))))
-
-(defn- gl-profile ^GLProfile []
-  (try
-    (GLProfile/getGL2ES1)
-    (catch GLException e
-      (log/warn :message "Failed to acquire GL profile for GL2/GLES1.")
-      (GLProfile/getDefault))))
-
-(defn make-drawable ^GLOffscreenAutoDrawable [w h]
-  (let [profile (gl-profile)
-        factory (GLDrawableFactory/getFactory profile)
-        caps    (doto (GLCapabilities. profile)
-                  (.setOnscreen false)
-                  (.setFBO true)
-                  (.setPBuffer true)
-                  (.setDoubleBuffered false)
-                  (.setStencilBits 8))
-        drawable (.createOffscreenAutoDrawable factory nil caps nil w h)
-        context (.createContext drawable nil)]
-    (.setContext drawable context true)
-    (with-drawable-as-current drawable
-      (gl/gl-info! context))
-    (let [info (gl/gl-info)]
-      (when-let [missing (seq (:missing-functions info))]
-        (.destroy drawable)
-        (throw (GLException. (string/join "\n"
-                               [(format "The graphics device does not support: %s" (string/join ", " missing))
-                                (format "GPU: %s" (:renderer info))
-                                (format "Driver: %s" (:version info))
-                                "Please try to update your driver to the latest version and restart the application."])))))
-    drawable))
 
 (defn make-copier [^Region viewport]
   (let [[w h] (vp-dims viewport)]
@@ -567,7 +506,7 @@
 
 (g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
   (or (and picking-rect
-        (with-drawable-as-current drawable
+        (gl/with-drawable-as-current drawable
           (let [render-args (generic-render-args viewport camera)]
             (into []
                   (comp (mapcat (fn [pass]
@@ -584,7 +523,7 @@
 (g/defnk produce-tool-selection [tool-renderables ^GLAutoDrawable drawable viewport camera ^Rect tool-picking-rect ^IntBuffer select-buffer inactive?]
   (or (and tool-picking-rect
         (not inactive?)
-        (with-drawable-as-current drawable
+        (gl/with-drawable-as-current drawable
           (let [render-args (generic-render-args viewport camera)
                 tool-renderables (apply merge-with into tool-renderables)
                 passes [pass/manipulator-selection pass/overlay-selection]]
@@ -655,7 +594,7 @@
 (defn dispose-scene-view! [node-id]
   (when-let [scene (g/node-by-id node-id)]
     (when-let [^GLAutoDrawable drawable (g/node-value node-id :drawable)]
-      (with-drawable-as-current drawable
+      (gl/with-drawable-as-current drawable
         (scene-cache/drop-context! gl)
         (when-let [^AsyncCopier copier (g/node-value node-id :async-copier)]
           (.dispose copier gl))
@@ -875,7 +814,7 @@
           (g/update-property! view-id :updatable-states update-updatables play-mode active-updatables)))
       (profiler/profile "render" -1
         (let [current-frame-version (ui/user-data image-view ::current-frame-version)]
-          (with-drawable-as-current drawable
+          (gl/with-drawable-as-current drawable
             (when (not= current-frame-version frame-version)
               (render! render-args gl-context (g/node-value view-id :updatable-states))
               (ui/user-data! image-view ::current-frame-version frame-version)
@@ -991,15 +930,17 @@
                        (let [viewport (types/->Region 0 w 0 h)]
                          (g/transact (g/set-property view-id :viewport viewport))
                          (if-let [view-id (ui/user-data image-view ::view-id)]
-                           (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
+                           (when-some [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
                              (doto drawable
                                (.setSurfaceSize w h))
                              (doto ^AsyncCopier (g/node-value view-id :async-copier)
                                (.setSize w h)))
-                           (let [drawable (make-drawable w h)]
+                           (let [drawable (gl/offscreen-drawable w h)]
                              (ui/user-data! image-view ::view-id view-id)
                              (register-event-handler! this view-id)
-                             (ui/on-closed! (:tab opts) (fn [_] (dispose-scene-view! view-id)))
+                             (ui/on-closed! (:tab opts) (fn [_]
+                                                          (ui/kill-event-dispatch! this)
+                                                          (dispose-scene-view! view-id)))
                              (g/set-property! view-id :drawable drawable :async-copier (make-copier viewport))
                              (frame-selection view-id false)))))
                      (catch Throwable error
@@ -1026,12 +967,13 @@
     view-id))
 
 (g/defnk produce-frame [render-args ^GLAutoDrawable drawable]
-  (with-drawable-as-current drawable
-    (render! render-args gl-context nil)
-    (let [[w h] (vp-dims (:viewport render-args))
-          buf-image (read-to-buffered-image w h)]
-      (scene-cache/prune-context! gl)
-      buf-image)))
+  (when drawable
+    (gl/with-drawable-as-current drawable
+      (render! render-args gl-context nil)
+      (let [[w h] (vp-dims (:viewport render-args))
+            buf-image (read-to-buffered-image w h)]
+        (scene-cache/prune-context! gl)
+        buf-image))))
 
 (g/defnode PreviewView
   (inherits view/WorkbenchView)
@@ -1069,7 +1011,7 @@
   (output all-renderables g/Any (gu/passthrough renderables)))
 
 (defn make-preview-view [graph width height]
-  (g/make-node! graph PreviewView :width width :height height :drawable (make-drawable width height) :select-buffer (make-select-buffer)))
+  (g/make-node! graph PreviewView :width width :height height :drawable (gl/offscreen-drawable width height) :select-buffer (make-select-buffer)))
 
 
 (defmulti attach-grid
@@ -1177,7 +1119,7 @@
 
 (defn dispose-preview [node-id]
   (when-some [^GLAutoDrawable drawable (g/node-value node-id :drawable)]
-    (with-drawable-as-current drawable
+    (gl/with-drawable-as-current drawable
       (scene-cache/drop-context! gl))
     (.destroy drawable)
     (g/set-property! node-id :drawable nil)))

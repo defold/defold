@@ -4,8 +4,9 @@
             [editor.form :as form]
             [editor.field-expression :as field-expression]
             [editor.ui :as ui]
+            [editor.ui.bindings :as b]
             [editor.url :as url]
-            [editor.jfx :as jfx]            
+            [editor.jfx :as jfx]
             [editor.dialogs :as dialogs]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
@@ -100,7 +101,6 @@
 
 (defn update-form-setting [form-data path f]
   (update form-data :sections (fn [section] (mapv #(update-section-setting % path f) section))))
-
 
 (defn- create-text-field-control [parse serialize {:keys [path help] :as field-info} {:keys [set cancel]}]
   (let [tf (TextField.)
@@ -563,8 +563,7 @@
     (ui/disable! add-button (nil? default-row))
     (ui/on-action! add-button (fn [_] (on-add-row)))
 
-    (.bind (.disableProperty remove-button)
-           (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel table))))
+    (b/bind-enabled-to-selection! remove-button table)
     (ui/on-action! remove-button (fn [_] (on-remove-rows)))
 
     (.setFixedCellSize table cell-height)
@@ -754,8 +753,7 @@
     (ui/enable! add-button (or default-row? query-fn?))
     (ui/on-action! add-button (fn [_] (on-add-rows)))
 
-    (.bind (.disableProperty remove-button)
-           (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel list-view))))
+    (b/bind-enabled-to-selection! remove-button list-view)
     (ui/on-action! remove-button (fn [_] (on-remove-rows)))
 
     (.setCellFactory list-view (create-list-cell-factory (:element field-info) ctxt edited-cell))
@@ -869,8 +867,7 @@
     (ui/disable! add-button (nil? default-row))
     (ui/on-action! add-button (fn [_] (on-add-row)))
 
-    (.bind (.disableProperty remove-button)
-           (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel list-view))))
+    (b/bind-enabled-to-selection! remove-button list-view)
     (ui/on-action! remove-button (fn [_] (on-remove-rows)))
 
     (ui/user-data! grid ::ui-update-fns updaters)
@@ -950,14 +947,14 @@
                          ((:update api) value)
                          (update-label-box overridden?))
                        (when (:deprecated (:meta-setting update-data))
-                         (let [error (settings/get-setting-error (:setting-value update-data) (:meta-setting update-data))
+                         (let [error (settings/get-setting-error (:setting-value update-data) (:meta-setting update-data) :build-targets)
                                severity (:severity error)]
                            (ui/remove-styles! control (map val severity-field-style-map))
-                           (if (= nil error)
-                             (set-visible-and-managed! [label-box control] false)
+                           (if (some? error)
                              (do
                                (set-visible-and-managed! [label-box control] true)
-                               (ui/add-style! control (severity-field-style-map severity)))))))]
+                               (ui/add-style! control (severity-field-style-map severity)))
+                             (set-visible-and-managed! [label-box control] false)))))]
 
     (GridPane/setFillWidth label-box true)
     (GridPane/setValignment label-box (field-label-valign field-info))

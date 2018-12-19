@@ -180,6 +180,7 @@ def dmsdk_add_files(bld, target, source):
 # I don't know if this is entirely correct
 @before('apply_core')
 def default_flags(self):
+    global MIN_IOS_SDK_VERSION
     build_util = create_build_utility(self.env)
 
     opt_level = Options.options.opt_level
@@ -187,6 +188,10 @@ def default_flags(self):
         opt_level = "3" # emscripten highest opt level
     elif opt_level == "0" and 'win' in build_util.get_target_os():
         opt_level = "d" # how to disable optimizations in windows
+
+    # For nicer better output (i.e. in CI logs), and still get some performance, let's default to -O1
+    if Options.options.with_asan and opt_level != '0':
+        opt_level = 1
 
     FLAG_ST = '/%s' if 'win' == build_util.get_target_os() else '-%s'
 
@@ -235,9 +240,12 @@ def default_flags(self):
         if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
             self.env.append_value('LINKFLAGS', ['-m32'])
         if 'osx' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon','-flto'])
+            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION,'-lSystem','-framework', 'Carbon','-flto'])
 
     elif 'ios' == build_util.get_target_os() and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture()):
+        if Options.options.with_asan:
+            MIN_IOS_SDK_VERSION="8.0" # embedded dylibs/frameworks are only supported on iOS 8.0 and later
+
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
@@ -327,6 +335,7 @@ def default_flags(self):
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('sdk','include'))
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('include'))
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('include', build_util.get_target_platform()))
+    self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include', build_util.get_target_platform()))
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
 
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
@@ -354,10 +363,10 @@ def asan_cxxflags(self):
     if getattr(self, 'skip_asan', False):
         return
     build_util = create_build_utility(self.env)
-    if Options.options.with_asan and "osx" == build_util.get_target_os():
-        self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-DSANITIZE_ADDRESS'])
-        self.env.append_value('CCFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-DSANITIZE_ADDRESS'])
-        self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer'])
+    if Options.options.with_asan and build_util.get_target_os() in ('osx','ios'):
+        self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
+        self.env.append_value('CCFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
+        self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
 
 @taskgen
 @feature('cprogram', 'cxxprogram')
