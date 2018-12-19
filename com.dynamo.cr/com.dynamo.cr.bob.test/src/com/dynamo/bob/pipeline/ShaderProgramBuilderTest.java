@@ -35,32 +35,24 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testShaderPrograms() throws Exception {
-        // Test GL Desktop vp
+        // Test GL vp
         List<Message> outputs = build("/test_shader.vp", vp);
         ShaderDesc shader = (ShaderDesc)outputs.get(0);
         assertNotNull(shader.getShaders(0).getSource());
         assertEquals(ShaderDesc.Language.LANGUAGE_GLSL, shader.getShaders(0).getLanguage());
         switch(Platform.getHostPlatform())
         {
-	 		case X86Darwin:
-			case X86_64Darwin:
-			case Armv7Darwin:
-			case Arm64Darwin:
-		    	assertEquals(2, shader.getShadersCount());
-		        assertNotNull(shader.getShaders(1).getBinary());
-		        assertEquals(ShaderDesc.Language.LANGUAGE_MSL, shader.getShaders(1).getLanguage());
-		        break;
-
-			case Armv7Android:
-		    	assertEquals(2, shader.getShadersCount());
-		        assertNotNull(shader.getShaders(1).getBinary());
-		        assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
-		        break;
-		    default:
-		    	assertEquals(1, shader.getShadersCount());
+            case X86Darwin:
+            case X86_64Darwin:
+                assertEquals(2, shader.getShadersCount());
+                assertNotNull(shader.getShaders(1).getBinary());
+                assertEquals(ShaderDesc.Language.LANGUAGE_MSL, shader.getShaders(1).getLanguage());
+                break;
+            default:
+                assertEquals(1, shader.getShadersCount());
         }
 
-        // Test GL Desktop fp
+        // Test GL fp
         outputs = build("/test_shader.fp", fp);
         shader = (ShaderDesc)outputs.get(0);
         assert(shader.getShaders(0).getLanguage() == ShaderDesc.Language.LANGUAGE_GLSL);
@@ -68,22 +60,15 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(ShaderDesc.Language.LANGUAGE_GLSL, shader.getShaders(0).getLanguage());
         switch(Platform.getHostPlatform())
         {
-	 		case X86Darwin:
-			case X86_64Darwin:
-			case Armv7Darwin:
-			case Arm64Darwin:
-		    	assertEquals(2, shader.getShadersCount());
-		        assertNotNull(shader.getShaders(1).getBinary());
-		        assertEquals(ShaderDesc.Language.LANGUAGE_MSL, shader.getShaders(1).getLanguage());
-		        break;
+            case X86Darwin:
+            case X86_64Darwin:
+                assertEquals(2, shader.getShadersCount());
+                assertNotNull(shader.getShaders(1).getBinary());
+                assertEquals(ShaderDesc.Language.LANGUAGE_MSL, shader.getShaders(1).getLanguage());
+                break;
 
-			case Armv7Android:
-		    	assertEquals(2, shader.getShadersCount());
-		        assertNotNull(shader.getShaders(1).getBinary());
-		        assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
-		        break;
-		    default:
-		    	assertEquals(1, shader.getShadersCount());
+            default:
+                assertEquals(1, shader.getShadersCount());
         }
 
         // Test GLES vp
@@ -91,22 +76,15 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         shader = (ShaderDesc)outputs.get(0);
         switch(Platform.getHostPlatform())
         {
-	 		case X86Darwin:
-			case X86_64Darwin:
-			case Armv7Darwin:
-			case Arm64Darwin:
-		    	assertEquals(2, shader.getShadersCount());
-		        assertNotNull(shader.getShaders(1).getBinary());
-		        assertEquals(ShaderDesc.Language.LANGUAGE_MSL, shader.getShaders(1).getLanguage());
-		        break;
+            case X86Darwin:
+            case X86_64Darwin:
+                assertEquals(2, shader.getShadersCount());
+                assertNotNull(shader.getShaders(1).getBinary());
+                assertEquals(ShaderDesc.Language.LANGUAGE_MSL, shader.getShaders(1).getLanguage());
+                break;
 
-			case Armv7Android:
-		    	assertEquals(2, shader.getShadersCount());
-		        assertNotNull(shader.getShaders(1).getBinary());
-		        assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
-		        break;
-		    default:
-		    	assertEquals(1, shader.getShadersCount());
+            default:
+                assertEquals(1, shader.getShadersCount());
         }
 
         // Test GLES fp
@@ -114,22 +92,15 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         shader = (ShaderDesc)outputs.get(0);
         switch(Platform.getHostPlatform())
         {
-	 		case X86Darwin:
-			case X86_64Darwin:
-			case Armv7Darwin:
-			case Arm64Darwin:
-		    	assertEquals(2, shader.getShadersCount());
-		        assertNotNull(shader.getShaders(1).getBinary());
-		        assertEquals(ShaderDesc.Language.LANGUAGE_MSL, shader.getShaders(1).getLanguage());
-		        break;
+            case X86Darwin:
+            case X86_64Darwin:
+                assertEquals(2, shader.getShadersCount());
+                assertNotNull(shader.getShaders(1).getBinary());
+                assertEquals(ShaderDesc.Language.LANGUAGE_MSL, shader.getShaders(1).getLanguage());
+                break;
 
-			case Armv7Android:
-		    	assertEquals(2, shader.getShadersCount());
-		        assertNotNull(shader.getShaders(1).getBinary());
-		        assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
-		        break;
-		    default:
-		    	assertEquals(1, shader.getShadersCount());
+            default:
+                assertEquals(1, shader.getShadersCount());
         }
     }
 }
