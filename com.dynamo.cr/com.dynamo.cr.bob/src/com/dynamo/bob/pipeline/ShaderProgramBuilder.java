@@ -111,10 +111,10 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
     static private void checkResult(Result r, IResource resource, String resourceOutput) throws CompileExceptionError {
         if (r.ret != 0 ) {
-            String[] noTFN = new String(r.stdOutErr).split(":", 2);
-            String message = noTFN[0];
-            if(noTFN.length != 1) {
-                message = noTFN[1];
+            String[] tokenizedResult = new String(r.stdOutErr).split(":", 2);
+            String message = tokenizedResult[0];
+            if(tokenizedResult.length != 1) {
+                message = tokenizedResult[1];
             }
             if(resource != null) {
                 throw new CompileExceptionError(resource, 0, message);
@@ -142,7 +142,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         builder.setSource(ByteString.copyFrom(msl_data));
     }
 
-    private ShaderDesc.Shader.Builder compileSPIRV(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language targetLanguage, IResource resource, String resourceOutput, String targetProfile, boolean isDebug)  throws IOException, CompileExceptionError {
+    private ShaderDesc.Shader.Builder compileGLSLToSPIRV(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language targetLanguage, IResource resource, String resourceOutput, String targetProfile, boolean isDebug)  throws IOException, CompileExceptionError {
         InputStreamReader isr = new InputStreamReader(is);
 
         // Convert to ES3 (or GL 140+)
@@ -220,7 +220,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         		{
         			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
-                    shaderDescBuilder.addShaders(compileSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_MSL, resource, resourceOutput, "", isDebug));
+                    shaderDescBuilder.addShaders(compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_MSL, resource, resourceOutput, "", isDebug));
         		}
                 break;
 
@@ -239,14 +239,14 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         		{
         			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
-                    shaderDescBuilder.addShaders(compileSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_MSL, resource, resourceOutput, "es", isDebug));
+                    shaderDescBuilder.addShaders(compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_MSL, resource, resourceOutput, "es", isDebug));
         		}
      			break;
 
         		case Armv7Android:
         			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
-                    shaderDescBuilder.addShaders(compileSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "", isDebug));
+                    shaderDescBuilder.addShaders(compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "", isDebug));
         		break;
 
         		case JsWeb:
