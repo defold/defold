@@ -58,7 +58,7 @@ namespace dmGameSystem
         return true;
     }
 
-    dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::MaterialDesc* ddf, MaterialResources* resources, const char* filename)
+    dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::MaterialDesc* ddf, MaterialResources* resources)
     {
         dmResource::Result factory_e;
         factory_e = dmResource::Get(factory, ddf->m_VertexProgram, (void**) &resources->m_VertexProgram);
@@ -161,7 +161,7 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
         dmRenderDDF::MaterialDesc* ddf = (dmRenderDDF::MaterialDesc*)params.m_PreloadData;
         MaterialResources resources;
-        dmResource::Result r = AcquireResources(params.m_Factory, ddf, &resources, params.m_Filename);
+        dmResource::Result r = AcquireResources(params.m_Factory, ddf, &resources);
         if (r == dmResource::RESULT_OK)
         {
             dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_VertexProgram, resources.m_FragmentProgram);
@@ -214,7 +214,7 @@ namespace dmGameSystem
         }
 
         MaterialResources resources;
-        dmResource::Result r = AcquireResources(params.m_Factory, ddf, &resources, params.m_Filename);
+        dmResource::Result r = AcquireResources(params.m_Factory, ddf, &resources);
         if (r == dmResource::RESULT_OK)
         {
             dmRender::HMaterial material = (dmRender::HMaterial) params.m_Resource->m_Resource;
