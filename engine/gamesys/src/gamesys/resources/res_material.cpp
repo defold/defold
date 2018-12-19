@@ -70,8 +70,8 @@ namespace dmGameSystem
         factory_e = dmResource::Get(factory, ddf->m_FragmentProgram, (void**) &resources->m_FragmentProgram);
         if ( factory_e != dmResource::RESULT_OK)
         {
-            dmResource::Release(factory, (void*)resources->m_FragmentProgram);
-            resources->m_FragmentProgram = 0x0;
+            dmResource::Release(factory, (void*)resources->m_VertexProgram);
+            resources->m_VertexProgram = 0x0;
             return factory_e;
         }
 
