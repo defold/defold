@@ -654,10 +654,10 @@ namespace dmResourceArchive
         char lu_index_path[DMPATH_MAX_PATH];
         char lu_index_tmp_path[DMPATH_MAX_PATH];
 
-        dmSys::Result support_path_resuls = dmSys::GetApplicationSupportPath(proj_id, app_support_path, DMPATH_MAX_PATH);
-        if (support_path_resuls != dmSys::RESULT_OK)
+        dmSys::Result support_path_result = dmSys::GetApplicationSupportPath(proj_id, app_support_path, DMPATH_MAX_PATH);
+        if (support_path_result != dmSys::RESULT_OK)
         {
-            dmLogError("Failed get application support path for \"%s\", result = %i", proj_id, support_path_resuls);
+            dmLogError("Failed get application support path for \"%s\", result = %i", proj_id, support_path_result);
             return RESULT_NOT_FOUND;
         }
         dmPath::Concat(app_support_path, "liveupdate.arci", lu_index_path, DMPATH_MAX_PATH);

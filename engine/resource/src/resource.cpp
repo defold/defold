@@ -274,10 +274,10 @@ Result StoreManifest(Manifest* manifest)
     char manifest_tmp_file_path[DMPATH_MAX_PATH];
     BytesToHexString(manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, HashLength(dmLiveUpdateDDF::HASH_SHA1), id_buf, MANIFEST_PROJ_ID_LEN);
 
-    dmSys::Result support_path_resuls = dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
-    if (support_path_resuls != dmSys::RESULT_OK)
+    dmSys::Result support_path_result = dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
+    if (support_path_result != dmSys::RESULT_OK)
     {
-        dmLogError("Failed get application support path for \"%s\", result = %i", id_buf, support_path_resuls);
+        dmLogError("Failed get application support path for \"%s\", result = %i", id_buf, support_path_result);
         return RESULT_IO_ERROR;
     }
 
@@ -319,10 +319,10 @@ Result LoadArchiveIndex(const char* bundle_dir, HFactory factory)
 
     BytesToHexString(factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, HashLength(dmLiveUpdateDDF::HASH_SHA1), id_buf, MANIFEST_PROJ_ID_LEN);
 
-    dmSys::Result support_path_resuls = dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
-    if (support_path_resuls != dmSys::RESULT_OK)
+    dmSys::Result support_path_result = dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
+    if (support_path_result != dmSys::RESULT_OK)
     {
-        dmLogError("Failed get application support path for \"%s\", result = %i", id_buf, support_path_resuls);
+        dmLogError("Failed get application support path for \"%s\", result = %i", id_buf, support_path_result);
         return RESULT_IO_ERROR;
     }
 
@@ -725,10 +725,10 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         char lu_manifest_file_path[DMPATH_MAX_PATH];
         char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
         BytesToHexString(factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, HashLength(dmLiveUpdateDDF::HASH_SHA1), id_buf, MANIFEST_PROJ_ID_LEN);
-        dmSys::Result support_path_resuls = dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
-        if (support_path_resuls == dmSys::RESULT_OK)
+        dmSys::Result support_path_result = dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
+        if (support_path_result == dmSys::RESULT_OK)
         {
-            dmLogError("Failed get application support path for \"%s\", result = %i", id_buf, support_path_resuls);
+            dmLogError("Failed get application support path for \"%s\", result = %i", id_buf, support_path_result);
             r = RESULT_IO_ERROR;
         }
         else

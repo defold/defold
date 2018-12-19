@@ -147,6 +147,9 @@ struct ReverseHashContainer
 
 static inline ReverseHashContainer& dmHashContainer()
 {
+    // DEF-3677 The hash functions are in some cases called from static initializers
+    // and we need to make sure the ReverseHashContainer initializer is called before
+    // it is accessed via other static hash functions.
     static ReverseHashContainer dmHashContainerPrivate;
     return dmHashContainerPrivate;
 }
