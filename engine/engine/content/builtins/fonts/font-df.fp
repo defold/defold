@@ -5,12 +5,12 @@ varying lowp vec4 var_shadow_color;
 varying lowp vec4 var_sdf_params;
 varying lowp vec4 var_layer_mask;
 
-uniform mediump sampler2D texture;
+uniform mediump sampler2D DIFFUSE_TEXTURE;
 uniform lowp vec4 texture_size_recip;
 
 void main()
 {
-    mediump vec4 sample = texture2D(texture, var_texcoord0);
+    mediump vec4 sample = texture2D(DIFFUSE_TEXTURE, var_texcoord0);
 
     mediump float distance        = sample.x;
     mediump float distance_shadow = sample.z;

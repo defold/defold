@@ -5,12 +5,12 @@ varying lowp vec4 var_shadow_color;
 varying lowp vec4 var_sdf_params;
 varying lowp vec4 var_layer_mask;
 
-uniform mediump sampler2D texture;
+uniform mediump sampler2D DIFFUSE_TEXTURE;
 uniform lowp vec4 texture_size_recip;
 
 vec3 sample_df(vec2 where)
 {
-    return texture2D(texture, where).xyz;
+    return texture2D(DIFFUSE_TEXTURE, where).xyz;
 }
 
 void main()
