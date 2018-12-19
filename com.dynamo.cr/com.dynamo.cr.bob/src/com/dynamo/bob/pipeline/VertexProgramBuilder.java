@@ -40,7 +40,7 @@ public class VertexProgramBuilder extends ShaderProgramBuilder {
 
     public static void main(String[] args) throws IOException, CompileExceptionError {
         System.setProperty("java.awt.headless", "true");
-    	VertexProgramBuilder builder = new VertexProgramBuilder();
+        VertexProgramBuilder builder = new VertexProgramBuilder();	
         builder.BuildShader(args, SHADER_TYPE);
     }
 
