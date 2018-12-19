@@ -1,6 +1,6 @@
 varying vec2 var_texcoord0;
 
-uniform sampler2D texture;
+uniform sampler2D DIFFUSE_TEXTURE;
 
 uniform vec4 uni_face_color;
 uniform vec4 uni_outline_color;
@@ -8,7 +8,7 @@ uniform vec4 uni_sdf_params;
 
 void main()
 {
-    float distance = texture2D(texture, var_texcoord0).x;
+    float distance = texture2D(DIFFUSE_TEXTURE, var_texcoord0).x;
 
     float sdf_edge = uni_sdf_params.x;
     float sdf_outline = uni_sdf_params.y;
