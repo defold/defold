@@ -3,7 +3,7 @@
 
 namespace dmGameSystem
 {
-    static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, dmGraphics::ShaderDesc* ddf, dmGraphics::HVertexProgram* program, const char* filename)
+    static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, dmGraphics::ShaderDesc* ddf, dmGraphics::HVertexProgram* program)
     {
         uint32_t shader_data_len;
         void* shader_data =  dmGraphics::GetShaderProgramData(context, ddf, shader_data_len);
@@ -37,7 +37,7 @@ namespace dmGameSystem
     {
         dmGraphics::ShaderDesc* ddf = (dmGraphics::ShaderDesc*)params.m_PreloadData;
         dmGraphics::HVertexProgram resource = 0x0;
-        dmResource::Result r = AcquireResources((dmGraphics::HContext) params.m_Context, params.m_Factory, ddf, &resource, params.m_Filename);
+        dmResource::Result r = AcquireResources((dmGraphics::HContext) params.m_Context, params.m_Factory, ddf, &resource);
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) resource;
