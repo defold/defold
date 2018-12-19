@@ -85,10 +85,11 @@ namespace dmGraphics
         assert(shader_desc);
         for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
         {
-            if(shader_desc->m_Shaders.m_Data->m_Language == language)
+            ShaderDesc::Shader* shader = &shader_desc->m_Shaders.m_Data[i];
+            if(shader->m_Language == language)
             {
-                data_len = shader_desc->m_Shaders.m_Data->m_Source.m_Count;
-                return shader_desc->m_Shaders.m_Data->m_Source.m_Data;
+                data_len = shader->m_Source.m_Count;
+                return shader->m_Source.m_Data;
             }
         }
         data_len = 0;
