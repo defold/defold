@@ -28,7 +28,7 @@ public class ShaderUtil {
          * * "varying" keyword is changed to "out"
          * * Uniform declarations are wrapped to global space uniform buffers
          *   - Unless the type is opaque (sampler, image or atomic_uint)
-         * * Precision meduimp float is added to ES shaders if not existing
+         * * Precision mediump float is added to ES shaders if not existing
          * * If exists, gl_FragColor or gl_FragData are converted to a generated out attribute.
          *   - If they exist (otherwise, one can assume this is already a compliant shader)
          *   - On ES targets only (GL targets accepts old style)

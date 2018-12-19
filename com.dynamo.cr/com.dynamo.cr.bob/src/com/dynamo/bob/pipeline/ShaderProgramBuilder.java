@@ -131,8 +131,8 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         file_out_msl.deleteOnExit();
 
         Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
-        		spirvFile.getAbsolutePath(),
-        		"--output", file_out_msl.getAbsolutePath(),
+                spirvFile.getAbsolutePath(),
+                "--output", file_out_msl.getAbsolutePath(),
                 "--msl",
                 "--stage", spirvShaderStage
                 );
