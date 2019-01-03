@@ -255,4 +255,4 @@
   (input viewport g/Any)
   (input cursor-pos types/Vec2)
   (output renderables pass/RenderData :cached produce-renderables)
-  (output vertex-buffer g/Any :cached (g/fnk [] (->color-uv-vtx vertex-buffer-size))))
+  (output vertex-buffer g/Any :cached (g/fnk [] (->color-uv-vtx vertex-buffer-size :dynamic))))
