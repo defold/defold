@@ -280,19 +280,6 @@ var CanvasInput = {
 };
 
 /* ********************************************************************* */
-/* Manage context menu                                                   */
-/* ********************************************************************* */
-
-var ContextMenuHider = {
-    null_handler : function(e) {
-        e.preventDefault();
-    },
-    addToCanvas : function(canvas) {
-        canvas.oncontextmenu = this.null_handler;
-    }
-}
-
-/* ********************************************************************* */
 /* Module is Emscripten namespace                                        */
 /* ********************************************************************* */
 
@@ -474,7 +461,9 @@ var Module = {
             // Add context menu hide-handler if requested
             if (params["disable_context_menu"])
             {
-                ContextMenuHider.addToCanvas(Module.canvas);
+                Module.canvas.oncontextmenu = function(e) {
+                    e.preventDefault();
+                };
             }
 
             // Load and assemble archive
