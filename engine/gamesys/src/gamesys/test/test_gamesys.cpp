@@ -86,18 +86,19 @@ TEST_P(ResourceTest, TestPreload)
 {
     const char* resource_name = GetParam();
     void* resource;
-    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, resource_name);
+    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, resource_name, 0, 0);
     dmResource::Result r;
 
     uint64_t stop_time = dmTime::GetTime() + 30*10e6;
     while (dmTime::GetTime() < stop_time)
     {
         // Simulate running at 30fps
-        r = dmResource::UpdatePreloader(pr, 0, 0, 33*1000);
+        r = dmResource::UpdatePreloaders(33*1000);
         if (r != dmResource::RESULT_PENDING)
             break;
         dmTime::Sleep(33*1000);
     }
+    r = dmResource::UpdatePreloader(pr);
 
     ASSERT_EQ(dmResource::RESULT_OK, r);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, resource_name, &resource));
@@ -541,16 +542,17 @@ TEST_P(FactoryTest, Test)
     dmResource::HPreloader go_pr = 0;
     if(param.m_IsPreloaded)
     {
-        go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath);
+        go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath, 0, 0);
         dmResource::Result r;
         uint64_t stop_time = dmTime::GetTime() + 30*10e6;
         while (dmTime::GetTime() < stop_time)
         {
-            r = dmResource::UpdatePreloader(go_pr, 0, 0, 16*1000);
+            r = dmResource::UpdatePreloaders(16*1000);
             if (r != dmResource::RESULT_PENDING)
                 break;
             dmTime::Sleep(16*1000);
         }
+        r = dmResource::UpdatePreloader(go_pr);
         ASSERT_EQ(dmResource::RESULT_OK, r);
     }
 
@@ -589,6 +591,7 @@ TEST_P(FactoryTest, Test)
                 ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
                 ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
                 dmGameObject::PostUpdate(m_Register);
+                dmResource::UpdatePreloaders(10000);
             }
             ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
             ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
@@ -718,16 +721,17 @@ TEST_P(CollectionFactoryTest, Test)
     dmResource::HPreloader go_pr = 0;
     if(param.m_IsPreloaded)
     {
-        go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath);
+        go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath, 0, 0);
         dmResource::Result r;
         uint64_t stop_time = dmTime::GetTime() + 30*10e6;
         while (dmTime::GetTime() < stop_time)
         {
-            r = dmResource::UpdatePreloader(go_pr, 0, 0, 16*1000);
+            r = dmResource::UpdatePreloaders(16*1000);
             if (r != dmResource::RESULT_PENDING)
                 break;
             dmTime::Sleep(16*1000);
         }
+        r = dmResource::UpdatePreloader(go_pr);
         ASSERT_EQ(dmResource::RESULT_OK, r);
     }
 
@@ -767,6 +771,7 @@ TEST_P(CollectionFactoryTest, Test)
                 ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
                 ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
                 dmGameObject::PostUpdate(m_Register);
+                dmResource::UpdatePreloaders(10000);
             }
             ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
             ASSERT_EQ(6, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));

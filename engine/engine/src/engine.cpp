@@ -28,6 +28,7 @@
 #include <render/render.h>
 #include <render/render_ddf.h>
 #include <particle/particle.h>
+#include <resource/resource.h>
 #include <tracking/tracking.h>
 #include <tracking/tracking_ddf.h>
 #include <liveupdate/liveupdate.h>
@@ -1350,11 +1351,14 @@ bail:
                     dmProfile::Pause(false);
                 }
 #endif
+                uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
+                int remainder = (int)((target_frametime - flip_dt) - engine->m_PreviousRenderTime);
+                dmResource::UpdatePreloaders(10000);//remainder > 3000 ? (remainder - 500) : 2500);
 
                 if (engine->m_UseSwVsync)
                 {
-                    uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
-                    int remainder = (int)((target_frametime - flip_dt) - engine->m_PreviousRenderTime);
+                    flip_dt = dmTime::GetTime() - prev_flip_time;
+                    remainder = (int)((target_frametime - flip_dt) - engine->m_PreviousRenderTime);
                     if (!engine->m_UseVariableDt && flip_dt < target_frametime && remainder > 1000) // only bother with sleep if diff b/w target and actual time is big enough
                     {
                         DM_PROFILE(Engine, "SoftwareVsync");
