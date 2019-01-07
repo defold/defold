@@ -136,6 +136,6 @@
                                                     "-Ddefold.log.dir="
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"
-                                                    "-XX:+UnlockCommercialFeatures"
-                                                    "-XX:+FlightRecorder"
+                                                    ;"-XX:+UnlockCommercialFeatures"
+                                                    ;"-XX:+FlightRecorder"
                                                     "-XX:-OmitStackTraceInFastThrow"]}})
