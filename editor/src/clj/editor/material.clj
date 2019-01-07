@@ -186,8 +186,8 @@
   (property vertex-program resource/Resource
     (dynamic visible (g/constantly false))
     (value (gu/passthrough vertex-resource))
-    (set (fn [_evaluation-context self old-value new-value]
-           (project/resource-setter self old-value new-value
+    (set (fn [evaluation-context self old-value new-value]
+           (project/resource-setter evaluation-context self old-value new-value
                                     [:resource :vertex-resource]
                                     [:full-source :vertex-source]
                                     [:build-targets :dep-build-targets]))))
@@ -195,8 +195,8 @@
   (property fragment-program resource/Resource
     (dynamic visible (g/constantly false))
     (value (gu/passthrough fragment-resource))
-    (set (fn [_evaluation-context self old-value new-value]
-           (project/resource-setter self old-value new-value
+    (set (fn [evaluation-context self old-value new-value]
+           (project/resource-setter evaluation-context self old-value new-value
                                     [:resource :fragment-resource]
                                     [:full-source :fragment-source]
                                     [:build-targets :dep-build-targets]))))

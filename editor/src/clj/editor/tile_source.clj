@@ -10,6 +10,7 @@
    [editor.image-util :as image-util]
    [editor.workspace :as workspace]
    [editor.resource :as resource]
+   [editor.resource-io :as resource-io]
    [editor.resource-node :as resource-node]
    [editor.defold-project :as project]
    [editor.handler :as handler]
@@ -179,6 +180,7 @@
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id id collision-groups-data]
             {:node-id _node-id
+             :node-outline-key id
              :label id
              :icon collision-icon
              :color (collision-groups/color collision-groups-data id)})))
@@ -262,7 +264,11 @@
   (input anim-data g/Any)
   (input gpu-texture g/Any)
 
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id id] {:node-id _node-id :label id :icon animation-icon}))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id id]
+                                                     {:node-id _node-id
+                                                      :node-outline-key id
+                                                      :label id
+                                                      :icon animation-icon}))
   (output ddf-message g/Any produce-animation-ddf)
   (output animation-data g/Any (g/fnk [_node-id ddf-message] {:node-id _node-id :ddf-message ddf-message}))
   (output updatable g/Any produce-animation-updatable)
@@ -301,6 +307,7 @@
   (let [[coll-outlines anim-outlines] (let [outlines (group-by #(g/node-instance? CollisionGroupNode (:node-id %)) child-outlines)]
                                         [(get outlines true) (get outlines false)])]
     {:node-id _node-id
+     :node-outline-key "Tile Source"
      :label "Tile Source"
      :icon tile-source-icon
      :children (into (outline/natural-sort coll-outlines) (outline/natural-sort anim-outlines))
@@ -415,33 +422,56 @@
         (shader/set-uniform tile-shader gl "texture" 0)
         (gl/gl-draw-arrays gl GL2/GL_LINES 0 (count vbuf))))))
 
-(defn render-tile-source
+(defn- render-tile-source
   [gl render-args renderables n]
+  (assert (= (:pass render-args) pass/transparent))
   (let [{:keys [user-data]} (first renderables)
-        {:keys [node-id tile-source-attributes uv-transforms gpu-texture convex-hulls collision-groups-data]} user-data
+        {:keys [node-id tile-source-attributes uv-transforms gpu-texture]} user-data
         scale-factor (camera/scale-factor (:camera render-args) (:viewport render-args))]
-    (condp = (:pass render-args)
-      pass/transparent
-      (render-tiles gl render-args node-id gpu-texture tile-source-attributes uv-transforms scale-factor)
+    (render-tiles gl render-args node-id gpu-texture tile-source-attributes uv-transforms scale-factor)))
 
-      pass/outline
-      (do
-        (render-tile-outlines gl render-args node-id tile-source-attributes convex-hulls scale-factor collision-groups-data)
-        (render-hulls gl render-args node-id tile-source-attributes convex-hulls scale-factor collision-groups-data)))))
+(defn- render-tile-source-outline
+  [gl render-args renderables n]
+  (assert (= (:pass render-args) pass/outline))
+  (let [{:keys [user-data]} (first renderables)
+        {:keys [node-id tile-source-attributes gpu-texture convex-hulls collision-groups-data]} user-data
+        scale-factor (camera/scale-factor (:camera render-args) (:viewport render-args))]
+    (render-tile-outlines gl render-args node-id tile-source-attributes convex-hulls scale-factor collision-groups-data)))
+
+(defn- render-tile-source-hulls
+  [gl render-args renderables n]
+  (assert (= (:pass render-args) pass/outline))
+  (let [{:keys [user-data]} (first renderables)
+        {:keys [node-id tile-source-attributes gpu-texture convex-hulls collision-groups-data]} user-data
+        scale-factor (camera/scale-factor (:camera render-args) (:viewport render-args))]
+    (render-hulls gl render-args node-id tile-source-attributes convex-hulls scale-factor collision-groups-data)))
+
 
 (g/defnk produce-scene
   [_node-id tile-source-attributes aabb uv-transforms texture-set gpu-texture convex-hulls collision-groups-data child-scenes]
   (when tile-source-attributes
-    {:aabb aabb
-     :renderable {:render-fn render-tile-source
-                  :user-data {:node-id _node-id
-                              :tile-source-attributes tile-source-attributes
-                              :uv-transforms uv-transforms
-                              :gpu-texture gpu-texture
-                              :convex-hulls convex-hulls
-                              :collision-groups-data collision-groups-data}
-                  :passes [pass/transparent pass/outline]}
-     :children child-scenes}))
+    (let [user-data {:node-id _node-id
+                     :tile-source-attributes tile-source-attributes
+                     :uv-transforms uv-transforms
+                     :gpu-texture gpu-texture
+                     :convex-hulls convex-hulls
+                     :collision-groups-data collision-groups-data}]
+      {:aabb aabb
+       :renderable {:render-fn render-tile-source
+                    :tags #{:tile-source}
+                    :user-data user-data
+                    :passes [pass/transparent]}
+       :children (into [{:aabb aabb
+                         :renderable {:render-fn render-tile-source-outline
+                                      :tags #{:tile-source :outline}
+                                      :user-data user-data
+                                      :passes [pass/outline]}}
+                        {:aabb aabb
+                         :renderable {:render-fn render-tile-source-hulls
+                                      :tags #{:tile-source :collision-shape}
+                                      :user-data user-data
+                                      :passes [pass/outline]}}]
+                       child-scenes)})))
 
 (g/defnk produce-convex-hull-points
   [collision-resource original-convex-hulls tile-source-attributes]
@@ -500,7 +530,8 @@
 
 (defn- generate-packed-image [{:keys [_node-id texture-set-data-generator image-resource tile-source-attributes]}]
   (let [texture-set-data (call-generator texture-set-data-generator)
-        buffered-image (validation/resource-io-with-errors image-util/read-image image-resource _node-id :image)]
+        buffered-image (resource-io/with-error-translation image-resource _node-id :image
+                         (image-util/read-image image-resource))]
     (if (g/error? buffered-image)
       buffered-image
       (texture-set-gen/layout-tile-source (:layout texture-set-data) buffered-image tile-source-attributes))))
@@ -510,8 +541,8 @@
 
   (property image resource/Resource
             (value (gu/passthrough image-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :image-resource]
                                             [:size :image-size])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
@@ -546,8 +577,8 @@
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? inner-padding)))
   (property collision resource/Resource ; optional
             (value (gu/passthrough collision-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :collision-resource]
                                             [:size :collision-size])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))

@@ -175,14 +175,23 @@ namespace dmGameSystem
         }
         if (proxy->m_Collection != 0)
         {
-            if (proxy->m_Initialized)
-                dmGameObject::Final(proxy->m_Collection);
             dmResource::Release(context->m_Factory, proxy->m_Collection);
         }
         CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
         uint32_t index = proxy - &proxy_world->m_Components[0];
         proxy_world->m_IndexPool.Push(index);
         memset(proxy, 0, sizeof(CollectionProxyComponent));
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
+    dmGameObject::CreateResult CompCollectionProxyFinal(const dmGameObject::ComponentFinalParams& params)
+    {
+        CollectionProxyComponent* proxy = (CollectionProxyComponent*)*params.m_UserData;
+        if (proxy->m_Initialized)
+        {
+            proxy->m_Initialized = 0;
+            dmGameObject::Final(proxy->m_Collection);
+        }
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -495,7 +504,13 @@ namespace dmGameSystem
     {
         CollectionProxyComponent* proxy = (CollectionProxyComponent*) *params.m_UserData;
         if (proxy->m_Enabled)
-            dmGameObject::DispatchInput(proxy->m_Collection, (dmGameObject::InputAction*)params.m_InputAction, 1);
+        {
+            dmGameObject::InputAction* input_action = (dmGameObject::InputAction*)params.m_InputAction;
+            dmGameObject::DispatchInput(proxy->m_Collection, input_action, 1);
+
+            if (input_action->m_Consumed)
+                return dmGameObject::INPUT_RESULT_CONSUMED;
+        }
         return dmGameObject::INPUT_RESULT_IGNORED;
     }
 

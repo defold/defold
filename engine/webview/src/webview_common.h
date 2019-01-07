@@ -2,17 +2,18 @@
 #define WEBVIEW_COMMON_H
 
 #include <script/script.h>
+#include <dmsdk/extension/extension.h>
 
 namespace dmWebView
 {
 
-static const int MAX_NUM_WEBVIEWS = 1;
+static const int MAX_NUM_WEBVIEWS = 4;
 
 enum CallbackResult
 {
     CALLBACK_RESULT_URL_OK = 0,
     CALLBACK_RESULT_URL_ERROR = -1,
-    CALLBACK_RESULT_EVAL_OK = 1, 
+    CALLBACK_RESULT_EVAL_OK = 1,
     CALLBACK_RESULT_EVAL_ERROR = -2,
 };
 
@@ -29,12 +30,8 @@ struct RequestInfo
 {
     int         m_Hidden;
 
-    RequestInfo() { memset(this, 0, sizeof(*this)); }
+    RequestInfo() : m_Hidden(0) {}
 };
-
-
-void LuaInit(lua_State* L);
-
 
 struct CallbackInfo
 {
@@ -45,13 +42,19 @@ struct CallbackInfo
     const char*     m_Url;
     const char*     m_Result;
 
-    CallbackInfo() { memset(this, 0, sizeof(*this)); }
+    CallbackInfo()
+    : m_Info(0)
+    , m_WebViewID(0)
+    , m_RequestID(0)
+    , m_Type(CALLBACK_RESULT_URL_OK)
+    , m_Url(0)
+    , m_Result(0)
+    {}
 };
 
 void RunCallback(CallbackInfo* cbinfo);
 
 void ClearWebViewInfo(WebViewInfo* info);
-
 
 int Platform_Create(lua_State* L, dmWebView::WebViewInfo* info);
 int Platform_Destroy(lua_State* L, int webview_id);
@@ -60,6 +63,14 @@ int Platform_OpenRaw(lua_State* L, int webview_id, const char* html, dmWebView::
 int Platform_Eval(lua_State* L, int webview_id, const char* code);
 int Platform_SetVisible(lua_State* L, int webview_id, int visible);
 int Platform_IsVisible(lua_State* L, int webview_id);
+int Platform_SetPosition(lua_State* L, int webview_id, int x, int y, int width, int height);
+
+// The extension life cycle functions
+dmExtension::Result Platform_AppInitialize(dmExtension::AppParams* params);
+dmExtension::Result Platform_Initialize(dmExtension::Params* params);
+dmExtension::Result Platform_Finalize(dmExtension::Params* params);
+dmExtension::Result Platform_AppFinalize(dmExtension::AppParams* params);
+dmExtension::Result Platform_Update(dmExtension::Params* params);
 
 } // namespace
 

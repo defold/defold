@@ -10,6 +10,7 @@
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.ui :as ui]
+            [editor.ui.bindings :as b]
             [editor.ui.fuzzy-choices-popup :as popup]
             [editor.util :as eutil]
             [editor.view :as view]
@@ -26,8 +27,8 @@
            (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect)
            (java.util Collection)
            (java.util.regex Pattern)
-           (javafx.beans.binding Bindings StringBinding)
-           (javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleStringProperty)
+           (javafx.beans.binding ObjectBinding)
+           (javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty)
            (javafx.beans.value ChangeListener)
            (javafx.geometry HPos Point2D VPos)
            (javafx.scene Node Parent Scene)
@@ -127,6 +128,7 @@
      ["editor.gutter.execution-marker.current" execution-marker-color]
      ["editor.gutter.execution-marker.frame" execution-marker-frame-color]
      ["editor.gutter.shadow" (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%")]
+     ["editor.indentation.guide" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]
      ["editor.matching.brace" (Color/valueOf "#A2B0BE")]
      ["editor.minimap.shadow" (LinearGradient/valueOf "to left, rgba(0, 0, 0, 0.2) 0%, transparent 100%")]
      ["editor.minimap.viewed.range" (Color/valueOf "#393C41")]
@@ -134,8 +136,7 @@
      ["editor.scroll.tab.hovered" (.deriveColor foreground-color 0.0 1.0 1.0 0.5)]
      ["editor.whitespace.space" (.deriveColor foreground-color 0.0 1.0 1.0 0.2)]
      ["editor.whitespace.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]
-     ["editor.whitespace.rogue" (Color/valueOf "#FBCE2F")]
-     ["editor.indentation.guide" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]]))
+     ["editor.whitespace.rogue" (Color/valueOf "#FBCE2F")]]))
 
 (defn make-color-scheme [ordered-paints-by-pattern]
   (into []
@@ -648,8 +649,8 @@
 (g/defnk produce-visible-cursor-ranges [lines cursor-ranges layout]
   (data/visible-cursor-ranges lines layout cursor-ranges))
 
-(g/defnk produce-visible-regions-by-type [lines regions layout]
-  (group-by :type (data/visible-cursor-ranges lines layout regions)))
+(g/defnk produce-visible-regions [lines regions layout]
+  (data/visible-cursor-ranges lines layout regions))
 
 (g/defnk produce-visible-matching-braces [lines matching-braces layout]
   (data/visible-cursor-ranges lines layout (into [] (mapcat identity) matching-braces)))
@@ -663,7 +664,7 @@
     :current-frame
     (cursor-range-draw-info :word nil frame-color execution-marker)))
 
-(g/defnk produce-cursor-range-draw-infos [color-scheme lines cursor-ranges focus-state layout visible-cursors visible-cursor-ranges visible-regions-by-type visible-matching-braces highlighted-find-term find-case-sensitive? find-whole-word? execution-markers]
+(g/defnk produce-cursor-range-draw-infos [color-scheme lines cursor-ranges focus-state layout visible-cursors visible-cursor-ranges visible-regions visible-matching-braces highlighted-find-term find-case-sensitive? find-whole-word? execution-markers]
   (let [background-color (color-lookup color-scheme "editor.background")
         ^Color selection-background-color (color-lookup color-scheme "editor.selection.background")
         selection-background-color (if (not= :not-focused focus-state) selection-background-color (color-lookup color-scheme "editor.selection.background.inactive"))
@@ -673,6 +674,8 @@
         execution-marker-current-row-color (color-lookup color-scheme "editor.execution-marker.current")
         execution-marker-frame-row-color (color-lookup color-scheme "editor.execution-marker.frame")
         matching-brace-color (color-lookup color-scheme "editor.matching.brace")
+        foreground-color (color-lookup color-scheme "editor.foreground")
+        visible-regions-by-type (group-by :type visible-regions)
         active-tab-trigger-scope-ids (into #{}
                                            (keep (fn [tab-trigger-scope-region]
                                                    (when (some #(data/cursor-range-contains? tab-trigger-scope-region (data/CursorRange->Cursor %))
@@ -685,6 +688,8 @@
              visible-cursor-ranges)
         (map (partial cursor-range-draw-info :underline nil matching-brace-color)
              visible-matching-braces)
+        (map (partial cursor-range-draw-info :underline nil foreground-color)
+             (visible-regions-by-type :resource-reference))
         (map (partial make-execution-marker-draw-info execution-marker-current-row-color execution-marker-frame-row-color)
              execution-markers)
         (cond
@@ -826,7 +831,7 @@
   (input cursor-ranges r/CursorRanges)
   (input indent-type r/IndentType)
   (input invalidated-rows r/InvalidatedRows)
-  (input lines r/Lines)
+  (input lines r/Lines :substitute [""])
   (input regions r/Regions)
   (input debugger-execution-locations g/Any)
 
@@ -849,7 +854,7 @@
   (output tab-trigger-word-regions-by-scope-id r/RegionGrouping :cached produce-tab-trigger-word-regions-by-scope-id)
   (output visible-cursors r/Cursors :cached produce-visible-cursors)
   (output visible-cursor-ranges r/CursorRanges :cached produce-visible-cursor-ranges)
-  (output visible-regions-by-type r/RegionGrouping :cached produce-visible-regions-by-type)
+  (output visible-regions r/Regions :cached produce-visible-regions)
   (output visible-matching-braces r/CursorRanges :cached produce-visible-matching-braces)
   (output cursor-range-draw-infos CursorRangeDrawInfos :cached produce-cursor-range-draw-infos)
   (output minimap-glyph-metrics data/GlyphMetrics :cached produce-minimap-glyph-metrics)
@@ -1391,6 +1396,9 @@
                      (= :scroll-bar-y-hold-down gesture-type))
                  javafx.scene.Cursor/DEFAULT
 
+                 (some? (:on-click! (:region hovered-element)))
+                 javafx.scene.Cursor/HAND
+
                  (data/rect-contains? (.canvas layout) x y)
                  ;; TODO:
                  ;; Currently using an image cursor results in a corrupted mouse pointer under macOS High Sierra.
@@ -1427,21 +1435,26 @@
 
 (defn handle-mouse-moved! [view-node ^MouseDragEvent event]
   (.consume event)
-  (refresh-mouse-cursor! view-node event)
   (set-properties! view-node :selection
                    (data/mouse-moved (get-property view-node :lines)
                                      (get-property view-node :cursor-ranges)
+                                     (get-property view-node :visible-regions)
                                      (get-property view-node :layout)
                                      (get-property view-node :gesture-start)
                                      (get-property view-node :hovered-element)
                                      (.getX event)
-                                     (.getY event))))
+                                     (.getY event)))
+  (refresh-mouse-cursor! view-node event))
 
 (defn handle-mouse-released! [view-node ^MouseEvent event]
   (.consume event)
+  (when-some [{:keys [on-click!] :as hovered-region} (:region (get-property view-node :hovered-element))]
+    (on-click! hovered-region))
   (refresh-mouse-cursor! view-node event)
   (set-properties! view-node :selection
-                   (data/mouse-released (get-property view-node :layout)
+                   (data/mouse-released (get-property view-node :lines)
+                                        (get-property view-node :visible-regions)
+                                        (get-property view-node :layout)
                                         (get-property view-node :gesture-start)
                                         (mouse-button event)
                                         (.getX event)
@@ -1665,22 +1678,22 @@
 ;; cause a memory leak. You must manually unhook them or use weak listeners.
 ;; Source: https://community.oracle.com/message/10360893#10360893
 
-(defonce ^SimpleStringProperty bar-ui-type-property (doto (SimpleStringProperty.) (.setValue (name :hidden))))
-(defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
-(defonce ^SimpleStringProperty find-replacement-property (doto (SimpleStringProperty.) (.setValue "")))
-(defonce ^SimpleBooleanProperty find-whole-word-property (doto (SimpleBooleanProperty.) (.setValue false)))
-(defonce ^SimpleBooleanProperty find-case-sensitive-property (doto (SimpleBooleanProperty.) (.setValue false)))
-(defonce ^SimpleBooleanProperty find-wrap-property (doto (SimpleBooleanProperty.) (.setValue true)))
-(defonce ^SimpleDoubleProperty font-size-property (doto (SimpleDoubleProperty.) (.setValue default-font-size)))
-(defonce ^SimpleBooleanProperty visible-indentation-guides-property (doto (SimpleBooleanProperty.) (.setValue true)))
-(defonce ^SimpleBooleanProperty visible-minimap-property (doto (SimpleBooleanProperty.) (.setValue true)))
-(defonce ^SimpleBooleanProperty visible-whitespace-property (doto (SimpleBooleanProperty.) (.setValue true)))
+(defonce ^:private ^SimpleObjectProperty bar-ui-type-property (SimpleObjectProperty. :hidden))
+(defonce ^:private ^SimpleStringProperty find-term-property (SimpleStringProperty. ""))
+(defonce ^:private ^SimpleStringProperty find-replacement-property (SimpleStringProperty. ""))
+(defonce ^:private ^SimpleBooleanProperty find-whole-word-property (SimpleBooleanProperty. false))
+(defonce ^:private ^SimpleBooleanProperty find-case-sensitive-property (SimpleBooleanProperty. false))
+(defonce ^:private ^SimpleBooleanProperty find-wrap-property (SimpleBooleanProperty. true))
+(defonce ^:private ^SimpleDoubleProperty font-size-property (SimpleDoubleProperty. default-font-size))
+(defonce ^:private ^SimpleBooleanProperty visible-indentation-guides-property (SimpleBooleanProperty. true))
+(defonce ^:private ^SimpleBooleanProperty visible-minimap-property (SimpleBooleanProperty. true))
+(defonce ^:private ^SimpleBooleanProperty visible-whitespace-property (SimpleBooleanProperty. true))
 
-(defonce ^StringBinding highlighted-find-term-property
-  (-> (Bindings/when (Bindings/or (Bindings/equal (name :find) bar-ui-type-property)
-                                  (Bindings/equal (name :replace) bar-ui-type-property)))
-      (.then find-term-property)
-      (.otherwise "")))
+(defonce ^:private ^ObjectBinding highlighted-find-term-property
+  (b/if (b/or (b/= :find bar-ui-type-property)
+              (b/= :replace bar-ui-type-property))
+    find-term-property
+    ""))
 
 (defn- init-property-and-bind-preference! [^Property property prefs preference default]
   (.setValue property (prefs/get-prefs prefs preference default))
@@ -1731,10 +1744,10 @@
 ;; -----------------------------------------------------------------------------
 
 (defn- bar-ui-visible? []
-  (not= (name :hidden) (.getValue bar-ui-type-property)))
+  (not= :hidden (.getValue bar-ui-type-property)))
 
 (defn- set-bar-ui-type! [ui-type]
-  (case ui-type (:hidden :goto-line :find :replace) (.setValue bar-ui-type-property (name ui-type))))
+  (case ui-type (:hidden :goto-line :find :replace) (.setValue bar-ui-type-property ui-type)))
 
 (defn- focus-code-editor! [view-node]
   (let [^Canvas canvas (g/node-value view-node :canvas)]
@@ -1762,7 +1775,7 @@
         maybe-row))))
 
 (defn- setup-goto-line-bar! [^GridPane goto-line-bar view-node]
-  (ui/bind-presence! goto-line-bar (Bindings/equal (name :goto-line) bar-ui-type-property))
+  (b/bind-presence! goto-line-bar (b/= :goto-line bar-ui-type-property))
   (ui/with-controls goto-line-bar [^TextField line-field ^Button go-button]
     (ui/bind-keys! goto-line-bar {KeyCode/ENTER :goto-entered-line})
     (ui/bind-action! go-button :goto-entered-line)
@@ -1782,7 +1795,7 @@
     (GridPane/setConstraints 0 1)))
 
 (defn- dispose-goto-line-bar! [^GridPane goto-line-bar]
-  (.unbind (.visibleProperty goto-line-bar)))
+  (b/unbind! (.visibleProperty goto-line-bar)))
 
 (handler/defhandler :goto-line :code-view-tools
   (run [goto-line-bar]
@@ -1812,15 +1825,15 @@
 
 (defn- setup-find-bar! [^GridPane find-bar view-node]
   (doto find-bar
-    (ui/bind-presence! (Bindings/equal (name :find) bar-ui-type-property))
+    (b/bind-presence! (b/= :find bar-ui-type-property))
     (ui/context! :code-view-find-bar {:find-bar find-bar :view-node view-node} nil)
     (.setMaxWidth Double/MAX_VALUE)
     (GridPane/setConstraints 0 1))
   (ui/with-controls find-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^Button next ^Button prev]
-    (.bindBidirectional (.textProperty term) find-term-property)
-    (.bindBidirectional (.selectedProperty whole-word) find-whole-word-property)
-    (.bindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
-    (.bindBidirectional (.selectedProperty wrap) find-wrap-property)
+    (b/bind-bidirectional! (.textProperty term) find-term-property)
+    (b/bind-bidirectional! (.selectedProperty whole-word) find-whole-word-property)
+    (b/bind-bidirectional! (.selectedProperty case-sensitive) find-case-sensitive-property)
+    (b/bind-bidirectional! (.selectedProperty wrap) find-wrap-property)
     (ui/bind-key-commands! find-bar {"Enter" :find-next
                                      "Shift+Enter" :find-prev})
     (ui/bind-action! next :find-next)
@@ -1828,25 +1841,25 @@
   find-bar)
 
 (defn- dispose-find-bar! [^GridPane find-bar]
-  (.unbind (.visibleProperty find-bar))
+  (b/unbind! (.visibleProperty find-bar))
   (ui/with-controls find-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term]
-    (.unbindBidirectional (.textProperty term) find-term-property)
-    (.unbindBidirectional (.selectedProperty whole-word) find-whole-word-property)
-    (.unbindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
-    (.unbindBidirectional (.selectedProperty wrap) find-wrap-property)))
+    (b/unbind-bidirectional! (.textProperty term) find-term-property)
+    (b/unbind-bidirectional! (.selectedProperty whole-word) find-whole-word-property)
+    (b/unbind-bidirectional! (.selectedProperty case-sensitive) find-case-sensitive-property)
+    (b/unbind-bidirectional! (.selectedProperty wrap) find-wrap-property)))
 
 (defn- setup-replace-bar! [^GridPane replace-bar view-node]
   (doto replace-bar
-    (ui/bind-presence! (Bindings/equal (name :replace) bar-ui-type-property))
+    (b/bind-presence! (b/= :replace bar-ui-type-property))
     (ui/context! :code-view-replace-bar {:replace-bar replace-bar :view-node view-node} nil)
     (.setMaxWidth Double/MAX_VALUE)
     (GridPane/setConstraints 0 1))
   (ui/with-controls replace-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^TextField replacement ^Button next ^Button replace ^Button replace-all]
-    (.bindBidirectional (.textProperty term) find-term-property)
-    (.bindBidirectional (.textProperty replacement) find-replacement-property)
-    (.bindBidirectional (.selectedProperty whole-word) find-whole-word-property)
-    (.bindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
-    (.bindBidirectional (.selectedProperty wrap) find-wrap-property)
+    (b/bind-bidirectional! (.textProperty term) find-term-property)
+    (b/bind-bidirectional! (.textProperty replacement) find-replacement-property)
+    (b/bind-bidirectional! (.selectedProperty whole-word) find-whole-word-property)
+    (b/bind-bidirectional! (.selectedProperty case-sensitive) find-case-sensitive-property)
+    (b/bind-bidirectional! (.selectedProperty wrap) find-wrap-property)
     (ui/bind-action! next :find-next)
     (ui/bind-action! replace :replace-next)
     (ui/bind-keys! replace-bar {KeyCode/ENTER :replace-next})
@@ -1854,13 +1867,13 @@
   replace-bar)
 
 (defn- dispose-replace-bar! [^GridPane replace-bar]
-  (.unbind (.visibleProperty replace-bar))
+  (b/unbind! (.visibleProperty replace-bar))
   (ui/with-controls replace-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^TextField replacement]
-    (.unbindBidirectional (.textProperty term) find-term-property)
-    (.unbindBidirectional (.textProperty replacement) find-replacement-property)
-    (.unbindBidirectional (.selectedProperty whole-word) find-whole-word-property)
-    (.unbindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
-    (.unbindBidirectional (.selectedProperty wrap) find-wrap-property)))
+    (b/unbind-bidirectional! (.textProperty term) find-term-property)
+    (b/unbind-bidirectional! (.textProperty replacement) find-replacement-property)
+    (b/unbind-bidirectional! (.selectedProperty whole-word) find-whole-word-property)
+    (b/unbind-bidirectional! (.selectedProperty case-sensitive) find-case-sensitive-property)
+    (b/unbind-bidirectional! (.selectedProperty wrap) find-wrap-property)))
 
 (defn- focus-term-field! [^Parent bar]
   (ui/with-controls bar [^TextField term]
@@ -2036,6 +2049,14 @@
 ;; -----------------------------------------------------------------------------
 
 (defn- setup-view! [resource-node view-node app-view]
+  ;; Grab the unmodified lines or io error before opening the
+  ;; file. Otherwise this will happen on the first edit. If a
+  ;; background process has modified (or even deleted) the file
+  ;; without the editor knowing, the "original" unmodified lines
+  ;; reached after a series of undo's could be something else entirely
+  ;; than what the user saw.
+  (g/with-auto-evaluation-context ec
+    (r/ensure-unmodified-lines! resource-node ec))
   (let [glyph-metrics (g/node-value view-node :glyph-metrics)
         tab-spaces (g/node-value view-node :tab-spaces)
         tab-stops (data/tab-stops glyph-metrics tab-spaces)
@@ -2269,7 +2290,7 @@
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
         repainter (ui/->timer "repaint-code-editor-view" (fn [_ elapsed-time]
-                                                           (when (.isSelected tab)
+                                                           (when (and (.isSelected tab) (not (ui/ui-disabled?)))
                                                              (repaint-view! view-node elapsed-time))))
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :goto-line-bar goto-line-bar
@@ -2278,8 +2299,8 @@
                      :view-node view-node}]
 
     ;; Canvas stretches to fit view, and updates properties in view node.
-    (.bind (.widthProperty canvas) (.widthProperty canvas-pane))
-    (.bind (.heightProperty canvas) (.heightProperty canvas-pane))
+    (b/bind! (.widthProperty canvas) (.widthProperty canvas-pane))
+    (b/bind! (.heightProperty canvas) (.heightProperty canvas-pane))
     (ui/observe (.widthProperty canvas) (fn [_ _ width] (g/set-property! view-node :canvas-width width)))
     (ui/observe (.heightProperty canvas) (fn [_ _ height] (g/set-property! view-node :canvas-height height)))
 
@@ -2352,6 +2373,7 @@
 
         ;; Remove callbacks when our tab is closed.
         (ui/on-closed! tab (fn [_]
+                             (ui/kill-event-dispatch! canvas)
                              (ui/timer-stop! repainter)
                              (dispose-goto-line-bar! goto-line-bar)
                              (dispose-find-bar! find-bar)

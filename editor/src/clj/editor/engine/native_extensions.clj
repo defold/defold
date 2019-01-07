@@ -1,14 +1,17 @@
 (ns editor.engine.native-extensions
   (:require
    [clojure.java.io :as io]
+   [clojure.data.json :as json]
    [dynamo.graph :as g]
    [editor.prefs :as prefs]
    [editor.defold-project :as project]
    [editor.engine.build-errors :as engine-build-errors]
    [editor.fs :as fs]
+   [editor.library :as library]
    [editor.resource :as resource]
    [editor.system :as system]
-   [editor.workspace :as workspace])
+   [editor.workspace :as workspace]
+   [util.http-client :as http])
   (:import
    (java.io File)
    (java.net URI)
@@ -30,22 +33,22 @@
 
 (def ^:const defold-build-server-url "https://build.defold.com")
 (def ^:const connect-timeout-ms (* 30 1000))
-(def ^:const read-timeout-ms (* 5 60 1000))
+(def ^:const read-timeout-ms (* 10 60 1000))
 
 ;;; Caching
 
 (defn- hash-resources! ^MessageDigest
-  [^MessageDigest md resource-nodes]
-  (run! #(DigestUtils/updateDigest md ^String (g/node-value % :sha256))
+  [^MessageDigest md resource-nodes evaluation-context]
+  (run! #(DigestUtils/updateDigest md ^String (g/node-value % :sha256 evaluation-context))
         resource-nodes)
   md)
 
 (defn- cache-key
-  [^String platform ^String sdk-version resource-nodes]
+  [^String platform ^String sdk-version resource-nodes evaluation-context]
   (-> (DigestUtils/getSha256Digest)
       (DigestUtils/updateDigest platform)
       (DigestUtils/updateDigest (or sdk-version ""))
-      (hash-resources! resource-nodes)
+      (hash-resources! resource-nodes evaluation-context)
       (.digest)
       (Hex/encodeHexString)))
 
@@ -114,13 +117,13 @@
   [platform]
   (into common-extension-paths (map #(vector "lib" %) (get-in extender-platforms [platform :library-paths]))))
 
-(defn extension-root?
+(defn- extension-root?
   [resource]
   (some #(= "ext.manifest" (resource/resource-name %)) (resource/children resource)))
 
 (defn extension-roots
-  [project]
-  (->> (g/node-value project :resources)
+  [project evaluation-context]
+  (->> (g/node-value project :resources evaluation-context)
        (filter extension-root?)
        (seq)))
 
@@ -134,9 +137,10 @@
   (reduce resource-child resource path))
 
 (defn extension-resource-nodes
-  [project roots platform]
-  (let [paths (platform-extension-paths platform)]
-    (->> (for [root roots
+  [project evaluation-context platform]
+  (let [native-extension-roots (extension-roots project evaluation-context)
+        paths (platform-extension-paths platform)]
+    (->> (for [root native-extension-roots
                path paths
                :let [resource (resource-by-path root path)]
                :when resource]
@@ -144,7 +148,7 @@
          (mapcat resource/resource-seq)
          (filter #(= :file (resource/source-type %)))
          (map (fn [resource]
-                (project/get-resource-node project resource))))))
+                (project/get-resource-node project resource evaluation-context))))))
 
 ;;; Extender API
 
@@ -153,26 +157,58 @@
   (format "/build/%s/%s" platform (or sdk-version "")))
 
 (defn- resource-node-content-stream ^java.io.InputStream
-  [resource-node]
-  (if-let [content (some-> (g/node-value resource-node :save-data) :content)]
+  [resource-node evaluation-context]
+  (if-let [content (some-> (g/node-value resource-node :save-data evaluation-context) :content)]
     (IOUtils/toInputStream ^String content "UTF-8")
-    (io/input-stream (g/node-value resource-node :resource))))
-
-(defn- resource-node-resource [resource-node]
-  (g/node-value resource-node :resource))
-
-(def ^:private resource-node-upload-path (comp fs/without-leading-slash resource/proj-path resource-node-resource))
-
-(defn has-extensions? [project]
-  (not (empty? (extension-roots project))))
+    (io/input-stream (g/node-value resource-node :resource evaluation-context))))
 
 (defn supported-platform? [platform]
   (contains? extender-platforms platform))
 
 ;;; Building
 
+(defn- make-cache-request
+  [server-url payload]
+  (let [parts (http/split-url server-url)]
+    {:request-method :post
+     :scheme         (get parts :protocol)
+     :server-name    (get parts :host)
+     :server-port    (get parts :port)
+     :uri            "/query"
+     :content-type   "application/json"
+     :headers        {"Accept" "application/json"}
+     :body           payload}))
+
+(defn- query-cached-files
+  [server-url resource-nodes-by-upload-path evaluation-context]
+  "Asks the server what files it already has.
+  This is to avoid uploading big files that rarely change"
+  (let [items (mapv (fn [[upload-path resource-node]]
+                      (let [key (g/node-value resource-node :sha256 evaluation-context)]
+                        {:path upload-path :key key}))
+                    resource-nodes-by-upload-path)
+        json (json/write-str {:files items})
+        request (make-cache-request server-url json)
+        response (http/request request)]
+    ; Make a list of all files we intend to upload
+    ; Make request to server with json
+    ; Returns a json document with the "cached" fields filled in
+    (when (= 200 (:status response))
+      (let [body (slurp (:body response))
+            items (get (json/read-str body) "files")]
+        items))))
+
+(defn- make-cached-info-map
+  [ne-cache-info]
+  "Parse the json doc into a mapping 'path' -> 'cached'"
+  (into {}
+        (map (fn [info]
+               [(get info "path")
+                (get info "cached")]))
+        ne-cache-info))
+
 (defn- build-engine-archive ^File
-  [server-url platform sdk-version resource-nodes-by-upload-path]
+  [server-url platform sdk-version resource-nodes-by-upload-path evaluation-context]
   ;; NOTE:
   ;; sdk-version is likely to be nil unless you're running a bundled editor.
   ;; In this case things will only work correctly if you're running a local
@@ -189,10 +225,16 @@
                  (.setReadTimeout (int read-timeout-ms)))
         api-root (.resource client (URI. server-url))
         build-resource (.path api-root (build-url platform sdk-version))
-        builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))]
+        builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))
+        ne-cache-info (query-cached-files server-url resource-nodes-by-upload-path evaluation-context)
+        ne-cache-info-map (make-cached-info-map ne-cache-info)]
     (with-open [form (FormDataMultiPart.)]
+      ; upload the file to the server, basically telling it what we are sending (and what we aren't)
+      (.bodyPart form (StreamDataBodyPart. "ne-cache-info.json" (io/input-stream (.getBytes ^String (json/write-str {:files ne-cache-info})))))
       (doseq [[upload-path node] (sort-by first resource-nodes-by-upload-path)]
-        (.bodyPart form (StreamDataBodyPart. upload-path (resource-node-content-stream node))))
+        ; If the file is not cached on the server, then we upload it
+        (if (not (get ne-cache-info-map upload-path))
+          (.bodyPart form (StreamDataBodyPart. upload-path (resource-node-content-stream node evaluation-context)))))
       (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
             status (.getStatus cr)]
         (if (= 200 status)
@@ -203,15 +245,15 @@
             (throw (engine-build-errors/build-error platform status log))))))))
 
 (defn- find-or-build-engine-archive
-  [cache-dir server-url platform sdk-version resource-nodes-by-upload-path]
-  (let [key (cache-key platform sdk-version (map second (sort-by first resource-nodes-by-upload-path)))]
+  [cache-dir server-url platform sdk-version resource-nodes-by-upload-path evaluation-context]
+  (let [key (cache-key platform sdk-version (map second (sort-by first resource-nodes-by-upload-path)) evaluation-context)]
     (or (cached-engine-archive cache-dir platform key)
-        (let [engine-archive (build-engine-archive server-url platform sdk-version resource-nodes-by-upload-path)]
+        (let [engine-archive (build-engine-archive server-url platform sdk-version resource-nodes-by-upload-path evaluation-context)]
           (cache-engine-archive! cache-dir platform key engine-archive)))))
 
 (defn- ensure-empty-unpack-dir!
-  [project platform]
-  (let [dir (io/file (workspace/project-path (project/workspace project)) "build" platform)]
+  [project-path platform]
+  (let [dir (io/file project-path "build" platform)]
     (fs/delete-directory! dir {:missing :ignore})
     (fs/create-directories! dir)
     dir))
@@ -227,12 +269,12 @@
       (fs/copy! (io/file bundled-engine-dir dep) (io/file unpack-dir dep)))))
 
 (defn- unpack-dmengine
-  [^File engine-archive project platform]
+  [^File engine-archive project-path platform]
   (with-open [zip-file (ZipFile. engine-archive)]
     (let [suffix (.getExeSuffix (Platform/getHostPlatform))
-          dmengine-entry (.getEntry zip-file (format "dmengine%s" suffix) )
+          dmengine-entry (.getEntry zip-file (format "dmengine%s" suffix))
           stream (.getInputStream zip-file dmengine-entry)
-          unpack-dir (ensure-empty-unpack-dir! project platform)
+          unpack-dir (ensure-empty-unpack-dir! project-path platform)
           engine-file (io/file unpack-dir (format "dmengine%s" suffix))]
       (io/copy stream engine-file)
       (fs/set-executable! engine-file)
@@ -243,32 +285,42 @@
   ^String [prefs]
   (prefs/get-prefs prefs "extensions-server" defold-build-server-url))
 
-(defn get-app-manifest-resource [project-settings]
+(defn- get-app-manifest-resource [project-settings]
   (get project-settings ["native_extension" "app_manifest"]))
 
-(defn- global-resource-nodes-by-upload-path [project]
-  (if-some [app-manifest-resource (get-app-manifest-resource (project/settings project))]
-    (let [resource-node (project/get-resource-node project app-manifest-resource)]
-      (if (some-> resource-node resource-node-resource resource/exists?)
+(defn- global-resource-nodes-by-upload-path [project evaluation-context]
+  (if-some [app-manifest-resource (get-app-manifest-resource (g/node-value project :settings evaluation-context))]
+    (let [resource-node (project/get-resource-node project app-manifest-resource evaluation-context)]
+      (if (some-> resource-node (g/node-value :resource evaluation-context) resource/exists?)
         {"_app/app.manifest" resource-node}
         (throw (engine-build-errors/missing-resource-error "Native Extension App Manifest"
                                                            (resource/proj-path app-manifest-resource)
-                                                           (project/get-resource-node project "/game.project")))))
+                                                           (project/get-resource-node project "/game.project" evaluation-context)))))
     {}))
 
-(defn extension-resource-nodes-by-upload-path [project roots platform]
+(defn- resource-node-upload-path [resource-node evaluation-context]
+  (fs/without-leading-slash (resource/proj-path (g/node-value resource-node :resource evaluation-context))))
+
+(defn- extension-resource-nodes-by-upload-path [project evaluation-context platform]
   (into {}
-        (map (juxt resource-node-upload-path identity))
-        (extension-resource-nodes project roots platform)))
+        (map (juxt #(resource-node-upload-path % evaluation-context) identity))
+        (extension-resource-nodes project evaluation-context platform)))
+
+(defn has-extensions? [project evaluation-context]
+  (not (empty? (merge (extension-roots project evaluation-context)
+                      (global-resource-nodes-by-upload-path project evaluation-context)))))
 
 (defn get-engine
-  [project roots platform build-server]
+  [project evaluation-context platform build-server]
   (if-not (supported-platform? platform)
     (throw (engine-build-errors/unsupported-platform-error platform))
-    (unpack-dmengine (find-or-build-engine-archive (cache-dir (workspace/project-path (project/workspace project)))
-                                                   build-server
-                                                   (get-in extender-platforms [platform :platform])
-                                                   (system/defold-engine-sha1)
-                                                   (merge (global-resource-nodes-by-upload-path project)
-                                                          (extension-resource-nodes-by-upload-path project roots platform)))
-                     project platform)))
+    (let [project-path (workspace/project-path (project/workspace project evaluation-context) evaluation-context)]
+      (unpack-dmengine (find-or-build-engine-archive (cache-dir project-path)
+                                                     build-server
+                                                     (get-in extender-platforms [platform :platform])
+                                                     (system/defold-engine-sha1)
+                                                     (merge (global-resource-nodes-by-upload-path project evaluation-context)
+                                                            (extension-resource-nodes-by-upload-path project evaluation-context platform))
+                                                     evaluation-context)
+                       project-path
+                       platform))))

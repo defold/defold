@@ -47,10 +47,12 @@ public class DefoldAuthFilter extends ClientFilter {
             headers.add("X-Auth", this.authToken);
         }
 
-        headers.add("X-Email", this.email);
+        if (!headers.containsKey("X-Email")) {
+            headers.add("X-Email", this.email);
+        }
 
-        // Send only password if password is set and authToken is not set.
-        if (this.password != null && authToken == null) {
+        // Only send password if authToken is not set.
+        if (this.password != null && authToken == null && !headers.containsKey("X-Password")) {
             headers.add("X-Password", this.password);
         }
 

@@ -14,10 +14,10 @@
             [editor.math :as math]
             [editor.render :as render]
             [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.rig :as rig]
             [editor.scene-cache :as scene-cache]
-            [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.graph.error-values :as error-values])
   (:import [com.jogamp.opengl GL GL2]
@@ -110,13 +110,22 @@
     ;; Not clear how to turn this into pretty API
     (let [^ByteBuffer b (.buf vb)
           ^FloatBuffer fb (.asFloatBuffer b)]
-      (dotimes [vi vcount]
-        (let [pi (aget positions-indices vi)
-              ni (aget normals-indices vi)
-              ti (aget texcoords-indices vi)]
-          (.put fb positions (umul 3 pi) 3)
-          (.put fb normals (umul 3 ni) 3)
-          (.put fb texcoords (umul 2 ti) 2))))
+      (if (not= (alength normals-indices) 0)
+        (dotimes [vi vcount]
+          (let [pi (aget positions-indices vi)
+                ni (aget normals-indices vi)
+                ti (aget texcoords-indices vi)]
+            (.put fb positions (umul 3 pi) 3)
+            (.put fb normals (umul 3 ni) 3)
+            (.put fb texcoords (umul 2 ti) 2)))
+        (dotimes [vi vcount]
+          (let [pi (aget positions-indices vi)
+                ti (aget texcoords-indices vi)]
+            (.put fb positions (umul 3 pi) 3)
+            (.put fb 0.0)
+            (.put fb 0.0)
+            (.put fb -1.0)
+            (.put fb texcoords (umul 2 ti) 2)))))
     ;; Since we have bypassed the vb and internal ByteBuffer, manually update the position
     (vtx/position! vb vcount)))
 
@@ -126,7 +135,7 @@
         data {:mesh mesh :world-transform clj-world :scratch scratch}]
     (scene-cache/request-object! ::vb request-id gl data)))
 
-(defn render-scene [^GL2 gl render-args renderables rcount]
+(defn- render-scene [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)]
     (cond
       (or (= pass pass/opaque) (= pass pass/selection))
@@ -159,9 +168,12 @@
           (when (= pass pass/opaque)
             (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
             (doseq [[name t] textures]
-              (gl/unbind gl t render-args)))))
+              (gl/unbind gl t render-args))))))))
 
-      (= pass pass/outline)
+(defn- render-outline [^GL2 gl render-args renderables rcount]
+  (let [pass (:pass render-args)]
+    (condp = pass
+      pass/outline
       (let [renderable (first renderables)
             node-id (:node-id renderable)]
         (render/render-aabb-outline gl render-args [node-id ::outline] renderables rcount)))))
@@ -208,29 +220,27 @@
   (rig/make-skeleton-build-target (resource/workspace resource) _node-id skeleton))
 
 (g/defnk produce-content [_node-id resource]
-  (try
-    (with-open [stream (io/input-stream resource)]
-      (collada/load-scene stream))
-    (catch NumberFormatException _
-      (error-values/error-fatal "The scene contains invalid numbers, likely produced by a buggy exporter." {:type :invalid-content}))
-    (catch java.io.FileNotFoundException _
-      (validation/file-not-found-error _node-id :content :fatal resource))
-    (catch Exception _
-      (validation/invalid-content-error _node-id :content :fatal resource))))
+  (resource-io/with-error-translation resource _node-id :content
+    (try
+      (with-open [stream (io/input-stream resource)]
+        (collada/load-scene stream))
+      (catch NumberFormatException _
+        (error-values/error-fatal "The scene contains invalid numbers, likely produced by a buggy exporter." {:type :invalid-content})))))
 
 (defn- vbuf-size [meshes]
   (reduce (fn [sz m] (max sz (alength ^ints (:indices m)))) 0 meshes))
 
 (defn- index-oob [vs is comp-count]
-  (> (* comp-count (reduce max is)) (count vs)))
+  (> (* comp-count (reduce max 0 is)) (count vs)))
 
 (defn- validate-meshes [meshes]
   (when-let [es (seq (keep (fn [m]
                              (let [{:keys [^floats positions ^floats normals ^floats texcoord0 ^ints indices ^ints normals-indices ^ints texcoord0-indices]} m]
-                               (when (or (not (= (alength indices) (alength normals-indices) (alength texcoord0-indices)))
-                                       (index-oob positions indices 3)
-                                       (index-oob normals normals-indices 3)
-                                       (index-oob texcoord0 texcoord0-indices 2))
+                               (when (or (not (= (alength indices) (alength texcoord0-indices)))
+                                         (and (not= (alength normals-indices) 0) (not= (alength indices) (alength normals-indices))) ; normals optional
+                                         (index-oob positions indices 3)
+                                         (index-oob normals normals-indices 3)
+                                         (index-oob texcoord0 texcoord0-indices 2))
                                  (error-values/error-fatal "Failed to produce vertex buffers from mesh set. The scene might contain invalid data."))))
                        meshes))]
     (error-values/error-aggregate es)))
@@ -243,13 +253,21 @@
     {:node-id _node-id
      :aabb aabb
      :renderable {:render-fn render-scene
+                  :tags #{:model}
                   :batch-key _node-id
                   :select-batch-key _node-id
                   :user-data {:meshes meshes
                               :shader shader-pos-nrm-tex
                               :textures {"texture" texture/white-pixel}
                               :scratch-arrays (gen-scratch-arrays meshes)}
-                  :passes [pass/opaque pass/selection pass/outline]}}))
+                  :passes [pass/opaque pass/selection]}
+     :children [{:node-id _node-id
+                 :aabb aabb
+                 :renderable {:render-fn render-outline
+                              :tags #{:model :outline}
+                              :batch-key _node-id
+                              :select-batch-key _node-id
+                              :passes [pass/outline]}}]}))
 
 (g/defnode ColladaSceneNode
   (inherits resource-node/ResourceNode)

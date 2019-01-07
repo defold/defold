@@ -4,27 +4,26 @@
             [editor.form :as form]
             [editor.field-expression :as field-expression]
             [editor.ui :as ui]
+            [editor.ui.bindings :as b]
             [editor.url :as url]
-            [editor.jfx :as jfx]            
+            [editor.jfx :as jfx]
             [editor.dialogs :as dialogs]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [editor.types :as types]
-            [editor.view :as view])
-  (:import [javafx.animation AnimationTimer]
-           [java.util List Collection]
-           [javafx.scene Parent Group Node]
-           [javafx.scene.text Text]
-           [javafx.scene.input KeyCode KeyEvent ContextMenuEvent]
+            [editor.view :as view]
+            [editor.util :as util]
+            [editor.settings :as settings]
+            [editor.settings-core :as settings-core])
+  (:import [java.util Collection]
+           [javafx.scene Parent Node]
+           [javafx.scene.input KeyCode ContextMenuEvent]
            [javafx.geometry Insets Pos HPos VPos]
            [javafx.util Callback StringConverter]
-           [javafx.collections FXCollections ObservableList]
            [javafx.beans.property ReadOnlyObjectWrapper]
-           [javafx.beans.value ChangeListener ObservableNumberValue]
-           [javafx.beans.binding Bindings DoubleBinding]
-           [javafx.beans Observable]
-           [javafx.scene.layout Region AnchorPane Pane GridPane HBox VBox Priority ColumnConstraints]
-           [javafx.scene.control Control Cell ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane TextArea Label TextField ComboBox CheckBox Button Tooltip ContextMenu Menu MenuItem SelectionMode]
+           [javafx.beans.value ObservableNumberValue]
+           [javafx.beans.binding Bindings]
+           [javafx.scene.layout GridPane HBox VBox Priority ColumnConstraints]
+           [javafx.scene.control Control Cell ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane Label TextField ComboBox CheckBox Button ContextMenu MenuItem SelectionMode ContentDisplay]
            [com.defold.control ListView ListCell ListCellSkinWithBehavior TableCell TableCellBehavior TableCellSkinWithBehavior]
            [com.sun.javafx.scene.control.behavior ListCellBehavior]))
 
@@ -57,6 +56,11 @@
 (def ^:private open-icon "icons/32/Icons_S_14_linkarrow.png")
 (def ^:private reset-icon "icons/32/Icons_S_02_Reset.png")
 
+(def ^:private severity-field-style-map
+  {:fatal "field-error"
+   :warning "field-warning"
+   :info "field-info"})
+
 (defmulti create-field-control (fn [field-info field-ops ctxt] (:type field-info)))
 
 (def ^:private default-value-alignments
@@ -73,6 +77,8 @@
    :integer 80
    :string 300
    :resource 300
+   :file 326
+   :directory 326
    :list 200})
 
 (defn- field-width [field-info]
@@ -83,6 +89,18 @@
     (ui/on-key! ctrl (fn [key]
                        (when (= key KeyCode/ESCAPE)
                          (cancel))))))
+
+(defn get-form-setting-value [form-data path d]
+  (let [data (get (get form-data :values) path d)]
+    data))
+
+(defn update-section-setting [section path f]
+  (if-let [index (first (util/positions #(= path (:path %)) (get section :fields)))]
+    (update-in section [:fields index] f)
+    section))
+
+(defn update-form-setting [form-data path f]
+  (update form-data :sections (fn [section] (mapv #(update-section-setting % path f) section))))
 
 (defn- create-text-field-control [parse serialize {:keys [path help] :as field-info} {:keys [set cancel]}]
   (let [tf (TextField.)
@@ -158,6 +176,88 @@
          :edit (fn []
                  (ui/request-focus! cb)
                  (.show cb))}]))
+
+(defmethod create-field-control :directory [{:keys [path help title] :as field-info} {:keys [set cancel]} {:keys [workspace project]}]
+  (let [box (GridPane.)
+        browse-button (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
+                        (.setPrefWidth 26)
+                        (ui/add-style! "button-small"))
+        text (doto (TextField.)
+               (.setPrefWidth (field-width field-info))
+               (GridPane/setFillWidth true))
+        content (atom nil)
+        update-fn (fn [value]
+                    (reset! content value)
+                    (ui/text! text value))
+        commit-fn (fn [_] (let [resource-path (ui/text text)
+                                file (some->> (when-not (string/blank? resource-path) resource-path))]
+                            (set path file)
+                            (update-fn file)))]
+    (ui/add-style! box "composite-property-control-container")
+    (ui/on-action! browse-button (fn [_] (when-let [file (ui/choose-directory (or title "Select Directory") nil)]
+                                           (set path file))))
+    (ui/on-action! text commit-fn)
+    (ui/auto-commit! text commit-fn)
+    (install-escape-handler! text cancel)
+    (ui/children! box [text browse-button])
+    (GridPane/setConstraints text 0 0)
+    (GridPane/setConstraints browse-button 1 0)
+
+    ;; Merge the facing borders of the open and browse buttons.
+    (.setOnMousePressed browse-button (ui/event-handler _ (.toFront browse-button)))
+
+    (doto (.. box getColumnConstraints)
+      (.add (doto (ColumnConstraints.)
+              (.setHgrow Priority/ALWAYS)))
+      (.add (doto (ColumnConstraints.)
+              (.setMinWidth ColumnConstraints/CONSTRAIN_TO_PREF)
+              (.setHgrow Priority/NEVER))))
+
+    (ui/tooltip! text help)
+
+    [box {:update update-fn
+          :edit #(ui/request-focus! text)}]))
+
+(defmethod create-field-control :file [{:keys [filter path help title] :as field-info} {:keys [set cancel]} {:keys [workspace project]}]
+  (let [box (GridPane.)
+        browse-button (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
+                        (.setPrefWidth 26)
+                        (ui/add-style! "button-small"))
+        text (doto (TextField.)
+               (.setPrefWidth (field-width field-info))
+               (GridPane/setFillWidth true))
+        content (atom nil)
+        update-fn (fn [value]
+                    (reset! content value)
+                    (ui/text! text value))
+        commit-fn (fn [_] (let [resource-path (ui/text text)
+                                file (some->> (when-not (string/blank? resource-path) resource-path))]
+                            (set path file)
+                            (update-fn file)))]
+    (ui/add-style! box "composite-property-control-container")
+    (ui/on-action! browse-button (fn [_] (when-let [file (dialogs/make-file-dialog (or title "Select File") filter nil (.getWindow (.getScene browse-button)))]
+                                           (set path (.getAbsolutePath file)))))
+    (ui/on-action! text commit-fn)
+    (ui/auto-commit! text commit-fn)
+    (install-escape-handler! text cancel)
+    (ui/children! box [text browse-button])
+    (GridPane/setConstraints text 0 0)
+    (GridPane/setConstraints browse-button 1 0)
+
+    ;; Merge the facing borders of the open and browse buttons.
+    (.setOnMousePressed browse-button (ui/event-handler _ (.toFront browse-button)))
+
+    (doto (.. box getColumnConstraints)
+      (.add (doto (ColumnConstraints.)
+              (.setHgrow Priority/ALWAYS)))
+      (.add (doto (ColumnConstraints.)
+              (.setMinWidth ColumnConstraints/CONSTRAIN_TO_PREF)
+              (.setHgrow Priority/NEVER))))
+
+    (ui/tooltip! text help)
+
+    [box {:update update-fn
+          :edit #(ui/request-focus! text)}]))
 
 (defmethod create-field-control :resource [{:keys [filter path help] :as field-info} {:keys [set cancel]} {:keys [workspace project]}]
   (let [box (GridPane.)
@@ -463,8 +563,7 @@
     (ui/disable! add-button (nil? default-row))
     (ui/on-action! add-button (fn [_] (on-add-row)))
 
-    (.bind (.disableProperty remove-button)
-           (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel table))))
+    (b/bind-enabled-to-selection! remove-button table)
     (ui/on-action! remove-button (fn [_] (on-remove-rows)))
 
     (.setFixedCellSize table cell-height)
@@ -654,8 +753,7 @@
     (ui/enable! add-button (or default-row? query-fn?))
     (ui/on-action! add-button (fn [_] (on-add-rows)))
 
-    (.bind (.disableProperty remove-button)
-           (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel list-view))))
+    (b/bind-enabled-to-selection! remove-button list-view)
     (ui/on-action! remove-button (fn [_] (on-remove-rows)))
 
     (.setCellFactory list-view (create-list-cell-factory (:element field-info) ctxt edited-cell))
@@ -739,7 +837,8 @@
                                    (.setDisable grid false)
                                    (let [selected-field-values (@content selected-index)]
                                      (update-fields (ui/user-data grid ::ui-update-fns)
-                                                    (build-form-values selected-field-values))))
+                                                    (build-form-values selected-field-values)
+                                                    #{})))
                                  (do
                                    (.setDisable grid true)
                                    (wipe-fields (ui/user-data grid ::ui-update-fns)))))
@@ -768,8 +867,7 @@
     (ui/disable! add-button (nil? default-row))
     (ui/on-action! add-button (fn [_] (on-add-row)))
 
-    (.bind (.disableProperty remove-button)
-           (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel list-view))))
+    (b/bind-enabled-to-selection! remove-button list-view)
     (ui/on-action! remove-button (fn [_] (on-remove-rows)))
 
     (ui/user-data! grid ::ui-update-fns updaters)
@@ -810,6 +908,11 @@
 (defn- field-label-valign [field-info]
   (get {:table VPos/TOP :list VPos/TOP :2panel VPos/TOP} (:type field-info) VPos/CENTER))
 
+(defn- set-visible-and-managed! [ui-elements value]
+  (doseq [ui-element ui-elements]
+    (ui/visible! ui-element value)
+    (ui/managed! ui-element value)))
+
 (defn- create-field-grid-row [field-info {:keys [set clear] :as field-ops} ctxt]
   (let [path (:path field-info)
         label (create-field-label (:label field-info))
@@ -833,15 +936,25 @@
                              (do
                                (ui/children! label-box [label])
                                (GridPane/setConstraints label 0 0))))
-                           
-        update-ui-fn (fn [{:keys [value source]}]
-                       (let [value (condp = source
-                                         :explicit value
-                                         :default (form/field-default field-info)
-                                         nil)
+
+        update-ui-fn (fn [update-data]
+                       (let [{:keys [value source]} update-data
+                             value (condp = source
+                                     :explicit value
+                                     :default (form/field-default field-info)
+                                     nil)
                              overridden? (and (form/optional-field? field-info) (= source :explicit))]
                          ((:update api) value)
-                         (update-label-box overridden?)))]
+                         (update-label-box overridden?))
+                       (when (:deprecated (:meta-setting update-data))
+                         (let [error (settings/get-setting-error (:setting-value update-data) (:meta-setting update-data) :build-targets)
+                               severity (:severity error)]
+                           (ui/remove-styles! control (map val severity-field-style-map))
+                           (if (some? error)
+                             (do
+                               (set-visible-and-managed! [label-box control] true)
+                               (ui/add-style! control (severity-field-style-map severity)))
+                             (set-visible-and-managed! [label-box control] false)))))]
 
     (GridPane/setFillWidth label-box true)
     (GridPane/setValignment label-box (field-label-valign field-info))
@@ -870,7 +983,9 @@
             (remove :hidden?)
             (map (fn [field-info] (create-field-grid-row field-info field-ops ctxt))))))))
 
-(defn- update-fields [updaters field-values]
+(defn- update-fields [updaters field-values meta-settings]
+  (doseq [[path updater] updaters]
+    (updater {:meta-setting (settings-core/get-meta-setting meta-settings path) :setting-value (get field-values path)}))
   (doseq [[path val] field-values]
     (when-let [updater (updaters path)]
       (updater {:value val :source :explicit})))
@@ -880,7 +995,7 @@
 
 (defn update-form [form form-data]
   (let [updaters (ui/user-data form ::update-ui-fns)]
-    (update-fields updaters (:values form-data))
+    (update-fields updaters (:values form-data) (:meta-settings form-data))
     form))
 
 (defn- add-grid-row [^GridPane grid row row-data]

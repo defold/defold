@@ -157,9 +157,11 @@ namespace dmScript
     int Json_Decode(lua_State* L)
     {
         int top = lua_gettop(L);
-        const char* json = luaL_checkstring(L, 1);
+        size_t stringlength = 0;
+        const char* json = luaL_checklstring(L, 1, &stringlength);
         dmJson::Document doc;
-        dmJson::Result r = dmJson::Parse(json, &doc);
+
+        dmJson::Result r = dmJson::Parse(json, (uint32_t)stringlength, &doc);
 
         if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0)
         {

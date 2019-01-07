@@ -494,9 +494,8 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
             if (g_KeyboardActive) {
                 // Implicitly hide keyboard
                 _glfwShowKeyboard(0, 0, 0);
-            } else {
-                _glfwInputKey( GLFW_KEY_BACK, glfw_action );
             }
+            _glfwInputKey( GLFW_KEY_BACK, glfw_action );
             return 1;
         case AKEYCODE_ESCAPE: _glfwInputKey( GLFW_KEY_ESC, glfw_action ); return 1;
         case AKEYCODE_F1: _glfwInputKey( GLFW_KEY_F1, glfw_action ); return 1;
@@ -527,7 +526,6 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
         case AKEYCODE_TAB: _glfwInputKey( GLFW_KEY_TAB, glfw_action ); return 1;
         case AKEYCODE_INSERT: _glfwInputKey( GLFW_KEY_INSERT, glfw_action ); return 1;
         case AKEYCODE_DEL: _glfwInputKey( GLFW_KEY_DEL, glfw_action ); return 1;
-        case AKEYCODE_ENTER: _glfwInputKey( GLFW_KEY_ENTER, glfw_action ); return 1;
         case AKEYCODE_PAGE_UP: _glfwInputKey( GLFW_KEY_PAGEUP, glfw_action ); return 1;
         case AKEYCODE_PAGE_DOWN: _glfwInputKey( GLFW_KEY_PAGEDOWN, glfw_action ); return 1;
         case AKEYCODE_MOVE_HOME: _glfwInputKey( GLFW_KEY_HOME, glfw_action ); return 1;
@@ -571,7 +569,7 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
             case AKEYCODE_SPACE: _glfwInputKey( GLFW_KEY_SPACE, glfw_action ); break;
             case AKEYCODE_GRAVE: _glfwInputKey( '`', glfw_action ); break;
             case AKEYCODE_MINUS: _glfwInputKey( '-', glfw_action ); break;
-            case AKEYCODE_EQUALS: _glfwInputKey( "=", glfw_action ); break;
+            case AKEYCODE_EQUALS: _glfwInputKey( '=', glfw_action ); break;
             case AKEYCODE_LEFT_BRACKET: _glfwInputKey( '[', glfw_action ); break;
             case AKEYCODE_RIGHT_BRACKET: _glfwInputKey( ']', glfw_action ); break;
             case AKEYCODE_BACKSLASH: _glfwInputKey( '\\', glfw_action ); break;
@@ -634,7 +632,7 @@ void _glfwPreMain(struct android_app* state)
         int events;
         struct android_poll_source* source;
 
-        while ((ident=ALooper_pollAll(300, NULL, &events, (void**)&source)) >= 0)
+        if ((ident=ALooper_pollAll(300, NULL, &events, (void**)&source)) >= 0)
         {
             // Process this event.
             if (source != NULL) {

@@ -19,7 +19,7 @@
     -fx-background-color: $dark-grey;
     -fx-border-color: $mid-grey;
     -fx-text-fill: $bright-grey;
-    -fx-font-weight: normal; 
+    -fx-font-weight: normal;
   }
   &.low-prio:hover {
       -fx-background-color: $bright-black;
@@ -32,17 +32,16 @@
 }
 
 .button-small {
-	@extend .button;
-	-fx-padding: 2px 17px;
-	-fx-min-width: 0px;
+  @extend .button;
+  -fx-padding: 2px 17px;
+  -fx-min-width: 0px;
 }
 
 .button-large {
-	@extend .button;
-	-fx-padding: 10px 25px;
-	-fx-min-width: 200px;
-  }
-
+  @extend .button;
+  -fx-padding: 10px 25px;
+  -fx-min-width: 200px;
+}
 
 .clear-button {
   -fx-background-radius: 0;
@@ -56,7 +55,7 @@
   -fx-border-width: 0;
   -fx-text-fill: $defold-white;
   &:hover {
-      -fx-background-color: $grey !important; 
+      -fx-background-color: $grey !important;
   }
   &:armed {
       -fx-background-color: $dark-grey-header !important;
@@ -93,6 +92,41 @@
   -fx-border-radius: 4;
   -fx-border-color: $dark-black;
   -fx-text-fill: -fx-text-base-color;
+}
+
+/* for styling checkboxes as (O ) ( O) control */
+.slide-switch {
+  -fx-padding: 2px;
+  -fx-border-width: 0px;
+  > .box  {
+    -fx-pref-width: 20px;
+    -fx-pref-height: 12px;
+    -fx-padding: 1px;
+    -fx-background-radius: 10px;
+    -fx-border-width: 0px;
+    -fx-alignment: center-left;
+    -fx-background-color: $dark-black;
+    > .mark {
+      -fx-max-width: 10px;
+      -fx-background-insets: 0px;
+      -fx-background-color: #626365;
+      -fx-background-radius: 10px;
+      -fx-shape: none;
+    }
+  }
+
+  &:selected {
+    > .box {
+      -fx-alignment: center-right;
+      > .mark {
+        -fx-background-color: #4CB1FF;
+      }
+    }
+  }
+
+  &:disabled {
+    -fx-opacity: 50%;
+  }
 }
 
 .color-picker.split-button > .arrow-button:hover,

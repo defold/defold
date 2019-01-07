@@ -57,6 +57,33 @@ public class PublisherSettings {
         return null;
     }
 
+    public void setManifestPublicKey(String value) {
+        this.setValue("liveupdate", "publickey", value);
+    }
+
+    public String getManifestPublicKey() {
+        String value = this.getValue("liveupdate", "publickey");
+        return value != null ? value : "";
+    }
+
+    public void setManifestPrivateKey(String value) {
+        this.setValue("liveupdate", "privatekey", value);
+    }
+
+    public String getManifestPrivateKey() {
+        String value = this.getValue("liveupdate", "privatekey");
+        return value != null ? value : "";
+    }
+
+    public void setSupportedVersions(String value) {
+        this.setValue("liveupdate", "supported-versions", value);
+    }
+
+    public String getSupportedVersions() {
+        String value = this.getValue("liveupdate", "supported-versions");
+        return value != null ? value : "";
+    }
+
     public void setMode(PublishMode value) {
     	this.setValue("liveupdate", "mode", value.toString());
     }
@@ -120,6 +147,8 @@ public class PublisherSettings {
                 String[] parts = current.split("=");
                 if (parts.length == 2 && parts[0].length() > 0 && parts[1].length() > 0) {
                     settings.properties.get(currentGroup).put(parts[0].toLowerCase().trim(), parts[1].trim());
+                } else if (parts.length == 1 && parts[0].length() > 0) {
+                    settings.properties.get(currentGroup).put(parts[0].toLowerCase().trim(), "");
                 } else {
                     throw new ParseException("invalid key/value-pair: " + current, cursor);
                 }

@@ -200,7 +200,7 @@ namespace dmRender
     void RenderListSubmit(HRenderContext render_context, RenderListEntry *begin, RenderListEntry *end)
     {
         // Insert the used up indices into the sort buffer.
-        assert(end - begin <= render_context->m_RenderListSortIndices.Remaining());
+        assert(end - begin <= (intptr_t)render_context->m_RenderListSortIndices.Remaining());
 
         // Transform pointers back to indices.
         RenderListEntry *base = render_context->m_RenderList.Begin();

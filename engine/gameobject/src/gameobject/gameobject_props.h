@@ -57,6 +57,47 @@ namespace dmGameObject
 
     PropertyResult GetProperty(const HProperties properties, dmhash_t id, PropertyVar& var);
 
+    typedef struct PropertyContainer* HPropertyContainer;
+    typedef struct PropertyContainerBuilder* HPropertyContainerBuilder;
+
+    struct PropertyContainerParameters
+    {
+        PropertyContainerParameters()
+            : m_NumberCount(0)
+            , m_HashCount(0)
+            , m_URLStringCount(0)
+            , m_URLStringSize(0)
+            , m_URLCount(0)
+            , m_Vector3Count(0)
+            , m_Vector4Count(0)
+            , m_QuatCount(0)
+            , m_BoolCount(0)
+        { }
+        uint32_t m_NumberCount;
+        uint32_t m_HashCount;
+        uint32_t m_URLStringCount;
+        uint32_t m_URLStringSize;
+        uint32_t m_URLCount;
+        uint32_t m_Vector3Count;
+        uint32_t m_Vector4Count;
+        uint32_t m_QuatCount;
+        uint32_t m_BoolCount;
+    };
+
+    HPropertyContainerBuilder CreatePropertyContainerBuilder(const PropertyContainerParameters& params);
+    void PushFloatType(HPropertyContainerBuilder builder, dmhash_t id, PropertyType type, const float values[]);
+    void PushBool(HPropertyContainerBuilder builder, dmhash_t id, bool value);
+    void PushHash(HPropertyContainerBuilder builder, dmhash_t id, dmhash_t value);
+    void PushURLString(HPropertyContainerBuilder builder, dmhash_t id, const char* value);
+    void PushURL(HPropertyContainerBuilder builder, dmhash_t id, const char value[sizeof(dmMessage::URL)]);
+    HPropertyContainer CreatePropertyContainer(HPropertyContainerBuilder builder);
+
+    HPropertyContainer MergePropertyContainers(HPropertyContainer container, HPropertyContainer overrides);
+
+    PropertyResult PropertyContainerGetPropertyCallback(const HProperties properties, uintptr_t user_data, dmhash_t id, PropertyVar& out_var);
+    void DestroyPropertyContainer(HPropertyContainer container);
+    void DestroyPropertyContainerCallback(uintptr_t user_data);
+
     // dmResource::Get supplied paths and stores into out_resources which will be re-allocated through SetCapacity(resource_path_count)
     // Unwinds at failure
     dmResource::Result LoadPropertyResources(dmResource::HFactory factory, const char** resource_paths, uint32_t resource_path_count, dmArray<void*>& out_resources);

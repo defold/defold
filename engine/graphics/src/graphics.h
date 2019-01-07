@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
+#include <dmsdk/graphics/graphics.h>
+
 #if defined(__AVM2__)
 #include "flash/graphics_flash_defines.h"
 #else
@@ -140,6 +142,13 @@ namespace dmGraphics
     {
         uint8_t m_FormatToBPP[TEXTURE_FORMAT_COUNT];
         TextureFormatToBPP();
+    };
+
+    // Translation table to translate RenderTargetAttachment to BufferType
+    struct AttachmentToBufferType
+    {
+        BufferType m_AttachmentToBufferType[MAX_ATTACHMENT_COUNT];
+        AttachmentToBufferType();
     };
 
     // Texture type
@@ -411,6 +420,13 @@ namespace dmGraphics
     void Finalize();
 
     /**
+     * Get the window refresh rate
+     * @params context Graphics context handle
+     * @return The window refresh rate, 0 if refresh rate ciuld not be read.
+     */
+    uint32_t GetWindowRefreshRate(HContext context);
+
+    /**
      * Open a window
      * @param context Graphics context handle
      * @param params Window parameters
@@ -590,8 +606,7 @@ namespace dmGraphics
 
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT]);
     void DeleteRenderTarget(HRenderTarget render_target);
-    void EnableRenderTarget(HContext context, HRenderTarget render_target);
-    void DisableRenderTarget(HContext context, HRenderTarget render_target);
+    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
     HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type);
     void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);

@@ -1,0 +1,55 @@
+# Derived from src/engine/wscript, headless target: Removes Record,Sound,Graphics,Input
+platforms:
+    x86_64-osx:
+        context:
+            excludeLibs: ["record","vpx","sound","tremolo","graphics","hid"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            libs: ["record_null","sound_null","graphics_null","hid_null"]
+
+    x86_64-linux:
+        context:
+            excludeLibs: ["record","vpx","sound","tremolo","graphics","hid"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            libs: ["record_null","sound_null","graphics_null","hid_null"]
+
+    js-web:
+        context:
+            excludeLibs: ["record","vpx","sound","tremolo","graphics","hid"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            libs: ["record_null","sound_null","graphics_null","hid_null"]
+
+    wasm-web:
+        context:
+            excludeLibs: ["record","vpx","sound","tremolo","graphics","hid"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            libs: ["record_null","sound_null","graphics_null","hid_null"]
+
+    x86-win32:
+        context:
+            excludeLibs: ["librecord","libvpx","libsound","libtremolo","libgraphics","libhid"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            libs: ["librecord_null.lib","libsound_null.lib","libgraphics_null.lib","libhid_null.lib"]
+
+    x86_64-win32:
+        context:
+            excludeLibs: ["librecord","libvpx","libsound","libtremolo","libgraphics","libhid"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            libs: ["librecord_null.lib","libsound_null.lib","libgraphics_null.lib","libhid_null.lib"]
+
+    armv7-android:
+        context:
+            excludeLibs: ["record","vpx","sound","tremolo","graphics","hid"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            libs: ["record_null","sound_null","graphics_null","hid_null"]
+
+    armv7-ios:
+        context:
+            excludeLibs: ["record","vpx","sound","tremolo","graphics","hid"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            libs: ["record_null","sound_null","graphics_null","hid_null"]
+
+    arm64-ios:
+        context:
+            excludeLibs: ["record","vpx","sound","tremolo","graphics","hid"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            libs: ["record_null","sound_null","graphics_null","hid_null"]

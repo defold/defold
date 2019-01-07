@@ -2,7 +2,10 @@
 
 IOS_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain
 ARM_DARWIN_ROOT=${DYNAMO_HOME}/ext
-IOS_SDK_VERSION=10.3
+IOS_SDK_VERSION=11.2
+
+IOS_MIN_SDK_VERSION=6.0
+OSX_MIN_SDK_VERSION=10.7
 
 ANDROID_ROOT=~/android
 ANDROID_NDK_VERSION=10e
@@ -63,7 +66,7 @@ function cmi_do() {
 }
 
 function cmi_cross() {
-    if [[ $2 == "js-web" ]]; then
+    if [[ $2 == "js-web" ]] || [[ $2 == "wasm-web" ]]; then
         # Cross compiling protobuf for js-web with --host doesn't work
         # Unknown host in reported by configure script
         # TODO: Use another target, e.g. i386-freebsd as for as3-web?
@@ -74,7 +77,11 @@ function cmi_cross() {
 
     local TGZ="$PRODUCT-$VERSION-$1.tar.gz"
     pushd $PREFIX  >/dev/null
-    tar cfz $TGZ lib
+    if [ -z ${TAR_INCLUDES+x} ]; then
+        tar cfz $TGZ lib
+    else
+        tar cfz $TGZ lib include
+    fi
     popd >/dev/null
     popd >/dev/null
 
@@ -109,8 +116,14 @@ function cmi_buildplatform() {
     rm -rf $PREFIX
 }
 
+# Trick to override functions
+function save_function() {
+    local ORIG_FUNC=$(declare -f $1)
+    local NEWNAME_FUNC="$2${ORIG_FUNC#$1}"
+    eval "$NEWNAME_FUNC"
+}
+
 function windows_path_to_posix() {
-    #echo $1
     echo "/$1" | sed -e 's/\\/\//g' -e 's/C:/c/' -e 's/ /\\ /g' -e 's/(/\\(/g' -e 's/)/\\)/g'
 }
 
@@ -140,10 +153,10 @@ function cmi_setup_vs2015_env() {
     c_VSINSTALLDIR=$(windows_path_to_posix "$VSINSTALLDIR")
     c_WindowsSdkDir=$(windows_path_to_posix "$WindowsSdkDir")
     c_FrameworkDir=$(windows_path_to_posix "$FrameworkDir")
-    
+
     echo BEFORE VSINSTALLDIR == $VSINSTALLDIR
     echo BEFORE c_VSINSTALLDIR == $c_VSINSTALLDIR
-    
+
     export PATH="${c_WindowsSdkDir}bin:$PATH"
     export PATH="${c_WindowsSdkDir}bin/NETFX 4.0 Tools:$PATH"
     export PATH="${c_VSINSTALLDIR}VC/VCPackages:$PATH"
@@ -167,7 +180,7 @@ function cmi() {
             export CPPFLAGS="-arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libstdc++ -arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
+            export CXXFLAGS="${CXXFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libstdc++ -arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             export CFLAGS="${CPPFLAGS}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
@@ -189,7 +202,7 @@ function cmi() {
             export CPPFLAGS="-arch arm64 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libstdc++ -arch arm64 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
+            export CXXFLAGS="${CXXFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libstdc++ -arch arm64 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             export CFLAGS="${CPPFLAGS}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
@@ -229,8 +242,8 @@ function cmi() {
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             export CPPFLAGS="-m32"
-            export CXXFLAGS="${CXXFLAGS} -m32 -stdlib=libstdc++ "
-            export CFLAGS="${CFLAGS} -m32"
+            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -m32 -stdlib=libc++ "
+            export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -m32"
             export LDFLAGS="-m32"
             cmi_buildplatform $1
             ;;
@@ -238,7 +251,7 @@ function cmi() {
         x86_64-darwin)
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libstdc++"
+            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
             cmi_buildplatform $1
             ;;
 
@@ -277,6 +290,17 @@ function cmi() {
             export CXX=${EMSCRIPTEN}/em++
             export AR=${EMSCRIPTEN}/emar
             export LD=${EMSCRIPTEN}/em++
+            export RANLIB=${EMSCRIPTEN}/emranlib
+            cmi_cross $1 $1
+            ;;
+
+        wasm-web)
+            export CONFIGURE_WRAPPER=${EMSCRIPTEN}/emconfigure
+            export CC=${EMSCRIPTEN}/emcc
+            export CXX=${EMSCRIPTEN}/em++
+            export AR=${EMSCRIPTEN}/emar
+            export LD=${EMSCRIPTEN}/em++
+            export RANLIB=${EMSCRIPTEN}/emranlib
             cmi_cross $1 $1
             ;;
 

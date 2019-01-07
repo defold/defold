@@ -3,6 +3,7 @@
             [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
+            [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -17,18 +18,29 @@
             (set (fn [evaluation-context self old-value new-value]
                    (let [input (g/node-value self :value-input evaluation-context)]
                      (g/set-property self :value-piece (str (first input)))))))
+  (property source-resource resource/Resource
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [project (project/get-project (:basis evaluation-context) self)]
+                     (:tx-data (project/connect-resource-node evaluation-context project new-value self [[:value :value-input]]))))))
   (input value-input g/Str))
 
 (g/defnode BNode
   (inherits resource-node/ResourceNode)
   (property value g/Str))
 
+(defn- read-a [resource]
+  (read-string (slurp resource)))
+
+(defn- dependencies-a [source-value]
+  (keep source-value [:b]))
+
 (defn- load-a [project self resource]
   (swap! load-counter inc)
-  (let [data (read-string (slurp resource))]
+  (let [data (read-string (slurp resource))
+        source-resource (workspace/resolve-resource resource (:b data))]
     (concat
      (g/set-property self :value-piece "set incorrectly")
-     (project/connect-resource-node project (:b data) self [[:value :value-input]])
+     (g/set-property self :source-resource source-resource)
      (g/set-property self :value "bogus value"))))
 
 (defn- load-b [project self resource]
@@ -50,6 +62,8 @@
         (g/transact
           (register-resource-types workspace [{:ext "type_a"
                                                :node-type ANode
+                                               :read-fn read-a
+                                               :dependencies-fn dependencies-a
                                                :load-fn load-a
                                                :label "Type A"}
                                               {:ext "type_b"

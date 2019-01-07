@@ -18,6 +18,7 @@
 
 #include "../gamesys.h"
 #include "../gamesys_private.h"
+#include "comp_private.h"
 
 #include "gamesys_ddf.h"
 #include "model_ddf.h"
@@ -28,6 +29,45 @@ namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
     using namespace dmGameSystemDDF;
+
+    struct ModelComponent
+    {
+        dmGameObject::HInstance     m_Instance;
+        dmTransform::Transform      m_Transform;
+        Matrix4                     m_World;
+        ModelResource*              m_Resource;
+        dmRig::HRigInstance         m_RigInstance;
+        uint32_t                    m_MixedHash;
+        dmMessage::URL              m_Listener;
+        CompRenderConstants         m_RenderConstants;
+        dmGraphics::HTexture        m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmRender::HMaterial         m_Material;
+
+        /// Node instances corresponding to the bones
+        dmArray<dmGameObject::HInstance> m_NodeInstances;
+        uint16_t                    m_ComponentIndex;
+        /// Component enablement
+        uint8_t                     m_Enabled : 1;
+        uint8_t                     m_DoRender : 1;
+        /// Added to update or not
+        uint8_t                     m_AddedToUpdate : 1;
+        uint8_t                     m_ReHash : 1;
+    };
+
+    struct ModelWorld
+    {
+        dmObjectPool<ModelComponent*>   m_Components;
+        dmArray<dmRender::RenderObject> m_RenderObjects;
+        dmGraphics::HVertexDeclaration  m_VertexDeclaration;
+        dmGraphics::HVertexBuffer*      m_VertexBuffers;
+        dmArray<dmRig::RigModelVertex>* m_VertexBufferData;
+        // Temporary scratch array for instances, only used during the creation phase of components
+        dmArray<dmGameObject::HInstance> m_ScratchInstances;
+        dmRig::HRigContext              m_RigContext;
+        uint32_t                        m_MaxElementsVertices;
+        uint32_t                        m_VertexBufferSwapChainIndex;
+        uint32_t                        m_VertexBufferSwapChainSize;
+    };
 
     static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
 
@@ -519,20 +559,8 @@ namespace dmGameSystem
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
 
-            bool rehash = component.m_ReHash;
-            if(!rehash)
-            {
-                uint32_t const_count = component.m_RenderConstants.m_ConstantCount;
-                for (uint32_t const_i = 0; const_i < const_count; ++const_i)
-                {
-                    if (lengthSqr(component.m_RenderConstants.m_RenderConstants[const_i].m_Value - component.m_RenderConstants.m_PrevRenderConstants[const_i]) > 0)
-                    {
-                        rehash = true;
-                        break;
-                    }
-                }
-            }
-            if(rehash)
+            bool rehash = component.m_ReHash || dmGameSystem::AreRenderConstantsUpdated(&component.m_RenderConstants);
+            if (rehash)
             {
                 ReHash(&component);
             }
@@ -695,18 +723,9 @@ namespace dmGameSystem
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
-                dmRender::Constant* constants = component->m_RenderConstants.m_RenderConstants;
-                uint32_t size = component->m_RenderConstants.m_ConstantCount;
-                for (uint32_t i = 0; i < size; ++i)
+                if (dmGameSystem::ClearRenderConstant(&component->m_RenderConstants, ddf->m_NameHash))
                 {
-                    if (constants[i].m_NameHash == ddf->m_NameHash)
-                    {
-                        constants[i] = constants[size - 1];
-                        component->m_RenderConstants.m_PrevRenderConstants[i] = component->m_RenderConstants.m_PrevRenderConstants[size - 1];
-                        component->m_RenderConstants.m_ConstantCount--;
-                        component->m_ReHash = 1;
-                        break;
-                    }
+                    ReHash(component);
                 }
             }
         }
@@ -948,4 +967,18 @@ namespace dmGameSystem
         return true;
     }
 
+    ModelResource* CompModelGetModelResource(ModelComponent* component)
+    {
+        return component->m_Resource;
+    }
+
+    dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index)
+    {
+        return component->m_NodeInstances[bone_index];
+    }
+
+    ModelComponent* CompModelGetComponent(ModelWorld* world, uintptr_t user_data)
+    {
+        return world->m_Components.Get(user_data);;
+    }
 }
