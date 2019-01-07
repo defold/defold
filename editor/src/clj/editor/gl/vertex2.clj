@@ -52,7 +52,7 @@
   (flip! [this] (.flip buf) (set! version (inc version)) this)
   (flipped? [this] (and (= 0 (.position buf))))
   (clear! [this] (.clear buf) this)
-  (position! [this position] (.position buf (* position ^long (:size vertex-description))) this)
+  (position! [this position] (.position buf (int (* position ^long (:size vertex-description)))) this)
   (version [this] version)
 
   clojure.lang.Counted
@@ -152,10 +152,10 @@
        (def ~name '~vertex-description)
        (defn ~ctor-name
          ([capacity#]
-           (make-vertex-buffer '~vertex-description :static capacity#))
+          (make-vertex-buffer '~vertex-description :static capacity#))
          ([capacity# usage#]
-           (assert (contains? usage-types usage#) (format "usage must be %s" (str/join " or " (map str (keys usage-types)))))
-           (make-vertex-buffer '~vertex-description usage# capacity#)))
+          (assert (contains? usage-types usage#) (format "usage must be %s" (str/join " or " (map str (keys usage-types)))))
+          (make-vertex-buffer '~vertex-description usage# capacity#)))
        ~(when gen-put?
           `(def ~put-name ~(make-put-fn (:attributes vertex-description)))))))
 

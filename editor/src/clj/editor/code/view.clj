@@ -96,11 +96,16 @@
   (line-height [_this] line-height)
   (char-width [_this character] (Math/floor (.getCharAdvance font-strike character))))
 
+(let [method (.getDeclaredMethod Font "getNativeFont" nil)]
+  (.setAccessible method true)
+  (defn get-native-font [font]
+    (.invoke method font nil)))
+
 (defn make-glyph-metrics
   ^GlyphMetrics [^Font font ^double line-height-factor]
   (let [font-loader (.getFontLoader (Toolkit/getToolkit))
         font-metrics (.getFontMetrics font-loader font)
-        font-strike (.getStrike ^PGFont (.impl_getNativeFont font) BaseTransform/IDENTITY_TRANSFORM FontResource/AA_GREYSCALE)
+        font-strike (.getStrike ^PGFont (get-native-font font) BaseTransform/IDENTITY_TRANSFORM FontResource/AA_GREYSCALE)
         line-height (Math/ceil (* (inc (.getLineHeight font-metrics)) line-height-factor))
         ascent (Math/ceil (* (.getAscent font-metrics) line-height-factor))]
     (->GlyphMetrics font-strike line-height ascent)))
@@ -697,7 +702,7 @@
           (keep (fn [tab-trigger-word-region]
                   (when (and (contains? active-tab-trigger-scope-ids (:scope-id tab-trigger-word-region))
                              (not-any? #(data/cursor-range-contains? tab-trigger-word-region %)
-                                         visible-cursors))
+                                       visible-cursors))
                     (cursor-range-draw-info :range nil tab-trigger-word-outline-color tab-trigger-word-region)))
                 (visible-regions-by-type :tab-trigger-word))
 
