@@ -8,7 +8,7 @@
                      [lein-sass "0.4.0"]
                      [codox "0.9.3"]]
 
-  :dependencies     [[org.clojure/clojure                         "1.8.0"]
+  :dependencies     [[org.clojure/clojure                         "1.10.0"]
                      [org.clojure/core.cache                      "0.6.5"]
                      [org.clojure/tools.cli                       "0.3.5"]
                      [org.clojure/tools.macro                     "0.1.5"]
@@ -54,6 +54,14 @@
                       :exclusions [com.amazonaws/aws-java-sdk com.amazonaws/amazon-kinesis-client]]
                      [com.amazonaws/aws-java-sdk-core             "1.11.63"]
                      [com.amazonaws/aws-java-sdk-s3               "1.11.63"]
+
+                     [org.openjfx/javafx-base "11"]
+                     [org.openjfx/javafx-controls "11"]
+                     [org.openjfx/javafx-graphics "11"]
+                     [org.openjfx/javafx-media "11"]
+                     [org.openjfx/javafx-web "11"]
+                     [org.openjfx/javafx-fxml "11"]
+                     [org.openjfx/javafx-swing "11"]
 
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2"]
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-linux-amd64"]
@@ -112,7 +120,7 @@
                       :src-linenum-anchor-prefix "L"
                       :defaults                  {:doc/format :markdown}}
 
-  :jvm-opts          ["-Djna.nosys=true" "-Djava.net.preferIPv4Stack=true"]
+  :jvm-opts          ["-Djna.nosys=true" "-Djava.net.preferIPv4Stack=true" "--illegal-access=warn"]
   :main ^:skip-aot   com.defold.editor.Start
 
   :uberjar-exclusions [#"^natives/"]

@@ -1,35 +1,27 @@
 package com.defold.control;
 
-import com.sun.javafx.scene.control.behavior.ListCellBehavior;
-import com.sun.javafx.scene.control.skin.CellSkinBase;
 import javafx.geometry.Orientation;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.control.skin.CellSkinBase;
 
 // Part of workaround for https://bugs.openjdk.java.net/browse/JDK-8089514
 // This is a reimplementation of the JavaFX ListCellSkin class with
 // the sole purpose of allowing us to pass a custom ListCellBehavior.
-public class ListCellSkinWithBehavior extends CellSkinBase<javafx.scene.control.ListCell<Object>, ListCellBehavior<Object>> {
+public class ListCellSkinWithBehavior extends CellSkinBase<ListCell<Object>> {
     private static final double DEFAULT_CELL_SIZE = 24.0;
 
     private double fixedCellSize;
     private boolean fixedCellSizeEnabled;
 
-    public ListCellSkinWithBehavior(ListCell<Object> control, ListCellBehavior<Object> behavior) {
-        super(control, behavior);
+    public ListCellSkinWithBehavior(ListCell<Object> control) {
+        super(control);
         this.fixedCellSize = control.getListView().getFixedCellSize();
         this.fixedCellSizeEnabled = fixedCellSize > 0;
-        registerChangeListener(control.getListView().fixedCellSizeProperty(), "FIXED_CELL_SIZE");
-    }
-
-    @Override
-    protected void handleControlPropertyChanged(String p) {
-        super.handleControlPropertyChanged(p);
-
-        if ("FIXED_CELL_SIZE".equals(p)) {
+        registerChangeListener(control.getListView().fixedCellSizeProperty(), (x) -> {
             this.fixedCellSize = getSkinnable().getListView().getFixedCellSize();
             this.fixedCellSizeEnabled = fixedCellSize > 0;
-        }
+        });
     }
 
     @Override

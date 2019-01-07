@@ -26,14 +26,14 @@
   (ui/extend-menu ::menubar nil
                   [{:label "File"
                     :children [ {:label "New"
-                                 :id ::new} ]}])
+                                 :id ::new}]}])
   (ui/extend-menu ::save-menu ::new
                   [{:label "Save"}])
   (ui/extend-menu ::quit-menu ::new
                   [{:label "Quit"}])
   (is (= (#'menu/realize-menu ::menubar) [{:label "File"
                                            :children [{:label "New"
-                                                      :id ::new}
+                                                       :id ::new}
                                                       {:label "Save"}
                                                       {:label "Quit"}]}])))
 
