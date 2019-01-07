@@ -9,7 +9,7 @@
 
 namespace dmGameSystem
 {
-    const uint32_t MAX_COMP_RENDER_CONSTANTS = 4;
+    const uint32_t MAX_COMP_RENDER_CONSTANTS = 16;
 
     struct PropVector3
     {
@@ -84,6 +84,7 @@ namespace dmGameSystem
     void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial material, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var);
     int  ClearRenderConstant(CompRenderConstants* constants, dmhash_t name_hash);
     void ReHashRenderConstants(CompRenderConstants* constants, HashState32* state);
+    int  AreRenderConstantsUpdated(CompRenderConstants* constants);
 
 #define DM_GAMESYS_PROP_VECTOR3(var_name, prop_name, readOnly)\
     static const dmGameSystem::PropVector3 var_name(dmHashString64(#prop_name),\

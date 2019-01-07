@@ -282,6 +282,9 @@ namespace dmGui
             case NODE_TYPE_SPINE:
                 lua_pushfstring(L, "spine@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
                 break;
+            case NODE_TYPE_PARTICLEFX:
+                lua_pushfstring(L, "particlefx@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
+                break;
             default:
                 lua_pushfstring(L, "unknown@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
                 break;
@@ -1026,7 +1029,7 @@ namespace dmGui
 
             curve.release_callback = LuaCurveRelease;
             curve.userdata1 = (void*)scene;
-            curve.userdata2 = (void*)dmScript::Ref(L, -2);
+            curve.userdata2 = (void*)(uintptr_t)dmScript::Ref(L, -2);
             lua_pop(L, 1);
         }
         else
@@ -1064,7 +1067,7 @@ namespace dmGui
         if (cbk == 0x0) {
             AnimateNodeHash(scene, hnode, property_hash, to, curve, playback, (float) duration, delay, 0, 0, 0);
         } else {
-            AnimateNodeHash(scene, hnode, property_hash, to, curve, playback, (float) duration, delay, &LuaAnimationComplete, cbk, (void*) node_ref);
+            AnimateNodeHash(scene, hnode, property_hash, to, curve, playback, (float) duration, delay, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
         }
         return 0;
     }
@@ -1319,7 +1322,7 @@ namespace dmGui
      *
      * @name gui.get_line_break
      * @param node [type:node] node from which to get the line-break for
-     * @return line-break [type:boolean] `true` or `false`
+     * @return line_break [type:boolean] `true` or `false`
      */
     static int LuaGetLineBreak(lua_State* L)
     {
@@ -1334,7 +1337,7 @@ namespace dmGui
      *
      * @name gui.set_line_break
      * @param node [type:node] node to set line-break for
-     * @param line-break [type:boolean] true or false
+     * @param line_break [type:boolean] true or false
      */
     static int LuaSetLineBreak(lua_State* L)
     {
@@ -1567,7 +1570,7 @@ namespace dmGui
             const char* anim_id = luaL_checkstring(L, 2);
             Result r;
             if(cbk != 0x0)
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, cbk, (void*) node_ref);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
             else
                 r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
             if (r != RESULT_OK)
@@ -1580,7 +1583,7 @@ namespace dmGui
             dmhash_t anim_id = dmScript::CheckHash(L, 2);
             Result r;
             if(cbk != 0x0)
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, cbk, (void*) node_ref);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
             else
                 r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
             if (r != RESULT_OK)
@@ -2159,7 +2162,7 @@ namespace dmGui
      * @param font [type:string|hash] font id
      * @param text [type:string] text to measure
      * @param width [type:number] max-width. Use for line-breaks (default=FLT_MAX)
-     * @param line_breaks [type:boolean] true to break lines accordingly to width (default=false)
+     * @param line_break [type:boolean] true to break lines accordingly to width (default=false)
      * @param leading [type:number] scale value for line spacing (default=1)
      * @param tracking [type:number] scale value for letter spacing (default=0)
      * @return metrics [type:table] a table with the following fields:
@@ -3025,9 +3028,12 @@ namespace dmGui
      * @name gui.set_parent
      * @param node [type:node] node for which to set its parent
      * @param parent [type:node] parent node to set
+     * @param keep_scene_transform [type:boolean] optional flag to make the scene position being perserved
      */
     static int LuaSetParent(lua_State* L)
     {
+        int top = lua_gettop(L);
+
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         if(n->m_Node.m_IsBone) {
@@ -3038,8 +3044,13 @@ namespace dmGui
         {
             parent = GetNodeHandle(LuaCheckNode(L, 2, &hnode));
         }
+        bool keep_scene_transform = false;
+        if (top > 2 && lua_isboolean(L, 3) && lua_toboolean(L, 3))
+        {
+            keep_scene_transform = true;
+        }
         Scene* scene = GuiScriptInstance_Check(L);
-        dmGui::Result result = dmGui::SetNodeParent(scene, GetNodeHandle(n), parent);
+        dmGui::Result result = dmGui::SetNodeParent(scene, GetNodeHandle(n), parent, keep_scene_transform);
         switch (result)
         {
         case dmGui::RESULT_INF_RECURSION:
@@ -3128,7 +3139,7 @@ namespace dmGui
             result = CloneNodeToTable(L, scene, node, &out_node);
             if (result == dmGui::RESULT_OK)
             {
-                dmGui::SetNodeParent(scene, out_node, parent);
+                dmGui::SetNodeParent(scene, out_node, parent, false);
             }
             index = node->m_NextIndex;
         }
@@ -3171,7 +3182,7 @@ namespace dmGui
                 {
                     parent = GetNodeHandle(&scene->m_Nodes[root->m_ParentIndex]);
                 }
-                dmGui::SetNodeParent(scene, out_node, parent);
+                dmGui::SetNodeParent(scene, out_node, parent, false);
             }
         }
         else
@@ -3465,13 +3476,48 @@ namespace dmGui
     LUASET(name, property)\
 
     LUAGETSETV3(Position, PROPERTY_POSITION)
-    LUAGETSETV3(Rotation, PROPERTY_ROTATION)
     LUAGETSETV3(Scale, PROPERTY_SCALE)
     LUAGETSETV4(Color, PROPERTY_COLOR)
     LUAGETSETV4(Outline, PROPERTY_OUTLINE)
     LUAGETSETV4(Shadow, PROPERTY_SHADOW)
 
 #undef LUAGETSET
+
+    // Custom setter and getter for gui.set_rotation to be able to handle
+    // pass a quaternion for rotations of GUI nodes.
+    int LuaGetRotation(lua_State* L)
+    {
+        InternalNode* n = LuaCheckNode(L, 1, 0);
+        const Vector4& v = n->m_Node.m_Properties[PROPERTY_ROTATION];
+        dmScript::PushVector3(L, Vector3(v.getX(), v.getY(), v.getZ()));
+        return 1;
+    }
+
+    int LuaSetRotation(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        if (n->m_Node.m_IsBone) {
+            return 0;
+        }
+        Vector4 v;
+        if (dmScript::IsVector3(L, 2))
+        {
+            Scene* scene = GetScene(L);
+            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_ROTATION);
+            v = Vector4(*dmScript::CheckVector3(L, 2), original.getW());
+        } else if (dmScript::IsVector4(L, 2)) {
+            v = *dmScript::CheckVector4(L, 2);
+        } else {
+            Scene* scene = GetScene(L);
+            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_ROTATION);
+            Quat* q = dmScript::CheckQuat(L, 2);
+            v = Vector4(dmVMath::QuatToEuler(q->getX(), q->getY(), q->getZ(), q->getW()), original.getW());
+        }
+        n->m_Node.m_Properties[PROPERTY_ROTATION] = v;
+        n->m_Node.m_DirtyLocal = 1;
+        return 0;
+    }
 
     void SetDefaultNewContextParams(NewContextParams* params)
     {
@@ -3534,7 +3580,7 @@ namespace dmGui
     }
 
     /*# gets the node screen position
-     * Returns the screen position of the supplied node. This function returns the 
+     * Returns the screen position of the supplied node. This function returns the
      * calculated transformed position of the node, taking into account any parent node
      * transforms.
      *
@@ -3593,11 +3639,11 @@ namespace dmGui
         dmGui::Result res;
         if (cbk == 0x0)
         {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, (void*) node_ref);
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, (void*)(uintptr_t) node_ref);
         }
         else
         {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, &LuaAnimationComplete, cbk, (void*) node_ref);
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
         }
 
         if (res == RESULT_WRONG_TYPE)
@@ -3699,11 +3745,11 @@ namespace dmGui
         dmGui::Result res;
         if (cbk == 0x0)
         {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, (void*) node_ref);
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, (void*)(uintptr_t) node_ref);
         }
         else
         {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, &LuaAnimationComplete, cbk, (void*) node_ref);
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
         }
 
         if (res == RESULT_WRONG_TYPE)
@@ -4082,7 +4128,11 @@ namespace dmGui
             return DM_LUA_ERROR("Out of nodes (max %d)", scene->m_Nodes.Capacity());
         }
 
-        dmGui::SetNodeParticlefx(scene, node, particlefx);
+        dmGui::Result r = dmGui::SetNodeParticlefx(scene, node, particlefx);
+        if (r == RESULT_RESOURCE_NOT_FOUND) {
+            char name[128];
+            return DM_LUA_ERROR("No particlefx resource '%s' found.", dmScript::GetStringFromHashOrString(L, 2, name, sizeof(name)));
+        }
         LuaPushNode(L, scene, node);
         return 1;
     }

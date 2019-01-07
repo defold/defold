@@ -1085,15 +1085,15 @@ TYPED_TEST(PhysicsTest, TriggerRayCasting)
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
 }
 
+enum Groups
+{
+    GROUP_A = 1 << 0,
+    GROUP_B = 1 << 1
+};
+
 TYPED_TEST(PhysicsTest, FilteredRayCasting)
 {
     float box_half_ext = 0.5f;
-
-    enum Groups
-    {
-        GROUP_A = 1 << 0,
-        GROUP_B = 1 << 1
-    };
 
     VisualObject vo_a;
     dmPhysics::CollisionObjectData data_a;
@@ -1798,9 +1798,10 @@ TYPED_TEST(PhysicsTest, TriggerEnterExitOverflow)
     typename TypeParam::CollisionObjectType bodies[it_count];
     typename TypeParam::CollisionShapeType shapes[it_count];
 
+    VisualObject vo[it_count];
     for (uint32_t i = 0; i < it_count; ++i)
     {
-        VisualObject vo_a;
+        VisualObject& vo_a = vo[i];
         vo_a.m_Position.setX(1.0f);
         dmPhysics::CollisionObjectData data_a;
         typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);

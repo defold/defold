@@ -96,7 +96,7 @@ TEST(dmMaterialTest, TestMaterialConstantsOverride)
     dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
 
     // create override material which contains tint, but at a different location
-    dmGraphics::HVertexProgram vp_ovr = dmGraphics::NewVertexProgram(context, "uniform vec4 dummy;\nuniform vec4 tint;\n", 42);
+    dmGraphics::HVertexProgram vp_ovr = dmGraphics::NewVertexProgram(context, "uniform vec4 dummy;\nuniform vec4 tint;\n", 40);
     dmGraphics::HFragmentProgram fp_ovr = dmGraphics::NewFragmentProgram(context, "foo", 3);
     dmRender::HMaterial material_ovr = dmRender::NewMaterial(render_context, vp_ovr, fp_ovr);
     dmGraphics::HProgram program_ovr = dmRender::GetMaterialProgram(material_ovr);

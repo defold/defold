@@ -1,12 +1,12 @@
 
 #include "comp_anim.h"
 
+#include <dlib/index_pool.h>
 #include <dlib/profile.h>
 
 #include <script/script.h>
 
 #include "gameobject_script.h"
-#include "gameobject_private.h"
 #include "gameobject_props_lua.h"
 
 extern "C"
@@ -144,7 +144,7 @@ namespace dmGameObject
     UpdateResult CompAnimUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
     {
         DM_PROFILE(Animation, "Update");
-        
+
         /*
          * The update is divided into three passes.
          *
@@ -365,15 +365,15 @@ namespace dmGameObject
         return result;
     }
 
-    static AnimWorld* GetWorld(HCollection collection)
+    static AnimWorld* GetWorld(HCollection hcollection)
     {
         dmResource::ResourceType resource_type;
-        dmResource::Result result = dmResource::GetTypeFromExtension(collection->m_Factory, "animc", &resource_type);
+        dmResource::Result result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(hcollection), "animc", &resource_type);
         assert(result == dmResource::RESULT_OK);
         uint32_t component_index;
-        ComponentType* type = FindComponentType(collection->m_Register, resource_type, &component_index);
+        ComponentType* type = FindComponentType(dmGameObject::GetRegister(hcollection), resource_type, &component_index);
         assert(type != 0x0);
-        return (AnimWorld*)collection->m_ComponentWorlds[component_index];
+        return (AnimWorld*)dmGameObject::GetWorld(hcollection, component_index);
     }
 
     static bool PlayAnimation(AnimWorld* world, HInstance instance, dmhash_t component_id,

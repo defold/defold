@@ -6,6 +6,7 @@
             [editor.core :as core]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [editor.outline :as outline])
@@ -35,48 +36,62 @@
   (extern editable? g/Bool (default true) (dynamic visible (g/constantly false)))
 
   (output save-data g/Any :cached produce-save-data)
-  (output source-value g/Any :cached (g/fnk [resource editable?]
+  (output source-value g/Any :cached (g/fnk [_node-id resource editable?]
                                        (when-some [read-fn (:read-fn (resource/resource-type resource))]
                                          (when (and editable? (resource/exists? resource))
-                                           (read-fn resource)))))
+                                           (resource-io/with-error-translation resource _node-id :source-value
+                                             (read-fn resource))))))
   (output reload-dependencies g/Any :cached (g/fnk [_node-id resource save-value]
                                               (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
                                                 (dependencies-fn save-value))))
   
   (output save-value g/Any (g/constantly nil))
 
-  (output cleaned-save-value g/Any (g/fnk [resource save-value editable?]
+  (output cleaned-save-value g/Any (g/fnk [_node-id resource save-value editable?]
                                           (when editable?
                                             (let [resource-type (resource/resource-type resource)
                                                   read-fn (:read-fn resource-type)
                                                   write-fn (:write-fn resource-type)]
                                               (if (and read-fn write-fn)
                                                 (with-open [reader (StringReader. (write-fn save-value))]
-                                                  (read-fn reader))
+                                                  (resource-io/with-error-translation resource _node-id :cleaned-save-value
+                                                    (read-fn reader)))
                                                 save-value)))))
   (output dirty? g/Bool (g/fnk [cleaned-save-value source-value editable?]
                           (and editable? (some? cleaned-save-value) (not= cleaned-save-value source-value))))
-  (output node-id+resource g/Any (g/fnk [_node-id resource] [_node-id resource]))
+  (output node-id+resource g/Any :unjammable (g/fnk [_node-id resource] [_node-id resource]))
+  (output valid-node-id+resource g/Any (g/fnk [_node-id resource] [_node-id resource])) ; Jammed when defective.
   (output own-build-errors g/Any (g/constantly nil))
   (output build-targets g/Any (g/constantly []))
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id _overridden-properties child-outlines own-build-errors resource source-outline]
            (let [rt (resource/resource-type resource)
+                 label (or (:label rt) (:ext rt) "unknown")
+                 icon (or (:icon rt) unknown-icon)
                  children (cond-> child-outlines
                             source-outline (into (:children source-outline)))]
              {:node-id _node-id
-              :label (or (:label rt) (:ext rt) "unknown")
-              :icon (or (:icon rt) unknown-icon)
+              :node-outline-key label
+              :label label
+              :icon icon
               :children children
               :outline-error? (g/error-fatal? own-build-errors)
               :outline-overridden? (not (empty? _overridden-properties))})))
 
   (output sha256 g/Str :cached (g/fnk [resource save-data]
+                                 ;; Careful! This might throw if resource has been removed
+                                 ;; outside the editor. Use from editor.engine.native-extensions seems
+                                 ;; to catch any exceptions.
                                  (let [content (get save-data :content ::no-content)]
                                    (if (= ::no-content content)
                                      (with-open [s (io/input-stream resource)]
                                        (DigestUtils/sha256Hex ^java.io.InputStream s))
                                      (DigestUtils/sha256Hex ^String content))))))
+
+(defn defective? [resource-node]
+  (let [value (g/node-value resource-node :valid-node-id+resource)]
+    (and (g/error? value)
+         (g/error-fatal? value))))
 
 (defn make-ddf-dependencies-fn [ddf-type]
   (fn [source-value]

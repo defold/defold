@@ -997,7 +997,7 @@
  * [icon:attention] Since the address of the peer does not have to be passed to and from the OS, the use of connected UDP objects is recommended when the same peer is used for several transmissions and can result in up to 30% performance gains.
  *
  * @name connected:setpeername
- * @param "*" [type:string] if address is "*"" and the object is connected, the peer association is removed and the object becomes an unconnected object again.
+ * @param "*" [type:string] if address is "*" and the object is connected, the peer association is removed and the object becomes an unconnected object again.
  * @return success [type:number] the value `1` on success, or `nil` in case of error.
  * @return error [type:string] the error message, or `nil` if no error occurred.
  *

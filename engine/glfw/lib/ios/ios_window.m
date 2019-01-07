@@ -289,7 +289,8 @@ The view content is basically an EAGL surface you render your OpenGL scene into.
 Note that setting the view non-opaque will only work if the EAGL surface has an alpha channel.
 */
 @interface EAGLView : UIView<UIKeyInput, UITextInput> {
-
+@public
+    CADisplayLink* displayLink;
 @private
     GLint backingWidth;
     GLint backingHeight;
@@ -297,7 +298,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     EAGLContext *auxContext;
     GLuint viewRenderbuffer, viewFramebuffer;
     GLuint depthStencilRenderbuffer;
-    CADisplayLink* displayLink;
     int countDown;
     int swapInterval;
     UIKeyboardType keyboardType;
@@ -537,9 +537,9 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     // At least when running in frame-rates < 60
     if (!_glfwWin.iconified && g_StartupPhase == COMPLETE)
     {
-        const GLenum discards[]  = {GL_DEPTH_ATTACHMENT};
+        const GLenum discards[]  = {GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT};
         glBindFramebuffer(GL_FRAMEBUFFER, viewFramebuffer);
-        glDiscardFramebufferEXT(GL_FRAMEBUFFER, 1, discards);
+        glDiscardFramebufferEXT(GL_FRAMEBUFFER, 2, discards);
 
         glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
         [context presentRenderbuffer:GL_RENDERBUFFER];
@@ -651,7 +651,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
     // If a touch both began and ended during one frame/update, set the phase as
     // tapped and we will send the released event during next update (see input.c).
-    } else if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_ENDED) {
+    } else if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_ENDED) {
         glfwt->Phase = GLFW_PHASE_TAPPED;
         return;
     }
@@ -1012,7 +1012,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     glView.auxContext = glAuxContext;
     glView.contentScaleFactor = scaleFactor;
     glView.layer.contentsScale = scaleFactor;
-    [[self view] addSubview:glView];
+    [[self view] insertSubview:glView atIndex:0];
 
     [glView createFramebuffer];
 }
@@ -1383,6 +1383,17 @@ _GLFWwin g_Savewin;
 
 @end
 
+int _glfwPlatformGetWindowRefreshRate( void )
+{
+    EAGLView* view = (EAGLView*) _glfwWin.view;
+    CADisplayLink* displayLink = view->displayLink;
+
+    @try { // displayLink.preferredFramesPerSecond only supported on iOS 10.0 and higher, default to 0 for older versions.
+        return displayLink.preferredFramesPerSecond;
+    } @catch (NSException* exception) {
+        return 0;
+    }
+}
 
 int  _glfwPlatformOpenWindow( int width, int height,
                               const _GLFWwndconfig *wndconfig,

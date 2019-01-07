@@ -260,6 +260,29 @@ TEST_F(dmHttpClientParserTest, TestWhitespaceHeaders)
     ASSERT_EQ((size_t) 3, m_Headers.size());
 }
 
+TEST_F(dmHttpClientParserTest, TestNoWhitespaceHeaders)
+{
+    const char* headers = "HTTP/1.1 200 OK\r\n"
+"Content-Type:text/html;charset=UTF-8\r\n"
+"Content-Length:21\r\n"
+"Server:Jetty(7.0.2.v20100331)\r\n"
+"\r\n";
+
+    dmHttpClientPrivate::ParseResult r;
+    r = Parse(headers, false);
+    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
+
+    ASSERT_EQ(1, m_Major);
+    ASSERT_EQ(1, m_Minor);
+    ASSERT_EQ(200, m_Status);
+    ASSERT_EQ("OK", m_StatusString);
+
+    ASSERT_EQ("text/html;charset=UTF-8", m_Headers["Content-Type"]);
+    ASSERT_EQ("21", m_Headers["Content-Length"]);
+    ASSERT_EQ("Jetty(7.0.2.v20100331)", m_Headers["Server"]);
+    ASSERT_EQ((size_t) 3, m_Headers.size());
+}
+
 TEST_F(dmHttpClientParserTest, TestContent)
 {
     const char* headers = "HTTP/1.1 200 OK\r\n"
@@ -425,7 +448,7 @@ TEST_P(dmHttpClientTest, CustomRequestHeaders)
 
 TEST_P(dmHttpClientTest, ServerTimeout)
 {
-    for (int i = 0; i < 10; ++i)
+    for (int i = 0; i < 3; ++i)
     {
         dmHttpClient::Result r;
         m_Content = "";
@@ -433,8 +456,8 @@ TEST_P(dmHttpClientTest, ServerTimeout)
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(30, strtol(m_Content.c_str(), 0, 10));
 
-        // NOTE: MaxIdleTime is set to 300ms
-        dmTime::Sleep(1000 * 350);
+        // NOTE: MaxIdleTime is set to 500ms, see TestHttpServer.cpp line 300
+        dmTime::Sleep(1000 * 550);
 
         m_Content = "";
         r = dmHttpClient::Get(m_Client, "/add/100/20");
@@ -451,7 +474,7 @@ TEST_P(dmHttpClientTest, ClientTimeout)
     dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 130 * 1000); // microseconds
 
     char buf[128];
-    for (int i = 0; i < 7; ++i)
+    for (int i = 0; i < 3; ++i)
     {
         dmHttpClient::Result r;
         m_StatusCode = -1;
@@ -474,7 +497,7 @@ TEST_P(dmHttpClientTest, ClientTimeout)
 
 TEST_P(dmHttpClientTestSSL, FailedSSLHandshake)
 {
-    for( int i = 0; i < 5; ++i )
+    for( int i = 0; i < 3; ++i )
     {
         uint64_t timeout = 130 * 1000;
         dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, timeout); // microseconds
@@ -539,7 +562,7 @@ void ShutdownThread(void *args)
 TEST_P(dmHttpClientTest, ClientThreadedShutdown)
 {
     bool gotit = false;
-    for (int i=0;i<10;i++) {
+    for (int i=0;i<5;i++) {
         // Create a request that proceeds for a long time and cancel it in-flight with the
         // shutdown thread. If it managed to get the conneciton it will set gotit to true.
         dmThread::Thread thr = dmThread::New(&ShutdownThread, 65536, &gotit, "cst");

@@ -13,7 +13,7 @@ def build(bld):
     decoders      = 'decoders/decoder_stb_vorbis.cpp stb_vorbis/stb_vorbis.c decoders/decoder_wav.cpp'.split()
 
 
-    if bld.env['PLATFORM'] not in ['js-web', 'win32', 'x86_64-win32']:
+    if bld.env['PLATFORM'] not in ['js-web', 'wasm-web', 'win32', 'x86_64-win32']:
         decoders += 'decoders/decoder_tremolo.cpp'.split()
 
     source       += decoders
@@ -26,18 +26,20 @@ def build(bld):
     elif re.match('arm.*?darwin', bld.env['PLATFORM']):
         defines = 'TREMOLO_SCORE=10'
         source += ['sound_ios.mm', 'devices/device_openal.cpp']
-    elif re.match('js-web', bld.env['PLATFORM']):
+    elif 'web' in bld.env['PLATFORM']:
         defines = 'TREMOLO_SCORE=8'
         source += ['sound_generic.cpp', 'devices/device_js.cpp']
     else:
         defines = 'TREMOLO_SCORE=8'
         source += ['sound_generic.cpp', 'devices/device_openal.cpp']
 
-    if re.match('js-web', bld.env['PLATFORM']):
-        bld.install_files('${PREFIX}/lib/js-web/js', 'js/library_sound.js', postpone = False)
-        bld.install_files('${PREFIX}/bin/js-web', 'flash/defold_sound.swf', postpone = False)
+    if 'web' in bld.env['PLATFORM']:
+        bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'js/library_sound.js', postpone = False)
+        bld.install_files('${PREFIX}/bin/%s' % bld.env['PLATFORM'], 'flash/defold_sound.swf', postpone = False)
     elif re.match('arm.*?android', bld.env['PLATFORM']):
-        classpath = os.path.join(bld.env['DYNAMO_HOME'], 'ext/share/java/android.jar')
+        classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME,
+                     '%s/ext/share/java/android-support-v4.jar' % bld.env.DYNAMO_HOME]
+        classpath = os.pathsep.join(classpath)
         bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6'
         bld.new_task_gen(features='javac seq', classpath=classpath, source_root='java')
         bld.new_task_gen(features='jar seq', basedir='java', destfile='sound_android.jar')

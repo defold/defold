@@ -45,7 +45,7 @@ namespace dmGameObject
     typedef struct Register* HRegister;
 
     /// Collection handle
-    typedef struct Collection* HCollection;
+    typedef struct CollectionHandle* HCollection;
 
     /// Properties handle
     typedef struct Properties* HProperties;
@@ -162,18 +162,21 @@ namespace dmGameObject
         char     m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t m_TextCount;
         uint32_t m_GamepadIndex;
-        uint32_t m_IsGamepad : 1;
+        uint8_t  m_IsGamepad : 1;
         /// If input has a text payload (can be true even if text count is 0)
-        uint32_t m_HasText : 1;
+        uint8_t  m_HasText : 1;
         /// If the input was 0 last update
-        uint16_t m_Pressed : 1;
+        uint8_t  m_Pressed : 1;
         /// If the input turned from above 0 to 0 this update
-        uint16_t m_Released : 1;
+        uint8_t  m_Released : 1;
         /// If the input was held enough for the value to be repeated this update
-        uint16_t m_Repeated : 1;
+        uint8_t  m_Repeated : 1;
         /// If the position fields (m_X, m_Y, m_DX, m_DY) were set and valid to read
-        uint16_t m_PositionSet : 1;
-        uint16_t m_AccelerationSet : 1;
+        uint8_t  m_PositionSet : 1;
+        /// If the accelerometer fields (m_AccX, m_AccY, m_AccZ) were set and valid to read
+        uint8_t  m_AccelerationSet : 1;
+        /// If the input action was consumed in an event dispatch
+        uint8_t  m_Consumed : 1;
     };
 
     /**
@@ -294,8 +297,6 @@ namespace dmGameObject
      */
     struct ComponentCreateParams
     {
-        /// Collection handle
-        HCollection m_Collection;
         /// Game object instance
         HInstance m_Instance;
         /// Local component position
@@ -918,13 +919,6 @@ namespace dmGameObject
      * @param world world associated when specified
      */
     void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* out_user_data, dmMessage::URL* out_url, void** world);
-
-    /**
-     * Gets a collection given an URL
-     * @param url the url to the object (uses the socket to find the collection)
-     * @return the collection matching the url. returns null if no match was found
-     */
-    HCollection GetCollectionFromURL(const dmMessage::URL& url);
 
     /**
      * Gets a component given an URL

@@ -33,7 +33,7 @@ namespace dmResourceArchive
     const static uint64_t FILE_LOADED_INDICATOR = 1337;
     const char* KEY = "aQj8CScgNP4VsfXK";
 
-    Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, const void* resource_data, const char* lu_resource_filename, const void* lu_resource_data, FILE* f_lu_resource_data, HArchiveIndexContainer* archive)
+    Result WrapArchiveBuffer(const void* index_buffer, const void* resource_data, const char* lu_resource_filename, const void* lu_resource_data, FILE* f_lu_resource_data, HArchiveIndexContainer* archive)
     {
         *archive = new ArchiveIndexContainer;
         (*archive)->m_IsMemMapped = true;
@@ -81,7 +81,7 @@ namespace dmResourceArchive
         uint8_t* bundled_hashes = (!bundled_archive_container->m_IsMemMapped) ? bundled_archive_container->m_Hashes : (uint8_t*)((uintptr_t)bundled_archive_container->m_ArchiveIndex + bundled_hash_offset);
 
         // Count number of liveupdate entries to cache
-        for (int i = 0; i < entry_count; ++i)
+        for (uint32_t i = 0; i < entry_count; ++i)
         {
             EntryData& e = entries[i];
             if (JAVA_TO_C(e.m_Flags) & ENTRY_FLAG_LIVEUPDATE_DATA)
@@ -121,7 +121,7 @@ namespace dmResourceArchive
         uint8_t* lu_hashes = (uint8_t*)malloc(hash_length * lu_entry_count);
         EntryData* lu_entries = (EntryData*)malloc(sizeof(EntryData) * lu_entry_count);
         uint32_t lu_counter = 0;
-        for (int i = 0; i < entry_count; ++i)
+        for (uint32_t i = 0; i < entry_count; ++i)
         {
             EntryData& e = entries[i];
             if (JAVA_TO_C(e.m_Flags) & ENTRY_FLAG_LIVEUPDATE_DATA)
@@ -174,7 +174,7 @@ namespace dmResourceArchive
         NewArchiveIndexFromCopy(reloaded_index, bundled_archive_container, lu_entries->m_Count);
         uint32_t hash_len = lu_entries->m_HashLen;
         uint8_t* reloaded_hashes = (uint8_t*)(uintptr_t(reloaded_index) + JAVA_TO_C(reloaded_index->m_HashOffset));
-        for (int i = 0; i < lu_entries->m_Count; ++i)
+        for (uint32_t i = 0; i < lu_entries->m_Count; ++i)
         {
             int insert_index = -1;
             const uint8_t* hash = (const uint8_t*)((uintptr_t)lu_entries->m_Hashes + hash_len * i);
@@ -230,6 +230,7 @@ namespace dmResourceArchive
             delete lu_entries;
             return RESULT_IO_ERROR;
         }
+        fflush(f_lu_index);
         fclose(f_lu_index);
 
         free(lu_entries->m_Entries);
@@ -282,7 +283,6 @@ namespace dmResourceArchive
             ++filename_count;
         }
 
-        uint32_t entry_count = 0, entry_offset = 0, hash_len = 0, hash_offset = 0, hash_total_size = 0, entries_total_size = 0;
         FILE* f_index = fopen(index_file_path, "rb");
         FILE* f_data = 0;
         FILE* f_lu_data = 0;
@@ -316,14 +316,13 @@ namespace dmResourceArchive
             return RESULT_VERSION_MISMATCH;
         }
 
-        entry_count = JAVA_TO_C(ai->m_EntryDataCount);
-        entry_offset = JAVA_TO_C(ai->m_EntryDataOffset);
-        hash_len = JAVA_TO_C(ai->m_HashLength);
-        hash_offset = JAVA_TO_C(ai->m_HashOffset);
+        uint32_t entry_count = JAVA_TO_C(ai->m_EntryDataCount);
+        uint32_t entry_offset = JAVA_TO_C(ai->m_EntryDataOffset);
+        uint32_t hash_offset = JAVA_TO_C(ai->m_HashOffset);
 
         fseek(f_index, hash_offset, SEEK_SET);
         aic->m_Hashes = new uint8_t[entry_count * DMRESOURCE_MAX_HASH];
-        hash_total_size = entry_count * DMRESOURCE_MAX_HASH;
+        uint32_t hash_total_size = entry_count * DMRESOURCE_MAX_HASH;
         if (fread(aic->m_Hashes, 1, hash_total_size, f_index) != hash_total_size)
         {
             CleanupResources(f_index, f_data, f_lu_data, aic);
@@ -332,7 +331,7 @@ namespace dmResourceArchive
 
         fseek(f_index, entry_offset, SEEK_SET);
         aic->m_Entries = new EntryData[entry_count];
-        entries_total_size = entry_count * sizeof(EntryData);
+        uint32_t entries_total_size = entry_count * sizeof(EntryData);
         if (fread(aic->m_Entries, 1, entries_total_size, f_index) != entries_total_size)
         {
             CleanupResources(f_index, f_data, f_lu_data, aic);
@@ -365,17 +364,19 @@ namespace dmResourceArchive
             return RESULT_IO_ERROR;
         }
 
-        aic->m_FileResourceData = f_data;
-        aic->m_LiveUpdateFileResourceData = f_lu_data;
-        aic->m_LiveUpdateResourceData = 0x0;
+        aic->m_FileResourceData = f_data; // game.arcd file handle
+        aic->m_LiveUpdateFileResourceData = f_lu_data; // liveupdate.arcd file
+        aic->m_LiveUpdateResourceData = 0x0; // mem-mapped liveupdate.arcd
         aic->m_LiveUpdateResourcesMemMapped = false;
         aic->m_ArchiveIndex = ai;
         *archive = aic;
 
+        fclose(f_index);
+
         return r;
     }
 
-    void Delete(HArchiveIndexContainer archive)
+    void Delete(HArchiveIndexContainer &archive)
     {
         if (archive->m_Entries)
         {
@@ -397,10 +398,13 @@ namespace dmResourceArchive
             fclose(archive->m_LiveUpdateFileResourceData);
         }
 
-        if (archive->m_LiveUpdateResourceData)
+        if (archive->m_LiveUpdateResourcesMemMapped)
         {
             void* tmp_ptr = (void*)archive->m_LiveUpdateResourceData;
             dmResource::UnmapFile(tmp_ptr, archive->m_LiveUpdateResourceSize);
+            archive->m_LiveUpdateResourceData = 0x0;
+            archive->m_LiveUpdateResourceSize = 0;
+            archive->m_LiveUpdateResourcesMemMapped = false;
         }
 
         if (!archive->m_IsMemMapped)
@@ -409,6 +413,7 @@ namespace dmResourceArchive
         }
 
         delete archive;
+        archive = 0;
     }
 
     void Delete(ArchiveIndex* archive)
@@ -533,7 +538,7 @@ namespace dmResourceArchive
                 return RESULT_IO_ERROR;
             }
             archive->m_LiveUpdateResourceData = (uint8_t*)temp_map;
-            archive->m_LiveUpdateResourceSize += bytes_written;
+            archive->m_LiveUpdateResourceSize = offset + bytes_written;
         }
 
         return RESULT_OK;
@@ -550,7 +555,7 @@ namespace dmResourceArchive
         // Shift hashes after insertion_index down
         uint8_t* hash_shift_src = (uint8_t*)((uintptr_t)hashes + DMRESOURCE_MAX_HASH * insertion_index);
         uint8_t* hash_shift_dst = (uint8_t*)((uintptr_t)hash_shift_src + DMRESOURCE_MAX_HASH);
-        if (insertion_index < entry_count) // no need to memmove if inserting at tail
+        if ((uint32_t)insertion_index < entry_count) // no need to memmove if inserting at tail
         {
             uint32_t size_to_shift = (entry_count - insertion_index) * DMRESOURCE_MAX_HASH;
             memmove((void*)hash_shift_dst, (void*)hash_shift_src, size_to_shift);
@@ -560,7 +565,7 @@ namespace dmResourceArchive
         // Shift entry datas
         uint8_t* entries_shift_src = (uint8_t*)((uintptr_t)entries + sizeof(EntryData) * insertion_index);
         uint8_t* entries_shift_dst = (uint8_t*)((uintptr_t)entries_shift_src + sizeof(EntryData));
-        if (insertion_index < entry_count)
+        if ((uint32_t)insertion_index < entry_count)
         {
             uint32_t size_to_shift = (entry_count - insertion_index) * sizeof(EntryData);
             memmove(entries_shift_dst, entries_shift_src, size_to_shift);
@@ -611,7 +616,8 @@ namespace dmResourceArchive
         // If liveupdate.arci does not exists, create it and liveupdate.arcd
         if (!resource_exists)
         {
-            fopen(lu_index_path, "wb");
+            FILE* f_lu_index = fopen(lu_index_path, "wb");
+            fclose(f_lu_index);
 
             // Data file has same path and filename as index file, but extension .arcd instead of .arci.
             char lu_data_path[DMPATH_MAX_PATH];
@@ -640,12 +646,13 @@ namespace dmResourceArchive
         Result index_result = GetInsertionIndex(archive_container, hash_digest, &idx);
         if (index_result != RESULT_OK)
         {
-            dmLogError("Could not calculate valid resource insertion index");
+            dmLogError("Could not calculate valid resource insertion index, resource probably already stored in index.");
             return index_result;
         }
 
         char app_support_path[DMPATH_MAX_PATH];
         char lu_index_path[DMPATH_MAX_PATH];
+        char lu_index_tmp_path[DMPATH_MAX_PATH];
 
         dmSys::GetApplicationSupportPath(proj_id, app_support_path, DMPATH_MAX_PATH);
         dmPath::Concat(app_support_path, "liveupdate.arci", lu_index_path, DMPATH_MAX_PATH);
@@ -666,8 +673,9 @@ namespace dmResourceArchive
         }
 
         // Write to temporary index file, filename liveupdate.arci.tmp
-        dmStrlCat(lu_index_path, ".tmp", DMPATH_MAX_PATH);
-        FILE* f_lu_index = fopen(lu_index_path, "wb");
+        dmStrlCpy(lu_index_tmp_path, lu_index_path, DMPATH_MAX_PATH);
+        dmStrlCat(lu_index_tmp_path, ".tmp", DMPATH_MAX_PATH);
+        FILE* f_lu_index = fopen(lu_index_tmp_path, "wb");
         if (!f_lu_index)
         {
             dmLogError("Failed to create liveupdate index file");
@@ -681,6 +689,7 @@ namespace dmResourceArchive
             dmLogError("Failed to write liveupdate index file");
             return RESULT_IO_ERROR;
         }
+        fflush(f_lu_index);
         fclose(f_lu_index);
 
         // set result

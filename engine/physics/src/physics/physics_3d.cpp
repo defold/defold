@@ -110,9 +110,9 @@ namespace dmPhysics
     }
 
     World3D::World3D(HContext3D context, const NewWorldParams& params)
-    : m_DebugDraw(&context->m_DebugCallbacks)
+    : m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
+    , m_DebugDraw(&context->m_DebugCallbacks)
     , m_Context(context)
-    , m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
     {
         m_CollisionConfiguration = new btDefaultCollisionConfiguration();
         m_Dispatcher = new btCollisionDispatcher(m_CollisionConfiguration);
@@ -455,8 +455,6 @@ namespace dmPhysics
                 }
                 if (max_distance >= context->m_TriggerEnterLimit)
                 {
-                    float* f = object_a->getWorldTransform().getOrigin().m_floats;
-                    f = object_b->getWorldTransform().getOrigin().m_floats;
                     add_data.m_ObjectA = object_a;
                     add_data.m_UserDataA = object_a->getUserPointer();
                     add_data.m_ObjectB = object_b;

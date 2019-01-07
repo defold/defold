@@ -40,13 +40,12 @@ struct Command
 {
     @public int m_WebViewID;
     @public int m_RequestID;
-    @public const char* m_Url;
 }
 @end
 
-struct WebView
+struct WebViewExtensionState
 {
-    WebView()
+    WebViewExtensionState()
     {
         Clear();
     }
@@ -58,6 +57,8 @@ struct WebView
             m_WebViewDelegates[i] = 0;
         }
         memset(m_WebViews, 0, sizeof(m_WebViews));
+        memset(m_WebViewDelegates, 0, sizeof(m_WebViewDelegates));
+        m_CmdQueue.SetSize(0);
     }
 
     dmWebView::WebViewInfo  m_Info[dmWebView::MAX_NUM_WEBVIEWS];
@@ -67,7 +68,7 @@ struct WebView
     dmArray<Command>        m_CmdQueue;
 };
 
-WebView g_WebView;
+WebViewExtensionState g_WebView;
 
 
 @implementation WebViewDelegate
@@ -78,7 +79,7 @@ WebView g_WebView;
     cbinfo.m_Info = &g_WebView.m_Info[m_WebViewID];
     cbinfo.m_WebViewID = m_WebViewID;
     cbinfo.m_RequestID = m_RequestID;
-    cbinfo.m_Url = m_Url;
+    cbinfo.m_Url = [webView.request.URL.absoluteString UTF8String];
     cbinfo.m_Type = dmWebView::CALLBACK_RESULT_URL_OK;
     cbinfo.m_Result = 0;
     RunCallback(&cbinfo);
@@ -90,7 +91,7 @@ WebView g_WebView;
     cbinfo.m_Info = &g_WebView.m_Info[m_WebViewID];
     cbinfo.m_WebViewID = m_WebViewID;
     cbinfo.m_RequestID = m_RequestID;
-    cbinfo.m_Url = m_Url;
+    cbinfo.m_Url = [webView.request.URL.absoluteString UTF8String];
     cbinfo.m_Type = dmWebView::CALLBACK_RESULT_URL_ERROR;
     cbinfo.m_Result = [error.localizedDescription UTF8String];
     RunCallback(&cbinfo);
@@ -142,13 +143,12 @@ int Platform_Create(lua_State* L, dmWebView::WebViewInfo* _info)
     g_WebView.m_Info[webview_id] = *_info;
 
     UIScreen* screen = [UIScreen mainScreen];
-    
+
     UIWebView* view = [[UIWebView alloc] initWithFrame:screen.bounds];
     view.suppressesIncrementalRendering = YES;
     WebViewDelegate* delegate = [WebViewDelegate alloc];
     delegate->m_WebViewID = webview_id;
     delegate->m_RequestID = 0;
-    delegate->m_Url = 0;
     view.delegate = delegate;
 
     g_WebView.m_WebViews[webview_id] = view;
@@ -163,17 +163,17 @@ int Platform_Create(lua_State* L, dmWebView::WebViewInfo* _info)
 
 #define CHECK_WEBVIEW_AND_RETURN() if( webview_id >= dmWebView::MAX_NUM_WEBVIEWS || webview_id < 0 ) { dmLogError("%s: Invalid webview_id: %d", __FUNCTION__, webview_id); return -1; }
 
+static void DestroyWebView(int webview_id)
+{
+    ClearWebViewInfo(&g_WebView.m_Info[webview_id]);
+    [g_WebView.m_WebViews[webview_id] removeFromSuperview];
+    [g_WebView.m_WebViews[webview_id] release];
+}
+
 int Platform_Destroy(lua_State* L, int webview_id)
 {
     CHECK_WEBVIEW_AND_RETURN();
-
-    [g_WebView.m_WebViews[webview_id] removeFromSuperview];
-    [g_WebView.m_WebViews[webview_id] release];
-    [g_WebView.m_WebViewDelegates[webview_id] release];
-    g_WebView.m_Info[webview_id].m_L = 0;
-    g_WebView.m_Info[webview_id].m_Self = LUA_NOREF;
-    g_WebView.m_Info[webview_id].m_Callback = LUA_NOREF;
-
+    DestroyWebView(webview_id);
     return 0;
 }
 
@@ -181,14 +181,10 @@ int Platform_Open(lua_State* L, int webview_id, const char* url, dmWebView::Requ
 {
     CHECK_WEBVIEW_AND_RETURN();
     g_WebView.m_WebViews[webview_id].hidden = options->m_Hidden;
-    
-    NSURL* ns_url = [NSURL URLWithString: [NSString stringWithUTF8String: url]];
-    NSURLRequest *request = [NSURLRequest requestWithURL: ns_url];
-    [g_WebView.m_WebViews[webview_id] loadRequest:request];
 
-    if( g_WebView.m_WebViewDelegates[webview_id]->m_Url )
-        free((void*)g_WebView.m_WebViewDelegates[webview_id]->m_Url);
-    g_WebView.m_WebViewDelegates[webview_id]->m_Url = strdup(url);
+    NSURL* ns_url = [NSURL URLWithString: [NSString stringWithUTF8String: url]];
+    NSURLRequest* request = [NSURLRequest requestWithURL: ns_url];
+    [g_WebView.m_WebViews[webview_id] loadRequest:request];
     return ++g_WebView.m_WebViewDelegates[webview_id]->m_RequestID;
 }
 
@@ -199,10 +195,6 @@ int Platform_OpenRaw(lua_State* L, int webview_id, const char* html, dmWebView::
 
     NSString* ns_html = [NSString stringWithUTF8String: html];
     [g_WebView.m_WebViews[webview_id] loadHTMLString:ns_html baseURL:nil];
-
-    if( g_WebView.m_WebViewDelegates[webview_id]->m_Url )
-        free((void*)g_WebView.m_WebViewDelegates[webview_id]->m_Url);
-    g_WebView.m_WebViewDelegates[webview_id]->m_Url = 0;
     return ++g_WebView.m_WebViewDelegates[webview_id]->m_RequestID;
 }
 
@@ -240,60 +232,57 @@ int Platform_IsVisible(lua_State* L, int webview_id)
     return g_WebView.m_WebViews[webview_id].isHidden ? 0 : 1;
 }
 
-#undef CHECK_WEBVIEW_AND_RETURN
-
-} // namespace dmWebView
-
-
-dmExtension::Result AppInitializeWebView(dmExtension::AppParams* params)
+int Platform_SetPosition(lua_State* L, int webview_id, int x, int y, int width, int height)
 {
-    g_WebView.Clear();    
+    CHECK_WEBVIEW_AND_RETURN();
+    CGRect screenRect = [[UIScreen mainScreen] bounds];
+    g_WebView.m_WebViews[webview_id].frame = CGRectMake(x, y, width >= 0 ? width : screenRect.size.width, height >= 0 ? height : screenRect.size.height);
+    return 0;
+}
+
+dmExtension::Result Platform_AppInitialize(dmExtension::AppParams* params)
+{
+    g_WebView.Clear();
     g_WebView.m_Mutex = dmMutex::New();
     g_WebView.m_CmdQueue.SetCapacity(8);
 
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result AppFinalizeWebView(dmExtension::AppParams* params)
+dmExtension::Result Platform_AppFinalize(dmExtension::AppParams* params)
 {
     dmMutex::Delete(g_WebView.m_Mutex);
-    g_WebView.Clear();
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result InitializeWebView(dmExtension::Params* params)
+dmExtension::Result Platform_Initialize(dmExtension::Params* params)
 {
-    dmWebView::LuaInit(params->m_L);
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result FinalizeWebView(dmExtension::Params* params)
+dmExtension::Result Platform_Finalize(dmExtension::Params* params)
 {
     for( int i = 0; i < dmWebView::MAX_NUM_WEBVIEWS; ++i )
     {
-        dmWebView::WebViewInfo& info = g_WebView.m_Info[i];
-        if (params->m_L == info.m_L && info.m_Callback != LUA_NOREF)
-        {
-            ClearWebViewInfo(&info);
-        }
-
-        if (g_WebView.m_WebViews[i])
-        {
-            [g_WebView.m_WebViews[i] release];
-
-            if( g_WebView.m_WebViewDelegates[i]->m_Url )
-                free((void*)g_WebView.m_WebViewDelegates[i]->m_Url);
-
-            [g_WebView.m_WebViewDelegates[i] release];
+        if (g_WebView.m_WebViews[i]) {
+            DestroyWebView(i);
         }
     }
 
-    g_WebView.Clear();
+    dmMutex::ScopedLock lk(g_WebView.m_Mutex);
+    for (uint32_t i=0; i != g_WebView.m_CmdQueue.Size(); ++i)
+    {
+        const Command& cmd = g_WebView.m_CmdQueue[i];
+        if (cmd.m_Url) {
+            free((void*)cmd.m_Url);
+        }
+    }
+    g_WebView.m_CmdQueue.SetSize(0);
     return dmExtension::RESULT_OK;
 }
 
 
-dmExtension::Result UpdateWebView(dmExtension::Params* params)
+dmExtension::Result Platform_Update(dmExtension::Params* params)
 {
     if (g_WebView.m_CmdQueue.Empty())
         return dmExtension::RESULT_OK; // avoid a lock (~300us on iPhone 4s)
@@ -340,4 +329,6 @@ dmExtension::Result UpdateWebView(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(WebViewExt, "WebView", AppInitializeWebView, AppFinalizeWebView, InitializeWebView, UpdateWebView, 0, FinalizeWebView)
+#undef CHECK_WEBVIEW_AND_RETURN
+
+} // namespace dmWebView

@@ -86,8 +86,7 @@
                       "../engine/render/proto/render"
                       "../engine/resource/proto"
                       "../engine/rig/proto"
-                      "../engine/script/src"
-                      "../engine/vscript/proto"]
+                      "../engine/script/src"]
 
   :protobuf-includes ["../engine/gameobject/proto"
                       "../engine/gamesys/proto"
@@ -135,6 +134,7 @@
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.log.dir="
+                                                    "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"
                                                     "-XX:+UnlockCommercialFeatures"
                                                     "-XX:+FlightRecorder"

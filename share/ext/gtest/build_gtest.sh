@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 
-if [[ $2 -eq "js-web" ]]; then
+if [[ $2 -eq "js-web" ]] || [[ $2 -eq "wasm-web" ]]; then
 	export CXXFLAGS='-DGTEST_USE_OWN_TR1_TUPLE=1'
 fi
 
@@ -56,9 +56,22 @@ case $CONF_TARGET in
 	*)
 		function cmi_make() {
 
-			if [ "$CONF_TARGET" == "js-web" ]; then
+			if [ "$CONF_TARGET" == "js-web" ] || [ "$CONF_TARGET" == "wasm-web" ]; then
 				# cxxabi issue: https://github.com/kripken/emscripten/issues/3484
 				CXXFLAGS="-I${EMSCRIPTEN}/system/lib/libcxxabi/include/ ${CXXFLAGS}"
+			fi
+
+			if [ "$CONF_TARGET" == "darwin" ]; then
+				CXXFLAGS="-mmacosx-version-min=${OSX_MIN_SDK_VERSION} ${CXXFLAGS}"
+			fi
+			if [ "$CONF_TARGET" == "x86_64-darwin" ]; then
+				CXXFLAGS="-mmacosx-version-min=${OSX_MIN_SDK_VERSION} ${CXXFLAGS}"
+			fi
+			if [ "$CONF_TARGET" == "arm64-darwin" ]; then
+				CXXFLAGS="-miphoneos-version-min=${IOS_MIN_SDK_VERSION} ${CXXFLAGS}"
+			fi
+			if [ "$CONF_TARGET" == "armv7-darwin" ]; then
+				CXXFLAGS="-miphoneos-version-min=${IOS_MIN_SDK_VERSION} ${CXXFLAGS}"
 			fi
 
 			set -e

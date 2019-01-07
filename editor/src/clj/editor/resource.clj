@@ -6,11 +6,10 @@
             [schema.core :as s]
             [editor.core :as core]
             [editor.fs :as fs]
-            [editor.handler :as handler]
             [util.digest :as digest])
-  (:import [java.io ByteArrayOutputStream File FilterOutputStream]
-           [java.nio.file FileSystem FileSystems PathMatcher]
-           [java.net URI URL]
+  (:import [java.io ByteArrayOutputStream File IOException]
+           [java.nio.file FileSystem FileSystems]
+           [java.net URI]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]))
 
@@ -82,8 +81,27 @@
   (ext [this] ext)
   (resource-type [this] (get (g/node-value workspace :resource-types) (type-ext this)))
   (source-type [this] source-type)
-  (exists? [this] (.exists (io/file this)))
-  (read-only? [this] (not (.canWrite (io/file this))))
+  (exists? [this]
+    (try
+      ;; The path must match the casing of the file on disk exactly. We treat
+      ;; this as an error to make the user manually fix mismatches. We could fix
+      ;; such references automatically by using the canonical path to create the
+      ;; FileResource. However, some ids used by the engine are derived from the
+      ;; file names, most notably AtlasImage ids. Since these can be referenced
+      ;; from scripts, we make the user aware of the bad reference so she can
+      ;; fix it manually and hopefully remember to update the scripts too.
+      (let [file (io/file this)]
+        (and (.exists file)
+             (string/ends-with? (->unix-seps (.getCanonicalPath file)) project-path)))
+      (catch IOException _
+        false)
+      (catch SecurityException _
+        false)))
+  (read-only? [this]
+    (try
+      (not (.canWrite (io/file this)))
+      (catch SecurityException _
+        true)))
   (path [this] (if (= "" project-path) "" (subs project-path 1)))
   (abs-path [this] abs-path)
   (proj-path [this] project-path)
@@ -193,7 +211,8 @@
   io/Coercions
   (io/as-file [this]
     (let [zip-url (.toURL zip-uri)]
-      (when (= (.getPath zip-url) (.getFile zip-url)) (io/file (.getFile zip-url))))))
+      (when (= (.getPath zip-url) (.getFile zip-url))
+        (io/file (.getFile zip-url))))))
 
 (core/register-record-type! ZipResource)
 
@@ -293,9 +312,6 @@
     (digest/stream->sha1-hex rs)))
 
 (g/deftype ResourceVec [(s/maybe (s/protocol Resource))])
-
-(defn node-id->resource [node-id]
-  (when (g/node-instance? ResourceNode node-id) (g/node-value node-id :resource)))
 
 (defn temp-path [resource]
   (when (and resource (= :file (source-type resource)))

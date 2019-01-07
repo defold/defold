@@ -15,9 +15,6 @@
 (defn array-subst-remove-errors [arr]
   (vec (remove g/error? arr)))
 
-(defn outputs [node]
-  (mapv #(do [(second (gt/head %)) (gt/tail %)]) (gt/arcs-by-head (g/now) node)))
-
 (defn explicit-outputs [node]
-    ;; don't include arcs from override-original nodes
-  (mapv #(do [(second (gt/head %)) (gt/tail %)]) (ig/explicit-arcs-by-source (g/now) node)))
+  ;; don't include arcs from override-original nodes
+  (mapv (fn [[_ src-label tgt-id tgt-label]] [src-label [tgt-id tgt-label]]) (g/explicit-outputs node)))

@@ -39,14 +39,14 @@
   (when-let [git (git/try-open (workspace/project-path workspace))]
     (try
       (when-let [remote-url (git/remote-origin-url git)]
-        (let [url (URL. remote-url)
-              host (.getHost url)]
-          (when (or (= host "cr.defold.se") (= host "cr.defold.com"))
-            (let [path (.getPath url)]
-              (try
-                (Long/parseLong (subs path (inc (string/last-index-of path "/"))))
-                (catch NumberFormatException e
-                  nil))))))
+        (when-let [^URL url (try (URL. remote-url) (catch Exception _ nil))]
+          (let [host (.getHost url)]
+            (when (or (= host "cr.defold.se") (= host "cr.defold.com"))
+              (let [path (.getPath url)]
+                (try
+                  (Long/parseLong (subs path (inc (string/last-index-of path "/"))))
+                  (catch NumberFormatException e
+                    nil)))))))
       (finally
         (.close git)))))
 
@@ -79,14 +79,16 @@
        (map (fn [[_ id name]] [id name]))))
 
 (g/defnk get-armv7-engine [project prefs]
-  (try {:armv7 (engine/get-engine project prefs "armv7-darwin")}
-       (catch Exception e
-         {:err e :message "Failed to get armv7 engine."})))
+  (g/with-auto-evaluation-context evaluation-context
+    (try {:armv7 (engine/get-engine project evaluation-context prefs "armv7-darwin")}
+         (catch Exception e
+           {:err e :message "Failed to get armv7 engine."}))))
 
 (g/defnk get-arm64-engine [project prefs]
-  (try {:arm64 (engine/get-engine project prefs "arm64-darwin")}
-       (catch Exception e
-         {:err e :message "Failed to get arm64 engine."})))
+  (g/with-auto-evaluation-context evaluation-context
+    (try {:arm64 (engine/get-engine project evaluation-context prefs "arm64-darwin")}
+         (catch Exception e
+           {:err e :message "Failed to get arm64 engine."}))))
 
 (g/defnk lipo-ios-engine [^File armv7 ^File arm64]
   (let [lipo (format "%s/%s/bin/lipo" (system/defold-unpack-path) (.getPair (Platform/getJavaPlatform)))
@@ -173,12 +175,14 @@
                           "Default-Portrait-1366h@2x.png"
                           "Default-Portrait-1024h@2x.png"
                           "Default-Portrait-1024h.png"
+                          "Default-Portrait-1112h@2x.png"
                           "Default-Landscape-812h@3x.png"
                           "Default-Landscape-736h@3x.png"
                           "Default-Landscape-667h@2x.png"
                           "Default-Landscape-1366h@2x.png"
                           "Default-Landscape-1024h@2x.png"
                           "Default-Landscape-1024h.png"
+                          "Default-Landscape-1112h@2x.png"
                           "Default-568h@2x.png"]]
       (with-open [launch-image-stream (io/input-stream (io/resource (str "bundle/ios/" launch-image)))]
         (io/copy launch-image-stream (io/file app-dir launch-image)))
@@ -217,16 +221,23 @@
     (catch Exception e
       {:err e :message "Failed to upload a signed ipa to the project dashboard."})))
 
+(g/defnk open-ipa-directory [^File ipa-file]
+  (when-let [directory (.getParentFile ipa-file)]
+    (ui/open-file directory))
+  nil)
+
 (g/defnk noop [])
 
 (handler/defhandler ::sign :dialog
   (enabled? [controls] (and (ui/selection (:identities controls))
                             (.exists (io/file (ui/text (:provisioning-profile controls))))
                             (.isDirectory (io/file (ui/text (:build-dir controls))))))
-  (run [workspace prefs ^Stage stage root controls project result]
-    (let [ipa-dir (ui/text (:build-dir controls))
+  (run [workspace prefs dashboard-client ^Stage stage root controls project result]
+    ;; TODO: make all of this async, with progress bar & notification when done.
+    (let [settings (g/node-value project :settings)
+          ipa-dir (ui/text (:build-dir controls))
+          name (get settings ["project" "title"] "Unnamed")
           ipa (format "%s/%s.ipa" ipa-dir name)
-          settings (g/node-value project :settings)
           w (get settings ["display" "width"] 1)
           h (get settings ["display" "height"] 1)
           orient-props (if (> w h)
@@ -234,7 +245,6 @@
                           "UISupportedInterfaceOrientations~ipad" "UIInterfaceOrientationLandscapeRight"}
                          {"UISupportedInterfaceOrientations"      "UIInterfaceOrientationPortrait"
                           "UISupportedInterfaceOrientations~ipad" "UIInterfaceOrientationPortrait"})
-          name (get settings ["project" "title"] "Unnamed")
           props {"CFBundleDisplayName" name
                  "CFBundleExecutable" "dmengine"
                  "CFBundleIdentifier" (get settings ["ios" "bundle_identifier"] "dmengine")}
@@ -247,7 +257,7 @@
       (prefs/set-prefs prefs "last-ios-build-dir" ipa-dir)
       ;; if project hosted by us, make sure we're logged in first
       (when (or (nil? cr-project-id)
-                (login/login prefs))
+                (login/sign-in! dashboard-client :sign-ios-app))
         (ui/disable! root true)
         (let [initial-env {:ipa-file (io/file ipa)
                            :cr-project-id cr-project-id
@@ -269,7 +279,7 @@
                           sign-ios-app
                           package-ipa
                           ;; only upload if hosted by us
-                          (if cr-project-id upload-ipa noop)
+                          (if cr-project-id upload-ipa open-ipa-directory)
                           (if cr-project-id (g/fnk [] (dialogs/make-alert-dialog success)) noop)]]
           (loop [steps sign-steps
                  env initial-env]
@@ -282,7 +292,7 @@
                          (merge env step-result))))))
           (ui/close! stage))))))
 
-(defn make-sign-dialog [workspace prefs project]
+(defn make-sign-dialog [workspace prefs dashboard-client project]
   (let [root ^Parent (ui/load-fxml "sign-dialog.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)
@@ -290,7 +300,7 @@
         identities (find-identities)
         result (atom nil)]
 
-    (ui/context! root :dialog {:root root :workspace workspace :prefs prefs :controls controls :stage stage :project project :result result} nil)
+    (ui/context! root :dialog {:root root :workspace workspace :prefs prefs :dashboard-client dashboard-client :controls controls :stage stage :project project :result result} nil)
     (ui/cell-factory! (:identities controls) (fn [i] {:text (second i)}))
 
     (ui/text! (:provisioning-profile controls) (prefs/get-prefs prefs "last-provisioning-profile" ""))

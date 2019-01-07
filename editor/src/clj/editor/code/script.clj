@@ -239,15 +239,15 @@
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [basis (:basis evaluation-context)
-                         project (project/get-project self)]
+                         project (project/get-project basis self)]
                      (concat
                        (gu/disconnect-all basis self :dep-build-targets)
                        (gu/disconnect-all basis self :module-completion-infos)
                        (for [module new-value]
                          (let [path (lua/lua-module->path module)]
-                           (project/connect-resource-node project path self
-                                                          [[:build-targets :dep-build-targets]
-                                                           [:completion-info :module-completion-infos]]))))))))
+                           (:tx-data (project/connect-resource-node evaluation-context project path self
+                                                                    [[:build-targets :dep-build-targets]
+                                                                     [:completion-info :module-completion-infos]])))))))))
 
   (property script-properties g/Any
             (default [])

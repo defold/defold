@@ -1,6 +1,8 @@
 #ifndef DM_HTTP_CACHE_H
 #define DM_HTTP_CACHE_H
 
+#include <dlib/uri.h>
+
 namespace dmHttpCache
 {
     /**
@@ -39,7 +41,7 @@ namespace dmHttpCache
     const uint32_t MAX_TAG_LEN = 64;
 
     // Maximum length of an URI
-    const uint32_t MAX_URI_LEN = 2048;
+    const uint32_t MAX_URI_LEN = dmURI::MAX_URI_LEN;
 
     /**
      * Cache entry info

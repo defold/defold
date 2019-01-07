@@ -304,6 +304,19 @@ var Module = {
 
     setStatus: function(text) { console.log(text); },
 
+    isWASMSupported: (function() {
+        try {
+            if (typeof WebAssembly === "object"
+                && typeof WebAssembly.instantiate === "function") {
+                const module = new WebAssembly.Module(Uint8Array.of(0x0, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00));
+                if (module instanceof WebAssembly.Module)
+                    return new WebAssembly.Instance(module) instanceof WebAssembly.Instance;
+            }
+        } catch (e) {
+        }
+        return false;
+    })(),
+
     prepareErrorObject: function (err, url, line, column, errObj) {
         line = typeof line == "undefined" ? 0 : line;
         column = typeof column == "undefined" ? 0 : column;
@@ -437,12 +450,6 @@ var Module = {
             CanvasInput.addToCanvas(Module.canvas);
 
             Module.setupVisibilityChangeListener();
-
-            // Load Facebook API
-            var fb = document.createElement('script');
-            fb.type = 'text/javascript';
-            fb.src = '//connect.facebook.net/en_US/sdk.js';
-            document.head.appendChild(fb);
 
             // Add progress visuals
             Progress.addProgress(Module.canvas);
@@ -585,7 +592,7 @@ var Module = {
         } else {
 
             // Need to set heap size before calling main
-            TOTAL_MEMORY = Module["TOTAL_MEMORY"] || TOTAL_MEMORY;
+            TOTAL_MEMORY = Module["TOTAL_MEMORY"] || TOTAL_MEMORY;
 
             Module.preloadAll();
             Progress.removeProgress();
@@ -629,3 +636,5 @@ window.onerror = function(err, url, line, column, errObj) {
         if (text) Module.printErr('[post-exception status] ' + text);
     };
 };
+
+

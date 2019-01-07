@@ -97,7 +97,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("fpc", graphics_context, 0, ResFragmentProgramCreate, 0, ResFragmentProgramDestroy, ResFragmentProgramRecreate, 0);
         REGISTER_RESOURCE_TYPE("fontc", render_context, ResFontMapPreload, ResFontMapCreate, 0, ResFontMapDestroy, ResFontMapRecreate, 0);
         REGISTER_RESOURCE_TYPE("modelc", 0, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate, 0);
-        REGISTER_RESOURCE_TYPE("materialc", render_context, 0, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate, 0);
+        REGISTER_RESOURCE_TYPE("materialc", render_context, ResMaterialPreload, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate, 0);
         REGISTER_RESOURCE_TYPE("guic", gui_context, ResPreloadSceneDesc, ResCreateSceneDesc, 0, ResDestroySceneDesc, ResRecreateSceneDesc, 0);
         REGISTER_RESOURCE_TYPE("gui_scriptc", gui_context, ResPreloadGuiScript, ResCreateGuiScript, 0, ResDestroyGuiScript, ResRecreateGuiScript, 0);
         REGISTER_RESOURCE_TYPE("wavc", 0, 0, ResSoundDataCreate, 0, ResSoundDataDestroy, ResSoundDataRecreate, 0);
@@ -190,7 +190,7 @@ namespace dmGameSystem
 
         REGISTER_COMPONENT_TYPE("collectionproxyc", 100, collection_proxy_context,
                 &CompCollectionProxyNewWorld, &CompCollectionProxyDeleteWorld,
-                &CompCollectionProxyCreate, &CompCollectionProxyDestroy, 0, 0, &CompCollectionProxyAddToUpdate, 0,
+                &CompCollectionProxyCreate, &CompCollectionProxyDestroy, 0, &CompCollectionProxyFinal, &CompCollectionProxyAddToUpdate, 0,
                 &CompCollectionProxyUpdate, &CompCollectionProxyRender, &CompCollectionProxyPostUpdate, &CompCollectionProxyOnMessage, &CompCollectionProxyOnInput, 0, 0, 0,
                 0);
 

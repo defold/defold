@@ -247,8 +247,7 @@ static int GetTextMetrics(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
 
-    dmGameObject::HInstance instance = CheckGoInstance(L);
-    (void)instance;
+    CheckGoInstance(L);
 
     dmMessage::URL receiver;
     dmMessage::URL sender;
