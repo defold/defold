@@ -49,7 +49,7 @@ namespace dmResource
     //
     // Once a node with children finds none of them are in PENDING state any longer, resource create will happen,
     // child nodes (which are done) are then erased and the tree is traversed upwards to see if the parent can be
-    // completed in the same manner. (PreloaderTryPrune)
+    // completed in the same manner. (PreloaderTryPruneParent)
     //
     // New items added in PreloadHint are added to a guarded dmArray and the preloader pops this array after it
     // has detected a completion of an item in the preloader queue. This keeps the syncronized state small and
@@ -70,13 +70,16 @@ namespace dmResource
         uint64_t m_CanonicalPathHash;
     };
 
+    typedef int16_t TRequestIndex;
+
     struct PreloadRequest
     {
         PathDescriptor m_PathDescriptor;
 
-        int32_t m_Parent;
-        int32_t m_FirstChild;
-        int32_t m_NextSibling;
+        TRequestIndex m_Parent;
+        TRequestIndex m_FirstChild;
+        TRequestIndex m_NextSibling;
+        TRequestIndex m_PendingChildCount;
 
         // Set once resources have started loading, they have a load request
         dmLoadQueue::HRequest m_LoadRequest;
@@ -253,7 +256,7 @@ namespace dmResource
     struct PendingHint
     {
         PathDescriptor m_PathDescriptor;
-        int32_t m_Parent;
+        TRequestIndex m_Parent;
     };
 
     struct ResourcePreloader
@@ -280,7 +283,7 @@ namespace dmResource
         PreloadRequest m_Request[MAX_PRELOADER_REQUESTS];
 
         // list of free nodes
-        uint32_t m_Freelist[MAX_PRELOADER_REQUESTS];
+        TRequestIndex m_Freelist[MAX_PRELOADER_REQUESTS];
         uint32_t m_FreelistSize;
         dmLoadQueue::HQueue m_LoadQueue;
         HFactory m_Factory;
@@ -297,7 +300,7 @@ namespace dmResource
         dmArray<ResourcePostCreateParamsInternal> m_PostCreateCallbacks;
 
         // How many of the initial resources where added - they should not be release until preloader destruction
-        uint32_t m_PersistResourceCount;
+        TRequestIndex m_PersistResourceCount;
     
         // persisted resources
         dmArray<void*> m_PersistedResources;
@@ -389,15 +392,16 @@ namespace dmResource
         preloader->m_InProgress.Erase(path_hash);
     }
 
-    static void PreloaderTreeInsert(ResourcePreloader* preloader, int32_t index, int32_t parent)
+    static void PreloaderTreeInsert(ResourcePreloader* preloader, TRequestIndex index, TRequestIndex parent)
     {
         PreloadRequest* reqs = &preloader->m_Request[0];
         reqs[index].m_NextSibling = reqs[parent].m_FirstChild;
         reqs[index].m_Parent = parent;
         reqs[parent].m_FirstChild = index;
+        reqs[parent].m_PendingChildCount += 1;
     }
 
-    static Result PreloadPathDescriptor(HPreloader preloader, int32_t parent, const PathDescriptor& path_descriptor)
+    static Result PreloadPathDescriptor(HPreloader preloader, TRequestIndex parent, const PathDescriptor& path_descriptor)
     {
         if (!preloader->m_FreelistSize)
         {
@@ -406,7 +410,7 @@ namespace dmResource
         }
 
         // Quick dedupe; we can do it safely on the same parent
-        int32_t child = preloader->m_Request[parent].m_FirstChild;
+        TRequestIndex child = preloader->m_Request[parent].m_FirstChild;
         while (child != -1)
         {
             if (preloader->m_Request[child].m_PathDescriptor.m_NameHash == path_descriptor.m_NameHash)
@@ -416,17 +420,33 @@ namespace dmResource
             child = preloader->m_Request[child].m_NextSibling;
         }
 
-        int32_t new_req = preloader->m_Freelist[--preloader->m_FreelistSize];
+        TRequestIndex new_req = preloader->m_Freelist[--preloader->m_FreelistSize];
         PreloadRequest* req = &preloader->m_Request[new_req];
         memset(req, 0, sizeof(PreloadRequest));
         req->m_PathDescriptor = path_descriptor;
         req->m_Parent = -1;
         req->m_FirstChild = -1;
         req->m_NextSibling = -1;
+        req->m_PendingChildCount = 0;
         req->m_LoadResult = RESULT_PENDING;
 
         PreloaderTreeInsert(preloader, new_req, parent);
-        return RESULT_OK;
+
+          // Check for recursive resources, if they are, mark with loop error
+         TRequestIndex go_up = parent;
+         while (go_up != -1)
+         {
+             if (preloader->m_Request[go_up].m_PathDescriptor.m_CanonicalPathHash == path_descriptor.m_CanonicalPathHash)
+             {
+                 req->m_LoadResult = RESULT_RESOURCE_LOOP_ERROR;
+                 assert(parent != -1);
+                 assert(preloader->m_Request[parent].m_PendingChildCount > 0);
+                 preloader->m_Request[parent].m_PendingChildCount -= 1;
+                 break;
+             }
+             go_up = preloader->m_Request[go_up].m_Parent;
+         }
+         return RESULT_OK;		
     }
 
     static bool PopHints(HPreloader preloader)
@@ -465,7 +485,7 @@ namespace dmResource
         return new_hint_count != 0;
     }
 
-    static Result PreloadHintInternal(HPreloader preloader, int32_t parent, const char* name)
+    static Result PreloadHintInternal(HPreloader preloader, TRequestIndex parent, const char* name)
     {
         PathDescriptor path_descriptor;
         Result res = MakePathDescriptor(preloader, name, path_descriptor);
@@ -477,13 +497,23 @@ namespace dmResource
         return res;
     }
 
+    static void RemoveFromParentPendingCount(ResourcePreloader* preloader, PreloadRequest* req)
+    {
+        if (req->m_Parent != -1)
+        {
+            assert(preloader->m_Request[req->m_Parent].m_PendingChildCount > 0);
+            preloader->m_Request[req->m_Parent].m_PendingChildCount -= 1;
+        }
+    }
+
     // Only supports removing the first child, which is all the preloader uses anyway.
-    static void PreloaderRemoveLeaf(ResourcePreloader* preloader, int32_t index)
+    static void PreloaderRemoveLeaf(ResourcePreloader* preloader, TRequestIndex index)
     {
         assert(preloader->m_FreelistSize < MAX_PRELOADER_REQUESTS);
 
         PreloadRequest* me = &preloader->m_Request[index];
         assert(me->m_FirstChild == -1);
+        assert(me->m_PendingChildCount == 0);
 
         if (me->m_Resource)
         {
@@ -500,7 +530,22 @@ namespace dmResource
         PreloadRequest* parent = &preloader->m_Request[me->m_Parent];
         assert(parent->m_FirstChild == index);
         parent->m_FirstChild = me->m_NextSibling;
-        preloader->m_Freelist[preloader->m_FreelistSize++] = index;
+
+        if (me->m_LoadResult == RESULT_PENDING)
+        {
+            RemoveFromParentPendingCount(preloader, me);
+        }
+
+        preloader->m_Freelist[preloader->m_FreelistSize++] = index;		  
+    }
+
+    static void RemoveChildren(ResourcePreloader* preloader, PreloadRequest* req)
+    {
+        while (req->m_FirstChild != -1)
+        {
+            PreloaderRemoveLeaf(preloader, req->m_FirstChild);
+        }
+        assert(req->m_PendingChildCount == 0);
     }
 
     HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names)
@@ -529,6 +574,7 @@ namespace dmResource
         root->m_Parent = -1;
         root->m_FirstChild = -1;
         root->m_NextSibling = -1;
+        root->m_PendingChildCount = 0;
         preloader->m_PersistResourceCount++;
 
         // Post create setup
@@ -574,36 +620,18 @@ namespace dmResource
     }
 
     // CreateResource operation ends either with
-    //   1) Nothing, because waiting on dependencies           => RESULT_PENDING (unchanged)
-    //   2) Having created the resource and free:d all buffers => RESULT_OK + m_Resource
-    //   3) Having failed, (or created and destroyed), leaving => RESULT_SOME_ERROR + everything free:d
+    //   1) Having created the resource and free:d all buffers => RESULT_OK + m_Resource
+    //   2) Having failed, (or created and destroyed), leaving => RESULT_SOME_ERROR + everything free:d
     //
     // If buffer passed in is null it means to use the items internal buffer
     //
     // Returns true if an actual create attempt was peformed
-    static bool PreloaderTryCreateResource(HPreloader preloader, int32_t index, void* buffer, uint32_t buffer_size)
+    static void CreateResource(HPreloader preloader, PreloadRequest* req, void* buffer, uint32_t buffer_size)
     {
-        PreloadRequest *req = &preloader->m_Request[index];
         assert(req->m_LoadResult == RESULT_PENDING);
+        assert(req->m_PendingChildCount == 0);
 
         assert(req->m_ResourceType);
-        // Any pending result will block the creation. There could be a quick path here where
-        // we abort once anything goes into error, but it simplifies the algorithm to not do that
-        // (since we would need to prune whole subtrees and not just leaves)
-        int32_t child = req->m_FirstChild;
-        while (child != -1)
-        {
-            PreloadRequest *sub = &preloader->m_Request[child];
-            if (sub->m_LoadResult == RESULT_PENDING)
-            {
-                return false;
-            }
-            child = sub->m_NextSibling;
-        }
-
-        // Previous to this we could abort with RESULT_PENDING, but not any longer; at this point the request
-        // is going to be finished and cleaned up. We can then remove it from the in progress
-        UnmarkPathInProgress(preloader, &req->m_PathDescriptor);
 
         SResourceDescriptor tmp_resource;
         memset(&tmp_resource, 0, sizeof(tmp_resource));
@@ -668,19 +696,17 @@ namespace dmResource
             // This is set if precreate was run. Once past this step it is not going to be needed;
             // and we clear it to indicate loading is done.
             req->m_ResourceType = 0;
+            RemoveFromParentPendingCount(preloader, req);
         }
 
         // Children can now be removed (and their resources released) as they are not
         // needed any longer.
-        while (req->m_FirstChild != -1)
-        {
-            PreloaderRemoveLeaf(preloader, req->m_FirstChild);
-        }
+        RemoveChildren(preloader, req);
 
         if (req->m_LoadResult != RESULT_OK)
         {
             // Continue up to parent. All the stuff below is only for resources that were created
-            return true;
+            return;
         }
 
         assert(tmp_resource.m_Resource);
@@ -749,215 +775,219 @@ namespace dmResource
         }
 
         req->m_ResourceType = 0;
+    }
+
+    // Try to create the resource of the parent if all the child requests has been
+    // resolved. We break as soon as the parent resource can not be created
+    static bool PreloaderTryPruneParent(HPreloader preloader, PreloadRequest* req)
+    {
+        TRequestIndex parent = req->m_Parent;
+        if (parent == -1)
+        {
+            return false;
+        }
+        PreloadRequest* parent_req = &preloader->m_Request[parent];
+        if (parent_req->m_PendingChildCount > 0)
+        {
+            return false;
+        }
+        CreateResource(preloader, parent_req, 0, 0);
+        UnmarkPathInProgress(preloader, &parent_req->m_PathDescriptor);
+        PreloaderTryPruneParent(preloader, parent_req);
         return true;
     }
 
-    // Try to prune the branch from specified leaf and up as far as possible
-    // by actually creating the resources.
-    static void PreloaderTryPrune(HPreloader preloader, int32_t index)
+    static bool FinishLoad(HPreloader preloader, PreloadRequest* req, dmLoadQueue::LoadResult& load_result, void* buffer, uint32_t buffer_size)
     {
-        // Finalises up the chain as far as possible. TryCreate resource will
-        // return true if tree was ready.
-        while (index >= 0 && PreloaderTryCreateResource(preloader, index, 0, 0))
+        // Pop any hints the load/preload of the item that may have been generated
+        PopHints(preloader);
+
+        // Propagate errors
+        if (load_result.m_LoadResult != RESULT_OK)
         {
-            index = preloader->m_Request[index].m_Parent;
+            req->m_LoadResult = load_result.m_LoadResult;
         }
-    }
-
-    static uint32_t PreloaderTryEndLoad(HPreloader preloader, int32_t index)
-    {
-        PreloadRequest *req = &preloader->m_Request[index];
-        assert(req->m_LoadRequest != 0);
-
-        void *buffer;
-        uint32_t buffer_size;
-
-        // Can hold the buffer till we FreeLoad it
-        dmLoadQueue::LoadResult res;
-        dmLoadQueue::Result e = dmLoadQueue::EndLoad(preloader->m_LoadQueue, req->m_LoadRequest, &buffer, &buffer_size, &res);
-        if (e != dmLoadQueue::RESULT_PENDING)
+        else if (load_result.m_PreloadResult != RESULT_OK)
         {
-            // Pop any hints the load/preload of the item that may have been generated
-            PopHints(preloader);
+            req->m_LoadResult = load_result.m_PreloadResult;
+        }
 
-            // Propagate errors
-            if (res.m_LoadResult != RESULT_OK)
-            {
-                req->m_LoadResult = res.m_LoadResult;
-            }
-            else if (res.m_PreloadResult != RESULT_OK)
-            {
-                req->m_LoadResult = res.m_PreloadResult;
-            }
+        // On error remove all children
+        if (req->m_LoadResult != RESULT_PENDING)
+        {
+            RemoveChildren(preloader, req);
+            RemoveFromParentPendingCount(preloader, req);
+        }
 
-            // On error remove all children
-            if (req->m_LoadResult != RESULT_PENDING)
-            {
-                while (req->m_FirstChild != -1)
-                {
-                    PreloaderRemoveLeaf(preloader, req->m_FirstChild);
-                }
-            }
+        req->m_PreloadData = load_result.m_PreloadData;
 
-            req->m_PreloadData = res.m_PreloadData;
+        bool created_resource = false;
 
-            // If no children, do the create step immediately with the buffer in place
-            if (req->m_FirstChild == -1)
+        // If no children, do the create step immediately with the buffer in place
+        if (req->m_FirstChild == -1)
+        {
+            if (req->m_LoadResult == RESULT_PENDING)
             {
-                if (req->m_LoadResult == RESULT_PENDING)
-                {
-                    // The difference here vs running PreloaderTryPrune is that we do the create resource in-place
-                    // on the buffer.
-                    bool res = PreloaderTryCreateResource(preloader, index, buffer, buffer_size);
-                    assert(res);
-                }
-                else
-                {
-                    // This is cleared in the TryCreate call above if we call it.
-                    UnmarkPathInProgress(preloader, &req->m_PathDescriptor);
-                }
-                PreloaderTryPrune(preloader, req->m_Parent);
+                // Create the resource using the loading buffer directly.
+                CreateResource(preloader, req, buffer, buffer_size);
+                created_resource = true;
             }
-            else
-            {
-                req->m_Buffer = Allocate(&preloader->m_BlockAllocator, buffer_size);
-                memcpy(req->m_Buffer, buffer, buffer_size);
-                req->m_BufferSize = buffer_size;
-            }
-
+            UnmarkPathInProgress(preloader, &req->m_PathDescriptor);
             dmLoadQueue::FreeLoad(preloader->m_LoadQueue, req->m_LoadRequest);
             req->m_LoadRequest = 0;
-            return 1;
-        }
 
-        return 0;
+            PreloaderTryPruneParent(preloader, req);
+        }
+        else
+        {
+            // Keep the loaded bytes until we have loaded all children
+            req->m_Buffer = Allocate(&preloader->m_BlockAllocator, buffer_size);
+            memcpy(req->m_Buffer, buffer, buffer_size);
+            req->m_BufferSize = buffer_size;
+            dmLoadQueue::FreeLoad(preloader->m_LoadQueue, req->m_LoadRequest);
+            req->m_LoadRequest = 0;
+        }
+        return created_resource;
     }
 
-    static uint32_t DoPreloaderUpdateOneReq(HPreloader preloader, int32_t index);
+    static bool DoPreloaderUpdateOneReq(HPreloader preloader, TRequestIndex index, PreloadRequest* req);
 
-    // Returns 1 if an item is found that has completed its loading from the load queue
-    static uint32_t PreloaderUpdateOneItem(HPreloader preloader, int32_t index)
+    // Returns true if an item is found that has completed its loading from the load queue
+    static bool PreloaderUpdateOneItem(HPreloader preloader, TRequestIndex index)
     {
         DM_PROFILE(Resource, "PreloaderUpdateOneItem");
         while (index >= 0)
         {
-            PreloadRequest *req = &preloader->m_Request[index];
+            PreloadRequest* req = &preloader->m_Request[index];
             if (req->m_LoadResult == RESULT_PENDING)
             {
-                if (DoPreloaderUpdateOneReq(preloader, index))
+                if (DoPreloaderUpdateOneReq(preloader, index, req))
                 {
-                    return 1;
+                    return true;
+                }
+            }
+            else if (req->m_LoadResult == RESULT_RESOURCE_LOOP_ERROR)
+            {
+                if (PreloaderTryPruneParent(preloader, req))
+                {
+                    return true;
                 }
             }
             index = req->m_NextSibling;
         }
-        return 0;
+        return false;
     }
 
-    // Returns 1 if the item or any of its children is found that has completed its loading from the load queue
-    static uint32_t DoPreloaderUpdateOneReq(HPreloader preloader, int32_t index)
+    // Returns true if the item or any of its children is found that has completed its loading from the load queue
+    static bool DoPreloaderUpdateOneReq(HPreloader preloader, TRequestIndex index, PreloadRequest* req)
     {
         DM_PROFILE(Resource, "DoPreloaderUpdateOneReq");
 
-        PreloadRequest *req = &preloader->m_Request[index];
-        // If it does not have a load request, it would have a buffer if it
-        // had started a load.
-        if (!req->m_LoadRequest && !req->m_Buffer && !req->m_Resource)
-        {
-            bool wait_on = IsPathInProgress(preloader, &req->m_PathDescriptor);
-            if (wait_on)
-            {
-                // Already being loaded elsewhere; we can wait on that to complete, unless the item
-                // exists above us in the tree; then the loop is infinite and we can abort
-                int32_t parent = req->m_Parent;
-                int32_t go_up = parent;
-                while (go_up != -1)
-                {
-                    if (preloader->m_Request[go_up].m_PathDescriptor.m_CanonicalPathHash == req->m_PathDescriptor.m_CanonicalPathHash)
-                    {
-                        req->m_LoadResult = RESULT_RESOURCE_LOOP_ERROR;
-                        PreloaderTryPrune(preloader, parent);
-                        return 1;
-                    }
-                    go_up = preloader->m_Request[go_up].m_Parent;
-                }
-                // OK to wait.
-                return 0;
-            }
-
-            // It might have been loaded by unhinted resource Gets, just grab & bump refcount
-            SResourceDescriptor* rd = GetByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
-            if (rd)
-            {
-                rd->m_ReferenceCount++;
-                req->m_Resource = rd->m_Resource;
-                req->m_LoadResult = RESULT_OK;
-                PreloaderTryPrune(preloader, req->m_Parent);
-                return 1;
-            }
-
-            if (preloader->m_LoadQueueFull)
-            {
-                // We must break here so we don't traverse children before
-                // we loaded parent
-                return 0;
-            }
-
-            if (!req->m_ResourceType)
-            {
-                const char* ext = strrchr(req->m_PathDescriptor.m_InternalizedName, '.');
-                if (!ext)
-                {
-                    dmLogWarning("Unable to load resource: '%s'. Missing file extension.", req->m_PathDescriptor.m_InternalizedName);
-                    req->m_LoadResult = RESULT_MISSING_FILE_EXTENSION;
-                    PreloaderTryPrune(preloader, req->m_Parent);
-                    return 1;
-                }
-
-                req->m_ResourceType = FindResourceType(preloader->m_Factory, ext + 1);
-                if (!req->m_ResourceType)
-                {
-                    dmLogError("Unknown resource type: %s", ext);
-                    req->m_LoadResult = RESULT_UNKNOWN_RESOURCE_TYPE;
-                    PreloaderTryPrune(preloader, req->m_Parent);
-                    return 1;
-                }
-            }
-
-            dmLoadQueue::PreloadInfo info;
-            info.m_HintInfo.m_Preloader = preloader;
-            info.m_HintInfo.m_Parent = index;
-            info.m_Function = req->m_ResourceType->m_PreloadFunction;
-            info.m_Context = req->m_ResourceType->m_Context;
-
-            // Silently ignore if return null (means try later)"
-            if ((req->m_LoadRequest = dmLoadQueue::BeginLoad(preloader->m_LoadQueue, req->m_PathDescriptor.m_InternalizedName, req->m_PathDescriptor.m_InternalizedCanonicalPath, &info)))
-            {
-                MarkPathInProgress(preloader, &req->m_PathDescriptor);
-                return 1;
-            }
-
-            preloader->m_LoadQueueFull = true;
-            return 1;
-        }
+        assert(!req->m_Resource);
 
         // If loading it must finish first before trying to go down to children
         if (req->m_LoadRequest)
         {
-            if (PreloaderTryEndLoad(preloader, index))
+            void *buffer;
+            uint32_t buffer_size;
+
+            // Can hold the buffer till we FreeLoad it
+            dmLoadQueue::LoadResult res;
+            dmLoadQueue::Result e = dmLoadQueue::EndLoad(preloader->m_LoadQueue, req->m_LoadRequest, &buffer, &buffer_size, &res);
+            if (e == dmLoadQueue::RESULT_PENDING)
             {
-                preloader->m_LoadQueueFull = false;
-                return 1;
+                return false;
             }
+            preloader->m_LoadQueueFull = false;
+
+            if (FinishLoad(preloader, req, res, buffer, buffer_size))
+            {
+                return true;
+            }
+            return false;
         }
-        else
+
+        // If has a buffer if is waiting for children to complete first
+        if (req->m_Buffer)
         {
             // traverse depth first
             if (PreloaderUpdateOneItem(preloader, req->m_FirstChild))
-                return 1;
+            {
+                return true;
+            }
+            return false;
         }
 
-        return 0;
+        // It might have been loaded by unhinted resource Gets or loaded by a different preloader, just grab & bump refcount
+        SResourceDescriptor* rd = GetByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
+        if (rd)
+        {
+            rd->m_ReferenceCount++;
+            req->m_Resource = rd->m_Resource;
+            req->m_LoadResult = RESULT_OK;
+            RemoveFromParentPendingCount(preloader, req);
+            if (PreloaderTryPruneParent(preloader, req))
+            {
+                return true;
+            }
+            return false;
+        }
+
+        if (preloader->m_LoadQueueFull)
+        {
+            return false;
+        }
+
+        if (IsPathInProgress(preloader, &req->m_PathDescriptor))
+        {
+            // A different item in the resource tree is already loading the same resource, just wait
+            return false;
+        }
+
+        if (!req->m_ResourceType)
+        {
+            const char* ext = strrchr(req->m_PathDescriptor.m_InternalizedName, '.');
+            if (!ext)
+            {
+                dmLogWarning("Unable to load resource: '%s'. Missing file extension.", req->m_PathDescriptor.m_InternalizedName);
+                req->m_LoadResult = RESULT_MISSING_FILE_EXTENSION;
+                RemoveFromParentPendingCount(preloader, req);
+                if (PreloaderTryPruneParent(preloader, req))
+                {
+                    return true;
+                }
+                return false;
+            }
+
+            req->m_ResourceType = FindResourceType(preloader->m_Factory, ext + 1);
+            if (!req->m_ResourceType)
+            {
+                dmLogError("Unknown resource type: %s", ext);
+                req->m_LoadResult = RESULT_UNKNOWN_RESOURCE_TYPE;
+                RemoveFromParentPendingCount(preloader, req);
+                if (PreloaderTryPruneParent(preloader, req))
+                {
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        dmLoadQueue::PreloadInfo info;
+        info.m_HintInfo.m_Preloader = preloader;
+        info.m_HintInfo.m_Parent = index;
+        info.m_Function = req->m_ResourceType->m_PreloadFunction;
+        info.m_Context = req->m_ResourceType->m_Context;
+
+        // Silently ignore if return null (means try later)"
+        if ((req->m_LoadRequest = dmLoadQueue::BeginLoad(preloader->m_LoadQueue, req->m_PathDescriptor.m_InternalizedName, req->m_PathDescriptor.m_InternalizedCanonicalPath, &info)))
+        {
+            MarkPathInProgress(preloader, &req->m_PathDescriptor);
+            return true;
+        }
+
+        preloader->m_LoadQueueFull = true;
+        return false;
     }
 
     static Result PostCreateUpdateOneItem(HPreloader preloader)
