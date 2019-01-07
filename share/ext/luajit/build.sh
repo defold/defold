@@ -11,7 +11,7 @@ function luajit_configure() {
 	export PREFIX=`pwd`/build
 	export INSTALL_LIB=$PREFIX/lib/$CONF_TARGET
 	export INSTALL_BIN=$PREFIX/bin/$CONF_TARGET
-	
+
 	# These are where the .lua files go. Do not want them in default
 	# folder as that includes the version, which complicates things
 	# in bob, where LUAJIT_PATH must be matched to the location of
@@ -92,7 +92,7 @@ case $1 in
 		;;
 	win32|x86_64-win32)
         cmi_setup_vs2015_env $1
-        
+
 		function cmi_make() {
 			cd src
 			cmd "/C msvcbuild.bat static dummy ${CONF_TARGET} "

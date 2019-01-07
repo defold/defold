@@ -109,7 +109,8 @@ TEST(dmRecord, Simple)
 int main(int argc, char **argv)
 {
 #if !defined(DM_NO_SYSTEM_FUNCTION)
-    system("python src/test/test_record.py");
+    int result = system("python src/test/test_record.py");
+    (void)result;
 #endif
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
