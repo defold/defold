@@ -385,6 +385,7 @@
                               (cond-> (assoc props :document-width document-width)
                                       was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
                                       clear? (assoc :cursor-ranges [data/document-start-cursor-range])
+                                      clear? (assoc :invalidated-row 0)
                                       clear? (data/frame-cursor prev-layout))))))
   (view/repaint-view! view-node elapsed-time))
 
