@@ -1,5 +1,4 @@
 set -e
-mkdir -p engine/linux
 mkdir -p engine/x86_64-linux
 mkdir -p engine/darwin
 mkdir -p engine/x86_64-darwin

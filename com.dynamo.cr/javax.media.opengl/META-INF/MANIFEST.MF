@@ -27,17 +27,6 @@ Bundle-NativeCode: lib/osx/libgluegen-rt.jnilib;
  lib/osx/libnativewindow_macosx.jnilib;
  lib/osx/libnewt.jnilib; osname=mac os x;
  processor=x86-64,
- lib/linux/x86/libgluegen-rt.so;
- lib/linux/x86/libjoal.so;
- lib/linux/x86/libjocl.so;
- lib/linux/x86/libjogl_cg.so;
- lib/linux/x86/libjogl_desktop.so;
- lib/linux/x86/libjogl_mobile.so;
- lib/linux/x86/libnativewindow_awt.so;
- lib/linux/x86/libnativewindow_x11.so;
- lib/linux/x86/libnewt.so;
- osname=linux;
- processor=x86,
  lib/linux/x86-64/libgluegen-rt.so;
  lib/linux/x86-64/libjoal.so;
  lib/linux/x86-64/libjocl.so;
