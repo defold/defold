@@ -1,5 +1,6 @@
 package com.defold.control;
 
+import com.sun.javafx.scene.control.behavior.ListCellBehavior;
 import javafx.geometry.Orientation;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
@@ -12,16 +13,24 @@ public class ListCellSkinWithBehavior extends CellSkinBase<ListCell<Object>> {
     private static final double DEFAULT_CELL_SIZE = 24.0;
 
     private double fixedCellSize;
+    private final ListCellBehavior<Object> behavior;
     private boolean fixedCellSizeEnabled;
 
-    public ListCellSkinWithBehavior(ListCell<Object> control) {
+    public ListCellSkinWithBehavior(ListCell<Object> control, ListCellBehavior<Object> behavior) {
         super(control);
         this.fixedCellSize = control.getListView().getFixedCellSize();
+        this.behavior = behavior;
         this.fixedCellSizeEnabled = fixedCellSize > 0;
         registerChangeListener(control.getListView().fixedCellSizeProperty(), (x) -> {
             this.fixedCellSize = getSkinnable().getListView().getFixedCellSize();
             this.fixedCellSizeEnabled = fixedCellSize > 0;
         });
+    }
+
+    @Override
+    public void dispose() {
+        super.dispose();
+        behavior.dispose();
     }
 
     @Override
