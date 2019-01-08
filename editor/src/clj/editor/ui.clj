@@ -10,7 +10,6 @@
    [editor.progress :as progress]
    [editor.math :as math]
    [editor.menu :as menu]
-   [editor.ui.tree-view-hack :as tree-view-hack]
    [editor.util :as eutil]
    [internal.util :as util]
    [service.log :as log]
@@ -847,9 +846,8 @@
 
 (defn select-indices!
   [^TreeView tree-view indices]
-  (doto (.getSelectionModel tree-view)
-    (tree-view-hack/subvert-broken-selection-model-optimization!)
-    (.selectIndices (int (first indices)) (int-array (rest indices)))))
+  (-> (.getSelectionModel tree-view)
+      (.selectIndices (int (first indices)) (int-array (rest indices)))))
 
 (extend-type TreeView
   CollectionView
