@@ -51,22 +51,46 @@
   ([row col text resource-proj-path resource-row]
    (#'console/make-resource-reference-region row col (+ col (count text)) resource-proj-path resource-row on-region-click!)))
 
+(defn- whole-line-region [type row text]
+  (#'console/make-whole-line-region type row text))
+
 (def ^:private resource-map {"/main.lua" 100
-                             "/dir/main.lua" 200})
+                             "/dir/main.lua" 200
+                             "/module.lua" 300})
+
+(defn- append-entries [props entries]
+  (#'console/append-entries props entries resource-map on-region-click!))
 
 (defn- append-lines [props lines]
   ;; Entries are [type line] pairs. We use nil for untyped regular entries.
   (let [entries (mapv (partial vector nil) lines)]
-    (#'console/append-entries props entries resource-map on-region-click!)))
+    (append-entries props entries)))
 
 (deftest append-entries-test
+  (is (= {:lines ["123"]
+          :regions [(whole-line-region :eval-result 0 "123")]
+          :invalidated-row 0}
+         (append-entries {:lines [""]
+                          :regions []}
+                         [[:eval-result "123"]])))
   (is (= {:lines ["/main.lua"]
-          :regions [(resource-reference-region 0 0 "/main.lua" "/main.lua")]}
+          :regions [(resource-reference-region 0 0 "/main.lua" "/main.lua")]
+          :invalidated-row 0}
          (append-lines {:lines [""]
                         :regions []}
                        ["/main.lua"])))
+  (is (= {:lines ["/main.lua"
+                  "/module.lua"]
+          :regions [(resource-reference-region 0 0 "/main.lua" "/main.lua")
+                    (resource-reference-region 1 0 "/module.lua" "/module.lua")]
+          :invalidated-row 0}
+         (append-lines {:lines [""]
+                        :regions []}
+                       ["/main.lua"
+                        "/module.lua"])))
   (is (= {:lines ["/non-existing-resource.lua"]
-          :regions []}
+          :regions []
+          :invalidated-row 0}
          (append-lines {:lines [""]
                         :regions []}
                        ["/non-existing-resource.lua"])))
