@@ -84,7 +84,6 @@
 
 (def java-platform->platform
   {"linux-amd64"      "x86_64-linux"
-   "linux-i586"       "x86-linux"
    "macosx-universal" "x86_64-darwin"
    "windows-amd64"    "x86_64-win32"
    "windows-i586"     "x86-win32"
