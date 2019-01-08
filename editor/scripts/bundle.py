@@ -20,13 +20,11 @@ import datetime
 import imp
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
-                    'x86-linux': 'linux-i586',
                     'x86_64-darwin': 'macosx-x64',
                     'x86-win32': 'windows-i586',
                     'x86_64-win32': 'windows-x64'}
 
 platform_to_legacy = {'x86_64-linux': 'x86_64-linux',
-                      'x86-linux': 'linux',
                       'x86_64-darwin': 'x86_64-darwin',
                       'x86-win32': 'win32',
                       'x86_64-win32': 'x86_64-win32'}
@@ -276,7 +274,7 @@ if __name__ == '__main__':
     parser.add_option('--platform', dest='target_platform',
                       default = None,
                       action = 'append',
-                      choices = ['x86_64-linux', 'x86-linux', 'x86_64-darwin', 'x86-win32', 'x86_64-win32'],
+                      choices = ['x86_64-linux', x86_64-darwin', 'x86-win32', 'x86_64-win32'],
                       help = 'Target platform. Specify multiple times for multiple platforms')
 
     parser.add_option('--version', dest='version',
