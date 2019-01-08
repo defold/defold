@@ -1,9 +1,7 @@
 package com.defold.control;
 
 import javafx.beans.property.ReadOnlyObjectProperty;
-import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.scene.control.TableCell;
-import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableColumnBase;
 import javafx.scene.control.skin.TableCellSkinBase;
 
@@ -11,15 +9,22 @@ import javafx.scene.control.skin.TableCellSkinBase;
 // This is a reimplementation of the JavaFX TableCellSkin class with
 // the sole purpose of allowing us to pass a custom TableCellBehavior.
 public class TableCellSkinWithBehavior extends TableCellSkinBase<Object, Object, TableCell<Object, Object>> {
-    private final TableColumn<Object, Object> tableColumn;
 
-    public TableCellSkinWithBehavior(javafx.scene.control.TableCell<Object, Object> tableCell) {
+    private final TableCellBehavior behavior;
+
+    public TableCellSkinWithBehavior(TableCell<Object, Object> tableCell, TableCellBehavior behavior) {
         super(tableCell);
-        this.tableColumn = tableCell.getTableColumn();
+        this.behavior = behavior;
+    }
+
+    @Override
+    public void dispose() {
+        super.dispose();
+        behavior.dispose();
     }
 
     @Override
     public ReadOnlyObjectProperty<? extends TableColumnBase<Object, Object>> tableColumnProperty() {
-        return new ReadOnlyObjectWrapper<>(tableColumn);
+        return getSkinnable().tableColumnProperty();
     }
 }

@@ -458,7 +458,6 @@
                  ;; See the note at the top of this file.
                  (createDefaultSkin []
                    (let [cell ^TableCell this
-                         ;; TODO JDK
                          behavior (proxy [TableCellBehavior] [cell]
                                     (handleClicks [button click-count already-selected?]
                                       (let [this ^TableCellBehavior this]
@@ -468,7 +467,7 @@
                                           ;; table seems to work :)
                                           (some-> cell (.getTableView) (.requestFocus)))
                                         (proxy-super handleClicks button click-count already-selected?))))]
-                     (TableCellSkinWithBehavior. cell))))]
+                     (TableCellSkinWithBehavior. cell behavior))))]
         (doto tc
           (.setAlignment (value-alignment column-info)))))))
 
@@ -638,7 +637,6 @@
                     (ui/remove-style! this "editing-cell")
                     (.setText this (get-value-string item))
                     (.setGraphic this nil)))))
-            ;; TODO JDK
             ;; Part of workaround for https://bugs.openjdk.java.net/browse/JDK-8089514
             ;; See the note at the top of this file.
             (createDefaultSkin []
@@ -649,7 +647,7 @@
                                    (when-let [^Node edited-cell @edited-cell-atom]
                                      (.requestFocus edited-cell))
                                    (proxy-super mousePressed event))))]
-                (ListCellSkinWithBehavior. cell)))))))))
+                (ListCellSkinWithBehavior. cell behavior)))))))))
 
 (defn- nil->neg1 [index]
   (if (nil? index)
