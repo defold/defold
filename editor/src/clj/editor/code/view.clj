@@ -39,7 +39,8 @@
            (javafx.scene.paint Color LinearGradient Paint)
            (javafx.scene.shape Rectangle)
            (javafx.scene.text Font FontSmoothingType TextAlignment)
-           (javafx.stage Stage)))
+           (javafx.stage Stage)
+           (com.sun.javafx.scene.text FontHelper)))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -96,16 +97,13 @@
   (line-height [_this] line-height)
   (char-width [_this character] (Math/floor (.getCharAdvance font-strike character))))
 
-(let [method (.getDeclaredMethod Font "getNativeFont" nil)]
-  (.setAccessible method true)
-  (defn get-native-font [font]
-    (.invoke method font nil)))
-
 (defn make-glyph-metrics
   ^GlyphMetrics [^Font font ^double line-height-factor]
   (let [font-loader (.getFontLoader (Toolkit/getToolkit))
         font-metrics (.getFontMetrics font-loader font)
-        font-strike (.getStrike ^PGFont (get-native-font font) BaseTransform/IDENTITY_TRANSFORM FontResource/AA_GREYSCALE)
+        font-strike (.getStrike ^PGFont (FontHelper/getNativeFont font)
+                                BaseTransform/IDENTITY_TRANSFORM
+                                FontResource/AA_GREYSCALE)
         line-height (Math/ceil (* (inc (.getLineHeight font-metrics)) line-height-factor))
         ascent (Math/ceil (* (.getAscent font-metrics) line-height-factor))]
     (->GlyphMetrics font-strike line-height ascent)))
