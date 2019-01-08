@@ -40,8 +40,6 @@ local function get_prefixed_addr(prefix, raw_string)
 end
 
 local function str(val)
-  -- Can't call tostring on NodeProxy unless called from owning Gui script. See:
-  -- https://jira.int.midasplayer.com/browse/DEF-532
   if getmetatable(val) == NodeProxy then
     return tostring(val) .. get_prefixed_addr("userdata: ", raw_tostring(val))
   elseif type(val) == "table" and has_custom_tostring(val) then
