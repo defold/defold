@@ -1,18 +1,26 @@
 @font-face {
   font-family: 'Open Sans';
-  src: url("OpenSans-Regular.ttf"); }
-  
+  src: url("OpenSans-Regular.ttf");
+} 
+
 @font-face {
   font-family: 'Source Sans Pro';
   src: url("SourceSansPro-Regular.ttf");
 }
+
 @font-face {
   font-family: 'Source Sans Pro Semibold';
   src: url("SourceSansPro-Semibold.ttf");
 }
+
 @font-face {
   font-family: 'Source Sans Pro Italic';
-  src: url("SourceSansPro-It.ttf");
+  src: url("SourceSansPro-Italic.ttf");
+}
+
+@font-face {
+  font-family: 'Source Sans Pro Light';
+  src: url("SourceSansPro-Light.ttf");
 }
 
 /* Dejavu Sans Mono */

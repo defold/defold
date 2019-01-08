@@ -38,24 +38,21 @@
 #include "profile_render.h"
 
 // Embedded resources
+// Unfortunately, the draw_line et. al are used in production code
+extern unsigned char DEBUG_VPC[];
+extern uint32_t DEBUG_VPC_SIZE;
+extern unsigned char DEBUG_FPC[];
+extern uint32_t DEBUG_FPC_SIZE;
+
 #if defined(DM_RELEASE)
-    static unsigned char* DEBUG_VPC = 0;
-    static uint32_t DEBUG_VPC_SIZE = 0;
-    static unsigned char* DEBUG_FPC = 0;
-    static uint32_t DEBUG_FPC_SIZE = 0;
+    extern unsigned char BUILTINS_RELEASE_ARCD[];
+    extern uint32_t BUILTINS_RELEASE_ARCD_SIZE;
+    extern unsigned char BUILTINS_RELEASE_ARCI[];
+    extern uint32_t BUILTINS_RELEASE_ARCI_SIZE;
+    extern unsigned char BUILTINS_RELEASE_DMANIFEST[];
+    extern uint32_t BUILTINS_RELEASE_DMANIFEST_SIZE;
 
-    static unsigned char* BUILTINS_ARCD = 0;
-    static uint32_t BUILTINS_ARCD_SIZE = 0;
-    static unsigned char* BUILTINS_ARCI = 0;
-    static uint32_t BUILTINS_ARCI_SIZE = 0;
-    static unsigned char* BUILTINS_DMANIFEST = 0;
-    static uint32_t BUILTINS_DMANIFEST_SIZE = 0;
 #else
-    extern unsigned char DEBUG_VPC[];
-    extern uint32_t DEBUG_VPC_SIZE;
-    extern unsigned char DEBUG_FPC[];
-    extern uint32_t DEBUG_FPC_SIZE;
-
     extern unsigned char BUILTINS_ARCD[];
     extern uint32_t BUILTINS_ARCD_SIZE;
     extern unsigned char BUILTINS_ARCI[];
@@ -400,20 +397,21 @@ namespace dmEngine
 
     static void SetSwapInterval(HEngine engine, int swap_interval)
     {
-        swap_interval = dmMath::Max(0, swap_interval);
-#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
-        engine->m_UseSwVsync = (!engine->m_UseVariableDt && swap_interval == 0);
-#endif
-        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+        if (!engine->m_UseVariableDt)
+        {
+            swap_interval = dmMath::Max(0, swap_interval);
+            // For backward-compatability, hardware vsync with swap_interval 0 on desktop should result in sw vsync
+            engine->m_UseSwVsync = (engine->m_VsyncMode == VSYNC_SOFTWARE || (engine->m_VsyncMode == VSYNC_HARDWARE && swap_interval == 0));
+            if (engine->m_VsyncMode == VSYNC_HARDWARE && swap_interval > 0) // need to update engine update freq to get correct dt when swap interval changes
+                engine->m_UpdateFrequency /= swap_interval;
+            dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+        }
     }
 
     static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
     {
         engine->m_UpdateFrequency = frequency;
         engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
-        engine->m_UpdateFrequency = dmMath::Min(60U, engine->m_UpdateFrequency);
-        int swap_interval = 60 / engine->m_UpdateFrequency;
-        SetSwapInterval(engine, swap_interval);
     }
 
     /*
@@ -587,12 +585,45 @@ namespace dmEngine
         engine->m_InvPhysicalWidth = 1.0f / physical_width;
         engine->m_InvPhysicalHeight = 1.0f / physical_height;
 
-        engine->m_UseVariableDt = dmConfigFile::GetInt(engine->m_Config, "display.variable_dt", 0) != 0;
         engine->m_PreviousFrameTime = dmTime::GetTime();
         engine->m_FlipTime = dmTime::GetTime();
         engine->m_PreviousRenderTime = 0;
         engine->m_UseSwVsync = false;
-        SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 60));
+
+        bool setting_vsync = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true);
+        uint32_t setting_update_frequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
+        uint32_t update_frequency = setting_update_frequency;
+        uint32_t swap_interval = 1;
+
+        if (!setting_vsync)
+        {
+            engine->m_UseVariableDt = setting_update_frequency == 0; // if no setting_vsync and update_frequency 0, use variable_dt
+            engine->m_VsyncMode = VSYNC_SOFTWARE;
+            swap_interval = 0;
+        }
+        else
+        {
+            engine->m_UseVariableDt = 0;
+            uint32_t refresh_rate = dmGraphics::GetWindowRefreshRate(engine->m_GraphicsContext);
+            if (refresh_rate == 0) // default to 60 if read failed
+            {
+                refresh_rate = 60;
+            }
+            else // Only bother setting a custom swap interval if we succeeded in getting a window refresh rate
+            {
+                if (setting_update_frequency > 0)
+                {
+                    // Calculate closest integer swap-interval from refresh rate and setting_update_frequency
+                    float fswap_interval = refresh_rate / setting_update_frequency;
+                    swap_interval = dmMath::Max(1U, (uint32_t) fswap_interval);
+                }
+            }
+            update_frequency = refresh_rate;
+            engine->m_VsyncMode = VSYNC_HARDWARE;
+        }
+
+        SetUpdateFrequency(engine, update_frequency);
+        SetSwapInterval(engine, swap_interval);
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
@@ -606,12 +637,21 @@ namespace dmEngine
                 params.m_Flags |= RESOURCE_FACTORY_FLAGS_HTTP_CACHE;
         }
 
+#if defined(DM_RELEASE)
+        params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_RELEASE_ARCI;
+        params.m_ArchiveIndex.m_Size = BUILTINS_RELEASE_ARCI_SIZE;
+        params.m_ArchiveData.m_Data = (const void*) BUILTINS_RELEASE_ARCD;
+        params.m_ArchiveData.m_Size = BUILTINS_RELEASE_ARCD_SIZE;
+        params.m_ArchiveManifest.m_Data = (const void*) BUILTINS_RELEASE_DMANIFEST;
+        params.m_ArchiveManifest.m_Size = BUILTINS_RELEASE_DMANIFEST_SIZE;
+#else
         params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_ARCI;
         params.m_ArchiveIndex.m_Size = BUILTINS_ARCI_SIZE;
         params.m_ArchiveData.m_Data = (const void*) BUILTINS_ARCD;
         params.m_ArchiveData.m_Size = BUILTINS_ARCD_SIZE;
         params.m_ArchiveManifest.m_Data = (const void*) BUILTINS_DMANIFEST;
         params.m_ArchiveManifest.m_Size = BUILTINS_DMANIFEST_SIZE;
+#endif
 
         const char* resource_uri = dmConfigFile::GetString(engine->m_Config, "resource.uri", content_root);
         dmLogInfo("Loading data from: %s", resource_uri);
@@ -696,13 +736,6 @@ namespace dmEngine
             return false;
         }
 
-        go_result = dmGameObject::SetCollectionDefaultRigCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmRig::RIG_MAX_INSTANCES_KEY, dmRig::DEFAULT_MAX_RIG_CAPACITY));
-        if(go_result != dmGameObject::RESULT_OK)
-        {
-            dmLogFatal("Failed to set max rig instance count for collections (%d)", go_result);
-            return false;
-        }
-
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
@@ -717,7 +750,7 @@ namespace dmEngine
         render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
 
-        dmGameObject::Initialize(engine->m_GOScriptContext);
+        dmGameObject::Initialize(engine->m_Register, engine->m_GOScriptContext);
 
         engine->m_ParticleFXContext.m_Factory = engine->m_Factory;
         engine->m_ParticleFXContext.m_RenderContext = engine->m_RenderContext;
@@ -738,6 +771,13 @@ namespace dmEngine
             return false;
         }
 
+        // rig.max_instance_count is deprecated in favour of component specific max count values.
+        // For backwards combatibility we get the rig generic value and take the max of it and each
+        // specific component max value.
+        int32_t max_rig_instance = dmConfigFile::GetInt(engine->m_Config, "rig.max_instance_count", 128);
+        int32_t max_model_count = dmMath::Max(dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128), max_rig_instance);
+        int32_t max_spine_count = dmMath::Max(dmConfigFile::GetInt(engine->m_Config, "spine.max_count", 128), max_rig_instance);
+
         dmGui::NewContextParams gui_params;
         gui_params.m_ScriptContext = engine->m_GuiScriptContext;
         gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
@@ -756,6 +796,7 @@ namespace dmEngine
         engine->m_GuiContext.m_MaxGuiComponents = dmConfigFile::GetInt(engine->m_Config, "gui.max_count", 64);
         engine->m_GuiContext.m_MaxParticleFXCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_particlefx_count", 64);
         engine->m_GuiContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_particle_count", 1024);
+        engine->m_GuiContext.m_MaxSpineCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_spine_count", max_spine_count);
 
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(engine->m_Config, "physics.world_count", 4);
@@ -817,11 +858,11 @@ namespace dmEngine
 
         engine->m_ModelContext.m_RenderContext = engine->m_RenderContext;
         engine->m_ModelContext.m_Factory = engine->m_Factory;
-        engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
+        engine->m_ModelContext.m_MaxModelCount = max_model_count;
 
         engine->m_SpineModelContext.m_RenderContext = engine->m_RenderContext;
         engine->m_SpineModelContext.m_Factory = engine->m_Factory;
-        engine->m_SpineModelContext.m_MaxSpineModelCount = dmConfigFile::GetInt(engine->m_Config, "spine.max_count", 128);
+        engine->m_SpineModelContext.m_MaxSpineModelCount = max_spine_count;
 
         engine->m_LabelContext.m_RenderContext      = engine->m_RenderContext;
         engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);
@@ -1009,6 +1050,11 @@ namespace dmEngine
         }
 #endif
 
+        if (engine->m_EngineService)
+        {
+            dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory, engine->m_Register);
+        }
+
         return true;
 
 bail:
@@ -1074,13 +1120,10 @@ bail:
 
     uint16_t GetHttpPort(HEngine engine)
     {
-
-#if !defined(DM_RELEASE)
         if (engine->m_EngineService)
         {
             return dmEngineService::GetPort(engine->m_EngineService);
         }
-#endif
         return 0;
     }
 
@@ -1113,10 +1156,9 @@ bail:
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
 
-        // uint64_t target_frametime = (uint64_t)((1.f / engine->m_UpdateFrequency) * 1000000.0);
         uint64_t target_frametime = 1000000 / engine->m_UpdateFrequency;
-        uint64_t time = dmTime::GetTime();
         uint64_t prev_flip_time = engine->m_FlipTime;
+        uint64_t time = dmTime::GetTime();
 
         float fps = engine->m_UpdateFrequency;
         float fixed_dt = 1.0f / fps;
@@ -1177,14 +1219,6 @@ bail:
             {
                 DM_PROFILE(Engine, "Frame");
 
-
-#if !defined(DM_RELEASE)
-                if (engine->m_EngineService)
-                {
-                    dmEngineService::Update(engine->m_EngineService);
-                }
-#endif
-
                 {
                     DM_PROFILE(Engine, "Sim");
 
@@ -1201,19 +1235,18 @@ bail:
                         return;
                     }
 
-
-                    /* Extension updates */
+                    /* Script context updates */
                     if (engine->m_SharedScriptContext) {
-                        dmScript::UpdateExtensions(engine->m_SharedScriptContext);
+                        dmScript::Update(engine->m_SharedScriptContext);
                     } else {
                         if (engine->m_GOScriptContext) {
-                            dmScript::UpdateExtensions(engine->m_GOScriptContext);
+                            dmScript::Update(engine->m_GOScriptContext);
                         }
                         if (engine->m_RenderScriptContext) {
-                            dmScript::UpdateExtensions(engine->m_RenderScriptContext);
+                            dmScript::Update(engine->m_RenderScriptContext);
                         }
                         if (engine->m_GuiScriptContext) {
-                            dmScript::UpdateExtensions(engine->m_GuiScriptContext);
+                            dmScript::Update(engine->m_GuiScriptContext);
                         }
                     }
 
@@ -1267,7 +1300,7 @@ bail:
 
                     if (engine->m_RenderScriptPrototype)
                     {
-                        dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
+                        dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt);
                     }
                     else
                     {
@@ -1296,6 +1329,11 @@ bail:
                     fflush(stderr);
                 }
 
+                if (engine->m_EngineService)
+                {
+                    dmEngineService::Update(engine->m_EngineService, profile);
+                }
+
 #if !defined(DM_RELEASE)
                 if(engine->m_ShowProfile)
                 {
@@ -1313,7 +1351,6 @@ bail:
                 }
 #endif
 
-#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
                 if (engine->m_UseSwVsync)
                 {
                     uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
@@ -1330,10 +1367,10 @@ bail:
                         }
                     }
                 }
-#endif
-
                 uint64_t flip_time_start = dmTime::GetTime();
+
                 dmGraphics::Flip(engine->m_GraphicsContext);
+
                 engine->m_FlipTime = dmTime::GetTime();
                 engine->m_PreviousRenderTime = engine->m_FlipTime - flip_time_start;
 
@@ -1453,27 +1490,11 @@ bail:
     {
         dmEngineService::HEngineService engine_service = 0;
 
-#if !defined(DM_RELEASE)
         if (dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
         {
-            uint16_t engine_port = 8001;
-
-            char* service_port_env = getenv("DM_SERVICE_PORT");
-
-            // editor 2 specifies DM_SERVICE_PORT=dynamic when launching dmengine
-            if (service_port_env) {
-                unsigned int env_port = 0;
-                if (sscanf(service_port_env, "%u", &env_port) == 1) {
-                    engine_port = (uint16_t) env_port;
-                }
-                else if (strcmp(service_port_env, "dynamic") == 0) {
-                    engine_port = 0;
-                }
-            }
-
+            uint16_t engine_port = dmEngineService::GetServicePort(8001);
             engine_service = dmEngineService::New(engine_port);
         }
-#endif
 
         dmEngine::RunResult run_result = InitRun(engine_service, argc, argv, pre_run, post_run, context);
         while (run_result.m_Action == dmEngine::RunResult::REBOOT)
@@ -1484,12 +1505,10 @@ bail:
         }
         run_result.Free();
 
-#if !defined(DM_RELEASE)
         if (engine_service)
         {
             dmEngineService::Delete(engine_service);
         }
-#endif
         return run_result.m_ExitCode;
     }
 
@@ -1619,7 +1638,7 @@ bail:
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config)
     {
         dmResource::Result fact_error;
-#if !defined(DM_RELEASE)
+
         const char* system_font_map = "/builtins/fonts/system_font.fontc";
         fact_error = dmResource::Get(engine->m_Factory, system_font_map, (void**) &engine->m_SystemFontMap);
         if (fact_error != dmResource::RESULT_OK)
@@ -1639,7 +1658,6 @@ bail:
                 dmResource::ReleaseBuiltinsManifest(engine->m_Factory);
             }
         }
-#endif
 
         const char* gamepads = dmConfigFile::GetString(config, "input.gamepads", "/builtins/input/default.gamepadsc");
         dmInputDDF::GamepadMaps* gamepad_maps_ddf;

@@ -21,7 +21,7 @@
 
 (defn prop-negative? [v name]
   (when (< v 0)
-    (format "'%s' must be positive" name)))
+    (format "'%s' cannot be negative" name)))
 
 (defn prop-zero-or-below? [v name]
   (when (<= v 0)
@@ -44,7 +44,7 @@
 
 (defn prop-resource-ext? [v ext name]
   (or (prop-resource-missing? v name)
-      (when-not (= (resource/ext v) ext)
+      (when-not (= (resource/type-ext v) ext)
         (format "%s '%s' is not of type .%s" name (resource/resource->proj-path v) ext))))
 
 (defn prop-member-of? [v val-set message]
@@ -77,9 +77,3 @@
         name# (properties/keyword->name name-kw#)]
     `(g/fnk [~'_node-id ~property]
             (prop-error ~severity ~'_node-id ~name-kw# ~f ~property ~name#))))
-
-(defn file-not-found-error [node-id label severity resource]
-  (g/->error node-id label severity nil (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found :resource resource}))
-
-(defn invalid-content-error [node-id label severity resource]
-  (g/->error node-id label severity nil (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content :resource resource}))

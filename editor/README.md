@@ -45,6 +45,9 @@ Consider putting it in an alias in your bash profile.
   from the `defold` directory
 * From the `defold/editor` directory, run `lein init`
 
+## Cursive IDE Setup
+Some of the remaining instructions are about EMACS. If instead you want to use the Cursive IDE, read the [Cursive setup guide](README_CURSIVE.md).
+
 ## Running Tests
 `lein test` will run all the tests including the integration tests.
 

@@ -249,6 +249,8 @@ namespace dmHttpServer
                 return "Not Found";
             case 500:
                 return "Internal Server Error";
+            case 302:
+                return "Found";
             default:
                 dmLogWarning("Unsupported status code: %d", status_code);
                 return "";

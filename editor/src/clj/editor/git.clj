@@ -1,6 +1,7 @@
 (ns editor.git
   (:require [camel-snake-kebab :as camel]
             [clojure.java.io :as io]
+            [clojure.set :as set]
             [clojure.string :as str]
             [editor.fs :as fs]
             [editor.prefs :as prefs]
@@ -10,11 +11,11 @@
            [java.io File]
            [java.nio.file Files FileVisitResult Path SimpleFileVisitor]
            [java.util Collection]
-           [org.eclipse.jgit.api Git ResetCommand$ResetType]
+           [org.eclipse.jgit.api Git ResetCommand$ResetType PushCommand]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
-           [org.eclipse.jgit.errors RepositoryNotFoundException]
-           [org.eclipse.jgit.lib BatchingProgressMonitor ObjectId Repository]
+           [org.eclipse.jgit.errors MissingObjectException]
+           [org.eclipse.jgit.lib BatchingProgressMonitor ObjectId ProgressMonitor Repository]
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
            [org.eclipse.jgit.transport UsernamePasswordCredentialsProvider]
            [org.eclipse.jgit.treewalk FileTreeIterator TreeWalk]
@@ -37,16 +38,19 @@
                                                  ".cproject"
                                                  "builtins"])))
 
-(defn open ^Git [^File repo-path]
+(defn try-open
+  ^Git [^File repo-path]
   (try
     (Git/open repo-path)
-    (catch RepositoryNotFoundException e
+    (catch Exception _
       nil)))
 
-(defn get-commit [^Repository repository revision]
-  (let [walk (RevWalk. repository)]
-    (.setRetainBody walk true)
-    (.parseCommit walk (.resolve repository revision))))
+(defn get-commit
+  ^RevCommit [^Repository repository revision]
+  (when-some [object-id (.resolve repository revision)]
+    (let [walk (RevWalk. repository)]
+      (.setRetainBody walk true)
+      (.parseCommit walk object-id))))
 
 (defn- diff-entry->map [^DiffEntry de]
   ; NOTE: We convert /dev/null paths to nil, and convert copies into adds.
@@ -100,6 +104,24 @@
   (let [config (.. git getRepository getConfig)]
     (not-empty (.getString config "remote" "origin" "url"))))
 
+;; Does the equivalent *config-wise* of:
+;; > git config remote.origin.url url
+;; > git push -u origin
+;; Which is:
+;; > git config remote.origin.url url
+;; > git config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*
+;; > git config branch.master.remote origin
+;; > git config branch.master.merge refs/heads/master
+;; according to https://stackoverflow.com/questions/27823940/jgit-pushing-a-branch-and-add-upstream-u-option
+(defn config-remote! [^Git git url]
+  (let [config (.. git getRepository getConfig)]
+    (doto config
+      (.setString "remote" "origin" "url" url)
+      (.setString "remote" "origin" "fetch" "+refs/heads/*:refs/remotes/origin/*")
+      (.setString "branch" "master" "remote" "origin")
+      (.setString "branch" "master" "merge" "refs/heads/master")
+      (.save))))
+
 (defn worktree [^Git git]
   (.getWorkTree (.getRepository git)))
 
@@ -122,8 +144,22 @@
                                      (mapcat (fn [[k v]] [k (-> v str camel/->kebab-case keyword)])
                                              (.getConflictingStageState s)))}))
 
+(defn- make-add-diff-entry [file-path]
+  {:score 0 :change-type :add :old-path nil :new-path file-path})
+
+(defn- make-delete-diff-entry [file-path]
+  {:score 0 :change-type :delete :old-path file-path :new-path nil})
+
+(defn- make-modify-diff-entry [file-path]
+  {:score 0 :change-type :modify :old-path file-path :new-path file-path})
+
+(defn- diff-entry-path
+  ^String [{:keys [old-path new-path]}]
+  (or new-path old-path))
+
 (defn unified-status
-  "Get the actual status by comparing contents on disk and HEAD. The index, i.e. staged files, are ignored"
+  "Get the actual status by comparing contents on disk and HEAD. The state of
+  the index (i.e. whether or not a file is staged) does not matter."
   ([^Git git]
    (unified-status git (status git)))
   ([^Git git git-status]
@@ -133,15 +169,26 @@
      (if (empty? changed-paths)
        []
        (let [repository (.getRepository git)
-             tree-walk (doto (TreeWalk. repository)
-                         (.addTree (.getTree ^RevCommit (get-commit repository "HEAD")))
-                         (.addTree (FileTreeIterator. repository))
-                         (.setFilter (PathFilterGroup/createFromStrings ^Collection changed-paths))
-                         (.setRecursive true))
              rename-detector (doto (RenameDetector. repository)
-                               (.addAll (DiffEntry/scan tree-walk)))
-             diff-entries (.compute rename-detector nil)]
-         (mapv diff-entry->map diff-entries))))))
+                               (.addAll (with-open [tree-walk (doto (TreeWalk. repository)
+                                                                (.addTree (.getTree ^RevCommit (get-commit repository "HEAD")))
+                                                                (.addTree (FileTreeIterator. repository))
+                                                                (.setFilter (PathFilterGroup/createFromStrings ^Collection changed-paths))
+                                                                (.setRecursive true))]
+                                          (DiffEntry/scan tree-walk))))]
+         (try
+           (let [diff-entries (.compute rename-detector nil)]
+             (mapv diff-entry->map diff-entries))
+           (catch MissingObjectException _
+             ;; TODO: Workaround for what appears to be a bug inside JGit.
+             ;; The rename detector failed for some reason. Report the status
+             ;; without considering renames. This results in separate :added and
+             ;; :deleted entries for unstaged renames, but will resolve into a
+             ;; single :renamed entry once staged.
+             (sort-by diff-entry-path
+                      (concat (map make-add-diff-entry (concat (:added git-status) (:untracked git-status)))
+                              (map make-modify-diff-entry (concat (:changed git-status) (:modified git-status)))
+                              (map make-delete-diff-entry (concat (:missing git-status) (:removed git-status))))))))))))
 
 (defn file ^java.io.File [^Git git file-path]
   (io/file (str (worktree git) "/" file-path)))
@@ -249,15 +296,74 @@
             (.setFilter tw (PathFilterGroup/createFromStrings path-prefixes))
             (.next tw)))))))
 
+(defn clone!
+  "Clone a repository into the specified directory."
+  [^UsernamePasswordCredentialsProvider creds ^String remote-url ^File directory ^ProgressMonitor progress-monitor]
+  (try
+    (with-open [_ (.call (doto (Git/cloneRepository)
+                           (.setCredentialsProvider creds)
+                           (.setProgressMonitor progress-monitor)
+                           (.setURI remote-url)
+                           (.setDirectory directory)))]
+      nil)
+    (catch Exception e
+      ;; The .call method throws an exception if the operation was cancelled.
+      ;; Sadly it appears there is not a specific exception type for that, so
+      ;; we silence any exceptions if the operation was cancelled.
+      (when-not (.isCancelled progress-monitor)
+        (throw e)))))
+
 (defn pull [^Git git ^UsernamePasswordCredentialsProvider creds]
   (-> (.pull git)
       (.setCredentialsProvider creds)
       (.call)))
 
-(defn push [^Git git ^UsernamePasswordCredentialsProvider creds]
-  (-> (.push git)
-      (.setCredentialsProvider creds)
-      (.call)))
+(defn- make-batching-progress-monitor
+  ^BatchingProgressMonitor [weights-by-task cancelled-atom on-progress!]
+  (let [^double sum-weight (reduce + 0.0 (vals weights-by-task))
+        normalized-weights-by-task (into {}
+                                         (map (fn [[task ^double weight]]
+                                                [task (/ weight sum-weight)]))
+                                         weights-by-task)
+        progress-by-task (atom (into {} (map #(vector % 0)) (keys weights-by-task)))
+        set-progress (fn [task percent] (swap! progress-by-task assoc task percent))
+        current-progress (fn []
+                           (reduce +
+                                   0.0
+                                   (keep (fn [[task ^long percent]]
+                                           (when-some [^double weight (normalized-weights-by-task task)]
+                                             (* percent weight 0.01)))
+                                         @progress-by-task)))]
+    (proxy [BatchingProgressMonitor] []
+      (onUpdate
+        ([taskName workCurr])
+        ([taskName workCurr workTotal percentDone]
+          (set-progress taskName percentDone)
+          (on-progress! (current-progress))))
+
+      (onEndTask
+        ([taskName workCurr])
+        ([taskName workCurr workTotal percentDone]))
+
+      (isCancelled []
+        (boolean (some-> cancelled-atom deref))))))
+
+(def ^:private ^:const push-tasks
+  ;; TODO: Tweak these weights.
+  {"Finding sources" 1
+   "Writing objects" 1
+   "remote: Updating references" 1})
+
+(defn push [^Git git ^UsernamePasswordCredentialsProvider creds & {:keys [timeout on-progress]}]
+  (let [pc ^PushCommand (.push git)]
+    (do
+      (doto pc
+        ;; setTimeout expects seconds
+        (.setTimeout (/ (or timeout 0) 1000))
+        (.setCredentialsProvider creds))
+      (when on-progress
+        (.setProgressMonitor pc (make-batching-progress-monitor push-tasks nil on-progress)))
+      (.call pc))))
 
 (defn make-add-change [file-path]
   {:change-type :add :old-path nil :new-path file-path})
@@ -277,22 +383,56 @@
 (defn stage-change! [^Git git {:keys [change-type old-path new-path]}]
   (case change-type
     (:add :modify) (-> git .add (.addFilepattern new-path) .call)
-    :delete        (-> git .rm (.addFilepattern old-path) .call)
-    :rename        (do (-> git .add (.addFilepattern new-path) .call)
-                       (-> git .rm (.addFilepattern old-path) .call))))
+    :delete        (-> git .rm (.addFilepattern old-path) (.setCached true) .call)
+    :rename        (do (-> git .rm (.addFilepattern old-path) (.setCached true) .call)
+                       (-> git .add (.addFilepattern new-path) .call))))
 
 (defn unstage-change! [^Git git {:keys [change-type old-path new-path]}]
   (case change-type
     (:add :modify) (-> git .reset (.addPath new-path) .call)
     :delete        (-> git .reset (.addPath old-path) .call)
-    :rename        (do (-> git .reset (.addPath new-path) .call)
-                       (-> git .reset (.addPath old-path) .call))))
+    :rename        (-> git .reset (.addPath old-path) (.addPath new-path) .call)))
 
-(defn revert-to-revision! [^Git git ^RevCommit start-ref]
+(defn- find-case-changes [added-paths removed-paths]
+  (into {}
+        (keep (fn [^String added-path]
+                (some (fn [^String removed-path]
+                        (when (.equalsIgnoreCase added-path removed-path)
+                          [added-path removed-path]))
+                      removed-paths)))
+        added-paths))
+
+(defn- perform-case-changes! [^Git git case-changes]
+  ;; In case we fail to perform a case change, attempt to undo the successfully
+  ;; performed case changes before throwing.
+  (let [performed-case-changes-atom (atom [])]
+    (try
+      (doseq [[new-path old-path] case-changes]
+        (let [new-file (file git new-path)
+              old-file (file git old-path)]
+          (fs/move-file! old-file new-file)
+          (swap! performed-case-changes-atom conj [new-file old-file])))
+      (catch Throwable error
+        ;; Attempt to undo the performed case changes before throwing.
+        (doseq [[new-file old-file] (rseq @performed-case-changes-atom)]
+          (fs/move-file! new-file old-file {:fail :silently}))
+        (throw error)))))
+
+(defn- undo-case-changes! [^Git git case-changes]
+  (perform-case-changes! git (map reverse case-changes)))
+
+(defn revert-to-revision!
   "High-level revert. Resets the working directory to the state it would have
   after a clean checkout of the specified start-ref. Performs the equivalent of
   git reset --hard
   git clean --force -d"
+  [^Git git ^RevCommit start-ref]
+  ;; On case-insensitive file systems, we must manually revert case changes.
+  ;; Otherwise the new-cased files will be removed during the clean call.
+  (when-not fs/case-sensitive?
+    (let [{:keys [missing untracked]} (status git)
+          case-changes (find-case-changes untracked missing)]
+      (undo-case-changes! git case-changes)))
   (-> (.reset git)
       (.setMode ResetCommand$ResetType/HARD)
       (.setRef (.name start-ref))
@@ -301,10 +441,57 @@
       (.setCleanDirectories true)
       (.call)))
 
+(defn- revert-case-changes!
+  "Finds and reverts any case changes in the supplied git status. Returns
+  a map of the case changes that were reverted."
+  [^Git git {:keys [added changed missing removed untracked] :as _status}]
+  ;; If we're on a case-insensitive file system, we revert case-changes before
+  ;; stashing. The case-changes will be restored when we apply the stash.
+  (let [case-changes (find-case-changes (set/union added untracked)
+                                        (set/union removed missing))]
+    (when (seq case-changes)
+      ;; Unstage everything so that we can safely undo the case changes.
+      ;; This is fine, because we will stage everything before stashing.
+      (when-some [staged-paths (not-empty (set/union added changed removed))]
+        (let [reset-command (.reset git)]
+          (doseq [path staged-paths]
+            (.addPath reset-command path))
+          (.call reset-command)))
+
+      ;; Undo case-changes.
+      (undo-case-changes! git case-changes))
+
+    case-changes))
+
+(defn- stage-removals! [^Git git status pred]
+  (when-some [removed-paths (not-empty (into #{} (filter pred) (:missing status)))]
+    (let [rm-command (.rm git)]
+      (.setCached rm-command true)
+      (doseq [path removed-paths]
+        (.addFilepattern rm-command path))
+      (.call rm-command)
+      nil)))
+
+(defn- stage-additions! [^Git git status pred]
+  (when-some [changed-paths (not-empty (into #{} (filter pred) (concat (:modified status) (:untracked status))))]
+    (let [add-command (.add git)]
+      (doseq [path changed-paths]
+        (.addFilepattern add-command path))
+      (.call add-command)
+      nil)))
+
+(defn stage-all!
+  "Stage all unstaged changes in the specified Git repo."
+  [^Git git]
+  (let [status (status git)
+        include? (constantly true)]
+    (stage-removals! git status include?)
+    (stage-additions! git status include?)))
+
 (defn stash!
-  "High-level stash. Before stashing, stages all untracked files. We do this
-  because stashes internally treat untracked files differently from tracked
-  files. Normally untracked files are not stashed at all, but even when using
+  "High-level stash. Before stashing, stages all changes. We do this because
+  stashes internally treat untracked files differently from tracked files.
+  Normally untracked files are not stashed at all, but even when using
   the setIncludeUntracked flag, untracked files are dealt with separately from
   tracked files.
 
@@ -312,44 +499,63 @@
   apply command before the untracked files are restored. For our purposes, we
   want a unified set of conflicts among all the tracked and untracked files.
 
+  Before stashing, we also revert any case-changes if we're running on a
+  case-insensitive file system. We will reapply the case-changes when the stash
+  is applied. If we do not do this, we will lose any remote changes to case-
+  changed files when applying the stash.
+
   Returns nil if there was nothing to stash, or a map with the stash ref and
-  the set of file paths that were untracked at the time the stash was made."
+  the set of file paths that were staged at the time the stash was made."
   [^Git git]
-  (let [untracked (:untracked (status git))]
-    ; Stage any untracked files.
-    (when (seq untracked)
-      (let [add-command (.add git)]
-        (doseq [path untracked]
-          (.addFilepattern add-command path))
-        (.call add-command)))
-
-    ; Stash local changes and return stash info.
-    (when-let [stash-ref (-> git .stashCreate .call)]
+  (let [pre-stash-status (status git)
+        reverted-case-changes (when-not fs/case-sensitive?
+                                (revert-case-changes! git pre-stash-status))]
+    (stage-all! git)
+    (when-some [stash-ref (-> git .stashCreate .call)]
       {:ref stash-ref
-       :untracked untracked})))
+       :case-changes reverted-case-changes
+       :staged (set/union (:added pre-stash-status)
+                          (:changed pre-stash-status)
+                          (:removed pre-stash-status))})))
 
-(defn stash-apply!
-  [^Git git stash-info]
-  (when stash-info
-    ; Apply the stash. The apply-result will be either an ObjectId returned from
-    ; (.call StashApplyCommand) or a StashApplyFailureException if thrown.
+(defn stash-apply! [^Git git stash-info]
+  (when (some? stash-info)
+    ;; Apply the stash. The apply-result will be either an ObjectId returned
+    ;; from (.call StashApplyCommand) or a StashApplyFailureException if thrown.
     (let [apply-result (try
                          (-> (.stashApply git)
                              (.setStashRef (.name ^RevCommit (:ref stash-info)))
                              (.call))
                          (catch StashApplyFailureException error
-                           error))]
-      ; Restore untracked state of all non-conflicting files
-      ; that were untracked at the time the stash was made.
-      (let [paths-with-conflicts (set (keys (:conflicting-stage-state (status git))))
-            paths-to-unstage (into #{}
-                                   (remove paths-with-conflicts)
-                                   (:untracked stash-info))]
-        (when (seq paths-to-unstage)
-          (let [reset-command (.reset git)]
-            (doseq [path paths-to-unstage]
-              (.addPath reset-command path))
-            (.call reset-command))))
+                           error))
+          status-after-apply (status git)
+          paths-with-conflicts (set (keys (:conflicting-stage-state status-after-apply)))
+          paths-to-unstage (set/difference (set/union (:added status-after-apply)
+                                                      (:changed status-after-apply)
+                                                      (:removed status-after-apply))
+                                           paths-with-conflicts)]
+
+      ;; Unstage everything that is without conflict. Later we will stage
+      ;; everything that was staged at the time the stash was made.
+      (when-some [staged-paths (not-empty paths-to-unstage)]
+        (let [reset-command (.reset git)]
+          (doseq [path staged-paths]
+            (.addPath reset-command path))
+          (.call reset-command)))
+
+      ;; Restore any reverted case changes. Skip over case changes that involve
+      ;; conflicting paths just in case.
+      (let [case-changes (remove (partial some paths-with-conflicts)
+                                 (:case-changes stash-info))]
+        (perform-case-changes! git case-changes))
+
+      ;; Restore staged files state from before the stash.
+      (when (empty? paths-with-conflicts)
+        (let [status (status git)
+              was-staged? (:staged stash-info)]
+          (stage-removals! git status was-staged?)
+          (stage-additions! git status was-staged?)))
+
       (if (instance? Throwable apply-result)
         (throw apply-result)
         apply-result))))
@@ -375,44 +581,48 @@
 ;; NOTE: Not to be confused with "git revert"
 (defn revert [^Git git files]
   (let [us (unified-status git)
-        extra (->> files
-                (map (fn [f] (find-original-for-renamed us f)))
-                (remove nil?))
-        co (-> git (.checkout))
-        reset (-> git (.reset) (.setRef "HEAD"))]
+        renames (into {}
+                      (keep (fn [new-path]
+                              (when-some [old-path (find-original-for-renamed us new-path)]
+                                [new-path old-path])))
+                      files)
+        others (into [] (remove renames) files)]
 
-    (doseq [f (concat files extra)]
-      (.addPath co f)
-      (.addPath reset f))
-    (.call reset)
-    (.call co))
+    ;; Revert renames first.
+    (doseq [[new-path old-path] renames]
+      (-> git .rm (.addFilepattern new-path) (.setCached true) .call)
+      (fs/delete-file! (file git new-path))
+      (-> git .reset (.addPath old-path) .call)
+      (-> git .checkout (.addPath old-path) .call))
 
-  ;; Delete all untracked files in "files" as a last step
-  ;; JGit doesn't support this operation with RmCommand
-  (let [s (status git)]
-    (doseq [f files]
-      (when (contains? (:untracked s) f)
-        (fs/delete-file! (file git f) {:missing :fail})))))
+    ;; Revert others.
+    (when (seq others)
+      (let [co (-> git (.checkout))
+            reset (-> git (.reset) (.setRef "HEAD"))]
+        (doseq [path others]
+          (.addPath co path)
+          (.addPath reset path))
+        (.call reset)
+        (.call co))
 
-(defn make-clone-monitor [^ProgressBar progress-bar]
-  (let [tasks (atom {"remote: Finding sources" 0
-                     "remote: Getting sizes" 0
-                     "remote: Compressing objects" 0
-                     "Receiving objects" 0
-                     "Resolving deltas" 0})
-        set-progress (fn [task percent] (swap! tasks assoc task percent))
-        current-progress (fn [] (let [n (count @tasks)]
-                                  (if (zero? n) 0 (/ (reduce + (vals @tasks)) (float n) 100.0))))]
-    (proxy [BatchingProgressMonitor] []
-     (onUpdate
-       ([taskName workCurr])
-       ([taskName workCurr workTotal percentDone]
-         (set-progress taskName percentDone)
-         (ui/run-later (.setProgress progress-bar (current-progress)))))
+      ;; Delete all untracked files in "others" as a last step
+      ;; JGit doesn't support this operation with RmCommand
+      (let [s (status git)]
+        (doseq [path others]
+          (when (contains? (:untracked s) path)
+            (fs/delete-file! (file git path) {:missing :fail})))))))
 
-     (onEndTask
-       ([taskName workCurr])
-       ([taskName workCurr workTotal percentDone])))))
+(def ^:private ^:const clone-tasks
+  {"remote: Finding sources" 1
+   "Receiving objects" 88
+   "Resolving deltas" 10
+   "Updating references" 1})
+
+(defn make-clone-monitor
+  ^ProgressMonitor [^ProgressBar progress-bar cancelled-atom]
+  (make-batching-progress-monitor clone-tasks cancelled-atom
+    (fn [progress]
+      (ui/run-later (.setProgress progress-bar progress)))))
 
 ;; =================================================================================
 

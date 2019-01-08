@@ -14,7 +14,14 @@ function update(self, dt)
     -- Remove this function if not needed
     self.ticks = self.ticks + 1
     if 10 == self.ticks then
-    	msg.post("@system:", "exit", { code = 0 })
+        -- Validate that spine component position is applied to the bone position DEF-3132 
+        local pos = go.get_world_position(spine.get_go("go#spinemodel", "root"))
+        if pos.x ~= 200.0 then
+            print("Invalid bone x pos: ", pos.x, " expected it to be 200")
+        	msg.post("@system:", "exit", { code = 1 })
+        else      
+        	msg.post("@system:", "exit", { code = 0 })
+        end
     end
 end
 

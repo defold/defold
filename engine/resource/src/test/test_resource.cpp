@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
-#include <dlib/buffer.h>
+#include <dlib/log.h>
+
 #include <dlib/socket.h>
 #include <dlib/http_client.h>
 #include <dlib/hash.h>
@@ -50,8 +51,6 @@ protected:
     virtual void SetUp()
     {
         const char* test_dir = "build/default/src/test";
-
-        dmBuffer::NewContext();
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
@@ -65,7 +64,6 @@ protected:
         {
             dmResource::DeleteFactory(factory);
         }
-        dmBuffer::DeleteContext();
     }
 
     dmResource::HFactory factory;
@@ -776,6 +774,9 @@ dmResource::Result RecreateResourceRecreate(const dmResource::ResourceRecreatePa
 {
     int* recreate_resource = (int*) params.m_Resource->m_Resource;
     assert(recreate_resource);
+    int* old_resource = new int();
+    *old_resource = *recreate_resource;
+    params.m_Resource->m_PrevResource = (void*)old_resource;
 
     const int TMP_BUFFER_SIZE = 64;
     char tmp[TMP_BUFFER_SIZE];
@@ -862,6 +863,18 @@ TEST(dmResource, Builtins)
     dmResource::DeleteFactory(factory);
 }
 
+struct ReloadData {
+    ReloadData(): m_Old(0), m_New(0) {}
+    int m_Old;
+    int m_New;
+};
+
+static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params) {
+    ReloadData* data = (ReloadData*)params.m_UserData;
+    data->m_Old = *((int*)params.m_Resource->m_PrevResource);
+    data->m_New = *((int*)params.m_Resource->m_Resource);
+}
+
 TEST(RecreateTest, RecreateTest)
 {
     const char* tmp_dir = 0;
@@ -876,6 +889,9 @@ TEST(RecreateTest, RecreateTest)
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
     ASSERT_NE((void*) 0, factory);
+
+    ReloadData reload_data;
+    dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, &reload_data);
 
     dmResource::Result e;
     e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
@@ -910,10 +926,14 @@ TEST(RecreateTest, RecreateTest)
     ASSERT_EQ(dmResource::RESULT_OK, rr);
     ASSERT_EQ(456, *resource);
 
+    ASSERT_EQ(123, reload_data.m_Old);
+    ASSERT_EQ(456, reload_data.m_New);
+
     unlink(file_name);
     rr = dmResource::ReloadResource(factory, resource_name, 0);
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, rr);
 
+    dmResource::UnregisterResourceReloadedCallback(factory, ResourceReloadedCallback, &reload_data);
     dmResource::Release(factory, resource);
     dmResource::DeleteFactory(factory);
 }
@@ -921,18 +941,24 @@ TEST(RecreateTest, RecreateTest)
 volatile bool SendReloadDone = false;
 void SendReloadThread(void*)
 {
-    char buf[256];
-    dmResourceDDF::Reload* reload_resource = (dmResourceDDF::Reload*) buf;
-    reload_resource->m_Resource = (const char*) sizeof(dmResourceDDF::Reload);
-    memcpy(buf + sizeof(reload_resource), "__testrecreate__.foo", strlen("__testrecreate__.foo") + 1);
+    uint32_t msg_size = sizeof(dmResourceDDF::Reload) + sizeof(uintptr_t) + (strlen("__testrecreate__.foo") + 1);
+    dmResourceDDF::Reload* reload_resources = (dmResourceDDF::Reload*) malloc(msg_size);
+    memset(reload_resources, 0x0, msg_size);
+    reload_resources->m_Resources.m_Count = 1;
+    uintptr_t str_ofs_offset = 2 * sizeof(uintptr_t); // 
+    uintptr_t str_offset = str_ofs_offset + reload_resources->m_Resources.m_Count * sizeof(uintptr_t);//0x18;
+    memcpy((uint8_t*)reload_resources, &str_ofs_offset, sizeof(uintptr_t)); // offset to path string offsets
+    memcpy((uint8_t*)reload_resources + str_ofs_offset, &str_offset, sizeof(uintptr_t)); // offset to start of resource path string
+    memcpy((uint8_t*)(reload_resources) + str_offset, "__testrecreate__.foo", strlen("__testrecreate__.foo") + 1); // the actual resource path
 
     dmMessage::URL url;
     url.m_Fragment = 0;
     url.m_Path = 0;
     dmMessage::GetSocket("@resource", &url.m_Socket);
-    dmMessage::Post(0, &url, dmResourceDDF::Reload::m_DDFHash, 0, (uintptr_t) dmResourceDDF::Reload::m_DDFDescriptor, buf, sizeof(buf), 0);
+    dmMessage::Post(0, &url, dmResourceDDF::Reload::m_DDFHash, 0, (uintptr_t) dmResourceDDF::Reload::m_DDFDescriptor, reload_resources, msg_size, 0);
 
     SendReloadDone = true;
+    free(reload_resources);
 }
 
 TEST(RecreateTest, RecreateTestHttp)
@@ -1294,6 +1320,80 @@ dmResource::Result SharedResourceDuplicate(const dmResource::ResourceDuplicatePa
     return dmResource::RESULT_OK;
 }
 
+TEST_F(ResourceTest, ManifestLoadDdfFail)
+{
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    const char* buf = "this is not a manifest buffer";
+    dmResource::Result result = dmResource::ManifestLoadMessage((uint8_t*)buf, strlen(buf), manifest);
+    ASSERT_EQ(dmResource::RESULT_DDF_ERROR, result);
+    delete manifest;
+}
+
+TEST_F(ResourceTest, ManifestBundledResourcesVerification)
+{
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+
+    dmResourceArchive::ArchiveIndexContainer* archive = 0;
+    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
+
+    result = dmResource::VerifyResourcesBundled(manifest->m_DDFData->m_Resources.m_Data, manifest->m_DDFData->m_Resources.m_Count, archive);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+
+    dmResourceArchive::Delete(archive);
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
+}
+
+TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
+{
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+
+    dmResourceArchive::ArchiveIndexContainer* archive = 0;
+    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
+
+    // Deep-copy current manifest resource entries with space for an extra resource entry
+    uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
+    dmLiveUpdateDDF::ResourceEntry* entries = (dmLiveUpdateDDF::ResourceEntry*) malloc((entry_count + 1) * sizeof(dmLiveUpdateDDF::ResourceEntry));
+    memcpy(entries, manifest->m_DDFData->m_Resources.m_Data, entry_count);
+    for (uint32_t i = 0; i < entry_count; ++i)
+    {
+        dmLiveUpdateDDF::ResourceEntry* entry = &manifest->m_DDFData->m_Resources.m_Data[i];
+        dmLiveUpdateDDF::ResourceEntry* new_entry = &entries[i];
+        new_entry->m_Hash = dmLiveUpdateDDF::HashDigest();
+        new_entry->m_Hash.m_Data.m_Data = (uint8_t*)malloc(entry->m_Hash.m_Data.m_Count);
+        memcpy(new_entry->m_Hash.m_Data.m_Data, entry->m_Hash.m_Data.m_Data, entry->m_Hash.m_Data.m_Count);
+        new_entry->m_Flags = entry->m_Flags;
+    }
+
+    // Fill in bogus resource entry, tagged as BUNDLED but will not be found in the archive
+    entries[entry_count].m_Flags = dmLiveUpdateDDF::BUNDLED;
+    entries[entry_count].m_Hash.m_Data.m_Data = (uint8_t*)malloc(manifest->m_DDFData->m_Resources.m_Data[0].m_Hash.m_Data.m_Count);
+    memset(entries[entry_count].m_Hash.m_Data.m_Data, 0xFF, manifest->m_DDFData->m_Resources.m_Data[0].m_Hash.m_Data.m_Count);
+    entries[entry_count].m_Url = "not_in_bundle";
+
+    result = dmResource::VerifyResourcesBundled(entries, manifest->m_DDFData->m_Resources.m_Count+1, archive);
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, result);
+
+    // Clean up deep-copied resource entries
+    for (uint32_t i = 0; i < entry_count + 1; ++i)
+    {
+        dmLiveUpdateDDF::ResourceEntry* e = &entries[i];
+        free(e->m_Hash.m_Data.m_Data);
+    }
+    free(entries);
+
+    dmResourceArchive::Delete(archive);
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
+}
 
 TEST_F(ResourceTest, IsShared)
 {
@@ -1343,17 +1443,17 @@ TEST(DynamicResources, GetPath)
 
     hash = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource1, &hash) );
-    GetCanonicalPath(factory, "/test01.foo", canonical_path);
+    dmResource::GetCanonicalPath("/test01.foo", canonical_path);
     ASSERT_EQ( dmHashString64(canonical_path), hash );
 
     hash = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource2, &hash) );
-    GetCanonicalPath(factory, "/test02.foo", canonical_path);
+    dmResource::GetCanonicalPath("/test02.foo", canonical_path);
     ASSERT_EQ( dmHashString64(canonical_path), hash );
 
     hash = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource3, &hash) );
-    GetCanonicalPath(factory, "/test02.foo_0", canonical_path);
+    dmResource::GetCanonicalPath("/test02.foo_0", canonical_path);
     ASSERT_EQ( dmHashString64(canonical_path), hash );
 
 
@@ -1381,35 +1481,18 @@ TEST_F(DynamicResourceTest, Set)
     ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource2));
     ASSERT_EQ(2U, dmResource::GetRefCount(factory, resource1));
 
-
     ASSERT_NE(resource1, resource2);
     ASSERT_EQ(resource1->m_Value, resource2->m_Value);
 
-    // Create buffer
-    dmBuffer::StreamDeclaration streams_decl[] = {
-        {dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1}
-    };
-
-    uint32_t element_count = 32;
-    dmBuffer::HBuffer buffer = 0;
-    dmBuffer::Create(element_count, streams_decl, 1, &buffer);
-
-    uint8_t* data = 0;
-    uint32_t datasize = 0;
-    dmBuffer::Result r = dmBuffer::GetBytes(buffer, (void**)&data, &datasize);
-    ASSERT_EQ(dmBuffer::RESULT_OK, r);
-    ASSERT_NE(0U, (uintptr_t)data);
-    ASSERT_EQ(32U, datasize);
-
-
-    // Set buffer
+    uint8_t data[32] = "123";
+    uint32_t datasize = 32U;
     uint64_t hash = 0;
 
     // Change data on the shared resource
     strcpy((char*)data, "123");
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource1, &hash) );
-    e = dmResource::SetResource(factory, hash, buffer);
+    e = dmResource::SetResource(factory, hash, (void*)data, datasize);
 
     ASSERT_EQ(dmResource::RESULT_OK, e);
     ASSERT_EQ(resource1->m_Value, resource2->m_Value); // The pointers are still the same
@@ -1422,7 +1505,7 @@ TEST_F(DynamicResourceTest, Set)
     strcpy((char*)data, "42");
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource2, &hash) );
-    e = dmResource::SetResource(factory, hash, buffer);
+    e = dmResource::SetResource(factory, hash, (void*)data, datasize);
 
     ASSERT_EQ(dmResource::RESULT_OK, e);
     ASSERT_NE(resource1->m_Value, resource2->m_Value);
@@ -1432,7 +1515,6 @@ TEST_F(DynamicResourceTest, Set)
     ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource2));
     ASSERT_EQ(1U, dmResource::GetRefCount(factory, resource1));
 
-    dmBuffer::Destroy(buffer);
     dmResource::Release(factory, resource2);
     dmResource::Release(factory, resource1);
 }
@@ -1451,7 +1533,7 @@ TEST_F(DynamicResourceTest, RefCount)
 
     // Make sure the original resource exists, and has refcount 1
     char canonical_path[dmResource::RESOURCE_PATH_MAX];
-    GetCanonicalPath(factory, "/test01.foo", canonical_path);
+    dmResource::GetCanonicalPath("/test01.foo", canonical_path);
     uint64_t hash = dmHashString64(canonical_path);
     ASSERT_EQ(1U, dmResource::GetRefCount(factory, hash));
 

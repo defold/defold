@@ -1,7 +1,6 @@
 (ns editor.code-completion
   (:require [clojure.set :as set]
             [clojure.string :as string]
-            [editor.code :as code]
             [editor.lua :as lua]
             [internal.util :as util]))
 
@@ -11,13 +10,13 @@
 (defn make-completions [resource-completion include-locals? namespace-alias]
   (let [{:keys [vars local-vars functions local-functions]} resource-completion
         var-info (if include-locals? (set/union vars local-vars) vars)
-        vars (map (fn [v] (code/create-hint :variable v))
+        vars (map (fn [v] (lua/create-code-hint :variable v))
                   var-info)
         fn-info (if include-locals? (merge functions local-functions) functions)
         fns  (map (fn [[fname {:keys [params]}]]
                     (let [n (if namespace-alias (replace-alias fname namespace-alias) fname)
                           display-string (str n "(" (string/join ", " params)  ")")]
-                      (code/create-hint :function n display-string display-string "" {:select params})))
+                      (lua/create-code-hint :function n display-string display-string "" {:select params})))
                   fn-info)]
     (set (concat vars fns))))
 
@@ -35,7 +34,7 @@
                 (merge-with set/union
                             ret
                             {module-name completions}
-                            (when alias {"" #{(code/create-hint :namespace alias)}}))))
+                            (when alias {"" #{(lua/create-code-hint :namespace alias)}}))))
             {}
             requires)))
 

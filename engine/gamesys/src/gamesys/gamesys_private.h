@@ -7,11 +7,16 @@
 
 #include <gameobject/gameobject.h>
 
+namespace dmScript
+{
+    struct LuaCallbackInfo;
+}
+
 namespace dmGameSystem
 {
 #define SPINE_MODEL_EXT "spinemodelc"
 #define MODEL_EXT "modelc"
-#define TILE_MAP_EXT "tilegridc"
+#define TILE_MAP_EXT "tilemapc"
 #define FACTORY_EXT "factoryc"
 #define COLLECTION_FACTORY_EXT "collectionfactoryc"
 #define COLLISION_OBJECT_EXT "collisionobjectc"
@@ -21,14 +26,10 @@ namespace dmGameSystem
         EmitterStateChangedScriptData()
         {
             memset(this, 0, sizeof(*this));
-            m_LuaCallbackRef = LUA_NOREF;
-            m_LuaSelfRef = LUA_NOREF;
         }
 
         dmhash_t m_ComponentId;
-        int m_LuaCallbackRef;
-        int m_LuaSelfRef;
-        lua_State* m_L;
+        dmScript::LuaCallbackInfo* m_CallbackInfo;
     };
 
     /**

@@ -131,15 +131,6 @@ namespace
         instance->m_RegistredEntries.Clear();
         dmSSDP::Delete(instance);
     }
-
-    void RemoveRegisteredDevice(dmSSDP::SSDP* instance, dmSSDP::DeviceDesc* deviceDesc)
-    {
-        dmhash_t hashId = dmHashString64(deviceDesc->m_Id);
-        dmSSDP::Device** device = instance->m_RegistredEntries.Get(hashId);
-        delete *device;
-        instance->m_RegistredEntries.Erase(hashId);
-    }
-
 };
 
 class dmSSDPInternalTest: public ::testing::Test
@@ -308,7 +299,8 @@ TEST_F(dmSSDPInternalTest, UpdateListeningSockets)
     dmSSDP::SSDP* instance = CreateSSDPClient();
 
     // Test
-    dmSocket::IfAddr interfaces[dmSSDP::SSDP_MAX_LOCAL_ADDRESSES] = { 0 };
+    dmSocket::IfAddr interfaces[dmSSDP::SSDP_MAX_LOCAL_ADDRESSES];
+    memset(interfaces, 0, sizeof(interfaces));
     uint32_t interface_count = GetInterfaces(interfaces, dmSSDP::SSDP_MAX_LOCAL_ADDRESSES);
     ASSERT_GE(interface_count, 1) << "There are no IPv4 interface(s) available";
 
@@ -340,7 +332,8 @@ TEST_F(dmSSDPInternalTest, SendAnnounce)
     ASSERT_EQ(dmSSDP::RESULT_OK, result);
     dmSSDP::Device** device = instance->m_RegistredEntries.Get(dmHashString64(deviceDesc.m_Id));
 
-    dmSocket::IfAddr interfaces[dmSSDP::SSDP_MAX_LOCAL_ADDRESSES] = { 0 };
+    dmSocket::IfAddr interfaces[dmSSDP::SSDP_MAX_LOCAL_ADDRESSES];
+    memset(interfaces, 0, sizeof(interfaces));
     uint32_t interface_count = GetInterfaces(interfaces, dmSSDP::SSDP_MAX_LOCAL_ADDRESSES);
     dmSSDP::UpdateListeningSockets(instance, interfaces, interface_count);
 
@@ -364,7 +357,8 @@ TEST_F(dmSSDPInternalTest, SendUnannounce)
     ASSERT_EQ(dmSSDP::RESULT_OK, result);
     dmSSDP::Device** device = instance->m_RegistredEntries.Get(dmHashString64(deviceDesc.m_Id));
 
-    dmSocket::IfAddr interfaces[dmSSDP::SSDP_MAX_LOCAL_ADDRESSES] = { 0 };
+    dmSocket::IfAddr interfaces[dmSSDP::SSDP_MAX_LOCAL_ADDRESSES];
+    memset(interfaces, 0, sizeof(interfaces));
     uint32_t interface_count = GetInterfaces(interfaces, dmSSDP::SSDP_MAX_LOCAL_ADDRESSES);
     dmSSDP::UpdateListeningSockets(instance, interfaces, interface_count);
 
@@ -379,7 +373,6 @@ TEST_F(dmSSDPInternalTest, SendUnannounce)
 TEST_F(dmSSDPInternalTest, ClientServer_MatchingInterfaces)
 {
     // Setup
-    dmSSDP::Result result = dmSSDP::RESULT_OK;
     dmSSDP::SSDP* client = CreateSSDPClient();
     dmSSDP::SSDP* server = CreateSSDPServer();
 

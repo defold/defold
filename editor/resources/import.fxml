@@ -28,7 +28,11 @@
                   <Insets />
                </GridPane.margin>
             </Label>
-            <!-- NOTE: a value for visibleRowCount is important here, "fixes" bug with drop-down list position on Linux --> 
+            <!-- NOTE: This combobox will be replaced by a
+                 fuzzy-combo-box in import.clj. If we ever revert,
+                 note that a value for visibleRowCount is important
+                 here, "fixes" bug with drop-down list position on
+                 Linux-->
             <ComboBox id="projects" prefWidth="800.0" visibleRowCount="10" GridPane.columnIndex="1" />
             <HBox prefHeight="100.0" prefWidth="200.0" GridPane.columnIndex="1" GridPane.rowIndex="1">
                <children>

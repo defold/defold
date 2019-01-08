@@ -256,12 +256,12 @@ namespace dmScript
      */
     lua_State* GetMainThread(lua_State* L);
 
-    /*# Lua wrapper for a [ref:dmBuffer::HBuffer]
+    /*# Lua wrapper for a dmBuffer::HBuffer
      * 
-     * Holds info about the buffer and who owns it
+     * Holds info about the buffer and who owns it.
      *
      * @struct
-     * @name dmExtension::AppParams
+     * @name dmScript::LuaHBuffer
      * @member m_Buffer [type:dmBuffer::HBuffer]    The buffer
      * @member m_UseLuaGC [type:bool]               If true, it will be garbage collected by Lua. If false, the C++ extension still owns the reference.
      */

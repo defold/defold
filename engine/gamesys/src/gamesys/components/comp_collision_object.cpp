@@ -1,5 +1,6 @@
 #include "comp_collision_object.h"
 
+#include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -30,18 +31,6 @@ namespace dmGameSystem
     static const dmhash_t PROP_ANGULAR_VELOCITY = dmHashString64("angular_velocity");
     static const dmhash_t PROP_MASS = dmHashString64("mass");
 
-    struct CollisionWorld
-    {
-        uint64_t m_Groups[16];
-        union
-        {
-            dmPhysics::HWorld2D m_World2D;
-            dmPhysics::HWorld3D m_World3D;
-        };
-        uint8_t m_ComponentIndex;
-        uint8_t m_3D : 1;
-    };
-
     struct CollisionComponent
     {
         CollisionObjectResource* m_Resource;
@@ -64,6 +53,19 @@ namespace dmGameSystem
         // Tracking initial state.
         uint8_t m_AddedToUpdate : 1;
         uint8_t m_StartAsEnabled : 1;
+    };
+
+    struct CollisionWorld
+    {
+        uint64_t m_Groups[16];
+        union
+        {
+            dmPhysics::HWorld2D m_World2D;
+            dmPhysics::HWorld3D m_World3D;
+        };
+        uint8_t m_ComponentIndex;
+        uint8_t m_3D : 1;
+        dmArray<CollisionComponent*> m_Components;
     };
 
     void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
@@ -114,6 +116,7 @@ namespace dmGameSystem
             world->m_World2D = dmPhysics::NewWorld2D(physics_context->m_Context2D, world_params);
         world->m_ComponentIndex = params.m_ComponentIndex;
         world->m_3D = physics_context->m_3D;
+        world->m_Components.SetCapacity(32);
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -130,7 +133,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    uint16_t GetGroupBitIndex(CollisionWorld* world, uint64_t group_hash)
+    static uint16_t GetGroupBitIndex(CollisionWorld* world, uint64_t group_hash)
     {
         if (group_hash != 0)
         {
@@ -156,7 +159,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    uint64_t GetLSBGroupHash(CollisionWorld* world, uint16_t mask)
+    static uint64_t GetLSBGroupHash(CollisionWorld* world, uint16_t mask)
     {
         if (mask > 0)
         {
@@ -185,6 +188,18 @@ namespace dmGameSystem
                 dmGameSystemDDF::TileLayer* layer = &tile_grid->m_Layers[i];
                 TextureSetResource* texture_set_resource = tile_grid_resource->m_TextureSet;
                 dmGameSystemDDF::TextureSet* tile_set = texture_set_resource->m_TextureSet;
+                
+                // Set all tiles as empty.
+                // Empty tile is encoded as 0xffffffff, see comp_tilegrid.cpp.
+                for (uint32_t y = 0; y < tile_grid_resource->m_RowCount; ++y)
+                {
+                    for (uint32_t x = 0; x < tile_grid_resource->m_ColumnCount; ++x)
+                    {
+                        dmPhysics::SetGridShapeHull(component->m_Object2D, i, y, x, 0xffffffff, flags);
+                    }
+                }
+
+                // Set non-empty tiles
                 uint32_t cell_count = layer->m_Cell.m_Count;
                 for (uint32_t j = 0; j < cell_count; ++j)
                 {
@@ -205,26 +220,31 @@ namespace dmGameSystem
         }
     }
 
+    static void SetCollisionObjectData(CollisionWorld* world, CollisionComponent* component, CollisionObjectResource* resource, dmPhysicsDDF::CollisionObjectDesc* ddf, bool enabled, dmPhysics::CollisionObjectData &out_data)
+    {
+        out_data.m_UserData = component;
+        out_data.m_Type = (dmPhysics::CollisionObjectType)ddf->m_Type;
+        out_data.m_Mass = ddf->m_Mass;
+        out_data.m_Friction = ddf->m_Friction;
+        out_data.m_Restitution = ddf->m_Restitution;
+        out_data.m_Group = GetGroupBitIndex(world, resource->m_Group);
+        out_data.m_Mask = 0;
+        out_data.m_LinearDamping = ddf->m_LinearDamping;
+        out_data.m_AngularDamping = ddf->m_AngularDamping;
+        out_data.m_LockedRotation = ddf->m_LockedRotation;
+        out_data.m_Enabled = enabled;
+        for (uint32_t i = 0; i < 16 && resource->m_Mask[i] != 0; ++i)
+        {
+            out_data.m_Mask |= GetGroupBitIndex(world, resource->m_Mask[i]);
+        }
+    }
+
     static bool CreateCollisionObject(PhysicsContext* physics_context, CollisionWorld* world, dmGameObject::HInstance instance, CollisionComponent* component, bool enabled)
     {
         CollisionObjectResource* resource = component->m_Resource;
         dmPhysicsDDF::CollisionObjectDesc* ddf = resource->m_DDF;
         dmPhysics::CollisionObjectData data;
-        data.m_UserData = component;
-        data.m_Type = (dmPhysics::CollisionObjectType)ddf->m_Type;
-        data.m_Mass = ddf->m_Mass;
-        data.m_Friction = ddf->m_Friction;
-        data.m_Restitution = ddf->m_Restitution;
-        data.m_Group = GetGroupBitIndex(world, resource->m_Group);
-        data.m_Mask = 0;
-        data.m_LinearDamping = ddf->m_LinearDamping;
-        data.m_AngularDamping = ddf->m_AngularDamping;
-        data.m_LockedRotation = ddf->m_LockedRotation;
-        data.m_Enabled = enabled;
-        for (uint32_t i = 0; i < 16 && resource->m_Mask[i] != 0; ++i)
-        {
-            data.m_Mask |= GetGroupBitIndex(world, resource->m_Mask[i]);
-        }
+        SetCollisionObjectData(world, component, resource, ddf, enabled, data);
         component->m_Mask = data.m_Mask;
         if (physics_context->m_3D)
         {
@@ -349,6 +369,17 @@ namespace dmGameSystem
             }
         }
 
+        uint32_t num_components = world->m_Components.Size();
+        for (uint32_t i = 0; i < num_components; ++i)
+        {
+            CollisionComponent* c = world->m_Components[i];
+            if (c == component)
+            {
+                world->m_Components.EraseSwap(i);
+                break;
+            }
+        }
+
         delete component;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -402,18 +433,21 @@ namespace dmGameSystem
 
             dmPhysicsDDF::CollisionResponse ddf;
 
+            uint64_t group_hash_a = GetLSBGroupHash(cud->m_World, group_a);
+            uint64_t group_hash_b = GetLSBGroupHash(cud->m_World, group_b);
+
             // Broadcast to A components
-            ddf.m_OwnGroup = GetLSBGroupHash(cud->m_World, group_a);
-            ddf.m_OtherGroup = GetLSBGroupHash(cud->m_World, group_b);
-            ddf.m_Group = GetLSBGroupHash(cud->m_World, group_b);
+            ddf.m_OwnGroup = group_hash_a;
+            ddf.m_OtherGroup = group_hash_b;
+            ddf.m_Group = group_hash_b;
             ddf.m_OtherId = instance_b_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
             BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
             // Broadcast to B components
-            ddf.m_OwnGroup = GetLSBGroupHash(cud->m_World, group_b);
-            ddf.m_OtherGroup = GetLSBGroupHash(cud->m_World, group_a);
-            ddf.m_Group = GetLSBGroupHash(cud->m_World, group_a);
+            ddf.m_OwnGroup = group_hash_b;
+            ddf.m_OtherGroup = group_hash_a;
+            ddf.m_Group = group_hash_a;
             ddf.m_OtherId = instance_a_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
             BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
@@ -444,6 +478,9 @@ namespace dmGameSystem
             float mass_a = dmMath::Select(-contact_point.m_MassA, 0.0f, contact_point.m_MassA);
             float mass_b = dmMath::Select(-contact_point.m_MassB, 0.0f, contact_point.m_MassB);
 
+            uint64_t group_hash_a = GetLSBGroupHash(cud->m_World, contact_point.m_GroupA);
+            uint64_t group_hash_b = GetLSBGroupHash(cud->m_World, contact_point.m_GroupB);
+
             // Broadcast to A components
             ddf.m_Position = contact_point.m_PositionA;
             ddf.m_Normal = -contact_point.m_Normal;
@@ -454,9 +491,9 @@ namespace dmGameSystem
             ddf.m_OtherMass = mass_b;
             ddf.m_OtherId = instance_b_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
-            ddf.m_Group = GetLSBGroupHash(cud->m_World, contact_point.m_GroupB);
-            ddf.m_OwnGroup = GetLSBGroupHash(cud->m_World, contact_point.m_GroupA);
-            ddf.m_OtherGroup = GetLSBGroupHash(cud->m_World, contact_point.m_GroupB);
+            ddf.m_Group = group_hash_b;
+            ddf.m_OwnGroup = group_hash_a;
+            ddf.m_OtherGroup = group_hash_b;
             ddf.m_LifeTime = 0;
             BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
@@ -470,9 +507,9 @@ namespace dmGameSystem
             ddf.m_OtherMass = mass_a;
             ddf.m_OtherId = instance_a_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
-            ddf.m_Group = GetLSBGroupHash(cud->m_World, contact_point.m_GroupA);
-            ddf.m_OwnGroup = GetLSBGroupHash(cud->m_World, contact_point.m_GroupB);
-            ddf.m_OtherGroup = GetLSBGroupHash(cud->m_World, contact_point.m_GroupA);
+            ddf.m_Group = group_hash_a;
+            ddf.m_OwnGroup = group_hash_b;
+            ddf.m_OtherGroup = group_hash_a;
             ddf.m_LifeTime = 0;
             BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
 
@@ -500,18 +537,21 @@ namespace dmGameSystem
         dmPhysicsDDF::TriggerResponse ddf;
         ddf.m_Enter = 1;
 
+        uint64_t group_hash_a = GetLSBGroupHash(world, trigger_enter.m_GroupA);
+        uint64_t group_hash_b = GetLSBGroupHash(world, trigger_enter.m_GroupB);
+
         // Broadcast to A components
         ddf.m_OtherId = instance_b_id;
-        ddf.m_Group = GetLSBGroupHash(world, trigger_enter.m_GroupB);
-        ddf.m_OwnGroup = GetLSBGroupHash(world, trigger_enter.m_GroupA);
-        ddf.m_OtherGroup = GetLSBGroupHash(world, trigger_enter.m_GroupB);
+        ddf.m_Group = group_hash_b;
+        ddf.m_OwnGroup = group_hash_a;
+        ddf.m_OtherGroup = group_hash_b;
         BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
         // Broadcast to B components
         ddf.m_OtherId = instance_a_id;
-        ddf.m_Group = GetLSBGroupHash(world, trigger_enter.m_GroupA);
-        ddf.m_OwnGroup = GetLSBGroupHash(world, trigger_enter.m_GroupB);
-        ddf.m_OtherGroup = GetLSBGroupHash(world, trigger_enter.m_GroupA);
+        ddf.m_Group = group_hash_a;
+        ddf.m_OwnGroup = group_hash_b;
+        ddf.m_OtherGroup = group_hash_a;
         BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
     }
 
@@ -528,18 +568,21 @@ namespace dmGameSystem
         dmPhysicsDDF::TriggerResponse ddf;
         ddf.m_Enter = 0;
 
+        uint64_t group_hash_a = GetLSBGroupHash(world, trigger_exit.m_GroupA);
+        uint64_t group_hash_b = GetLSBGroupHash(world, trigger_exit.m_GroupB);
+
         // Broadcast to A components
         ddf.m_OtherId = instance_b_id;
-        ddf.m_Group = GetLSBGroupHash(world, trigger_exit.m_GroupB);
-        ddf.m_OwnGroup = GetLSBGroupHash(world, trigger_exit.m_GroupA);
-        ddf.m_OtherGroup = GetLSBGroupHash(world, trigger_exit.m_GroupB);
+        ddf.m_Group = group_hash_b;
+        ddf.m_OwnGroup = group_hash_a;
+        ddf.m_OtherGroup = group_hash_b;
         BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
         // Broadcast to B components
         ddf.m_OtherId = instance_a_id;
-        ddf.m_Group = GetLSBGroupHash(world, trigger_exit.m_GroupA);
-        ddf.m_OwnGroup = GetLSBGroupHash(world, trigger_exit.m_GroupB);
-        ddf.m_OtherGroup = GetLSBGroupHash(world, trigger_exit.m_GroupA);
+        ddf.m_Group = group_hash_a;
+        ddf.m_OwnGroup = group_hash_b;
+        ddf.m_OtherGroup = group_hash_a;
         BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
     }
 
@@ -673,6 +716,10 @@ namespace dmGameSystem
                 SetupTileGrid(world, component);
             }
             component->m_AddedToUpdate = true;
+
+            if (world->m_Components.Full())
+                world->m_Components.OffsetCapacity(32);
+            world->m_Components.Push(component);
         }
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -713,6 +760,32 @@ namespace dmGameSystem
 
         if (!CompCollisionObjectDispatchPhysicsMessages(physics_context, world, params.m_Collection))
             result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+
+        // Hot-reload is not available in release, so lets not iterate collision components in that case.
+        if (dLib::IsDebugMode())
+        {
+            uint32_t num_components = world->m_Components.Size();
+            for (uint32_t i = 0; i < num_components; ++i)
+            {
+                CollisionComponent* c = world->m_Components[i];
+                TileGridResource* tile_grid_res = c->m_Resource->m_TileGridResource;
+                if (tile_grid_res != 0x0 && tile_grid_res->m_Dirty)
+                {
+                    CollisionObjectResource* resource = c->m_Resource;
+                    dmPhysicsDDF::CollisionObjectDesc* ddf = resource->m_DDF;
+                    dmPhysics::CollisionObjectData data;
+                    SetCollisionObjectData(world, c, c->m_Resource, ddf, true, data);
+                    c->m_Mask = data.m_Mask;
+
+                    dmPhysics::DeleteCollisionObject2D(world->m_World2D, c->m_Object2D);
+                    dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
+                    c->m_Object2D = dmPhysics::NewCollisionObject2D(world->m_World2D, data, &shapes.Front(), shapes.Size());
+
+                    SetupTileGrid(world, c);
+                    tile_grid_res->m_Dirty = 0;
+                }
+            }
+        }
 
         CollisionUserData collision_user_data;
         collision_user_data.m_World = world;

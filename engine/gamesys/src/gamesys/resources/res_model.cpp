@@ -118,9 +118,9 @@ namespace dmGameSystem
             dmRigDDF::MeshSet* mesh_set = resource->m_RigScene->m_MeshSetRes->m_MeshSet;
             if(mesh_set)
             {
-                if(mesh_set->m_MeshEntries.m_Count && mesh_set->m_MeshEntries[0].m_Meshes.m_Count)
+                if(mesh_set->m_MeshEntries.m_Count && mesh_set->m_MeshAttachments.m_Count)
                 {
-                    CreateGPUBuffers(context, resource, mesh_set->m_MeshEntries[0].m_Meshes[0]);
+                    CreateGPUBuffers(context, resource, mesh_set->m_MeshAttachments[0]);
                 }
             }
         }

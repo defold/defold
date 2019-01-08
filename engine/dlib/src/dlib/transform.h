@@ -358,6 +358,7 @@ namespace dmTransform
     inline Transform Inv(const Transform& t)
     {
         const Vector3& s = t.GetScale();
+        (void)s;
         assert(s.getX() != 0.0f && s.getY() != 0.0f && s.getZ() != 0.0f && "Transform can not be inverted (0 scale-component).");
         Transform res;
         res.SetRotation(conj(t.GetRotation()));

@@ -10,6 +10,7 @@
 #include <dlib/array.h>
 #include <dlib/index_pool.h>
 #include <dlib/time.h>
+#include <dlib/dstrings.h>
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
@@ -144,6 +145,8 @@ using namespace Vectormath::Aos;
 #define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
 #endif
 
+
+
 namespace dmGraphics
 {
 void LogGLError(GLint err)
@@ -170,7 +173,11 @@ void LogGLError(GLint err)
 #define CLEAR_GL_ERROR \
     { \
         if(g_Context->m_VerifyGraphicsCalls) { \
-            glGetError(); \
+            GLint err = glGetError(); \
+            while (err != 0) \
+            { \
+                err = glGetError(); \
+            } \
         } \
     }\
 
@@ -262,6 +269,11 @@ static void LogFrameBufferError(GLenum status)
 
     extern BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT];
     extern GLenum TEXTURE_UNIT_NAMES[32];
+
+    // Cross-platform OpenGL/ES extension points. We define our own function pointer typedefs to handle the combination of statically or dynamically linked or core functionality.
+    // The alternative is a matrix of conditional typedefs, linked statically/dynamically or core. OpenGL function prototypes does not change, so this is safe.
+    typedef void (* DM_PFNGLINVALIDATEFRAMEBUFFERPROC) (GLenum target, GLsizei numAttachments, const GLenum *attachments);
+    DM_PFNGLINVALIDATEFRAMEBUFFERPROC PFN_glInvalidateFramebuffer = NULL;
 
     Context* g_Context = 0x0;
 
@@ -376,6 +388,48 @@ static void LogFrameBufferError(GLenum status)
 
         return false;
     }
+
+static uintptr_t GetExtProcAddress(const char* name, const char* extension_name, const char* core_name, const GLubyte* extensions)
+{
+    /*
+        Check in order
+        1) ARB - Extensions officially approved by the OpenGL Architecture Review Board
+        2) EXT - Extensions agreed upon by multiple OpenGL vendors
+        3) OES - Vendor specific code for the OpenGL ES working group
+        4) Optionally check as core function (if not GLES and core_name is set)
+    */
+    uintptr_t func = 0x0;
+    static const char* ext_name_prefix_str[] = {"GL_ARB_", "GL_EXT_", "GL_OES_"};
+    static const char* proc_name_postfix_str[] = {"ARB", "EXT", "OES"};
+    char proc_str[256];
+    for(uint32_t i = 0; i < sizeof(ext_name_prefix_str)/sizeof(*ext_name_prefix_str); ++i)
+    {
+        // Check for extension name string AND process function pointer. Either may be disabled (by vendor) so both must be valid!
+        size_t l = dmStrlCpy(proc_str, ext_name_prefix_str[i], 8);
+        dmStrlCpy(proc_str + l, extension_name, 256-l);
+        if(!IsExtensionSupported(proc_str,  extensions))
+            continue;
+        l = dmStrlCpy(proc_str, name, 255);
+        dmStrlCpy(proc_str + l, proc_name_postfix_str[i], 256-l);
+        func = (uintptr_t) glfwGetProcAddress(proc_str);
+        if(func != 0x0)
+        {
+            break;
+        }
+    }
+#if !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
+    if(func == 0 && core_name)
+    {
+        // On OpenGL, optionally check for core driver support if extension wasn't found (i.e extension has become part of core OpenGL)
+        func = (uintptr_t) glfwGetProcAddress(core_name);
+    }
+#endif
+    return func;
+}
+
+#define DMGRAPHICS_GET_PROC_ADDRESS_EXT(function, name, extension_name, core_name, type, extensions)\
+    if (function == 0x0)\
+        function = (type) GetExtProcAddress(name, extension_name, core_name, extensions);
 
     static bool ValidateAsyncJobProcessing(HContext context)
     {
@@ -574,8 +628,11 @@ static void LogFrameBufferError(GLenum status)
             (void) SetFrontProcess( &psn );
 #endif
 
-        // Check texture format support
+        // Extension support
         const GLubyte* extensions = glGetString(GL_EXTENSIONS);
+
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, extensions);
+
         if (IsExtensionSupported("GL_IMG_texture_compression_pvrtc", extensions))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
@@ -616,9 +673,28 @@ static void LogFrameBufferError(GLenum status)
         context->m_DepthBufferBits = (uint32_t) depth_buffer_bits;
 #endif
 
-        GLint max_texture_size;
-        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_texture_size);
-        context->m_MaxTextureSize = max_texture_size;
+        GLint gl_max_texture_size = 1024;
+        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_max_texture_size);
+        context->m_MaxTextureSize = gl_max_texture_size;
+        CLEAR_GL_ERROR
+
+#if (defined(__arm__) || defined(__arm64__)) || (defined(ANDROID))
+        // Hardcoded values for iOS and Android for now. The value is a hint, max number of vertices will still work with performance penalty
+        // The below seems to be the reported sweet spot for modern or semi-modern hardware
+        context->m_MaxElementVertices = 1024*1024;
+        context->m_MaxElementIndices = 1024*1024;
+#else
+        // We don't accept values lower than 65k. It's a trade-off on drawcalls vs bufferdata upload
+        GLint gl_max_elem_verts = 65536;
+        glGetIntegerv(GL_MAX_ELEMENTS_VERTICES, &gl_max_elem_verts);
+        context->m_MaxElementVertices = dmMath::Max(65536, gl_max_elem_verts);
+        CLEAR_GL_ERROR
+
+        GLint gl_max_elem_indices = 65536;
+        glGetIntegerv(GL_MAX_ELEMENTS_INDICES, &gl_max_elem_indices);
+        context->m_MaxElementIndices = dmMath::Max(65536, gl_max_elem_indices);
+        CLEAR_GL_ERROR
+#endif
 
         if (IsExtensionSupported("GL_OES_compressed_ETC1_RGB8_texture", extensions))
         {
@@ -693,6 +769,15 @@ static void LogFrameBufferError(GLenum status)
         assert(context);
         if (context->m_WindowOpened)
             return glfwGetWindowParam(state);
+        else
+            return 0;
+    }
+
+    uint32_t GetWindowRefreshRate(HContext context)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+            return glfwGetWindowRefreshRate();
         else
             return 0;
     }
@@ -802,6 +887,7 @@ static void LogFrameBufferError(GLenum status)
     WRAP_GLFW_NATIVE_HANDLE_CALL(EGLSurface, AndroidEGLSurface);
     WRAP_GLFW_NATIVE_HANDLE_CALL(JavaVM*, AndroidJavaVM);
     WRAP_GLFW_NATIVE_HANDLE_CALL(jobject, AndroidActivity);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(android_app*, AndroidApp);
     WRAP_GLFW_NATIVE_HANDLE_CALL(Window, X11Window);
     WRAP_GLFW_NATIVE_HANDLE_CALL(GLXContext, X11GLXContext);
 
@@ -849,6 +935,11 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
+    uint32_t GetMaxElementsVertices(HContext context)
+    {
+        return context->m_MaxElementVertices;
+    }
+
     HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         uint32_t buffer = 0;
@@ -890,6 +981,11 @@ static void LogFrameBufferError(GLenum status)
     bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
         return (context->m_IndexBufferFormatSupport & (1 << format)) != 0;
+    }
+
+    uint32_t GetMaxElementIndices(HContext context)
+    {
+        return context->m_MaxElementIndices;
     }
 
     static uint32_t GetTypeSize(Type type)
@@ -1534,16 +1630,42 @@ static void LogFrameBufferError(GLenum status)
         delete render_target;
     }
 
-    void EnableRenderTarget(HContext context, HRenderTarget render_target)
+    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
     {
-        glBindFramebuffer(GL_FRAMEBUFFER, render_target->m_Id);
-        CHECK_GL_ERROR
-        CHECK_GL_FRAMEBUFFER_ERROR
-    }
-
-    void DisableRenderTarget(HContext context, HRenderTarget render_target)
-    {
-        glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
+        if(PFN_glInvalidateFramebuffer != NULL)
+        {
+            if(context->m_FrameBufferInvalidateBits)
+            {
+                uint32_t invalidate_bits = context->m_FrameBufferInvalidateBits;
+                if((invalidate_bits & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT)) && (context->m_PackedDepthStencil))
+                {
+                    // if packed depth/stencil buffer is used and either is set as transient, force both non-transient (as both will otherwise be transient).
+                    invalidate_bits &= ~(BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT);
+                }
+                GLenum types[MAX_BUFFER_TYPE_COUNT];
+                uint32_t types_count = 0;
+                if(invalidate_bits & BUFFER_TYPE_COLOR_BIT)
+                {
+                    types[types_count++] = context->m_FrameBufferInvalidateAttachments ? DMGRAPHICS_RENDER_BUFFER_COLOR_ATTACHMENT : DMGRAPHICS_RENDER_BUFFER_COLOR;
+                }
+                if(invalidate_bits & BUFFER_TYPE_DEPTH_BIT)
+                {
+                    types[types_count++] = context->m_FrameBufferInvalidateAttachments ? DMGRAPHICS_RENDER_BUFFER_DEPTH_ATTACHMENT : DMGRAPHICS_RENDER_BUFFER_DEPTH;
+                }
+                if(invalidate_bits & BUFFER_TYPE_STENCIL_BIT)
+                {
+                    types[types_count++] = context->m_FrameBufferInvalidateAttachments ? DMGRAPHICS_RENDER_BUFFER_STENCIL_ATTACHMENT : DMGRAPHICS_RENDER_BUFFER_STENCIL;
+                }
+                PFN_glInvalidateFramebuffer( GL_FRAMEBUFFER, types_count, &types[0] );
+            }
+            context->m_FrameBufferInvalidateBits = transient_buffer_types;
+#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) )
+            context->m_FrameBufferInvalidateAttachments = 1; // always attachments on iOS
+#else
+            context->m_FrameBufferInvalidateAttachments = render_target != NULL;
+#endif
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, render_target == NULL ? glfwGetDefaultFramebuffer() : render_target->m_Id);
         CHECK_GL_ERROR
         CHECK_GL_FRAMEBUFFER_ERROR
     }
@@ -1611,6 +1733,7 @@ static void LogFrameBufferError(GLenum status)
             tex->m_OriginalHeight = params.m_OriginalHeight;
         }
 
+        tex->m_MipMapCount = 0;
         tex->m_DataState = 0;
         return (HTexture) tex;
     }
@@ -1718,6 +1841,26 @@ static void LogFrameBufferError(GLenum status)
         JobQueuePush(j);
     }
 
+    HandleResult GetTextureHandle(HTexture texture, void** out_handle)
+    {
+        *out_handle = 0x0;
+
+        if (!texture) {
+            return HANDLE_RESULT_ERROR;
+        }
+
+        *out_handle = &texture->m_Texture;
+
+        return HANDLE_RESULT_OK;
+    }
+
+    static inline uint32_t GetTextureFormatBPP(TextureFormat format)
+    {
+        static TextureFormatToBPP g_TextureFormatToBPP;
+        assert(format < TEXTURE_FORMAT_COUNT);
+        return g_TextureFormatToBPP.m_FormatToBPP[format];
+    }
+
     void SetTexture(HTexture texture, const TextureParams& params)
     {
         // validate write accessibility for format. Some format are not garuanteed to be writeable
@@ -1744,56 +1887,7 @@ static void LogFrameBufferError(GLenum status)
          */
         if (params.m_Format != TEXTURE_FORMAT_RGBA)
         {
-            uint32_t bytes_per_row = 1;
-
-            switch(params.m_Format)
-            {
-                case TEXTURE_FORMAT_RGB:
-                    bytes_per_row = params.m_Width * 3;
-                    break;
-
-                case TEXTURE_FORMAT_LUMINANCE_ALPHA:
-                case TEXTURE_FORMAT_RGB_16BPP:
-                case TEXTURE_FORMAT_RGBA_16BPP:
-                    bytes_per_row = params.m_Width * 2;
-                    break;
-
-                case TEXTURE_FORMAT_RGB16F:
-                    bytes_per_row = params.m_Width * 6;
-                    break;
-
-                case TEXTURE_FORMAT_RGB32F:
-                    bytes_per_row = params.m_Width * 12;
-                    break;
-
-                case TEXTURE_FORMAT_RGBA16F:
-                    bytes_per_row = params.m_Width * 8;
-                    break;
-
-                case TEXTURE_FORMAT_RGBA32F:
-                    bytes_per_row = params.m_Width * 16;
-                    break;
-
-                case TEXTURE_FORMAT_R16F:
-                    bytes_per_row = params.m_Width * 2;
-                    break;
-
-                case TEXTURE_FORMAT_R32F:
-                    bytes_per_row = params.m_Width * 4;
-                    break;
-
-                case TEXTURE_FORMAT_RG16F:
-                    bytes_per_row = params.m_Width * 4;
-                    break;
-
-                case TEXTURE_FORMAT_RG32F:
-                    bytes_per_row = params.m_Width * 8;
-                    break;
-
-                default:
-                    break;
-            }
-
+            uint32_t bytes_per_row = params.m_Width * dmMath::Max(1U, GetTextureFormatBPP(params.m_Format)) >> 3;
             if (bytes_per_row % 4 == 0) {
                 // Ok
             } else if (bytes_per_row % 2 == 0) {
@@ -1807,6 +1901,7 @@ static void LogFrameBufferError(GLenum status)
             glPixelStorei(GL_UNPACK_ALIGNMENT, unpackAlignment);
             CHECK_GL_ERROR
         }
+        texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
         GLenum type = (GLenum) texture->m_Type;
         glBindTexture(type, texture->m_Texture);
@@ -1822,7 +1917,7 @@ static void LogFrameBufferError(GLenum status)
         GLenum gl_format;
         GLenum gl_type = DMGRAPHICS_TYPE_UNSIGNED_BYTE;
         // Only used for uncompressed formats
-        GLint internal_format;
+        GLint internal_format = -1;
         switch (params.m_Format)
         {
         case TEXTURE_FORMAT_LUMINANCE:
@@ -2049,6 +2144,22 @@ static void LogFrameBufferError(GLenum status)
             glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
             CHECK_GL_ERROR
         }
+    }
+
+    uint32_t GetTextureResourceSize(HTexture texture)
+    {
+        uint32_t size_total = 0;
+        uint32_t size = (texture->m_Width * texture->m_Height * GetTextureFormatBPP(texture->m_Params.m_Format)) >> 3;
+        for(uint32_t i = 0; i < texture->m_MipMapCount; ++i)
+        {
+            size_total += size;
+            size >>= 2;
+        }
+        if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP)
+        {
+            size_total *= 6;
+        }
+        return size_total + sizeof(Texture);
     }
 
     uint16_t GetTextureWidth(HTexture texture)

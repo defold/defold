@@ -11,6 +11,7 @@ namespace dmGraphics
         uint32_t m_Height;
         uint32_t m_OriginalWidth;
         uint32_t m_OriginalHeight;
+        uint16_t m_MipMapCount;
     };
 
     struct VertexStream

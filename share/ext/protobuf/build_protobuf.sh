@@ -11,11 +11,13 @@ readonly CONFIGURE_ARGS="--with-protoc=../cross_tmp/src/protoc --disable-shared"
 
 # The package is ancient
 # A fairly small package of ~1.5MB, so it's stored locally
-#download
-cp ./${FILE_URL} ../download/
+function download() {
+    cp ./${FILE_URL} ../download/
+}
 
 #
-# Build protoc locally
+# Build protoc locally first,
+# in order to make the cross platform configuration work
 #
 rm -rf cross_tmp
 mkdir cross_tmp
@@ -26,11 +28,12 @@ tar xfz ../../download/$FILE_URL --strip-components=1
 [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch -p1 < ../patch_$VERSION
 
 set -e
-./configure && make
+./configure && make -j8
 set +e
 popd >/dev/null
 
 
+download
 cmi $1
 
 rm -rf cross_tmp

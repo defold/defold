@@ -1,10 +1,11 @@
 (ns editor.dialogs
-  (:require [clojure.core.reducers :as r]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.ui :as ui]
+            [editor.ui.bindings :as b]
+            [editor.ui.fuzzy-choices :as fuzzy-choices]
+            [editor.util :as util]
             [editor.handler :as handler]
-            [editor.code :as code]
             [editor.core :as core]
             [editor.fuzzy-text :as fuzzy-text]
             [editor.jfx :as jfx]
@@ -12,71 +13,20 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.defold-project :as project]
-            [editor.github :as github]
-            [service.log :as log])
+            [editor.github :as github])
   (:import [java.io File]
+           [java.util List Collection]
            [java.nio.file Path Paths]
-           [java.util.regex Pattern]
-           [javafx.event Event ActionEvent]
-           [javafx.geometry Point2D Pos]
+           [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control Button Label ListView ProgressBar TextArea TextField TreeItem TreeView]
+           [javafx.scene.control CheckBox Button Label ListView TextArea TextField Hyperlink]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
-           [javafx.scene.layout HBox Region]
+           [javafx.scene.layout HBox VBox Region]
            [javafx.scene.text Text TextFlow]
-           [javafx.stage Stage StageStyle Modality DirectoryChooser]))
+           [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]))
 
 (set! *warn-on-reflection* true)
-
-(defprotocol Dialog
-  (show! [this functions])
-  (close! [this])
-  (return! [this r])
-  (dialog-root [this])
-  (error! [this msg])
-  (progress-bar [this])
-  (task! [this fn]))
-
-(defrecord TaskDialog []
-  Dialog
-  (show! [this functions]
-    (swap! (:functions this) merge functions)
-    ((:refresh this))
-    (ui/show-and-wait! (:stage this))
-    @(:return this))
-  (close! [this] (ui/close! (:stage this)))
-  (return! [this r] (reset! (:return this) r))
-  (dialog-root [this] (:dialog-root this))
-  (error! [this msg]
-    ((:set-error this) msg))
-  (progress-bar [this] (:progress-bar this))
-  (task! [this fn]
-    (future
-      (try
-        (ui/run-later (ui/disable! (:root this) true))
-        (fn)
-        (catch Throwable e
-          (log/error :exception e)
-          (ui/run-later (error! this (.getMessage e))))
-        (finally
-          (ui/run-later (ui/disable! (:root this) false)))))))
-
-(defn make-progress-dialog [title message]
-  (let [root     ^Parent (ui/load-fxml "progress.fxml")
-        stage    (ui/make-dialog-stage)
-        scene    (Scene. root)
-        controls (ui/collect-controls root ["title" "message" "progress"])]
-    (ui/title! stage title)
-    (ui/text! (:title controls) title)
-    (ui/text! (:message controls) message)
-    (.setProgress ^ProgressBar (:progress controls) 0)
-    (.setScene stage scene)
-    (.setAlwaysOnTop stage true)
-    (.show stage)
-    {:stage              stage
-     :render-progress-fn (fn [progress]
-                           (ui/update-progress-controls! progress (:progress controls) (:message controls)))}))
 
 (defn ^:dynamic make-alert-dialog [text]
   (let [root ^Parent (ui/load-fxml "alert.fxml")
@@ -100,6 +50,87 @@
       (ui/on-action! ok (fn [_] (.close stage))))
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
+
+(def ^:private link-regex #"\[[^\]]+\]\([^)]+\)")
+(def ^:private split-link-regex #"\[([^\]]+)\]\(([^)]+)\)")
+
+(defn- split-link [link-str]
+  (rest (re-find split-link-regex link-str)))
+
+(defn- mark-matches [re s]
+  (let [matcher (re-matcher re s)]
+    (loop [matches []]
+      (if (re-find matcher)
+        (let [match {:start (.start matcher) :end (.end matcher)}]
+          (recur (conj matches match)))
+        matches))))
+
+(defn- empty-run? [run]
+  (= (:start run) (:end run)))
+
+(defn- message->mark-runs
+  [message]
+  (let [links (mapv (fn [match]
+                      (let [link (subs message (:start match) (:end match))
+                            [label url] (rest (re-find split-link-regex link))]
+                        (assoc match
+                               :type :link
+                               :label label
+                               :url url)))
+                    (mark-matches link-regex message))
+        pseudo-start {:end 0}
+        pseudo-end {:start (count message)}
+        parts (concat [pseudo-start] links [pseudo-end])
+        holes (map (fn [curr next] {:start (:end curr) :end (:start next)})
+                   parts (rest parts))
+        texts (map #(assoc %
+                           :type :text
+                           :text (subs message (:start %) (:end %)))
+                   holes)
+        runs (sort-by :start (into links texts))]
+    (remove empty-run? runs)))
+
+(defn- mark-run->node [run]
+  (case (:type run)
+    :link
+    (let [{:keys [label url]} run]
+      (doto (Hyperlink. label)
+        (ui/add-style! "link-run")
+        (ui/on-action! (fn [_] (ui/open-url url)))))
+
+    :text
+    (doto (Text. (:text run))
+      (ui/add-style! "text-run"))))
+
+(defn make-error-dialog
+  ([title text] (make-error-dialog title text nil))
+  ([title text detail-text]
+   (let [root ^Parent (ui/load-fxml "error-dialog.fxml")
+         stage (ui/make-dialog-stage)
+         scene (Scene. root)]
+     (.setResizable stage true) ; might want to resize if huge detail text
+     (ui/context! root :dialog {:stage stage} nil)
+     (ui/title! stage title)
+     (ui/with-controls root [^TextFlow message ^CheckBox toggle-details ^TextArea details ^Button ok]
+       (if-not (str/blank? detail-text)
+         (do
+           (b/bind-presence! details (.selectedProperty toggle-details))
+           (ui/on-action! toggle-details (fn [_] (.sizeToScene stage)))
+           (ui/text! details detail-text))
+         (do
+           (doto toggle-details
+             (ui/visible! false)
+             (ui/managed! false))
+           (doto details
+             (ui/visible! false)
+             (ui/managed! false))))
+       (let [runs (map mark-run->node (message->mark-runs text))]
+         (ui/children! message runs))
+       (ui/bind-action! ok ::close)
+       (ui/bind-keys! root {KeyCode/ESCAPE ::close})
+       (ui/request-focus! ok))
+     (.setScene stage scene)
+     (ui/show-and-wait! stage))))
 
 (defn make-confirm-dialog
   ([text]
@@ -158,9 +189,9 @@
               (format "%s: %s" (.getName type) (or message "Unknown"))))
        (str/join "\n")))
 
-(defn make-error-dialog
+(defn make-unexpected-error-dialog
   [ex-map sentry-id-promise]
-  (let [root     ^Parent (ui/load-fxml "error.fxml")
+  (let [root     ^Parent (ui/load-fxml "unexpected-error.fxml")
         stage    (ui/make-dialog-stage)
         scene    (Scene. root)
         controls (ui/collect-controls root ["message" "dismiss" "report"])]
@@ -174,54 +205,46 @@
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
 
-(defn make-task-dialog [dialog-fxml options]
-  (let [root ^Parent (ui/load-fxml "task-dialog.fxml")
-        dialog-root ^Parent (ui/load-fxml dialog-fxml)
+(defn make-gl-support-error-dialog [support-error]
+  (let [root ^VBox (ui/load-fxml "gl-error.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)
-        controls (ui/collect-controls root ["error" "ok" "dialog-area" "error-group" "progress-bar"])
+        result (atom :quit)]
+    (ui/with-controls root [message quit continue glgenbuffers-link opengl-linux-link]
+      (when-not (util/is-linux?)
+        (.. root getChildren (remove opengl-linux-link)))
+      (ui/context! root :dialog {:stage stage} nil)
+      (ui/title! stage "Insufficient OpenGL Support")
+      (ui/text! message support-error)
+      (ui/on-action! continue (fn [_] (reset! result :continue) (ui/close! stage)))
+      (ui/bind-action! quit ::close)
+      (ui/bind-keys! root {KeyCode/ESCAPE ::close})
+      (ui/on-action! glgenbuffers-link (fn [_] (ui/open-url (github/glgenbuffers-link))))
+      (ui/on-action! opengl-linux-link (fn [_] (ui/open-url "https://www.defold.com/faq/#_linux_issues")))
+      (.setScene stage scene)
+      ;; We want to show this dialog before the main ui is up running
+      ;; so we can't use ui/show-and-wait! which does some extra menu
+      ;; update magic.
+      (.showAndWait stage)
+      @result)))
 
-        set-error (fn [msg]
-                    (let [visible (not (nil? msg))
-                          changed (not= msg (ui/text (:error controls)))]
-                      (when changed
-                        (ui/text! (:error controls) msg)
-                        (ui/managed! (:error-group controls) visible)
-                        (ui/visible! (:error-group controls) visible)
-                        (.sizeToScene stage))))]
-    (ui/text! (:ok controls) (get options :ok-label "OK"))
-    (ui/title! stage (or (:title options) ""))
-    (ui/children! (:dialog-area controls) [dialog-root])
-    (ui/fill-control dialog-root)
-
-    (ui/visible! (:error-group controls) false)
-    (ui/managed! (:error-group controls) false)
-
-    (.setScene stage scene)
-    (let [functions (atom {:ready? (fn [] false)
-                           :on-ok (fn [] nil)})
-          dialog (map->TaskDialog (merge {:root root
-                                          :return (atom nil)
-                                          :dialog-root dialog-root
-                                          :stage stage
-                                          :set-error set-error
-                                          :functions functions} controls))
-          refresh (fn []
-                    (set-error nil)
-                    (ui/disable! (:ok controls) (not ((:ready? @functions)))))
-          h (ui/event-handler event (refresh))]
-      (ui/on-action! (:ok controls) (fn [_] ((:on-ok @functions))))
-      (.addEventFilter scene ActionEvent/ACTION h)
-      (.addEventFilter scene KeyEvent/KEY_TYPED h)
-
-      (doseq [tf (.lookupAll root "TextField")]
-        (.addListener (.textProperty ^TextField tf)
-          (reify javafx.beans.value.ChangeListener
-            (changed [this observable old-value new-value]
-              (when (not= old-value new-value)
-                (refresh))))))
-
-      (assoc dialog :refresh refresh))))
+(defn make-file-dialog
+  ^File [title filter-descs ^File initial-file ^Window owner-window]
+  (let [chooser (FileChooser.)
+        initial-directory (some-> initial-file .getParentFile)
+        initial-file-name (some-> initial-file .getName)
+        extension-filters (map (fn [filter-desc]
+                                 (let [description ^String (first filter-desc)
+                                       extensions ^List (vec (rest filter-desc))]
+                                   (FileChooser$ExtensionFilter. description extensions)))
+                               filter-descs)]
+    (when (and (some? initial-directory) (.exists initial-directory))
+      (.setInitialDirectory chooser initial-directory))
+    (when (some? (not-empty initial-file-name))
+      (.setInitialFileName chooser initial-file-name))
+    (.addAll (.getExtensionFilters chooser) ^Collection extension-filters)
+    (.setTitle chooser title)
+    (.showOpenDialog chooser owner-window)))
 
 (handler/defhandler ::confirm :dialog
   (enabled? [selection]
@@ -256,7 +279,9 @@
         controls (ui/collect-controls root ["filter" "item-list" "ok"])
         ok-label (:ok-label options "OK")
         ^TextField filter-field (:filter controls)
-        filter-value (:filter options "")
+        filter-value (or (:filter options)
+                         (some-> (:filter-atom options) deref)
+                         "")
         cell-fn (:cell-fn options identity)
         ^ListView item-list (doto ^ListView (:item-list controls)
                               (.setFixedCellSize 27.0) ; Fixes missing cells in VirtualFlow
@@ -292,25 +317,13 @@
 
     (ui/show-and-wait! stage)
 
-    (ui/user-data stage ::selected-items)))
+    (let [selected-items (ui/user-data stage ::selected-items)
+          filter-atom (:filter-atom options)]
+      (when (and (some? selected-items) (some? filter-atom))
+        (reset! filter-atom (.getText filter-field)))
+      selected-items)))
 
-(defn- resource->fuzzy-matched-resource [pattern resource]
-  (when-some [[score matching-indices] (fuzzy-text/match-path pattern (resource/proj-path resource))]
-    (with-meta resource
-               {:score score
-                :matching-indices matching-indices})))
-
-(defn- descending-order [a b]
-  (compare b a))
-
-(defn- fuzzy-resource-filter-fn [filter-value resources]
-  (if (empty? filter-value)
-    resources
-    (sort-by (comp :score meta)
-             descending-order
-             (seq (r/foldcat (r/filter some?
-                                       (r/map (partial resource->fuzzy-matched-resource filter-value)
-                                              resources)))))))
+(def ^:private fuzzy-resource-filter-fn (partial fuzzy-choices/filter-options resource/proj-path resource/proj-path))
 
 (defn- override-seq [node-id]
   (tree-seq g/overrides g/overrides node-id))
@@ -398,14 +411,15 @@
 (defn make-resource-dialog [workspace project options]
   (let [exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
         accepted-ext (if (seq exts) (set exts) (constantly true))
+        accept-fn    (or (:accept-fn options) (constantly true))
         items        (into []
                            (filter #(and (= :file (resource/source-type %))
-                                         (accepted-ext (resource/ext %))
-                                         (not (resource/internal? %))))
+                                         (accepted-ext (resource/type-ext %))
+                                         (not (resource/internal? %))
+                                         (accept-fn %)))
                            (g/node-value workspace :resource-list))
         options (-> {:title "Select Resource"
                      :prompt "Type to filter"
-                     :filter ""
                      :cell-fn (fn [r]
                                 (let [text (resource/proj-path r)
                                       icon (workspace/resource-icon r)
@@ -615,99 +629,6 @@
     (ui/show-and-wait! stage)
 
     @return))
-
-(defn make-goto-line-dialog [result]
-  (let [root ^Parent (ui/load-fxml "goto-line-dialog.fxml")
-        stage (ui/make-dialog-stage (ui/main-stage))
-        scene (Scene. root)
-        controls (ui/collect-controls root ["line"])
-        close (fn [v] (do (deliver result v) (.close stage)))]
-    (ui/title! stage "Go to line")
-    (.setOnKeyPressed scene
-                      (ui/event-handler e
-                           (let [key (.getCode ^KeyEvent e)]
-                             (when (= key KeyCode/ENTER)
-                               (close (try
-                                        (Integer/parseInt (ui/text (:line controls)))
-                                        (catch Exception _))))
-                             (when (= key KeyCode/ESCAPE)
-                               (close nil)))))
-    (.setScene stage scene)
-    (ui/show! stage)
-    stage))
-
-(defn make-proposal-popup [result screen-point proposals target text-area]
-  (let [root ^Parent (ui/load-fxml "text-proposals.fxml")
-        stage (ui/make-stage)
-        scene (Scene. root)
-        controls (ui/collect-controls root ["proposals" "proposals-box"])
-        close (fn [v] (do (deliver result v) (.close stage)))
-        ^ListView list-view  (:proposals controls)
-        filter-text (atom target)
-        filter-fn (fn [i] (str/starts-with? (:name i) @filter-text))
-        update-items (fn [] (try (let [new-items (filter filter-fn proposals)]
-                                  (if (empty? new-items)
-                                    (close nil)
-                                    (do
-                                      (ui/items! list-view new-items)
-                                      (.select (.getSelectionModel list-view) 0))))
-                                (catch Exception e
-                                  (do
-                                    (println "Proposal filter bad filter pattern " @filter-text)
-                                    (swap! filter-text #(apply str (drop-last %)))))))]
-    (.setFill scene nil)
-    (.initStyle stage StageStyle/UNDECORATED)
-    (.initStyle stage StageStyle/TRANSPARENT)
-    (.setX stage (.getX ^Point2D screen-point))
-    (.setY stage (.getY ^Point2D screen-point))
-    (ui/items! list-view proposals)
-    (.select (.getSelectionModel list-view) 0)
-    (ui/cell-factory! list-view (fn [proposal] {:text (:display-string proposal)}))
-    (ui/on-focus! list-view (fn [got-focus] (when-not got-focus (close nil))))
-    (.setOnMouseClicked list-view (ui/event-handler e (close (ui/selection list-view))))
-    (.addEventFilter scene KeyEvent/KEY_PRESSED
-                     (ui/event-handler event
-                                       (let [code (.getCode ^KeyEvent event)]
-                                         (cond
-                                           (= code (KeyCode/UP)) (ui/request-focus! list-view)
-                                           (= code (KeyCode/DOWN)) (ui/request-focus! list-view)
-                                           (= code (KeyCode/ENTER)) (close (ui/selection list-view))
-                                           (= code (KeyCode/TAB)) (close (ui/selection list-view))
-                                           (= code (KeyCode/ESCAPE)) (close nil)
-
-                                           (or (= code (KeyCode/LEFT)) (= code (KeyCode/RIGHT)))
-                                           (do
-                                             (Event/fireEvent text-area (.copyFor event (.getSource event) text-area))
-                                             (close nil))
-
-                                           (or (= code (KeyCode/BACK_SPACE)) (= code (KeyCode/DELETE)))
-                                           (if (empty? @filter-text)
-                                             (close nil)
-                                             (do
-                                               (swap! filter-text #(apply str (drop-last %)))
-                                               (update-items)
-                                               (Event/fireEvent text-area (.copyFor event (.getSource event) text-area))))
-
-                                           :default true))))
-    (.addEventFilter scene KeyEvent/KEY_TYPED
-                     (ui/event-handler event
-                                      (let [key-typed (.getCharacter ^KeyEvent event)]
-                                        (cond
-
-                                          (and (not-empty key-typed) (not (code/control-char-or-delete key-typed)))
-                                          (do
-                                            (swap! filter-text str key-typed)
-                                            (update-items)
-                                            (Event/fireEvent text-area (.copyFor event (.getSource event) text-area)))
-
-                                          :default true))))
-
-    (.initOwner stage (ui/main-stage))
-    (.initModality stage Modality/NONE)
-    (.setScene stage scene)
-    (ui/show! stage)
-    stage))
-
 
 (handler/defhandler ::rename-conflicting-files :dialog
   (run [^Stage stage]

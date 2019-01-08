@@ -1,0 +1,7 @@
+function init(self)
+    test_set_instance_context()
+end
+
+function update(self)
+    test_get_instance_context()
+end

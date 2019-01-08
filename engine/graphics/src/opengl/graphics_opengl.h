@@ -25,12 +25,16 @@ namespace dmGraphics
         uint32_t                m_MaxTextureSize;
         TextureFilter           m_DefaultTextureMinFilter;
         TextureFilter           m_DefaultTextureMagFilter;
+        uint32_t                m_MaxElementVertices;
+        uint32_t                m_MaxElementIndices;
         // Counter to keep track of various modifications. Used for cache flush etc
         // Version zero is never used
         uint32_t                m_ModificationVersion;
         uint32_t                m_TextureFormatSupport;
         uint32_t                m_IndexBufferFormatSupport;
         uint32_t                m_DepthBufferBits;
+        uint32_t                m_FrameBufferInvalidateBits;
+        uint32_t                m_FrameBufferInvalidateAttachments : 1;
         uint32_t                m_PackedDepthStencil : 1;
         uint32_t                m_WindowOpened : 1;
         uint32_t                m_VerifyGraphicsCalls : 1;
@@ -53,6 +57,7 @@ namespace dmGraphics
         uint16_t    m_Height;
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
+        uint16_t    m_MipMapCount;
 
         // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         volatile uint16_t    m_DataState;

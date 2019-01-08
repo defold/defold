@@ -231,3 +231,35 @@
                                     "  y: 0.0\n"
                                     "  z: 0.0\n"
                                     "}\r\n"))))))
+
+(deftest parse-comma-separated-string-test
+  (is (= []
+      (text-util/parse-comma-separated-string "")))
+  (is (= []
+      (text-util/parse-comma-separated-string nil)))
+  (is (= []
+      (text-util/parse-comma-separated-string ",")))
+  (is (= ["abc"]
+      (text-util/parse-comma-separated-string "abc")))
+  (is (= ["abc" "de"]
+      (text-util/parse-comma-separated-string "abc,de")))
+  (is (= ["abc" "de"]
+      (text-util/parse-comma-separated-string "abc,   de")))
+  (is (= ["abc"]
+      (text-util/parse-comma-separated-string "\"abc\"")))
+  (is (= ["234" "aaa, bbbb" "galaxy" "iPhone10,6"]
+      (text-util/parse-comma-separated-string "234,\"aaa, bbbb\", galaxy, \"iPhone10,6\""))))
+
+(deftest join-comma-separated-string-test
+  (is (= ""
+         (text-util/join-comma-separated-string [])))
+  (is (= ""
+         (text-util/join-comma-separated-string [""])))
+  (is (= ""
+         (text-util/join-comma-separated-string nil)))
+  (is (= "\"a\""
+         (text-util/join-comma-separated-string ["a"])))
+  (is (= "\"aa\", \"bbb\""
+         (text-util/join-comma-separated-string ["aa" "bbb"])))
+  (is (= "\"234\", \"aaa, bbbb\", \"galaxy\", \"iPhone10,6\""
+         (text-util/join-comma-separated-string ["234" "aaa, bbbb" "galaxy" "iPhone10,6"]))))

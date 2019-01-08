@@ -19,6 +19,7 @@
 #include <android/log.h>
 #endif
 
+const char* LOG_OUTPUT_TRUNCATED_MESSAGE = "...\n[Output truncated]\n";
 const int DM_LOG_MAX_LOG_FILE_SIZE = 1024 * 1024 * 32;
 
 struct dmLogConnection
@@ -29,18 +30,6 @@ struct dmLogConnection
     }
 
     dmSocket::Socket m_Socket;
-};
-
-struct dmLogMessage
-{
-    enum Type
-    {
-        MESSAGE = 0,
-        SHUTDOWN = 1,
-    };
-
-    uint8_t m_Type;
-    char    m_Message[0];
 };
 
 static const uint32_t DLIB_MAX_LOG_CONNECTIONS = 16;
@@ -64,10 +53,12 @@ struct dmLogServer
     dmThread::Thread         m_Thread;
 };
 
-dmLogServer* g_dmLogServer = 0;
-dmLogSeverity g_LogLevel = DM_LOG_SEVERITY_USER_DEBUG;
-int g_TotalBytesLogged = 0;
-FILE* g_LogFile = 0;
+static dmLogServer* g_dmLogServer = 0;
+static dmLogSeverity g_LogLevel = DM_LOG_SEVERITY_USER_DEBUG;
+static int g_TotalBytesLogged = 0;
+static FILE* g_LogFile = 0;
+static dmCustomLogCallback g_CustomLogCallback = 0;
+static void* g_CustomLogCallbackUserData = 0;
 
 // create and bind the server socket, will reuse old port if supplied handle valid
 static void dmLogInitSocket( dmSocket::Socket& server_socket )
@@ -435,35 +426,51 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
             break;
     }
 
-
-    // NOTE: Must be less than DM_MESSAGE_PAGE_SIZE
-    const int str_buf_size = 2048;
-    char tmp_buf[sizeof(dmLogMessage) + str_buf_size];
+    char tmp_buf[sizeof(dmLogMessage) + DM_LOG_MAX_STRING_SIZE];
     dmLogMessage* msg = (dmLogMessage*) &tmp_buf[0];
     char* str_buf = &tmp_buf[sizeof(dmLogMessage)];
 
     int n = 0;
-    n += DM_SNPRINTF(str_buf + n, str_buf_size - n, "%s:%s: ", severity_str, domain);
-    if (n < str_buf_size)
+    n += DM_SNPRINTF(str_buf + n, DM_LOG_MAX_STRING_SIZE - n, "%s:%s: ", severity_str, domain);
+    if (n < DM_LOG_MAX_STRING_SIZE)
     {
-        n += vsnprintf(str_buf + n, str_buf_size - n, format, lst);
+        n += vsnprintf(str_buf + n, DM_LOG_MAX_STRING_SIZE - n, format, lst);
     }
 
-    if (n < str_buf_size)
+    if (n < DM_LOG_MAX_STRING_SIZE)
     {
-        n += DM_SNPRINTF(str_buf + n, str_buf_size - n, "\n");
+        n += DM_SNPRINTF(str_buf + n, DM_LOG_MAX_STRING_SIZE - n, "\n");
     }
-    str_buf[str_buf_size-1] = '\0';
-    int actual_n = dmMath::Min(n, str_buf_size-1);
+
+    if (n >= DM_LOG_MAX_STRING_SIZE)
+    {
+        strcpy(&str_buf[DM_LOG_MAX_STRING_SIZE - (strlen(LOG_OUTPUT_TRUNCATED_MESSAGE) + 1)], LOG_OUTPUT_TRUNCATED_MESSAGE);
+    }
+
+    str_buf[DM_LOG_MAX_STRING_SIZE-1] = '\0';
+    int actual_n = dmMath::Min(n, (int)(DM_LOG_MAX_STRING_SIZE-1));
 
     g_TotalBytesLogged += actual_n;
 
+    va_end(lst);
+
+    if (g_CustomLogCallback != 0x0)
+    {
+        g_CustomLogCallback(g_CustomLogCallbackUserData, str_buf);
+        return;
+    }
+
 #ifdef ANDROID
     __android_log_print(ToAndroidPriority(severity), "defold", str_buf);
-#else
+
+// iOS
+#elif defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
+    __ios_log_print(severity, str_buf);
+#endif
+
+#if !defined(ANDROID)
     fwrite(str_buf, 1, actual_n, stderr);
 #endif
-    va_end(lst);
 
     if(!dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
         return;
@@ -481,7 +488,7 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
         receiver.m_Socket = self->m_MessgeSocket;
         receiver.m_Path = 0;
         receiver.m_Fragment = 0;
-        dmMessage::Post(0, &receiver, 0, 0, 0, msg, dmMath::Min(sizeof(dmLogMessage) + n + 1, sizeof(tmp_buf)), 0);
+        dmMessage::Post(0, &receiver, 0, 0, 0, msg, dmMath::Min(sizeof(dmLogMessage) + actual_n + 1, sizeof(tmp_buf)), 0);
     }
 }
 
@@ -497,4 +504,10 @@ void dmSetLogFile(const char* path)
     } else {
         dmLogFatal("Failed to open log-file '%s'", path);
     }
+}
+
+void dmSetCustomLogCallback(dmCustomLogCallback callback, void* user_data)
+{
+    g_CustomLogCallback = callback;
+    g_CustomLogCallbackUserData = user_data;
 }

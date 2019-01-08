@@ -36,6 +36,7 @@ namespace dmGameSystem
     struct ParticleFXComponent
     {
         dmGameObject::HInstance m_Instance;
+        dmhash_t m_ComponentId;
         dmParticle::HInstance m_ParticleInstance;
         dmParticle::HPrototype m_ParticlePrototype;
         ParticleFXWorld* m_World;
@@ -299,7 +300,7 @@ namespace dmGameSystem
             if (c.m_AddedToUpdate)
             {
                 uint32_t emitter_count = dmParticle::GetEmitterCount(c.m_ParticlePrototype);
-                for (int j = 0; j < emitter_count; ++j)
+                for (uint32_t j = 0; j < emitter_count; ++j)
                 {
                     dmParticle::EmitterRenderData* render_data;
                     dmParticle::GetEmitterRenderData(particle_context, c.m_ParticleInstance, j, &render_data);
@@ -309,6 +310,7 @@ namespace dmGameSystem
                     write_ptr->m_BatchKey = render_data->m_MixedHash;
                     write_ptr->m_TagMask = dmRender::GetMaterialTagMask((dmRender::HMaterial)render_data->m_Material);
                     write_ptr->m_Dispatch = dispatch;
+                    write_ptr->m_MinorOrder = 0;
                     write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
                     ++write_ptr;
                 }
@@ -320,7 +322,7 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    static dmParticle::HInstance CreateComponent(ParticleFXWorld* world, dmGameObject::HInstance go_instance, ParticleFXComponentPrototype* prototype, dmParticle::EmitterStateChangedData* emitter_state_changed_data)
+    static dmParticle::HInstance CreateComponent(ParticleFXWorld* world, dmGameObject::HInstance go_instance, dmhash_t component_id, ParticleFXComponentPrototype* prototype, dmParticle::EmitterStateChangedData* emitter_state_changed_data)
     {
         if (!world->m_Components.Full())
         {
@@ -328,6 +330,7 @@ namespace dmGameSystem
             world->m_Components.SetSize(count + 1);
             ParticleFXComponent* component = &world->m_Components[count];
             component->m_Instance = go_instance;
+            component->m_ComponentId = component_id;
             component->m_PrototypeIndex = prototype - world->m_Prototypes.Begin();
             // NOTE: We must increase ref-count as a particle fx might be playing after the component is destroyed
             dmResource::HFactory factory = world->m_Context->m_Factory;
@@ -365,12 +368,8 @@ namespace dmGameSystem
                 memcpy(emitter_state_changed_data.m_UserData, (params.m_Message->m_Data) + sizeof(dmParticle::EmitterStateChanged), sizeof(EmitterStateChangedScriptData));
             }
 
-            dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, prototype, &emitter_state_changed_data);
-
-            if (prototype->m_AddedToUpdate)
-            {
-                dmParticle::StartInstance(particle_context, instance);
-            }
+            dmhash_t component_id = params.m_Message->m_Receiver.m_Fragment;
+            dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, component_id, prototype, &emitter_state_changed_data);
 
             dmTransform::Transform world_transform(prototype->m_Translation, prototype->m_Rotation, 1.0f);
             world_transform = dmTransform::Mul(dmGameObject::GetWorldTransform(params.m_Instance), world_transform);
@@ -378,6 +377,11 @@ namespace dmGameSystem
             dmParticle::SetRotation(particle_context, instance, world_transform.GetRotation());
             dmParticle::SetScale(particle_context, instance, world_transform.GetUniformScale());
             dmParticle::SetScaleAlongZ(particle_context, instance, dmGameObject::ScaleAlongZ(params.m_Instance));
+
+            if (prototype->m_AddedToUpdate)
+            {
+                dmParticle::StartInstance(particle_context, instance);
+            }
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash)
         {
@@ -385,7 +389,8 @@ namespace dmGameSystem
             for (uint32_t i = 0; i < count; ++i)
             {
                 ParticleFXComponent* component = &world->m_Components[i];
-                if (component->m_Instance == params.m_Instance)
+                dmhash_t component_id = params.m_Message->m_Receiver.m_Fragment;
+                if (component->m_Instance == params.m_Instance && component->m_ComponentId == component_id)
                 {
                     dmParticle::StopInstance(world->m_ParticleContext, component->m_ParticleInstance);
                 }
@@ -407,7 +412,7 @@ namespace dmGameSystem
             }
             if (found_count == 0)
             {
-                dmLogWarning("Particle FX to set constant for could not be found.");
+                dmLogWarning("Particle FX to set constant for could not be found. You need to start playing it before setting constants.");
             }
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor->m_NameHash)

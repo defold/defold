@@ -4,9 +4,10 @@
 
 (set! *warn-on-reflection* true)
 
-(defprotocol Arc
-  (head [this] "returns [source-node source-label]")
-  (tail [this] "returns [target-node target-label]"))
+(defrecord Arc [source-id source-label target-id target-label])
+
+(defn source [^Arc arc] [(.source-id arc) (.source-label arc)])
+(defn target [^Arc arc] [(.target-id arc) (.target-label arc)])
 
 (defn node-id? [v] (integer? v))
 
@@ -30,8 +31,8 @@
 (defprotocol IBasis
   (node-by-id-at    [this node-id])
   (node-by-property [this label value])
-  (arcs-by-head     [this node-id] [this node-id label])
-  (arcs-by-tail     [this node-id] [this node-id label])
+  (arcs-by-source   [this node-id] [this node-id label])
+  (arcs-by-target   [this node-id] [this node-id label])
   (sources          [this node-id] [this node-id label])
   (targets          [this node-id] [this node-id label])
   (add-node         [this value]                 "returns [basis real-value]")
@@ -42,9 +43,9 @@
   (add-override     [this override-id override])
   (delete-override  [this override-id])
   (replace-override [this override-id value])
-  (connect          [this src-id src-label tgt-id tgt-label])
-  (disconnect       [this src-id src-label tgt-id tgt-label])
-  (connected?       [this src-id src-label tgt-id tgt-label])
+  (connect          [this source-id source-label target-id target-label])
+  (disconnect       [this source-id source-label target-id target-label])
+  (connected?       [this source-id source-label target-id target-label])
   (dependencies     [this outputs-by-node-ids]
     "Follow arcs through the graphs, from outputs to the inputs
      connected to them, and from those inputs to the downstream
@@ -53,6 +54,9 @@
 
      Takes and returns a map of the form {node-id #{label ...} ...}")
   (original-node    [this node-id]))
+
+(defn basis? [value]
+  (satisfies? IBasis value))
 
 ;; ---------------------------------------------------------------------------
 ;; ID helpers

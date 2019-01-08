@@ -33,6 +33,8 @@
 
 #include <axtls/crypto/crypto.h>
 
+namespace dmAxTls {
+
 BI_CTX *bi_initialize(void);
 void bi_terminate(BI_CTX *ctx);
 void bi_permanent(bigint *bi);
@@ -95,5 +97,7 @@ bigint *bi_crt(BI_CTX *ctx, bigint *bi,
         bigint *p, bigint *q,
         bigint *qInv);
 #endif
+
+} // namespace
 
 #endif

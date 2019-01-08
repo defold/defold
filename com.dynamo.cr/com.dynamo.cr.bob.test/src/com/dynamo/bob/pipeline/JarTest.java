@@ -76,7 +76,7 @@ public class JarTest {
     @Test
     public void testMapTextureProfilesToCompression() throws Exception {
         String[] args = new String[] {"--texture-profiles", "true"};
-        int result = bob(args, "WARNING option 'texture-profiles' is deprecated, setting 'texture-compression' option instead.");
+        int result = bob(args, "WARNING option 'texture-profiles' is deprecated, use option 'texture-compression' instead.");
         assertEquals(1337, result);
     }
 

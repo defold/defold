@@ -150,7 +150,7 @@
             (run! #(.addConvexHullPoints builder %) points))
           convex-hulls)))
 
-(defn tile-source->texture-set-data [image tile-source-attributes convex-hulls collision-groups animations]
+(defn tile-source->texture-set-data [tile-source-attributes convex-hulls collision-groups animations]
   (let [image-rects (split-rects tile-source-attributes)
         anims-atom (atom animations)
         anim-indices-atom (atom [])

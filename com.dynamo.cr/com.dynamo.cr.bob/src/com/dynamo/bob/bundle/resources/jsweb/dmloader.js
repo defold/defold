@@ -242,6 +242,10 @@ var Progress = {
     removeProgress: function () {
         if (Progress.progress.parentElement !== null) {
             Progress.progress.parentElement.removeChild(Progress.progress);
+
+            // Remove any background/splash image that was set in runApp().
+            // Workaround for Safari bug DEF-3061.
+            Module.canvas.style.background = "";
         }
     }
 };
@@ -299,6 +303,19 @@ var Module = {
     printErr: function(text) { console.error(text); },
 
     setStatus: function(text) { console.log(text); },
+
+    isWASMSupported: (function() {
+        try {
+            if (typeof WebAssembly === "object"
+                && typeof WebAssembly.instantiate === "function") {
+                const module = new WebAssembly.Module(Uint8Array.of(0x0, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00));
+                if (module instanceof WebAssembly.Module)
+                    return new WebAssembly.Instance(module) instanceof WebAssembly.Instance;
+            }
+        } catch (e) {
+        }
+        return false;
+    })(),
 
     prepareErrorObject: function (err, url, line, column, errObj) {
         line = typeof line == "undefined" ? 0 : line;
@@ -401,6 +418,9 @@ var Module = {
     *     'custom_heap_size':
     *         Number of bytes specifying the memory heap size.
     *
+    *     'disable_context_menu':
+    *         Disables the right-click context menu on the canvas element if true.
+    *
     **/
     runApp: function(app_canvas_id, extra_params) {
         app_canvas_id = (typeof app_canvas_id === 'undefined') ?  'canvas' : app_canvas_id;
@@ -411,7 +431,8 @@ var Module = {
             unsupported_webgl_callback: undefined,
             engine_arguments: [],
             persistent_storage: true,
-            custom_heap_size: undefined
+            custom_heap_size: undefined,
+            disable_context_menu: true
         };
 
         for (var k in extra_params) {
@@ -434,14 +455,16 @@ var Module = {
 
             Module.setupVisibilityChangeListener();
 
-            // Load Facebook API
-            var fb = document.createElement('script');
-            fb.type = 'text/javascript';
-            fb.src = '//connect.facebook.net/en_US/sdk.js';
-            document.head.appendChild(fb);
-
             // Add progress visuals
             Progress.addProgress(Module.canvas);
+
+            // Add context menu hide-handler if requested
+            if (params["disable_context_menu"])
+            {
+                Module.canvas.oncontextmenu = function(e) {
+                    e.preventDefault();
+                };
+            }
 
             // Load and assemble archive
             Combine.addCombineCompletedListener(Module.onArchiveFileLoaded);
@@ -581,7 +604,7 @@ var Module = {
         } else {
 
             // Need to set heap size before calling main
-            TOTAL_MEMORY = Module["TOTAL_MEMORY"] || TOTAL_MEMORY;
+            TOTAL_MEMORY = Module["TOTAL_MEMORY"] || TOTAL_MEMORY;
 
             Module.preloadAll();
             Progress.removeProgress();
@@ -625,3 +648,5 @@ window.onerror = function(err, url, line, column, errObj) {
         if (text) Module.printErr('[post-exception status] ' + text);
     };
 };
+
+

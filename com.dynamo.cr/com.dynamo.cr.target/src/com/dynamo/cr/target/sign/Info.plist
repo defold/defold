@@ -112,6 +112,7 @@
             <string>fbapi20140116</string>
             <string>fbapi20150313</string>
             <string>fbapi20150629</string>
+            <string>fbapi20151007</string>
             <string>fbauth</string>
             <string>fbauth2</string>
             <string>fb-messenger-api20140430</string>
@@ -250,6 +251,26 @@
                     <string>Landscape</string>
                     <key>UILaunchImageSize</key>
                     <string>{768, 1024}</string>
+                </dict>
+                <dict>
+                    <key>UILaunchImageMinimumOSVersion</key>
+                    <string>8.0</string>
+                    <key>UILaunchImageName</key>
+                    <string>Default-Portrait-1112h</string>
+                    <key>UILaunchImageOrientation</key>
+                    <string>Portrait</string>
+                    <key>UILaunchImageSize</key>
+                    <string>{834,1112}</string>
+                </dict>
+                <dict>
+                    <key>UILaunchImageMinimumOSVersion</key>
+                    <string>8.0</string>
+                    <key>UILaunchImageName</key>
+                    <string>Default-Landscape-1112h</string>
+                    <key>UILaunchImageOrientation</key>
+                    <string>Landscape</string>
+                    <key>UILaunchImageSize</key>
+                    <string>{834,1112}</string>
                 </dict>
                 <dict>
                     <key>UILaunchImageMinimumOSVersion</key>

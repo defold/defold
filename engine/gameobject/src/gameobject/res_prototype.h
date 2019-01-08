@@ -12,6 +12,8 @@ namespace dmGameObject
     dmResource::Result ResPrototypeCreate(const dmResource::ResourceCreateParams& params);
 
     dmResource::Result ResPrototypeDestroy(const dmResource::ResourceDestroyParams& params);
+
+    dmResource::Result ResPrototypeRecreate(const dmResource::ResourceRecreateParams& params);
 }
 
 #endif // DM_GAMEOBJECT_RES_PROTOTYPE_H

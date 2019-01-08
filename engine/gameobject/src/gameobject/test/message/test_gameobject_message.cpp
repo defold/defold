@@ -29,8 +29,8 @@ protected:
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/message");
         m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
-        dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
+        dmGameObject::Initialize(m_Register, m_ScriptContext);
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
         assert(dmMessage::NewSocket("@system", &m_Socket) == dmMessage::RESULT_OK);
@@ -58,7 +58,7 @@ protected:
         dmGameObject::Result result = dmGameObject::RegisterComponentType(m_Register, mt_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
-        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0);
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
     }
 
 
@@ -324,11 +324,11 @@ TEST_F(MessageTest, TestInputFocus)
     receiver.m_Fragment = 0;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor, 0x0, 0, 0));
 
-    ASSERT_EQ(0u, m_Collection->m_InputFocusStack.Size());
+    ASSERT_EQ(0u, m_Collection->m_Collection->m_InputFocusStack.Size());
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ(1u, m_Collection->m_InputFocusStack.Size());
+    ASSERT_EQ(1u, m_Collection->m_Collection->m_InputFocusStack.Size());
 
     message_id = dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor->m_NameHash;
 
@@ -336,7 +336,7 @@ TEST_F(MessageTest, TestInputFocus)
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ(0u, m_Collection->m_InputFocusStack.Size());
+    ASSERT_EQ(0u, m_Collection->m_Collection->m_InputFocusStack.Size());
 
     dmGameObject::Delete(m_Collection, go, false);
 }

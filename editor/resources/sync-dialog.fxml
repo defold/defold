@@ -8,7 +8,7 @@
 <?import java.net.*?>
 <?import javafx.scene.layout.*?>
 
-<BorderPane styleClass="sync-dialog" prefHeight="200.0" prefWidth="468.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+<BorderPane prefHeight="200.0" prefWidth="468.0" styleClass="sync-dialog" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
   <stylesheets>
     <URL value="@editor.css" />
   </stylesheets>
@@ -19,7 +19,7 @@
                <children>
                   <Button id="cancel" alignment="CENTER" defaultButton="false" layoutY="2.0" maxWidth="1.7976931348623157E308" mnemonicParsing="false" prefWidth="80.0" text="Cancel" />
                </children></Pane>
-            <Button id="push" visible="false" maxWidth="1.7976931348623157E308" mnemonicParsing="false" prefWidth="80.0" text="Push" />
+            <Button id="push" maxWidth="1.7976931348623157E308" mnemonicParsing="false" prefWidth="80.0" text="Push" visible="false" />
             <Button id="ok" defaultButton="true" maxWidth="1.7976931348623157E308" mnemonicParsing="false" prefWidth="80.0" text="OK" />
          </children>
          <padding>
@@ -30,7 +30,7 @@
    <center>
       <AnchorPane id="dialog-area" BorderPane.alignment="CENTER">
          <children>
-            <Label alignment="CENTER" style="-fx-background-color: gray;" text="Dialog Area Here" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+            <Label alignment="CENTER" text="Dialog Area Here" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                <font>
                   <Font size="18.0" />
                </font>
@@ -43,7 +43,7 @@
          <children>
             <AnchorPane>
                <children>
-                  <ProgressBar id="progress-bar" minHeight="6.0" prefHeight="6.0" progress="0.0" styleClass="small-progress-bar" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                  <ProgressBar id="progress-bar" minHeight="6.0" prefHeight="6.0" progress="0.0" styleClass="small-progress-bar" visible="false" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                </children>
             </AnchorPane>
          </children>

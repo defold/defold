@@ -124,7 +124,7 @@
 
 (defmethod create-property-control! g/Num [_ _ property-fn]
   (let [text         (TextField.)
-        update-ui-fn (partial update-text-fn text field-expression/format-double)
+        update-ui-fn (partial update-text-fn text field-expression/format-number)
         update-fn    (fn [_] (if-let [v (field-expression/to-double (.getText text))]
                                (properties/set-values! (property-fn) (repeat v))
                                (update-ui-fn (properties/values (property-fn))
@@ -161,7 +161,7 @@
         box          (doto (GridPane.)
                        (.setHgap grid-hgap))
         get-fns (map-indexed (fn [i _] #(nth % i)) text-fields)
-        update-ui-fn (partial update-multi-text-fn text-fields field-expression/format-double get-fns)]
+        update-ui-fn (partial update-multi-text-fn text-fields field-expression/format-number get-fns)]
     (doseq [[t f] (map-indexed (fn [i t]
                                  [t (fn [_]
                                       (let [v            (field-expression/to-double (.getText ^TextField t))
@@ -202,7 +202,7 @@
         box          (doto (GridPane.)
                        (.setPrefWidth Double/MAX_VALUE))
         get-fns (map (fn [f] (or (:get-fn f) #(get-in % (:path f)))) fields)
-        update-ui-fn (partial update-multi-text-fn text-fields field-expression/format-double get-fns)]
+        update-ui-fn (partial update-multi-text-fn text-fields field-expression/format-number get-fns)]
     (doseq [[t f] (map (fn [f t]
                          (let [set-fn (or (:set-fn f)
                                           (fn [e v] (assoc-in e (:path f) v)))]
@@ -249,7 +249,7 @@
 (defmethod create-property-control! CurveSpread [_ _ property-fn]
   (let [^ToggleButton toggle-button (make-curve-toggler property-fn)
         fields [{:get-fn (fn [c] (second (first (properties/curve-vals c))))
-                 :set-fn (fn [c v] (properties/->curve-spread [[0 v 1 0]] (:spread c)))
+                 :set-fn (fn [c v] (properties/->curve-spread [[0.0 v 1.0 0.0]] (:spread c)))
                  :control toggle-button}
                 {:label "+/-" :path [:spread]}]
         [^HBox box update-ui-fn] (create-multi-keyed-textfield! fields property-fn)
@@ -258,13 +258,14 @@
                        (update-ui-fn values message read-only?)
                        (let [curved? (boolean (< 1 (count (properties/curve-vals (first values)))))]
                          (.setSelected toggle-button curved?)
+                         (ui/editable! toggle-button (some? (first values)))
                          (ui/disable! text-field curved?)))]
     [box update-ui-fn]))
 
 (defmethod create-property-control! Curve [_ _ property-fn]
   (let [^ToggleButton toggle-button (make-curve-toggler property-fn)
         fields [{:get-fn (fn [c] (second (first (properties/curve-vals c))))
-                 :set-fn (fn [c v] (properties/->curve [[0 v 1 0]]))
+                 :set-fn (fn [c v] (properties/->curve [[0.0 v 1.0 0.0]]))
                  :control toggle-button}]
         [^HBox box update-ui-fn] (create-multi-keyed-textfield! fields property-fn)
           ^TextField text-field (some #(and (instance? TextField %) %) (.getChildren ^HBox (first (.getChildren box))))
@@ -272,6 +273,7 @@
                          (update-ui-fn values message read-only?)
                          (let [curved? (boolean (< 1 (count (properties/curve-vals (first values)))))]
                            (.setSelected toggle-button curved?)
+                           (ui/editable! toggle-button (some? (first values)))
                            (ui/disable! text-field curved?)))]
     [box update-ui-fn]))
 

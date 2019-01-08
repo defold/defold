@@ -226,9 +226,11 @@
           result)))
     ;; 'local' namelist ('=' explist)?
     (let [[_ _ namelist _ _explist] node]
-      (if-let [parsed-names (parse-namelist namelist)]
-        (conj result {:local-vars parsed-names})
-        result))))
+      (if (error-node? namelist)
+        result
+        (if-let [parsed-names (parse-namelist namelist)]
+          (conj result {:local-vars parsed-names})
+          result)))))
 
 (defmethod collect-stat-node-info :default [_ result _node] result)
 

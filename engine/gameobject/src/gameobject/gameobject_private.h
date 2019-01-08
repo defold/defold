@@ -105,7 +105,7 @@ namespace dmGameObject
         Vector3 m_PrevEulerRotation;
         // Collection this instances belongs to. Added for GetWorldPosition.
         // We should consider to remove this (memory footprint)
-        HCollection     m_Collection;
+        struct Collection* m_Collection;
         Prototype*      m_Prototype;
 
         uint32_t        m_IdentifierIndex;
@@ -185,10 +185,11 @@ namespace dmGameObject
         dmMutex::Mutex              m_Mutex;
 
         // All collections. Protected by m_Mutex
-        dmArray<HCollection>        m_Collections;
+        dmArray<Collection*>        m_Collections;
         // Default capacity of collections
         uint32_t                    m_DefaultCollectionCapacity;
-        uint32_t                    m_DefaultCollectionRigCapacity;
+
+        dmHashTable64<Collection*>  m_SocketToCollection;
 
         Register();
         ~Register();
@@ -200,49 +201,15 @@ namespace dmGameObject
     const uint32_t MAX_HIERARCHICAL_DEPTH = 128;
     struct Collection
     {
-        Collection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances)
-        {
-            m_Factory = factory;
-            m_Register = regist;
-            m_MaxInstances = max_instances;
-            m_Instances.SetCapacity(max_instances);
-            m_Instances.SetSize(max_instances);
-            m_InstanceIndices.SetCapacity(max_instances);
-            m_WorldTransforms.SetCapacity(max_instances);
-            m_WorldTransforms.SetSize(max_instances);
-            m_IDToInstance.SetCapacity(dmMath::Max(1U, max_instances/3), max_instances);
-            // TODO: Un-hard-code
-            m_InputFocusStack.SetCapacity(16);
-            m_NameHash = 0;
-            m_ComponentSocket = 0;
-            m_FrameSocket = 0;
+        Collection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances);
 
-            // Instances that cannot use an ID from the InstanceIdPool will
-            // generate indexes greater than the size of the pool.
-            m_GenInstanceCounter = max_instances;
-            m_GenCollectionInstanceCounter = 0;
-            m_InstanceIdPool.SetCapacity(max_instances);
-            m_InUpdate = 0;
-            m_ToBeDeleted = 0;
-            m_ScaleAlongZ = 0;
-            m_DirtyTransforms = 1;
-
-            m_InstancesToDeleteHead = INVALID_INSTANCE_INDEX;
-            m_InstancesToDeleteTail = INVALID_INSTANCE_INDEX;
-
-            m_InstancesToAddHead = INVALID_INSTANCE_INDEX;
-            m_InstancesToAddTail = INVALID_INSTANCE_INDEX;
-
-            memset(&m_Instances[0], 0, sizeof(Instance*) * max_instances);
-            memset(&m_WorldTransforms[0], 0xcc, sizeof(dmTransform::Transform) * max_instances);
-            memset(&m_LevelIndices[0], 0, sizeof(m_LevelIndices));
-            memset(&m_ComponentInstanceCount[0], 0, sizeof(uint32_t) * MAX_COMPONENT_TYPES);
-        }
         // Resource factory
         dmResource::HFactory     m_Factory;
 
         // GameObject component register
         HRegister                m_Register;
+
+        struct CollectionHandle* m_HCollection;
 
         // Component type specific worlds
         void*                    m_ComponentWorlds[MAX_COMPONENT_TYPES];
@@ -261,8 +228,6 @@ namespace dmGameObject
         // Index pool for mapping Instance::m_Index to m_Instances
         dmIndexPool16            m_InstanceIndices;
 
-        dmRig::HRigContext       m_RigContext;
-
         // Array of dynamically allocated index arrays, one for each level
         // Used for calculating transforms in scene-graph
         // Two dimensional table of indices with stride "max_instances"
@@ -271,7 +236,7 @@ namespace dmGameObject
         dmArray<uint16_t>        m_LevelIndices[MAX_HIERARCHICAL_DEPTH];
 
         // Array of world transforms. Calculated using m_LevelIndices above
-        dmArray<Matrix4> m_WorldTransforms;
+        dmArray<Matrix4>         m_WorldTransforms;
 
         // Identifier to Instance mapping
         dmHashTable64<Instance*> m_IDToInstance;
@@ -311,15 +276,40 @@ namespace dmGameObject
         // If the game object dynamically created in this collection should have the Z component of the position affected by scale
         uint32_t                 m_ScaleAlongZ : 1;
         uint32_t                 m_DirtyTransforms : 1;
+        uint32_t                 m_Initialized : 1;
+    };
+
+    struct CollectionHandle
+    {
+        Collection* m_Collection;
     };
 
     ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index);
 
-    HInstance NewInstance(HCollection collection, Prototype* proto, const char* prototype_name);
-    void ReleaseIdentifier(HCollection collection, HInstance instance);
-    void UndoNewInstance(HCollection collection, HInstance instance);
-    bool CreateComponents(HCollection collection, HInstance instance);
-    void UpdateTransforms(HCollection collection);
+    // Used by res_collection.cpp
+    HInstance NewInstance(Collection* collection, Prototype* proto, const char* prototype_name);
+    HInstance GetInstanceFromIdentifier(Collection* collection, dmhash_t identifier);
+    void ReleaseInstanceIndex(uint32_t index, HCollection collection);
+    Result SetIdentifier(Collection* collection, HInstance instance, const char* identifier);
+    void ReleaseIdentifier(Collection* collection, HInstance instance);
+    void UndoNewInstance(Collection* collection, HInstance instance);
+    bool CreateComponents(Collection* collection, HInstance instance);
+    void Delete(Collection* collection, HInstance instance, bool recursive);
+    void UpdateTransforms(Collection* collection);
+    void DeleteCollection(Collection* collection);
+    bool IsCollectionInitialized(Collection* collection);
+    Result AttachCollection(Collection* collection, const char* name, dmResource::HFactory factory, HRegister regist, HCollection hcollection);
+    void DetachCollection(Collection* collection);
+
+    void* GetResource(HInstance instance);
+
+    void AcquireInputFocus(Collection* collection, HInstance instance);
+    void ReleaseInputFocus(Collection* collection, HInstance instance);
+    UpdateResult DispatchInput(Collection* collection, InputAction* input_actions, uint32_t input_action_count);
+
+    // Unit test functions
+    uint32_t GetAddToUpdateCount(HCollection collection); // Returns the number of items scheduled to be added to update
+    uint32_t GetRemoveFromUpdateCount(HCollection collection); // Returns the number of items scheduled to be removed from update
 }
 
 #endif // GAMEOBJECT_COMMON_H

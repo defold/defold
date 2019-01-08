@@ -30,6 +30,8 @@ namespace dmLuaDDF
 namespace dmScript
 {
     typedef struct Context* HContext;
+    typedef struct ScriptWorld* HScriptWorld;
+    typedef struct ScriptExtension* HScriptExtension;
 
     enum Result
     {
@@ -45,6 +47,22 @@ namespace dmScript
     extern const char* META_TABLE_IS_VALID;
 
     /**
+     * Implementor should return a Ref to the instance context table.
+     * 
+     * CAUTION! The implementation should *NOT* create a new ref, it
+     * should return an existing one. If it does not have one, it should
+     * return LUA_NOREF
+     * 
+     * Lua stack on entry
+     *  [-1] instance
+     * 
+     * Lua stack on exit
+     *  [-1] ref to instance context table or LUA_NOREF
+     * 
+     */
+    extern const char* META_GET_INSTANCE_CONTEXT_TABLE_REF;
+
+    /**
      * Create and return a new context.
      * @param config_file optional config file handle
      * @param factory resource factory
@@ -57,6 +75,31 @@ namespace dmScript
      * Delete an existing context.
      */
     void DeleteContext(HContext context);
+
+    /**
+     * Use a ScriptExtension to hook into various callbacks of the script lifetime
+     * 
+     * For callbacks you do not care for, set them to 0x0
+     */
+    struct ScriptExtension
+    {
+        // Called when the context has completed Initialize(HContext context)
+        void (*Initialize)(HContext context);
+        // Called one each game frame
+        void (*Update)(HContext context);
+        // Called just before the context completes Finalize(HContext context)
+        void (*Finalize)(HContext context);
+        // Called when a new "world" has been created (a Collection, GUI Scene etc)
+        void (*NewScriptWorld)(HScriptWorld script_world);
+        // Called just before deleting the script world
+        void (*DeleteScriptWorld)(HScriptWorld script_world);
+        // Called once a frame for the world, dt is local time delta (affected by slo-mo etc)
+        void (*UpdateScriptWorld)(HScriptWorld script_world, float dt);
+        // Called when a script instance has been created
+        void (*InitializeScriptInstance)(HScriptWorld script_world);
+        // Called just before a script instance is deleted
+        void (*FinalizeScriptInstance)(HScriptWorld script_world);
+    };
 
     /**
      * Callback used to resolve paths.
@@ -110,16 +153,56 @@ namespace dmScript
     void Initialize(HContext context);
 
     /**
+     * Register a script extension to the context.
+     * The script_extensions lifetime should wrap the lifetime of the context,
+     * usually you would supply a pointer to a static instance of the script_extension
+     * 
+     * @param context script context
+     * @param script_extension the implementation of the HScriptExtension
+     */
+    void RegisterScriptExtension(HContext context, HScriptExtension script_extension);
+
+    /**
      * Updates the extensions initalized in this script context.
      * @param context script contetx
      */
-    void UpdateExtensions(HContext context);
+    void Update(HContext context);
 
     /**
      * Finalize script libraries
      * @param context script context
      */
     void Finalize(HContext context);
+
+    /**
+     * Set value by key using in the context table of active HContext
+     * 
+     * Expects Initialize(context) to have been called
+     *
+     * @param L Lua state
+     * 
+     * Lua stack on entry
+     *  [-2] key
+     *  [-1] value
+     * 
+     * Lua stack on exit
+    */
+    void SetContextValue(HContext context);
+
+    /**
+     * Get value by key using from context table of active HContext
+     *
+     * Expects Initialize(context) to have been called
+     * 
+     * @param L Lua state
+     * 
+     * Lua stack on entry
+     *  [-1] key
+     * 
+     * Lua stack on exit
+     *  [-1] value or LUA_NIL
+    */
+    void GetContextValue(HContext context);
 
     /**
      * Retrieve a ddf structure from a lua state.
@@ -185,6 +268,13 @@ namespace dmScript
      * @param hash Hash value to push
      */
     void PushHash(lua_State* L, dmhash_t hash);
+
+    /**
+     * Removes a hash value from the currently known hashes.
+     * @param L Lua state
+     * @param hash Hash value to release
+     */
+    void ReleaseHash(lua_State* L, dmhash_t hash);
 
     /**
      * Check if the value in the supplied index on the lua stack is a hash.
@@ -363,6 +453,165 @@ namespace dmScript
      */
     bool GetUserData(lua_State* L, uintptr_t* out_user_data, const char* user_type);
 
+
+    /**
+     * Returns an identifier that identifies the current instance set by SetInstance().
+     * The id is guarranteed to be unique among the currently alive script instances.
+     * 
+     * @param L Lua state
+     * @return unique identifier for the instance
+     */
+    uintptr_t GetInstanceId(lua_State* L);
+
+    /**
+     * Create a "world" for this script, normally this matches a GO collection,
+     * GUI scene or a RenderWorld.
+     * 
+     * @param context Script context
+     * @return the script world
+     */
+    HScriptWorld NewScriptWorld(HContext context);
+
+    /**
+     * Delete the script world
+     * 
+     * @param script_world The script world created with NewScriptWorld
+     */
+    void DeleteScriptWorld(HScriptWorld script_world);
+
+    /**
+     * Update the script world
+     * 
+     * @param script_world the script world created with NewScriptWorld
+     * @param dt the delta time in the world in seconds
+     */
+    void UpdateScriptWorld(HScriptWorld script_world, float dt);
+ 
+    /**
+     * Sets up the instance with associated data, expects SetInstance to have been
+     * called prior to this function
+     * 
+     * @param script_world the script world
+     */
+    void InitializeInstance(HScriptWorld script_world);
+
+    /**
+     * Removes the instance associated data, expects SetInstance to have been
+     * called prior to this function
+     * 
+     * @param script_world the script world
+     */
+    void FinalizeInstance(HScriptWorld script_world);
+
+    /**
+     * Set value by key using the META_GET_INSTANCE_CONTEXT_TABLE_REF meta table function
+     * 
+     * Expects SetInstance() to have been set with an value that has a meta table
+     * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
+     *
+     * @param L Lua state
+     * @return true if the value could be store under the key
+     * 
+     * Lua stack on entry
+     *  [-2] key
+     *  [-1] value
+     * 
+     * Lua stack on exit
+    */
+    bool SetInstanceContextValue(lua_State* L);
+
+    /**
+     * Get value by key using the META_GET_INSTANCE_CONTEXT_TABLE_REF meta table function
+     *
+     * Expects SetInstance() to have been set with an value that has a meta table
+     * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
+     * 
+     * @param L Lua state
+     * 
+     * Lua stack on entry
+     *  [-1] key
+     * 
+     * Lua stack on exit
+     *  [-1] value or LUA_NIL
+    */
+    void GetInstanceContextValue(lua_State* L);
+
+    /**
+     * Creates a reference to the value at top of stack, the ref is done in the
+     * current instances context table.
+     * 
+     * Expects SetInstance() to have been set with an value that has a meta table
+     * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
+     * 
+     * @param L Lua state
+     * @return lua ref to value or LUA_NOREF
+     * 
+     * Lua stack on entry
+     *  [-1] value
+     * 
+     * Lua stack on exit
+    */
+    int RefInInstance(lua_State* L);
+
+    /**
+     * Deletes the instance local lua reference
+     * 
+     * Expects SetInstance() to have been set with an value that has a meta table
+     * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
+     * 
+     * @param L Lua state
+     * @param ref the instance local ref
+     * 
+     * Lua stack on entry
+     * 
+     * Lua stack on exit
+     */
+    void UnrefInInstance(lua_State* L, int ref);
+
+    /**
+     * Resolves the instance local ref and pushes it to top of stack
+     * 
+     * Expects SetInstance() to have been set with an value that has a meta table
+     * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
+     * 
+     * @param L Lua state
+     * @param ref the instance local ref
+     * 
+     * Lua stack on entry
+     * 
+     * Lua stack on exit
+     *  [-1] value or LUA_NIL
+     */
+    void ResolveInInstance(lua_State* L, int ref);
+
+    HContext GetScriptWorldContext(HScriptWorld script_world);
+
+    /**
+     * Set value by key in the context table associated with the script world
+     * 
+     * @param script_world the script world created with NewScriptWorld
+     * 
+     * Lua stack on entry
+     *  [-2] key
+     *  [-1] value
+     * 
+     * Lua stack on exit
+    */
+    void SetScriptWorldContextValue(HScriptWorld script_world);
+
+    /**
+     * Get value by key from the context table associated with the script world
+     * 
+     * @param script_world the script world created with NewScriptWorld
+     * 
+     * Lua stack on entry
+     *  [-1] key
+     * 
+     * Lua stack on exit
+     *  [-1] value
+    */
+    void GetScriptWorldContextValue(HScriptWorld script_world);
+
     dmMessage::Result ResolveURL(lua_State* L, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url);
 
     /**
@@ -485,33 +734,38 @@ namespace dmScript
     */
     uint32_t GetLuaGCCount(lua_State* L);
 
-    struct LuaCallbackInfo
-    {
-        LuaCallbackInfo() : m_L(0), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
-        lua_State* m_L;
-        int        m_Callback;
-        int        m_Self;
-    };
+    struct LuaCallbackInfo;
 
-    /** Register a Lua callback. Stores the current Lua state plus references to the script instance (self) and the callback
-    */
-    void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk);
+    /** Register a Lua callback. Stores the current Lua state plus references to the
+     * script instance (self) and the callback Expects SetInstance() to have been called
+     * prior to using this method.
+     * 
+     * The allocated data is created on the Lua stack and references are made against the
+     * instances own context table.
+     * 
+     * If the callback is not explicitly deleted with DeleteCallback() the references and
+     * data will stay around until the script instance is deleted.
+     */
+    LuaCallbackInfo* CreateCallback(lua_State* L, int callback_stack_index);
 
     /** Check if Lua callback is valid.
-    */
+     */
     bool IsValidCallback(LuaCallbackInfo* cbk);
 
-    /** Unregisters a Lua callback
-    */
-    void UnregisterCallback(LuaCallbackInfo* cbk);
+    /** Deletes the Lua callback
+     */
+    void DeleteCallback(LuaCallbackInfo* cbk);
 
     /** A helper function for the user to easily push Lua stack arguments prior to invoking the callback
-    */
+     */
     typedef void (*LuaCallbackUserFn)(lua_State* L, void* user_context);
 
-    /** Invokes a Lua callback. User can pass a custom function for pushing extra Lua arguments to the stack, prior to the call
-    * Returns true on success and false on failure. In case of failure, and error will be logged.
-    */
+    /** Invokes a Lua callback. User can pass a custom function for pushing extra Lua arguments
+     * to the stack, prior to the call
+     * Returns true on success and false on failure. In case of failure, an error will be logged.
+     * 
+     * The function takes care of setting up and restoring the current instance.
+     */
     bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context);
 
     /**

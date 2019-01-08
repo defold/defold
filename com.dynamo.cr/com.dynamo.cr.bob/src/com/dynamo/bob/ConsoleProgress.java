@@ -3,10 +3,12 @@ package com.dynamo.bob;
 public class ConsoleProgress implements IProgress {
 
     private float totalWork;
+    private int prevPercent;
     private float worked;
     private ConsoleProgress reportTo;
     private float ticks;
     private float scale = 1;
+    private Boolean isATTY = false;
 
     public ConsoleProgress() {
         reportTo = this;
@@ -15,6 +17,8 @@ public class ConsoleProgress implements IProgress {
     private ConsoleProgress(ConsoleProgress parent, float ticks) {
         this.reportTo = parent;
         this.ticks = ticks;
+        this.isATTY = System.console() != null;
+        this.prevPercent = -1;
     }
 
     @Override
@@ -39,9 +43,23 @@ public class ConsoleProgress implements IProgress {
     }
 
     private void printProgress() {
-        System.out.print("\r                               \r");
-        String s = String.format("%.0f%%", 100 * worked / totalWork);
+        int percent = (int)(100 * worked / totalWork);
+        if (percent == prevPercent)
+            return;
+
+        if (this.isATTY) {
+            System.out.print("\r                               \r");
+        } else {
+            if (worked > 0)
+                System.out.print(" ");
+            else
+                System.out.print(", ");
+        }
+
+        String s = String.format("%d%%", percent);
         System.out.print(s);
+
+        prevPercent = percent;
     }
 
     @Override

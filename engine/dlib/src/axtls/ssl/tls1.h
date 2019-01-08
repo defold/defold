@@ -36,16 +36,14 @@
 #ifndef HEADER_SSL_LIB_H
 #define HEADER_SSL_LIB_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <axtls/ssl/version.h>
 #include <axtls/config/config.h>
 #include <axtls/crypto/os_int.h>
 #include <axtls/ssl/os_port.h>
 #include <axtls/crypto/crypto.h>
 #include <axtls/ssl/crypto_misc.h>
+
+namespace dmAxTls {
 
 #define SSL_PROTOCOL_MIN_VERSION    0x31   /* TLS v1.0 */
 #define SSL_PROTOCOL_VERSION_MAX    0x33   /* TLS v1.3 */
@@ -316,8 +314,6 @@ SSL_SESSION *ssl_session_update(int max_sessions,
         const uint8_t *session_id);
 void kill_ssl_session(SSL_SESSION **ssl_sessions, SSL *ssl);
 
-#ifdef __cplusplus
-}
-#endif
+} // namespace
 
 #endif

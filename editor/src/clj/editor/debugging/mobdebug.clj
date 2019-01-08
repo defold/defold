@@ -2,13 +2,15 @@
   (:refer-clojure :exclude [eval run!])
   (:require
    [clojure.edn :as edn]
+   [editor.error-reporting :as error-reporting]
    [editor.lua :as lua]
-   [service.log :as log])
+   [service.log :as log]
+   [editor.luajit :refer [luajit-path-to-chunk]])
   (:import
    (java.util Stack)
    (java.util.concurrent Executors ExecutorService)
    (java.io IOException PrintWriter BufferedReader InputStreamReader)
-   (java.net Socket ServerSocket InetAddress InetSocketAddress SocketTimeoutException)))
+   (java.net Socket InetSocketAddress)))
 
 (set! *warn-on-reflection* true)
 
@@ -20,7 +22,7 @@
 
 (defmacro thread
   [& body]
-  `(thread-call (^{:once true} fn* [] ~@body)))
+  `(thread-call (^{:once true} fn* [] (error-reporting/catch-all! ~@body))))
 
 (defn- re-match
   "Find the first match of `re` in `s` and return a vector of all the captured
@@ -93,6 +95,8 @@
                      :+inf Double/POSITIVE_INFINITY)))
    'lua/table (fn [{:keys [tostring data]}]
                 (with-meta data {:tostring tostring}))
+   'lua/tableref (fn [{:keys [tostring data]}]
+                    tostring)
    'lua/ref   (fn [{:keys [tostring]}]
                 (format "Circular reference to: %s" tostring))})
 
@@ -123,7 +127,6 @@
     s))
 
 (def sanitize-path (comp module->path remove-filename-prefix))
-
 
 ;;------------------------------------------------------------------------------
 ;; session management
@@ -216,8 +219,7 @@
 
 (defn- await-suspend
   [^DebugSession debug-session]
-  (let [socket (.socket debug-session)
-        in (.in debug-session)]
+  (let [in (.in debug-session)]
     (let [[status rest] (read-status in)]
       (case status
         "202" (when-let [[file line] (re-match #"^Paused\s+(.+)\s+(\d+)\s*$" rest)]
@@ -234,7 +236,7 @@
                   {:type   :output
                    :stream stream
                    :output (read-data in n)}))
-        "401" (when-let [[size] (re-match #"^Error in Execution\s+(\d+)$")]
+        "401" (when-let [[size] (re-match #"^Error in Execution\s+(\d+)$" rest)]
                 (let [n (Integer/parseInt size)]
                   {:error (read-data in n)}))))))
 
@@ -362,7 +364,7 @@
     (assert (= :suspended (-state debug-session)))
     (let [in (.in debug-session)
           out (.out debug-session)]
-      (send-command! out (format "SETB =%s %d" file line))
+      (send-command! out (format "SETB =%s %d" (luajit-path-to-chunk file) line))
       (let [[status rest :as line] (read-status in)]
         (case status
           "200" :ok
@@ -374,7 +376,7 @@
     (assert (= :suspended (-state debug-session)))
     (let [in (.in debug-session)
           out (.out debug-session)]
-      (send-command! out (format "DELB =%s %d" file line))
+      (send-command! out (format "DELB =%s %d" (luajit-path-to-chunk file) line))
       (let [[status rest :as line] (read-status in)]
         (case status
           "200" :ok

@@ -1,12 +1,12 @@
 
 #include "comp_anim.h"
 
+#include <dlib/index_pool.h>
 #include <dlib/profile.h>
 
 #include <script/script.h>
 
 #include "gameobject_script.h"
-#include "gameobject_private.h"
 #include "gameobject_props_lua.h"
 
 extern "C"
@@ -40,21 +40,19 @@ namespace dmGameObject
         void*               m_Userdata2;
         uint16_t            m_PreviousListener;
         uint16_t            m_NextListener;
-        uint16_t            m_Index;                // Index into the m_AnimMap
+        uint16_t            m_Index;
         uint16_t            m_Next;
         uint16_t            m_Playing : 1;
         uint16_t            m_Finished : 1;
         uint16_t            m_Composite : 1;
         uint16_t            m_Backwards : 1;
         uint16_t            m_FirstUpdate : 1;
-        uint16_t            m_Stopped : 1;
     };
 
     struct AnimWorld
     {
         dmArray<Animation>                  m_Animations;
         dmArray<uint16_t>                   m_AnimMap;
-        dmArray<uint16_t>                   m_StoppedAnimations;
         dmIndexPool<uint16_t>               m_AnimMapIndexPool;
         dmHashTable<uintptr_t, uint16_t>    m_InstanceToIndex;
         dmHashTable<uintptr_t, uint16_t>    m_ListenerInstanceToIndex;
@@ -69,7 +67,6 @@ namespace dmGameObject
             *params.m_World = world;
             const uint32_t anim_count = 512;
             world->m_Animations.SetCapacity(anim_count);
-            world->m_StoppedAnimations.SetCapacity(anim_count/2);
             world->m_AnimMap.SetCapacity(MAX_CAPACITY);
             world->m_AnimMap.SetSize(MAX_CAPACITY);
             world->m_AnimMapIndexPool.SetCapacity(MAX_CAPACITY);
@@ -100,23 +97,10 @@ namespace dmGameObject
         }
     }
 
-    static void StopAnimation(AnimWorld* world, Animation* anim, bool finished)
+    static void StopAnimation(Animation* anim, bool finished)
     {
         anim->m_Finished = finished;
         anim->m_Playing = 0;
-
-        if (!anim->m_Stopped)
-        {
-            // put it on the stopped list
-            if (world->m_StoppedAnimations.Full())
-            {
-                uint32_t capacity = world->m_StoppedAnimations.Capacity();
-                capacity = dmMath::Min(capacity + 256, MAX_CAPACITY);
-                world->m_StoppedAnimations.SetCapacity(capacity);
-            }
-            world->m_StoppedAnimations.Push(anim->m_Index);
-            anim->m_Stopped = 1;
-        }
     }
 
     static void StopAnimations(AnimWorld* world, uint16_t* head_ptr, dmhash_t component_id, dmhash_t property_id)
@@ -127,11 +111,11 @@ namespace dmGameObject
             while (index != INVALID_INDEX)
             {
                 Animation* anim = &world->m_Animations[world->m_AnimMap[index]];
-                index = anim->m_Next;
                 if (anim->m_ComponentId == component_id && anim->m_PropertyId == property_id)
                 {
-                    StopAnimation(world, anim, false);
+                    StopAnimation(anim, false);
                 }
+                index = anim->m_Next;
             }
         }
     }
@@ -144,8 +128,8 @@ namespace dmGameObject
             while (index != INVALID_INDEX)
             {
                 Animation* anim = &world->m_Animations[world->m_AnimMap[index]];
+                StopAnimation(anim, false);
                 index = anim->m_Next;
-                StopAnimation(world, anim, false);
             }
         }
     }
@@ -179,12 +163,12 @@ namespace dmGameObject
          */
         UpdateResult result = UPDATE_RESULT_OK;
         AnimWorld* world = (AnimWorld*)params.m_World;
-
         world->m_InUpdate = 1;
         uint32_t size = world->m_Animations.Size();
         uint32_t orig_size = size;
         DM_COUNTER("animc", size);
-        for (uint32_t i = 0; i < size; ++i)
+        uint32_t i = 0;
+        for (i = 0; i < size; ++i)
         {
             Animation& anim = world->m_Animations[i];
             if (!anim.m_Playing)
@@ -198,7 +182,6 @@ namespace dmGameObject
             if (anim.m_FirstUpdate)
             {
                 anim.m_FirstUpdate = 0;
-
                 // Update from-value
                 if (!anim.m_Composite)
                 {
@@ -223,21 +206,20 @@ namespace dmGameObject
                         if (anim_index != i && !a2->m_FirstUpdate && a2->m_ComponentId == anim.m_ComponentId
                                 && a2->m_PropertyId == anim.m_PropertyId && a2->m_Delay <= 0.0f)
                         {
-                            StopAnimation(world, a2, false);
+                            StopAnimation(a2, false);
                         }
                         index = a2->m_Next;
                     }
                 }
             }
         }
-
-        for (uint32_t i = 0; i < size; ++i)
+        i = 0;
+        for (i = 0; i < size; ++i)
         {
             Animation& anim = world->m_Animations[i];
             // Ignore canceled or delayed animations
             if (!anim.m_Playing)
                 continue;
-
             float dt = params.m_UpdateContext->m_DT;
             if (anim.m_Delay > dt)
             {
@@ -248,7 +230,6 @@ namespace dmGameObject
             dt -= anim.m_Delay;
             // Reset delay
             anim.m_Delay = 0.0f;
-
             // Advance cursor
             if (anim.m_Playback != PLAYBACK_NONE)
             {
@@ -295,17 +276,11 @@ namespace dmGameObject
             // Evaluate animation
             if (!anim.m_Composite)
             {
-                float t = 1.0f; // Handles the case where the duration==0
+                float t = 1.0f;
                 if (anim.m_Cursor < anim.m_Duration)
                     t = dmMath::Clamp(anim.m_Cursor * anim.m_InvDuration, 0.0f, 1.0f);
-
-                // Original: t = anim.m_Backwards ? (1.0f - t) : t;
-                // 1 :
-                //   t = anim.m_Backwards - 2 * t * anim.m_Backwards + t = 1 - 2 * t * 1 + t = 1 - 2t + t = 1 - t;
-                // 0 :
-                //   t = anim.m_Backwards - 2 * t * anim.m_Backwards + t = 0 - 0 + t = t
-                t = anim.m_Backwards - 2 * t * anim.m_Backwards + t;
-
+                if (anim.m_Backwards)
+                    t = 1.0f - t;
                 if (anim.m_Playback == PLAYBACK_ONCE_PINGPONG || anim.m_Playback == PLAYBACK_LOOP_PINGPONG) {
                     t *= 2.0f;
                     if (t > 1.0f) {
@@ -325,79 +300,80 @@ namespace dmGameObject
             }
             if (completed)
             {
-                StopAnimation(world, &anim, true);
+                StopAnimation(&anim, true);
             }
         }
-
+        i = 0;
         // Prune canceled animations and call callbacks
-        for(uint32_t i = 0; i < world->m_StoppedAnimations.Size(); ++i)
+        while (i < size)
         {
-            uint16_t index = world->m_StoppedAnimations[i];
-            Animation* anim = &world->m_Animations[world->m_AnimMap[index]];
-            uint16_t anim_index = (uint16_t)(anim - world->m_Animations.Begin());
-
-            if (anim->m_AnimationStopped != 0x0)
+            Animation* anim = &world->m_Animations[i];
+            if (!anim->m_Playing)
             {
-                uint32_t orig_size = size;
-                anim->m_AnimationStopped(anim->m_Instance, anim->m_ComponentId, anim->m_PropertyId, anim->m_Finished,
-                        anim->m_Userdata1, anim->m_Userdata2);
-                // Check if the callback added animations, in which case we need to update the pointer (possible relocation)
-                size = world->m_Animations.Size();
-                if (size != orig_size)
-                    anim = &world->m_Animations[anim_index];
-                RemoveAnimationCallback(world, anim);
-
-                if (anim->m_Easing.release_callback != 0x0)
+                if (anim->m_AnimationStopped != 0x0)
                 {
-                    anim->m_Easing.release_callback(&anim->m_Easing);
+                    uint32_t orig_size = size;
+                    anim->m_AnimationStopped(anim->m_Instance, anim->m_ComponentId, anim->m_PropertyId, anim->m_Finished,
+                            anim->m_Userdata1, anim->m_Userdata2);
+                    // Check if the callback added animations, in which case we need to update the pointer (possible relocation)
+                    size = world->m_Animations.Size();
+                    if (size != orig_size)
+                        anim = &world->m_Animations[i];
+                    RemoveAnimationCallback(world, anim);
+
+                    if (anim->m_Easing.release_callback != 0x0)
+                    {
+                        anim->m_Easing.release_callback(&anim->m_Easing);
+                    }
+                }
+                uint16_t* head_ptr = world->m_InstanceToIndex.Get((uintptr_t)anim->m_Instance);
+                uint16_t* index_ptr = head_ptr;
+                while (*index_ptr != INVALID_INDEX)
+                {
+                    if (*index_ptr == anim->m_Index)
+                    {
+                        *index_ptr = anim->m_Next;
+                        world->m_AnimMapIndexPool.Push(anim->m_Index);
+                        break;
+                    }
+                    else
+                    {
+                        index_ptr = &world->m_Animations[world->m_AnimMap[*index_ptr]].m_Next;
+                    }
+                }
+                // Remove instance when the list is empty
+                if (*head_ptr == INVALID_INDEX)
+                {
+                    world->m_InstanceToIndex.Erase((uintptr_t)anim->m_Instance);
+                }
+                // delete the instance from the list
+                anim = &world->m_Animations.EraseSwap(i);
+                --size;
+                if (size > i)
+                {
+                    // We swapped, anim points to the swapped animation, update its map
+                    world->m_AnimMap[anim->m_Index] = i;
                 }
             }
-            // Remove the animation from the instance's list of animations
-            uint16_t* head_ptr = world->m_InstanceToIndex.Get((uintptr_t)anim->m_Instance);
-            uint16_t* index_ptr = head_ptr;
-            while (*index_ptr != INVALID_INDEX)
+            else
             {
-                if (*index_ptr == anim->m_Index)
-                {
-                    *index_ptr = anim->m_Next;
-                    world->m_AnimMapIndexPool.Push(anim->m_Index);
-                    break;
-                }
-                else
-                {
-                    index_ptr = &world->m_Animations[world->m_AnimMap[*index_ptr]].m_Next;
-                }
-            }
-            // Remove instance when the list is empty
-            if (*head_ptr == INVALID_INDEX)
-            {
-                world->m_InstanceToIndex.Erase((uintptr_t)anim->m_Instance);
-            }
-
-            // delete the instance from the list
-            anim = &world->m_Animations.EraseSwap(anim_index);
-            --size;
-            if (size > anim_index)
-            {
-                // We swapped, anim points to the swapped animation, update its map
-                world->m_AnimMap[anim->m_Index] = anim_index;
+                ++i;
             }
         }
         world->m_InUpdate = 0;
-        world->m_StoppedAnimations.SetSize(0);
         update_result.m_TransformsUpdated = orig_size != 0;
         return result;
     }
 
-    static AnimWorld* GetWorld(HCollection collection)
+    static AnimWorld* GetWorld(HCollection hcollection)
     {
         dmResource::ResourceType resource_type;
-        dmResource::Result result = dmResource::GetTypeFromExtension(collection->m_Factory, "animc", &resource_type);
+        dmResource::Result result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(hcollection), "animc", &resource_type);
         assert(result == dmResource::RESULT_OK);
         uint32_t component_index;
-        ComponentType* type = FindComponentType(collection->m_Register, resource_type, &component_index);
+        ComponentType* type = FindComponentType(dmGameObject::GetRegister(hcollection), resource_type, &component_index);
         assert(type != 0x0);
-        return (AnimWorld*)collection->m_ComponentWorlds[component_index];
+        return (AnimWorld*)dmGameObject::GetWorld(hcollection, component_index);
     }
 
     static bool PlayAnimation(AnimWorld* world, HInstance instance, dmhash_t component_id,
@@ -478,7 +454,6 @@ namespace dmGameObject
         animation.m_NextListener = INVALID_INDEX;
         animation.m_Next = INVALID_INDEX;
         animation.m_Playing = 1;
-        animation.m_Stopped = 0;
         animation.m_Composite = composite ? 1 : 0;
         if (animation.m_Playback == PLAYBACK_ONCE_BACKWARD || animation.m_Playback == PLAYBACK_LOOP_BACKWARD)
             animation.m_Backwards = 1;
@@ -601,7 +576,8 @@ namespace dmGameObject
         return PROPERTY_RESULT_OK;
     }
 
-    PropertyResult CancelAnimations(HCollection collection, HInstance instance, dmhash_t component_id, dmhash_t property_id)
+    PropertyResult CancelAnimations(HCollection collection, HInstance instance, dmhash_t component_id,
+                     dmhash_t property_id)
     {
         if (instance == 0)
             return PROPERTY_RESULT_INVALID_INSTANCE;
@@ -648,19 +624,17 @@ namespace dmGameObject
                 {
                     uint16_t anim_index = world->m_AnimMap[index];
                     Animation* anim = &world->m_Animations[anim_index];
-                    StopAnimation(world, anim, false);
-                    // unlink it from the stopped list
-                    world->m_StoppedAnimations.SetSize(world->m_StoppedAnimations.Size()-1);
-
+                    StopAnimation(anim, false);
                     if (anim->m_AnimationStopped != 0x0)
                     {
-                        anim->m_AnimationStopped(anim->m_Instance, anim->m_ComponentId, anim->m_PropertyId, anim->m_Finished, anim->m_Userdata1, anim->m_Userdata2);
+                        anim->m_AnimationStopped(anim->m_Instance, anim->m_ComponentId, anim->m_PropertyId, anim->m_Finished,
+                                anim->m_Userdata1, anim->m_Userdata2);
                         RemoveAnimationCallback(world, anim);
                     }
                     world->m_AnimMapIndexPool.Push(index);
                     index = anim->m_Next;
-
                     // delete the instance from the list
+                    anim_index = (uint16_t)(anim - world->m_Animations.Begin());
                     anim = &world->m_Animations.EraseSwap(anim_index);
                     --anim_count;
                     if (anim_count > anim_index)

@@ -283,13 +283,20 @@ public class Project {
     }
 
     public void createPublisher(boolean shouldPublish) throws CompileExceptionError {
-        if (shouldPublish) {
-            try {
-                IResource publisherSettings = this.fileSystem.get("/liveupdate.settings");
-                if (publisherSettings.exists()) {
-                    ByteArrayInputStream is = new ByteArrayInputStream(publisherSettings.getContent());
-                    PublisherSettings settings = PublisherSettings.load(is);
-
+        try {
+            String settingsPath = this.getProjectProperties().getStringValue("liveupdate", "settings", "/liveupdate.settings"); // if no value set use old hardcoded path (backward compatability)
+            IResource publisherSettings = this.fileSystem.get(settingsPath);
+            if (!publisherSettings.exists()) {
+                if (shouldPublish) {
+                    IResource gameProject = this.fileSystem.get("/game.project");
+                    throw new CompileExceptionError(gameProject, 0, "There is no liveupdate.settings file specified in game.project or the file is missing from disk.");
+                } else {
+                    this.publisher = new NullPublisher(new PublisherSettings());
+                }
+            } else {
+                ByteArrayInputStream is = new ByteArrayInputStream(publisherSettings.getContent());
+                PublisherSettings settings = PublisherSettings.load(is);
+                if (shouldPublish) {
                     if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
                         this.publisher = new AWSPublisher(settings);
                     } else if (PublisherSettings.PublishMode.Defold.equals(settings.getMode())) {
@@ -299,15 +306,14 @@ public class Project {
                     } else {
                         throw new CompileExceptionError("The publisher specified is not supported", null);
                     }
-
                 } else {
-                    throw new CompileExceptionError("There is no liveupdate.settings file", null);
+                    this.publisher = new NullPublisher(settings);
                 }
-            } catch (Throwable e) {
-                throw new CompileExceptionError(null, 0, e.getMessage(), e);
             }
-        } else {
-            this.publisher = new NullPublisher(new PublisherSettings());
+        } catch (CompileExceptionError e) {
+        	throw e;
+        } catch (Throwable e) {
+            throw new CompileExceptionError(null, 0, e.getMessage(), e);
         }
     }
 
@@ -441,9 +447,7 @@ public class Project {
     static Map<Platform, Class<? extends IBundler>> bundlers;
     static {
         bundlers = new HashMap<Platform, Class<? extends IBundler>>();
-        bundlers.put(Platform.X86Darwin, OSX32Bundler.class);
         bundlers.put(Platform.X86_64Darwin, OSX64Bundler.class);
-        bundlers.put(Platform.X86Linux, LinuxBundler.class);
         bundlers.put(Platform.X86_64Linux, LinuxBundler.class);
         bundlers.put(Platform.X86Win32, Win32Bundler.class);
         bundlers.put(Platform.X86_64Win32, Win64Bundler.class);
@@ -545,7 +549,7 @@ public class Project {
         }
     }
 
-    public void buildEngine(IProgress monitor) throws IOException, CompileExceptionError, MultipleCompileException {
+    public String[] getPlatformStrings() throws CompileExceptionError {
         String pair = option("platform", null);
         Platform p = Platform.getHostPlatform();
         if (pair != null) {
@@ -556,6 +560,22 @@ public class Project {
             throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
         }
         PlatformArchitectures platformArchs = p.getArchitectures();
+        String[] platformStrings;
+        if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin || p == Platform.JsWeb || p == Platform.WasmWeb)
+        {
+            // iOS is currently the only OS we use that supports fat binaries
+            // Here we'll get a list of all associated architectures (armv7, arm64) and build them at the same time
+            platformStrings = platformArchs.getArchitectures();
+        }
+        else
+        {
+            platformStrings = new String[1];
+            platformStrings[0] = p.getPair();
+        }
+        return platformStrings;
+    }
+
+    public void buildEngine(IProgress monitor, String[] platformStrings, String variant) throws IOException, CompileExceptionError, MultipleCompileException {
 
         // Store the engine one level above the content build since that folder gets removed during a distclean
         String internalDir = FilenameUtils.concat(rootDirectory, ".internal");
@@ -565,11 +585,10 @@ public class Project {
         String serverURL = this.option("build-server", "https://build.defold.com");
 
         // Get SHA1 and create log file
-        String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
+        final String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
         File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
         logFile.deleteOnExit();
 
-        String[] platformStrings = platformArchs.getArchitectures();
         IProgress m = monitor.subProgress(platformStrings.length);
         m.beginTask("Building engine...", 0);
 
@@ -582,9 +601,13 @@ public class Project {
             File buildDir = new File(FilenameUtils.concat(outputDir, buildPlatform));
             buildDir.mkdirs();
 
-            String defaultName = platform.formatBinaryName("dmengine");
-            File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), defaultName));
-            List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform);
+            List<String> defaultNames = platform.formatBinaryName("dmengine");
+            List<File> exes = new ArrayList<File>();
+            for (String name : defaultNames) {
+                File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), name));
+                exes.add(exe);
+            }
+            List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform, variant);
 
 
             File classesDexFile = null;
@@ -615,7 +638,7 @@ public class Project {
                 javaROutput.deleteOnExit();
 
                 // Get all Android specific resources needed to create R.java files
-                Map<String, IResource> resources = ExtenderUtil.getAndroidResource(this);
+                Map<String, IResource> resources = ExtenderUtil.getAndroidResources(this);
                 ExtenderUtil.writeResourcesToDirectory(resources, resOutput);
                 resDirs.add(resOutput.getAbsolutePath());
 
@@ -645,7 +668,7 @@ public class Project {
             }
 
             ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
-            BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile, defaultName, exe, classesDexFile);
+            BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile, defaultNames, exes, classesDexFile);
 
             m.worked(1);
         }
@@ -653,19 +676,7 @@ public class Project {
         m.done();
     }
 
-    private void cleanEngine(IProgress monitor) throws IOException, CompileExceptionError {
-        String pair = option("platform", null);
-        Platform p = Platform.getHostPlatform();
-        if (pair != null) {
-            p = Platform.get(pair);
-        }
-
-        if (p == null) {
-            throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
-        }
-        PlatformArchitectures platformArchs = p.getArchitectures();
-
-        String[] platformStrings = platformArchs.getArchitectures();
+    private void cleanEngine(IProgress monitor, String[] platformStrings) throws IOException, CompileExceptionError {
         IProgress m = monitor.subProgress(platformStrings.length);
         m.beginTask("Cleaning engine...", 0);
 
@@ -679,17 +690,28 @@ public class Project {
                 continue;
             }
 
-            String defaultName = platform.formatBinaryName("dmengine");
-            File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), defaultName));
-            if (exe.exists()) {
-                exe.delete();
+            List<String> defaultNames = platform.formatBinaryName("dmengine");
+            for (String defaultName : defaultNames) {
+                File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), defaultName));
+                if (exe.exists()) {
+                    exe.delete();
+                }
             }
 
             // If we are building for Android, we expect a classes.dex file to be returned as well.
             if (platform.equals(Platform.Armv7Android)) {
-                File classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), "classes.dex"));
-                if (classesDexFile.exists()) {
-                    classesDexFile.delete();
+                int nameindex = 1;
+                while(true)
+                {
+                    String name = nameindex == 1 ? "classes.dex" : String.format("classes%d.dex", nameindex);
+                    ++nameindex;
+
+                    File classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), name));
+                    if (classesDexFile.exists()) {
+                        classesDexFile.delete();
+                    } else {
+                        break;
+                    }
                 }
             }
 
@@ -736,13 +758,15 @@ public class Project {
                     break;
                 }
 
+                final String variant = this.option("variant", Bob.VARIANT_RELEASE);
+                final String[] platforms = getPlatformStrings();
                 // Get or build engine binary
-                boolean hasNativeExtensions = ExtenderUtil.hasNativeExtensions(this);
-                if (hasNativeExtensions) {
-                    buildEngine(monitor);
+                boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
+                if (buildRemoteEngine) {
+                    buildEngine(monitor, platforms, variant);
                 } else {
                     // Remove the remote built executables in the build folder, they're still in the cache
-                    cleanEngine(monitor);
+                    cleanEngine(monitor, platforms);
                 }
 
                 // Generate and save build report

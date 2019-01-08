@@ -34,6 +34,7 @@ namespace dmGameSystem
     dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void*, dmhash_t, dmGui::TextureSetAnimDesc*);
     bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data);
     dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data); // implemention in comp_particlefx.cpp
+    void RigEventDataCallback(dmGui::HScene scene, void* node_ref, void* event_data);
 
     // Translation table to translate from dmGameSystemDDF playback mode into dmGui playback mode.
     static struct PlaybackGuiToRig
@@ -74,6 +75,16 @@ namespace dmGameSystem
         else
         {
             dmLogWarning("The gui world could not be stored since the buffer is full (%d). Reload will not work for the scenes in this world.", gui_context->m_Worlds.Size());
+        }
+
+        dmRig::NewContextParams rig_params = {0};
+        rig_params.m_Context = &gui_world->m_RigContext;
+        rig_params.m_MaxRigInstanceCount = gui_context->m_MaxSpineCount;
+        dmRig::Result rr = dmRig::NewContext(rig_params);
+        if (rr != dmRig::RESULT_OK)
+        {
+            dmLogFatal("Unable to create gui rig context: %d", rr);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
         gui_world->m_Components.SetCapacity(gui_context->m_MaxGuiComponents);
@@ -121,6 +132,8 @@ namespace dmGameSystem
         gui_world->m_MaxParticleCount = gui_context->m_MaxParticleCount;
         gui_world->m_ParticleContext = dmParticle::CreateContext(gui_world->m_MaxParticleFXCount, gui_world->m_MaxParticleCount);
 
+        gui_world->m_ScriptWorld = dmScript::NewScriptWorld(gui_context->m_ScriptContext);
+
         *params.m_World = gui_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -149,6 +162,10 @@ namespace dmGameSystem
         dmGraphics::DeleteVertexDeclaration(gui_world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(gui_world->m_VertexBuffer);
         dmGraphics::DeleteTexture(gui_world->m_WhiteTexture);
+
+        dmRig::DeleteContext(gui_world->m_RigContext);
+
+        dmScript::DeleteScriptWorld(gui_world->m_ScriptWorld);
 
         delete gui_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -385,7 +402,7 @@ namespace dmGameSystem
         {
             const char* name = scene_desc->m_Textures[i].m_Name;
             dmGraphics::HTexture texture = scene_resource->m_GuiTextureSets[i].m_Texture;
-            dmGui::Result r = dmGui::AddTexture(scene, name, (void*) texture, (void*) scene_resource->m_GuiTextureSets[i].m_TextureSet, dmGraphics::GetTextureWidth(texture), dmGraphics::GetTextureHeight(texture));
+            dmGui::Result r = dmGui::AddTexture(scene, name, (void*) texture, (void*) scene_resource->m_GuiTextureSets[i].m_TextureSet, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add texture '%s' to scene (%d)", name,  r);
                 return false;
@@ -456,7 +473,7 @@ namespace dmGameSystem
                         result = false;
                     }
                 }
-                dmGui::SetNodeParent(scene, n, p);
+                dmGui::SetNodeParent(scene, n, p, false);
             }
         }
 
@@ -534,11 +551,13 @@ namespace dmGameSystem
         scene_params.m_MaxTextures = 128;
         scene_params.m_MaxParticlefx = gui_world->m_MaxParticleFXCount;
         scene_params.m_MaxSpineScenes = 128;
-        scene_params.m_RigContext = dmGameObject::GetRigContext(dmGameObject::GetCollection(params.m_Instance));
+        scene_params.m_RigContext = gui_world->m_RigContext;
         scene_params.m_ParticlefxContext = gui_world->m_ParticleContext;
         scene_params.m_FetchTextureSetAnimCallback = &FetchTextureSetAnimCallback;
         scene_params.m_FetchRigSceneDataCallback = &FetchRigSceneDataCallback;
+        scene_params.m_RigEventDataCallback = &RigEventDataCallback;
         scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
+        scene_params.m_ScriptWorld = gui_world->m_ScriptWorld;
         gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
         dmGui::HScene scene = gui_component->m_Scene;
 
@@ -554,6 +573,38 @@ namespace dmGameSystem
             gui_world->m_Components.Push(gui_component);
             return dmGameObject::CREATE_RESULT_OK;
         }
+    }
+
+    void RigEventDataCallback(dmGui::HScene scene, void* node_ref, void* event_data)
+    {
+        dmhash_t message_id = dmGameSystemDDF::SpineEvent::m_DDFDescriptor->m_NameHash;
+        const dmRig::RigKeyframeEventData* keyframe_event = (const dmRig::RigKeyframeEventData*)event_data;
+
+        uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineEvent::m_DDFDescriptor;
+        uint32_t data_size = sizeof(dmGameSystemDDF::SpineEvent);
+
+        uint8_t buf[sizeof(dmMessage::Message) + sizeof(dmGameSystemDDF::SpineEvent)];
+        dmMessage::Message* message = (dmMessage::Message*)buf;
+        message->m_Sender = dmMessage::URL();
+        message->m_Receiver = dmMessage::URL();
+        message->m_Id = message_id;
+        message->m_Descriptor = descriptor;
+        message->m_DataSize = data_size;
+
+        dmGameSystemDDF::SpineEvent* event = (dmGameSystemDDF::SpineEvent*)message->m_Data;
+        event->m_EventId     = keyframe_event->m_EventId;
+        event->m_AnimationId = keyframe_event->m_AnimationId;
+        event->m_BlendWeight = keyframe_event->m_BlendWeight;
+        event->m_T           = keyframe_event->m_T;
+        event->m_Integer     = keyframe_event->m_Integer;
+        event->m_Float       = keyframe_event->m_Float;
+        event->m_String      = keyframe_event->m_String;
+        event->m_Node.m_Ref  = ((uintptr_t) node_ref & 0xffffffff);
+        event->m_Node.m_ContextTableRef = dmGui::GetContextTableRef(scene);
+
+        dmGui::Result dispatch_result = DispatchMessage(scene, message);
+        if (dispatch_result != dmGui::RESULT_OK)
+            dmLogError("Could not send spine_event to listener.");
     }
 
     dmGameObject::CreateResult CompGuiDestroy(const dmGameObject::ComponentDestroyParams& params)
@@ -807,7 +858,7 @@ namespace dmGameSystem
 
         // Offset capacity to fit vertices for all emitters we are about to render
         uint32_t vertex_count = 0;
-        for (int i = 0; i < node_count; ++i)
+        for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = entries[i].m_Node;
             if (dmGui::GetNodeIsBone(scene, node)) {
@@ -817,9 +868,11 @@ namespace dmGameSystem
             vertex_count += dmParticle::GetEmitterVertexCount(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex);
 
             dmTransform::Transform transform = dmTransform::ToTransform(node_transforms[i]);
+            // Particlefx nodes have uniformly scaled x/y values from adjust mode, we use x here but y would be fine too.
+            float scale = transform.GetScalePtr()[0];
             dmParticle::SetPosition(gui_world->m_ParticleContext, emitter_render_data->m_Instance, Point3(transform.GetTranslation()));
             dmParticle::SetRotation(gui_world->m_ParticleContext, emitter_render_data->m_Instance, transform.GetRotation());
-            dmParticle::SetScale(gui_world->m_ParticleContext, emitter_render_data->m_Instance, transform.GetUniformScale());
+            dmParticle::SetScale(gui_world->m_ParticleContext, emitter_render_data->m_Instance, scale);
         }
 
         vertex_count = dmMath::Min(vertex_count, vb_max_size / (uint32_t)sizeof(ParticleGuiVertex));
@@ -831,7 +884,7 @@ namespace dmGameSystem
         ParticleGuiVertex *vb_begin = gui_world->m_ClientVertexBuffer.End();
         ParticleGuiVertex *vb_end = vb_begin;
         // One RO, but generate vertex data for each entry (emitter)
-        for (int i = 0; i < node_count; ++i)
+        for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = entries[i].m_Node;
             if (dmGui::GetNodeIsBone(scene, node)) {
@@ -946,7 +999,7 @@ namespace dmGameSystem
             if (dmGui::GetNodeIsBone(scene, node)) {
                 continue;
             }
-            const dmRig::HRigContext rig_context = dmGui::GetRigContext(scene);
+            const dmRig::HRigContext rig_context = gui_world->m_RigContext;
             const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
             float opacity = node_opacities[i];
             Vector4 color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
@@ -1317,7 +1370,7 @@ namespace dmGameSystem
             }
 
             uint32_t sizeBefore = gui_world->m_ClientVertexBuffer.Size();
-            for (int j=0;j!=generate;j++)
+            for (uint32_t j = 0; j != generate; j++)
             {
                 float a;
                 if (j == (generate-1))
@@ -1583,8 +1636,8 @@ namespace dmGameSystem
             out_data->m_TexCoords = (const float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
             out_data->m_Start = animation->m_Start;
             out_data->m_End = animation->m_End;
-            out_data->m_TextureWidth = dmGraphics::GetTextureWidth(texture_set_res->m_Texture);
-            out_data->m_TextureHeight = dmGraphics::GetTextureHeight(texture_set_res->m_Texture);
+            out_data->m_OriginalTextureWidth = dmGraphics::GetOriginalTextureWidth(texture_set_res->m_Texture);
+            out_data->m_OriginalTextureHeight = dmGraphics::GetOriginalTextureHeight(texture_set_res->m_Texture);
             out_data->m_FPS = animation->m_Fps;
             out_data->m_FlipHorizontal = animation->m_FlipHorizontal;
             out_data->m_FlipVertical = animation->m_FlipVertical;
@@ -1621,6 +1674,11 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
+
+        dmScript::UpdateScriptWorld(gui_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
+
+        dmRig::Update(gui_world->m_RigContext, params.m_UpdateContext->m_DT);
+
         gui_world->m_DT = params.m_UpdateContext->m_DT;
         dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT, &FetchAnimationCallback);
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
@@ -1701,6 +1759,7 @@ namespace dmGameSystem
             while (lastEnd < gui_world->m_GuiRenderObjects.Size())
             {
                 const GuiRenderObject& gro = gui_world->m_GuiRenderObjects[lastEnd];
+                write_ptr->m_MinorOrder = 0;
                 write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_AFTER_WORLD;
                 write_ptr->m_Order = MakeFinalRenderOrder(render_order, gro.m_SortOrder);
                 write_ptr->m_UserData = (uintptr_t) &gro.m_RenderObject;
@@ -1761,6 +1820,10 @@ namespace dmGameSystem
             gui_input_action.m_ScreenDY = params.m_InputAction->m_ScreenDY;
             gui_input_action.m_GamepadIndex = params.m_InputAction->m_GamepadIndex;
             gui_input_action.m_IsGamepad = params.m_InputAction->m_IsGamepad;
+            gui_input_action.m_AccX = params.m_InputAction->m_AccX;
+            gui_input_action.m_AccY = params.m_InputAction->m_AccY;
+            gui_input_action.m_AccZ = params.m_InputAction->m_AccZ;
+            gui_input_action.m_AccelerationSet = params.m_InputAction->m_AccelerationSet;
 
             gui_input_action.m_TouchCount = params.m_InputAction->m_TouchCount;
             int tc = params.m_InputAction->m_TouchCount;

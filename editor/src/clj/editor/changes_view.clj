@@ -5,47 +5,50 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.diff-view :as diff-view]
+            [editor.disk-availability :as disk-availability]
+            [editor.error-reporting :as error-reporting]
             [editor.git :as git]
             [editor.handler :as handler]
             [editor.login :as login]
             [editor.progress :as progress]
             [editor.resource :as resource]
-            [editor.resource-watch :as resource-watch]
             [editor.sync :as sync]
             [editor.ui :as ui]
             [editor.vcs-status :as vcs-status]
             [editor.workspace :as workspace]
             [service.log :as log])
-  (:import [javafx.scene Parent]
+  (:import [java.io File]
+           [javafx.beans.value ChangeListener]
+           [javafx.scene Parent]
            [javafx.scene.control SelectionMode ListView]
-           [org.eclipse.jgit.api Git]
-           [java.io File]))
+           [org.eclipse.jgit.api Git]))
 
 (set! *warn-on-reflection* true)
 
-(defn- refresh-list-view! [git list-view]
-  (when git
-    (ui/items! list-view (git/unified-status git))))
+(defn- refresh-list-view! [list-view unified-status]
+  (ui/items! list-view unified-status))
 
-(defn refresh! [changes-view]
-  (let [git (g/node-value changes-view :git)
-        list-view (g/node-value changes-view :list-view)]
-    (refresh-list-view! git list-view)))
-
-(defn resource-sync-after-git-change!
-  ([changes-view workspace]
-   (resource-sync-after-git-change! changes-view workspace []))
-  ([changes-view workspace moved-files]
-   (resource-sync-after-git-change! changes-view workspace moved-files progress/null-render-progress!))
-  ([changes-view workspace moved-files render-progress!]
-   (let [diff (workspace/resource-sync! workspace true moved-files render-progress!)]
-     ;; The call to resource-sync! will refresh the changes view if it detected changes,
-     ;; but committing a file from the command line will not actually change the file
-     ;; as far as resource-sync! is concerned. To ensure the changed files view reflects
-     ;; the current Git state, we explicitly refresh the changes view here if the the
-     ;; call to resource-sync! would not have already done so.
-     (when (resource-watch/empty-diff? diff)
-       (refresh! changes-view)))))
+(defn refresh! [changes-view render-progress!]
+  (let [list-view (g/node-value changes-view :list-view)
+        unconfigured-git (g/node-value changes-view :unconfigured-git)
+        refresh-pending (ui/user-data list-view :refresh-pending)
+        schedule-refresh (ref nil)]
+    (when unconfigured-git
+      (dosync
+        (ref-set schedule-refresh (not @refresh-pending))
+        (ref-set refresh-pending true))
+      (when @schedule-refresh
+        (render-progress! (progress/make-indeterminate "Refreshing file status..."))
+        (future
+          (try
+            (dosync (ref-set refresh-pending false))
+            (let [unified-status (git/unified-status unconfigured-git)]
+              (ui/run-later
+                (ui/with-progress [render-progress! render-progress!]
+                  (refresh-list-view! list-view unified-status))))
+            (catch Throwable error
+              (render-progress! progress/done)
+              (error-reporting/report-exception! error))))))))
 
 (ui/extend-menu ::changes-menu nil
                 [{:label "Open"
@@ -54,22 +57,24 @@
                  {:label "Open As"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :open-as}
+                 {:label :separator}
+                 {:label "Copy Project Path"
+                  :command :copy-project-path}
+                 {:label "Copy Full Path"
+                  :command :copy-full-path}
+                 {:label "Copy Require Path"
+                  :command :copy-require-path}
+                 {:label :separator}
                  {:label "Show in Asset Browser"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-asset-browser}
                  {:label "Show in Desktop"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-desktop}
-                 {:label "Copy Project Path"
-                  :command :copy-project-path}
-                 {:label "Copy Full Path"
-                  :command :copy-full-path}
                  {:label "Referencing Files..."
                   :command :referencing-files}
                  {:label "Dependencies..."
                   :command :dependencies}
-                 {:label "Hot Reload"
-                  :command :hot-reload}
                  {:label :separator}
                  {:label "View Diff"
                   :icon "icons/32/Icons_S_06_arrowup.png"
@@ -83,11 +88,13 @@
 
 (handler/defhandler :revert :changes-view
   (enabled? [selection]
-            (pos? (count selection)))
-  (run [selection git changes-view workspace]
-    (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
-      (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
-      (resource-sync-after-git-change! changes-view workspace moved-files))))
+            (and (disk-availability/available?)
+                 (pos? (count selection))))
+  (run [async-reload! selection git changes-view workspace]
+    (when (dialogs/make-confirm-dialog (format "Are you sure you want to revert changes on selected files?"))
+      (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
+        (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
+        (async-reload! workspace changes-view moved-files)))))
 
 (handler/defhandler :diff :changes-view
   (enabled? [selection]
@@ -95,37 +102,44 @@
   (run [selection ^Git git]
        (diff-view/present-diff-data (git/selection-diff-data git selection))))
 
-(handler/defhandler :synchronize :global
-  (enabled? [changes-view]
-            (g/node-value changes-view :git))
-  (run [changes-view workspace project]
-    (let [git   (g/node-value changes-view :git)
-          prefs (g/node-value changes-view :prefs)]
-      ;; Check if there are locked files below the project folder before proceeding.
-      ;; If so, we abort the sync and notify the user, since this could cause problems.
-      (loop []
-        (if-some [locked-files (not-empty (git/locked-files git))]
-          ;; Found locked files below the project. Notify user and offer to retry.
-          (when (dialogs/make-confirm-dialog (git/locked-files-error-message locked-files)
-                                             {:title "Not Safe to Sync"
-                                              :ok-label "Retry"
-                                              :cancel-label "Cancel"})
-            (recur))
+(defn project-is-git-repo? [changes-view]
+  (some? (g/node-value changes-view :unconfigured-git)))
 
-          ;; Found no locked files.
-          ;; Save the project before we initiate the sync process. We need to do this because
-          ;; the unsaved files may also have changed on the server, and we'll need to merge.
-          (do (project/save-all! project)
-              (when (login/login prefs)
-                (let [creds (git/credentials prefs)
-                      flow (sync/begin-flow! git creds)]
-                  (sync/open-sync-dialog flow)
-                  (resource-sync-after-git-change! changes-view workspace)))))))))
+(defn first-sync! [changes-view dashboard-client project]
+  (let [workspace (project/workspace project)
+        proj-path (.getPath (workspace/project-path workspace))
+        project-title (project/project-title project)
+        prefs (g/node-value changes-view :prefs)]
+    (-> (sync/begin-first-flow! proj-path project-title prefs dashboard-client
+                                (fn [git]
+                                  (ui/run-later
+                                    (g/set-property! changes-view :unconfigured-git git))))
+        (sync/open-sync-dialog))))
 
-(ui/extend-menu ::menubar :editor.app-view/open
-                [{:label "Synchronize..."
-                  :id ::synchronize
-                  :command :synchronize}])
+(defn regular-sync! [changes-view dashboard-client]
+  (if-not (login/sign-in! dashboard-client :synchronize)
+    false
+    (let [git (g/node-value changes-view :git)
+          prefs (g/node-value changes-view :prefs)
+          creds (git/credentials prefs)
+          flow (sync/begin-flow! git creds)]
+      (sync/open-sync-dialog flow)
+      true)))
+
+(defn ensure-no-locked-files! [changes-view]
+  (let [git (g/node-value changes-view :unconfigured-git)]
+    (loop []
+      (if-some [locked-files (not-empty (git/locked-files git))]
+        ;; Found locked files below the project. Notify user and offer to retry.
+        (if (dialogs/make-confirm-dialog (git/locked-files-error-message locked-files)
+                                         {:title "Not Safe to Sync"
+                                          :ok-label "Retry"
+                                          :cancel-label "Cancel"})
+          (recur)
+          false)
+
+        ;; Found no locked files.
+        true))))
 
 (g/defnode ChangesView
   (inherits core/Scope)
@@ -141,19 +155,34 @@
   (workspace/resolve-workspace-resource workspace (format "/%s" (or (:new-path status)
                                                                     (:old-path status)))))
 
-(defn make-changes-view [view-graph workspace prefs ^Parent parent]
-  (let [^ListView list-view (.lookup parent "#changes")
-        diff-button         (.lookup parent "#changes-diff")
-        revert-button       (.lookup parent "#changes-revert")
-        git                 (try (Git/open (io/file (g/node-value workspace :root)))
-                                 (catch Exception _))
-        view-id             (g/make-node! view-graph ChangesView :list-view list-view :unconfigured-git git :prefs prefs)]
+(defn- try-open-git
+  ^Git [workspace]
+  (let [repo-path (io/as-file (g/node-value workspace :root))
+        git (git/try-open repo-path)
+        head-commit (some-> git .getRepository (git/get-commit "HEAD"))]
+    (if (some? head-commit)
+      git
+      (when (some? git)
+        (.close git)))))
+
+(defn make-changes-view [view-graph workspace prefs async-reload! ^Parent parent]
+  (assert (fn? async-reload!))
+  (let [^ListView list-view     (.lookup parent "#changes")
+        diff-button             (.lookup parent "#changes-diff")
+        revert-button           (.lookup parent "#changes-revert")
+        git                     (try-open-git workspace)
+        view-id                 (g/make-node! view-graph ChangesView :list-view list-view :unconfigured-git git :prefs prefs)
+        disk-available-listener (reify ChangeListener
+                                  (changed [_this _observable _old _new]
+                                    (ui/refresh-bound-action-enabled! revert-button)))]
     ; TODO: try/catch to protect against project without git setup
     ; Show warning/error etc?
     (try
+      (ui/user-data! list-view :refresh-pending (ref false))
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-      (ui/context! parent :changes-view {:git git :changes-view view-id :workspace workspace} (ui/->selection-provider list-view) {}
-                   {resource/Resource (fn [status] (status->resource workspace status))})
+      (ui/context! parent :changes-view {:async-reload! async-reload! :changes-view view-id :workspace workspace} (ui/->selection-provider list-view)
+        {:git [:changes-view :unconfigured-git]}
+        {resource/Resource (fn [status] (status->resource workspace status))})
       (ui/register-context-menu list-view ::changes-menu)
       (ui/cell-factory! list-view vcs-status/render)
       (ui/bind-action! diff-button :diff)
@@ -161,7 +190,11 @@
       (ui/disable! diff-button true)
       (ui/disable! revert-button true)
       (ui/bind-double-click! list-view :open)
-      (refresh-list-view! git list-view)
+      (when git (refresh-list-view! list-view (git/unified-status git)))
+      (.addListener disk-availability/available-property disk-available-listener)
+      (ui/on-closed! (.. parent getScene getWindow)
+                     (fn [_]
+                       (.removeListener disk-availability/available-property disk-available-listener)))
       (ui/observe-selection list-view
                             (fn [_ _]
                               (ui/refresh-bound-action-enabled! diff-button)

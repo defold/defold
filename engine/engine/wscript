@@ -10,6 +10,7 @@ import os, sys, re, subprocess
 import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render, waf_resource
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 import Logs
+import Options
 
 def init():
     pass
@@ -74,20 +75,15 @@ namespace dmEngineVersion
     elif operating_sys == "linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif operating_sys == "win":
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'delayimp.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib'])
-
-        if "x86_64-win32" == conf.env['PLATFORM']:
-            conf.env.append_value('LINKFLAGS', '/DELAYLOAD:LibFBGPlatform64.dll')
-        else:
-            conf.env.append_value('LINKFLAGS', '/DELAYLOAD:LibFBGPlatform32.dll')
-    elif operating_sys == 'web' and architecture == 'js':
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib'])
+    elif 'web' in operating_sys:
         pass
 
     conf.env['LIB_GTEST'] = 'gtest'
 
     conf.env['STATICLIB_CRASH'] = 'crashext'
     conf.env['STATICLIB_DDF'] = 'ddf'
-    conf.env['STATICLIB_DLIB'] = 'dlib'
+    conf.env['STATICLIB_DLIB'] = ['dlib', 'axtls']
     conf.env['STATICLIB_EXTENSION'] = 'extension'
     conf.env['STATICLIB_RESOURCE'] = 'resource'
     conf.env['STATICLIB_GRAPHICS'] = 'graphics'
@@ -109,16 +105,16 @@ namespace dmEngineVersion
     conf.env['STATICLIB_INPUT'] = 'input'
     conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
 
+    conf.env['STATICLIB_UNWIND'] = 'unwind'
+    conf.env['STATICLIB_BOLTS'] = 'Bolts'
     conf.env['STATICLIB_FBSDKCORE'] = 'FBSDKCore'
     conf.env['STATICLIB_FBSDKLOGIN'] = 'FBSDKLogin'
     conf.env['STATICLIB_FBSDKSHARE'] = 'FBSDKShare'
     conf.env['LIB_SQLLITE'] = 'sqlite3'
     conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
-    conf.env['STATICLIB_FBGPLATFORM'] = 'FBGPlatform'
     conf.env['STATICLIB_GAMEROOMEXT'] = 'gameroomext'
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
     conf.env['STATICLIB_PUSHEXT'] = 'pushext'
-    conf.env['STATICLIB_ADTRUTHEXT'] = 'adtruthext'
     conf.env['STATICLIB_WEBVIEWEXT'] = 'webviewext'
     conf.env['STATICLIB_IACEXT'] = 'iacext'
     conf.env['STATICLIB_PROFILEREXT'] = 'profilerext'
@@ -164,18 +160,20 @@ def build(bld):
     except BuildUtilityException as ex:
         conf.fatal(ex.msg)
 
-    if build_util.get_target_os() == 'web' and build_util.get_target_architecture() == 'js':
+    if build_util.get_target_os() == 'web':
         srcPath = os.path.join('build', 'default', 'src')
         builds = ['','_release', '_headless']
         for build in builds:
             filePath = os.path.join(srcPath, 'dmengine' + build + '.js.mem')
             if (os.path.exists(filePath)):
-                bld.install_files('${PREFIX}/bin/js-web', filePath)
+                bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)
             filePath = os.path.join(srcPath, 'dmengine' + build + '.js.symbols')
             if (os.path.exists(filePath)):
-                bld.install_files('${PREFIX}/bin/js-web', filePath)
+                bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)
+            filePath = os.path.join(srcPath, 'dmengine' + build + '.wasm')
+            if (os.path.exists(filePath)):
+                bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)
 
-import Options
 def shutdown():
     # unit tests disabled on win32 for now
     if sys.platform != "win32":

@@ -10,18 +10,6 @@ namespace dmGameSystem
     dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory,  dmGameSystemDDF::TextureSet* texture_set_ddf,
                                         TextureSetResource* tile_set, const char* filename, bool reload)
     {
-        if (reload)
-        {
-            // Will pick up the actual pointer when running get. This is a poor man's rebuild dependency
-            // tracking. The editor could in theory send a reload command for the texture as well, but for
-            // now trigger it manually here.
-            dmResource::Result r = dmResource::ReloadResource(factory, texture_set_ddf->m_Texture, 0);
-            if (r != dmResource::RESULT_OK)
-            {
-                return r;
-            }
-        }
-
         dmResource::Result r = dmResource::Get(factory, texture_set_ddf->m_Texture, (void**)&tile_set->m_Texture);
         if (r == dmResource::RESULT_OK)
         {
@@ -93,6 +81,15 @@ namespace dmGameSystem
             dmPhysics::DeleteHullSet2D(tile_set->m_HullSet);
     }
 
+    static uint32_t GetResourceSize(TextureSetResource* res, uint32_t ddf_size)
+    {
+        uint32_t size = sizeof(TextureSetResource);
+        size += ddf_size;
+        size += res->m_HullCollisionGroups.Capacity()*sizeof(dmhash_t);
+        size += res->m_AnimationIds.Capacity()*(sizeof(dmhash_t)+sizeof(uint32_t));
+        return size;
+    }
+
     dmResource::Result ResTextureSetPreload(const dmResource::ResourcePreloadParams& params)
     {
         dmGameSystemDDF::TextureSet* texture_set_ddf;
@@ -116,6 +113,7 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) tile_set;
+            params.m_Resource->m_ResourceSize = GetResourceSize(tile_set, params.m_BufferSize);
         }
         else
         {
@@ -144,16 +142,17 @@ namespace dmGameSystem
 
         TextureSetResource* tile_set = (TextureSetResource*)params.m_Resource->m_Resource;
         TextureSetResource tmp_tile_set;
-
         dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, params.m_Factory, texture_set_ddf, &tmp_tile_set, params.m_Filename, true);
         if (r == dmResource::RESULT_OK)
         {
             ReleaseResources(params.m_Factory, tile_set);
+
             tile_set->m_TextureSet = tmp_tile_set.m_TextureSet;
             tile_set->m_Texture = tmp_tile_set.m_Texture;
             tile_set->m_HullCollisionGroups.Swap(tmp_tile_set.m_HullCollisionGroups);
             tile_set->m_HullSet = tmp_tile_set.m_HullSet;
             tile_set->m_AnimationIds.Swap(tmp_tile_set.m_AnimationIds);
+            params.m_Resource->m_ResourceSize = GetResourceSize(tile_set, params.m_BufferSize);
         }
         else
         {

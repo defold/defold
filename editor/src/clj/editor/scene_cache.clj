@@ -35,34 +35,59 @@
     (when-let [cache (get-in cache-meta [:caches context])]
       (first (cache/lookup cache request-id)))))
 
-(defn prune [caches context]
-  (into {} (map (fn [[cache-id meta]]
-                  (let [destroy-batch-fn (:destroy-batch-fn meta)]
-                    [cache-id (update-in meta [:caches context]
-                                         (fn [cache]
-                                           (when cache
-                                             (let [pruned-cache (vcache/prune cache)
-                                                   dead-entries (filter (fn [[request-id _]] (not (contains? pruned-cache request-id))) cache)
-                                                   dead-objects (mapv (fn [[_ object]] object) dead-entries)]
-                                               (when (not (empty? dead-objects))
-                                                 (destroy-batch-fn context (map first dead-objects) (map second dead-objects)))
-                                               pruned-cache))))]))
-                caches)))
+(defn prune-context [caches context]
+  (into {}
+        (map (fn [[cache-id meta]]
+               (let [destroy-batch-fn (:destroy-batch-fn meta)]
+                 [cache-id (update-in meta [:caches context]
+                                      (fn [cache]
+                                        (when cache
+                                          (let [pruned-cache (vcache/prune cache)
+                                                dead-entries (filter (fn [[request-id _]] (not (contains? pruned-cache request-id))) cache)
+                                                dead-objects (mapv (fn [[_ object]] object) dead-entries)]
+                                            (when (seq dead-objects)
+                                              (destroy-batch-fn context (map first dead-objects) (map second dead-objects)))
+                                            pruned-cache))))])))
+        caches))
 
-(defn prune-object-caches! [context]
-  (swap! object-caches prune context))
+(defn prune-context! [context]
+  (swap! object-caches prune-context context))
 
-(defn drop-context [caches context destroy-objects?]
-  (into {} (map (fn [[cache-id meta]]
-                  (let [destroy-batch-fn (:destroy-batch-fn meta)]
-                    [cache-id (if-let [cache (get-in meta [:caches context])]
-                                (do
-                                  (when destroy-objects?
-                                    (let [entries (map second cache)]
-                                      (destroy-batch-fn context (map first entries) (map second entries))))
-                                  (update meta :caches dissoc context))
-                                meta)]))
-                caches)))
+;; This should is used for debugging purposes. In order to update objects in any cache,
+;; we must preserve the cache keys so that re-creation of objects can be triggered
+;; when needed (e.g when modifying preview rendering).
+(defn- clear-all [caches]
+  (into {}
+        (map (fn [[cache-id meta]]
+               (let [destroy-batch-fn (:destroy-batch-fn meta)]
+                 [cache-id (update meta :caches
+                                   (fn [caches-by-context]
+                                     (into {}
+                                           (map (fn [[context cache]]
+                                                  [context (when (some? cache)
+                                                             (let [evicted-keys (mapv first cache)
+                                                                   dead-objects (mapv second cache)]
+                                                               (when (seq dead-objects)
+                                                                 (destroy-batch-fn context (map first dead-objects) (map second dead-objects)))
+                                                               (reduce cache/evict cache evicted-keys)))]))
+                                           caches-by-context)))])))
+        caches))
 
-(defn drop-context! [context destroy-objects?]
-  (swap! object-caches drop-context context destroy-objects?))
+(defn clear-all! []
+  (swap! object-caches clear-all))
+
+(defn- drop-context [caches context]
+  (into {}
+        (map (fn [[cache-id meta]]
+               (let [destroy-batch-fn (:destroy-batch-fn meta)
+                     cache (get-in meta [:caches context])]
+                 [cache-id (if (nil? cache)
+                             meta
+                             (let [dead-objects (map second cache)]
+                               (when (seq dead-objects)
+                                 (destroy-batch-fn context (map first dead-objects) (map second dead-objects)))
+                               (update meta :caches dissoc context)))])))
+        caches))
+
+(defn drop-context! [context]
+  (swap! object-caches drop-context context))

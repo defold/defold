@@ -479,6 +479,7 @@ GLFWAPI int  GLFWAPIENTRY glfwGetWindowParam( int param );
 GLFWAPI void GLFWAPIENTRY glfwSetWindowSizeCallback( GLFWwindowsizefun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwSetWindowCloseCallback( GLFWwindowclosefun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwSetWindowRefreshCallback( GLFWwindowrefreshfun cbfun );
+GLFWAPI int  GLFWAPIENTRY glfwGetWindowRefreshRate( void );
 
 /* Video mode functions */
 GLFWAPI int  GLFWAPIENTRY glfwGetVideoModes( GLFWvidmode *list, int maxcount );
@@ -555,6 +556,11 @@ GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate);
 
 // Accelerometer control
 GLFWAPI void glfwAccelerometerEnable();
+
+// Activity control
+typedef void (*glfwactivityresultfun)(void *env, void* activity, int request_code, int result_code, void* result);
+GLFWAPI void glfwRegisterOnActivityResultListener(glfwactivityresultfun fun);
+GLFWAPI void glfwUnregisterOnActivityResultListener(glfwactivityresultfun fun);
 
 // context control
 GLFWAPI int   GLFWAPIENTRY glfwQueryAuxContext();

@@ -44,6 +44,7 @@ namespace dmGameSystem
         if (result == dmGui::RESULT_OK)
         {
             params.m_Resource->m_Resource = script;
+            params.m_Resource->m_ResourceSize = params.m_BufferSize - lua_module->m_Source.m_Script.m_Count;
             dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_OK;
         }
@@ -94,6 +95,7 @@ namespace dmGameSystem
                     }
                 }
             }
+            params.m_Resource->m_ResourceSize = params.m_BufferSize - lua_module->m_Source.m_Script.m_Count;
             dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_OK;
         }
@@ -197,8 +199,23 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
+    static uint32_t GetResourceSize(GuiSceneResource* res, uint32_t ddf_size)
+    {
+        uint32_t size = sizeof(GuiSceneResource);
+        size += ddf_size;
+        size += res->m_FontMaps.Capacity()*sizeof(dmRender::HFontMap);
+        size += res->m_GuiTextureSets.Capacity()*sizeof(GuiSceneTextureSetResource);
+        size += res->m_RigScenes.Capacity()*sizeof(RigSceneResource*);
+        size += res->m_ParticlePrototypes.Capacity()*sizeof(dmParticle::HPrototype);
+        return size;
+    }
+
     void ReleaseResources(dmResource::HFactory factory, GuiSceneResource* resource)
     {
+        for (uint32_t j = 0; j < resource->m_ParticlePrototypes.Size(); ++j)
+        {
+            dmResource::Release(factory, resource->m_ParticlePrototypes[j]);
+        }
         for (uint32_t j = 0; j < resource->m_RigScenes.Size(); ++j)
         {
             dmResource::Release(factory, resource->m_RigScenes[j]);
@@ -245,6 +262,16 @@ namespace dmGameSystem
             dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_Textures[i].m_Texture);
         }
 
+        for (uint32_t i = 0; i < scene_desc->m_SpineScenes.m_Count; ++i)
+        {
+            dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_SpineScenes[i].m_SpineScene);
+        }
+
+        for (uint32_t i = 0; i < scene_desc->m_Particlefxs.m_Count; ++i)
+        {
+            dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_Particlefxs[i].m_Particlefx);
+        }
+
         *params.m_PreloadData = scene_desc;
         return dmResource::RESULT_OK;
     }
@@ -257,6 +284,7 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*)scene_resource;
+            params.m_Resource->m_ResourceSize = GetResourceSize(scene_resource, params.m_BufferSize);
         }
         else
         {
@@ -297,6 +325,7 @@ namespace dmGameSystem
             scene_resource->m_Path = tmp_scene_resource.m_Path;
             scene_resource->m_GuiContext = tmp_scene_resource.m_GuiContext;
             scene_resource->m_Material = tmp_scene_resource.m_Material;
+            params.m_Resource->m_ResourceSize = GetResourceSize(scene_resource, params.m_BufferSize);
         }
         else
         {

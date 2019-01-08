@@ -287,6 +287,18 @@ namespace dmRender
         return 1;
     }
 
+    static int RenderScriptGetInstanceContextTableRef(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        const int self_index = 1;
+
+        RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, self_index);
+        lua_pushnumber(L, i ? i->m_ContextTableReference : LUA_NOREF);
+
+        return 1;
+    }
+
     static const luaL_reg RenderScriptInstance_methods[] =
     {
         {0,0}
@@ -294,13 +306,14 @@ namespace dmRender
 
     static const luaL_reg RenderScriptInstance_meta[] =
     {
-        {"__gc",        RenderScriptInstance_gc},
-        {"__tostring",  RenderScriptInstance_tostring},
-        {"__index",     RenderScriptInstance_index},
-        {"__newindex",  RenderScriptInstance_newindex},
-        {dmScript::META_TABLE_GET_URL, RenderScriptInstanceGetURL},
-        {dmScript::META_TABLE_RESOLVE_PATH, RenderScriptInstanceResolvePath},
-        {dmScript::META_TABLE_IS_VALID, RenderScriptInstanceIsValid},
+        {"__gc",                                        RenderScriptInstance_gc},
+        {"__tostring",                                  RenderScriptInstance_tostring},
+        {"__index",                                     RenderScriptInstance_index},
+        {"__newindex",                                  RenderScriptInstance_newindex},
+        {dmScript::META_TABLE_GET_URL,                  RenderScriptInstanceGetURL},
+        {dmScript::META_TABLE_RESOLVE_PATH,             RenderScriptInstanceResolvePath},
+        {dmScript::META_TABLE_IS_VALID,                 RenderScriptInstanceIsValid},
+        {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, RenderScriptGetInstanceContextTableRef},
         {0, 0}
     };
 
@@ -760,13 +773,105 @@ namespace dmRender
         return 0;
     }
 
-    /*# enables a render target
+    /*#
+     * @name render.RENDER_TARGET_DEFAULT
+     * @variable
+     */
+
+    /*# sets a render target
      *
-     * Enables a render target. Subsequent draw operations will be to the
-     * enabled render target until it is disabled.
+     * Sets a render target. Subsequent draw operations will be to the
+     * render target until it is replaced by a subsequent call to set_render_target.
+     *
+     * @name render.set_render_target
+     * @param render_target [type:render_target] render target to set. render.RENDER_TARGET_DEFAULT to set the default render target
+     * @param [options] [type:table] optional table with behaviour parameters
+     * 
+     * `transient`
+     * : [type:number] Transient frame buffer types are only valid while the render target is active, i.e becomes undefined when a new target is set by a subsequent call to set_render_target.
+     *  Default is all non-transient. Be aware that some hardware uses a combined depth stencil buffer and when this is the case both are considered non-transient if exclusively selected!
+     *  A buffer type defined that doesn't exist in the render target is silently ignored.
+     *
+     * - `render.BUFFER_COLOR_BIT`
+     * - `render.BUFFER_DEPTH_BIT`
+     * - `render.BUFFER_STENCIL_BIT`
+     * 
+     * @examples
+     *
+     * How to set a render target and draw to it and then switch back to the default render target
+     * The render target defines the depth/stencil buffers as transient, when set_render_target is called the next time the buffers may be invalidated and allow for optimisations depending on driver support
+     * 
+     * ```lua
+     * function update(self)
+     *     -- set render target so all drawing is done to it
+     *     render.set_render_target(self.my_render_target, { transient = [render.BUFFER_DEPTH_BIT, render.BUFFER_STENCIL_BIT] } )
+     *
+     *     -- draw a predicate to the render target
+     *     render.draw(self.my_pred)
+     * 
+     *     -- set default render target. This also invalidates the depth and stencil buffers of the current target (self.my_render_target)
+     *     --  which can be an optimisation on some hardware
+     *     render.set_render_target(render.RENDER_TARGET_DEFAULT)
+     * 
+     * end
+     * ```
+    */
+    int RenderScript_SetRenderTarget(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        dmGraphics::HRenderTarget render_target = 0x0;
+        DM_LUA_STACK_CHECK(L, 0);
+
+        if (lua_gettop(L) > 0)
+        {
+            if(lua_islightuserdata(L, 1))
+            {
+                render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
+            }
+            else
+            {
+                if(!lua_isnil(L, 1) && luaL_checkint(L, 1) != 0)
+                {
+                    return luaL_error(L, "Invalid render target supplied to %s.set_render_target.", RENDER_SCRIPT_LIB_NAME);
+                }
+            }
+        }
+
+        uint32_t transient_buffer_types = 0;
+        if (lua_gettop(L) > 1)
+        {
+            luaL_checktype(L, 2, LUA_TTABLE);
+            lua_pushvalue(L, 2);
+            lua_getfield(L, -1, "transient");
+            if(!lua_isnil(L, -1))
+            {
+                lua_pushnil(L);
+                while (lua_next(L, -2))
+                {
+                    transient_buffer_types |= luaL_checkint(L, -1);
+                    lua_pop(L, 1);
+                }            
+            }
+            lua_pop(L, 2);
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, (uintptr_t)render_target, transient_buffer_types)))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
+    /* DEPRECATED. NO API DOC GENERATED.
+     * enables a render target
+     *
+     * Enables a render target. Subsequent draw operations will be to the enabled render target until
+     * a subsequent call to render.enable_render_target, render.disable_render_target or render.set_render_target.
      *
      * @name render.enable_render_target
      * @param render_target [type:render_target] render target to enable
+     *
+     * @deprecated Use render.set_render_target() instead
+     * 
      * @examples
      *
      * How to enable a render target and draw to it:
@@ -785,6 +890,7 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmGraphics::HRenderTarget render_target = 0x0;
+        DM_LUA_STACK_CHECK(L, 0);
 
         if (lua_islightuserdata(L, 1))
         {
@@ -793,20 +899,24 @@ namespace dmRender
         if (render_target == 0x0)
             return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_RENDER_TARGET, (uintptr_t)render_target)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, (uintptr_t)render_target, 0)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*# disables a render target
+    /* DEPRECATED. NO API DOC GENERATED.
+     * disables a render target
      *
      * Disables a previously enabled render target. Subsequent draw operations
-     * will be drawn to the frame buffer unless another render target is
+     * will be drawn to the default frame buffer unless another render target is
      * enabled.
      *
      * @name render.disable_render_target
      * @param render_target [type:render_target] render target to disable
+     * 
+     * @deprecated Use render.set_render_target() instead
+     * 
      * @examples
      *
      * How to disable a render target so we can draw to the screen:
@@ -830,13 +940,9 @@ namespace dmRender
     int RenderScript_DisableRenderTarget(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        dmGraphics::HRenderTarget render_target = 0x0;
+        DM_LUA_STACK_CHECK(L, 0);
 
-        if (lua_islightuserdata(L, 1))
-        {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
-        }
-        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_RENDER_TARGET, (uintptr_t)render_target)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, (uintptr_t)0x0, 0)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -2098,7 +2204,7 @@ namespace dmRender
      * for the predicate. If multiple tags are provided, the predicate matches materials
      * with all tags ANDed together.
      *
-     * The current limit to the number of tags that can be defined is `32`.
+     * The current limit to the number of tags that can be defined is `64`.
      *
      * @name render.predicate
      * @param tags [type:table] table of tags that the predicate should match. The tags can be of either hash or string type
@@ -2232,6 +2338,7 @@ namespace dmRender
         {"disable_state",                   RenderScript_DisableState},
         {"render_target",                   RenderScript_RenderTarget},
         {"delete_render_target",            RenderScript_DeleteRenderTarget},
+        {"set_render_target",               RenderScript_SetRenderTarget},
         {"enable_render_target",            RenderScript_EnableRenderTarget},
         {"disable_render_target",           RenderScript_DisableRenderTarget},
         {"set_render_target_size",          RenderScript_SetRenderTargetSize},
@@ -2548,6 +2655,7 @@ bail:
         memset(render_script_instance, 0, sizeof(RenderScriptInstance));
         render_script_instance->m_InstanceReference = LUA_NOREF;
         render_script_instance->m_RenderScriptDataReference = LUA_NOREF;
+        render_script_instance->m_ContextTableReference = LUA_NOREF;
     }
 
     HRenderScriptInstance NewRenderScriptInstance(dmRender::HRenderContext render_context, HRenderScript render_script)
@@ -2561,6 +2669,7 @@ bail:
         ResetRenderScriptInstance(i);
         i->m_PredicateCount = 0;
         i->m_RenderScript = render_script;
+        i->m_ScriptWorld = render_context->m_ScriptWorld;
         i->m_RenderContext = render_context;
         i->m_CommandBuffer.SetCapacity(render_context->m_RenderScriptContext.m_CommandBufferSize);
         i->m_Materials.SetCapacity(16, 8);
@@ -2571,10 +2680,16 @@ bail:
         lua_newtable(L);
         i->m_RenderScriptDataReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
 
+        lua_newtable(L);
+        i->m_ContextTableReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
+
         luaL_getmetatable(L, RENDER_SCRIPT_INSTANCE);
         lua_setmetatable(L, -2);
 
-        lua_pop(L, 1);
+        dmScript::SetInstance(L);
+        dmScript::InitializeInstance(i->m_ScriptWorld);
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
 
         assert(top == lua_gettop(L));
 
@@ -2588,8 +2703,15 @@ bail:
         int top = lua_gettop(L);
         (void) top;
 
+        lua_rawgeti(L, LUA_REGISTRYINDEX, render_script_instance->m_InstanceReference);
+        dmScript::SetInstance(L);
+        dmScript::FinalizeInstance(render_script_instance->m_ScriptWorld);
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
+
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_InstanceReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_RenderScriptDataReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_ContextTableReference);
 
         assert(top == lua_gettop(L));
 
@@ -2733,10 +2855,13 @@ bail:
         return context.m_Result;
     }
 
-    RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance)
+    RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance, float dt)
     {
         DM_PROFILE(RenderScript, "UpdateRSI");
         instance->m_CommandBuffer.SetSize(0);
+
+        dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
+
         RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, 0x0);
 
         if (instance->m_CommandBuffer.Size() > 0)

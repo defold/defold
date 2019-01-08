@@ -12,9 +12,20 @@ namespace dmGameSystem
     using namespace Vectormath::Aos;
 
     dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory, dmGameSystemDDF::TileGrid* tile_grid_ddf,
-                          TileGridResource* tile_grid, const char* filename)
+                          TileGridResource* tile_grid, const char* filename, bool reload)
     {
+        if (reload)
+        {
+            // Explicitly reload tileset (textureset) dependency
+            dmResource::Result r = dmResource::ReloadResource(factory, tile_grid_ddf->m_TileSet, 0);
+            if (r != dmResource::RESULT_OK)
+            {
+                return r;
+            }
+        }
+
         tile_grid->m_TileGrid = tile_grid_ddf;
+
         dmResource::Result r = dmResource::Get(factory, tile_grid_ddf->m_TileSet, (void**)&tile_grid->m_TextureSet);
         if (r != dmResource::RESULT_OK)
         {
@@ -99,6 +110,14 @@ namespace dmGameSystem
         }
     }
 
+    static uint32_t GetResourceSize(TileGridResource* res, uint32_t ddf_size)
+    {
+        uint32_t size = sizeof(TileGridResource);
+        size += ddf_size;
+        size += res->m_GridShapes.Capacity() * sizeof(dmPhysics::HCollisionShape2D);    // TODO: Get size of CollisionShape2D
+        return size;
+    }
+
     dmResource::Result ResTileGridPreload(const dmResource::ResourcePreloadParams& params)
     {
         dmGameSystemDDF::TileGrid* tile_grid_ddf;
@@ -120,10 +139,11 @@ namespace dmGameSystem
         TileGridResource* tile_grid = new TileGridResource();
         dmGameSystemDDF::TileGrid* tile_grid_ddf = (dmGameSystemDDF::TileGrid*) params.m_PreloadData;
 
-        dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, params.m_Factory, tile_grid_ddf, tile_grid, params.m_Filename);
+        dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, params.m_Factory, tile_grid_ddf, tile_grid, params.m_Filename, false);
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) tile_grid;
+            params.m_Resource->m_ResourceSize = GetResourceSize(tile_grid, params.m_BufferSize);
         }
         else
         {
@@ -143,22 +163,66 @@ namespace dmGameSystem
 
     dmResource::Result ResTileGridRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        // TODO: Reload is temporarily disabled until issue 678 is fixed
-//        TileGridResource* tile_grid = (TileGridResource*)params.m_Resource->m_Resource;
-//        TileGridResource tmp_tile_grid;
-//        dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, factory, buffer, buffer_size, &tmp_tile_grid, filename);
-//        if (r == dmResource::RESULT_OK)
-//        {
-//            ReleaseResources(factory, tile_grid);
-//            tile_grid->m_TileGrid = tmp_tile_grid.m_TileGrid;
-//            tile_grid->m_TileSet = tmp_tile_grid.m_TileSet;
-//            tile_grid->m_GridShape = tmp_tile_grid.m_GridShape;
-//        }
-//        else
-//        {
-//            ReleaseResources(factory, &tmp_tile_grid);
-//        }
-//        return r;
-        return dmResource::RESULT_OK;
+        dmGameSystemDDF::TileGrid* tile_grid_ddf;
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &tile_grid_ddf);
+        if (e != dmDDF::RESULT_OK)
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        TileGridResource* tile_grid = (TileGridResource*) params.m_Resource->m_Resource;
+        TileGridResource tmp_tile_grid;
+
+        dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, params.m_Factory, tile_grid_ddf, &tmp_tile_grid, params.m_Filename, true);
+        if (r == dmResource::RESULT_OK)
+        {
+            uint32_t layer_count_old = tile_grid->m_GridShapes.Size();
+            uint32_t layer_count_new = tmp_tile_grid.m_GridShapes.Size();
+            uint32_t layer_count     = layer_count_new;
+
+            ReleaseResources(params.m_Factory, tile_grid);
+
+            tile_grid->m_TileGrid = tmp_tile_grid.m_TileGrid;
+            tile_grid->m_Material = tmp_tile_grid.m_Material;
+            tile_grid->m_ColumnCount = tmp_tile_grid.m_ColumnCount;
+            tile_grid->m_RowCount = tmp_tile_grid.m_RowCount;
+            tile_grid->m_MinCellX = tmp_tile_grid.m_MinCellX;
+            tile_grid->m_MinCellY = tmp_tile_grid.m_MinCellY;
+
+            if (layer_count_old < layer_count_new)
+            {
+                uint32_t capacity = tile_grid->m_GridShapes.Capacity();
+                tile_grid->m_GridShapes.OffsetCapacity(layer_count_new - capacity);
+                tile_grid->m_GridShapes.SetSize(tile_grid_ddf->m_Layers.m_Count);
+                for (uint32_t i = capacity; i < layer_count_new; ++i)
+                {
+                    tile_grid->m_GridShapes[i] = tmp_tile_grid.m_GridShapes[i];
+                }
+                layer_count = layer_count_old;
+            }
+            else if (layer_count_old > layer_count_new)
+            {
+                tile_grid->m_GridShapes.SetSize(layer_count_new);
+            }
+            else
+            {
+                // Same num of layers, this is fine.
+            }
+
+            for (uint32_t i = 0; i < layer_count; ++i)
+            {
+                tile_grid->m_GridShapes[i] = tmp_tile_grid.m_GridShapes[i];
+            }
+
+            tile_grid->m_Dirty = 1;
+
+            params.m_Resource->m_ResourceSize = GetResourceSize(tile_grid, params.m_BufferSize);
+        }
+        else
+        {
+            dmLogWarning("Failed AcquireResources, result: %i", r);
+            ReleaseResources(params.m_Factory, &tmp_tile_grid);
+        }
+        return r;
     }
 }

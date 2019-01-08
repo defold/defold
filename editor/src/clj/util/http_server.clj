@@ -1,8 +1,9 @@
 (ns util.http-server
   (:require [clojure.java.io :as io]
+            [editor.error-reporting :as error-reporting]
             [service.log :as log])
   (:import [java.io InputStream IOException OutputStream ByteArrayInputStream ByteArrayOutputStream BufferedOutputStream]
-           [java.net InetSocketAddress URLDecoder]
+           [java.net InetSocketAddress InetAddress URLDecoder]
            [org.apache.commons.io IOUtils]
            [com.sun.net.httpserver HttpExchange HttpHandler HttpServer]))
 
@@ -39,18 +40,33 @@
         (IOUtils/copy in out)))
     (.close e)))
 
-(defn ->server [port handlers]
-  (let [server (HttpServer/create (InetSocketAddress. port) 0)]
-    (doseq [[path handler] (merge default-handlers handlers)]
-      (.createContext server path (reify HttpHandler
-                                    (handle [this t]
-                                      (try
-                                        (-> (handler (exchange->request! t))
+(defn- setup-server!
+  [^HttpServer server handlers]
+  (doseq [[path handler] (merge default-handlers handlers)]
+    (.createContext server path (reify HttpHandler
+                                  (handle [this t]
+                                    (try
+                                      (-> (handler (exchange->request! t))
                                           (response->exchange! t))
-                                        (catch Throwable t
-                                          (prn (Throwable->map t))))))))
-    (.setExecutor server nil)
-    server))
+                                      (catch Throwable t
+                                        (error-reporting/report-exception! t)))))))
+  (.setExecutor server nil)
+  server)
+
+(defn ->server
+  ([port handlers]
+   (-> (HttpServer/create (InetSocketAddress. port) 0)
+       (setup-server! handlers)))
+  ([address port handlers]
+   (let [inet-socket-address
+         (cond
+           (instance? String address)
+           (InetSocketAddress. ^String address ^int port)
+
+           (instance? InetAddress address)
+           (InetSocketAddress. ^InetAddress address ^int port))]
+     (-> (HttpServer/create inet-socket-address 0)
+         (setup-server! handlers)))))
 
 (defn start! [^HttpServer server]
   (.start server)
@@ -62,6 +78,10 @@
 
 (defn local-url [^HttpServer server]
   (format "http://localhost:%d" (.getPort (.getAddress server))))
+
+(defn url [^HttpServer server]
+  (let [address (.getAddress server)]
+    (format "http://%s:%d" (.getHostString address) (.getPort address))))
 
 (defn port [^HttpServer server]
   (.getPort (.getAddress server)))

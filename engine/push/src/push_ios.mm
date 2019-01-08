@@ -4,7 +4,7 @@
 #include <dlib/log.h>
 #include <dlib/json.h>
 #include <script/script.h>
-#include <extension/extension.h>
+#include <dmsdk/extension/extension.h>
 
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
@@ -807,14 +807,6 @@ static const luaL_reg Push_methods[] =
  * @variable
  */
 
-
-/*# remote push origin
- *
- * @name push.ORIGIN_REMOTE
- * @variable
- */
-
-
 /*# lowest notification priority [icon:android]
  *
  * This priority is for items might not be shown to the user except under special circumstances, such as detailed notification logs. Only available on Android. [icon:android]
@@ -866,13 +858,13 @@ dmExtension::Result AppInitializePush(dmExtension::AppParams* params)
 {
     g_Push.Clear();
     g_Push.m_AppDelegate = [[PushAppDelegate alloc] init];
-    dmExtension::RegisterUIApplicationDelegate(g_Push.m_AppDelegate);
+    dmExtension::RegisteriOSUIApplicationDelegate(g_Push.m_AppDelegate);
     return dmExtension::RESULT_OK;
 }
 
 dmExtension::Result AppFinalizePush(dmExtension::AppParams* params)
 {
-    dmExtension::UnregisterUIApplicationDelegate(g_Push.m_AppDelegate);
+    dmExtension::UnregisteriOSUIApplicationDelegate(g_Push.m_AppDelegate);
     [g_Push.m_AppDelegate release];
     g_Push.m_AppDelegate = 0;
     g_Push.Clear();

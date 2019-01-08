@@ -48,9 +48,8 @@ static void Detach()
 
 struct ScheduledNotification
 {
-    int id;
-    int seconds;
-    uint64_t timestamp;
+    int32_t id;
+    uint64_t timestamp; // in microseconds
     char* title;
     char* message;
     char* payload;
@@ -79,8 +78,7 @@ struct Push
         m_Self = LUA_NOREF;
         m_Listener.m_Callback = LUA_NOREF;
         m_Listener.m_Self = LUA_NOREF;
-        m_ScheduleLastID = 0;
-        m_ScheduledNotifications.SetCapacity(64);
+        m_ScheduledNotifications.SetCapacity(8);
     }
     int                  m_Callback;
     int                  m_Self;
@@ -91,13 +89,13 @@ struct Push
     jobject              m_PushJNI;
     jmethodID            m_Start;
     jmethodID            m_Stop;
+    jmethodID            m_FlushStored;
     jmethodID            m_Register;
     jmethodID            m_Schedule;
     jmethodID            m_Cancel;
     int                  m_Pipefd[2];
 
     dmArray<ScheduledNotification> m_ScheduledNotifications;
-    int                  m_ScheduleLastID;
 };
 
 Push g_Push;
@@ -114,7 +112,7 @@ static void VerifyCallback(lua_State* L)
     }
 }
 
-int Push_Register(lua_State* L)
+static int Push_Register(lua_State* L)
 {
     int top = lua_gettop(L);
     VerifyCallback(L);
@@ -135,7 +133,7 @@ int Push_Register(lua_State* L)
     return 0;
 }
 
-int Push_SetListener(lua_State* L)
+static int Push_SetListener(lua_State* L)
 {
     Push* push = &g_Push;
     luaL_checktype(L, 1, LUA_TFUNCTION);
@@ -153,13 +151,17 @@ int Push_SetListener(lua_State* L)
     dmScript::GetInstance(L);
     push->m_Listener.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
+    // Flush stored notifications stored on Java side
+    JNIEnv* env = Attach();
+    env->CallVoidMethod(g_Push.m_Push, g_Push.m_FlushStored);
+    Detach();
+
     return 0;
 }
 
-int Push_Schedule(lua_State* L)
+static int Push_Schedule(lua_State* L)
 {
     int top = lua_gettop(L);
-    ScheduledNotification sn;
 
     int seconds = luaL_checkinteger(L, 1);
     if (seconds < 0)
@@ -223,8 +225,18 @@ int Push_Schedule(lua_State* L)
         */
     }
 
-    sn.id        = g_Push.m_ScheduleLastID++;
-    sn.timestamp = dmTime::GetTime() + ((uint64_t)seconds) * 1000000L; // in microseconds
+    uint64_t t = dmTime::GetTime();
+
+    ScheduledNotification sn;
+
+    // Use the current time to create a unique identifier. It should be unique between sessions
+    sn.id = (int32_t) dmHashBufferNoReverse32(&t, (uint32_t)sizeof(t));
+    if (sn.id < 0) {
+        sn.id = -sn.id; // JNI doesn't support unsigned int
+    }
+
+    sn.timestamp = t + ((uint64_t)seconds) * 1000000L; // in microseconds
+
     sn.title     = strdup(title);
     sn.message   = strdup(message);
     sn.payload   = strdup(payload);
@@ -250,7 +262,6 @@ int Push_Schedule(lua_State* L)
     return 1;
 
 }
-
 
 static void RemoveNotification(int id)
 {
@@ -278,7 +289,7 @@ static void RemoveNotification(int id)
     }
 }
 
-int Push_Cancel(lua_State* L)
+static int Push_Cancel(lua_State* L)
 {
     int cancel_id = luaL_checkinteger(L, 1);
 
@@ -332,7 +343,7 @@ static void NotificationToLua(lua_State* L, ScheduledNotification notification)
 
 }
 
-int Push_GetScheduled(lua_State* L)
+static int Push_GetScheduled(lua_State* L)
 {
     int get_id = luaL_checkinteger(L, 1);
     uint64_t cur_time = dmTime::GetTime();
@@ -358,7 +369,7 @@ int Push_GetScheduled(lua_State* L)
     return 0;
 }
 
-int Push_GetAllScheduled(lua_State* L)
+static int Push_GetAllScheduled(lua_State* L)
 {
     uint64_t cur_time = dmTime::GetTime();
 
@@ -411,6 +422,52 @@ static void PushError(lua_State*L, const char* error)
         lua_rawset(L, -3);
     } else {
         lua_pushnil(L);
+    }
+}
+
+JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_addPendingNotifications(JNIEnv* env, jobject, jint uid, jstring title, jstring message, jstring payload, jlong timestampMillis, jint priority)
+{
+    uint64_t cur_time = dmTime::GetTime();
+    uint64_t timestamp = 1000 * (uint64_t)timestampMillis;
+    if (timestamp <= cur_time) {
+        return;
+    }
+
+    const char* c_title = "";
+    const char* c_message = "";
+    const char* c_payload = "";
+    if (title) {
+        c_title = env->GetStringUTFChars(title, 0);
+    }
+    if (message) {
+        c_message = env->GetStringUTFChars(message, 0);
+    }
+    if (payload) {
+        c_payload = env->GetStringUTFChars(payload, 0);
+    }
+
+    ScheduledNotification sn;
+    sn.id        = (uint64_t)uid;
+    sn.timestamp = timestamp;
+    sn.title     = strdup(c_title);
+    sn.message   = strdup(c_message);
+    sn.payload   = strdup(c_payload);
+    sn.priority  = (int)priority;
+
+    if (g_Push.m_ScheduledNotifications.Remaining() == 0) {
+        g_Push.m_ScheduledNotifications.SetCapacity(g_Push.m_ScheduledNotifications.Capacity()*2);
+    }
+    g_Push.m_ScheduledNotifications.Push( sn );
+
+
+    if (c_title) {
+        env->ReleaseStringUTFChars(title, c_title);
+    }
+    if (c_message) {
+        env->ReleaseStringUTFChars(message, c_message);
+    }
+    if (c_payload) {
+        env->ReleaseStringUTFChars(payload, c_payload);
     }
 }
 
@@ -623,7 +680,7 @@ static int LooperCallback(int fd, int events, void* data)
     return 1;
 }
 
-dmExtension::Result AppInitializePush(dmExtension::AppParams* params)
+static dmExtension::Result AppInitializePush(dmExtension::AppParams* params)
 {
     int result = pipe(g_Push.m_Pipefd);
     if (result != 0) {
@@ -655,8 +712,9 @@ dmExtension::Result AppInitializePush(dmExtension::AppParams* params)
     jclass push_jni_class = (jclass)env->CallObjectMethod(cls, find_class, str_class_name);
     env->DeleteLocalRef(str_class_name);
 
-    g_Push.m_Start = env->GetMethodID(push_class, "start", "(Landroid/app/Activity;Lcom/defold/push/IPushListener;Ljava/lang/String;)V");
+    g_Push.m_Start = env->GetMethodID(push_class, "start", "(Landroid/app/Activity;Lcom/defold/push/IPushListener;Ljava/lang/String;Ljava/lang/String;)V");
     g_Push.m_Stop = env->GetMethodID(push_class, "stop", "()V");
+    g_Push.m_FlushStored = env->GetMethodID(push_class, "flushStoredNotifications", "()V");
     g_Push.m_Register = env->GetMethodID(push_class, "register", "(Landroid/app/Activity;)V");
     g_Push.m_Schedule = env->GetMethodID(push_class, "scheduleNotification", "(Landroid/app/Activity;IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V");
     g_Push.m_Cancel = env->GetMethodID(push_class, "cancelNotification", "(Landroid/app/Activity;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V");
@@ -668,16 +726,23 @@ dmExtension::Result AppInitializePush(dmExtension::AppParams* params)
     g_Push.m_PushJNI = env->NewGlobalRef(env->NewObject(push_jni_class, jni_constructor));
 
     const char* sender_id = dmConfigFile::GetString(params->m_ConfigFile, "android.gcm_sender_id", "");
+    const char* project_title = dmConfigFile::GetString(params->m_ConfigFile, "project.title", "");
     jstring sender_id_string = env->NewStringUTF(sender_id);
-    env->CallVoidMethod(g_Push.m_Push, g_Push.m_Start, g_AndroidApp->activity->clazz, g_Push.m_PushJNI, sender_id_string);
+    jstring project_title_string = env->NewStringUTF(project_title);
+    env->CallVoidMethod(g_Push.m_Push, g_Push.m_Start, g_AndroidApp->activity->clazz, g_Push.m_PushJNI, sender_id_string, project_title_string);
     env->DeleteLocalRef(sender_id_string);
+    env->DeleteLocalRef(project_title_string);
+
+    // loop through all stored local push notifications
+    jmethodID loadPendingNotifications = env->GetMethodID(push_class, "loadPendingNotifications", "(Landroid/app/Activity;)V");
+    env->CallVoidMethod(g_Push.m_Push, loadPendingNotifications, g_AndroidApp->activity->clazz);
 
     Detach();
 
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result AppFinalizePush(dmExtension::AppParams* params)
+static dmExtension::Result AppFinalizePush(dmExtension::AppParams* params)
 {
     JNIEnv* env = Attach();
     env->CallVoidMethod(g_Push.m_Push, g_Push.m_Stop);
@@ -703,7 +768,7 @@ dmExtension::Result AppFinalizePush(dmExtension::AppParams* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result InitializePush(dmExtension::Params* params)
+static dmExtension::Result InitializePush(dmExtension::Params* params)
 {
     lua_State*L = params->m_L;
     int top = lua_gettop(L);
@@ -730,7 +795,7 @@ dmExtension::Result InitializePush(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result FinalizePush(dmExtension::Params* params)
+static dmExtension::Result FinalizePush(dmExtension::Params* params)
 {
     if (params->m_L == g_Push.m_Listener.m_L && g_Push.m_Listener.m_Callback != LUA_NOREF) {
         dmScript::Unref(g_Push.m_Listener.m_L, LUA_REGISTRYINDEX, g_Push.m_Listener.m_Callback);

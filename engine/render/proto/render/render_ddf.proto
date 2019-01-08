@@ -112,6 +112,7 @@ message DisplayProfileQualifier
 {
     required uint32 width   = 1;
     required uint32 height  = 2;
+    repeated string device_models = 3;
 }
 
 message DisplayProfile

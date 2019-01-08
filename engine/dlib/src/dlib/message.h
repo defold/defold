@@ -39,11 +39,17 @@ namespace dmMessage
         /// Socket
         HSocket     m_Socket;
         /// Lua function reference for callback dispatching.
-        /// The value is ref + 2 as LUA_NOREF is defined as -2 as
-        /// we the convention of zero for default values.
+        /// The value is ref - LUA_NOREF as LUA_NOREF is defined as -2
+        /// and we have the convention of zero for default values.
+        /// To get the actual ref, do ref + LUA_NOREF
         /// It's unfortunate that we have to add lua related
         /// functionality here though.
-        int         m_Function;
+        ///
+        /// This is a ref done in the instance local context table
+        /// using dmScript::RefInInstance() so when the corresponding
+        /// script instance dies it will be automatically cleaned up
+        /// if the cleanup callback is not called
+        int         m_FunctionRef;
 
         int         _padding;
 
@@ -99,6 +105,11 @@ namespace dmMessage
         MessageDestroyCallback m_DestroyCallback;   //! If set, will be called after each dispatch
         uint8_t DM_ALIGNED(16) m_Data[0];           //! Payload
     };
+
+    // Page size must be a multiple of dmMessage::ALIGNMENT (see message.cpp).
+    // This simplifies the allocation scheme
+    const uint32_t DM_MESSAGE_PAGE_SIZE = 4096U;
+    const uint32_t DM_MESSAGE_MAX_DATA_SIZE = DM_MESSAGE_PAGE_SIZE - sizeof(Message);
 
     /**
      * @see #Dispatch

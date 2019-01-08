@@ -21,7 +21,10 @@ namespace dmGameObject
     {
         if (params.m_World != 0x0)
         {
-            *params.m_World = new ScriptWorld();
+            CompScriptWorld* w = new CompScriptWorld();
+            w->m_ScriptWorld = dmScript::NewScriptWorld((dmScript::HContext)params.m_Context);
+            *params.m_World = w;
+
             return CREATE_RESULT_OK;
         }
         else
@@ -34,7 +37,9 @@ namespace dmGameObject
     {
         if (params.m_World != 0x0)
         {
-            delete (ScriptWorld*)params.m_World;
+            CompScriptWorld* w = (CompScriptWorld*)params.m_World;
+            dmScript::DeleteScriptWorld(w->m_ScriptWorld);
+            delete w;
             return CREATE_RESULT_OK;
         }
         else
@@ -46,14 +51,14 @@ namespace dmGameObject
     CreateResult CompScriptCreate(const ComponentCreateParams& params)
     {
         HScript script = (HScript)params.m_Resource;
-        ScriptWorld* script_world = (ScriptWorld*)params.m_World;
+        CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
         if (script_world->m_Instances.Full())
         {
             dmLogError("Could not create script component, out of resources.");
             return CREATE_RESULT_UNKNOWN_ERROR;
         }
 
-        HScriptInstance script_instance = NewScriptInstance(script, params.m_Instance, params.m_ComponentIndex);
+        HScriptInstance script_instance = NewScriptInstance(script_world, script, params.m_Instance, params.m_ComponentIndex);
         SetPropertySet(script_instance->m_Properties, PROPERTY_LAYER_PROTOTYPE, params.m_PropertySet);
         if (script_instance == 0x0)
         {
@@ -123,7 +128,7 @@ namespace dmGameObject
 
     CreateResult CompScriptDestroy(const ComponentDestroyParams& params)
     {
-        ScriptWorld* script_world = (ScriptWorld*)params.m_World;
+        CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
         for (uint32_t i = 0; i < script_world->m_Instances.Size(); ++i)
         {
@@ -195,7 +200,9 @@ namespace dmGameObject
         UpdateResult result = UPDATE_RESULT_OK;
         RunScriptParams run_params;
         run_params.m_UpdateContext = params.m_UpdateContext;
-        ScriptWorld* script_world = (ScriptWorld*)params.m_World;
+        CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
+        dmScript::UpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
+
         uint32_t size = script_world->m_Instances.Size();
         for (uint32_t i = 0; i < size; ++i)
         {
@@ -224,9 +231,9 @@ namespace dmGameObject
 
         int function_ref;
         bool is_callback = false;
-        if (params.m_Message->m_Receiver.m_Function) {
-            // NOTE: By convention m_Function is the ref + 2, see message.h in dlib
-            function_ref = params.m_Message->m_Receiver.m_Function - 2;
+        if (params.m_Message->m_Receiver.m_FunctionRef) {
+            // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+            function_ref = params.m_Message->m_Receiver.m_FunctionRef + LUA_NOREF;
             is_callback = true;
         } else {
             function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONMESSAGE];
@@ -242,10 +249,26 @@ namespace dmGameObject
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
             dmScript::SetInstance(L);
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
             if (is_callback) {
-                dmScript::Unref(L, LUA_REGISTRYINDEX, function_ref);
+                dmScript::ResolveInInstance(L, function_ref);
+                if (!lua_isfunction(L, -1))
+                {
+                    // If the script instance is dead we just ignore the callback
+                    lua_pop(L, 1);
+                    lua_pushnil(L);
+                    dmScript::SetInstance(L);
+                    dmLogWarning("Failed to call message response callback function, has it been deleted?");
+                    return result;
+                }
+                dmScript::UnrefInInstance(L, function_ref);
             }
+            else
+            {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
+            }
+
+            assert(lua_isfunction(L, -1));
+
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
             dmScript::PushHash(L, params.m_Message->m_Id);

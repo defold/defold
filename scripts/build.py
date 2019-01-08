@@ -16,35 +16,43 @@ Build utility for installing external packages, building engine, editor and cr
 Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 facebook-4.4.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.1.0".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
 PACKAGES_HOST="protobuf-2.3.0 gtest-1.8.0 cg-3.1 vpx-v0.9.7-p1 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
-PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.4.0 luajit-2.0.5 tremolo-0.0.8".split()
-PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.4.0 tremolo-0.0.8".split()
-PACKAGES_DARWIN="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-v0.9.7-p1 tremolo-0.0.8".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-v0.9.7-p1 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0".split()
-PACKAGES_WIN32="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 apkc-0.1.0".split()
-PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0".split()
-PACKAGES_LINUX="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 apkc-0.1.0".split()
-PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0".split()
-PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16".split()
-PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0".split()
-PACKAGES_EMSCRIPTEN_SDK="emsdk-1.35.23"
-PACKAGES_IOS_SDK="iPhoneOS10.3.sdk"
-PACKAGES_MACOS_SDK="MacOSX10.12.sdk"
-PACKAGES_XCODE_TOOLCHAIN="XcodeToolchain8.3.3"
+PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.0.5 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_DARWIN="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-v0.9.7-p1 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-v0.9.7-p1 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
+PACKAGES_WIN32="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 apkc-0.1.0 bullet-2.77".split()
+PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
+PACKAGES_LINUX="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 apkc-0.1.0 bullet-2.77".split()
+PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
+PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 google-play-services-4.0.30 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0 bullet-2.77".split()
+
+PACKAGES_EMSCRIPTEN_SDK="emsdk-1.38.12"
+PACKAGES_IOS_SDK="iPhoneOS11.2.sdk"
+PACKAGES_MACOS_SDK="MacOSX10.13.sdk"
+PACKAGES_XCODE_TOOLCHAIN="XcodeToolchain9.2"
+PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-14-0"
+PACKAGES_WIN32_SDK_8="WindowsKits-8.1"
+PACKAGES_WIN32_SDK_10="WindowsKits-10.0"
 DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
 NODE_MODULE_XHR2_URL = "%s/xhr2-0.1.0-common.tar.gz" % (DEFOLD_PACKAGES_URL)
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
-EMSCRIPTEN_VERSION_STR = "1.35.0"
-# The linux tool does not yet support git tags, so we have to treat it as a special case for the moment.
-EMSCRIPTEN_VERSION_STR_LINUX = "master"
-EMSCRIPTEN_SDK_OSX = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
-EMSCRIPTEN_SDK_LINUX = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR_LINUX)
+EMSCRIPTEN_VERSION_STR = "1.38.12"
+EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
 EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR)
-EMSCRIPTEN_DIR_LINUX = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR_LINUX)
 PACKAGES_FLASH=[]
 SHELL = os.environ.get('SHELL', 'bash')
+
+ENGINE_LIBS = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record gameroom iap push iac webview profiler facebook crash engine sdk".split()
+
+class ExecException(Exception):
+    def __init__(self, retcode, output):
+        self.retcode = retcode
+        self.output = output
+
 
 def is_64bit_machine():
     return platform.machine().endswith('64')
@@ -85,20 +93,28 @@ def get_host_platform2():
     else:
         raise Exception("Unknown host platform: %s" % sys.platform)
 
-def format_exe(name, platform):
+def format_exes(name, platform):
     prefix = ''
-    suffix = ''
+    suffix = ['']
     if 'win32' in platform:
-        suffix = '.exe'
+        suffix = ['.exe']
     elif 'android' in platform:
         prefix = 'lib'
-        suffix = '.so'
+        suffix = ['.so']
     elif 'js-web' in platform:
         prefix = ''
-        suffix = '.js'
+        suffix = ['.js']
+    elif 'wasm-web' in platform:
+        prefix = ''
+        suffix = ['.js', '.wasm']
     else:
-        suffix = ''
-    return '%s%s%s' % (prefix, name, suffix)
+        suffix = ['']
+
+    exes = []
+    for suff in suffix:
+        exes.append('%s%s%s' % (prefix, name, suff))
+    return exes
+    # return '%s%s%s' % (prefix, name, suffix)
 
 def format_lib(name, platform):
     prefix = 'lib'
@@ -161,6 +177,7 @@ class Configuration(object):
                  skip_codesign = False,
                  skip_docs = False,
                  skip_builtins = False,
+                 skip_bob_light = False,
                  disable_ccache = False,
                  no_colors = False,
                  archive_path = None,
@@ -195,6 +212,7 @@ class Configuration(object):
         self.skip_codesign = skip_codesign
         self.skip_docs = skip_docs
         self.skip_builtins = skip_builtins
+        self.skip_bob_light = skip_bob_light
         self.disable_ccache = disable_ccache
         self.no_colors = no_colors
         self.archive_path = archive_path
@@ -220,7 +238,7 @@ class Configuration(object):
             os._exit(5)
 
     def _create_common_dirs(self):
-        for p in ['ext/lib/python', 'share', 'lib/js-web/js']:
+        for p in ['ext/lib/python', 'share', 'lib/js-web/js', 'lib/wasm-web/js']:
             self._mkdirs(join(self.dynamo_home, p))
 
     def _mkdirs(self, path):
@@ -233,9 +251,19 @@ class Configuration(object):
         sys.stderr.flush()
 
     def distclean(self):
-        shutil.rmtree(self.dynamo_home)
+        if os.path.exists(self.dynamo_home):
+            self._log('Removing %s' % self.dynamo_home)
+            shutil.rmtree(self.dynamo_home)
+
+        for lib in ['dlib','texc']+ENGINE_LIBS:
+            builddir = join(self.defold_root, 'engine/%s/build' % lib)
+            if os.path.exists(builddir):
+                self._log('Removing %s' % builddir)
+                shutil.rmtree(builddir)
+
         # Recreate dirs
         self._create_common_dirs()
+        self._log('distclean done.')
 
     def _extract_tgz(self, file, path):
         self._log('Extracting %s to %s' % (file, path))
@@ -320,7 +348,8 @@ class Configuration(object):
             'armv7-darwin':   PACKAGES_IOS,
             'arm64-darwin':   PACKAGES_IOS_64,
             'armv7-android':  PACKAGES_ANDROID,
-            'js-web':         PACKAGES_EMSCRIPTEN
+            'js-web':         PACKAGES_EMSCRIPTEN,
+            'wasm-web':       PACKAGES_EMSCRIPTEN
         }
 
         base_platforms = self.get_base_platforms()
@@ -383,6 +412,16 @@ class Configuration(object):
         xhr2_tarball = self._download(NODE_MODULE_XHR2_URL)
         self._extract_tgz(xhr2_tarball, node_modules_dir)
 
+        def download_sdk(url, targetfolder, tmpname=None): # tmpname is the top folder name inside the archive, which you wish to rename
+            if not os.path.exists(targetfolder):
+                dlpath = self._download(url)
+                parent_folder = os.path.split(targetfolder)[0]
+                if tmpname is None:
+                    self._extract_tgz(dlpath, parent_folder)
+                else:
+                    tmpfolder = os.path.join(parent_folder, tmpname)
+                    os.rename(tmpfolder, targetfolder)
+
         if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin'):
             # macOS SDK
             tgtfolder = join(self.ext, 'SDKs', PACKAGES_MACOS_SDK)
@@ -410,12 +449,22 @@ class Configuration(object):
                 self._extract_tgz(dlpath, tmpfolder)
                 os.rename(join(tmpfolder, 'iPhoneOS.sdk'), tgtfolder)
 
+        if 'win32' in target_platform and not ('win32' in self.host):
+            win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
+            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )
+            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
+            targetfolder = join(win32_sdk_folder, 'MicrosoftVisualStudio14.0') # let's avoid spaces in the paths
+            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_TOOLCHAIN), targetfolder, 'Microsoft Visual Studio 14.0' )
+
+            # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
+
+        # Simple way to reduce number of warnings in the build
+        proto_path = os.path.join(self.dynamo_home, 'share', 'proto')
+        if not os.path.exists(proto_path):
+            os.makedirs(proto_path)
+
     def _form_ems_path(self):
-        path = ''
-        if 'linux' in self.host:
-            path = join(self.ext, EMSCRIPTEN_DIR_LINUX)
-        else:
-            path = join(self.ext, EMSCRIPTEN_DIR)
+        path = join(self.ext, EMSCRIPTEN_DIR)
         return path
 
     def install_ems(self):
@@ -429,9 +478,7 @@ class Configuration(object):
         os.environ['EMSCRIPTEN'] = self._form_ems_path()
 
     def get_ems_sdk_name(self):
-        sdk = EMSCRIPTEN_SDK_OSX
-        if 'linux' in self.host:
-            sdk = EMSCRIPTEN_SDK_LINUX
+        sdk = EMSCRIPTEN_SDK
         return sdk;
 
     def get_ems_exe_path(self):
@@ -457,8 +504,6 @@ class Configuration(object):
             print 'No .emscripten file.'
             err = True
         emsDir = join(self.ext, EMSCRIPTEN_DIR)
-        if self.host == 'linux':
-            emsDir = join(self.ext, EMSCRIPTEN_DIR_LINUX)
         if not os.path.isdir(emsDir):
             print 'Emscripten tools not installed.'
             err = True
@@ -528,6 +573,19 @@ class Configuration(object):
             configs = [os.path.join(self.dynamo_home, x) for x in configs]
             self._add_files_to_zip(zip, configs, self.dynamo_home, topfolder)
 
+            # Variants
+            variants = []
+            cwd = os.getcwd()
+            os.chdir(self.dynamo_home)
+            for root, dirs, files in os.walk("extender/variants"):
+                for file in files:
+                    if file.endswith('.appmanifest'):
+                        variants.append(os.path.join(root, file))
+
+            os.chdir(cwd)
+            variants = [os.path.join(self.dynamo_home, x) for x in variants]
+            self._add_files_to_zip(zip, variants, self.dynamo_home, topfolder)
+
             def _findlibs(libdir):
                 paths = os.listdir(libdir)
                 paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.a', '.dylib', '.so', '.lib', '.dll')]
@@ -562,19 +620,29 @@ class Configuration(object):
                              "bolts-android-1.2.0.jar",
                              "google-play-services.jar",
                              "android-support-v4.jar",
-                             'android.jar',
+                             "android-support-multidex.jar",
+                             "android.jar",
                              "in-app-purchasing-2.0.61.jar")
             jardir = os.path.join(self.dynamo_home, 'ext/share/java')
             paths = _findjars(jardir, external_jars)
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+            # Win32 resource files
+            engine_rc = os.path.join(self.dynamo_home, 'lib/%s/defold.ico' % platform)
+            defold_ico = os.path.join(self.dynamo_home, 'lib/%s/engine.rc' % platform)
+            self._add_files_to_zip(zip, [engine_rc, defold_ico], self.dynamo_home, topfolder)
 
             # JavaScript files
             # js-web-pre-x files
             jsdir = os.path.join(self.dynamo_home, 'share')
             paths = _findjslibs(jsdir)
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-            # libraries
+            # libraries for js-web
             jsdir = os.path.join(self.dynamo_home, 'lib/js-web/js/')
+            paths = _findjslibs(jsdir)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            # libraries for wasm-web
+            jsdir = os.path.join(self.dynamo_home, 'lib/wasm-web/js/')
             paths = _findjslibs(jsdir)
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
@@ -612,15 +680,15 @@ class Configuration(object):
 
         # upload editor 2.0 launcher
         if self.target_platform in ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32']:
-            launcher_name = format_exe("launcher", self.target_platform)
+            launcher_name = format_exes("launcher", self.target_platform)[0]
             launcherbin = join(bin_dir, launcher_name)
             self.upload_file(launcherbin, '%s/%s' % (full_archive_path, launcher_name))
 
         for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
-            engine_name = format_exe(n, self.target_platform)
-            engine = join(bin_dir, engine_name)
-            self.upload_file(engine, '%s/%s' % (full_archive_path, engine_name))
-            if self.target_platform == 'js-web':
+            for engine_name in format_exes(n, self.target_platform):
+                engine = join(bin_dir, engine_name)
+                self.upload_file(engine, '%s/%s' % (full_archive_path, engine_name))
+            if 'web' in self.target_platform:
                 self.upload_file(join(bin_dir, 'defold_sound.swf'), join(full_archive_path, 'defold_sound.swf'))
                 engine_mem = join(bin_dir, engine_name + '.mem')
                 if os.path.exists(engine_mem):
@@ -708,29 +776,31 @@ class Configuration(object):
 
     def build_bob_light(self):
         self._log('Building bob')
-        self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
-                              cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'),
-                              shell = True)
+        self.exec_env_shell_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+                                    cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'))
 
     def build_engine(self):
         cmd = self._build_engine_cmd(**self._get_build_flags())
         args = cmd.split()
-        host = self.host
+        host = self.host2
+        if 'x86-' in host:
+            host = self.host
         if host == 'darwin':
             host = 'x86_64-darwin'
-        # There is a dependency between 32-bit python and the ctypes lib produced in dlib
+        # There is a dependency between 32-bit python and the ctypes lib produced in dlib (something goes wrong when compiling .proto files)
         if host == 'x86_64-darwin' and self.target_platform != 'darwin':
             self._build_engine_lib(args, 'dlib', 'darwin', skip_tests = True)
         if host == 'x86_64-win32' and self.target_platform != 'win32':
             self._build_engine_lib(args, 'dlib', 'win32', skip_tests = True)
-        # We must build bob-light, which builds content during the engine build
-        # There also seems to be a strange dep between having it built and building dlib for the target, even when target == host
+        # Make sure we build these for the host platform
         for lib in ['dlib', 'texc']:
             skip_tests = host != self.target_platform
             self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
-        self.build_bob_light()
+        if not self.skip_bob_light:
+            # We must build bob-light, which builds content during the engine build
+            self.build_bob_light()
         # Target libs to build
-        engine_libs = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record gameroom iap push iac adtruth webview profiler facebook crash engine sdk".split()
+        engine_libs = list(ENGINE_LIBS)
         if host != self.target_platform:
             engine_libs.insert(0, 'dlib')
             if self.is_desktop_target():
@@ -742,6 +812,12 @@ class Configuration(object):
             self.build_docs()
         if not self.skip_builtins:
             self.build_builtins()
+        if '--static-analyze' in self.waf_options:
+            scan_output_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'static_analyze'))
+            report_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'report'))
+            self.exec_command(['python', './scripts/scan_build_gather_report.py', '-o', report_dir, '-i', scan_output_dir])
+            print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
+            shutil.rmtree(scan_output_dir)
 
     def build_go(self):
         exe_ext = '.exe' if 'win32' in self.target_platform else ''
@@ -774,7 +850,7 @@ class Configuration(object):
             self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
     def copy_local_bob_artefacts(self):
-        apkc_name = format_exe('apkc', self.host2)
+        apkc_name = format_exes('apkc', self.host2)[0]
         texc_name = format_lib('texc_shared', self.host2)
         luajit_dir = tempfile.mkdtemp()
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
@@ -790,7 +866,7 @@ class Configuration(object):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
             else:
                 self._extract(luajit_path, luajit_dir)
-                luajit_exe = format_exe('luajit', plf[1])
+                luajit_exe = format_exes('luajit', plf[1])[0]
                 self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe)))
         win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal', 'PVRTexLib', 'msvcr120'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
         osx_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['darwin', 'darwin'], ['x86_64-darwin', 'x86_64-darwin']]])
@@ -816,15 +892,15 @@ class Configuration(object):
         # Add dmengine to 'artefacts' procedurally
         for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android']],
                            'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
-                           'js-bundling': [['js-web', 'js-web']],
+                           'js-bundling': [['js-web', 'js-web'], ['wasm-web', 'wasm-web']],
                            'ios-bundling': [['armv7-darwin', 'armv7-darwin'], ['arm64-darwin', 'arm64-darwin']],
-                           # Haxx to deal with the incorrect usage of x86-darwin in editor1
-                           'osx-bundling': [['darwin', 'x86-darwin'], ['x86_64-darwin', 'x86-darwin']],
+                           'osx-bundling': [['darwin', 'x86-darwin'], ['x86_64-darwin', 'x86_64-darwin']],
                            'linux-bundling': [['x86_64-linux', 'x86_64-linux']]}.iteritems():
             # plfs is pairs of src-platform -> dst-platform
             # The haxx above makes sure that x86_64-darwin is noted as x86-darwin for dst-platform (because of Ed1 reasons)
             for plf in plfs:
-                artefacts[type].update(dict([['bin/%s/%s' % (plf[0], format_exe(name, plf[1])), 'libexec/%s/%s' % (plf[1], format_exe(name, plf[1]))] for name in ['dmengine', 'dmengine_release']]))
+                exes = format_exes('dmengine', plf[1]) + format_exes('dmengine_release', plf[1])
+                artefacts[type].update(dict([['bin/%s/%s' % (plf[0], exe), 'libexec/%s/%s' % (plf[1], exe)] for exe in exes]))
         # Perform the actual copy, or list which files are missing
         for type, files in artefacts.iteritems():
             m = []
@@ -847,13 +923,12 @@ class Configuration(object):
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            self.exec_env_command("./scripts/copy.sh", cwd = cwd, shell = True)
+            self.exec_env_shell_command("./scripts/copy.sh", cwd = cwd)
         else:
             self.copy_local_bob_artefacts()
 
-        self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
-                              cwd = cwd,
-                              shell = True)
+        self.exec_env_shell_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
+                              cwd = cwd)
 
     def build_sdk(self):
         tempdir = tempfile.mkdtemp() # where the sdk ends up
@@ -865,7 +940,7 @@ class Configuration(object):
         root = urlparse.urlparse(self.archive_path).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        platforms = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web']
+        platforms = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web', 'wasm-web']
         for platform in platforms:
             platform_sdk_url = join(self.archive_path, sha1, 'engine', platform).replace('\\', '/')
 
@@ -1075,7 +1150,13 @@ instructions.configure=\
             preexec_fn = None
         else:
             preexec_fn = self.check_ems
-        self.exec_env_command([SHELL, '-l'], preexec_fn=preexec_fn)
+
+        process = subprocess.Popen([SHELL, '-l'], env = self._form_env(), preexec_fn=preexec_fn)
+        output = process.communicate()[0]
+
+        if process.returncode != 0:
+            self._log(output)
+            sys.exit(process.returncode)
 
     def _get_tagged_releases(self):
         u = urlparse.urlparse(self.archive_path)
@@ -1113,7 +1194,7 @@ instructions.configure=\
                         files.append({'name': name, 'path': '/' + x.name})
             return files
 
-        tags = self.exec_command("git for-each-ref --sort=taggerdate --format '%(*objectname) %(refname)' refs/tags").split('\n')
+        tags = self.exec_shell_command("git for-each-ref --sort=taggerdate --format '%(*objectname) %(refname)' refs/tags").split('\n')
         tags.reverse()
         releases = []
         for line in tags:
@@ -1122,7 +1203,7 @@ instructions.configure=\
                 continue
             m = re.match('(.*?) refs/tags/(.*?)$', line)
             sha1, tag = m.groups()
-            epoch = self.exec_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
+            epoch = self.exec_shell_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
             date = datetime.fromtimestamp(float(epoch))
             files = get_files(sha1)
             if len(files) > 0:
@@ -1281,12 +1362,12 @@ instructions.configure=\
 </repository>
 """
 
-        if self.exec_command('git config -l').find('remote.origin.url') != -1:
+        if self.exec_shell_command('git config -l').find('remote.origin.url') != -1:
             # NOTE: Only run fetch when we have a configured remote branch.
             # When running on buildbot we don't but fetching should not be required either
             # as we're already up-to-date
             self._log('Running git fetch to get latest tags and refs...')
-            self.exec_command('git fetch')
+            self.exec_shell_command('git fetch')
 
         u = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(u.hostname)
@@ -1413,16 +1494,30 @@ instructions.configure=\
                 fp_defold_app = os.path.join(dp_defold, 'Defold.app')
                 fp_defold_dmg = os.path.join(root, 'Defold-macosx.cocoa.x86_64.dmg')
 
-                self.exec_command(['unzip', '-qq', '-o', filepath, '-d', dp_defold], False)
-                self.exec_command(['chmod', '-R', '755', dp_defold], False)
+                self.exec_command(['unzip', '-qq', '-o', filepath, '-d', dp_defold])
+                self.exec_command(['chmod', '-R', '755', dp_defold])
                 os.symlink('/Applications', os.path.join(builddir, 'Applications'))
 
                 # Create a signature for Defold.app and the container
                 # This certificate must be installed on the computer performing the operation
                 certificate = 'Developer ID Application: Midasplayer Technology AB (ATT58V7T33)'
-                self.exec_command(['codesign', '--deep', '-s', certificate, fp_defold_app], False)
-                self.exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', builddir, fp_defold_dmg], False)
-                self.exec_command(['codesign', '-s', certificate, fp_defold_dmg], False)
+                self.exec_command(['codesign', '--deep', '-s', certificate, fp_defold_app])
+                self.exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', builddir, fp_defold_dmg])
+
+                # This step is intermittently failing. In such cases, we retry a few more times
+                # E.g. "/var/folders/6l/p6nhw59s2ns2x9chznhy9k1r0000gp/T/defsign.MamsrV/Defold-macosx.cocoa.x86_64.dmg: The timestamp service is not available."
+                max_tries = 5
+
+                for i in range(max_tries):
+                    try:
+                        self.exec_command_no_quit(['codesign', '-s', certificate, fp_defold_dmg])
+                        break # it went ok, let's continue the process
+                    except ExecException, e:
+                        self._log("Failed attempt %d/%d" % (i+1, max_tries))
+                        if i == max_tries-1:
+                            sys.exit(e.retcode)
+                    time.sleep(10) # seconds
+
                 self._log('Signed %s' % (fp_defold_dmg))
 
                 # Upload the signed container to S3
@@ -1499,7 +1594,7 @@ instructions.configure=\
         host2 = get_host_platform2()
         install_path = join('tmp', 'smoke_test')
         if 'darwin' in host2:
-            out = self.exec_command(['hdiutil', 'attach', bundle], False)
+            out = self.exec_command(['hdiutil', 'attach', bundle])
             print("cmd:" + out)
             last = [l2 for l2 in (l1.strip() for l1 in out.split('\n')) if l2][-1]
             words = last.split()
@@ -1525,7 +1620,7 @@ instructions.configure=\
         host2 = get_host_platform2()
         shutil.rmtree(info['install_path'])
         if 'darwin' in host2:
-            out = self.exec_command(['hdiutil', 'detach', info['fs']], False)
+            out = self.exec_command(['hdiutil', 'detach', info['fs']])
 
     def _get_config(self, config, section, option, overrides):
         combined = '%s.%s' % (section, option)
@@ -1700,21 +1795,65 @@ instructions.configure=\
             f()
         self.futures = []
 
-    def exec_command(self, args, shell = True):
-        arg_str = args
+    def _exec_command(self, arg_list, **kwargs):
+        arg_str = arg_list
         if not isinstance(arg_str, basestring):
-            arg_str = ' '.join(arg_str)
+            arg_str = ' '.join(arg_list)
         self._log('[exec] %s' % arg_str)
-        process = subprocess.Popen(args, stdout = subprocess.PIPE, shell = shell)
 
-        output = process.communicate()[0]
-        if process.returncode != 0:
-            self._log(output)
-            sys.exit(process.returncode)
+        if sys.stdout.isatty():
+            # If not on CI, we want the colored output, and we get the output as it runs, in order to preserve the colors
+            if not 'stdout' in kwargs:
+                kwargs['stdout'] = subprocess.PIPE # Only way to get output from the command
+            process = subprocess.Popen(arg_list, **kwargs)
+            output = process.communicate()[0]
+            if process.returncode != 0:
+                self._log(output)
+        else:
+            # On the CI machines, we make sure we produce a steady stream of output
+            # However, this also makes us lose the color information
+            if 'stdout' in kwargs:
+                del kwargs['stdout']
+            process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, **kwargs)
+
+            output = ''
+            while True:
+                line = process.stdout.readline()
+                if line != '':
+                    output += line
+                    self._log(line.rstrip())
+                else:
+                    break
+
+        if process.wait() != 0:
+            raise ExecException(process.returncode, output)
+
         return output
+
+    def exec_command_no_quit(self, args):
+        # Executes a command and raises an ExecException if it fails
+        return self._exec_command(args, shell = False)
+
+    def exec_command(self, args):
+        # Executes a command, and exits if it fails
+        try:
+            return self._exec_command(args, shell = False)
+        except ExecException, e:
+            sys.exit(e.returncode)
+
+    def exec_shell_command(self, args):
+        # Executes a command, and exits if it fails
+        try:
+            return self._exec_command(args, shell = True)
+        except ExecException, e:
+            sys.exit(e.returncode)
 
     def _form_env(self):
         env = dict(os.environ)
+
+        host = self.host2
+        if 'x86-' in host:
+            host = self.host
 
         ld_library_path = 'DYLD_LIBRARY_PATH' if self.host == 'darwin' else 'LD_LIBRARY_PATH'
         env[ld_library_path] = os.path.pathsep.join(['%s/lib/%s' % (self.dynamo_home, self.target_platform),
@@ -1731,7 +1870,7 @@ instructions.configure=\
         paths = os.path.pathsep.join(['%s/bin/%s' % (self.dynamo_home, self.target_platform),
                                       '%s/bin' % (self.dynamo_home),
                                       '%s/ext/bin' % self.dynamo_home,
-                                      '%s/ext/bin/%s' % (self.dynamo_home, self.host),
+                                      '%s/ext/bin/%s' % (self.dynamo_home, host),
                                       '%s/bin' % go_root])
 
         env['PATH'] = paths + os.path.pathsep + env['PATH']
@@ -1761,19 +1900,11 @@ instructions.configure=\
 
         return env
 
-    def exec_env_command(self, arg_list, **kwargs):
-        env = self._form_env()
-        arg_str = arg_list
-        if not isinstance(arg_str, basestring):
-            arg_str = ' '.join(arg_list)
-        self._log('[exec] %s' % arg_str)
-        process = subprocess.Popen(arg_list, env = env, **kwargs)
-        output = process.communicate()[0]
+    def exec_env_command(self, args, **kwargs):
+        return self._exec_command(args, shell = False, stdout = None, env = self._form_env(), **kwargs)
 
-        if process.returncode != 0:
-            self._log(output)
-            sys.exit(process.returncode)
-        return output
+    def exec_env_shell_command(self, args, **kwargs):
+        return self._exec_command(args, shell = True, env = self._form_env(), **kwargs)
 
 if __name__ == '__main__':
     boto_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto-2.28.0-py2.7.egg'))
@@ -1818,7 +1949,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web'],
+                      choices = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web', 'wasm-web'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',
@@ -1840,6 +1971,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       action = 'store_true',
                       default = False,
                       help = 'skip building builtins when building the engine. Default is false')
+
+    parser.add_option('--skip-bob-light', dest='skip_bob_light',
+                      action = 'store_true',
+                      default = False,
+                      help = 'skip building bob-light when building the engine. Default is false')
 
     parser.add_option('--disable-ccache', dest='disable_ccache',
                       action = 'store_true',
@@ -1885,7 +2021,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     if len(args) == 0:
         parser.error('No command specified')
 
-    target_platform = options.target_platform if options.target_platform else get_host_platform()
+    target_platform = options.target_platform
+    if not options.target_platform:
+        target_platform = get_host_platform2()
+        if 'x86-' in target_platform:
+            target_platform = get_host_platform() # we need even more cleanup to use "x86-linux" format for everything
 
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
@@ -1894,6 +2034,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       skip_codesign = options.skip_codesign,
                       skip_docs = options.skip_docs,
                       skip_builtins = options.skip_builtins,
+                      skip_bob_light = options.skip_bob_light,
                       disable_ccache = options.disable_ccache,
                       no_colors = options.no_colors,
                       archive_path = options.archive_path,

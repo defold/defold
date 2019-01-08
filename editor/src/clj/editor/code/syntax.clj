@@ -98,20 +98,25 @@
         (:name parent-pattern))))
 
 (defn make-context [scope patterns]
+  (assert (string? (not-empty scope)))
+  (assert (seq patterns))
   (->AnalysisContext {:name scope :patterns patterns} nil))
 
 (defn analyze [contexts line]
   (let [root-scope (some find-parent-scope contexts)]
-    (loop [start 0
-           contexts contexts
-           runs (transient [(util/pair 0 root-scope)])]
-      (if-some [match (first-match contexts line start)]
-        (let [parent-scope (some find-parent-scope (.contexts match))
-              match-result ^MatchResult (.match-result match)]
-          (recur (.end match-result)
-                 (.contexts match)
-                 (case (.type match)
-                   :match (append-match! runs parent-scope match-result (.pattern match))
-                   :begin (append-begin! runs parent-scope match-result (.pattern match))
-                   :end (append-end! runs parent-scope match-result (.pattern match)))))
-        (util/pair contexts (persistent! runs))))))
+    ;; Skip very long lines since these might lock up the regex engine.
+    (if (< 1024 (count line))
+      (util/pair contexts [(util/pair 0 root-scope)])
+      (loop [start 0
+             contexts contexts
+             runs (transient [(util/pair 0 root-scope)])]
+        (if-some [match (first-match contexts line start)]
+          (let [parent-scope (some find-parent-scope (.contexts match))
+                match-result ^MatchResult (.match-result match)]
+            (recur (.end match-result)
+                   (.contexts match)
+                   (case (.type match)
+                     :match (append-match! runs parent-scope match-result (.pattern match))
+                     :begin (append-begin! runs parent-scope match-result (.pattern match))
+                     :end (append-end! runs parent-scope match-result (.pattern match)))))
+          (util/pair contexts (persistent! runs)))))))

@@ -49,6 +49,7 @@
 
 // Internal key and button state/action definitions
 #define GLFW_STICK 2
+#define GLFW_CLICKED 3
 
 
 //========================================================================
@@ -210,6 +211,7 @@ void _glfwPlatformSleep( double time );
 // Window management
 int  _glfwPlatformOpenWindow( int width, int height, const _GLFWwndconfig *wndconfig, const _GLFWfbconfig *fbconfig );
 void _glfwPlatformCloseWindow( void );
+int  _glfwPlatformGetWindowRefreshRate( void );
 int  _glfwPlatformGetDefaultFramebuffer( void );
 void _glfwPlatformSetWindowTitle( const char *title );
 void _glfwPlatformSetWindowSize( int width, int height );

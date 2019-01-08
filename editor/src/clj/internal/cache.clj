@@ -24,27 +24,30 @@
 ;; Mutators
 ;; ----------------------------------------
 (defn- encache
-  [c kvs]
+  [cache kvs]
   (if-let [kv (first kvs)]
-    (recur (cc/miss c (first kv) (second kv)) (next kvs))
-    c))
+    (recur (cc/miss cache (first kv) (second kv)) (next kvs))
+    cache))
 
 (defn- hits
-  [c ks]
+  [cache ks]
   (if-let [k (first ks)]
-    (recur (cc/hit c k) (next ks))
-    c))
+    (recur (cc/hit cache k) (next ks))
+    cache))
 
 (defn- evict
-  [c ks]
+  [cache ks]
   (if-let [k (first ks)]
-    (recur (cc/evict c k) (next ks))
-    c))
+    (recur (cc/evict cache k) (next ks))
+    cache))
 
 ;; ----------------------------------------
 ;; Interface
 ;; ----------------------------------------
 (def default-cache-limit 1000)
+
+(defn cache? [value]
+  (satisfies? cc/CacheProtocol value))
 
 (defn make-cache
   ([]

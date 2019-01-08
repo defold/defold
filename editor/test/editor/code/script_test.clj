@@ -182,4 +182,40 @@
     ["function foo()"
      "|    -- comment"]
     ["function foo()"
-     "e|    -- comment"]))
+     "e|    -- comment"]
+
+    [""
+     ""]
+    ["    -- will do something|"]
+    ["    -- will do something"
+     "    |"]
+
+    [""
+     ""]
+    ["    s = \"will do something\"|"]
+    ["    s = \"will do something\""
+     "    |"]
+
+    [""
+     ""]
+    ["    s = 'will do something'|"]
+    ["    s = 'will do something'"
+     "    |"]
+
+    [""
+     ""]
+    ["    -- will end something|"]
+    ["    -- will end something"
+     "    |"]
+
+    [""
+     ""]
+    ["    s = \"will end something\"|"]
+    ["    s = \"will end something\""
+     "    |"]
+
+    [""
+     ""]
+    ["    s = 'will end something'|"]
+    ["    s = 'will end something'"
+     "    |"]))

@@ -1,3 +1,4 @@
+#! /usr/bin/env python
 import sys, re
 
 platform = bld.env.PLATFORM
@@ -15,7 +16,7 @@ samples = 'boing gears heightmap listmodes mipmaps mtbench mthello particles pon
 if re.match('arm.*?darwin', platform) or re.match('arm.*?android', platform):
     # Other examples are not compatible with OpenGLES
     samples = 'simple_gles2'
-elif platform == 'js-web' or platform == 'as3-web':
+elif 'web' in platform:
     samples = ''
 
 for e in samples.split():

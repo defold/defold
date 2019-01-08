@@ -35,9 +35,9 @@ namespace dmPPrint
 
         int c = m_BufferSize - m_Cursor;
     #if defined(_WIN32)
-        int result = _vsnprintf_s(m_Buffer + m_Cursor, c, _TRUNCATE, format, argp);
+        _vsnprintf_s(m_Buffer + m_Cursor, c, _TRUNCATE, format, argp);
     #else
-        int result = vsnprintf(m_Buffer + m_Cursor, c, format, argp);
+        vsnprintf(m_Buffer + m_Cursor, c, format, argp);
     #endif
 
         m_Buffer[m_BufferSize-1] = '\0';

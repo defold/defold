@@ -48,21 +48,6 @@ namespace dmExtension
      * @param event the app event
      */
     void DispatchEvent(Params* params, const Event* event);
-
-    /**
-     * Register iOS application delegate. Multiple delegates are supported.
-     * @note Only available on iOS
-     * @param delegate an id<UIApplicationDelegate>
-     */
-    void RegisterUIApplicationDelegate(void* delegate);
-
-    /**
-     * Deregister iOS application delegate
-     * @note Only available on iOS
-     * @param delegate an id<UIApplicationDelegate>
-     */
-    void UnregisterUIApplicationDelegate(void* delegate);
-
 }
 
 #endif // #ifndef DM_EXTENSION

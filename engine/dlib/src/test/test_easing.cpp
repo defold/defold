@@ -22,7 +22,6 @@ TEST(dmEasing, Linear)
 
     for (int i = 0; i < 100; ++i) {
         float t = i / 100.0f;
-        float diff = t * t - dmEasing::GetValue(dmEasing::TYPE_INQUAD, t);
         // NOTE: We use 0.0001f as tolerance here. In this case
         // the precision is better than in general.
         ASSERT_NEAR(t * t, dmEasing::GetValue(dmEasing::TYPE_INQUAD, t), 0.0001f);

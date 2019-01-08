@@ -21,14 +21,15 @@
             (set (fn [evaluation-context self old-value new-value]
                    (concat
                      ;; connect resource node to this
-                     (project/resource-setter self old-value new-value [:resource :resource])
+                     (project/resource-setter evaluation-context self old-value new-value [:resource :resource])
                      (when-let [resource-connections (g/node-value self :resource-connections evaluation-context)]
                        (let [[target-node connections] resource-connections]
                          ;; connect extra resource node outputs directly to target-node (GameProjectNode for instance)
-                         (apply project/resource-setter target-node old-value new-value
+                         (apply project/resource-setter evaluation-context target-node old-value new-value
                            connections)))))))
   (input resource resource/Resource)
-  (output resource-setting-reference g/Any :cached (g/fnk [_node-id path value] {:path path :node-id _node-id :value value})))
+  ;; resource-setting-reference only consumed by SettingsNode and already cached there.
+  (output resource-setting-reference g/Any (g/fnk [_node-id path value] {:path path :node-id _node-id :value value})))
 
 (g/defnk produce-settings-map [meta-info raw-settings resource-settings]
   (let [meta-settings (:settings meta-info)
@@ -78,7 +79,10 @@
     (assoc :type :choicebox)
 
     (= :library-list (:type setting))
-    (assoc :type :list :element {:type :url :default "http://url.to/library"})))
+    (assoc :type :list :element {:type :url :default "http://url.to/library"})
+
+    (= :comma-separated-list (:type setting))
+    (assoc :type :list :element {:type :string :default (or (first (:default setting)) "item")})))
 
 (defn- make-form-section [category-name category-info settings]
   {:title (or (:title category-info) category-name)
@@ -91,7 +95,23 @@
         category->settings (group-by settings-core/presentation-category meta-settings)
         sections (mapv #(make-form-section % (get-in meta-info [:categories %]) (category->settings %)) categories)
         values (make-form-values-map settings)]
-    {:form-ops form-ops :sections sections :values values}))
+    {:form-ops form-ops :sections sections :values values :meta-settings meta-settings}))
+
+(defn get-setting-error [setting-value meta-setting label]
+  (when (and (not= nil setting-value) (:deprecated meta-setting))
+    (if (not= setting-value (:default meta-setting))
+      (g/->error nil label (:severity-override meta-setting) nil (:help meta-setting))
+      (g/->error nil label (:severity-default meta-setting) nil (:help meta-setting)))))
+
+(defn get-settings-errors [form-data]
+  (let [meta-settings (:meta-settings form-data)
+        setting-values (:values form-data)]
+    (into {}
+          (keep (fn [[setting-path setting-value]]
+                  (let [meta-setting (settings-core/get-meta-setting meta-settings setting-path)]
+                    (when-some [error (get-setting-error setting-value meta-setting :build-targets)]
+                      [setting-path error]))))
+          setting-values)))
 
 (g/defnk produce-form-data [_node-id meta-info raw-settings resource-setting-nodes resource-settings]
   (let [meta-settings (:settings meta-info)
@@ -136,7 +156,9 @@
   (output settings-map g/Any :cached produce-settings-map)
   (output form-data g/Any :cached produce-form-data)
 
-  (output save-value g/Any (gu/passthrough merged-raw-settings)))
+  (output save-value g/Any (gu/passthrough merged-raw-settings))
+  (output setting-errors g/Any :cached (g/fnk [form-data]
+                                              (get-settings-errors form-data))))
 
 (defn- resolve-resource-settings [settings base-resource value-field]
   (mapv (fn [setting]

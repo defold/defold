@@ -1,32 +1,26 @@
 (ns editor.boot
   (:require
    [clojure.java.io :as io]
-   [clojure.pprint :as pprint]
    [clojure.stacktrace :as stack]
    [clojure.tools.cli :as cli]
-   [dynamo.graph :as g]
+   [editor.analytics :as analytics]
    [editor.code.view :as code-view]
    [editor.dialogs :as dialogs]
-   [editor.system :as system]
    [editor.error-reporting :as error-reporting]
-   [editor.import :as import]
+   [editor.login :as login]
+   [editor.gl :as gl]
    [editor.prefs :as prefs]
    [editor.progress :as progress]
+   [editor.system :as system]
    [editor.ui :as ui]
    [editor.updater :as updater]
-   [service.log :as log])
+   [editor.welcome :as welcome]
+   [service.log :as log]
+   [util.repo :as repo])
   (:import
-   [com.defold.control ListCell]
-   [java.io File]
+   [com.defold.editor Shutdown]
    [java.util Arrays]
-   [javax.imageio ImageIO]
-   [javafx.scene Scene]
-   [javafx.scene.control Button Control Label ListView]
-   [javafx.scene.input MouseEvent]
-   [javafx.scene.layout VBox]
-   [javafx.stage Stage]
-   [javafx.animation AnimationTimer]
-   [javafx.util Callback]))
+   [javax.imageio ImageIO]))
 
 (set! *warn-on-reflection* true)
 
@@ -39,100 +33,12 @@
                     (swap! namespace-counter inc)
                     (when @namespace-progress-reporter
                       (@namespace-progress-reporter
-                       #(assoc %
-                               :message (str "Initializing editor " (if prefix
-                                                                      (str prefix "." lib)
-                                                                      (str lib)))
-                               :pos @namespace-counter)))
+                       #(progress/jump %
+                                       @namespace-counter
+                                       (str "Initializing editor " (if prefix
+                                                                     (str prefix "." lib)
+                                                                     (str lib))))))
                     (apply f prefix lib options))))
-
-
-(defn- add-to-recent-projects [prefs project-file]
-  (let [recent (->> (prefs/get-prefs prefs "recent-projects" [])
-                 (remove #(= % (str project-file)))
-                 (cons (str project-file))
-                 (take 10))]
-    (prefs/set-prefs prefs "recent-projects" recent)))
-
-(defn- make-list-cell [^File file]
-  (let [path (.toPath file)
-        parent (.getParent path)
-        vbox (VBox.)
-        project-label (Label. (str (.getFileName parent)))
-        path-label (Label. (str (.getParent parent)))
-        ^"[Ljavafx.scene.control.Control;" controls (into-array Control [project-label path-label])]
-    ; TODO: Should be css stylable
-    (.setStyle path-label "-fx-text-fill: grey; -fx-font-size: 10px;")
-    (.addAll (.getChildren vbox) controls)
-    vbox))
-
-(defn- install-pending-update-check! [^Stage stage update-context]
-  (let [tick-fn (fn [^AnimationTimer timer _]
-                  (when-let [pending (updater/pending-update update-context)]
-                    (when (not= pending (system/defold-editor-sha1))
-                      (.stop timer) ; we only ask once on the start screen
-                      (ui/run-later
-                        (when (dialogs/make-pending-update-dialog stage)
-                          (when (updater/install-pending-update! update-context (io/file (system/defold-resourcespath)))
-                            (updater/restart!)))))))
-        timer (ui/->timer 0.1 "pending-update-check" tick-fn)]
-    (.setOnShown stage (ui/event-handler event (ui/timer-start! timer)))
-    (.setOnHiding stage (ui/event-handler event (ui/timer-stop! timer)))))
-
-(def ^:const open-project-directory "open-project-directory")
-
-(defn open-welcome [prefs update-context cont]
-  (let [^VBox root (ui/load-fxml "welcome.fxml")
-        stage (ui/make-dialog-stage)
-        scene (Scene. root)
-        ^ListView recent-projects (.lookup root "#recent-projects")
-        ^Button open-project (.lookup root "#open-project")
-        import-project (.lookup root "#import-project")]
-
-    (when update-context
-      (install-pending-update-check! stage update-context))
-
-    (ui/set-main-stage stage)
-    (ui/on-action! open-project (fn [_] (when-let [file (ui/choose-file {:title "Open Project"
-                                                                                 :directory (prefs/get-prefs prefs open-project-directory nil)
-                                                                                 :filters [{:description "Project Files"
-                                                                                            :exts ["*.project"]}]})]
-                                          (when (.isFile file)
-                                            (prefs/set-prefs prefs open-project-directory (.getParent file)))
-
-                                          (ui/close! stage)
-                                          ;; NOTE (TODO): We load the project in the same class-loader as welcome is loaded from.
-                                          ;; In other words, we can't reuse the welcome page and it has to be closed.
-                                          ;; We should potentially changed this when we have uberjar support and hence
-                                          ;; faster loading.
-                                          (cont (.getAbsolutePath file)))))
-
-    (ui/on-action! import-project (fn [_] (when-let [file-name (import/open-import-dialog prefs)]
-                                            (ui/close! stage)
-                                            ; See comment above about main and class-loaders
-                                            (cont file-name))))
-
-    (.setOnMouseClicked recent-projects (ui/event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
-                                                              (when-let [file (-> recent-projects (.getSelectionModel) (.getSelectedItem))]
-                                                                (ui/close! stage)
-                                                                ; See comment above about main and class-loaders
-                                                                (cont (.getAbsolutePath ^File file))))))
-    (.setCellFactory recent-projects (reify Callback (call ^ListCell [this view]
-                                                       (proxy [ListCell] []
-                                                         (updateItem [file empty]
-                                                           (let [this ^ListCell this]
-                                                             (proxy-super updateItem file empty)
-                                                             (if (or empty (nil? file))
-                                                               (proxy-super setText nil)
-                                                               (proxy-super setGraphic (make-list-cell file)))))))))
-    (let [recent (->>
-                   (prefs/get-prefs prefs "recent-projects" [])
-                   (map io/file)
-                   (filter (fn [^File f] (.isFile f)))
-                   (into-array File))]
-      (.addAll (.getItems recent-projects) ^"[Ljava.io.File;" recent))
-    (.setScene stage scene)
-    (ui/show! stage)))
 
 (defn- load-namespaces-in-background
   []
@@ -142,34 +48,49 @@
     (require 'editor.boot-open-project)))
 
 (defn- open-project-with-progress-dialog
-  [namespace-loader prefs project update-context]
+  [namespace-loader prefs project dashboard-client update-context newly-created?]
   (ui/modal-progress
-   "Loading project" 100
+   "Loading project"
    (fn [render-progress!]
-     (let [progress (atom (progress/make "Loading project..." 733))
+     (let [namespace-progress (progress/make "Loading editor" 1256) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
+           render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 0) 2)
+           render-project-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 2) 3)
            project-file (io/file project)]
-       (reset! namespace-progress-reporter #(render-progress! (swap! progress %)))
-       (render-progress! (swap! progress progress/message "Initializing project..."))
+       (reset! namespace-progress-reporter #(render-namespace-progress! (% namespace-progress)))
        ;; ensure that namespace loading has completed
        @namespace-loader
        (code-view/initialize! prefs)
        (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [])
-       (add-to-recent-projects prefs project)
-       (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-progress! update-context])
+       (welcome/add-recent-project! prefs project-file)
+       (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-project-progress! dashboard-client update-context newly-created?])
        (reset! namespace-progress-reporter nil)))))
 
 (defn- select-project-from-welcome
-  [namespace-loader prefs update-context]
+  [namespace-loader prefs dashboard-client update-context]
   (ui/run-later
-   (open-welcome prefs update-context
-                 (fn [project]
-                   (open-project-with-progress-dialog namespace-loader prefs project update-context)))))
+    (welcome/show-welcome-dialog! prefs dashboard-client update-context
+                                  (fn [project newly-created?]
+                                    (open-project-with-progress-dialog namespace-loader prefs project dashboard-client update-context newly-created?)))))
 
 (defn notify-user
   [ex-map sentry-id-promise]
   (when (.isShowing (ui/main-stage))
     (ui/run-now
-      (dialogs/make-error-dialog ex-map sentry-id-promise))))
+      (dialogs/make-unexpected-error-dialog ex-map sentry-id-promise))))
+
+(defn- set-sha1-revisions-from-repo! []
+  ;; Use the sha1 of the HEAD commit as the editor revision.
+  (when (empty? (system/defold-editor-sha1))
+    (when-some [editor-sha1 (repo/detect-editor-sha1)]
+      (system/set-defold-editor-sha1! editor-sha1)))
+
+  ;; Try to find the engine revision by looking at the VERSION file in the root
+  ;; of the Defold repo. On a stable engine branch, the contents of this file
+  ;; will correspond to a Git tag. If the tag is present, it will point to the
+  ;; engine revision. This is required when building native extensions.
+  (when (empty? (system/defold-engine-sha1))
+    (when-some [engine-sha1 (repo/detect-engine-sha1)]
+      (system/set-defold-engine-sha1! engine-sha1))))
 
 (defn disable-imageio-cache!
   []
@@ -181,22 +102,35 @@
   [["-prefs" "--preferences PATH" "Path to preferences file"]])
 
 (defn main [args]
+  (when (system/defold-dev?)
+    (set-sha1-revisions-from-repo!))
   (error-reporting/setup-error-reporting! {:notifier {:notify-fn notify-user}
                                            :sentry   {:project-id "97739"
                                                       :key        "9e25fea9bc334227b588829dd60265c1"
                                                       :secret     "f694ef98d47d42cf8bb67ef18a4e9cdb"}})
   (disable-imageio-cache!)
+
+  (when-let [support-error (gl/gl-support-error)]
+    (when (= (dialogs/make-gl-support-error-dialog support-error) :quit)
+      (System/exit -1)))
+
   (let [args (Arrays/asList args)
         opts (cli/parse-opts args cli-options)
         namespace-loader (load-namespaces-in-background)
         prefs (if-let [prefs-path (get-in opts [:options :preferences])]
                 (prefs/load-prefs prefs-path)
                 (prefs/make-prefs "defold"))
-        update-context (:update-context (updater/start!))]
+        dashboard-client (login/make-dashboard-client prefs)
+        update-context (:update-context (updater/start!))
+        analytics-url "https://www.google-analytics.com/batch"
+        analytics-send-interval 300
+        invalidate-analytics-uid? (not (login/signed-in? dashboard-client))]
+    (analytics/start! analytics-url analytics-send-interval invalidate-analytics-uid?)
+    (Shutdown/addShutdownAction analytics/shutdown!)
     (try
       (if-let [game-project-path (get-in opts [:arguments 0])]
-        (open-project-with-progress-dialog namespace-loader prefs game-project-path update-context)
-        (select-project-from-welcome namespace-loader prefs update-context))
+        (open-project-with-progress-dialog namespace-loader prefs game-project-path dashboard-client update-context false)
+        (select-project-from-welcome namespace-loader prefs dashboard-client update-context))
       (catch Throwable t
         (log/error :exception t)
         (stack/print-stack-trace t)

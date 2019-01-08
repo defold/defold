@@ -402,9 +402,8 @@ U[a-fA-F0-9]{0,8} )"
                        }
                       ;; strings
                       {
-                       :begin #"(u|u8|U|L)?\""
-                       :begin-captures {0 {:name "punctuation.definition.string.begin.cpp"}
-                                        1 {:name "meta.encoding.cpp"}}
+                       :begin #"(u|u8|U|L)?R?\""
+                       :begin-captures {0 {:name "punctuation.definition.string.begin.cpp"}}
                        :end #"\""
                        :end-captures {0 {:name "punctuation.definition.string.end.cpp"}}
                        :name "string.quoted.double.cpp"
@@ -425,13 +424,4 @@ U[a-fA-F0-9]{0,8} )"
                                            }
                                           ]
                                          c-string-placeholder-patterns)
-                       }
-                      {
-                       :begin #"(U|u8|U|L)?R\"(?:([^ ()\\\t]{0,16})|([^ ()\\\t]*))\("
-                       :begin-captures {0 {:name "punctuation.definition.string.begin.cpp"}
-                                        1 {:name "meta.encoding.cpp"}
-                                        3 {:name "invalid.illegal.delimiter-too-long.cpp"}}
-                       :end #"\)\2(\3)\""
-                       :end-captures {0 {:name "punctuation.definition.string.end.cpp"}
-                                      1 {:name "invalid.illegal.delimiter-too-long.cpp"}}
-                       :name "string.quoted.double.raw.cpp"}])})
+                       }])})

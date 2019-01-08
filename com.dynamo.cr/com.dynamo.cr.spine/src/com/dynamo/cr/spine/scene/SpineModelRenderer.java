@@ -9,7 +9,7 @@ import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
 import com.dynamo.bob.util.SpineSceneUtil;
-import com.dynamo.bob.util.RigUtil.Mesh;
+import com.dynamo.bob.util.RigUtil.MeshAttachment;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
@@ -62,12 +62,12 @@ public class SpineModelRenderer implements INodeRenderer<SpineModelNode> {
         if (runtimeTextureSet == null) {
             return false;
         }
-        List<Mesh> meshes = scene.meshes;
+        List<MeshAttachment> meshes = scene.getDefaultAttachments();
         String skin = node.getSkin();
         if (!skin.isEmpty() && scene.skins.containsKey(skin)) {
-            meshes = scene.skins.get(node.getSkin());
+            meshes = scene.getAttachmentsForSkin(node.getSkin());
         }
-        for (Mesh mesh : meshes) {
+        for (MeshAttachment mesh : meshes) {
             if (runtimeTextureSet.getAnimation(mesh.path) == null) {
                 return false;
             }

@@ -1,4 +1,5 @@
 #! /usr/bin/env python
+import re
 
 def build(bld):
     if bld.env.PLATFORM.find('arm') == -1:
@@ -8,8 +9,13 @@ def build(bld):
         vpx = ''
         record = 'record_null'
 
+    extra_defines = []
+    if re.match('arm.*?darwin', bld.env.PLATFORM):
+        extra_defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
+
     test_record = bld.new_task_gen(features='cxx cprogram test',
                                    includes='../../../src .',
+                                   defines=extra_defines,
                                    uselib='GTEST DLIB %s' % vpx,
                                    uselib_local=record,
                                    proto_gen_py=True,

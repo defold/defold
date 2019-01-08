@@ -3,7 +3,6 @@
             [editor.scene-cache :as scene-cache])
   (:import [com.jogamp.opengl.util.awt TextRenderer]
            [java.awt Font]
-           [java.awt.geom Rectangle2D]
            [com.jogamp.opengl GL2]))
 
 (set! *warn-on-reflection* true)
@@ -34,7 +33,7 @@
     (.dispose text-renderer)))
 
 (defn- update-text-renderer [^GL2 gl text-renderer data]
-  (destroy-text-renderers gl [text-renderer])
+  (destroy-text-renderers gl [text-renderer] nil)
   (make-text-renderer gl data))
 
 (scene-cache/register-object-cache! ::text-renderer make-text-renderer update-text-renderer destroy-text-renderers)

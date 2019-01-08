@@ -20,6 +20,7 @@
 #include "script_html5.h"
 #include "script_luasocket.h"
 #include "script_bitop.h"
+#include "script_timer.h"
 
 extern "C"
 {
@@ -38,12 +39,12 @@ namespace dmScript
      */
 
     const char* INSTANCE_NAME = "__dm_script_instance__";
-    const int MAX_PPRINT_TABLE_CALL_DEPTH = 32;
 
-    const char* META_TABLE_RESOLVE_PATH     = "__resolve_path";
-    const char* META_TABLE_GET_URL          = "__get_url";
-    const char* META_TABLE_GET_USER_DATA    = "__get_user_data";
-    const char* META_TABLE_IS_VALID         = "__is_valid";
+    const char* META_TABLE_RESOLVE_PATH             = "__resolve_path";
+    const char* META_TABLE_GET_URL                  = "__get_url";
+    const char* META_TABLE_GET_USER_DATA            = "__get_user_data";
+    const char* META_TABLE_IS_VALID                 = "__is_valid";
+    const char* META_GET_INSTANCE_CONTEXT_TABLE_REF = "__get_instance_context_table_ref";
 
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
@@ -54,11 +55,13 @@ namespace dmScript
         context->m_Modules.SetCapacity(127, 256);
         context->m_PathToModule.SetCapacity(127, 256);
         context->m_HashInstances.SetCapacity(443, 256);
+        context->m_ScriptExtensions.SetCapacity(8);
         context->m_ConfigFile = config_file;
         context->m_ResourceFactory = factory;
         context->m_EnableExtensions = enable_extensions;
         memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
         context->m_LuaState = lua_open();
+        context->m_ContextTableRef = LUA_NOREF;
         return context;
     }
 
@@ -174,6 +177,19 @@ namespace dmScript
         lua_pushlightuserdata(L, (void*)L);
         lua_setglobal(L, SCRIPT_MAIN_THREAD);
 
+        lua_newtable(L);
+        context->m_ContextTableRef = Ref(L, LUA_REGISTRYINDEX);
+
+        InitializeTimer(context);
+
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->Initialize != 0x0)
+            {
+                (*l)->Initialize(context);
+            }
+        }
+
 #define BIT_INDEX(b) ((b) / sizeof(uint32_t))
 #define BIT_OFFSET(b) ((b) % sizeof(uint32_t))
 
@@ -198,8 +214,25 @@ namespace dmScript
         assert(top == lua_gettop(L));
     }
 
-    void UpdateExtensions(HContext context)
+    void RegisterScriptExtension(HContext context, HScriptExtension script_extension)
     {
+        if (context->m_ScriptExtensions.Full())
+        {
+            context->m_ScriptExtensions.SetCapacity(context->m_ScriptExtensions.Capacity() + 8);
+        }
+        context->m_ScriptExtensions.Push(script_extension);
+    }
+
+    void Update(HContext context)
+    {
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->Update != 0x0)
+            {
+                (*l)->Update(context);
+            }
+        }
+
         if (context->m_EnableExtensions) {
             const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
             uint32_t i = 0;
@@ -226,6 +259,14 @@ namespace dmScript
     {
         lua_State* L = context->m_LuaState;
         FinalizeHttp(L);
+
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->Finalize != 0x0)
+            {
+                (*l)->Finalize(context);
+            }
+        }
 
         if (context->m_EnableExtensions) {
             const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
@@ -255,6 +296,9 @@ namespace dmScript
         lua_getglobal(L, RANDOM_SEED);
         uint32_t* seed = (uint32_t*) lua_touserdata(L, -1);
         free(seed);
+        lua_pop(L, 1);
+
+        Unref(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
     }
 #undef BIT_INDEX
 #undef BIT_OFFSET
@@ -270,7 +314,7 @@ namespace dmScript
     {
         int n = lua_gettop(L);
         lua_getglobal(L, "tostring");
-        char buffer[2048];
+        char buffer[DM_LOG_MAX_STRING_SIZE];
         buffer[0] = 0;
         for (int i = 1; i <= n; ++i)
         {
@@ -292,57 +336,127 @@ namespace dmScript
         return 0;
     }
 
-    static int DoLuaPPrintTable(lua_State*L, int index, dmPPrint::Printer* printer, int call_depth) {
-        int top = lua_gettop(L);
+    static const char* PushValueAsString(lua_State* L, int index)
+    {
+        lua_pushvalue(L, index);
+        // [-1] value
+        lua_getglobal(L, "tostring");
+        // [-2] value
+        // [-1] tostring()
+        lua_insert(L, -2);
+        // [-2] tostring()
+        // [-1] value
+        lua_call(L, 1, 1);
+        // [-1] result
+        const char* result = lua_tostring(L, -1);
+        if (result == 0x0)
+        {
+            lua_pop(L, 1);
+        }
+        return result;
+    }
+
+    static int DoLuaPPrintTable(lua_State* L, int index, dmPPrint::Printer* printer, dmHashTable<uintptr_t, bool>& printed_tables) {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        const void* table_data = (const void*)lua_topointer(L, index);
+
+        if (printed_tables.Get((uintptr_t)table_data) != 0x0)
+        {
+            printer->Printf("{ ... } --[[%p]]", table_data);
+            return 0;
+        }
+
+        if (printed_tables.Capacity() == printed_tables.Size())
+        {
+            uint32_t new_capacity = printed_tables.Capacity() + 10;
+            printed_tables.SetCapacity((new_capacity * 2) / 3, new_capacity * 2);
+        }
+        printed_tables.Put((uintptr_t)table_data, true);
 
         lua_pushvalue(L, index);
         lua_pushnil(L);
+        // [-2] table
+        // [-1] key
 
-        printer->Printf("{\n");
-        printer->Indent(2);
-
-        while (lua_next(L, -2) != 0) {
-            int value_type = lua_type(L, -1);
-
-            lua_pushvalue(L, -2);
-            const char *s1;
-            const char *s2;
-            lua_getglobal(L, "tostring");
-            lua_pushvalue(L, -2);
-            lua_call(L, 1, 1);
-            s1 = lua_tostring(L, -1);
-            if (s1 == 0x0)
-                return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
+        if(lua_next(L, -2) == 0)
+        {
+            // [-1] table
+            printer->Printf("{ } --[[%p]]", table_data);
             lua_pop(L, 1);
-
-            lua_getglobal(L, "tostring");
-            lua_pushvalue(L, -3);
-            lua_call(L, 1, 1);
-            s2 = lua_tostring(L, -1);
-            if (s2 == 0x0)
-                return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
-            lua_pop(L, 1);
-
-            if (value_type == LUA_TTABLE) {
-                if (MAX_PPRINT_TABLE_CALL_DEPTH > ++call_depth) {
-                    printer->Printf("%s = ", s1);
-                    DoLuaPPrintTable(L, -2, printer, call_depth);
-                } else {
-                    printer->Printf("%s...\n", s1);
-                    printer->Printf("Printing truncated. Circular refs?\n");
-                }
-            } else {
-                printer->Printf("%s = %s,\n", s1, s2);
-            }
-
-            lua_pop(L, 2);
+            return 0;
         }
 
+        // [-3] table
+        // [-2] key
+        // [-1] value
+        printer->Printf("{ --[[%p]]", table_data);
+        printer->Indent(2);
+
+        bool is_first = true;
+        do
+        {
+            printer->Printf("%s\n", is_first ? "" : ",");
+            int value_type = lua_type(L, -1);
+
+            const char* key_string = PushValueAsString(L, -2);
+            if (key_string == 0x0)
+            {
+                return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
+            }
+            // [-4] table
+            // [-3] key
+            // [-2] value
+            // [-1] key name
+
+            printer->Printf("%s = ", key_string);
+            lua_pop(L, 1);
+            // [-3] table
+            // [-2] key
+            // [-1] value
+
+            if (value_type == LUA_TTABLE)
+            {
+                DoLuaPPrintTable(L, -1, printer, printed_tables);
+            }
+            else if (value_type == LUA_TSTRING)
+            {
+                printer->Printf("\"%s\"", lua_tostring(L, -1));
+            }
+            else
+            {
+                const char* value_string = PushValueAsString(L, -1);
+                if (value_string == 0x0)
+                {
+                    return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
+                }
+                // [-4] table
+                // [-3] key
+                // [-2] value
+                // [-1] value name
+
+                printer->Printf("%s", value_string);
+                lua_pop(L, 1);
+                // [-3] table
+                // [-2] key
+                // [-1] value
+            }
+
+            lua_pop(L, 1);
+            // [-2] table
+            // [-1] key
+            is_first = false;
+        } while (lua_next(L, -2) != 0);
+
+        // [-1] table
+
         printer->Indent(-2);
-        printer->Printf("}\n");
+        printer->Printf("\n");
+        printer->Printf("}");
+
+        printed_tables.Erase((uintptr_t)table_data);
 
         lua_pop(L, 1);
-        assert(top == lua_gettop(L));
         return 0;
     }
 
@@ -382,26 +496,37 @@ namespace dmScript
      */
     int LuaPPrint(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0);
         int n = lua_gettop(L);
 
-        char buf[2048];
+        char buf[DM_LOG_MAX_STRING_SIZE];
         dmPPrint::Printer printer(buf, sizeof(buf));
-        if (lua_type(L, 1) == LUA_TTABLE) {
-            printer.Printf("\n");
-            DoLuaPPrintTable(L, 1, &printer, 0);
-        } else {
-            lua_getglobal(L, "tostring");
-            lua_pushvalue(L, 1);
-            lua_call(L, 1, 1);
-            const char* s = lua_tostring(L, -1);
-            if (s == 0x0)
-                return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
-            printer.Printf("%s", s);
-            lua_pop(L, 1);
+        dmHashTable<uintptr_t, bool> printed_tables;
+        for (int s = 1; s <= n; ++s)
+        {
+            printed_tables.Clear();
+            if (lua_type(L, s) == LUA_TTABLE)
+            {
+                if (s == 1)
+                {
+                    printer.Printf("\n");
+                }
+                DoLuaPPrintTable(L, s, &printer, printed_tables);
+                printer.Printf("%s", (n > s) ? ",\n" : "");
+            }
+            else
+            {
+                const char* value_str = PushValueAsString(L, s);
+                if (value_str == 0x0)
+                {
+                    return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
+                }
+                printer.Printf("%s%s", value_str, (n > s) ? ",\n" : "");
+                lua_pop(L, 1);
+            }
         }
 
         dmLogUserDebug("%s", buf);
-        assert(n == lua_gettop(L));
         return 0;
     }
 
@@ -573,6 +698,400 @@ namespace dmScript
         return false;
     }
 
+    void SetContextValue(HContext context)
+    {
+        assert(context != 0x0);
+        lua_State* L = context->m_LuaState;
+
+        DM_LUA_STACK_CHECK(L, -2);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+        // [-3] key
+        // [-2] value
+        // [-1] context table
+
+        assert(lua_type(L, -1) == LUA_TTABLE);
+
+        lua_insert(L, -3);
+        // [-3] context table
+        // [-2] key
+        // [-1] value
+
+        lua_settable(L, -3);
+        // [-1] context table
+
+        lua_pop(L, 1);
+    }
+
+    void GetContextValue(HContext context)
+    {
+        assert(context != 0x0);
+        lua_State* L = context->m_LuaState;
+
+        DM_LUA_STACK_CHECK(L, 0);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+        // [-2] key
+        // [-1] context table
+
+        if (lua_type(L, -1) != LUA_TTABLE)
+        {
+            lua_pop(L, 2);
+            lua_pushnil(L);
+            // [-1] LUA_NIL
+            return;
+        }
+
+        lua_insert(L, -2);
+        // [-2] context table
+        // [-1] key
+        lua_gettable(L, -2);
+        // [-2] context table
+        // [-1] value
+
+        lua_remove(L, -2);
+        // [-1] value
+    }
+
+    static void GetInstanceContextTable(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        GetInstance(L);
+        // [-1] instance
+
+        if (!GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF))
+        {
+            lua_pop(L, 1);
+            lua_pushnil(L);
+            return;
+        }
+        // [-2] instance
+        // [-1] META_GET_INSTANCE_CONTEXT_TABLE_REF()
+
+        lua_insert(L, -2);
+        // [-2] META_GET_INSTANCE_CONTEXT_TABLE_REF()
+        // [-1] instance
+
+        lua_call(L, 1, 1);
+        // [-1] instance context table ref or LUA_NOREF
+        assert(lua_type(L, -1) == LUA_TNUMBER);
+
+        int context_table_ref = lua_tonumber(L, -1);
+        lua_pop(L, 1);
+
+        if (context_table_ref == LUA_NOREF)
+        {
+            lua_pushnil(L);
+            // [-1] LUA_NIL
+            return;
+        }
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context_table_ref);
+        // [-1] instance context table
+    }
+
+    uintptr_t GetInstanceId(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void)top;
+        GetInstance(L);
+        int instance_type = lua_type(L, -1);
+        // We assume that all users of SetInstance puts some form of user data/light user data, it is an assumption that works for now
+        uintptr_t id = (instance_type == LUA_TLIGHTUSERDATA || instance_type == LUA_TUSERDATA) ? (uintptr_t)lua_touserdata(L, -1) : 0;
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
+        return id;
+    }
+
+    struct ScriptWorld
+    {
+        HContext m_Context;
+        int      m_WorldContextTableRef;
+    };
+
+    HContext GetScriptWorldContext(HScriptWorld script_world)
+    {
+        return script_world == 0x0 ? 0x0 : script_world->m_Context;
+    }
+
+    void SetScriptWorldContextValue(HScriptWorld script_world)
+    {
+        lua_State* L = script_world->m_Context->m_LuaState;
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_world->m_WorldContextTableRef);
+        // [-3] key
+        // [-2] value
+        // [-1] context table
+
+        lua_insert(L, -3);
+        // [-3] context table
+        // [-2] key
+        // [-1] value
+
+        lua_settable(L, -3);
+        // [-1] context table
+
+        lua_pop(L, 1);
+    }
+
+    void GetScriptWorldContextValue(HScriptWorld script_world)
+    {
+        lua_State* L = script_world->m_Context->m_LuaState;
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_world->m_WorldContextTableRef);
+        // [-2] key
+        // [-1] context table
+
+        lua_insert(L, -2);
+        // [-2] context table
+        // [-1] key
+
+        lua_gettable(L, -2);
+        // [-2] context table
+        // [-1] value
+
+        lua_insert(L, -2);
+        // [-2] value
+        // [-1] context table
+
+        lua_pop(L, 1);
+        // [-1] value
+    }
+
+    HScriptWorld NewScriptWorld(HContext context)
+    {
+        HScriptWorld script_world = (ScriptWorld*)malloc(sizeof(ScriptWorld));
+        assert(script_world != 0x0);
+        script_world->m_Context = context;
+        lua_State* L = script_world->m_Context->m_LuaState;
+        lua_newtable(L);
+        script_world->m_WorldContextTableRef = Ref(L, LUA_REGISTRYINDEX);
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->NewScriptWorld != 0x0)
+            {
+                (*l)->NewScriptWorld(script_world);
+            }
+        }
+        return script_world;
+    }
+
+    void DeleteScriptWorld(HScriptWorld script_world)
+    {
+        assert(script_world != 0x0);
+        HContext context = GetScriptWorldContext(script_world);
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->DeleteScriptWorld != 0x0)
+            {
+                (*l)->DeleteScriptWorld(script_world);
+            }
+        }
+        lua_State* L = script_world->m_Context->m_LuaState;
+        Unref(L, LUA_REGISTRYINDEX, script_world->m_WorldContextTableRef);
+
+        free(script_world);
+    }
+
+    void UpdateScriptWorld(HScriptWorld script_world, float dt)
+    {
+        if (script_world == 0x0)
+        {
+            return;
+        }
+        HContext context = GetScriptWorldContext(script_world);
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->UpdateScriptWorld != 0x0)
+            {
+                (*l)->UpdateScriptWorld(script_world, dt);
+            }
+        }
+    }
+
+    void InitializeInstance(HScriptWorld script_world)
+    {
+        if (script_world == 0x0)
+        {
+            return;
+        }
+        HContext context = GetScriptWorldContext(script_world);
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->InitializeScriptInstance != 0x0)
+            {
+                (*l)->InitializeScriptInstance(script_world);
+            }
+        }
+    }
+
+    void FinalizeInstance(HScriptWorld script_world)
+    {
+        if (script_world == 0x0)
+        {
+            return;
+        }
+        HContext context = GetScriptWorldContext(script_world);
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->FinalizeScriptInstance != 0x0)
+            {
+                (*l)->FinalizeScriptInstance(script_world);
+            }
+        }
+    }
+
+    bool SetInstanceContextValue(lua_State* L)
+    {
+        // [-2] key
+        // [-1] value
+
+        DM_LUA_STACK_CHECK(L, -2);
+
+        GetInstanceContextTable(L);
+        // [-3] key
+        // [-2] value
+        // [-1] instance context table or LUA_NIL
+
+        if (lua_type(L, -1) != LUA_TTABLE)
+        {
+            lua_pop(L, 3);
+            return false;
+        }
+        // [-3] key
+        // [-2] value
+        // [-1] instance context table
+
+        lua_insert(L, -3);
+        // [-3] instance context table
+        // [-2] key
+        // [-1] value
+
+        lua_settable(L, -3);
+        // [-1] instance context table
+
+        lua_pop(L, 1);
+        return true;
+    }
+
+    void GetInstanceContextValue(lua_State* L)
+    {
+        // [-1] key
+        DM_LUA_STACK_CHECK(L, 0);
+
+        GetInstanceContextTable(L);
+        // [-2] key
+        // [-1] instance context table or LUA_NIL
+
+        if (lua_type(L, -1) != LUA_TTABLE)
+        {
+            lua_pop(L, 2);
+
+            lua_pushnil(L);
+            // [-1] LUA_NIL
+            return;
+        }
+        // [-2] key
+        // [-1] instance context table
+
+        lua_insert(L, -2);
+        // [-2] instance context table
+        // [-1] key
+
+        lua_gettable(L, -2);
+        // [-2] instance context table
+        // [-1] value
+
+        lua_insert(L, -2);
+        // [-2] value
+        // [-1] instance context table
+        
+        lua_pop(L, 1);
+        // [-1] value
+    }
+
+    int RefInInstance(lua_State* L)
+    {
+        // [-1] value
+        DM_LUA_STACK_CHECK(L, -1);
+
+        GetInstanceContextTable(L);
+        // [-2] value
+        // [-1] instance context table or LUA_NIL
+        
+        if (lua_type(L, -1) != LUA_TTABLE)
+        {
+            // [-2] value
+            // [-1] LUA_NIL
+
+            lua_pop(L, 2);
+            return LUA_NOREF;
+        }
+        // [-2] value
+        // [-1] instance context table
+
+        lua_insert(L, -2);
+        // [-2] instance context table
+        // [-1] value
+
+        int instance_ref = luaL_ref(L, -2);
+        // [-1] instance context table
+
+        lua_pop(L, 1);
+
+        return instance_ref;
+    }
+
+    void UnrefInInstance(lua_State* L, int ref)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        GetInstanceContextTable(L);
+        // [-1] instance context table or LUA_NIL
+        
+        if (lua_type(L, -1) != LUA_TTABLE)
+        {
+            // [-1] LUA_NIL
+
+            lua_pop(L, 1);
+            return;
+        }
+        // [-1] instance context table
+
+        luaL_unref(L, -1, ref);
+        // [-1] instance context table
+
+        lua_pop(L, 1);
+    }
+
+    void ResolveInInstance(lua_State* L, int ref)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        GetInstanceContextTable(L);
+        // [-1] instance context table or LUA_NIL
+        
+        if (lua_type(L, -1) != LUA_TTABLE)
+        {
+            lua_pop(L, 1);
+
+            lua_pushnil(L);
+            // [-1] LUA_NIL
+            return;
+        }
+        // [-1] instance context table
+
+        lua_rawgeti(L, -1, ref);
+        // [-2] instance context table
+        // [-1] value
+
+        lua_insert(L, -2);
+        // [-2] value
+        // [-1] instance context table
+
+        lua_pop(L, 1);
+        // [-1] value
+    }
+
     static int BacktraceErrorHandler(lua_State *m_state) {
         if (!lua_isstring(m_state, 1))
             return 1;
@@ -607,6 +1126,7 @@ namespace dmScript
         int result = lua_pcall(L, nargs, nresult, err_index);
         lua_remove(L, err_index);
         if (result == LUA_ERRMEM) {
+            lua_pop(L, 1);  // Pop BacktraceErrorHandler since it will not be called on OOM
             dmLogError("Lua memory allocation error.");
         } else if (result != 0) {
             // extract the individual fields for printing and passing
@@ -653,6 +1173,14 @@ namespace dmScript
 
     void Unref(lua_State* L, int table, int reference)
     {
+        if (reference == LUA_NOREF)
+        {
+            return;
+        }
+        if (g_LuaReferenceCount <= 0)
+        {
+            dmLogError("Unbalanced number of Lua refs - possibly double calls to dmScript::Unref");
+        }
         --g_LuaReferenceCount;
         luaL_unref(L, table, reference);
     }
@@ -674,6 +1202,7 @@ namespace dmScript
 
     LuaStackCheck::LuaStackCheck(lua_State* L, int diff) : m_L(L), m_Top(lua_gettop(L)), m_Diff(diff)
     {
+        assert(m_Diff >= -m_Top);
     }
 
     int LuaStackCheck::Error(const char* fmt, ... )
@@ -685,13 +1214,14 @@ namespace dmScript
         lua_pushvfstring(m_L, fmt, argp);
         va_end(argp);
         lua_concat(m_L, 2);
+        m_Diff = -0x800000;
         return lua_error(m_L);
     }
 
     void LuaStackCheck::Verify(int diff)
     {
-        uint32_t expected = m_Top + diff;
-        uint32_t actual = lua_gettop(m_L);
+        int32_t expected = m_Top + diff;
+        int32_t actual = lua_gettop(m_L);
         if (expected != actual)
         {
             dmLogError("Unbalanced Lua stack, expected (%d), actual (%d)", expected, actual);
@@ -701,51 +1231,142 @@ namespace dmScript
 
     LuaStackCheck::~LuaStackCheck()
     {
-        Verify(m_Diff);
+        if (m_Diff != -0x800000) {
+            Verify(m_Diff);
+        }
     }
 
-    void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk)
+    struct LuaCallbackInfo
     {
-        if(cbk->m_Callback != LUA_NOREF)
+        LuaCallbackInfo() : m_L(0), m_ContextTableRef(LUA_NOREF), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
+        lua_State* m_L;
+        int        m_ContextTableRef;
+        int        m_CallbackInfoRef;
+        int        m_Callback;
+        int        m_Self;
+    };
+    
+    LuaCallbackInfo* CreateCallback(lua_State* L, int callback_stack_index)
+    {
+        luaL_checktype(L, callback_stack_index, LUA_TFUNCTION);
+
+        DM_LUA_STACK_CHECK(L, 0);
+
+        GetInstance(L);
+        // [-1] instance
+
+        if (!GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF)) {
+            lua_pop(L, 1);
+            return 0x0;
+        }
+        // [-2] instance
+        // [-1] META_GET_INSTANCE_CONTEXT_TABLE_REF()
+
+        lua_pushvalue(L, -2);
+        // [-3] instance
+        // [-2] META_GET_INSTANCE_CONTEXT_TABLE_REF()
+        // [-1] instance
+
+        lua_call(L, 1, 1);
+        // [-2] instance
+        // [-1] instance context table ref
+        assert(lua_type(L, -1) == LUA_TNUMBER);
+
+        int context_table_ref = lua_tonumber(L, -1);
+        lua_pop(L, 2);
+
+        lua_pushvalue(L, callback_stack_index);
+        // [-1] callback
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context_table_ref);
+        // [-2] callback
+        // [-1] context table
+        if (lua_type(L, -1) != LUA_TTABLE)
         {
-            dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
-            dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
+            lua_pop(L, 2);
+            return 0x0;
         }
 
-        cbk->m_L = dmScript::GetMainThread(L);
+        lua_insert(L, -2);
+        // [-2] context table
+        // [-1] callback
 
-        luaL_checktype(L, index, LUA_TFUNCTION);
-        lua_pushvalue(L, index);
-        cbk->m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        LuaCallbackInfo* cbk = (LuaCallbackInfo*)lua_newuserdata(L, sizeof(LuaCallbackInfo));
+        // [-3] context table
+        // [-2] callback
+        // [-1] LuaCallbackInfo
 
-        dmScript::GetInstance(L);
-        cbk->m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
-    }
+        cbk->m_L = GetMainThread(L);
+        cbk->m_ContextTableRef = context_table_ref;
+        
+        // For the callback ref (that can actually outlive the script instance)
+        // we want to add to the lua debug count
+        cbk->m_CallbackInfoRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        // [-2] context table
+        // [-1] callback
+
+        // We do not use dmScript::Unref for refs in the context local table as we don't
+        // want to count those refs the ref debug count shown in the profiler
+
+        cbk->m_Callback = luaL_ref(L, -2);
+        // [-1] context table
+
+        GetInstance(L);
+        // [-1] context table
+        // [-2] instance
+
+        cbk->m_Self = luaL_ref(L, -2);
+        // [-1] context table
+
+        lua_pop(L, 1);
+
+        return cbk;
+     }
 
     bool IsValidCallback(LuaCallbackInfo* cbk)
     {
-        if (cbk->m_Callback == LUA_NOREF ||
-            cbk->m_Self == LUA_NOREF ||
-            cbk->m_L == NULL) {
+        if (cbk == NULL ||
+            cbk->m_L == NULL ||
+            cbk->m_ContextTableRef == LUA_NOREF ||
+            cbk->m_CallbackInfoRef == LUA_NOREF ||
+            cbk->m_Callback == LUA_NOREF ||
+            cbk->m_Self == LUA_NOREF) {
             return false;
         }
         return true;
     }
 
-    void UnregisterCallback(LuaCallbackInfo* cbk)
+    void DeleteCallback(LuaCallbackInfo* cbk)
     {
-        if(cbk->m_Callback != LUA_NOREF)
+        lua_State* L = cbk->m_L;
+        DM_LUA_STACK_CHECK(L, 0);
+
+        if(cbk->m_ContextTableRef != LUA_NOREF)
         {
-            dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
-            dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
-            cbk->m_Callback = LUA_NOREF;
+            lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_ContextTableRef);
+            if (lua_type(L, -1) == LUA_TTABLE)
+            {
+                // We do not use dmScript::Unref for refs in the context local table as we don't
+                // want to count those refs the ref debug count shown in the profiler
+                luaL_unref(L, -1, cbk->m_Self);
+                luaL_unref(L, -1, cbk->m_Callback);
+
+                // For the callback (that can actually outlive the script instance)
+                // we want to add to the lua debug count
+                dmScript::Unref(L, LUA_REGISTRYINDEX, cbk->m_CallbackInfoRef);
+            }
             cbk->m_Self = LUA_NOREF;
-            cbk->m_L = 0;
+            cbk->m_Callback = LUA_NOREF;
+            cbk->m_CallbackInfoRef = LUA_NOREF;
+            cbk->m_ContextTableRef = LUA_NOREF;
+
+            lua_pop(L, 1);
+            return;
         }
         else
         {
-            if (cbk->m_L)
-                luaL_error(cbk->m_L, "Failed to unregister callback (it was not registered)");
+            if (L)
+                luaL_error(L, "Failed to unregister callback (it was not registered)");
             else
                 dmLogWarning("Failed to unregister callback (it was not registered)");
         }
@@ -753,24 +1374,70 @@ namespace dmScript
 
     bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
     {
-        if(cbk->m_Callback == LUA_NOREF)
+        if(cbk->m_CallbackInfoRef == LUA_NOREF)
         {
-            luaL_error(cbk->m_L, "Failed to invoke callback (it was not registered)");
+            dmLogWarning("Failed to invoke callback (it was not registered)");
             return false;
         }
 
         lua_State* L = cbk->m_L;
         DM_LUA_STACK_CHECK(L, 0);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Callback);
-        lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Self); // Setup self (the script instance)
-        lua_pushvalue(L, -1);
-        dmScript::SetInstance(L);
+        GetInstance(L);
+        // [-1] old instance
 
-        if (!dmScript::IsInstanceValid(L))
+        lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_ContextTableRef);
+        // [-2] old instance
+        // [-1] context table
+
+        if (lua_type(L, -1) != LUA_TTABLE)
         {
             lua_pop(L, 2);
-            DM_LUA_ERROR("Could not run callback because the instance has been deleted");
+            return false;
+        }
+
+        const int context_table_stack_index = lua_gettop(L);
+
+        lua_rawgeti(L, context_table_stack_index, cbk->m_Callback);
+        // [-3] old instance
+        // [-2] context table
+        // [-1] callback
+        if (lua_type(L, -1) != LUA_TFUNCTION)
+        {
+            lua_pop(L, 3);
+            return false;
+        }
+
+        lua_rawgeti(L, context_table_stack_index, cbk->m_Self); // Setup self (the script instance)
+        // [-4] old instance
+        // [-3] context table
+        // [-2] callback
+        // [-1] self
+        if (lua_isnil(L, -1))
+        {
+            lua_pop(L, 4);
+            return false;
+        }
+
+        lua_pushvalue(L, -1);
+        // [-5] old instance
+        // [-4] context table
+        // [-3] callback
+        // [-2] self
+        // [-1] self
+
+        SetInstance(L);
+        // [-4] old instance
+        // [-3] context table
+        // [-2] callback
+        // [-1] self
+
+        if (!IsInstanceValid(L))
+        {
+            lua_pop(L, 3);
+            // [-1] old instance
+
+            SetInstance(L);
             return false;
         }
 
@@ -782,13 +1449,23 @@ namespace dmScript
         int user_args_end = lua_gettop(L);
 
         int number_of_arguments = 1 + user_args_end - user_args_start; // instance + number of arguments that the user pushed
-        int ret = dmScript::PCall(L, number_of_arguments, 0);
+        int ret = PCall(L, number_of_arguments, 0);
+
         if (ret != 0) {
-            dmLogError("Error running callback: %s", lua_tostring(L,-1));
+            // [-2] old instance
+            // [-1] context table
+
             lua_pop(L, 1);
+            // [-1] old instance
+
+            SetInstance(L);
             return false;
         }
+        // [-2] old instance
+        // [-1] context table
+        lua_pop(L, 1);
 
+        SetInstance(L);
         return true;
     }
 

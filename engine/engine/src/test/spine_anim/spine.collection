@@ -2,9 +2,9 @@ name: "default"
 scale_along_z: 0
 embedded_instances {
   id: "go"
-  data: "components {\n  id: \"script\"\n  component: \"/spine_anim/banana.script\"\n  position {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n  }\n  rotation {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n    w: 1.0\n  }\n}\nembedded_components {\n  id: \"spinemodel\"\n  type: \"spinemodel\"\n  data: \"spine_scene: \\\"/spine_anim/banana.spinescene\\\"\\ndefault_animation: \\\"animation\\\"\\nskin: \\\"\\\"\\nblend_mode: BLEND_MODE_ALPHA\\nmaterial: \\\"/builtins/materials/sprite.material\\\"\\n\"\n  position {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n  }\n  rotation {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n    w: 1.0\n  }\n}\n"
+  data: "components {\n  id: \"script\"\n  component: \"/spine_anim/banana.script\"\n  position {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n  }\n  rotation {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n    w: 1.0\n  }\n}\nembedded_components {\n  id: \"spinemodel\"\n  type: \"spinemodel\"\n  data: \"spine_scene: \\\"/spine_anim/banana.spinescene\\\"\\ndefault_animation: \\\"animation\\\"\\nskin: \\\"\\\"\\nblend_mode: BLEND_MODE_ALPHA\\nmaterial: \\\"/builtins/materials/sprite.material\\\"\\n\"\n  position {\n    x: 100.0\n    y: 0.0\n    z: 0.0\n  }\n  rotation {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n    w: 1.0\n  }\n}\n"
   position {
-    x: 179.98445
+    x: 100.0
     y: 0.0
     z: 0.0
   }

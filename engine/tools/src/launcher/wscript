@@ -20,6 +20,7 @@ def build(bld):
     if 'win32' in bld.env.BUILD_PLATFORM:
         exe.linkflags = ['/subsystem:windows', '/entry:mainCRTStartup']
         exe.source.append('launcher.rc')
+
         if waf_dynamo.authenticode_certificate_installed(bld):
             exe.features.append('authenticode')
             exe.install_path = None

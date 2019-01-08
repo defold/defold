@@ -3,4 +3,8 @@
     -fx-border-color: $dark-grey-border;
     -fx-prompt-text-fill: $tree-view-icon;
   }
+  .description {
+    -fx-fill: $defold-white;
+    -fx-font-smoothing-type: lcd;
+  }
 }

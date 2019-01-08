@@ -16,15 +16,34 @@
 }
 
 .small-progress-bar {
-    .bar {
-        -fx-background-color: $defold-light-blue;
-        -fx-background-insets: 0;
-        -fx-background-radius: 0;
-        -fx-padding: 1em;
-    }
+  .bar {
+    -fx-background-color: $defold-light-blue;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-padding: 1em;
+  }
 
-    .track {
-        -fx-background-color: $dark-grey;
-        -fx-background-insets: 0;
-        -fx-background-radius: 0; }
+  .track {
+    -fx-background-color: $dark-grey;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0; }
+}
+
+.really-small-progress-bar {
+  -fx-background-radius: 0;
+  -fx-min-width: 140px;
+  .bar {
+    -fx-background-color: $defold-light-blue;
+    -fx-background-insets: 0;
+    -fx-background-radius: 4;
+    -fx-min-height: 5px;
+    -fx-padding: 0em;
+  }
+
+  .track {
+    -fx-background-color: $mid-grey;
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+    -fx-background-radius: 4;
+  }
 }

@@ -3,41 +3,54 @@
     [clojure.java.io :as io]
     [dynamo.graph :as g]
     [editor.defold-project :as project]
-    [editor.error-reporting :as error-reporting]
     [editor.engine.build-errors :as engine-build-errors]
     [editor.engine.native-extensions :as native-extensions]
+    [editor.error-reporting :as error-reporting]
     [editor.login :as login]
-    [editor.prefs :as prefs]
+    [editor.progress :as progress]
     [editor.resource :as resource]
     [editor.system :as system]
+    [editor.ui :as ui]
     [editor.workspace :as workspace])
   (:import
     [com.dynamo.bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
     [com.dynamo.bob.fs DefaultFileSystem]
     [com.dynamo.bob.util PathUtil]
     [java.io File InputStream]
-    [java.net URLDecoder]))
+    [java.net URI]))
 
 (set! *warn-on-reflection* true)
 
 (def skip-dirs #{".git" "build/default" ".internal"})
 (def html5-url-prefix "/html5")
 
-;; TODO - this should be fixed with proper progress at some point
-(defn ->progress []
-  (reify IProgress
-    (subProgress [this work]
-      (->progress))
-    (worked [this amount]
-      )
-    (beginTask [this name work]
-      )
-    (done [this]
-      )
-    (isCanceled [this]
-      false)))
+(defn ->progress
+  ([render-progress!]
+   (->progress render-progress! (atom [])))
+  ([render-progress! msg-stack-atom]
+   (assert (ifn? render-progress!))
+   (assert (vector? @msg-stack-atom))
+   (reify IProgress
+     (isCanceled [_this]
+       false)
+     (subProgress [_this _work-claimed-from-this]
+       (->progress render-progress! msg-stack-atom))
+     (beginTask [_this name _steps]
+       (error-reporting/catch-all!
+         (swap! msg-stack-atom conj name)
+         (render-progress! (progress/make-indeterminate name))))
+     (worked [_this _amount]
+       ;; Bob reports misleading progress amounts.
+       ;; We report only "busy" and the name of the task.
+       nil)
+     (done [_this]
+       (error-reporting/catch-all!
+         (let [msg (peek (swap! msg-stack-atom pop))]
+           (render-progress! (if (some? msg)
+                               (progress/make-indeterminate msg)
+                               progress/done))))))))
 
-(defn ->graph-resource-scanner [ws]
+(defn- ->graph-resource-scanner [ws]
   (let [res-map (->> (g/node-value ws :resource-map)
                   (map (fn [[key val]] [(subs key 1) val]))
                   (into {}))]
@@ -64,61 +77,62 @@
   (let [proj-settings (project/settings project)]
     (get proj-settings ["project" "title"] "Unnamed")))
 
-(defn- run-commands! [project ^Project bob-project {:keys [render-error!] :as _build-options} commands]
+(defn- run-commands! [project evaluation-context ^Project bob-project commands render-progress!]
   (try
-    (let [progress (->progress)
-          result (.build bob-project progress (into-array String commands))
+    (let [result (ui/with-progress [render-progress! render-progress!]
+                   (.build bob-project (->progress render-progress!) (into-array String commands)))
           failed-tasks (filter (fn [^TaskResult r] (not (.isOk r))) result)]
       (if (empty? failed-tasks)
-        true
-        (do (render-error! {:causes (engine-build-errors/failed-tasks-error-causes project failed-tasks)})
-            false)))
+        nil
+        {:error {:causes (engine-build-errors/failed-tasks-error-causes project evaluation-context failed-tasks)}}))
     (catch Exception e
-      (when-not (engine-build-errors/handle-build-error! render-error! project e)
-        (throw e))
-      false)))
+      {:exception e})))
 
-(defn- bob-build! [project bob-commands bob-args {:keys [clear-errors! render-error!] :as build-options}]
+(def ^:private build-in-progress-atom (atom false))
+
+(defn build-in-progress? []
+  @build-in-progress-atom)
+
+(defn bob-build! [project evaluation-context bob-commands bob-args render-progress!]
   (assert (vector? bob-commands))
   (assert (every? string? bob-commands))
   (assert (map? bob-args))
   (assert (every? (fn [[key val]] (and (string? key) (string? val))) bob-args))
-  (assert (fn? clear-errors!))
-  (assert (fn? render-error!))
-  (future
-    (error-reporting/catch-all!
-      (clear-errors!)
-      (if (and (some #(= "build" %) bob-commands)
-               (native-extensions/has-extensions? project)
-               (not (native-extensions/supported-platform? (get bob-args "platform"))))
-        (do (render-error! {:causes (engine-build-errors/unsupported-platform-error-causes project)})
-            false)
-        (let [ws (project/workspace project)
-              proj-path (str (workspace/project-path ws))
-              bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
-          (doseq [[key val] bob-args]
-            (.setOption bob-project key val))
-          (.createPublisher bob-project (.hasOption bob-project "liveupdate"))
-          (let [scanner (ClassLoaderScanner.)]
-            (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
-              (.scan bob-project scanner pkg)))
-          (let [deps (workspace/dependencies ws)]
-            (when (seq deps)
-              (.setLibUrls bob-project deps)
-              (.resolveLibUrls bob-project (->progress))))
-          (.mount bob-project (->graph-resource-scanner ws))
-          (.findSources bob-project proj-path skip-dirs)
-          (run-commands! project bob-project build-options bob-commands))))))
-
-(defn- boolean? [value]
-  (or (false? value) (true? value)))
+  (assert (ifn? render-progress!))
+  (reset! build-in-progress-atom true)
+  (try
+    (if (and (some #(= "build" %) bob-commands)
+             (native-extensions/has-extensions? project evaluation-context)
+             (not (native-extensions/supported-platform? (get bob-args "platform"))))
+      {:error {:causes (engine-build-errors/unsupported-platform-error-causes project evaluation-context)}}
+      (let [ws (project/workspace project evaluation-context)
+            proj-path (str (workspace/project-path ws evaluation-context))
+            bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
+        (doseq [[key val] bob-args]
+          (.setOption bob-project key val))
+        (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
+        (let [scanner (ClassLoaderScanner.)]
+          (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
+            (.scan bob-project scanner pkg)))
+        (let [deps (workspace/dependencies ws)]
+          (when (seq deps)
+            (.setLibUrls bob-project (map #(.toURL ^URI %) deps))
+            (ui/with-progress [render-progress! render-progress!]
+              (.resolveLibUrls bob-project (->progress render-progress!)))))
+        (.mount bob-project (->graph-resource-scanner ws))
+        (.findSources bob-project proj-path skip-dirs)
+        (ui/with-progress [render-progress! render-progress!]
+          (run-commands! project evaluation-context bob-project bob-commands render-progress!))))
+    (catch Throwable error
+      {:exception error})
+    (finally
+      (reset! build-in-progress-atom false))))
 
 ;; -----------------------------------------------------------------------------
 ;; Bundling
 ;; -----------------------------------------------------------------------------
 
-
-(defn- generic-bundle-bob-args [prefs {:keys [release-mode? generate-build-report? publish-live-update-content? platform ^File output-directory] :as _build-options}]
+(defn- generic-bundle-bob-args [prefs {:keys [variant generate-build-report? publish-live-update-content? platform ^File output-directory] :as _bundle-options}]
   (assert (some? output-directory))
   (assert (or (not (.exists output-directory))
               (.isDirectory output-directory)))
@@ -127,8 +141,10 @@
         build-server-url (native-extensions/get-build-server-url prefs)
         build-report-path (.getAbsolutePath (io/file output-directory "report.html"))
         bundle-output-path (.getAbsolutePath output-directory)
-        defold-sdk-sha1 (or (system/defold-engine-sha1) "")]
+        defold-sdk-sha1 (or (system/defold-engine-sha1) "")
+        strip-executable? (= "release" variant)]
     (cond-> {"platform" platform
+             "variant" variant
 
              ;; From AbstractBundleHandler
              "archive" "true"
@@ -145,38 +161,36 @@
              "email" (or email "")
              "auth"  (or auth "")}
 
+            strip-executable? (assoc "strip-executable" "true")
+
             ;; From BundleGenericHandler
-            (not release-mode?) (assoc "debug" "true")
             generate-build-report? (assoc "build-report-html" build-report-path)
             publish-live-update-content? (assoc "liveupdate" "true"))))
 
-(defn- android-bundle-bob-args [{:keys [^File certificate ^File private-key] :as _build-options}]
+(defn- android-bundle-bob-args [{:keys [^File certificate ^File private-key] :as _bundle-options}]
   (assert (or (nil? certificate) (.isFile certificate)))
   (assert (or (nil? private-key) (.isFile private-key)))
   (cond-> {}
           certificate (assoc "certificate" (.getAbsolutePath certificate))
           private-key (assoc "private-key" (.getAbsolutePath private-key))))
 
-(defn- ios-bundle-bob-args [{:keys [code-signing-identity ^File provisioning-profile] :as _build-options}]
+(defn- ios-bundle-bob-args [{:keys [code-signing-identity ^File provisioning-profile] :as _bundle-options}]
   (assert (string? (not-empty code-signing-identity)))
   (assert (some-> provisioning-profile .isFile))
   (let [provisioning-profile-path (.getAbsolutePath provisioning-profile)]
     {"mobileprovisioning" provisioning-profile-path
      "identity" code-signing-identity}))
 
-(defmulti bundle-bob-args (fn [_prefs platform _build-options] platform))
-(defmethod bundle-bob-args :default [_prefs platform _build-options] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
-(defmethod bundle-bob-args :android [prefs _platform build-options] (merge (generic-bundle-bob-args prefs build-options) (android-bundle-bob-args build-options)))
-(defmethod bundle-bob-args :html5   [prefs _platform build-options] (generic-bundle-bob-args prefs build-options))
-(defmethod bundle-bob-args :ios     [prefs _platform build-options] (merge (generic-bundle-bob-args prefs build-options) (ios-bundle-bob-args build-options)))
-(defmethod bundle-bob-args :linux   [prefs _platform build-options] (generic-bundle-bob-args prefs build-options))
-(defmethod bundle-bob-args :macos   [prefs _platform build-options] (generic-bundle-bob-args prefs build-options))
-(defmethod bundle-bob-args :windows [prefs _platform build-options] (generic-bundle-bob-args prefs build-options))
+(def bundle-bob-commands ["distclean" "build" "bundle"])
 
-(defn bundle! [project prefs platform build-options]
-  (let [bob-commands ["distclean" "build" "bundle"]
-        bob-args (bundle-bob-args prefs platform build-options)]
-    (bob-build! project bob-commands bob-args build-options)))
+(defmulti bundle-bob-args (fn [_prefs platform _bundle-options] platform))
+(defmethod bundle-bob-args :default [_prefs platform _bundle-options] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
+(defmethod bundle-bob-args :android [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) (android-bundle-bob-args bundle-options)))
+(defmethod bundle-bob-args :html5   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
+(defmethod bundle-bob-args :ios     [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) (ios-bundle-bob-args bundle-options)))
+(defmethod bundle-bob-args :linux   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
+(defmethod bundle-bob-args :macos   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
+(defmethod bundle-bob-args :windows [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
 
 ;; -----------------------------------------------------------------------------
 ;; Build HTML5
@@ -185,41 +199,64 @@
 (defn- build-html5-output-path [project]
   (let [ws (project/workspace project)
         build-path (workspace/build-path ws)]
-    (str build-path "__htmlLaunchDir")))
+    (io/file build-path "__htmlLaunchDir")))
 
-(defn build-html5! [project prefs build-options]
+(def build-html5-bob-commands ["distclean" "build" "bundle"])
+
+(defn build-html5-bob-args [project prefs]
   (let [output-path (build-html5-output-path project)
         proj-settings (project/settings project)
         build-server-url (native-extensions/get-build-server-url prefs)
         defold-sdk-sha1 (or (system/defold-engine-sha1) "")
         compress-archive? (get proj-settings ["project" "compress_archive"])
-        [email auth] (login/credentials prefs)
-        bob-commands ["distclean" "build" "bundle"]
-        bob-args (cond-> {"platform" "js-web"
-                          "archive" "true"
-                          "bundle-output" output-path
-                          "build-server" build-server-url
-                          "defoldsdk" defold-sdk-sha1
-                          "local-launch" "true"}
-                         email (assoc "email" email)
-                         auth (assoc "auth" auth)
-                         compress-archive? (assoc "compress" "true"))]
-    (bob-build! project bob-commands bob-args build-options)))
+        [email auth] (login/credentials prefs)]
+    (cond-> {"platform" "js-web"
+             "variant" "debug"
+             "archive" "true"
+             "bundle-output" (str output-path)
+             "build-server" build-server-url
+             "defoldsdk" defold-sdk-sha1
+             "local-launch" "true"
+             "email" (or email "")
+             "auth" (or auth "")}
+            compress-archive? (assoc "compress" "true"))))
 
-(defn- handler [project {:keys [url method headers]}]
-  (if (= method "GET")
-    (let [path (-> url
-                 (subs (count html5-url-prefix))
-                 (URLDecoder/decode "UTF-8"))
-          path (format "%s/%s%s" (build-html5-output-path project) (project-title project) path)
-          f (io/file path)]
-      (if (.exists f)
-        (let [length (.length f)
-              response {:code 200
-                        :response-headers {"Content-Length" (str length)}
-                        :body f}]
-          response)
-        {:code 404}))))
+(defn- try-resolve-html5-file
+  ^File [project ^String rel-url]
+  (let [build-html5-output-path (build-html5-output-path project)
+        project-title (project-title project)
+        rel-path (subs rel-url (inc (count html5-url-prefix)))
+        content-path (.normalize (.toPath (io/file build-html5-output-path project-title)))
+        absolute-path (.normalize (.resolve content-path rel-path))]
+    (when (.startsWith absolute-path content-path)
+      (.toFile absolute-path))))
+
+(defn- handler [project {:keys [url method]}]
+  (when (= method "GET")
+    (if (or (= html5-url-prefix url)
+            (= (str html5-url-prefix "/") url))
+      {:code 302
+       :headers {"Location" (str html5-url-prefix "/index.html")}}
+
+      (let [served-file   (try-resolve-html5-file project url)
+            extra-headers (when (clojure.string/ends-with?
+                                  (clojure.string/lower-case url)
+                                  ".wasm")
+                                {"Content-Type" "application/wasm"})]
+        (cond
+          ;; The requested URL is a directory or located outside build-html5-output-path.
+          (or (nil? served-file) (.isDirectory served-file))
+          {:code 403
+           :body "Forbidden"}
+
+          (.exists served-file)
+          {:code 200
+           :headers (merge {"Content-Length" (str (.length served-file))} extra-headers)
+           :body served-file}
+
+          :else
+          {:code 404
+           :body "Not found"})))))
 
 (defn html5-handler [project req-headers]
   (handler project req-headers))

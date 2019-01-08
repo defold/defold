@@ -12,3 +12,8 @@ embedded_components {
   type: "factory"
   data: "prototype: \"/factory/b.go\""
 }
+embedded_components {
+  id: "factory_c"
+  type: "factory"
+  data: "prototype: \"/factory/b.go\""
+}

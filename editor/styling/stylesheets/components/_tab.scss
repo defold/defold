@@ -52,6 +52,12 @@
         // Generate css for file extensions
         @include extensions(tab);
     }
+
+    &.inactive .tab {
+        &:selected {
+            -fx-border-color: $grey;
+        }
+    }
 }
 
 .tab-header-area {

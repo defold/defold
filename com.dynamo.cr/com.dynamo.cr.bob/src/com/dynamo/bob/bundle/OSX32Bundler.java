@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -28,7 +29,7 @@ public class OSX32Bundler implements IBundler {
             FileUtils.copyFile(inFile, outFile);
         }
     }
-    
+
     @Override
     public void bundleApplication(Project project, File bundleDir)
             throws IOException, CompileExceptionError {
@@ -40,6 +41,7 @@ public class OSX32Bundler implements IBundler {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
+        String exeName = BundleHelper.projectNameToBinaryName(title);
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         File appDir = new File(bundleDir, title + ".app");
@@ -47,15 +49,16 @@ public class OSX32Bundler implements IBundler {
         File resourcesDir = new File(contentsDir, "Resources");
         File macosDir = new File(contentsDir, "MacOS");
 
-        boolean debug = project.hasOption("debug");
-        
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), platform.formatBinaryName("dmengine"))));
-        File defaultExe = new File(Bob.getDmengineExe(platform, debug));
-        File bundleExe = defaultExe;
-        if (extenderExe.exists()) {
-            bundleExe = extenderExe;
+        List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(platform, extenderExeDir);
+        if (bundleExes == null) {
+            final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+            bundleExes = Bob.getDefaultDmengineFiles(platform, variant);
         }
+        if (bundleExes.size() > 1) {
+            throw new IOException("Invalid number of binaries for macOS when bundling: " + bundleExes.size());
+        }
+        File bundleExe = bundleExes.get(0);
 
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
@@ -76,13 +79,15 @@ public class OSX32Bundler implements IBundler {
             FileUtils.copyFile(new File(buildDir, name), new File(resourcesDir, name));
         }
 
-        helper.format("osx", "infoplist", "resources/osx/Info.plist", new File(contentsDir, "Info.plist"));
+        Map<String, Object> infoData = new HashMap<String, Object>();
+        infoData.put("exe-name", exeName);
+        helper.format(infoData, "osx", "infoplist", new File(contentsDir, "Info.plist"));
 
         // Copy icon
         copyIcon(projectProperties, new File(project.getRootDirectory()), resourcesDir);
 
         // Copy Executable
-        File exeOut = new File(macosDir, title);
+        File exeOut = new File(macosDir, exeName);
         FileUtils.copyFile(bundleExe, exeOut);
         exeOut.setExecutable(true);
     }

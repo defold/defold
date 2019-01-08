@@ -97,3 +97,9 @@ assert(v.x == 0.5 and v.y == -0.5 and v.z == 0, "lerp")
 v = vmath.slerp(0.5, vmath.vector3(1, 0, 0), vmath.vector3(0, -1, 0))
 local sq2 = math.sqrt(2)
 assert(math.abs(v.x - 0.5 * sq2) < 0.000001 and math.abs(v.y + 0.5 * sq2) < 0.000001 and v.z == 0, "slerp")
+
+-- mul_per_elem
+v = vmath.mul_per_elem(vmath.vector3(1,2,3), vmath.vector3(5,6,7))
+assert(v.x == 5, "v.x is not 5")
+assert(v.y ==12, "v.y is not 12")
+assert(v.z ==21, "v.z is not 21")

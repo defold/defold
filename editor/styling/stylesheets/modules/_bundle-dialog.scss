@@ -16,8 +16,8 @@
     #header-info-label {
       -fx-text-fill: $bright-grey;
 
-      &.error { -fx-text-fill: $defold-orange; }
-      &.warning { -fx-text-fill: $defold-yellow; }
+      &.error { -fx-text-fill: $error-severity-fatal; }
+      &.warning { -fx-text-fill: $error-severity-warning; }
     }
   }
 
@@ -31,10 +31,16 @@
     }
 
     .choice-box, .text-field {
-      &.error { -fx-border-color: $defold-red; }
-      &.warning { -fx-border-color: $defold-yellow; }
-      &.info { -fx-border-color: $defold-light-blue; }
+      -fx-min-width: 143px;
+
+      &.error { -fx-border-color: $error-severity-fatal; }
+      &.warning { -fx-border-color: $error-severity-warning; }
+      &.info { -fx-border-color: $error-severity-info; }
     }
+  }
+
+  >.settings.generic {
+    -fx-padding: 6px $horizontal-margin-width 0px $horizontal-margin-width;
   }
 
   >.buttons {
@@ -47,8 +53,16 @@
       -fx-pref-width: $label-column-width;
     }
 
-    >.settings.generic {
+    >.settings.toggles {
       -fx-padding: $vertical-margin-width $horizontal-margin-width 0px ($label-column-width + $horizontal-margin-width);
+    }
+  }
+
+  @mixin generic-only-field-layout() {
+    @include field-layout(51px);
+
+    >.settings.generic {
+      -fx-padding: $vertical-margin-width $horizontal-margin-width 0px $horizontal-margin-width;
     }
   }
 
@@ -59,6 +73,7 @@
 
   &.html5 {
     -fx-min-width: 375px;
+    @include generic-only-field-layout();
   }
 
   &.ios {
@@ -67,16 +82,17 @@
   }
 
   &.linux {
-    -fx-min-width: 450px;
-    @include field-layout(78px);
+    -fx-min-width: 375px;
+    @include generic-only-field-layout();
   }
 
   &.macos {
     -fx-min-width: 375px;
+    @include generic-only-field-layout();
   }
 
   &.windows {
-    -fx-min-width: 450px;
+    -fx-min-width: 375px;
     @include field-layout(78px);
   }
 }

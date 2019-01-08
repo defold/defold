@@ -277,5 +277,11 @@ namespace dmWebServer
         dmHttpServer::GetName(server->m_HttpServer, address, port);
     }
 
+    Result SendAttribute(Request* request, const char* key, const char* value)
+    {
+        InternalRequest* internal_request = (InternalRequest*) request->m_Internal;
+        dmHttpServer::Result r = dmHttpServer::SendAttribute(internal_request->m_Request, key, value);
+        return TranslateResult(r);
+    }
 }
 

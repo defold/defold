@@ -98,7 +98,7 @@
             xform (comp (map thread-util/abortable-identity!)
                         (filter (fn [{:keys [resource]}]
                                   (or (empty? file-ext-pats)
-                                      (let [ext (resource/ext resource)]
+                                      (let [ext (resource/type-ext resource)]
                                         (some #(re-matches % ext) file-ext-pats)))))
                         (map (fn [{:keys [resource] :as save-data}]
                                {:resource resource

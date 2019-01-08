@@ -4,7 +4,8 @@
    [editor.pipeline :as pipeline]
    [editor.protobuf :as protobuf]
    [editor.resource :as resource]
-   [editor.workspace :as workspace])
+   [editor.workspace :as workspace]
+   [util.digest :as digest])
   (:import
    [com.dynamo.rig.proto Rig$RigScene Rig$MeshSet Rig$AnimationSet Rig$Skeleton]))
 
@@ -15,7 +16,10 @@
 (defn make-skeleton-build-target
   [workspace node-id skeleton]
   (let [skeleton-type     (workspace/get-resource-type workspace "skeleton")
-        skeleton-resource (resource/make-memory-resource workspace skeleton-type (str (gensym)))]
+        ;; data of memory-resource below only used for
+        ;; resource/resource-hash used to name the
+        ;; corresponding "generated" build resource.
+        skeleton-resource (resource/make-memory-resource workspace skeleton-type (protobuf/map->sha1-hex Rig$Skeleton skeleton))]
     {:node-id   node-id
      :resource  (workspace/make-build-resource skeleton-resource)
      :build-fn  build-skeleton
@@ -29,7 +33,10 @@
 (defn make-animation-set-build-target
   [workspace node-id animation-set]
   (let [animation-set-type     (workspace/get-resource-type workspace "animationset")
-        animation-set-resource (resource/make-memory-resource workspace animation-set-type (str (gensym)))]
+        ;; data of memory-resource below only used for
+        ;; resource/resource-hash used to name the
+        ;; corresponding "generated" build resource.
+        animation-set-resource (resource/make-memory-resource workspace animation-set-type (protobuf/map->sha1-hex Rig$AnimationSet animation-set))]
     {:node-id   node-id
      :resource  (workspace/make-build-resource animation-set-resource)
      :build-fn  build-animation-set
@@ -43,7 +50,10 @@
 (defn make-mesh-set-build-target
   [workspace node-id mesh-set]
   (let [mesh-set-type     (workspace/get-resource-type workspace "meshset")
-        mesh-set-resource (resource/make-memory-resource workspace mesh-set-type (str (gensym)))]
+        ;; data of memory-resource below only used for
+        ;; resource/resource-hash used to name the
+        ;; corresponding "generated" build resource.
+        mesh-set-resource (resource/make-memory-resource workspace mesh-set-type (protobuf/map->sha1-hex Rig$MeshSet mesh-set))]
     {:node-id   node-id
      :resource  (workspace/make-build-resource mesh-set-resource)
      :build-fn  build-mesh-set

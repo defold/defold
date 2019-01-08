@@ -8,6 +8,9 @@ class Trace(object):
         self.back_trace = back_trace
         self.back_trace_hash = back_trace_hash
 
+    def __repr__(self):
+        return 'TRACE: back_trace: %s back_trace_hash: %s, size: %d, ptr: %X, type: %s' % (str(self.back_trace), self.back_trace_hash, self.size, self.ptr, str(self.type))
+
 class TraceSummary(object):
     def __init__(self, lst):
         self.nmalloc = 0
@@ -32,7 +35,7 @@ class TraceSummary(object):
                 assert False
 
     def __repr__(self):
-        return 'nmalloc: %d, nfree: %d, malloc_total: %d, free_total: %d' % (self.nmalloc,  self.nfree, self.malloc_total, self.free_total)
+        return 'TRACESUMMARY: back_trace: %s nmalloc: %d, nfree: %d, malloc_total: %d, free_total: %d' % (str(self.back_trace), self.nmalloc,  self.nfree, self.malloc_total, self.free_total)
 
 class MemProfile(object):
     def __init__(self):

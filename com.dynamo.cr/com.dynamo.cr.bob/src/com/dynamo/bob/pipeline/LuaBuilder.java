@@ -71,7 +71,19 @@ public abstract class LuaBuilder extends Builder<Void> {
             //       correct chunk name (the original original source file) already here.
             //
             // See implementation of luaO_chunkid and why a prefix '=' is used; it is to pass through the filename without modifications.
-            ProcessBuilder pb = new ProcessBuilder(new String[] { Bob.getExe(Platform.getHostPlatform(), "luajit"), "-bgf", ("=" + task.input(0).getPath()), inputFile.getAbsolutePath(), outputFile.getAbsolutePath() }).redirectErrorStream(true);
+            //
+            // We will also limit the chunkname (the identifying part of a script/source chunk) to 59 chars.
+            // Lua has a maximum length of chunknames, by default defined to 60 chars.
+            //
+            // If a script error occurs in runtime we want Lua to report the end of the filepath
+            // associated with the chunk, since this is where the filename is visible.
+            //
+            String chunkName = task.input(0).getPath();
+            if (chunkName.length() >= 59) {
+                chunkName = chunkName.substring(chunkName.length() - 59);
+            }
+            chunkName = "=" + chunkName;
+            ProcessBuilder pb = new ProcessBuilder(new String[] { Bob.getExe(Platform.getHostPlatform(), "luajit"), "-bgf", chunkName, inputFile.getAbsolutePath(), outputFile.getAbsolutePath() }).redirectErrorStream(true);
 
             java.util.Map<String, String> env = pb.environment();
             env.put("LUA_PATH", Bob.getPath("share/luajit/") + "/?.lua");
@@ -198,6 +210,9 @@ public abstract class LuaBuilder extends Builder<Void> {
                         break;
                     case PROPERTY_TYPE_VECTOR3:
                         entryBuilder.setIndex(builder.getFloatValuesCount());
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".x"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".y"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".z"));
                         Vector3d v3 = (Vector3d)property.value;
                         builder.addFloatValues((float)v3.getX());
                         builder.addFloatValues((float)v3.getY());
@@ -206,6 +221,10 @@ public abstract class LuaBuilder extends Builder<Void> {
                         break;
                     case PROPERTY_TYPE_VECTOR4:
                         entryBuilder.setIndex(builder.getFloatValuesCount());
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".x"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".y"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".z"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".w"));
                         Vector4d v4 = (Vector4d)property.value;
                         builder.addFloatValues((float)v4.getX());
                         builder.addFloatValues((float)v4.getY());
@@ -215,6 +234,10 @@ public abstract class LuaBuilder extends Builder<Void> {
                         break;
                     case PROPERTY_TYPE_QUAT:
                         entryBuilder.setIndex(builder.getFloatValuesCount());
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".x"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".y"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".z"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".w"));
                         Quat4d q = (Quat4d)property.value;
                         builder.addFloatValues((float)q.getX());
                         builder.addFloatValues((float)q.getY());

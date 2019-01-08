@@ -2,13 +2,13 @@
   (:require [amazonica.aws.s3 :as s3]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
-            [editor.workspace :as workspace]
             [editor.graph-util :as gu]
             [editor.resource-node :as resource-node]
-            [editor.util :as util]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
-            [service.log :as log]))
+            [service.log :as log]
+            [editor.resource :as resource]
+            [editor.form-view :as form-view]))
 
 (def live-update-icon "icons/32/Icons_04-Project-file.png")
 
@@ -28,14 +28,6 @@
       (log/warn :exception e)
       [])))
 
-(defn- update-section-setting [section path f]
-  (if-let [bucket-index (first (util/positions #(= path (:path %)) (get section :fields)))]
-    (update-in section [:fields bucket-index] f)
-    section))
-
-(defn- update-form-setting [form-data path f]
-  (update form-data :sections (fn [section] (mapv #(update-section-setting % path f) section))))
-
 (g/defnode LiveUpdateSettingsNode
   (inherits resource-node/ResourceNode)
 
@@ -53,12 +45,12 @@
   (output form-data g/Any :cached
           (g/fnk [form-data amazon-buckets]
                  (-> form-data
-                     (update-form-setting ["liveupdate" "amazon-credential-profile"]
+                     (form-view/update-form-setting ["liveupdate" "amazon-credential-profile"]
                                           #(assoc %
                                                   :type :choicebox
                                                   :from-string str :to-string str
                                                   :options (mapv (fn [profile] [profile profile]) (get-config-file-profiles))))
-                     (update-form-setting ["liveupdate" "amazon-bucket"]
+                     (form-view/update-form-setting ["liveupdate" "amazon-bucket"]
                                           #(assoc %
                                                   :type :choicebox
                                                   :from-string str
@@ -92,3 +84,10 @@
     :load-fn load-live-update-settings
     :icon live-update-icon
     :view-types [:form-view :text]))
+
+(defn get-live-update-settings-path [project]
+  (let [project-settings (project/settings project)
+        file-resource (get project-settings ["liveupdate" "settings"])]
+    (if (resource/exists? file-resource)
+      (resource/proj-path file-resource)
+      "/liveupdate.settings")))

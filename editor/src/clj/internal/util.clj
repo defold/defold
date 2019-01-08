@@ -58,6 +58,17 @@
                     xs seen)))]
      (step coll #{}))))
 
+(defn group-into
+  "Like core.group-by, but you can specify the empty collection used for the groups."
+  [empty-group key-fn coll]
+  (persistent!
+    (reduce (fn [groups-by-key elem]
+              (let [key (key-fn elem)
+                    group (get groups-by-key key empty-group)]
+                (assoc! groups-by-key key (conj group elem))))
+            (transient {})
+            coll)))
+
 (defn filterm [pred m]
   "like filter but applys the predicate to each key value pair of the map"
   (into {} (filter pred m)))
@@ -263,3 +274,38 @@
   [coll]
   (when (nil? (next coll))
     (first coll)))
+
+(defn map->sort-key
+  "Given any map, returns a vector that can be used to order it relative to any other map in a deterministic order."
+  [m]
+  (into []
+        (mapcat (juxt identity (partial get m)))
+        (sort (keys m))))
+
+(declare select-keys-deep)
+
+(defn- select-keys-deep-value-helper [kept-keys value]
+  (cond
+    (map? value)
+    (select-keys-deep value kept-keys)
+
+    (coll? value)
+    (into (empty value)
+          (map (partial select-keys-deep-value-helper kept-keys))
+          value)
+
+    :else
+    value))
+
+(defn select-keys-deep
+  "Like select-keys, but applies the filter recursively to nested data structures."
+  [m kept-keys]
+  (assert (or (nil? m) (map? m)))
+  (with-meta (into (if (or (nil? m) (record? m))
+                     {}
+                     (empty m))
+                   (keep (fn [key]
+                           (when-some [[_ value] (find m key)]
+                             [key (select-keys-deep-value-helper kept-keys value)])))
+                   kept-keys)
+             (meta m)))

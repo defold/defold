@@ -2,20 +2,28 @@ package com.defold.push;
 
 import com.dynamo.android.DefoldActivity;
 
+import java.lang.Boolean;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintStream;
 
+import java.lang.reflect.Array;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.ArrayList;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationManager;
+import android.app.NotificationChannel;
 import android.app.PendingIntent;
 import android.app.AlarmManager;
 import android.content.ComponentName;
@@ -29,6 +37,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Build;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
@@ -43,6 +52,7 @@ public class Push {
     public static final String ACTION_FORWARD_PUSH = "com.defold.push.FORWARD";
     public static final String SAVED_PUSH_MESSAGE_NAME = "saved_push_message";
     public static final String SAVED_LOCAL_MESSAGE_NAME = "saved_local_message";
+    public static final String NOTIFICATION_CHANNEL_ID = "com.dynamo.android.notification_channel";
     private static final int PLAY_SERVICES_RESOLUTION_REQUEST = 9000;
 
     private String senderId = "";
@@ -53,8 +63,41 @@ public class Push {
 
     private GoogleCloudMessaging gcm;
 
-    public void start(Activity activity, IPushListener listener, String senderId) {
+    private Activity activity;
+
+    // We need to store recieved notifications in memory until
+    // a listener has been registered on the Lua side.
+    private class StoredNotification {
+        public String json = "";
+        public int id = 0;
+        public boolean wasLocal = false;
+        public boolean wasActivated = false;
+
+        public StoredNotification(String json, int id, boolean wasLocal, boolean wasActivated)
+        {
+            this.json = json;
+            this.id = id;
+            this.wasLocal = wasLocal;
+            this.wasActivated = wasActivated;
+        }
+    }
+
+    private ArrayList<StoredNotification> storedNotifications = new ArrayList<StoredNotification>();
+
+    public void start(Activity activity, IPushListener listener, String senderId, String projectTitle) {
         Log.d(TAG, String.format("Push started (%s %s)", listener, senderId));
+
+        // Create the NotificationChannel, but only on API 26+ because
+        // the NotificationChannel class is new and not in the support library
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, projectTitle, NotificationManager.IMPORTANCE_DEFAULT);
+            channel.enableVibration(true);
+            channel.setDescription("");
+
+            NotificationManager notificationManager = (NotificationManager)activity.getSystemService(NotificationManager.class);
+            notificationManager.createNotificationChannel(channel);
+        }
+        this.activity = activity;
         this.listener = listener;
         this.senderId = senderId;
     }
@@ -62,6 +105,19 @@ public class Push {
     public void stop() {
         Log.d(TAG, "Push stopped");
         this.listener = null;
+    }
+
+    public void flushStoredNotifications() {
+        for (int i = 0; i < storedNotifications.size(); i++) {
+            StoredNotification n = storedNotifications.get(i);
+            if (n.wasLocal) {
+                this.listener.onLocalMessage(n.json, n.id, n.wasActivated);
+            } else {
+                this.listener.onMessage(n.json, n.wasActivated);
+            }
+        }
+
+        storedNotifications.clear();
     }
 
     public void register(final Activity activity) {
@@ -80,7 +136,91 @@ public class Push {
         });
     }
 
-    public void scheduleNotification(final Activity activity, int notificationId, long timestampMillis, String title, String message, String payload, int priority) {
+    private String createLocalPushNotificationPath(int uid) {
+        return String.format("%s_%d", Push.SAVED_LOCAL_MESSAGE_NAME, uid);
+    }
+
+    private JSONObject readJson(Context context, String path) {
+        try {
+            BufferedReader r = new BufferedReader(new InputStreamReader(context.openFileInput(path)));
+            String json = "";
+            String line = r.readLine();
+            while (line != null) {
+                json += line;
+                line = r.readLine();
+            }
+            return new JSONObject(json);
+        } catch (FileNotFoundException e) {
+            Log.e(TAG, String.format("No such file '%s'", path), e);
+            return null;
+        } catch (IOException e) {
+            Log.e(TAG, String.format("Failed to read from file '%s'", path), e);
+            return null;
+        } catch (JSONException e) {
+            Log.e(TAG, String.format("Failed to create json object from file '%s'", path), e);
+            return null;
+        }
+    }
+
+    private void storeLocalPushNotification(Context context, int uid, Bundle extras) {
+        String path = createLocalPushNotificationPath(uid);
+        try {
+            String json = getJson(extras);
+            PrintStream os = new PrintStream(context.openFileOutput(path, Context.MODE_PRIVATE));
+            os.println(json);
+            Log.d(TAG, String.format("Stored local notification file: %s", path));
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to store notification", e);
+        }
+    }
+
+    private void putValues(Bundle extras, int uid, String title, String message, String payload, long timestamp, int priority, int iconSmall, int iconLarge) {
+        extras.putInt("uid", uid);
+        extras.putString("title", title);
+        extras.putString("message", message);
+        extras.putInt("priority", priority);
+        extras.putLong("timestamp", timestamp);
+        extras.putInt("smallIcon", iconSmall);
+        extras.putInt("largeIcon", iconLarge);
+        extras.putString("payload", payload);
+    }
+
+    private Bundle loadLocalPushNotification(Context context, int uid) {
+        JSONObject jo = readJson(context, createLocalPushNotificationPath(uid));
+        if (jo == null) {
+            Log.e(TAG, String.format("Failed to load local notification: %d", uid));
+            return null;
+        }
+        Bundle extras = new Bundle();
+        putValues(extras, jo.optInt("uid"), jo.optString("title"), jo.optString("message"), jo.optString("payload"), jo.optLong("timestamp"),
+                    jo.optInt("priority"), jo.optInt("smallIcon"), jo.optInt("largeIcon"));
+        return extras;
+    }
+
+    private void deleteLocalPushNotification(Context context, int uid) {
+        context.deleteFile(createLocalPushNotificationPath(uid));
+    }
+
+    public void loadPendingNotifications(final Activity activity) {
+        String[] files = activity.fileList();
+        String prefix = String.format("%s_", Push.SAVED_LOCAL_MESSAGE_NAME);
+        for (String path : files) {
+            if (!path.startsWith(prefix)) {
+                continue;
+            }
+
+            // These notifications are already registered with the AlarmManager, we just need to store them internally again
+            JSONObject jo = readJson(activity, path);
+            if (jo == null) {
+                Log.e(TAG, String.format("Failed to load local pending notification: %s", path));
+                return;
+            }
+            this.listener.addPendingNotifications(jo.optInt("uid"), jo.optString("title"), jo.optString("message"), jo.optString("payload"),
+                                                jo.optLong("timestamp"), jo.optInt("priority"));
+        }
+    }
+
+    public void scheduleNotification(final Activity activity, int uid, long timestampMillis, String title, String message, String payload, int priority) {
 
         if (am == null) {
             am = (AlarmManager) activity.getSystemService(activity.ALARM_SERVICE);
@@ -88,20 +228,17 @@ public class Push {
         Intent intent = new Intent(activity, LocalNotificationReceiver.class);
 
         Bundle extras = new Bundle();
-        int uid = notificationId;
-        extras.putInt("uid", uid);
-        extras.putString("title", title);
-        extras.putString("message", message);
-        extras.putInt("priority", priority);
-        extras.putInt("smallIcon", activity.getResources().getIdentifier("push_icon_small", "drawable", activity.getPackageName()));
-        extras.putInt("largeIcon", activity.getResources().getIdentifier("push_icon_large", "drawable", activity.getPackageName()));
-        extras.putString("payload", payload);
+        int iconSmall = activity.getResources().getIdentifier("push_icon_small", "drawable", activity.getPackageName());
+        int iconLarge = activity.getResources().getIdentifier("push_icon_large", "drawable", activity.getPackageName());
+        putValues(extras, uid, title, message, payload, timestampMillis, priority, iconSmall, iconLarge);
+
+        storeLocalPushNotification(activity, uid, extras);
+
         intent.putExtras(extras);
         intent.setAction("uid" + uid);
 
         PendingIntent pendingIntent = PendingIntent.getBroadcast(activity, 0, intent, PendingIntent.FLAG_ONE_SHOT);
         am.set(AlarmManager.RTC_WAKEUP, timestampMillis, pendingIntent);
-
     }
 
     public void cancelNotification(final Activity activity, int notificationId, String title, String message, String payload, int priority)
@@ -114,7 +251,7 @@ public class Push {
             return;
         }
 
-        Intent intent = new Intent(activity, LocalNotificationReceiver.class);
+        removeNotification(notificationId);
 
         Bundle extras = new Bundle();
         int uid = notificationId;
@@ -123,6 +260,9 @@ public class Push {
         extras.putString("message", message);
         extras.putInt("priority", priority);
         extras.putString("payload", payload);
+        // NOTE: the extras is redundant. <-- remove extras and verify
+
+        Intent intent = new Intent(activity, LocalNotificationReceiver.class);
         intent.putExtras(extras);
         intent.setAction("uid" + uid);
         PendingIntent pendingIntent = PendingIntent.getBroadcast(activity, 0, intent, PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_ONE_SHOT);
@@ -212,7 +352,7 @@ public class Push {
                 json += line;
                 line = r.readLine();
             }
-            this.listener.onMessage(json, wasActivated);
+            storedNotifications.add(new StoredNotification(json, 0, false, wasActivated));
 
         } catch (FileNotFoundException e) {
         } catch (IOException e) {
@@ -242,7 +382,7 @@ public class Push {
                 json += line;
                 line = r.readLine();
             }
-            this.listener.onLocalMessage(json, id, wasActivated);
+            storedNotifications.add(new StoredNotification(json, id, true, wasActivated));
         } catch (FileNotFoundException e) {
         } catch (IOException e) {
             Log.e(Push.TAG, "Failed to read local message from disk", e);
@@ -266,8 +406,73 @@ public class Push {
                 Log.e(TAG, "failed to create json-object", e);
             }
         }
-
         return o;
+    }
+
+    // https://stackoverflow.com/a/37728241/468516
+    private String getJson(final Bundle bundle) {
+        if (bundle == null) return null;
+        JSONObject jsonObject = new JSONObject();
+
+        for (String key : bundle.keySet()) {
+            Object obj = bundle.get(key);
+            try {
+                jsonObject.put(key, jsonWrapValue(bundle.get(key)));
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }
+        return jsonObject.toString();
+    }
+
+    public static Object jsonWrapValue(Object o) {
+        if (o == null) {
+            return JSONObject.NULL;
+        }
+        if (o instanceof JSONArray || o instanceof JSONObject) {
+            return o;
+        }
+        if (o.equals(JSONObject.NULL)) {
+            return o;
+        }
+        try {
+            if (o instanceof Collection) {
+                return new JSONArray((Collection) o);
+            } else if (o.getClass().isArray()) {
+                return toJSONArray(o);
+            }
+            if (o instanceof Map) {
+                return new JSONObject((Map) o);
+            }
+            if (o instanceof Boolean ||
+                    o instanceof Byte ||
+                    o instanceof Character ||
+                    o instanceof Double ||
+                    o instanceof Float ||
+                    o instanceof Integer ||
+                    o instanceof Long ||
+                    o instanceof Short ||
+                    o instanceof String) {
+                return o;
+            }
+            if (o.getClass().getPackage().getName().startsWith("java.")) {
+                return o.toString();
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    public static JSONArray toJSONArray(Object array) throws JSONException {
+        JSONArray result = new JSONArray();
+        if (!array.getClass().isArray()) {
+            throw new JSONException("Not a primitive array: " + array.getClass());
+        }
+        final int length = Array.getLength(array);
+        for (int i = 0; i < length; ++i) {
+            result.put(jsonWrapValue(Array.get(array, i)));
+        }
+        return result;
     }
 
     void onPush(Context context, Intent intent) {
@@ -307,11 +512,18 @@ public class Push {
         }
     }
 
+    private void removeNotification(int id) {
+        String path = createLocalPushNotificationPath(id);
+        boolean deleted = activity.deleteFile(path);
+        Log.d(TAG, String.format("Removed local notification file: %s  (%s)", path, Boolean.toString(deleted)));
+    }
+
     void onLocalPush(String msg, int id, boolean wasActivated) {
+        removeNotification(id);
+
         if (listener != null) {
             this.listener.onLocalMessage(msg, id, wasActivated);
         }
-
     }
 
     private void sendNotification(Context context, Bundle extras, boolean wasActivated) {
@@ -369,9 +581,10 @@ public class Push {
                 text = "New message";
             }
 
-            NotificationCompat.Builder builder = new NotificationCompat.Builder(context)
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
                     .setContentTitle(title)
                     .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
+                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                     .setContentText(text);
 
             // Find icons if they were supplied, fallback to app icon

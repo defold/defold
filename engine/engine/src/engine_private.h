@@ -84,6 +84,13 @@ namespace dmEngine
         uint32_t            m_Fps;
     };
 
+    enum Vsync
+    {
+        VSYNC_SOFTWARE = 0,
+        VSYNC_HARDWARE = 1,
+
+    };
+
     struct Engine
     {
         Engine(dmEngineService::HEngineService engine_service);
@@ -147,9 +154,16 @@ namespace dmEngine
         uint32_t                                    m_Height;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
+        Vsync                                       m_VsyncMode;
 
         RecordData                                  m_RecordData;
     };
+
+
+    HEngine New(dmEngineService::HEngineService engine_service);
+    void Delete(HEngine engine);
+    bool Init(HEngine engine, int argc, char *argv[]);
+    void Step(HEngine engine);
 
     void ReloadResources(HEngine engine, const char* extension);
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config);

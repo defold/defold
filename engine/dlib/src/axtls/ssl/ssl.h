@@ -63,16 +63,14 @@
 #ifndef HEADER_SSL_H
 #define HEADER_SSL_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <time.h>
 
 /* need to predefine before ssl_lib.h gets to it */
 #define SSL_SESSION_ID_SIZE                     32
 
 #include <axtls/ssl/tls1.h>
+
+namespace dmAxTls {
 
 /* The optional parameters that can be given to the client/server SSL engine */
 #define SSL_CLIENT_AUTHENTICATION               0x00010000
@@ -531,8 +529,6 @@ EXP_FUNC const char * STDCALL ssl_version(void);
 
 /** @} */
 
-#ifdef __cplusplus
-}
-#endif
+} // namespace
 
 #endif

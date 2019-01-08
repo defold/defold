@@ -2,7 +2,6 @@
 
 Repository for engine, editor and server.
 
-
 ## Code Style
 
 Follow current code style and use 4 spaces for tabs. Never commit code
@@ -12,6 +11,7 @@ API documentation is generated from source comments. See README_DOCS.md for help
 conventions.
 
 For Eclipse:
+
 * Install [AnyEditTools](http://andrei.gmxhome.de/eclipse.html) for easy Tabs to Spaces support
 * Import the code formating xml: Eclipse -> Preferences: C/C++ -> CodeStyle -> Formatter .. Import 'defold/share/codestyle.xml' and set ”Dynamo” as active profile
 
@@ -19,12 +19,30 @@ For Eclipse:
 
 ### Required Software
 
-#### [Java 8 JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html)
+#### [Java 8 JDK](https://drive.google.com/open?id=1bYgm9IVNNskLovbzlqq1_FMlBQ0QxG5q)
 
-NOTE: If a old update of the JDK/JRE is used, the SSL root certificates has
+*NOTE*: Currently the editor does not work with the latest Java SDK, use 1.8.0_144 as it is known to work.
+
+It can be downloaded from our [Google Drive](https://drive.google.com/open?id=1bYgm9IVNNskLovbzlqq1_FMlBQ0QxG5q).
+
+*NOTE*: If a to old update of the JDK/JRE is used, the SSL root certificates has
 expired and you need to replace the file `cacerts` in the JRE with a newer one
 without expired certificates, otherwise SSL communication will fail. This has
 been done in the JRE:s used when bundling the editor (located on S3).
+
+##### MacOS
+
+If you have multiple versions of Java installed you can disable any unwanted versions, open a command prompt and type:
+
+    $>/usr/libexec/java_home -V
+    Matching Java Virtual Machines (2):
+    1.8.0_161, x86_64:	"Java SE 8"	/Library/Java/JavaVirtualMachines/jdk1.8.0_161.jdk/Contents/Home
+    1.8.0_144, x86_64:	"Java SE 8"	/Library/Java/JavaVirtualMachines/jdk1.8.0_144.jdk/Contents/Home
+    /Library/Java/JavaVirtualMachines/jdk1.8.0_161.jdk/Contents/Home
+
+To disable a JDK version so it will not be picked up as the default you can rename the Info.plist file in the Contents folder of the corresponding jdk folder.
+
+    $>sudo mv /Library/Java/JavaVirtualMachines/jdk1.8.0_161.jdk/Contents/Info.plist /Library/Java/JavaVirtualMachines/jdk1.8.0_161.jdk/Contents/Info.plist.disabled
 
 ##### Linux
 
@@ -37,7 +55,7 @@ Download the **.rpm** package first and then install it using the instructions f
     $> rpm -ivh jdk-8u144-linux-x64.rpm
 
     (can try with "--nodeps" if it complains on not finding a bunch of common tools like "ls" etc)
-    
+
 Set PATH and JAVA_HOME:
 
     $> nano ~/.bashrc
@@ -77,7 +95,7 @@ Verify with:
 <td>Google Plugin</td>
 <td>https://dl.google.com/eclipse/plugin/4.2</td>
 <td>
-`Google Plugin for Eclipse`<br/>
+`<del>Google Plugin for Eclipse</del>`<br/>
 `Google App Engine Java`<br/>
 `Google Web Toolkit SDK`
 </td>
@@ -100,16 +118,21 @@ Verify with:
 Always launch Eclipse from the **command line** with a development environment
 setup. See `build.py` and the `shell` command below.
 
+##### Set up Eclipse
 
+Before importing the Java projects make sure you have globally set the correct Compiler compliance level and JDK in `Eclipse > Preferences`
+
+* Start Eclipse and open the Preferences panel.
+* Navigate to `Java > Compiler` and set the `Compiler Compliance Level` to 1.7
+* Navigate to `Java > Installed JREs` and verify that it points to the correct JRE version
 
 ##### Import Java Projects
 
 * Import Java projects with `File > Import`
 * Select `General > Existing Projects into Workspace`,
 * Set root directory to `defold/com.dynamo.cr`
-* Select everything apart from `com.dynamo.cr.web` and `com.dynamo.cr.webcrawler`.
+* Select everything apart from `com.dynamo.cr.web`, `com.dynamo.cr.web2`, `com.dynamo.cr.webcrawler`, `com.dynamo.cr.webmanage` and `com.dynamo.cr.webrlog`.
 * Ensure that `Copy projects into workspace` is **not** selected
-
 
 ##### Import Engine Project
 
@@ -127,81 +150,100 @@ setup. See `build.py` and the `shell` command below.
 
 ##### Troubleshooting
 
+#### JRE not set up correctly
+
 If eclipse doesn’t get the JDK setup automatically:
+
 * Preferences -> Java -> Installed JRE’s:
 * Click Add
-* JRE Home: /Library/Java/JavaVirtualMachines/jdk1.8.0_60.jdk/Contents/Home
+* JRE Home: /Library/Java/JavaVirtualMachines/jdk1.8.0_144.jdk/Contents/Home
 * JRE Name: 1.8 (Or some other name)
 * Finish
-
-
 
 #### Python
 
 * OSX: On OSX you must run the python version shipped with OSX, eg no homebrew installed python versions)
 
+Make sure you have python2 installed by running `which python2`.
+If that is not the case symlink python2 to python or python2.7(if installed already), which is enough to build Emscripten.
+`ln -s /usr/bin/python2.7 /usr/local/bin/python2`
+
 ### General Setup
 
 #### Linux
 
-    >$ sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev python-setuptools build-essential libopenal-dev rpm git curl autoconf libtool automake
+    >$ sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev python-setuptools build-essential libopenal-dev rpm git curl autoconf libtool automake cmake tofrodos valgrind tree silversearcher-ag
+
+###### Easy Install
+
+Since the executable doesn't install anymore, easiest to create a wrapper:
+
+    >$ sudo sh -c "echo \#\!/usr/bin/env bash > /usr/local/bin/easy_install"
+    >$ sudo sh -c "echo python /usr/lib/python2.7/dist-packages/easy_install.py $\* >> /usr/local/bin/easy_install"
+    >$ sudo chmod +x /usr/local/bin/easy_install
 
 #### Windows
 
-    Binaries are available on this shared [drive](https://drive.google.com/drive/folders/0BxFxQdv6jzsec0RPeEpaOHFCZ2M?usp=sharing)
+Binaries are available on this shared [drive](https://drive.google.com/drive/folders/0BxFxQdv6jzsec0RPeEpaOHFCZ2M?usp=sharing)
 
-    - [Visual C++ 2015 Community](https://www.visualstudio.com/downloads/) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseY3liUDZmd0I3Z1E)
+- [Visual C++ 2015 Community](https://www.visualstudio.com/downloads/) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseY3liUDZmd0I3Z1E)
 
-        We only use Visual Studio 2015. Professional/Enterprise version should also work if you have a proper licence. When installing, don't forget to select VC++ and the 'Windows 8.1 and windows phone' SDK. There is also an optional 3rd party git client.
+	We only use Visual Studio 2015. Professional/Enterprise version should also work if you have a proper licence. When installing, don't forget to select VC++ and the 'Windows 8.1 and windows phone' SDK. There is also an optional 3rd party git client.
 
-    - [Python](https://www.python.org/downloads/windows/) - [download](https://drive.google.com/open?id=0BxFxQdv6jzsedW1iNXFIbGFYLVE)
+- [Python](https://www.python.org/downloads/windows/) - [download](https://drive.google.com/open?id=0BxFxQdv6jzsedW1iNXFIbGFYLVE)
 
-        Install the 32-bit 2.7.12 version. This is latest one known to work. There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually
-        During the build of the 32 bit version of Defold, a python script needs to load a shared defold library (texc). This will not work using a 64 bit python.
-        Building the 64 bit version of Defold begins with building a set of 32 bit libraries.
+	Install the 32-bit 2.7.12 version. This is latest one known to work. There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually
+During the build of the 32 bit version of Defold, a python script needs to load a shared defold library (texc). This will not work using a 64 bit python.
+Building the 64 bit version of Defold begins with building a set of 32 bit libraries.
 
-    - [easy_install/ez_setup](https://pypi.python.org/pypi/setuptools#id3) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseaTdqQXpxbl96bTA)
+- [easy_install/ez_setup](https://pypi.python.org/pypi/setuptools#id3) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseaTdqQXpxbl96bTA)
 
-        Download `ez_setup.py` and run it. Add `C:\Python27\Scripts` (where `easy_install` should now be located) to PATH.
+	Download `ez_setup.py` and run it. If `ez_setup.py` fails to connect using https when run, try adding `--insecure` as argument to enable http download. Add `C:\Python27\Scripts` (where `easy_install` should now be located) to PATH.
+	
+	- Update setuptools and pip - you might get errors running easy_install when running the install-ext command with build.py otherwise
 
-    - [MSYS/MinGW](http://www.mingw.org/download/installer) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseZ1hKaGJRZE1pM1U)
+		python -m pip install --upgrade pip
 
-        This will get you a shell that behaves like Linux and is much easier to build Defold through.
-        Run the installer and check these packages (binary):
+		pip install setuptools --upgrade
 
-        * MingW Base System: `mingw32-base`, `mingw-developer-toolkit`
-        * MSYS Base System: `msys-base`, `msys-bash`
+- [MSYS/MinGW](http://www.mingw.org/download/installer) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseZ1hKaGJRZE1pM1U)
+	This will get you a shell that behaves like Linux and is much easier to build Defold through.
+	Run the installer and check these packages (binary):
 
-        Select the menu option `Installation -> Apply Changes`
-        
-        You also need to install wget, from a cmd command line run
+	* MingW Base System: `mingw32-base`, `mingw-developer-toolkit`
+	* MSYS Base System: `msys-base`, `msys-bash`	
+	* optional packages `msys-dos2unix`
 
-            mingw-get install msys-wget-bin.
+	Select the menu option `Installation -> Apply Changes`
+	You also need to install wget, from a cmd command line run
 
-    - [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html) - [download](https://drive.google.com/a/king.com/file/d/0BxFxQdv6jzsedTRiazdWaE5NZkU/view?usp=sharing)
+		mingw-get install msys-wget-bin msys-zip msys-unzip	
 
-    This time the x64 version works fine. Make sure to set the `JAVA_HOME` env variable to the JDK path (for instance `C:\Program Files\Java\jdk1.8.0_112`) and also add the JDK path and JDK path/bin to PATH. If other JRE's appear in your path, make sure they come after the JDK or be brutal and remove them. For instance `C:\ProgramData\Oracle\Java\javapath` needs to be after the JDK path.
+- [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html) - [download](https://drive.google.com/a/king.com/file/d/0BxFxQdv6jzsedTRiazdWaE5NZkU/view?usp=sharing)
 
-    - [Git](https://git-scm.com/download/win) - [download](https://drive.google.com/a/king.com/file/d/0BxFxQdv6jzseQ0JfX2todndWZmM/view?usp=sharing)
+	This time the x64 version works fine. Make sure to set the `JAVA_HOME` env variable to the JDK path (for instance `C:\Program Files\Java\jdk1.8.0_112`) and also add the JDK path and JDK path/bin to PATH. If other JRE's appear in your path, make sure they come after the JDK or be brutal and remove them. For instance `C:\ProgramData\Oracle\Java\javapath` needs to be after the JDK path.
 
-        During install, select the option to not do any CR/LF conversion. If you use ssh (public/private keys) to access github then:
-        - Run Git GUI
-        - Help > Show SSH Key
-        - If you don't have an SSH Key, press Generate Key
-        - Add the public key to your Github profile
-        - You might need to run start-ssh-agent (in `C:\Program Files\Git\cmd`)
+- [Git](https://git-scm.com/download/win) - [download](https://drive.google.com/a/king.com/file/d/0BxFxQdv6jzseQ0JfX2todndWZmM/view?usp=sharing)
 
-        Now you should be able to clone the defold repo from a cmd prompt:
+	During install, select the option to not do any CR/LF conversion. If you use ssh (public/private keys) to access github then:
+	- Run Git GUI
+	- Help > Show SSH Key
+	- If you don't have an SSH Key, press Generate Key
+	- Add the public key to your Github profile
+	- You might need to run start-ssh-agent (in `C:\Program Files\Git\cmd`)
+	
+	Now you should be able to clone the defold repo from a cmd prompt:
 
-                git clone git@github.com:defold/defold.git
+		git clone git@github.com:defold/defold.git
 
-        If this won't work, you can try cloning using Github Desktop.
+	If this won't work, you can try cloning using Github Desktop.
 
 #### OSX
+
     - [Homebrew](http://brew.sh/)
         Install with Terminal: `ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"`
 
-
+    >$ brew install dos2unix
 
 ### Optional Software
 
@@ -222,7 +264,6 @@ Explanations:
     - Add the s4d directory to the path.
 * **cmake** for easier building of external projects
 * **patch** for easier patching on windows (when building external projects)
-
 
 ## Build Engine
 
@@ -296,8 +337,6 @@ specified. A typically workflow when working on a single test is to run
 With the flag `--gtest_filter=` it's possible to a single test in the suite,
 see [Running a Subset of the Tests](https://code.google.com/p/googletest/wiki/AdvancedGuide#Running_a_Subset_of_the_Tests)
 
-
-
 ## Build and Run Editor
 
 * Ensure that `Java > Compiler > Compiler Compliance Level` is set to ´1.7´.
@@ -313,23 +352,33 @@ see [Running a Subset of the Tests](https://code.google.com/p/googletest/wiki/Ad
 
 Note: When running the editor and building a Defold project you must first go to Preferences->Defold->Custom Application and point it to a dmengine built for your OS.
 
+## Running JUnit test in Eclipse
+* Run the tests with JUnit Plug-in Test
+	- Some test may fail due in com.dynamo.bob.bundle.test.BundlerTest due to missing engine builds for some platforms
+
 **Notes for building the editor under Linux:**
 * Install JDK8 (from Oracle) and make sure Eclipse is using it (`Preferences > Java > Installed JREs`).
 * Install [libssl0.9.8](https://packages.debian.org/squeeze/i386/libssl0.9.8/download), the Git version bundled with the editor is currently linked against libcrypto.so.0.9.8.
 * Make sure that the [protobuf-compiler](http://www.rpmseek.com/rpm-dl/protobuf-compiler_2.3.0-2_i386.html) version used is 2.3, latest (2.4) does not work.
 * `.deb` files can be installed by running:
 
-        $ sudo dpkg -i <filename>.deb
+        $ sudo dpkg -i <filename>.deb
 
         # If dpkg complains about dependencies, run this directly afterwards:
         $ sudo apt-get install -f
 
 ### Troubleshooting
+
+#### Compilation errors related to com.amazonaws.* packages
+
+These errors can safely be ignored when building the editor.
+
 #### Risk of stable and beta editor builds overwriting on release
+
 We use git SHA1 hashes as filenames/paths when we upload editor builds on S3, this means if a merge from beta into stable channel/branch result in the same SHA1, they might overwrite each other. To avoid this, make sure you have an unique git commit before pushing any of the channel branches (currently `master`, `beta` and `dev`). As a last resort, to differentiate, you can add/remove an empty row in a file triggering a new git commit.
 
-
 #### If you run the editor and get the following error while launching:
+
 ```
 1) Error injecting constructor, java.net.SocketException: Can't assign requested address
   at com.dynamo.upnp.SSDP.<init>(SSDP.java:62)
@@ -356,17 +405,20 @@ Caused by: java.net.SocketException: Can't assign requested address
 ```
 
 And the editor starts with:
+
 ```
 Plug-in com.dynamo.cr.target was unable to load class com.dynamo.cr.target.TargetContributionFactory.
 An error occurred while automatically activating bundle com.dynamo.cr.target (23).
 ```
 
 Then add the following to the VM args in your Run Configuration:
+
 ```
 -Djava.net.preferIPv4Stack=true
 ```
 
-#### When running `test_cr` on OS X and you get errors like:
+#### When running `test_cr` on OS X and you get errors like
+
 ```
 ...
 com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/util/MathUtil.java:[27]
@@ -379,7 +431,8 @@ com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/util/MathUtil.java:[27]
 This means that the wrong `vecmath.jar` library is used and you probably have a copy located in `/System/Library/Java/Extensions` or `/System/Library/Java/Extensions`. Move `vecmath.jar` somewhere else while running `test_cr`.
 If you are using El Capitan, the "rootless" feature will not allow you to move that file, as it is under the `/System` directory. To move, you need to reboot into Recovery Mode (hold down Cmd+R while booting), enter a terminal (Utilities > Terminal) and run `csrutil disable`. After this, you can reboot again normally and move the file. After that, you should consider rebooting into Recovery Mode again and run `csrutil enable`.
 
-#### When opening a .collection in the editor you get this ####
+#### When opening a .collection in the editor you get this
+
 ```
 org.osgi.framework.BundleException: Exception in com.dynamo.cr.parted.ParticleEditorPlugin.start() of bundle com.dynamo.cr.parted.
 at org.eclipse.osgi.framework.internal.core.BundleContextImpl.startActivator(BundleContextImpl.java:734)
@@ -391,6 +444,10 @@ at org.eclipse.osgi.framework.util.SecureAction.start(SecureAction.java:440)
 
 If you get this error message, it’s most likely from not having the 64 bit binaries, did you build the engine with 64 bit support? E.g. “--platform=x86_64-darwin”
 To fix, rebuild engine in 64 bit, and in Eclipse, do a clean projects, refresh and rebuild them again
+
+#### If the editor starts but is unresponsive to input
+
+You probably have an incompatible version of the JDK. 1.8_144 works, 1.8_160 does not and makes the editor start but non-responsive to input. There are no error messages at all in this case.
 
 ## Licenses
 
@@ -582,8 +639,8 @@ Some flags that is useful for emscripten projects would be to have:
 -s ERROR_ON_UNDEFINED_SYMBOLS=1
 '-fno-rtti'. Can't be used at the moment as gtest requires it, but it would be nice to have enabled
 
-
 ## Firefox OS
+
 To bundle up a firefox OS app and deploy to a connected firefox OS phone, we need to have a manifest.webapp in the web root directory:
 ```
 {
@@ -630,7 +687,6 @@ of a resource-scheme.
 Assets loaded with dmResource are cached locally. A non-standard batch-oriented cache validation mechanism
 used if available in order to speed up the cache-validation process. See dlib, *dmHttpCache* and *ConsistencyPolicy*, for more information.
 
-
 ## Engine Extensions
 
 Script extensions can be created using a simple exensions mechanism. To add a new extension to the engine the only required step is to link with the
@@ -650,14 +706,11 @@ How to package a new Android Facebook SDK:
   * copy res/* into share/java/res/facebook
 * tar/gzip the new structure
 
-
 ## Energy Consumption
 
-
-**Android**
+### Android
 
       adb shell dumpsys cpuinfo
-
 
 ## Eclipse 4.4 issues
 
@@ -667,18 +720,18 @@ How to package a new Android Facebook SDK:
 * Splash-monitor invoked after startup. See SplashHandler.java.
   Currently protected by if (splashShell == null) ...
 
-
 ## Debugging
 
 ### Emscripten
+
 Emscripten have several useful features for debugging, and it's really good to read their article about debugging in full (https://kripken.github.io/emscripten-site/docs/porting/Debugging.html). For general debugging it's good to read up on JavaScript maps which will be generated by emscripten if you compile with `-g4`. JavaScript maps will allow the browser to translate the minified JavaScript into C/C++ file and line information so you can actually place breakpoints and watch variables from the real source code.
 
 To debug memory and alignment issues the following parameters should be added both to `CCFLAGS`/`CXXFLAGS` and `LINKFLAGS` in `waf_dynamo.py` for the web target. It is important to note that this will decrease runtime performance, and significantly increase compile time, therefore it should only be used when debugging these kinds of issues.
 
 - `-g4` should be **added** to build with additional debug symbols.
 - `-s ASSERTIONS=1` should be **added** explicitly since they are otherwise turned off by optimizations.
-- `-s SAFE_HEAP=1` should be **added** to enable additional memory access checks. 
-- `-s STACK_OVERFLOW_CHECK=2` should be **added** to enable additional stack checks. 
+- `-s SAFE_HEAP=1` should be **added** to enable additional memory access checks.
+- `-s STACK_OVERFLOW_CHECK=2` should be **added** to enable additional stack checks.
 - `-s AGGRESSIVE_VARIABLE_ELIMINATION=1` should be **removed**, otherwise errors might be ignored.
 - `-s DISABLE_EXCEPTION_CATCHING=1` should be **removed**, otherwise errors might be ignored.
 

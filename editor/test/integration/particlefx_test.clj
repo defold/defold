@@ -49,15 +49,14 @@
                (plib/simulate sim 1/60 fetch-anim-fn transforms)
                (is (not (plib/sleeping? sim))))
       (testing "Stats"
-               (let [stats (-> sim
+               (let [sim (-> sim
                              (plib/simulate 1/60 fetch-anim-fn transforms)
-                             (plib/simulate 1/60 fetch-anim-fn transforms)
-                             (plib/gen-vertex-data [1.0 1.0 1.0 1.0])
-                             (plib/stats))]
+                             (plib/simulate 1/60 fetch-anim-fn transforms))
+                     stats (do (plib/gen-emitter-vertex-data sim 0 [1.0 1.0 1.0 1.0])
+                               (plib/stats sim))]
                  (is (< 0 (:particles (plib/stats sim))))))
       (testing "Rendering"
-               (plib/render sim (fn [texture-index blend-mode v-index v-count]
-                                  (is (= 12 v-count)))))
+        (is (= 12 (:v-count (plib/render-emitter sim 0)))))
       (testing "Dispose"
                (plib/destroy-sim sim)))))
 

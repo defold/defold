@@ -87,7 +87,7 @@ namespace dmLoadQueue
             {
                 // We use the temporary result object here to fill in the data so it can be written with the mutex held.
                 char canonical_path[RESOURCE_PATH_MAX];
-                GetCanonicalPath(queue->m_Factory, current->m_Name, canonical_path);
+                dmResource::GetCanonicalPath(current->m_Name, canonical_path);
 
                 uint32_t size;
 

@@ -1,4 +1,7 @@
 function init(self)
+    -- DEF-3216 Setting nil for properties and a non-nil scale will break
+    self.id_c = factory.create("#factory_c", nil, nil, nil, 1)
+
     self.id_a = factory.create("#factory_a", nil, nil, {test_value = 1})
     msg.post(self.id_a, "hello")
 end

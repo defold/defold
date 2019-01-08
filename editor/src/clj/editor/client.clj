@@ -2,12 +2,14 @@
   (:require [editor.protobuf :as protobuf]
             [editor.prefs :as prefs]
             [service.log :as log])
-  (:import [com.defold.editor.client DefoldAuthFilter]
+  (:import [clojure.lang ExceptionInfo]
+           [com.defold.editor.client DefoldAuthFilter]
            [com.defold.editor.providers ProtobufProviders ProtobufProviders$ProtobufMessageBodyReader ProtobufProviders$ProtobufMessageBodyWriter]
-           [com.dynamo.cr.protocol.proto Protocol$UserInfo]
-           [com.sun.jersey.api.client Client ClientHandlerException ClientResponse WebResource WebResource$Builder]
-           [com.sun.jersey.api.client.config ClientConfig DefaultClientConfig]
-           [java.io InputStream]
+           [com.dynamo.cr.protocol.proto Protocol$LoginInfo Protocol$NewProject Protocol$ProjectInfo Protocol$ProjectInfoList Protocol$TokenExchangeInfo Protocol$UserInfo]
+           [com.sun.jersey.api.client Client ClientHandlerException ClientResponse WebResource WebResource$Builder UniformInterfaceException]
+           [com.sun.jersey.api.client.config DefaultClientConfig]
+           [java.io InputStream ByteArrayInputStream]
+           [java.lang AutoCloseable]
            [java.net URI]
            [javax.ws.rs.core MediaType]))
 
@@ -19,31 +21,27 @@
     (.add (.getClasses cc) ProtobufProviders$ProtobufMessageBodyWriter)
     cc))
 
-(defn make-client [prefs]
+(defrecord ClientWrapper [^Client client prefs]
+  AutoCloseable
+  (close [_this] (.destroy client)))
+
+(defn make-client
+  ^AutoCloseable [prefs]
   (let [client (Client/create (make-client-config))
         email (prefs/get-prefs prefs "email" nil)
         token (prefs/get-prefs prefs "token" nil)]
     (when (and email token)
       (.addFilter client (DefoldAuthFilter. email token nil)))
-    {:client client
-     :prefs prefs}))
+    (->ClientWrapper client prefs)))
 
-; NOTE: Version without exceptions. Haven't decided yet...
-#_(defn rget [client path entity-class]
-   (let [server-url (prefs/get-prefs (:prefs client) "server-url" "http://cr.defold.com")
-         resource (.resource (:client client) (URI. server-url))]
-     (let [^ClientResponse cr (-> resource
-                                (.path path)
-                                (.accept (into-array MediaType [ProtobufProviders/APPLICATION_XPROTOBUF_TYPE]))
-                                (.get ClientResponse))]
-       { :status (.getStatus cr)
-         :entity (when (< (.getStatus cr) 300) (.getEntity cr entity-class))})))
+(defn destroy-client! [{:keys [^Client client]}]
+  (.destroy client))
 
 (def ^"[Ljavax.ws.rs.core.MediaType;" ^:private
   media-types
   (into-array MediaType [ProtobufProviders/APPLICATION_XPROTOBUF_TYPE]))
 
-(defn- server-url
+(defn server-url
   ^URI [prefs]
   (let [server-url (URI. (prefs/get-prefs prefs "server-url" "https://cr.defold.com"))]
     (when-not (= "https" (.getScheme server-url))
@@ -51,33 +49,158 @@
                       {:server-url server-url})))
     server-url))
 
-; Protobuf version as json
-(defn rget [client ^String path ^Class entity-class]
-  (let [resource   (.resource ^Client (:client client) (server-url (:prefs client)))
-        builder    (.accept (.path resource path) media-types)]
-    (protobuf/pb->map (.get builder entity-class))))
+(def ^:private stage-server-host-regex #"^[^.]*stage[^.]*") ; Is the word "stage" somewhere before the first dot in the host name?
 
-(defn user-id [client]
+(defn using-stage-server? [prefs]
+  (.find (re-matcher stage-server-host-regex (.getHost (server-url prefs)))))
+
+(defn- web-resource
+  ^WebResource [{:keys [^Client client prefs] :as _client} paths]
+  (reduce (fn [^WebResource resource path]
+            (.path resource (str path)))
+          (.resource client (server-url prefs))
+          paths))
+
+(defn- cr-resource
+  ^WebResource$Builder [client paths ^"[Ljavax.ws.rs.core.MediaType;" accept-types]
+  (let [resource (web-resource client paths)]
+    (if (seq accept-types)
+      (.accept resource accept-types)
+      (.getRequestBuilder resource))))
+
+(defn- cr-get
+  ([client paths ^Class pb-resp-class]
+   (let [builder (cr-resource client paths media-types)]
+     (protobuf/pb->map (.get builder pb-resp-class))))
+  ([client paths headers ^Class pb-resp-class]
+   (let [^WebResource$Builder builder (reduce (fn [^WebResource$Builder builder [k v]]
+                                                (.header builder k v))
+                                              (cr-resource client paths media-types)
+                                              headers)]
+     (protobuf/pb->map (.get builder pb-resp-class)))))
+
+(defn- resp->clj [^ClientResponse resp]
+  {:status (.getStatus resp)
+   :message (.toString resp)})
+
+(defn- cr-post [client paths ^InputStream stream ^MediaType type ^Class pb-resp-class]
+  (let [accept-types (if pb-resp-class media-types [])
+        ^WebResource$Builder builder (-> client
+                                       (cr-resource paths accept-types)
+                                       (.type type))]
+    (if pb-resp-class
+      (try
+        (-> builder
+          (.post pb-resp-class stream)
+          (protobuf/pb->map))
+        (catch UniformInterfaceException e
+          (throw (ex-info (.getMessage e) (resp->clj (.getResponse e)))))
+        (catch ClientHandlerException e
+          (let [msg (.getMessage e)]
+            (throw (ex-info msg {:message msg})))))
+      (with-open [^ClientResponse resp (-> builder
+                                         (.post ClientResponse stream))]
+        (let [resp (resp->clj resp)
+              status (:status resp)]
+          (when (or (< status 200) (<= 300 status))
+            (throw (ex-info (:message resp) resp))))))))
+
+(defn- cr-post-pb [client paths ^Class pb-class pb-map ^Class pb-resp-class]
+  (let [stream (ByteArrayInputStream. (protobuf/map->bytes pb-class pb-map))]
+    (cr-post client paths stream ProtobufProviders/APPLICATION_XPROTOBUF_TYPE pb-resp-class)))
+
+(defn login-with-email [client email password]
+  (assert (string? (not-empty email)))
+  (assert (string? (not-empty password)))
+  (try
+    (let [login-info (cr-get client ["login"] {"X-Email" email "X-Password" password} Protocol$LoginInfo)]
+      {:type :success
+       :login-info login-info})
+    (catch ClientHandlerException error
+      ;; This can happen if we do not have network access.
+      (log/error :exception error)
+      {:type :connection-error
+       :reason (.getMessage error)})
+    (catch UniformInterfaceException error
+      ;; A "401 Unauthorized" response means there is no Defold account for the
+      ;; specified e-mail address or the password did not match.
+      (let [status-info (.getStatusInfo (.getResponse error))
+            status-code (.getStatusCode status-info)]
+        (if (= 401 status-code)
+          {:type :unauthorized}
+          (do
+            (log/error :exception error)
+            {:type :bad-response
+             :reason (.getReasonPhrase status-info)
+             :code status-code}))))))
+
+(defn forgot-password [client ^String email]
+  (assert (string? (not-empty email)))
+  (try
+    (-> (web-resource client ["users" "password" "forgot"])
+        (.queryParam "email" email)
+        (.post))
+    ;; An e-mail with a password reset link was sent to the provided e-mail address.
+    {:type :success}
+    (catch ClientHandlerException error
+      ;; This can happen if we do not have network access.
+      (log/error :exception error)
+      {:type :connection-error
+       :reason (.getMessage error)})
+    (catch UniformInterfaceException error
+      ;; A "404 Not Found" response means there is no Defold account for the
+      ;; specified e-mail address.
+      (let [status-info (.getStatusInfo (.getResponse error))
+            status-code (.getStatusCode status-info)]
+        (if (= 404 status-code)
+          {:type :not-found}
+          (do
+            (log/error :exception error)
+            {:type :bad-response
+             :reason (.getReasonPhrase status-info)
+             :code status-code}))))))
+
+(defn exchange-info [client token]
+  (assert (string? (not-empty token)))
+  (try
+    (let [exchange-info (cr-get client ["login" "oauth" "exchange" token] Protocol$TokenExchangeInfo)]
+      (case (:type exchange-info)
+        :login {:type :success
+                :exchange-info exchange-info}
+        :signup {:type :signup-required}))
+    (catch ClientHandlerException error
+      ;; This can happen if we do not have network access.
+      (log/error :exception error)
+      {:type :connection-error
+       :reason (.getMessage error)})
+    (catch UniformInterfaceException error
+      (let [status-info (.getStatusInfo (.getResponse error))]
+        (log/error :exception error)
+        {:type :bad-response
+         :reason (.getReasonPhrase status-info)
+         :code (.getStatusCode status-info)}))))
+
+(defn user-info [client]
   (when-let [email (prefs/get-prefs (:prefs client) "email" nil)]
-    (try
-      (let [info (rget client (format "/users/%s" email) Protocol$UserInfo)]
-        (:id info))
-      (catch Exception e
-        (log/warn :exception e)
-        nil))))
+    (cr-get client ["users" email] Protocol$UserInfo)))
 
 (defn upload-engine [client user-id cr-project-id ^String platform ^InputStream stream]
-  (let [{:keys [^Client client prefs]} client]
-    (let [^WebResource resource (-> (.resource client (server-url prefs))
-                                    (.path "projects")
-                                    (.path (str user-id))
-                                    (.path (str cr-project-id))
-                                    (.path "engine")
-                                    (.path platform))
-          ^ClientResponse resp (-> resource
-                                   (.type MediaType/APPLICATION_OCTET_STREAM_TYPE)
-                                   (.post ClientResponse stream))]
-      (when (not= 200 (.getStatus resp))
-        (throw (ex-info (format "Could not upload engine %d: %s" (.getStatus resp) (.toString resp))
-                        {:status (.getStatus resp)
-                         :uri (.toString (.getURI resource))}))))))
+  (try
+    (cr-post client ["projects" user-id cr-project-id "engine" platform] stream MediaType/APPLICATION_OCTET_STREAM_TYPE nil)
+    (catch ExceptionInfo e
+      (let [resp (ex-data e)]
+        (throw (ex-info (format "Could not upload engine %d: %s" (:status resp) (:message resp)) resp))))))
+
+(defn new-project [client user-id new-project-pb-map]
+  (try
+    (cr-post-pb client ["projects" user-id] Protocol$NewProject new-project-pb-map Protocol$ProjectInfo)
+    (catch ExceptionInfo e
+      (let [resp (ex-data e)]
+        (throw (ex-info (format "Could not create new project %d: %s" (:status resp) (:message resp)) resp))))))
+
+(defn- compare-project-names [p1 p2]
+  (.compareToIgnoreCase ^String (:name p1) ^String (:name p2)))
+
+(defn fetch-projects [client]
+  (let [project-info-list (cr-get client ["projects" -1] Protocol$ProjectInfoList)]
+    (sort compare-project-names (:projects project-info-list))))

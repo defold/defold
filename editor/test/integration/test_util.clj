@@ -24,9 +24,10 @@
             [util.thread-util :as thread-util])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
            [java.util UUID]
+           [java.util.concurrent LinkedBlockingQueue]
+           [java.util.zip ZipEntry ZipOutputStream]
            [javax.imageio ImageIO]
-           [org.apache.commons.io FilenameUtils IOUtils]
-           [java.util.zip ZipOutputStream ZipEntry]))
+           [org.apache.commons.io FilenameUtils IOUtils]))
 
 (def project-path "test/resources/test_project")
 
@@ -74,18 +75,13 @@
 (defn make-test-prefs []
   (prefs/load-prefs "test/resources/test_prefs.json"))
 
-(def ^:dynamic use-new-code-editor? false)
 (declare prop prop!)
 
 (defn code-editor-source [script-id]
-  (if use-new-code-editor?
-    (string/join "\n" (prop script-id :lines))
-    (prop script-id :code)))
+  (string/join "\n" (prop script-id :modified-lines)))
 
 (defn code-editor-source! [script-id source]
-  (if use-new-code-editor?
-    (prop! script-id :lines (string/split source #"\r?\n" -1))
-    (prop! script-id :code source)))
+  (prop! script-id :modified-lines (string/split source #"\r?\n" -1)))
 
 (defn setup-workspace!
   ([graph]
@@ -97,7 +93,7 @@
      (g/transact
        (concat
          (scene/register-view-types workspace)))
-     (resource-types/register-resource-types! workspace use-new-code-editor?)
+     (resource-types/register-resource-types! workspace)
      (workspace/resource-sync! workspace)
      workspace)))
 
@@ -128,6 +124,11 @@
      (g/reset-undo! proj-graph)
      project)))
 
+(defn project-node-resources [project]
+  (g/with-auto-evaluation-context evaluation-context
+    (sort-by resource/proj-path
+             (map (comp #(g/node-value % :resource evaluation-context) first)
+                  (g/sources-of project :node-id+resources)))))
 
 (defrecord FakeFileResource [workspace root ^File file children exists? source-type read-only? content]
   resource/Resource
@@ -186,7 +187,7 @@
 
 (defn setup-app-view! [project]
   (let [view-graph (make-view-graph!)]
-    (-> (g/make-nodes view-graph [app-view [MockAppView :active-tool :move]]
+    (-> (g/make-nodes view-graph [app-view [MockAppView :active-tool :move :manip-space :world]]
           (g/connect project :_node-id app-view :project-id)
           (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
             (g/connect project label app-view label)))
@@ -198,7 +199,6 @@
   (let [node-id (project/get-resource-node project path)
         views-by-node-id (let [views (g/node-value app-view :open-views)]
                            (zipmap (map :resource-node (vals views)) (keys views)))
-        resource (g/node-value node-id :resource)
         view (get views-by-node-id node-id)]
     (if view
       (do
@@ -209,7 +209,7 @@
         (g/transact
           (concat
             (g/connect node-id :_node-id view :resource-node)
-            (g/connect node-id :node-id+resource view :node-id+resource)
+            (g/connect node-id :valid-node-id+resource view :node-id+resource)
             (g/connect view :view-data app-view :open-views)
             (g/set-property app-view :active-view view)))
         (app-view/select! app-view [node-id])
@@ -243,7 +243,7 @@
           app-view  (setup-app-view! project)]
       [workspace project app-view])))
 
-(defn- load-system-and-project-raw [path _use-new-code-editor?]
+(defn- load-system-and-project-raw [path]
   (test-support/with-clean-system
     (let [workspace (setup-workspace! world path)
           project (setup-project! workspace)]
@@ -256,7 +256,7 @@
   (let [custom-path?  (or (string? (first forms)) (symbol? (first forms)))
         project-path  (if custom-path? (first forms) project-path)
         forms         (if custom-path? (next forms) forms)]
-    `(let [[system# ~'workspace ~'project] (load-system-and-project ~project-path use-new-code-editor?)
+    `(let [[system# ~'workspace ~'project] (load-system-and-project ~project-path)
            ~'system (is/clone-system system#)
            ~'cache  (:cache ~'system)
            ~'world  (g/node-id->graph-id ~'workspace)]
@@ -271,6 +271,30 @@
        (let [result# (do ~@forms)]
          (doseq [f# @laters#] (f#))
          result#))))
+
+(defn run-event-loop!
+  "Starts a simulated event loop and enqueues the supplied function on it.
+  The function is invoked with a single argument, which is a function that must
+  be called to exit the event loop. Blocks until the event loop is terminated,
+  or an exception is thrown from an enqueued action. While the event loop is
+  running, ui/run-now and ui/run-later are rebound to enqueue actions on the
+  simulated event loop, and ui/on-ui-thread? will return true only if called
+  from inside the event loop."
+  [f]
+  (let [ui-thread (Thread/currentThread)
+        action-queue (LinkedBlockingQueue.)
+        enqueue-action! (fn [action!]
+                          (.add action-queue action!)
+                          nil)
+        exit-event-loop! #(enqueue-action! ::exit-event-loop)]
+    (with-redefs [ui/on-ui-thread? #(= ui-thread (Thread/currentThread))
+                  ui/do-run-later enqueue-action!]
+      (enqueue-action! (fn [] (f exit-event-loop!)))
+      (loop []
+        (let [action! (.take action-queue)]
+          (when (not= ::exit-event-loop action!)
+            (action!)
+            (recur)))))))
 
 (defn set-active-tool! [app-view tool]
   (g/transact (g/set-property app-view :active-tool tool)))
@@ -415,7 +439,7 @@
 (defn kill-lib-server [server]
   (http-server/stop! server))
 
-(defn lib-server-url [server lib]
+(defn lib-server-uri [server lib]
   (format "%s/lib/%s" (http-server/local-url server) lib))
 
 (defn handler-run [command command-contexts user-data]

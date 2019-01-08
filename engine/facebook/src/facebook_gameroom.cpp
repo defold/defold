@@ -6,18 +6,145 @@
 #include "facebook_private.h"
 #include "facebook_analytics.h"
 
+
+/**
+ * 20170507 Dan Engelbrecht
+ * This implementation uses knowledge of the insides of the dmScript::LuaCallbackInfo
+ * and the API has changed. To avoid to big changes on too many platforms the old
+ * lua callback utilities has been copied in to this file.
+ *
+ * We want to move away from this but the individual platforms also relies on the
+ * specifics on the LuaCallbackInfo structs content so these changes should be done
+ * in separate PR.
+ */
+
+struct LuaCallbackInfo
+{
+    LuaCallbackInfo() : m_L(0), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
+    lua_State* m_L;
+    int        m_Callback;
+    int        m_Self;
+};
+
+static void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk)
+{
+    if(cbk->m_Callback != LUA_NOREF)
+    {
+        dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
+        dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
+    }
+
+    cbk->m_L = dmScript::GetMainThread(L);
+
+    luaL_checktype(L, index, LUA_TFUNCTION);
+    lua_pushvalue(L, index);
+    cbk->m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+    dmScript::GetInstance(L);
+    cbk->m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
+}
+
+typedef void (*LuaCallbackUserFn)(lua_State* L, void* user_context);
+
+static bool IsValidCallback(LuaCallbackInfo* cbk)
+{
+    if (cbk->m_Callback == LUA_NOREF ||
+        cbk->m_Self == LUA_NOREF ||
+        cbk->m_L == NULL) {
+        return false;
+    }
+    return true;
+}
+
+static void UnregisterCallback(LuaCallbackInfo* cbk)
+{
+    if(cbk->m_Callback != LUA_NOREF)
+    {
+        dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
+        dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
+        cbk->m_Callback = LUA_NOREF;
+        cbk->m_Self = LUA_NOREF;
+        cbk->m_L = 0;
+    }
+    else
+    {
+        if (cbk->m_L)
+            luaL_error(cbk->m_L, "Failed to unregister callback (it was not registered)");
+        else
+            dmLogWarning("Failed to unregister callback (it was not registered)");
+    }
+}
+
+static bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
+{
+    if(cbk->m_Callback == LUA_NOREF)
+    {
+        luaL_error(cbk->m_L, "Failed to invoke callback (it was not registered)");
+        return false;
+    }
+
+    lua_State* L = cbk->m_L;
+    DM_LUA_STACK_CHECK(L, 0);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Callback);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Self); // Setup self (the script instance)
+    lua_pushvalue(L, -1);
+    dmScript::SetInstance(L);
+
+    if (!dmScript::IsInstanceValid(L))
+    {
+        lua_pop(L, 2);
+        dmLogWarning("Invalid script instance, failed to invoke callback");
+        return false;
+    }
+
+    int user_args_start = lua_gettop(L);
+
+    if (fn)
+        fn(L, user_context);
+
+    int user_args_end = lua_gettop(L);
+
+    int number_of_arguments = 1 + user_args_end - user_args_start; // instance + number of arguments that the user pushed
+    int ret = dmScript::PCall(L, number_of_arguments, 0);
+    if (ret != 0) {
+        dmLogError("Error running callback: %s", lua_tostring(L,-1));
+        lua_pop(L, 1);
+        return false;
+    }
+
+    return true;
+}
+
 struct GameroomFB
 {
-    dmScript::LuaCallbackInfo m_Callback;
+    LuaCallbackInfo m_Callback;
+    const dmFBGameroom::FBGameroomFunctions* m_FBFunctions;
 } g_GameroomFB;
 
 static const dmhash_t g_DialogFeed = dmHashBufferNoReverse64("feed", 4);
 static const dmhash_t g_DialogAppRequests = dmHashBufferNoReverse64("apprequests", 11);
 static const dmhash_t g_DialogAppRequest = dmHashBufferNoReverse64("apprequest", 10);
 
+static bool CheckFacebookInit()
+{
+    if (!dmFBGameroom::CheckGameroomInit())
+    {
+        return false;
+    }
+
+    if (!g_GameroomFB.m_FBFunctions)
+    {
+        g_GameroomFB.m_FBFunctions = dmFBGameroom::GetFBFunctions();
+        return g_GameroomFB.m_FBFunctions != 0;
+    }
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Functions for running callbacks; dialog and login results
 //
+
 
 struct LoginResultArguments
 {
@@ -42,7 +169,7 @@ static void RunLoginResultCallback(lua_State* L, int result, const char* error)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (!dmScript::IsValidCallback(&g_GameroomFB.m_Callback)) {
+    if (!IsValidCallback(&g_GameroomFB.m_Callback)) {
         dmLogError("No callback set for login result.");
         return;
     }
@@ -51,9 +178,9 @@ static void RunLoginResultCallback(lua_State* L, int result, const char* error)
     args.m_Result = result;
     args.m_Error = error;
 
-    dmScript::InvokeCallback(&g_GameroomFB.m_Callback, PutLoginResultArguments, (void*)&args);
+    InvokeCallback(&g_GameroomFB.m_Callback, PutLoginResultArguments, (void*)&args);
 
-    dmScript::UnregisterCallback(&g_GameroomFB.m_Callback);
+    UnregisterCallback(&g_GameroomFB.m_Callback);
 }
 
 struct AppRequestArguments
@@ -87,7 +214,7 @@ static void PutAppRequestArguments(lua_State* L, void* user_context)
 
 static void RunAppRequestCallback(const char* request_id, const char* to)
 {
-    if (!dmScript::IsValidCallback(&g_GameroomFB.m_Callback)) {
+    if (!IsValidCallback(&g_GameroomFB.m_Callback)) {
         dmLogError("No callback set for dialog result.");
         return;
     }
@@ -96,9 +223,9 @@ static void RunAppRequestCallback(const char* request_id, const char* to)
     args.m_RequestId = request_id;
     args.m_To = to;
 
-    dmScript::InvokeCallback(&g_GameroomFB.m_Callback, PutAppRequestArguments, (void*)&args);
+    InvokeCallback(&g_GameroomFB.m_Callback, PutAppRequestArguments, (void*)&args);
 
-    dmScript::UnregisterCallback(&g_GameroomFB.m_Callback);
+    UnregisterCallback(&g_GameroomFB.m_Callback);
 }
 
 static void PutFeedArguments(lua_State* L, void* user_context)
@@ -114,14 +241,14 @@ static void PutFeedArguments(lua_State* L, void* user_context)
 
 static void RunFeedCallback(const char* post_id)
 {
-    if (!dmScript::IsValidCallback(&g_GameroomFB.m_Callback)) {
+    if (!IsValidCallback(&g_GameroomFB.m_Callback)) {
         dmLogError("No callback set for dialog result.");
         return;
     }
 
-    dmScript::InvokeCallback(&g_GameroomFB.m_Callback, PutFeedArguments, (void*)post_id);
+    InvokeCallback(&g_GameroomFB.m_Callback, PutFeedArguments, (void*)post_id);
 
-    dmScript::UnregisterCallback(&g_GameroomFB.m_Callback);
+    UnregisterCallback(&g_GameroomFB.m_Callback);
 }
 
 static void PutDialogErrorArguments(lua_State* L, void* user_context)
@@ -135,14 +262,14 @@ static void PutDialogErrorArguments(lua_State* L, void* user_context)
 
 static void RunDialogErrorCallback(const char* error_str)
 {
-    if (!dmScript::IsValidCallback(&g_GameroomFB.m_Callback)) {
+    if (!IsValidCallback(&g_GameroomFB.m_Callback)) {
         dmLogError("No callback set for dialog result.");
         return;
     }
 
-    dmScript::InvokeCallback(&g_GameroomFB.m_Callback, PutDialogErrorArguments, (void*)error_str);
+    InvokeCallback(&g_GameroomFB.m_Callback, PutDialogErrorArguments, (void*)error_str);
 
-    dmScript::UnregisterCallback(&g_GameroomFB.m_Callback);
+    UnregisterCallback(&g_GameroomFB.m_Callback);
 }
 
 
@@ -154,14 +281,14 @@ namespace dmFacebook {
 
 int Facebook_Login(lua_State* L)
 {
-    if (!dmFBGameroom::CheckGameroomInit()) {
+    if (!CheckFacebookInit()) {
         return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
     DM_LUA_STACK_CHECK(L, 0);
 
     RegisterCallback(L, 1, &g_GameroomFB.m_Callback);
 
-    fbg_Login();
+    g_GameroomFB.m_FBFunctions->fbg_Login();
 
     return 0;
 }
@@ -187,10 +314,7 @@ static void LoginWithScopes(const char** permissions,
         }
     }
 
-    fbg_Login_WithScopes(
-      i,
-      login_scopes
-    );
+    g_GameroomFB.m_FBFunctions->fbg_Login_WithScopes(i, login_scopes);
 
     free(login_scopes);
 }
@@ -198,13 +322,13 @@ static void LoginWithScopes(const char** permissions,
 void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permissions,
     uint32_t permission_count, int callback, int context, lua_State* thread)
 {
-    if (!dmFBGameroom::CheckGameroomInit()) {
+    if (!CheckFacebookInit()) {
         return;
     }
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (dmScript::IsValidCallback(&g_GameroomFB.m_Callback)) {
-        dmScript::UnregisterCallback(&g_GameroomFB.m_Callback);
+    if (IsValidCallback(&g_GameroomFB.m_Callback)) {
+        UnregisterCallback(&g_GameroomFB.m_Callback);
     }
 
     g_GameroomFB.m_Callback.m_Callback = callback;
@@ -216,13 +340,13 @@ void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permiss
 void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** permissions,
     uint32_t permission_count, int audience, int callback, int context, lua_State* thread)
 {
-    if (!dmFBGameroom::CheckGameroomInit()) {
+    if (!CheckFacebookInit()) {
         return;
     }
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (dmScript::IsValidCallback(&g_GameroomFB.m_Callback)) {
-        dmScript::UnregisterCallback(&g_GameroomFB.m_Callback);
+    if (IsValidCallback(&g_GameroomFB.m_Callback)) {
+        UnregisterCallback(&g_GameroomFB.m_Callback);
     }
 
     g_GameroomFB.m_Callback.m_Callback = callback;
@@ -233,22 +357,22 @@ void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** perm
 
 int Facebook_AccessToken(lua_State* L)
 {
-    if (!dmFBGameroom::CheckGameroomInit()) {
+    if (!CheckFacebookInit()) {
         return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
 
     DM_LUA_STACK_CHECK(L, 1);
 
     // No access token available? Return empty string.
-    fbgAccessTokenHandle access_token_handle = fbg_AccessToken_GetActiveAccessToken();
-    if (!access_token_handle || !fbg_AccessToken_IsValid(access_token_handle)) {
+    fbgAccessTokenHandle access_token_handle = g_GameroomFB.m_FBFunctions->fbg_AccessToken_GetActiveAccessToken();
+    if (!access_token_handle || !g_GameroomFB.m_FBFunctions->fbg_AccessToken_IsValid(access_token_handle)) {
         lua_pushnil(L);
         return 1;
     }
 
-    size_t access_token_size = fbg_AccessToken_GetTokenString(access_token_handle, 0, 0) + 1;
+    size_t access_token_size = g_GameroomFB.m_FBFunctions->fbg_AccessToken_GetTokenString(access_token_handle, 0, 0) + 1;
     char* access_token_str = (char*)malloc(access_token_size * sizeof(char));
-    fbg_AccessToken_GetTokenString(access_token_handle, access_token_str, access_token_size);
+    g_GameroomFB.m_FBFunctions->fbg_AccessToken_GetTokenString(access_token_handle, access_token_str, access_token_size);
     lua_pushstring(L, access_token_str);
     free(access_token_str);
 
@@ -257,7 +381,7 @@ int Facebook_AccessToken(lua_State* L)
 
 int Facebook_Permissions(lua_State* L)
 {
-    if (!dmFBGameroom::CheckGameroomInit()) {
+    if (!CheckFacebookInit()) {
         return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
 
@@ -266,20 +390,20 @@ int Facebook_Permissions(lua_State* L)
     lua_newtable(L);
 
     // If there is no access token, push an empty table.
-    fbgAccessTokenHandle access_token_handle = fbg_AccessToken_GetActiveAccessToken();
-    if (!access_token_handle || !fbg_AccessToken_IsValid(access_token_handle)) {
+    fbgAccessTokenHandle access_token_handle = g_GameroomFB.m_FBFunctions->fbg_AccessToken_GetActiveAccessToken();
+    if (!access_token_handle || !g_GameroomFB.m_FBFunctions->fbg_AccessToken_IsValid(access_token_handle)) {
         return 1;
     }
 
     // Initial call to figure out how many permissions we need to allocate for.
-    size_t permission_count = fbg_AccessToken_GetPermissions(access_token_handle, 0, 0);
+    size_t permission_count = g_GameroomFB.m_FBFunctions->fbg_AccessToken_GetPermissions(access_token_handle, 0, 0);
 
     fbgLoginScope* permissions = (fbgLoginScope*)malloc(permission_count * sizeof(fbgLoginScope));
-    fbg_AccessToken_GetPermissions(access_token_handle, permissions, permission_count);
+    g_GameroomFB.m_FBFunctions->fbg_AccessToken_GetPermissions(access_token_handle, permissions, permission_count);
 
     for (size_t i = 0; i < permission_count; ++i) {
         lua_pushnumber(L, i);
-        lua_pushstring(L, fbgLoginScope_ToString(permissions[i]));
+        lua_pushstring(L, g_GameroomFB.m_FBFunctions->fbgLoginScope_ToString(permissions[i]));
         lua_rawset(L, -3);
     }
 
@@ -292,7 +416,7 @@ int Facebook_ShowDialog(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (!dmFBGameroom::CheckGameroomInit()) {
+    if (!CheckFacebookInit()) {
         return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
 
@@ -312,7 +436,7 @@ int Facebook_ShowDialog(lua_State* L)
             content_title = dmScript::GetTableStringValue(L, 2, "title", NULL);
         }
 
-        fbg_FeedShare(
+        g_GameroomFB.m_FBFunctions->fbg_FeedShare(
             dmScript::GetTableStringValue(L, 2, "to", NULL),
             dmScript::GetTableStringValue(L, 2, "link", NULL),
             dmScript::GetTableStringValue(L, 2, "link_title", NULL),
@@ -382,7 +506,7 @@ int Facebook_ShowDialog(lua_State* L)
         }
         lua_pop(L, 1);
 
-        fbg_AppRequest(
+        g_GameroomFB.m_FBFunctions->fbg_AppRequest(
             dmScript::GetTableStringValue(L, 2, "message", NULL),
             action,
             dmScript::GetTableStringValue(L, 2, "object_id", NULL),
@@ -411,14 +535,14 @@ int Facebook_ShowDialog(lua_State* L)
 
 int Facebook_PostEvent(lua_State* L)
 {
-    if (!dmFBGameroom::CheckGameroomInit()) {
+    if (!CheckFacebookInit()) {
         return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
     DM_LUA_STACK_CHECK(L, 0);
 
     const char* event = Analytics::GetEvent(L, 1);
     float value_to_sum = (float)luaL_checknumber(L, 2);
-    const fbgFormDataHandle form_data_handle = fbg_FormData_CreateNew();
+    const fbgFormDataHandle form_data_handle = g_GameroomFB.m_FBFunctions->fbg_FormData_CreateNew();
 
     // Table is an optional argument and should only be parsed if provided.
     if (lua_gettop(L) >= 3)
@@ -432,15 +556,11 @@ int Facebook_PostEvent(lua_State* L)
         // Prepare for Gameroom API
         for (unsigned int i = 0; i < length; ++i)
         {
-            fbg_FormData_Set(form_data_handle, keys[i], strlen(keys[i]), values[i], strlen(values[i]));
+            g_GameroomFB.m_FBFunctions->fbg_FormData_Set(form_data_handle, keys[i], strlen(keys[i]), values[i], strlen(values[i]));
         }
     }
 
-    fbg_LogAppEventWithValueToSum(
-        event,
-        form_data_handle,
-        value_to_sum
-    );
+    g_GameroomFB.m_FBFunctions->fbg_LogAppEventWithValueToSum(event, form_data_handle, value_to_sum);
 
     return 0;
 }
@@ -495,18 +615,23 @@ static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
         return dmExtension::RESULT_OK;
     }
 
+    if (!g_GameroomFB.m_FBFunctions)
+    {
+        g_GameroomFB.m_FBFunctions = dmFBGameroom::GetFBFunctions();
+    }
+
     lua_State* L = params->m_L;
 
     dmArray<fbgMessageHandle>* messages = dmFBGameroom::GetFacebookMessages();
     for (uint32_t i = 0; i < messages->Size(); ++i)
     {
         fbgMessageHandle message = (*messages)[i];
-        fbgMessageType message_type = fbg_Message_GetType(message);
+        fbgMessageType message_type = g_GameroomFB.m_FBFunctions->fbg_Message_GetType(message);
         switch (message_type) {
             case fbgMessage_AccessToken: {
 
-                fbgAccessTokenHandle access_token = fbg_Message_AccessToken(message);
-                if (fbg_AccessToken_IsValid(access_token))
+                fbgAccessTokenHandle access_token = g_GameroomFB.m_FBFunctions->fbg_Message_AccessToken(message);
+                if (g_GameroomFB.m_FBFunctions->fbg_AccessToken_IsValid(access_token))
                 {
                     RunLoginResultCallback(L, dmFacebook::STATE_OPEN, 0x0);
                 } else {
@@ -517,15 +642,15 @@ static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
             }
             case fbgMessage_FeedShare: {
 
-                fbgFeedShareHandle feed_share_handle = fbg_Message_FeedShare(message);
-                fbid post_id = fbg_FeedShare_GetPostID(feed_share_handle);
+                fbgFeedShareHandle feed_share_handle = g_GameroomFB.m_FBFunctions->fbg_Message_FeedShare(message);
+                fbid post_id = g_GameroomFB.m_FBFunctions->fbg_FeedShare_GetPostID(feed_share_handle);
 
                 // If the post id is invalid, we interpret it as the dialog was closed
                 // since there is no other way to know if it was closed or not.
                 if (post_id != fbgInvalidRequestID)
                 {
                     char post_id_str[128];
-                    fbid_ToString((char*)post_id_str, 128, post_id);
+                    g_GameroomFB.m_FBFunctions->fbid_ToString((char*)post_id_str, 128, post_id);
                     RunFeedCallback(post_id_str);
                 } else {
                     RunDialogErrorCallback("Feed share dialog failed.");
@@ -535,19 +660,19 @@ static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
             }
             case fbgMessage_AppRequest: {
 
-                fbgAppRequestHandle app_request = fbg_Message_AppRequest(message);
+                fbgAppRequestHandle app_request = g_GameroomFB.m_FBFunctions->fbg_Message_AppRequest(message);
 
                 // Get app request id
-                size_t request_id_size = fbg_AppRequest_GetRequestObjectId(app_request, 0, 0);
+                size_t request_id_size = g_GameroomFB.m_FBFunctions->fbg_AppRequest_GetRequestObjectId(app_request, 0, 0);
                 if (request_id_size > 0) {
                     request_id_size += 1; // Include nullterm
                     char* request_id = (char*)malloc(request_id_size * sizeof(char));
-                    fbg_AppRequest_GetRequestObjectId(app_request, request_id, request_id_size);
+                    g_GameroomFB.m_FBFunctions->fbg_AppRequest_GetRequestObjectId(app_request, request_id, request_id_size);
 
                     // Get "to" list
-                    size_t to_size = fbg_AppRequest_GetTo(app_request, 0, 0) + 1;
+                    size_t to_size = g_GameroomFB.m_FBFunctions->fbg_AppRequest_GetTo(app_request, 0, 0) + 1;
                     char* to = (char*)malloc(to_size * sizeof(char));
-                    fbg_AppRequest_GetTo(app_request, to, to_size);
+                    g_GameroomFB.m_FBFunctions->fbg_AppRequest_GetTo(app_request, to, to_size);
 
                     RunAppRequestCallback(request_id, to);
 
@@ -564,7 +689,7 @@ static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
             break;
         }
 
-        fbg_FreeMessage(message);
+        g_GameroomFB.m_FBFunctions->fbg_FreeMessage(message);
     }
     messages->SetSize(0);
     return dmExtension::RESULT_OK;

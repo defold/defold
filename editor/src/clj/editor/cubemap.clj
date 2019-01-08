@@ -79,8 +79,7 @@
 
 (g/defnk produce-gpu-texture
   [_node-id gpu-texture-generator]
-  (let [{:keys [generate-fn user-data]} gpu-texture-generator]
-    (generate-fn user-data _node-id texture/default-cubemap-texture-params 0)))
+  ((:f gpu-texture-generator) (:args gpu-texture-generator) _node-id texture/default-cubemap-texture-params 0))
 
 (g/defnk produce-save-value [right left top bottom front back]
   {:right (resource/resource->proj-path right)
@@ -98,13 +97,15 @@
      :renderable {:render-fn (fn [gl render-args _renderables _count]
                                (let [camera (:camera render-args)]
                                  (render-cubemap gl render-args camera gpu-texture vertex-binding)))
+                  :tags #{:cubemap}
                   :passes [pass/transparent]}}))
 
-(defn- cubemap-side-setter [resource-label image-label size-label]
+(defn- cubemap-side-setter [resource-label image-label image-generator-label size-label]
   (fn [evaluation-context self old-value new-value]
-    (project/resource-setter self old-value new-value
+    (project/resource-setter evaluation-context self old-value new-value
                              [:resource resource-label]
                              [:content image-label]
+                             [:content-generator image-generator-label]
                              [:size size-label])))
 
 (defn- generate-gpu-texture [{:keys [cubemap-images texture-profile]} request-id params unit]
@@ -114,12 +115,21 @@
     params
     unit))
 
+(defn- generate-images [image-generators]
+  (into {}
+        (map (fn [[dir generator]]
+               [dir ((:f generator) (:args generator))]))
+        image-generators))
+
 (defn- build-cubemap [resource dep-resources user-data]
-  (let [{:keys [images texture-profile compress?]} user-data
-        texture-images (tex-gen/make-cubemap-texture-images images texture-profile compress?)
-        cubemap-texture-image (tex-gen/assemble-cubemap-texture-images texture-images)]
-    {:resource resource
-     :content (protobuf/pb->bytes cubemap-texture-image)}))
+  (let [{:keys [image-generators texture-profile compress?]} user-data
+        images (generate-images image-generators)]
+    (g/precluding-errors
+      (vals images)
+      (let [texture-images (tex-gen/make-cubemap-texture-images images texture-profile compress?)
+            cubemap-texture-image (tex-gen/assemble-cubemap-texture-images texture-images)]
+        {:resource resource
+         :content (protobuf/pb->bytes cubemap-texture-image)}))))
 
 (def ^:private cubemap-dir->property
   {:px :right
@@ -150,14 +160,14 @@
                                    [:px :nx :py :ny :pz :nz]))]
         (g/->error node-id nil :fatal nil message)))))
 
-(g/defnk produce-build-targets [_node-id resource cubemap-images cubemap-image-resources cubemap-image-sizes texture-profile build-settings]
+(g/defnk produce-build-targets [_node-id resource cubemap-image-generators cubemap-image-resources cubemap-image-sizes texture-profile build-settings]
   (g/precluding-errors
     [(cubemap-images-missing-error _node-id cubemap-image-resources)
      (cubemap-image-sizes-error _node-id cubemap-image-sizes)]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-cubemap
-      :user-data {:images cubemap-images
+      :user-data {:image-generators cubemap-image-generators
                   :texture-profile texture-profile
                   :compress? (:compress? build-settings false)}}]))
 
@@ -180,32 +190,32 @@
 
   (property right resource/Resource
             (value (gu/passthrough right-resource))
-            (set (cubemap-side-setter :right-resource :right-image :right-size))
+            (set (cubemap-side-setter :right-resource :right-image :right-image-generator :right-size))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
             (dynamic error (cubemap-side-error right)))
   (property left resource/Resource
             (value (gu/passthrough left-resource))
-            (set (cubemap-side-setter :left-resource :left-image :left-size))
+            (set (cubemap-side-setter :left-resource :left-image :left-image-generator :left-size))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
             (dynamic error (cubemap-side-error left)))
   (property top resource/Resource
             (value (gu/passthrough top-resource))
-            (set (cubemap-side-setter :top-resource :top-image :top-size))
+            (set (cubemap-side-setter :top-resource :top-image :top-image-generator :top-size))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
             (dynamic error (cubemap-side-error top)))
   (property bottom resource/Resource
             (value (gu/passthrough bottom-resource))
-            (set (cubemap-side-setter :bottom-resource :bottom-image :bottom-size))
+            (set (cubemap-side-setter :bottom-resource :bottom-image :bottom-image-generator :bottom-size))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
             (dynamic error (cubemap-side-error bottom)))
   (property front resource/Resource
             (value (gu/passthrough front-resource))
-            (set (cubemap-side-setter :front-resource :front-image :front-size))
+            (set (cubemap-side-setter :front-resource :front-image :front-image-generator :front-size))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
             (dynamic error (cubemap-side-error front)))
   (property back resource/Resource
             (value (gu/passthrough back-resource))
-            (set (cubemap-side-setter :back-resource :back-image :back-size))
+            (set (cubemap-side-setter :back-resource :back-image :back-image-generator :back-size))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
             (dynamic error (cubemap-side-error back)))
 
@@ -223,6 +233,13 @@
   (input front-image  BufferedImage)
   (input back-image   BufferedImage)
 
+  (input right-image-generator  g/Any)
+  (input left-image-generator   g/Any)
+  (input top-image-generator    g/Any)
+  (input bottom-image-generator g/Any)
+  (input front-image-generator  g/Any)
+  (input back-image-generator   g/Any)
+
   (input right-size  g/Any)
   (input left-size   g/Any)
   (input top-size    g/Any)
@@ -237,6 +254,10 @@
   (output cubemap-images g/Any :cached (g/fnk [right-image left-image top-image bottom-image front-image back-image]
                                               {:px right-image :nx left-image :py top-image :ny bottom-image :pz front-image :nz back-image}))
 
+  (output cubemap-image-generators g/Any (g/fnk [right-image-generator left-image-generator top-image-generator bottom-image-generator front-image-generator back-image-generator]
+                                                        {:px right-image-generator :nx left-image-generator :py top-image-generator :ny bottom-image-generator :pz front-image-generator :nz back-image-generator}))
+
+
   (output cubemap-image-sizes g/Any :cached (g/fnk [right-size left-size top-size bottom-size front-size back-size]
                                                    {:px right-size :nx left-size :py top-size :ny bottom-size :pz front-size :nz back-size}))
 
@@ -244,9 +265,9 @@
                                                      (g/precluding-errors
                                                        [(cubemap-images-missing-error _node-id cubemap-image-resources)
                                                         (cubemap-image-sizes-error _node-id cubemap-image-sizes)]
-                                                       {:generate-fn generate-gpu-texture
-                                                        :user-data {:cubemap-images cubemap-images
-                                                                    :texture-profile texture-profile}})))
+                                                       {:f    generate-gpu-texture
+                                                        :args {:cubemap-images  cubemap-images
+                                                               :texture-profile texture-profile}})))
 
   (output build-targets g/Any :cached produce-build-targets)
 

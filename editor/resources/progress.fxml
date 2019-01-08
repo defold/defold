@@ -33,7 +33,7 @@
                         <ProgressBar id="progress" progress="0.74" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                      </children>
                   </AnchorPane>
-                  <Label id="message" text="Message..." />
+                  <Label id="message" text="" />
                   <Pane VBox.vgrow="ALWAYS" />
                   <HBox>
                      <children>

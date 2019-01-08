@@ -2,4 +2,4 @@ LANGUAGE 9, 1
 
 #define IDI_APPICON 100
 
-IDI_APPICON       ICON         "defold_128.ico"
+IDI_APPICON       ICON         "logo.ico"

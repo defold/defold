@@ -6,6 +6,7 @@
    [editor.fs :as fs]
    [editor.pipeline :as pipeline]
    [editor.protobuf :as protobuf]
+   [editor.progress :as progress]
    [editor.resource :as resource]
    [editor.workspace :as workspace]
    [support.test-support :as ts])
@@ -47,54 +48,62 @@
     (content-bytes)
     (String. "UTF-8")))
 
+(defn- pipeline-build! [workspace build-targets]
+  (let [old-artifact-map (workspace/artifact-map workspace)
+        build-results (pipeline/build! build-targets (workspace/build-path workspace) old-artifact-map progress/null-render-progress!)]
+    (when-not (contains? build-results :error)
+      (workspace/artifact-map! workspace (:artifact-map build-results))
+      (workspace/etags! workspace (:etags build-results)))
+    build-results))
+
 (deftest build-single-test
   (with-clean-system
     (let [build-fn-calls (atom 0)
           called! #(swap! build-fn-calls inc)
           build-targets [(make-asserting-build-target workspace "1" called! {})]
-          build-results (pipeline/build! workspace build-targets)]
+          build-results (pipeline-build! workspace build-targets)]
       (testing "invokes build-fn correctly for a single build-target"
         (is (= 1 @build-fn-calls))
-        (let [artifact (first build-results)]
+        (let [artifact (first (:artifacts build-results))]
           (is (= "1" (content artifact)))
-          (is (some? (pipeline/etag workspace (resource/proj-path (:resource artifact)))))))
-      (let [build-results (pipeline/build! workspace build-targets)]
+          (is (some? (workspace/etag workspace (resource/proj-path (:resource artifact)))))))
+      (let [build-results (pipeline-build! workspace build-targets)]
         (testing "does not invoke build-fn for equivalent target"
           (is (= 1 @build-fn-calls))
-          (is (= "1" (content (first build-results)))))
+          (is (= "1" (content (first (:artifacts build-results))))))
         (testing "invokes build-fn when cache is explicitly cleared"
-          (pipeline/reset-cache! workspace)
-          (let [build-results (pipeline/build! workspace build-targets)]
+          (workspace/reset-cache! workspace)
+          (let [build-results (pipeline-build! workspace build-targets)]
             (is (= 2 @build-fn-calls))
-            (is (= "1" (content (first build-results))))))
-        (let [f (io/as-file (:resource (first build-results)))]
+            (is (= "1" (content (first (:artifacts build-results)))))))
+        (let [f (io/as-file (:resource (first (:artifacts build-results))))]
           (testing "invokes build-fn when target resource is modified"
             (.setLastModified f 0)
-            (let [build-results (pipeline/build! workspace build-targets)]
+            (let [build-results (pipeline-build! workspace build-targets)]
               (is (= 3 @build-fn-calls))
-              (is (= "1" (content (first build-results))))))
+              (is (= "1" (content (first (:artifacts build-results)))))))
           (testing "invokes build-fn when target resource is deleted"
             (.delete f)
-            (let [build-results (pipeline/build! workspace build-targets)]
+            (let [build-results (pipeline-build! workspace build-targets)]
               (is (= 4 @build-fn-calls))
-              (is (= "1" (content (first build-results))))))))
+              (is (= "1" (content (first (:artifacts build-results)))))))))
       (testing "invokes build-fn when the target key has changed (build-fn recreated)"
         (let [build-targets [(-> (make-asserting-build-target workspace "1" called! {})
                                (assoc :build-fn (fn [resource' dep-resources' user-data']
                                                   (called!)
                                                   {:resource resource' :content (.getBytes "1")})))]
-              _ (pipeline/build! workspace build-targets)
-              build-results (pipeline/build! workspace build-targets)]
+              _ (pipeline-build! workspace build-targets)
+              build-results (pipeline-build! workspace build-targets)]
           (is (= 5 @build-fn-calls))
-          (is (= "1" (content (first build-results))))
-          (let [build-results (->> (assoc-in build-targets [0 :user-data] {:new-value 42})
-                                (pipeline/build! workspace))]
+          (is (= "1" (content (first (:artifacts build-results)))))
+          (let [build-results (pipeline-build! workspace
+                                               (assoc-in build-targets [0 :user-data] {:new-value 42}))]
             (is (= 6 @build-fn-calls))
-            (is (= "1" (content (first build-results)))))))
+            (is (= "1" (content (first (:artifacts build-results))))))))
       (testing "fs is pruned"
-        (let [files-before (doall (file-seq (File. (workspace/build-path workspace))))
-              build-results (pipeline/build! workspace [])
-              files-after (doall (file-seq (File. (workspace/build-path workspace))))]
+        (let [files-before (doall (file-seq (workspace/build-path workspace)))
+              build-results (pipeline-build! workspace [])
+              files-after (doall (file-seq (workspace/build-path workspace)))]
           (is (> (count files-before) (count files-after))))))))
 
 (deftest build-multi-test
@@ -110,9 +119,9 @@
                               {(:resource dep-1) (:resource dep-1)
                                (:resource dep-3) (:resource dep-3)}
                               dep-1 dep-3)]
-            build-results  (pipeline/build! workspace build-targets)]
+            build-results  (pipeline-build! workspace build-targets)]
         (is (= 4 @build-fn-calls))
-        (is (= #{"1" "2" "3" "4"} (set (map content build-results))))))))
+        (is (= #{"1" "2" "3" "4"} (set (map content (:artifacts build-results)))))))))
 
 (deftest make-protobuf-build-target-test
   (with-clean-system
@@ -129,8 +138,8 @@
       (testing "produces correct build-target"
         (is (= (set (:deps sprite-target)) #{tile-set-target material-target})))
       (testing "produces correct build content"
-        (let [build-results (pipeline/build! workspace [sprite-target])
-              sprite-result (first (filter #(= (:resource %) (:resource sprite-target)) build-results))
+        (let [build-results (pipeline-build! workspace [sprite-target])
+              sprite-result (first (filter #(= (:resource %) (:resource sprite-target)) (:artifacts build-results)))
               pb-data (protobuf/bytes->map Sprite$SpriteDesc (content-bytes sprite-result))]
           ;; assert resource paths have been resolved to build paths
           (is (= {:tile-set (-> tile-set-target :resource resource/proj-path)

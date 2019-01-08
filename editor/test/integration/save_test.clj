@@ -4,15 +4,17 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
+            [support.test-support :refer [with-clean-system spit-until-new-mtime touch-until-new-mtime]]
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.git :as git]
             [editor.git-test :refer [with-git]]
             [editor.workspace :as workspace]
+            [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.asset-browser :as asset-browser]
+            [editor.disk :as disk]
             [integration.test-util :as test-util]
             [util.text-util :as text-util]
             [service.log :as log])
@@ -39,7 +41,7 @@
                            "spinemodel" Spine$SpineModelDesc
                            "tilesource" Tile$TileSet})
 
-(defn- perform-save-all-test! []
+(deftest save-all
   (let [queries ["**/env.cubemap"
                  "**/switcher.atlas"
                  "**/atlas_sprite.collection"
@@ -106,13 +108,7 @@
                         (is (nil? save)))
                       (is (= file (:content save)))))))))))
 
-(deftest save-all
-  (with-bindings {#'test-util/use-new-code-editor? false}
-    (perform-save-all-test!))
-  (with-bindings {#'test-util/use-new-code-editor? true}
-    (perform-save-all-test!)))
-
-(defn- perform-save-all-literal-equality-test! []
+(deftest save-all-literal-equality
   (let [paths ["/collection/embedded_instances.collection"
                "/editor1/test.collection"
                "/game_object/embedded_components.go"
@@ -149,14 +145,10 @@
                       (prn "s" s))))))
             (is (= file (:content save)))))))))
 
-(deftest save-all-literal-equality
-  (with-bindings {#'test-util/use-new-code-editor? false}
-    (perform-save-all-literal-equality-test!))
-  (with-bindings {#'test-util/use-new-code-editor? true}
-    (perform-save-all-literal-equality-test!)))
-
 (defn- save-all! [project]
-  (project/write-save-data-to-disk! project nil))
+  (let [save-data (project/dirty-save-data project)]
+    (project/write-save-data-to-disk! save-data nil)
+    (project/invalidate-save-data-source-values! save-data)))
 
 (defn- dirty? [node-id]
   (some-> (g/node-value node-id :save-data)
@@ -186,7 +178,7 @@
       (let [{:keys [user-data set]} (:form-ops form-data)]
         (set user-data path value)))))
 
-(defn- perform-save-dirty-tests! []
+(deftest save-dirty
   (let [black-list #{"/game_object/type_faulty_props.go"
                      "/collection/type_faulty_props.collection"}
         paths [["/sprite/atlas.sprite" (set-prop-fn :default-animation "no-anim")]
@@ -253,12 +245,6 @@
           (save-all! project)
           (is (clean?)))))))
 
-(deftest save-dirty
-  (with-bindings {#'test-util/use-new-code-editor? false}
-    (perform-save-dirty-tests!))
-  (with-bindings {#'test-util/use-new-code-editor? true}
-    (perform-save-dirty-tests!)))
-
 (defn- setup-scratch
   [ws-graph]
   (let [workspace (test-util/setup-scratch-workspace! ws-graph test-util/project-path)
@@ -313,7 +299,7 @@
   (-> git .reset (.setRef "HEAD") (.setMode ResetCommand$ResetType/HARD) .call)
   nil)
 
-(defn- perform-save-respects-line-endings-test! []
+(deftest save-respects-line-endings
   (with-git [project-path (test-util/make-temp-project-copy! test-util/project-path)
              git (git/init project-path)]
     (set-autocrlf! git false)
@@ -330,7 +316,7 @@
               {:keys [lf crlf] :or {lf 0 crlf 0}} (frequencies (map second line-endings-before))]
           (is (< 100 lf))
           (is (> 100 crlf))
-          (project/write-save-data-to-disk! project nil)
+          (project/write-save-data-to-disk! (project/dirty-save-data project) nil)
           (is (= line-endings-before (line-endings-by-resource project))))))
 
     (testing "autocrlf true"
@@ -343,11 +329,100 @@
               {:keys [lf crlf] :or {lf 0 crlf 0}} (frequencies (map second line-endings-before))]
           (is (> 100 lf))
           (is (< 100 crlf))
-          (project/write-save-data-to-disk! project nil)
+          (project/write-save-data-to-disk! (project/dirty-save-data project) nil)
           (is (= line-endings-before (line-endings-by-resource project))))))))
 
-(deftest save-respects-line-endings
-  (with-bindings {#'test-util/use-new-code-editor? false}
-    (perform-save-respects-line-endings-test!))
-  (with-bindings {#'test-util/use-new-code-editor? true}
-    (perform-save-respects-line-endings-test!)))
+(defn- workspace-file
+  ^File [workspace proj-path]
+  (assert (= \/ (first proj-path)))
+  (File. (workspace/project-path workspace) (subs proj-path 1)))
+
+(defn- spit-file!
+  [workspace proj-path content]
+  (let [f (workspace-file workspace proj-path)]
+    (fs/create-parent-directories! f)
+    (spit-until-new-mtime f content)))
+
+(def ^:private slurp-file (comp slurp workspace-file))
+
+(defn- touch-file!
+  [workspace proj-path]
+  (let [f (workspace-file workspace proj-path)]
+    (fs/create-parent-directories! f)
+    (touch-until-new-mtime f)))
+
+(def ^:private delete-file! (comp fs/delete-file! workspace-file))
+
+(deftest async-reload-test
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)]
+      (test-util/run-event-loop!
+        (fn [exit-event-loop!]
+          (let [dirty-save-data-before (project/dirty-save-data project)]
+
+            ;; Edited externally.
+            (touch-file! workspace "/added_externally.md")
+            (spit-file! workspace "/script/test_module.lua" "-- Edited externally")
+
+            (disk/async-reload! progress/null-render-progress! workspace [] nil
+                                (fn [successful?]
+                                  (when (is successful?)
+
+                                    (testing "Save data unaffected."
+                                      (is (= dirty-save-data-before (project/dirty-save-data project))))
+
+                                    (testing "External modifications are seen by the editor."
+                                      (is (= ["-- Edited externally"] (g/node-value (project/get-resource-node project "/script/test_module.lua") :lines))))
+
+                                    (testing "Externally added files are seen by the editor."
+                                      (is (some? (workspace/find-resource workspace "/added_externally.md")))
+                                      (is (some? (project/get-resource-node project "/added_externally.md"))))
+
+                                    (testing "Can delete externally added files from within the editor."
+                                      (delete-file! workspace "/added_externally.md")
+                                      (workspace/resource-sync! workspace)
+                                      (is (nil? (workspace/find-resource workspace "/added_externally.md")))
+                                      (is (nil? (project/get-resource-node project "/added_externally.md")))))
+
+                                  (exit-event-loop!)))))))))
+
+(deftest async-save-test
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)]
+      (test-util/run-event-loop!
+        (fn [exit-event-loop!]
+
+          ;; Edited by us.
+          (test-util/code-editor-source! (test-util/resource-node project "/script/props.script") "-- Edited by us")
+
+          ;; Edited externally.
+          (touch-file! workspace "/added_externally.md")
+          (spit-file! workspace "/script/test_module.lua" "-- Edited externally")
+
+          (disk/async-save! progress/null-render-progress! progress/null-render-progress! project nil
+                            (fn [successful?]
+                              (when (is successful?)
+
+                                (testing "No files are still in need of saving."
+                                  (let [dirty-proj-paths (into #{} (map (comp resource/proj-path :resource)) (project/dirty-save-data project))]
+                                    (is (not (contains? dirty-proj-paths "/added_externally.md")))
+                                    (is (not (contains? dirty-proj-paths "/script/props.script")))
+                                    (is (not (contains? dirty-proj-paths "/script/test_module.lua")))))
+
+                                (testing "Externally modified files are not overwritten by the editor."
+                                  (is (= "-- Edited externally" (slurp (workspace/find-resource workspace "/script/test_module.lua")))))
+
+                                (testing "External modifications are seen by the editor."
+                                  (is (= ["-- Edited externally"] (g/node-value (project/get-resource-node project "/script/test_module.lua") :lines))))
+
+                                (testing "Externally added files are seen by the editor."
+                                  (is (some? (workspace/find-resource workspace "/added_externally.md")))
+                                  (is (some? (project/get-resource-node project "/added_externally.md"))))
+
+                                (testing "Can delete externally added files from within the editor."
+                                  (delete-file! workspace "/added_externally.md")
+                                  (workspace/resource-sync! workspace)
+                                  (is (nil? (workspace/find-resource workspace "/added_externally.md")))
+                                  (is (nil? (project/get-resource-node project "/added_externally.md")))))
+
+                              (exit-event-loop!))))))))

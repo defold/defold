@@ -79,3 +79,18 @@ assert(q.x == 0.5 and q.y == -0.5 and q.z == 0 and q.w == 0, "lerp")
 q = vmath.slerp(0.5, vmath.quat(1, 0, 0, 0), vmath.quat(0, -1, 0, 0))
 local sq2 = math.sqrt(2)
 assert(math.abs(q.x - 0.5 * sq2) < 0.000001 and math.abs(q.y + 0.5 * sq2) < 0.000001 and q.z == 0 and q.w == 0, "slerp")
+
+-- length_sqr
+q = vmath.quat(1, 2, 3, 4)
+assert(vmath.length_sqr(q) == 1 + 4 + 9 + 16, "length_sqr")
+
+-- length
+q = vmath.quat(1, 2, 3, 4)
+assert(math.abs(vmath.length(q) - math.sqrt(30)) < 0.000001, "length")
+
+-- normalize
+q = vmath.normalize(vmath.quat(1, 2, 3, 4))
+assert(math.abs(vmath.length_sqr(q) - 1) < 0.0000001, "normalized not unit length")
+local t = 1 / vmath.length(vmath.quat(1, 2, 3, 4))
+assert(math.abs(q.x - t) < 0.000001 and math.abs(q.y - 2*t) < 0.000001 and math.abs(q.z - 3*t) < 0.000001 and math.abs(q.w - 4*t) < 0.000001, "normalize")
+

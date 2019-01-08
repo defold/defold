@@ -27,16 +27,16 @@
         id     (inc (count (:nodes g)))
         g      (ig/add-node g id v)
         g      (ig/graph-remove-node g id nil)]
-    (is (nil? (ig/graph->node g id)))
+    (is (nil? (ig/node-id->node g id)))
     (is (empty? (filter #(= "Any ig/node value" %) (ig/node-values g))))))
 
-(defn targets [g n l] (map gt/tail (get-in g [:sarcs n l])))
-(defn sources [g n l] (map gt/head (get-in g [:tarcs n l])))
+(defn targets [g n l] (map gt/target (get-in g [:sarcs n l])))
+(defn sources [g n l] (map gt/source (get-in g [:tarcs n l])))
 
 (defn- source-arcs-without-targets
   [g]
   (for [source                (ig/node-ids g)
-        source-label          (-> (ig/graph->node g source) g/node-type in/output-labels)
+        source-label          (-> (ig/node-id->node g source) g/node-type in/output-labels)
         [target target-label] (targets g source source-label)
         :when                 (not (some #(= % [source source-label]) (sources g target target-label)))]
     [source source-label]))
@@ -44,7 +44,7 @@
 (defn- target-arcs-without-sources
   [g]
   (for [target                (ig/node-ids g)
-        target-label          (-> (ig/graph->node g target) g/node-type in/input-labels)
+        target-label          (-> (ig/node-id->node g target) g/node-type in/input-labels)
         [source source-label] (sources g target target-label)
         :when                 (not (some #(= % [target target-label]) (targets g source source-label)))]
     [target target-label]))
@@ -64,8 +64,8 @@
         g      (ig/add-node g id {:number 0})
         g'     (ig/transform-node g id update-in [:number] inc)]
     (is (not= g g'))
-    (is (= 1 (:number (ig/graph->node g' id))))
-    (is (= 0 (:number (ig/graph->node g id))))))
+    (is (= 1 (:number (ig/node-id->node g' id))))
+    (is (= 0 (:number (ig/node-id->node g id))))))
 
 (g/deftype T1        String)
 (g/deftype T1-array  [String])
@@ -98,16 +98,25 @@
 
 (g/defnode TestNode
   (property val g/Str)
+  (property custom-val g/Str
+            (value (g/fnk [val] val)))
+  (output custom-val g/Str :cached (g/fnk [custom-val]
+                                          (if (= custom-val "throw")
+                                            (throw (ex-info "TestNode initialized to throw in output custom-val" {}))
+                                            custom-val)))
   (output val-val g/Str :cached (g/fnk [val] (str val val))))
 
 (g/defnode PassthroughNode
+  (property str-prop g/Str
+            (value (g/fnk [str-in] str-in))
+            (dynamic str-prop-dynamic (g/fnk [] 123)))
   (input str-in g/Str)
   (output str-out g/Str :cached (g/fnk [str-in] str-in)))
 
 (deftest graph-override-cleanup
   (with-clean-system
     (let [[original override] (tx-nodes (g/make-nodes world [n (TestNode :val "original")]
-                                                      (:tx-data (g/override n))))
+                                                      (g/override n)))
           basis (is/basis system)]
       (is (= override (first (ig/get-overrides basis original))))
       (g/transact (g/delete-node original))
@@ -205,4 +214,186 @@
 
         (g/update-cache-from-evaluation-context! init-ec)
 
+        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss))))))
+
+  (testing "Update cache does not add entries for deleted nodes"
+    (with-clean-system
+      (let [[n n2] (tx-nodes (g/make-nodes world [n (TestNode :val "initial")
+                                                  n2 PassthroughNode]
+                                           (g/connect n :val n2 :str-in)))
+            init-ec (g/make-evaluation-context)]
+        (g/node-value n2 :str-out init-ec)
+        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))
+
+        (g/transact (g/delete-node n2))
+
+        (g/update-cache-from-evaluation-context! init-ec)
+
         (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))))))
+
+(deftest tracer
+  (with-clean-system
+    (let [[tn n1] (tx-nodes (g/make-nodes world [tn (TestNode :val "initial")
+                                                 n1 PassthroughNode]
+                                          (g/connect tn :custom-val n1 :str-in)))]
+      (let [result (atom nil)]
+        (g/node-value n1 :str-out (g/make-evaluation-context {:tracer (g/make-tree-tracer result)}))
+        (is (= @result
+               {:node-id n1,
+                :output-type :output,
+                :label :str-out,
+                :dependencies
+                [{:node-id tn,
+                  :output-type :output,
+                  :label :custom-val,
+                  :dependencies
+                  [{:node-id tn,
+                    :output-type :property,
+                    :label :custom-val,
+                    :dependencies
+                    [{:node-id tn,
+                      :output-type :raw-property,
+                      :label :val,
+                      :dependencies [],
+                      :state :end}],
+                    :state :end}],
+                  :state :end}],
+                :state :end}))
+
+        ;; here we disable :local-temp because we're only testing for :local caching
+        (let [ec (g/make-evaluation-context {:tracer (g/make-tree-tracer result) :no-local-temp true})]
+          (g/node-value n1 :_properties ec)
+          (is (= @result
+                 {:node-id n1,
+                  :output-type :output,
+                  :label :_properties,
+                  :dependencies
+                  [{:node-id n1,
+                    :output-type :dynamic,
+                    :label [:str-prop :str-prop-dynamic],
+                    :dependencies [],
+                    :state :end}
+                   {:node-id n1,
+                    :output-type :property,
+                    :label :str-prop,
+                    :dependencies
+                    [{:node-id tn,
+                      :output-type :output,
+                      :label :custom-val,
+                      :dependencies
+                      [{:node-id tn,
+                        :output-type :property,
+                        :label :custom-val,
+                        :dependencies
+                        [{:node-id tn,
+                          :output-type :raw-property,
+                          :label :val,
+                          :dependencies [],
+                          :state :end}],
+                        :state :end}],
+                      :state :end}],
+                    :state :end}],
+                  :state :end}))
+
+          ;; Now, ec :local contains n :custom-val, so trace is slightly shorter.
+          ;; Note that the tree tracer in the ec can be reused.
+
+          (g/node-value n1 :_properties ec)
+          (is (= @result
+                 {:node-id n1,
+                  :output-type :output,
+                  :label :_properties,
+                  :dependencies
+                  [{:node-id n1,
+                    :output-type :dynamic,
+                    :label [:str-prop :str-prop-dynamic],
+                    :dependencies [],
+                    :state :end}
+                   {:node-id n1,
+                    :output-type :property,
+                    :label :str-prop,
+                    :dependencies
+                    [{:node-id tn,
+                      :output-type :cache,
+                      :label :custom-val
+                      :dependencies []
+                      :state :end}]
+                    :state :end}]
+                  :state :end})))
+
+        (g/transact (g/set-property tn :val "throw"))
+
+        (let [ec (g/make-evaluation-context {:tracer (g/make-tree-tracer result)})]
+          (is (thrown? Exception (g/node-value n1 :_properties ec)))
+          (is (= @result
+                 {:node-id n1,
+                  :output-type :output,
+                  :label :_properties,
+                  :dependencies
+                  [{:node-id n1,
+                    :output-type :dynamic,
+                    :label [:str-prop :str-prop-dynamic],
+                    :dependencies [],
+                    :state :end}
+                   {:node-id n1,
+                    :output-type :property,
+                    :label :str-prop,
+                    :dependencies
+                    [{:node-id tn,
+                      :output-type :output,
+                      :label :custom-val,
+                      :dependencies
+                      [{:node-id tn,
+                        :output-type :property,
+                        :label :custom-val,
+                        :dependencies
+                        [{:node-id tn,
+                          :output-type :raw-property,
+                          :label :val,
+                          :dependencies [],
+                          :state :end}],
+                        :state :end}],
+                      :state :fail}],
+                    :state :fail}],
+                  :state :fail})))
+
+        (g/transact (g/set-property tn :val "no throw"))
+        (reset! result nil)
+
+        (let [ec (g/make-evaluation-context {:tracer (juxt (g/make-tree-tracer result)
+                                                           (fn [state node-id output-type label]
+                                                             (when (= [state node-id label] [:end tn :custom-val])
+                                                               (throw (ex-info "tracer somehow failed" {})))))})]
+
+          (is (thrown? Exception (g/node-value n1 :_properties ec)))
+          (is (= @result
+                 {:node-id 1,
+                  :output-type :output,
+                  :label :_properties,
+                  :dependencies
+                  [{:node-id 1,
+                    :output-type :dynamic,
+                    :label [:str-prop :str-prop-dynamic],
+                    :dependencies [],
+                    :state :end}
+                   {:node-id 1,
+                    :output-type :property,
+                    :label :str-prop,
+                    :dependencies
+                    [{:node-id 0,
+                      :output-type :output,
+                      :label :custom-val,
+                      :dependencies
+                      [{:node-id 0,
+                        :output-type :property,
+                        :label :custom-val,
+                        :dependencies
+                        [{:node-id 0,
+                          :output-type :raw-property,
+                          :label :val,
+                          :dependencies [],
+                          :state :end}],
+                        :state :end}],
+                      :state :fail}],
+                    :state :fail}],
+                  :state :fail})))))))

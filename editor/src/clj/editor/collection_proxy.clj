@@ -77,8 +77,8 @@
 
   (property collection resource/Resource
             (value (gu/passthrough collection-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :collection-resource]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id collection-resource]
@@ -93,6 +93,7 @@
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id collection]
                                                      (cond-> {:node-id _node-id
+                                                              :node-outline-key "Collection Proxy"
                                                               :label "Collection Proxy"
                                                               :icon collection-proxy-icon}
 

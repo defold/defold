@@ -143,23 +143,43 @@ namespace dmScript
         int top = lua_gettop(L);
 
         lua_getglobal(L, SCRIPT_CONTEXT);
-        Context* context = (Context*) (dmConfigFile::HConfig)lua_touserdata(L, -1);
+        Context* context = (Context*)lua_touserdata(L, -1);
+        // [-1] context
         lua_pop(L, 1);
 
         dmHashTable64<int>* instances = &context->m_HashInstances;
         int* refp = instances->Get(hash);
         if (refp)
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, *refp);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+            // [-1] Context table
+            lua_rawgeti(L, -1, *refp);
+            // [-2] Context table
+            // [-1] hash
+            lua_remove(L, -2);
+            // [-1] hash
         }
         else
         {
             dmhash_t* lua_hash = (dmhash_t*)lua_newuserdata(L, sizeof(dmhash_t));
             *lua_hash = hash;
             luaL_getmetatable(L, SCRIPT_TYPE_NAME_HASH);
+            // [-2] hash
+            // [-1] meta table
             lua_setmetatable(L, -2);
-            lua_pushvalue(L, -1);
-            int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+            // [-1] hash
+            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+            // [-2] hash
+            // [-1] Context table
+            lua_pushvalue(L, -2);
+            // [-3] hash
+            // [-2] Context table
+            // [-1] hash
+            int ref = luaL_ref(L, -2);
+            // [-2] hash
+            // [-1] Context table
+            lua_pop(L, 1);
+            // [-1] hash
 
             if (instances->Full())
             {
@@ -169,6 +189,27 @@ namespace dmScript
         }
 
         assert(top + 1 == lua_gettop(L));
+    }
+
+    void ReleaseHash(lua_State* L, dmhash_t hash)
+    {
+        int top = lua_gettop(L);
+        lua_getglobal(L, SCRIPT_CONTEXT);
+        // [-1] context
+        Context* context = (Context*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        dmHashTable64<int>* instances = &context->m_HashInstances;
+        int* refp = instances->Get(hash);
+        if (refp != 0x0)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+            // [-1] context table
+            luaL_unref(L, -1, *refp);
+            lua_pop(L, 1);
+            instances->Erase(hash);
+        }
+
+        assert(top == lua_gettop(L));
     }
 
     dmhash_t CheckHash(lua_State* L, int index)

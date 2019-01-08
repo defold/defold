@@ -186,8 +186,8 @@
   (property vertex-program resource/Resource
     (dynamic visible (g/constantly false))
     (value (gu/passthrough vertex-resource))
-    (set (fn [_evaluation-context self old-value new-value]
-           (project/resource-setter self old-value new-value
+    (set (fn [evaluation-context self old-value new-value]
+           (project/resource-setter evaluation-context self old-value new-value
                                     [:resource :vertex-resource]
                                     [:full-source :vertex-source]
                                     [:build-targets :dep-build-targets]))))
@@ -195,8 +195,8 @@
   (property fragment-program resource/Resource
     (dynamic visible (g/constantly false))
     (value (gu/passthrough fragment-resource))
-    (set (fn [_evaluation-context self old-value new-value]
-           (project/resource-setter self old-value new-value
+    (set (fn [evaluation-context self old-value new-value]
+           (project/resource-setter evaluation-context self old-value new-value
                                     [:resource :fragment-resource]
                                     [:full-source :fragment-source]
                                     [:build-targets :dep-build-targets]))))
@@ -214,7 +214,7 @@
   (input fragment-resource resource/Resource)
   (input fragment-source g/Str)
 
-  (output pb-msg g/Any :cached produce-pb-msg)
+  (output pb-msg g/Any produce-pb-msg)
 
   (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
@@ -225,7 +225,7 @@
                                                     (let [uniforms (into {} (map (fn [constant] [(:name constant) (constant->val constant)])
                                                                                  (concat vertex-constants fragment-constants)))]
                                                       (shader/make-shader _node-id vertex-source fragment-source uniforms)))))
-  (output samplers [g/KeywordMap] :cached (g/fnk [samplers] (vec samplers))))
+  (output samplers [g/KeywordMap] (g/fnk [samplers] (vec samplers))))
 
 (defn- make-sampler [name]
   (assoc default-sampler :name name))

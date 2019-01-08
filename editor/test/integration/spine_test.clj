@@ -38,11 +38,11 @@
 
 (deftest load-spine-scene-json
   (test-util/with-loaded-project
-    (let [node-id   (test-util/resource-node project "/spine/player/export/spineboy.json")]
+    (let [node-id (test-util/resource-node project "/spine/player/export/spineboy.json")]
       (is (= "hip" (outline-label node-id [0])))
       (is (= "front_thigh" (outline-label node-id [0 0])))
       (is (= "front_shin" (outline-label node-id [0 0 0])))
-      (let [root (:skeleton (g/node-value node-id :structure))]
+      (let [root (:skeleton (g/node-value node-id :consumer-passthrough))]
         (is (some? (:transform root)))
         (is (= "hip" (:name root)))))))
 
@@ -56,7 +56,7 @@
   (test-util/with-loaded-project
     (let [node-id   (test-util/resource-node project "/spine/player/spineboy.spinemodel")]
       (is (< 0.0 (.distanceSquared (geom/aabb-extent (g/node-value node-id :aabb)) (Point3d.))))
-      (is (= "hip" (outline-label node-id [0]))))))
+      (is (empty? (:children (test-util/outline node-id nil)))))))
 
 (deftest spine-scene-validation
   (test-util/with-loaded-project

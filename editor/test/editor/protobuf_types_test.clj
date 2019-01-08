@@ -1,23 +1,13 @@
 (ns editor.protobuf-types-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :as test-support :refer [undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime]]
+            [support.test-support :refer [undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime with-clean-system]]
             [editor.defold-project :as project]
-            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [service.log :as log]
             [integration.test-util :as test-util]))
 
 (def ^:private project-path "test/resources/all_types_project")
-
-(defmacro with-clean-system [& forms]
-  `(do
-     (with-bindings {#'test-util/use-new-code-editor? false}
-       (test-support/with-clean-system
-         ~@forms))
-     (with-bindings {#'test-util/use-new-code-editor? true}
-       (test-support/with-clean-system
-         ~@forms))))
 
 (deftest test-load
   (with-clean-system

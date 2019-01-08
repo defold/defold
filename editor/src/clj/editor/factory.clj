@@ -99,8 +99,8 @@
 
   (property prototype resource/Resource
             (value (gu/passthrough prototype-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :prototype-resource]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id prototype-resource]
@@ -113,12 +113,15 @@
   (output form-data g/Any produce-form-data)
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id factory-type prototype]
-                                                     (cond-> {:node-id _node-id
-                                                              :label (get-in factory-types [factory-type :title])
-                                                              :icon (get-in factory-types [factory-type :icon])}
+                                                     (let [label (get-in factory-types [factory-type :title])
+                                                           icon (get-in factory-types [factory-type :icon])]
+                                                       (cond-> {:node-id _node-id
+                                                                :node-outline-key label
+                                                                :label label
+                                                                :icon icon}
 
-                                                             (resource/openable-resource? prototype)
-                                                             (assoc :link prototype :outline-reference? false))))
+                                                               (resource/openable-resource? prototype)
+                                                               (assoc :link prototype :outline-reference? false)))))
 
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
