@@ -44,15 +44,6 @@ local function str(val)
   -- https://jira.int.midasplayer.com/browse/DEF-532
   if getmetatable(val) == NodeProxy then
     return tostring(val) .. get_prefixed_addr("userdata: ", raw_tostring(val))
-    --[[
-    local addr = get_prefixed_addr("userdata: ", raw_tostring(val))
-    local success, res_or_error = pcall(function () return tostring(val) end)
-    if success then
-      return res_or_error .. " " .. addr
-    else
-      return "<foreign scene node> " .. addr
-    end
-    ]]--
   elseif type(val) == "table" and has_custom_tostring(val) then
     return tostring(val) .. " " .. get_prefixed_addr("table: ", raw_tostring(val))
   else
