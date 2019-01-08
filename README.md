@@ -198,7 +198,7 @@ Building the 64 bit version of Defold begins with building a set of 32 bit libra
 
 - [easy_install/ez_setup](https://pypi.python.org/pypi/setuptools#id3) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseaTdqQXpxbl96bTA)
 
-	Download `ez_setup.py` and run it. Add `C:\Python27\Scripts` (where `easy_install` should now be located) to PATH.
+	Download `ez_setup.py` and run it. If `ez_setup.py` fails to connect using https when run, try adding `--insecure` as argument to enable http download. Add `C:\Python27\Scripts` (where `easy_install` should now be located) to PATH.
 	
 	- Update setuptools and pip - you might get errors running easy_install when running the install-ext command with build.py otherwise
 
