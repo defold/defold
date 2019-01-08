@@ -100,8 +100,8 @@
       (fn [exit-event-loop!]
         (app-view/async-build! project evaluation-context prefs {} {}
                                (constantly nil)
-                               (fn [build-results engine build-engine-exception]
-                                 (deliver result [build-results engine build-engine-exception])
+                               (fn [build-results engine-descriptor build-engine-exception]
+                                 (deliver result [build-results engine-descriptor build-engine-exception])
                                  (exit-event-loop!)))))
     (deref result)))
 
@@ -113,23 +113,31 @@
       (assert (= (native-extensions/get-build-server-url test-prefs) "https://build-stage.defold.com"))
       (testing "clean project builds on server"
         (g/with-auto-evaluation-context evaluation-context
-          (let [[{:keys [error artifacts artifact-map etags] :as build-results} ^File engine build-engine-exception] (blocking-async-build! project evaluation-context test-prefs)]
+          (let [[{:keys [error artifacts artifact-map etags] :as build-results} engine-descriptor build-engine-exception] (blocking-async-build! project evaluation-context test-prefs)]
             (is (nil? error))
             (is (not-empty artifacts))
             (is (not-empty artifact-map))
             (is (not-empty etags))
             (is (nil? build-engine-exception))
-            (is (some? engine))
-            (is (and engine (.exists engine))))))
+            (is (some? engine-descriptor))
+            (is (not (contains? engine-descriptor :cached)))
+            (is (and engine-descriptor (.exists (:engine-archive engine-descriptor)))))))
+      (testing "rebuild uses cached engine archive"
+        (g/with-auto-evaluation-context evaluation-context
+          (let [[_build-results engine-descriptor build-engine-exception] (blocking-async-build! project evaluation-context test-prefs)]
+            (is (nil? build-engine-exception))
+            (is (some? engine-descriptor))
+            (is (contains? engine-descriptor :cached))
+            (is (and engine-descriptor (.exists (:engine-archive engine-descriptor)))))))
       (testing "bad code breaks build on server"
         (let [script (project/get-resource-node project "/printer/src/main.cpp")]
           (g/update-property! script :modified-lines conj "ought to break")
           (g/with-auto-evaluation-context evaluation-context
-            (let [[{:keys [error artifacts artifact-map etags] :as build-results} ^File engine ^Exception build-engine-exception] (blocking-async-build! project evaluation-context test-prefs)]
+            (let [[{:keys [error artifacts artifact-map etags] :as build-results} engine-descriptor ^Exception build-engine-exception] (blocking-async-build! project evaluation-context test-prefs)]
               (is (nil? error))
               (is (not-empty artifacts))
               (is (not-empty artifact-map))
               (is (not-empty etags))
               (is (some? build-engine-exception))
               (is (and build-engine-exception (string/includes? (.getMessage build-engine-exception) "ought to break")))
-              (is (nil? engine)))))))))
+              (is (nil? engine-descriptor)))))))))
