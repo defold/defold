@@ -25,7 +25,8 @@
            [javafx.scene.layout GridPane HBox VBox Priority ColumnConstraints]
            [javafx.scene.control Control Cell ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane Label TextField ComboBox CheckBox Button ContextMenu MenuItem SelectionMode ContentDisplay TableColumnBase]
            [com.defold.control ListView ListCell ListCellSkinWithBehavior TableCell TableCellBehavior TableCellSkinWithBehavior]
-           [com.sun.javafx.scene.control.behavior ListCellBehavior]))
+           [com.sun.javafx.scene.control.behavior ListCellBehavior]
+           [com.sun.javafx.scene.control TableColumnBaseHelper]))
 
 ;; A note about the cell-factory controls (:list, :table, :2panel):
 ;; When clicking on another cell in the edited table, the edit is cancelled and
@@ -396,17 +397,11 @@
     (.setPadding control (Insets. 0 0 0 0))
     [control api]))
 
-(let [method (.getDeclaredMethod TableColumnBase "setWidth" (into-array Class [Double/TYPE]))]
-  (.setAccessible method true)
-  (defn set-table-column-width! [table-column x]
-    (.invoke method table-column (into-array Object [(double x)]))))
-
 (defn- resize-column-to-fit-control [^TableColumn table-column ^Node ctrl]
   (let [min-width (.prefWidth ctrl -1)
         curr-width (.getWidth table-column)]
     (when (< curr-width min-width)
-      ;; TODO JDK maybe just setPrefWidth?
-      (set-table-column-width! table-column min-width))))
+      (TableColumnBaseHelper/setWidth table-column min-width))))
 
 (defn- create-table-cell-factory [column-info ctxt edited-cell-atom]
   (reify Callback
