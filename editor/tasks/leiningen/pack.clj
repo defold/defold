@@ -28,7 +28,6 @@
   (assert (contains? engine-artifacts platform))
   (case platform
     "x86-darwin" "darwin"
-    "x86-linux" "linux"
     "x86-win32" "win32"
     platform))
 
@@ -44,9 +43,6 @@
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/wrap_oal.dll"  "x86_64-win32/bin/wrap_oal.dll"
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/PVRTexLib.dll" "x86_64-win32/lib/PVRTexLib.dll"
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/msvcr120.dll"  "x86_64-win32/lib/msvcr120.dll"
-
-   "${DYNAMO-HOME}/ext/bin/linux/luajit"                      "x86-linux/bin/luajit"
-   "${DYNAMO-HOME}/ext/lib/linux/libPVRTexLib.so"             "x86-linux/lib/libPVRTexLib.so"
 
    "${DYNAMO-HOME}/ext/bin/x86_64-linux/luajit"               "x86_64-linux/bin/luajit"
    "${DYNAMO-HOME}/ext/lib/x86_64-linux/libPVRTexLib.so"      "x86_64-linux/lib/libPVRTexLib.so"
