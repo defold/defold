@@ -5,6 +5,7 @@
   :clojure.core/defonce :only-indent
   :cursive.formatting/align-conditionals false
   :cursive.formatting/align-maps false
+  :cursive.formatting/imports-use-vectors true
   :dynamo.graph/precluding-errors :only-indent
   :dynamo.graph/with-auto-evaluation-context :only-indent
   :dynamo.graph/with-system :only-indent
