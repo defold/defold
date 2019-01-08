@@ -179,33 +179,6 @@
           (.selectRange 1 3))))
     (is (= [:b :c] @selected-items))))
 
-(deftest tree-view-get-selected-items-bug-test
-  ; Checks for the presence of a JavaFX bug.
-  ; Some MultipleSelectionModel implementations are broken
-  ; and selected-items will contain nil entries. If this
-  ; tests fails after a JDK upgrade, please search the
-  ; code for "DEFEDIT-648" and remove any workarounds!
-  (let [selected-items (atom nil)]
-    (ui/run-now
-      (let [root (ui/main-root)
-            tree-item-a (TreeItem. :a)
-            tree-item-b (TreeItem. :b)
-            tree-view (doto (TreeView.)
-                        (.setRoot (doto (TreeItem. :root)
-                                    (.setExpanded true)
-                                    (-> .getChildren
-                                        (.addAll [tree-item-a
-                                                  tree-item-b])))))
-            selection-model (.getSelectionModel tree-view)]
-        (ui/add-child! root tree-view)
-        (doto selection-model
-          (.setSelectionMode SelectionMode/MULTIPLE)
-          (.select 1)
-          (.select 2)
-          (.clearSelection 1))
-        (reset! selected-items (.getSelectedItems selection-model))))
-    (is (= [nil] @selected-items))))
-
 (deftest observe-selection-test
   (testing "TreeView"
     (let [results (atom {:observed-view nil :selection-owner nil :selected-items nil})]
