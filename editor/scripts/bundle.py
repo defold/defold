@@ -274,7 +274,7 @@ if __name__ == '__main__':
     parser.add_option('--platform', dest='target_platform',
                       default = None,
                       action = 'append',
-                      choices = ['x86_64-linux', x86_64-darwin', 'x86-win32', 'x86_64-win32'],
+                      choices = ['x86_64-linux', 'x86_64-darwin', 'x86-win32', 'x86_64-win32'],
                       help = 'Target platform. Specify multiple times for multiple platforms')
 
     parser.add_option('--version', dest='version',
