@@ -853,9 +853,10 @@
 
 (extend-type TreeView
   CollectionView
-  (selection [this] (some->> this
-                      tree-view-hack/broken-selected-tree-items
-                      (mapv #(.getValue ^TreeItem %))))
+  (selection [this] (->> this
+                         .getSelectionModel
+                         .getSelectedItems
+                         (mapv #(.getValue ^TreeItem %))))
   (select! [this item] (let [tree-items (tree-item-seq (.getRoot this))]
                          (when-let [tree-item (some (fn [^TreeItem tree-item] (and (= item (.getValue tree-item)) tree-item)) tree-items)]
                            (doto (.getSelectionModel this)
@@ -870,7 +871,7 @@
     (.setCellFactory this (make-tree-cell-factory render-fn))))
 
 (defn selection-root-items [^TreeView tree-view path-fn id-fn]
-  (let [selection (tree-view-hack/broken-selected-tree-items tree-view)]
+  (let [selection (.getSelectedItems (.getSelectionModel tree-view))]
     (let [items (into {} (map #(do [(path-fn %) %]) (filter id-fn selection)))
           roots (loop [paths (keys items)
                        roots []]
