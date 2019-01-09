@@ -323,21 +323,26 @@ This must be submitted to the driver for compilation before you can use it. See
       (.glGetProgramInfoLog gl progn (.capacity msg) nil msg)
       (bbuf->string msg))))
 
+(defn- delete-program [^GL2 gl program]
+  (.glDeleteProgram gl program))
+
+(defn- attach-shaders [^GL2 gl program shaders]
+  (doseq [shader shaders]
+    (.glAttachShader gl program shader)))
+
 (defn make-program
   [^GL2 gl & shaders]
-  (let [progn (.glCreateProgram gl)]
-    (doseq [s shaders]
-      (.glAttachShader gl progn s))
-    (.glLinkProgram gl progn)
+  (let [program (.glCreateProgram gl)]
+    (attach-shaders gl program shaders)
+    (.glLinkProgram gl program)
     (let [status (IntBuffer/allocate 1)]
-      (.glGetProgramiv gl progn GL2/GL_LINK_STATUS status)
+      (.glGetProgramiv gl program GL2/GL_LINK_STATUS status)
       (if (= GL/GL_TRUE (.get status 0))
-        progn
+        program
         (try
-          (throw (Exception. (str "Program link failure.\n" (program-link-errors gl progn))))
+          (throw (Exception. (str "Program link failure.\n" (program-link-errors gl program))))
           (finally
-            (.glDeleteProgram gl progn)))))
-    progn))
+            (delete-program gl program)))))))
 
 (defn shader-compile-errors
   [^GL2 gl shader-name]
@@ -346,6 +351,11 @@ This must be submitted to the driver for compilation before you can use it. See
     (let [msg (ByteBuffer/allocate (.get msg-len 0))]
       (.glGetShaderInfoLog gl shader-name (.capacity msg) nil msg)
       (bbuf->string msg))))
+
+(defn delete-shader
+  [^GL2 gl shader]
+  (when (not= 0 shader)
+    (.glDeleteShader gl shader)))
 
 (defn make-shader*
   [type ^GL2 gl source]
@@ -369,15 +379,10 @@ This must be submitted to the driver for compilation before you can use it. See
         (try
           (throw (Exception. (str "Shader compilation failure.\n" (shader-compile-errors gl shader-name))))
           (finally
-            (.glDeleteShader gl shader-name)))))))
+            (delete-shader gl shader-name)))))))
 
 (def make-fragment-shader (partial make-shader* GL2/GL_FRAGMENT_SHADER))
 (def make-vertex-shader (partial make-shader* GL2/GL_VERTEX_SHADER))
-
-(defn delete-shader
-  [^GL2 gl shader]
-  (when (not= 0 shader)
-    (.glDeleteShader gl shader)))
 
 (defrecord ShaderLifecycle [request-id verts frags uniforms]
   GlBind
@@ -385,12 +390,13 @@ This must be submitted to the driver for compilation before you can use it. See
     (when-not (types/selection? (:pass render-args))
       (let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
         (.glUseProgram ^GL2 gl program)
-        (doseq [[name val] uniforms
-                :let [val (if (keyword? val)
-                            (get render-args val)
-                            val)
-                      loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]]
-          (set-uniform-at-index gl program loc val)))))
+        (when-not (= program 0)
+          (doseq [[name val] uniforms
+                  :let [val (if (keyword? val)
+                              (get render-args val)
+                              val)
+                        loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]]
+            (set-uniform-at-index gl program loc val))))))
 
   (unbind [_this gl render-args]
     (when-not (types/selection? (:pass render-args))
@@ -399,11 +405,13 @@ This must be submitted to the driver for compilation before you can use it. See
   ShaderVariables
   (get-attrib-location [this gl name]
     (when-let [[program _] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
-      (gl/gl-get-attrib-location ^GL2 gl program name)))
+      (if (= program 0)
+        -1
+        (gl/gl-get-attrib-location ^GL2 gl program name))))
 
   (set-uniform [this gl name val]
     (when-let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
-      (when (= program (gl/gl-current-program gl))
+      (when (and (not= program 0) (= program (gl/gl-current-program gl)))
         (let [loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]
           (set-uniform-at-index gl program loc val))))))
 
@@ -451,20 +459,24 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
                   code-non-directive-lines))))
 
 (defn- make-shader-program [^GL2 gl [verts frags uniforms]]
-  (let [vs     (make-vertex-shader gl verts)
-        fs      (make-fragment-shader gl frags)
-        program (make-program gl vs fs)
-        uniform-locs (into {} (map (fn [[name val]] [name (.glGetUniformLocation ^GL2 gl program name)]) uniforms))]
-    (delete-shader gl vs)
-    (delete-shader gl fs)
-    [program uniform-locs]))
-
-(defn- delete-program [^GL2 gl program]
-  (.glDeleteProgram gl program))
+  (let [vs (make-vertex-shader gl verts)]
+    (try
+      (let [fs (make-fragment-shader gl frags)]
+        (try
+          (let [program (make-program gl vs fs)
+                uniform-locs (into {} (map (fn [[name val]] [name (.glGetUniformLocation ^GL2 gl program name)]) uniforms))]
+            [program uniform-locs])
+          (finally
+            (delete-shader gl fs)))) ; flag shaders for deletion: they will be deleted immediately, or when we delete the program to which they are attached
+      (finally
+        (delete-shader gl vs)))))
 
 (defn- update-shader-program [^GL2 gl [program uniform-locs] data]
   (delete-program gl program)
-  (make-shader-program gl data))
+  (try
+    (make-shader-program gl data)
+    (catch Exception _
+      [0 []])))
 
 (defn- destroy-shader-programs [^GL2 gl programs _]
   (doseq [[program _] programs]
