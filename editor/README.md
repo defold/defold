@@ -1,7 +1,7 @@
 # JavaFX Clojure Editor
 
 ## Requirements
-* Java 1.8
+* Java 1.8_102
 * [Leiningen](http://leiningen.org/)
 
 ## Windows
