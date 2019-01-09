@@ -24,7 +24,8 @@
            [javafx.scene.input KeyEvent]
            [javafx.scene.layout HBox VBox Region]
            [javafx.scene.text Text TextFlow]
-           [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]))
+           [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]
+           [clojure.lang Named]))
 
 (set! *warn-on-reflection* true)
 
@@ -185,8 +186,12 @@
   [ex-map]
   (->> (tree-seq :via :via ex-map)
        (drop 1)
-       (map (fn [{:keys [message ^Class type]}]
-              (format "%s: %s" (.getName type) (or message "Unknown"))))
+       (map (fn [{:keys [message type]}]
+              (let [type-name (cond
+                                (instance? Class type) (.getName ^Class type)
+                                (instance? Named type) (name type)
+                                :else (str type))]
+                (format "%s: %s" type-name (or message "Unknown")))))
        (str/join "\n")))
 
 (defn make-unexpected-error-dialog
@@ -460,11 +465,11 @@
         do-validation (fn []
                         (let [sanitized (some-> (not-empty (ui/text (:name controls))) sanitize-folder-name)
                               validation-msg (some-> sanitized validate)]
-                        (if (or (nil? sanitized) validation-msg)
-                          (do (ui/text! (:path controls) (or validation-msg ""))
-                              (ui/enable! (:ok controls) false))
-                          (do (ui/text! (:path controls) sanitized)
-                              (ui/enable! (:ok controls) true)))))]
+                          (if (or (nil? sanitized) validation-msg)
+                            (do (ui/text! (:path controls) (or validation-msg ""))
+                                (ui/enable! (:ok controls) false))
+                            (do (ui/text! (:path controls) sanitized)
+                                (ui/enable! (:ok controls) true)))))]
     (ui/title! stage "New Folder")
 
     (ui/on-action! (:ok controls) (fn [_] (close)))
@@ -524,8 +529,7 @@
       str/trim
       (str/replace #"[/\\]" "") ; strip path separators
       (str/replace #"[\"']" "") ; strip quotes
-      (str/replace #"^\.*" "") ; prevent hiding files (.dotfile)
-      ))
+      (str/replace #"^\.*" ""))) ; prevent hiding files (.dotfile)
 
 (defn sanitize-file-name [extension name]
   (-> name
