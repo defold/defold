@@ -25,6 +25,7 @@
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.scene :as scene]
+            [editor.scene-picking :as scene-picking]
             [editor.texture-set :as texture-set]
             [editor.outline :as outline]
             [editor.validation :as validation]
@@ -97,11 +98,14 @@
     pass/outline
     (render-image-outline gl render-args renderables)))
 
-(defn- render-image-selections
+(defn- render-image-selection
   [^GL2 gl render-args renderables n]
-  (condp = (:pass render-args)
-    pass/selection
-    (run! #(render-rect gl (-> % :user-data :rect) [1.0 1.0 1.0 1.0]) renderables)))
+  (assert (= (:pass render-args) pass/selection))
+  (assert (= n 1))
+  (let [renderable (first renderables)
+        picking-id (:picking-id renderable)
+        id-color (scene-picking/picking-id->color picking-id)]
+    (render-rect gl (-> renderable :user-data :rect) id-color)))
 
 (g/defnk produce-image-scene
   [_node-id image-resource order image-path->rect animation-updatable]
@@ -118,9 +122,8 @@
                   :passes [pass/outline]}
      :children [{:aabb aabb
                  :node-id _node-id
-                 :renderable {:render-fn render-image-selections
+                 :renderable {:render-fn render-image-selection
                               :tags #{:atlas}
-                              :batch-key ::atlas-image
                               :user-data {:rect rect}
                               :passes [pass/selection]}}]
      :updatable animation-updatable}))
@@ -275,12 +278,8 @@
 
 (defn render-animation
   [^GL2 gl render-args renderables n]
-  (condp = (:pass render-args)
-    pass/selection
-    nil
-
-    pass/overlay
-    (texture-set/render-animation-overlay gl render-args renderables n ->texture-vtx atlas-shader)))
+  (assert (= (:pass render-args) pass/overlay))
+  (texture-set/render-animation-overlay gl render-args renderables n ->texture-vtx atlas-shader))
 
 (g/defnk produce-animation-updatable
   [_node-id id anim-data]
@@ -296,7 +295,7 @@
                 :user-data {:gpu-texture gpu-texture
                             :anim-id     id
                             :anim-data   (get anim-data id)}
-                :passes    [pass/overlay pass/selection]}
+                :passes    [pass/overlay]}
    :updatable  updatable
    :children   child-scenes})
 

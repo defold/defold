@@ -86,9 +86,6 @@
 
 (def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
 
-(defn gl-viewport [^GL2 gl viewport]
-  (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport))))
-
 (defn render-curves [^GL2 gl render-args renderables rcount]
   (let [camera (:camera render-args)
         viewport (:viewport render-args)]
@@ -479,6 +476,7 @@
   (property viewport Region (default (types/->Region 0 0 0 0)))
   (property play-mode g/Keyword)
   (property drawable GLAutoDrawable)
+  (property picking-drawable GLAutoDrawable)
   (property async-copier AsyncCopier)
   (property cursor-pos types/Vec2)
   (property tool-picking-rect Rect)

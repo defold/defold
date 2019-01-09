@@ -40,7 +40,18 @@
           (types/rect l t w h)
           nil))))
   ([r1 :- Rect r2 :- Rect & rs :- [Rect]]
-    (reduce intersect (intersect r1 r2) rs)))
+   (reduce intersect (intersect r1 r2) rs)))
+
+(defn empty? [^Rect r]
+  (or (= (.width r) 0)
+      (= (.height r) 0)))
+
+(defn intersect? [^Rect r ^Rect r2]
+  (let [no-intersection (or (< (+ (.x r) (.width r)) (.x r2))
+                            (< (+ (.x r2) (.width r2)) (.x r))
+                            (< (+ (.y r) (.height r)) (.y r2))
+                            (< (+ (.y r2) (.height r2)) (.y r)))]
+    (not no-intersection)))
 
 (s/defn split-rect-| :- [Rect]
   "Splits the rectangle such that the side slices extend to the top and bottom"
@@ -325,6 +336,21 @@
               (recur i (inc j)))
             (recur (inc i) 0))))
       (types/->AABB (Point3d. min-p') (Point3d. max-p')))))
+
+(defn aabb->corners [^AABB aabb]
+  (let [mn ^Point3d (.min aabb)
+        mx ^Point3d (.max aabb)
+        xs [(.x mn) (.x mx)]
+        ys [(.y mn) (.y mx)]
+        zs [(.z mn) (.z mx)]]
+    [(Point3d. (xs 0) (ys 0) (zs 0))
+     (Point3d. (xs 0) (ys 0) (zs 1))
+     (Point3d. (xs 0) (ys 1) (zs 0))
+     (Point3d. (xs 0) (ys 1) (zs 1))
+     (Point3d. (xs 1) (ys 0) (zs 0))
+     (Point3d. (xs 1) (ys 0) (zs 1))
+     (Point3d. (xs 1) (ys 1) (zs 0))
+     (Point3d. (xs 1) (ys 1) (zs 1))]))
 
 ; -------------------------------------
 ; Primitive shapes as vertex arrays

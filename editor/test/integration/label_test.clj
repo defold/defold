@@ -48,7 +48,8 @@
 
 (defn- get-render-calls-by-pass
   [scene camera selection key-fn]
-  (let [render-data (scene/produce-render-data scene selection [] #{} #{} camera)
+  (let [scene-render-data (scene/produce-scene-render-data {:scene scene :selection selection :hidden-renderable-args [] :hidden-node-outline-key-paths [] :camera camera})
+        render-data (scene/produce-render-data {:scene-render-data scene-render-data :aux-render-data {}})
         renderables (:renderables render-data)
         old-render-lines label/render-lines
         old-render-tris label/render-tris]
@@ -58,7 +59,7 @@
                                 (let [patched-renderables (walk/postwalk-replace {old-render-lines label/render-lines
                                                                                   old-render-tris label/render-tris}
                                                                                  renderables)]
-                                  (scene/batch-render nil {:pass pass} (get patched-renderables pass) false key-fn)))]
+                                  (scene/batch-render nil {:pass pass} (get patched-renderables pass) key-fn)))]
                     (when (seq calls)
                       [pass calls]))))
           pass/render-passes)))

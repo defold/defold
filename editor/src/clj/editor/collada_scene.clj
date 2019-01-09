@@ -18,6 +18,7 @@
             [editor.resource-node :as resource-node]
             [editor.rig :as rig]
             [editor.scene-cache :as scene-cache]
+            [editor.scene-picking :as scene-picking]
             [editor.workspace :as workspace]
             [internal.graph.error-values :as error-values])
   (:import [com.jogamp.opengl GL GL2]
@@ -54,6 +55,27 @@
     (setq gl_FragColor (vec4 (* (.xyz (texture2D texture var_texcoord0.xy)) var_normal.z) 1.0))))
 
 (def shader-pos-nrm-tex (shader/make-shader ::shader shader-ver-pos-nrm-tex shader-frag-pos-nrm-tex))
+
+(shader/defshader model-id-vertex-shader
+  (attribute vec4 position)
+  (attribute vec3 normal)
+  (attribute vec2 texcoord0)
+  (varying vec2 var_texcoord0)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq var_texcoord0 texcoord0)))
+
+(shader/defshader model-id-fragment-shader
+  (varying vec2 var_texcoord0)
+  (uniform sampler2D texture)
+  (uniform vec4 id)
+  (defn void main []
+    (setq vec4 color (texture2D texture var_texcoord0.xy))
+    (if (> color.a 0.0)
+      (setq gl_FragColor id)
+      (setq gl_FragColor (vec4 0.0 0.0 0.0 0.0)))))
+
+(def id-shader (shader/make-shader ::model-id-shader model-id-vertex-shader model-id-fragment-shader {"id" :id}))
 
 (defmacro umul [a b]
   `(unchecked-multiply ~a ~b))
@@ -142,8 +164,8 @@
 
 (defn- render-scene [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)]
-    (cond
-      (or (= pass pass/opaque) (= pass pass/selection))
+    (condp = pass
+      pass/opaque
       (let [renderable (first renderables)
             node-id (:node-id renderable)
             user-data (:user-data renderable)
@@ -161,11 +183,10 @@
                               :world-view world-view
                               :normal normal)))]
         (gl/with-gl-bindings gl render-args [shader]
-          (when (= pass pass/opaque)
-            (doseq [[name t] textures]
-              (gl/bind gl t render-args)
-              (shader/set-uniform shader gl name (- (:unit t) GL/GL_TEXTURE0)))
-            (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA))
+          (doseq [[name t] textures]
+            (gl/bind gl t render-args)
+            (shader/set-uniform shader gl name (- (:unit t) GL/GL_TEXTURE0)))
+          (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
           (gl/gl-enable gl GL/GL_CULL_FACE)
           (gl/gl-cull-face gl GL/GL_BACK)
           (doseq [renderable renderables]
@@ -180,10 +201,38 @@
                   (gl/with-gl-bindings gl render-args [vertex-binding]
                     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb)))))))
           (gl/gl-disable gl GL/GL_CULL_FACE)
-          (when (= pass pass/opaque)
-            (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
-            (doseq [[name t] textures]
-              (gl/unbind gl t render-args))))))))
+          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
+          (doseq [[name t] textures]
+            (gl/unbind gl t render-args))))
+
+      pass/selection
+      (let [renderable (first renderables)
+            node-id (:node-id renderable)
+            user-data (:user-data renderable)
+            meshes (:meshes user-data)
+            shader (:shader user-data)
+            textures (:textures user-data)]
+        (gl/gl-enable gl GL/GL_CULL_FACE)
+        (gl/gl-cull-face gl GL/GL_BACK)
+        (doseq [renderable renderables]
+          (let [node-id (:node-id renderable)
+                user-data (:user-data renderable)
+                scratch (:scratch-arrays user-data)
+                meshes (:meshes user-data)
+                world-transform (:world-transform renderable)
+                render-args (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable))]
+            (gl/with-gl-bindings gl render-args [shader]
+              (doseq [[name t] textures]
+                (gl/bind gl t render-args)
+                (shader/set-uniform shader gl name (- (:unit t) GL/GL_TEXTURE0)))
+              (doseq [mesh meshes]
+                (let [vb (request-vb! gl node-id mesh world-transform scratch)
+                      vertex-binding (vtx/use-with [node-id ::mesh-selection] vb shader)]
+                  (gl/with-gl-bindings gl render-args [vertex-binding]
+                    (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb)))))
+              (doseq [[name t] textures]
+                (gl/unbind gl t render-args)))))
+        (gl/gl-disable gl GL/GL_CULL_FACE)))))
 
 (defn- render-outline [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)]
@@ -265,24 +314,34 @@
 
 (g/defnk produce-scene [_node-id aabb meshes]
   (or (validate-meshes meshes)
-    {:node-id _node-id
-     :aabb aabb
-     :renderable {:render-fn render-scene
-                  :tags #{:model}
-                  :batch-key _node-id
-                  :select-batch-key _node-id
-                  :user-data {:meshes meshes
-                              :shader shader-pos-nrm-tex
-                              :textures {"texture" texture/white-pixel}
-                              :scratch-arrays (gen-scratch-arrays meshes)}
-                  :passes [pass/opaque pass/selection]}
-     :children [{:node-id _node-id
-                 :aabb aabb
-                 :renderable {:render-fn render-outline
-                              :tags #{:model :outline}
-                              :batch-key _node-id
-                              :select-batch-key _node-id
-                              :passes [pass/outline]}}]}))
+      {:node-id _node-id
+       :aabb aabb
+       :renderable {:render-fn render-scene
+                    :tags #{:model}
+                    :batch-key _node-id
+                    :select-batch-key _node-id
+                    :user-data {:meshes meshes
+                                :shader shader-pos-nrm-tex
+                                :textures {"texture" texture/white-pixel}
+                                :scratch-arrays (gen-scratch-arrays meshes)}
+                    :passes [pass/opaque]}
+       :children [{:node-id _node-id
+                   :aabb aabb
+                   :renderable {:render-fn render-outline
+                                :tags #{:model :outline}
+                                :batch-key _node-id
+                                :select-batch-key _node-id
+                                :passes [pass/outline]}}
+                  {:node-id _node-id
+                   :aabb aabb
+                   :renderable {:render-fn render-scene
+                                :tags #{:model}
+                                :select-batch-key _node-id
+                                :user-data {:meshes meshes
+                                            :shader id-shader
+                                            :textures {"texture" texture/white-pixel}
+                                            :scratch-arrays (gen-scratch-arrays meshes)}
+                                :passes [pass/selection]}}]}))
 
 (g/defnode ColladaSceneNode
   (inherits resource-node/ResourceNode)

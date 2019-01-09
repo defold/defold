@@ -237,7 +237,7 @@
                             :tile-source-attributes tile-source-attributes
                             :anim-data   (get anim-data id)
                             :start-tile  start-tile}
-                :passes    [pass/outline pass/overlay pass/selection]}
+                :passes    [pass/outline pass/overlay]}
    :updatable  updatable})
 
 (g/defnode TileAnimationNode
