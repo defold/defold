@@ -345,26 +345,6 @@
                    (.draw3D text-renderer chars 0.0 0.0 1.0 1.0)
                    (.end3DRendering text-renderer))))
 
-(defn select-buffer-names
-  "Returns a collection of names from a GL_SELECT buffer.
-   Names are integers assigned during rendering with glPushName and glPopName.
-   The select-buffer contains a series of 'hits' where each hit
-   is [name-count min-z max-z & names+]. In our usage, names may not be
-   nested so name-count must always be one."
-  [hit-count ^IntBuffer select-buffer]
-  (loop [i 0
-         ptr 0
-         names []]
-    (if (< i hit-count)
-      (let [name-count (.get select-buffer ptr)
-            name (.get select-buffer (+ ptr 3))]
-        (assert (>= 1 name-count) (str "Count of names in a hit record must be no more than one, was " name-count))
-        (when (< 0 name-count)
-          (recur (inc i)
-            (+ ptr 3 name-count)
-            (conj names name))))
-      names)))
-
 (defn set-blend-mode [^GL gl blend-mode]
   ;; Assumes pre-multiplied source/destination
   ;; Equivalent of defold/engine/gamesys/src/gamesys/components/comp_particlefx.cpp

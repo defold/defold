@@ -17,6 +17,7 @@
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
+            [editor.scene-picking :as scene-picking]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
@@ -65,6 +66,19 @@
 
 (def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
 
+(shader/defshader label-id-vertex-shader
+  (uniform mat4 view_proj)
+  (attribute vec4 position)
+  (defn void main []
+    (setq gl_Position (* view_proj (vec4 position.xyz 1.0)))))
+
+(shader/defshader label-id-fragment-shader
+  (uniform vec4 id)
+  (defn void main []
+    (setq gl_FragColor id)))
+
+(def id-shader (shader/make-shader ::label-id-shader label-id-vertex-shader label-id-fragment-shader {"view_proj" :view-proj "id" :id}))
+
 ; Vertex generation
 
 (def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0]))
@@ -104,19 +118,27 @@
     (font/request-vertex-buffer gl node-ids font-data text-entries)))
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
-  (let [user-data (get-in renderables [0 :user-data])
+  (let [renderable (first renderables)
+        user-data (:user-data renderable)
         gpu-texture (or (get user-data :gpu-texture) texture/white-pixel)
-        material-shader (get user-data :material-shader)
-        blend-mode (get user-data :blend-mode)
         vb (gen-vb gl renderables)
         vcount (count vb)]
     (when (> vcount 0)
-      (let [shader (or material-shader shader)
-            vertex-binding (vtx/use-with ::tris vb shader)]
+      (condp = (:pass render-args)
+        pass/transparent
+        (let [material-shader (get user-data :material-shader)
+              blend-mode (get user-data :blend-mode)
+              shader (or material-shader shader)
+              vertex-binding (vtx/use-with ::tris vb shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
           (gl/set-blend-mode gl blend-mode)
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
-          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))))
+          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
+
+        pass/selection
+        (let [vertex-binding (vtx/use-with ::tris-selection vb id-shader)]
+          (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable)) [id-shader vertex-binding gpu-texture]
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)))))))
 
 ; Node defs
 
@@ -184,19 +206,28 @@
         (assoc scene :renderable {:render-fn render-tris
                                   :tags #{:text}
                                   :batch-key {:blend-mode blend-mode :gpu-texture gpu-texture :material-shader material-shader}
-                                  :select-batch-key _node-id
                                   :user-data {:material-shader material-shader
                                               :blend-mode blend-mode
                                               :gpu-texture gpu-texture
                                               :line-data lines
                                               :text-data text-data}
-                                  :passes [pass/transparent pass/selection]}
+                                  :passes [pass/transparent]}
                :children [{:node-id _node-id
+                           :aabb aabb
                            :renderable {:render-fn render-lines
                                         :tags #{:text :outline}
                                         :batch-key ::outline
                                         :user-data {:line-data lines}
-                                        :passes [pass/outline]}}]))
+                                        :passes [pass/outline]}}
+                          {:node-id _node-id
+                           :aabb aabb
+                           :renderable {:render-fn render-tris
+                                        :tags #{:text}
+                                        :select-batch-key _node-id
+                                        :user-data {:gpu-texture gpu-texture
+                                                    :line-data lines
+                                                    :text-data text-data}
+                                        :passes [pass/selection]}}]))
       scene)))
 
 (defn- build-label [resource dep-resources user-data]

@@ -17,6 +17,7 @@
             [editor.scene :as scene]
             [editor.scene-cache :as scene-cache]
             [editor.scene-tools :as scene-tools]
+            [editor.scene-picking :as scene-picking]
             [editor.outline :as outline]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
@@ -107,6 +108,19 @@
 
 (def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
 
+(shader/defshader line-id-vertex-shader
+  (attribute vec4 position)
+  (attribute vec4 color)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
+
+(shader/defshader line-id-fragment-shader
+  (uniform vec4 id)
+  (defn void main []
+    (setq gl_FragColor id)))
+
+(def line-id-shader (shader/make-shader ::line-id-shader line-id-vertex-shader line-id-fragment-shader {"id" :id}))
+
 (def color (scene/select-color pass/outline false [1.0 1.0 1.0 1.0]))
 (def selected-color (scene/select-color pass/outline true [1.0 1.0 1.0 1.0]))
 
@@ -160,7 +174,10 @@
 (defn render-lines [^GL2 gl render-args renderables rcount]
   (let [camera (:camera render-args)
         viewport (:viewport render-args)
-        scale-f (camera/scale-factor camera viewport)]
+        scale-f (camera/scale-factor camera viewport)
+        shader (if (= pass/selection (:pass render-args))
+                 line-id-shader
+                 line-shader)]
     (doseq [renderable renderables
             :let [vs-screen (get-in renderable [:user-data :geom-data-screen] [])
                   vs-world (get-in renderable [:user-data :geom-data-world] [])
@@ -170,9 +187,12 @@
             world-transform-no-scale (orthonormalize world-transform)
             color (if (:selected renderable) selected-color color)
             vs (into (vec (geom/transf-p world-transform-no-scale (geom/scale scale-f vs-screen)))
-                 (geom/transf-p world-transform vs-world))
-            vertex-binding (vtx/use-with ::lines (->vb vs vcount color) line-shader)]
-        (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
+                     (geom/transf-p world-transform vs-world))
+            render-args (if (= pass/selection (:pass render-args))
+                          (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable))
+                          render-args)
+            vertex-binding (vtx/use-with ::lines (->vb vs vcount color) shader)]
+        (gl/with-gl-bindings gl render-args [shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
 
 ; Modifier geometry
@@ -660,7 +680,7 @@
   (let [scene {:node-id _node-id
                :renderable {:render-fn render-pfx
                             :batch-key nil
-                            :passes [pass/transparent pass/selection]}
+                            :passes [pass/transparent]}
                :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
                :children child-scenes}]
     (scene/map-scene #(assoc % :updatable scene-updatable) scene)))

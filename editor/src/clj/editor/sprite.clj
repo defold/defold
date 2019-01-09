@@ -12,6 +12,7 @@
             [editor.material :as material]
             [editor.properties :as properties]
             [editor.scene :as scene]
+            [editor.scene-picking :as scene-picking]
             [editor.workspace :as workspace]
             [editor.validation :as validation]
             [editor.pipeline :as pipeline]
@@ -29,7 +30,7 @@
            [java.io PushbackReader]
            [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
            [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d]))
+           [javax.vecmath Matrix4d Vector4d Point3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -129,14 +130,35 @@
 
 ; Rendering
 
+(shader/defshader sprite-id-vertex-shader
+  (uniform mat4 view_proj)
+  (attribute vec4 position)
+  (attribute vec2 texcoord0)
+  (varying vec2 var_texcoord0)
+  (defn void main []
+    (setq gl_Position (* view_proj (vec4 position.xyz 1.0)))
+    (setq var_texcoord0 texcoord0)))
+
+(shader/defshader sprite-id-fragment-shader
+  (varying vec2 var_texcoord0)
+  (uniform sampler2D DIFFUSE_TEXTURE)
+  (uniform vec4 id)
+  (defn void main []
+    (setq vec4 color (texture2D DIFFUSE_TEXTURE var_texcoord0))
+    (if (> color.a 0.0)
+      (setq gl_FragColor id)
+      (setq gl_FragColor (vec4 0.0 0.0 0.0 0.0)))))
+
+(def id-shader (shader/make-shader ::sprite-id-shader sprite-id-vertex-shader sprite-id-fragment-shader {"view_proj" :view-proj "id" :id}))
+
 (defn render-sprites [^GL2 gl render-args renderables count]
-  (let [pass (:pass render-args)]
+  (let [user-data (:user-data (first renderables))
+        gpu-texture (:gpu-texture user-data)
+        pass (:pass render-args)]
     (condp = pass
       pass/transparent
-      (let [user-data (:user-data (first renderables))
-            shader (:shader user-data)
+      (let [shader (:shader user-data)
             vertex-binding (vtx/use-with ::sprite-trans (gen-vertex-buffer renderables count) shader)
-            gpu-texture (:gpu-texture user-data)
             blend-mode (:blend-mode user-data)]
         (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
           (gl/set-blend-mode gl blend-mode)
@@ -144,8 +166,8 @@
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
 
       pass/selection
-      (let [vertex-binding (vtx/use-with ::sprite-selection (gen-vertex-buffer renderables count) shader)]
-        (gl/with-gl-bindings gl render-args [shader vertex-binding]
+      (let [vertex-binding (vtx/use-with ::sprite-selection (gen-vertex-buffer renderables count) id-shader)]
+        (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [gpu-texture id-shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6)))))))
 
 (defn- render-sprite-outlines [^GL2 gl render-args renderables count]
@@ -174,7 +196,8 @@
                                     :shader material-shader
                                     :animation animation
                                     :blend-mode blend-mode}
-                        :passes [pass/transparent pass/selection]})
+                        :passes [pass/transparent]})
+
     (and (:width animation) (:height animation))
     (assoc :children [{:node-id _node-id
                        :aabb aabb
@@ -183,7 +206,15 @@
                                     :tags #{:sprite :outline}
                                     :select-batch-key _node-id
                                     :user-data {:animation animation}
-                                    :passes [pass/outline]}}])
+                                    :passes [pass/outline]}}
+                      {:node-id _node-id
+                       :aabb aabb
+                       :renderable {:render-fn render-sprites
+                                    :select-batch-key _node-id
+                                    :tags #{:sprite}
+                                    :user-data {:gpu-texture gpu-texture
+                                                :animation animation}
+                                    :passes [pass/selection]}}])
 
     (< 1 (count (:frames animation)))
     (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" animation))))
