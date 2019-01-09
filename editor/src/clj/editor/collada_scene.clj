@@ -84,7 +84,7 @@
   (let [^floats positions (to-scratch! mesh scratch :positions)
         ^floats normals   (to-scratch! mesh scratch :normals)
         ^floats texcoords (to-scratch! mesh scratch :texcoord0)
-        ^ints positions-indices (:indices mesh)
+        ^ints positions-indices (:position-indices mesh)
         ^ints normals-indices   (:normals-indices mesh)
         ^ints texcoords-indices (:texcoord0-indices mesh)
         vcount (alength positions-indices)
@@ -200,7 +200,7 @@
     (update :positions doubles->floats)
     (update :normals doubles->floats)
     (update :texcoord0 doubles->floats)
-    (update :indices int-array)
+    (update :position-indices int-array)
     (update :normals-indices int-array)
     (update :texcoord0-indices int-array)))
 
@@ -228,17 +228,17 @@
         (error-values/error-fatal "The scene contains invalid numbers, likely produced by a buggy exporter." {:type :invalid-content})))))
 
 (defn- vbuf-size [meshes]
-  (reduce (fn [sz m] (max sz (alength ^ints (:indices m)))) 0 meshes))
+  (reduce (fn [sz m] (max sz (alength ^ints (:position-indices m)))) 0 meshes))
 
 (defn- index-oob [vs is comp-count]
   (> (* comp-count (reduce max 0 is)) (count vs)))
 
 (defn- validate-meshes [meshes]
   (when-let [es (seq (keep (fn [m]
-                             (let [{:keys [^floats positions ^floats normals ^floats texcoord0 ^ints indices ^ints normals-indices ^ints texcoord0-indices]} m]
-                               (when (or (not (= (alength indices) (alength texcoord0-indices)))
-                                         (and (not= (alength normals-indices) 0) (not= (alength indices) (alength normals-indices))) ; normals optional
-                                         (index-oob positions indices 3)
+                             (let [{:keys [^floats positions ^floats normals ^floats texcoord0 ^ints position-indices ^ints normals-indices ^ints texcoord0-indices]} m]
+                               (when (or (not (= (alength position-indices) (alength texcoord0-indices)))
+                                         (and (not= (alength normals-indices) 0) (not= (alength position-indices) (alength normals-indices))) ; normals optional
+                                         (index-oob positions position-indices 3)
                                          (index-oob normals normals-indices 3)
                                          (index-oob texcoord0 texcoord0-indices 2))
                                  (error-values/error-fatal "Failed to produce vertex buffers from mesh set. The scene might contain invalid data."))))
@@ -314,7 +314,7 @@
 
 (defn- make-vb [^GL2 gl data]
   (let [{:keys [mesh]} data
-        vb (->vtx-pos-nrm-tex (alength ^ints (:indices mesh)))]
+        vb (->vtx-pos-nrm-tex (alength ^ints (:position-indices mesh)))]
     (update-vb gl vb data)))
 
 (defn- destroy-vbs [^GL2 gl vbs _])

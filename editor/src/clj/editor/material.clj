@@ -17,7 +17,7 @@
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
             [internal.util :as util])
-  (:import [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$WrapMode Material$MaterialDesc$FilterModeMin Material$MaterialDesc$FilterModeMag]
+  (:import [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$WrapMode Material$MaterialDesc$FilterModeMin Material$MaterialDesc$FilterModeMag Material$MaterialDesc$VertexSpace]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
@@ -28,7 +28,7 @@
 
 (set! *warn-on-reflection* true)
 
-(g/defnk produce-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags :as pb-msg]
+(g/defnk produce-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space :as pb-msg]
   (-> pb-msg
       (dissoc :_node-id :basis)
       (update :vertex-program resource/resource->proj-path)
@@ -123,7 +123,10 @@
          {:path [:tags]
           :label "Tags"
           :type :list
-          :element {:type :string :default "New Tag"}}]}]}))
+          :element {:type :string :default "New Tag"}}
+         {:path [:vertex-space]
+          :label "Vertex Space"
+          :type :choicebox :options (protobuf-forms/make-options (protobuf/enum-values Material$MaterialDesc$VertexSpace)) :default (ffirst (protobuf/enum-values Material$MaterialDesc$VertexSpace))}]}]}))
 
 (defn- set-form-op [{:keys [node-id]} [property] value]
   (g/set-property! node-id property value))
@@ -205,6 +208,7 @@
   (property fragment-constants g/Any (dynamic visible (g/constantly false)))
   (property samplers g/Any (dynamic visible (g/constantly false)))
   (property tags g/Any (dynamic visible (g/constantly false)))
+  (property vertex-space g/Any (dynamic visible (g/constantly false)))
 
   (output form-data g/Any :cached produce-form-data)
 
@@ -234,7 +238,7 @@
   (concat
     (g/set-property self :vertex-program (workspace/resolve-resource resource (:vertex-program pb)))
     (g/set-property self :fragment-program (workspace/resolve-resource resource (:fragment-program pb)))
-    (for [field [:name :vertex-constants :fragment-constants :samplers :tags]]
+    (for [field [:name :vertex-constants :fragment-constants :samplers :tags :vertex-space]]
       (g/set-property self field (field pb)))))
 
 (defn- convert-textures-to-samplers
