@@ -387,20 +387,21 @@ This must be submitted to the driver for compilation before you can use it. See
 (defrecord ShaderLifecycle [request-id verts frags uniforms]
   GlBind
   (bind [_this gl render-args]
-    (when-not (types/selection? (:pass render-args))
-      (let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
-        (.glUseProgram ^GL2 gl program)
-        (when-not (= program 0)
-          (doseq [[name val] uniforms
-                  :let [val (if (keyword? val)
-                              (get render-args val)
-                              val)
-                        loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]]
-            (set-uniform-at-index gl program loc val))))))
+    (let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
+      (.glUseProgram ^GL2 gl program)
+      (when-not (= program 0)
+        (doseq [[name val] uniforms
+                :let [val (if (keyword? val)
+                            (get render-args val)
+                            val)
+                      loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]]
+          (try
+            (set-uniform-at-index gl program loc val)
+            (catch IllegalArgumentException e
+              (throw (IllegalArgumentException. (format "Failed setting uniform '%s'" name) e))))))))
 
   (unbind [_this gl render-args]
-    (when-not (types/selection? (:pass render-args))
-      (.glUseProgram ^GL2 gl 0)))
+    (.glUseProgram ^GL2 gl 0))
 
   ShaderVariables
   (get-attrib-location [this gl name]
@@ -413,7 +414,10 @@ This must be submitted to the driver for compilation before you can use it. See
     (when-let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
       (when (and (not= program 0) (= program (gl/gl-current-program gl)))
         (let [loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]
-          (set-uniform-at-index gl program loc val))))))
+          (try
+            (set-uniform-at-index gl program loc val)
+            (catch IllegalArgumentException e
+              (throw (IllegalArgumentException. (format "Failed setting uniform '%s'" name) e)))))))))
 
 (defn make-shader
   "Ready a shader program for use by compiling and linking it. Takes a collection
