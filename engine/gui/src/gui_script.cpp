@@ -247,8 +247,7 @@ namespace dmGui
 
     static int NodeProxy_tostring (lua_State *L)
     {
-        int top = lua_gettop(L);
-        (void) top;
+        DM_LUA_STACK_CHECK(L,1);
 
         NodeProxy* np = NodeProxy_Check(L, 1);
 
@@ -290,7 +289,6 @@ namespace dmGui
             lua_pushstring(L,"<foreign scene node>");
         }
 
-        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
