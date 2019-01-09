@@ -87,8 +87,6 @@
 ;;; Extension discovery/processing
 
 (def ^:private extender-platforms
-  {(.getPair Platform/X86Darwin)    {:platform      "x86-osx"
-                                     :library-paths #{"osx" "x86-osx"}}
    (.getPair Platform/X86_64Darwin) {:platform      "x86_64-osx"
                                      :library-paths #{"osx" "x86_64-osx"}}
    (.getPair Platform/Armv7Darwin)  {:platform      "armv7-ios"

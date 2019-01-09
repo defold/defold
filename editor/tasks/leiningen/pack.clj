@@ -27,7 +27,6 @@
 (defn- platform->engine-src-dirname [platform]
   (assert (contains? engine-artifacts platform))
   (case platform
-    "x86-darwin" "darwin"
     "x86-win32" "win32"
     platform))
 
