@@ -17,7 +17,7 @@
                      [org.clojure/data.json                       "0.2.6"]
                      [com.cognitect/transit-clj                   "0.8.285"
                       :exclusions [com.fasterxml.jackson.core/jackson-core]] ; transit-clj -> 2.3.2, amazonica -> 2.6.6
-                     [prismatic/schema                            "1.0.4"]
+                     [prismatic/schema                            "1.1.9"]
                      [prismatic/plumbing                          "0.5.2"]
                      [com.google.protobuf/protobuf-java           "2.3.0"]
                      [ch.qos.logback/logback-classic              "1.2.1"]
