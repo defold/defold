@@ -36,7 +36,6 @@ save_function cmi_package_platform old_cmi_package_platform
 function cmi_package_platform() {
     local libdir=${PREFIX}/lib/$1
 	pushd $PREFIX  >/dev/null
-		echo "HELLO WORLD!"
 		mkdir bin
 		mkdir share
 		mkdir ${libdir}
@@ -49,11 +48,18 @@ function cmi_package_platform() {
 }
 
 case $CONF_TARGET in
+	darwin)
+		#CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86-darwin15-gcc"
+		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=generic-gnu"
+		;;
 	x86_64-darwin)
 		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86_64-darwin15-gcc"
 		;;
 	x86_64-linux)
 		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86_64-linux-gcc"
+		;;
+	linux)
+		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86-linux-gcc"
 		;;
 	win32)
 		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86-win32-vs15"
