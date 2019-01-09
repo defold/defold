@@ -88,7 +88,7 @@ Create apkc, by invoking the following from the root defold directory:
 
 This will result in the production of apkc under “go/bin”.
 
-    $ PLATFORM=x86-darwin
+    $ PLATFORM=x86-64_darwin
     $ cp go/bin/apkc com.dynamo.cr/com.dynamo.cr.target/libexec/$PLATFORM
 
 Copy classes.dex
