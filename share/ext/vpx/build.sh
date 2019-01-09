@@ -36,11 +36,34 @@ save_function cmi_package_platform old_cmi_package_platform
 function cmi_package_platform() {
     local libdir=${PREFIX}/lib/$1
 	pushd $PREFIX  >/dev/null
+
+		case $1 in
+			win32)
+				# it has wrong casing: Win32
+				mv lib/Win32 lib/tmp
+				mv lib/tmp ${libdir}
+				;;
+			x86_64-win32)
+				mv lib/x64 ${libdir}
+				;;
+			*)
+				mkdir ${libdir}
+				;;
+		esac
+
 		mkdir bin
 		mkdir share
-		mkdir ${libdir}
-		mv lib/*.a ${libdir}/libvpx.a
-		rm -rf lib/pkgconfig
+
+		case $1 in
+		*win32)
+			mv ${libdir}/vpxmd.lib ${libdir}/vpx.lib
+			;;
+		*)
+			mv lib/*.a ${libdir}/libvpx.a
+			;;
+		esac
+
+		[ -e lib/pkgconfig ] && rm -rf lib/pkgconfig
     popd >/dev/null
 
     # now call the old packager
@@ -49,7 +72,6 @@ function cmi_package_platform() {
 
 case $CONF_TARGET in
 	darwin)
-		#CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86-darwin15-gcc"
 		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=generic-gnu"
 		;;
 	x86_64-darwin)
@@ -62,68 +84,17 @@ case $CONF_TARGET in
 		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86-linux-gcc"
 		;;
 	win32)
-		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86-win32-vs15"
-		cmi_setup_vs2015_env
+		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86-win32-vs14"
+		PATH="/c/Program Files (x86)/MSBuild/14.0/Bin:$PATH"
 		;;
 	x86_64-win32)
-		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86_64-win64-vs15"
-		cmi_setup_vs2015_env
+		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86_64-win64-vs14"
+		PATH="/c/Program Files (x86)/MSBuild/14.0/Bin:$PATH"
 		;;
 	js-web)
 		CONFIGURE_WRAPPER="ARFLAGS=crs $EMSCRIPTEN/emconfigure"
 		;;
 esac
-
-# old_configure=cmi_configure
-
-# # Trick to override function
-# save_function() {
-#     local ORIG_FUNC=$(declare -f $1)
-#     local NEWNAME_FUNC="$2${ORIG_FUNC#$1}"
-#     eval "$NEWNAME_FUNC"
-# }
-# save_function cmi_configure old_configure
-
-# case $CONF_TARGET in
-# 	*win32)
-# 		echo "Windows not implemented yet"
-# 		exit 1
-# 		;;
-# 	*)
-# 		function cmi_configure() {
-# 			set -e
-# 		    ./autogen.sh
-# 			set +e
-
-# 			old_configure
-# 		}
-
-#     	export CFLAGS=-fPIC
-
-#     	function cmi_make() {
-# 			set -e
-# 			pushd .
-# 		    make -j8
-# 			set +e
-
-# 			# "install"
-# 			mkdir -p $PREFIX/lib/$CONF_TARGET
-# 			mkdir -p $PREFIX/bin/$CONF_TARGET
-# 			mkdir -p $PREFIX/share/$CONF_TARGET
-# 			mkdir -p $PREFIX/include/
-
-# 			cp -v ./src/.libs/libwebp.a $PREFIX/lib/$CONF_TARGET/
-# 			cp -v ./src/webp/*.h $PREFIX/include
-
-# 			popd
-# 			set +e
-# 		}
-# 		;;
-# esac
-
-
-# emscripten
-# ARFLAGS=crs $EMSCRIPTEN/emconfigure ../configure --prefix=js-web --disable-examples --disable-unit-tests --disable-docs --disable-tools
 
 download
 cmi $1
