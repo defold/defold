@@ -183,7 +183,8 @@ def default_flags(self):
     global MIN_IOS_SDK_VERSION
     build_util = create_build_utility(self.env)
 
-    opt_level = Options.options.opt_level
+    #opt_level = Options.options.opt_level
+    opt_level = 0
     if opt_level == "2" and 'web' == build_util.get_target_os():
         opt_level = "3" # emscripten highest opt level
     elif opt_level == "0" and 'win' in build_util.get_target_os():
@@ -256,8 +257,8 @@ def default_flags(self):
                                         '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)])
         self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
 
-    elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
-
+    elif 'android' == build_util.get_target_os() and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture()):
+        print("############### ANDROID build_util.get_target_architecture(): " + build_util.get_target_architecture())
         sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION)
         stl="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/include" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION)
         stl_lib="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/libs/armeabi-v7a" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION)
@@ -1440,7 +1441,7 @@ def detect(conf):
         conf.env['AR'] = '%s/usr/bin/ar' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['LD'] = '%s/usr/bin/ld' % (DARWIN_TOOLCHAIN_ROOT)
-    elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
+    elif 'android' == build_util.get_target_os() and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture()):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
         arch = 'x86_64'
 

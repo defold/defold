@@ -48,6 +48,36 @@ case $CONF_TARGET in
             cp -vr libunwind_android/include/* $PREFIX/include/$CONF_TARGET/
         }
         ;;
+    *arm64-android)
+        # SHA1 of master as of 2018-12-07
+        readonly VERSION=8ba86320a71bcdc7b411070c0c0f101cf2131cf2
+
+        function cmi_make() {
+            echo -e "Checking out libunwind into libunwind_android"
+            git clone https://android.googlesource.com/platform/external/libunwind libunwind_android
+            pushd libunwind_android
+            git checkout $VERSION
+
+            echo -e "Moving jni makefiles"
+            mkdir -p jni/
+            cp ../../jni/* jni/
+
+            echo -e "Applying patch files"
+            patch -p1 -s -f < ../../android_changes.patch || exit 1
+
+            echo -e "Building libunwind with ndk-buildsrfgjkhdfghjkfgdnjk"
+            echo -e "ANDROID_NDK: ${ANDROID_NDK}."
+            ${ANDROID_NDK}/ndk-build NDK_PROJECTPATH="." NDK_TOOLCHAIN_VERSION="4.9" APP_STL=gnustl_static NDK_DEBUG=0 -B -j16 || exit 1
+            popd
+
+            echo -e "Copying library to build folder"
+            mkdir -p $PREFIX/lib/$CONF_TARGET
+            mkdir -p $PREFIX/include/$CONF_TARGET/
+
+            cp -v libunwind_android/obj/local/arm64-v8a/libunwind.a $PREFIX/lib/$CONF_TARGET/
+            cp -vr libunwind_android/include/* $PREFIX/include/$CONF_TARGET/
+        }
+        ;;
     *x86_64-darwin)
         # SHA1 of master as of 2018-12-07
         readonly VERSION=395b27b68c5453222378bc5fe4dab4c6db89816a
