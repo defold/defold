@@ -685,6 +685,7 @@
         exited-handler (ui/event-handler e (drag-exited e))]
     (doto tree-view
       (ui/bind-double-click! :open)
+      (ui/bind-key-commands! {"Enter" :open})
       (.setOnDragDetected detected-handler)
       (ui/cell-factory! (fn [resource]
                           (if (nil? resource)
