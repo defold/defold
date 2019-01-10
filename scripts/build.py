@@ -894,7 +894,7 @@ class Configuration(object):
                            'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
                            'js-bundling': [['js-web', 'js-web'], ['wasm-web', 'wasm-web']],
                            'ios-bundling': [['armv7-darwin', 'armv7-darwin'], ['arm64-darwin', 'arm64-darwin']],
-                           'osx-bundling': [['darwin', 'x86-darwin'], ['x86_64-darwin', 'x86_64-darwin']],
+                           'osx-bundling': [['x86_64-darwin', 'x86_64-darwin']],
                            'linux-bundling': [['x86_64-linux', 'x86_64-linux']]}.iteritems():
             # plfs is pairs of src-platform -> dst-platform
             # The haxx above makes sure that x86_64-darwin is noted as x86-darwin for dst-platform (because of Ed1 reasons)
@@ -1398,8 +1398,7 @@ instructions.configure=\
 
         model['editor'] = {'stable': [ dict(name='Mac OSX', url='/%s/Defold-macosx.cocoa.x86_64.dmg' % self.channel),
                                        dict(name='Windows', url='/%s/Defold-win32.win32.x86.zip' % self.channel),
-                                       dict(name='Linux (64-bit)', url='/%s/Defold-linux.gtk.x86_64.zip' % self.channel),
-                                       dict(name='Linux (32-bit)', url='/%s/Defold-linux.gtk.x86.zip' % self.channel)] }
+                                       dict(name='Linux', url='/%s/Defold-linux.gtk.x86_64.zip' % self.channel)] }
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
@@ -1416,7 +1415,7 @@ instructions.configure=\
                                                  'sha1' : release_sha1}))
 
         # Create redirection keys for editor
-        for name in ['Defold-macosx.cocoa.x86_64.dmg', 'Defold-win32.win32.x86.zip', 'Defold-linux.gtk.x86.zip', 'Defold-linux.gtk.x86_64.zip']:
+        for name in ['Defold-macosx.cocoa.x86_64.dmg', 'Defold-win32.win32.x86.zip', 'Defold-linux.gtk.x86_64.zip']:
             key_name = '%s/%s' % (self.channel, name)
             redirect = '/archive/%s/%s/editor/%s' % (release_sha1, self.channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
