@@ -27,6 +27,10 @@ case $1 in
     	MODE="arm-asm"
     	;;
 
+    arm64-android)
+        MODE="arm64-asm"
+        ;;
+
     darwin)
         EXTRA_FLAGS="-mmacosx-version-min=10.7"
         ;;
@@ -48,6 +52,17 @@ case $MODE in
     arm-asm)
         function cmi_make() {
             export CFLAGS="${CFLAGS} -Wa,-mimplicit-it=always -D_ARM_ASSEM_ -static -O2 -mtune=xscale"
+            set -e
+            make -j1 libTremolo006.lib
+            set +e
+            mkdir -p $PREFIX/lib/$CONF_TARGET
+            cp libTremolo006.lib $PREFIX/lib/$CONF_TARGET/libtremolo.a
+        }
+        ;;
+
+    arm64-asm)
+        function cmi_make() {
+            export CFLAGS="${CFLAGS} -Wa,-D_ARM_ASSEM_ -static -O2"
             set -e
             make -j1 libTremolo006.lib
             set +e

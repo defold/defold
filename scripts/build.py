@@ -21,13 +21,14 @@ PACKAGES_HOST="protobuf-2.3.0 gtest-1.8.0 cg-3.1 vpx-v0.9.7-p1 PVRTexLib-4.18.0 
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.0.5 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_DARWIN="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-v0.9.7-p1 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_DARWIN=   "protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-v0.9.7-p1 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-v0.9.7-p1 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
 PACKAGES_WIN32="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 apkc-0.1.0 bullet-2.77".split()
 PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
 PACKAGES_LINUX="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 apkc-0.1.0 bullet-2.77".split()
 PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 google-play-services-4.0.30 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_ANDROID_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 google-play-services-4.0.30 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0 bullet-2.77".split()
 
 PACKAGES_EMSCRIPTEN_SDK="emsdk-1.38.12"
@@ -348,6 +349,7 @@ class Configuration(object):
             'armv7-darwin':   PACKAGES_IOS,
             'arm64-darwin':   PACKAGES_IOS_64,
             'armv7-android':  PACKAGES_ANDROID,
+            'arm64-android':  PACKAGES_ANDROID_64,
             'js-web':         PACKAGES_EMSCRIPTEN,
             'wasm-web':       PACKAGES_EMSCRIPTEN
         }
@@ -361,10 +363,11 @@ class Configuration(object):
         for platform in other_platforms:
             packages = platform_packages.get(platform, [])
             package_paths = self._make_package_paths(platform, packages)
-            print("Installing %s packages" % platform)
-            for path in package_paths:
-                self._extract_tgz(path, self.ext)
-            installed_packages.update(package_paths)
+            if platform != 'arm64-android':
+                print("Installing %s packages " % platform)
+                for path in package_paths:
+                    self._extract_tgz(path, self.ext)
+                installed_packages.update(package_paths)
 
         for base_platform in self.get_base_platforms():
             packages = list(PACKAGES_HOST)
@@ -890,7 +893,7 @@ class Configuration(object):
                      'osx-bundling': osx_files,
                      'linux-bundling': linux_files}
         # Add dmengine to 'artefacts' procedurally
-        for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android']],
+        for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android']],
                            'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
                            'js-bundling': [['js-web', 'js-web'], ['wasm-web', 'wasm-web']],
                            'ios-bundling': [['armv7-darwin', 'armv7-darwin'], ['arm64-darwin', 'arm64-darwin']],
@@ -940,7 +943,7 @@ class Configuration(object):
         root = urlparse.urlparse(self.archive_path).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        platforms = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web', 'wasm-web']
+        platforms = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'arm64-android', 'js-web', 'wasm-web']
         for platform in platforms:
             platform_sdk_url = join(self.archive_path, sha1, 'engine', platform).replace('\\', '/')
 
@@ -1949,7 +1952,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web', 'wasm-web'],
+                      choices = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'arm64-android', 'js-web', 'wasm-web'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',
