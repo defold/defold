@@ -56,7 +56,7 @@ function cmi_package_platform() {
 
 		case $1 in
 		*win32)
-			mv ${libdir}/vpxmd.lib ${libdir}/vpx.lib
+			mv ${libdir}/vpxmt.lib ${libdir}/vpx.lib
 			;;
 		*)
 			mv lib/*.a ${libdir}/libvpx.a
@@ -84,11 +84,11 @@ case $CONF_TARGET in
 		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86-linux-gcc"
 		;;
 	win32)
-		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86-win32-vs14"
+		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86-win32-vs14 --enable-static-msvcrt"
 		PATH="/c/Program Files (x86)/MSBuild/14.0/Bin:$PATH"
 		;;
 	x86_64-win32)
-		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86_64-win64-vs14"
+		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86_64-win64-vs14 --enable-static-msvcrt"
 		PATH="/c/Program Files (x86)/MSBuild/14.0/Bin:$PATH"
 		;;
 	js-web)
