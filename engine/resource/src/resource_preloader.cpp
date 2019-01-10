@@ -453,6 +453,7 @@ namespace dmResource
             {
                 while (req->m_FirstChild != -1)
                 {
+                    assert(preloader->m_Request[req->m_FirstChild].m_LoadRequest == 0);
                     PreloaderRemoveLeaf(preloader, req->m_FirstChild);
                 }
             }
@@ -567,6 +568,13 @@ namespace dmResource
                 rd->m_ReferenceCount++;
                 req->m_Resource = rd->m_Resource;
                 req->m_LoadResult = RESULT_OK;
+
+                // All children are already loaded.
+                while (req->m_FirstChild != -1)
+                {
+                    PreloaderRemoveLeaf(preloader, req->m_FirstChild);
+                }
+
                 PreloaderTryPrune(preloader, req->m_Parent);
                 return 1;
             }
