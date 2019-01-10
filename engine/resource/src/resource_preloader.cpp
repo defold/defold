@@ -453,7 +453,6 @@ namespace dmResource
             {
                 while (req->m_FirstChild != -1)
                 {
-                    assert(preloader->m_Request[req->m_FirstChild].m_LoadRequest == 0);
                     PreloaderRemoveLeaf(preloader, req->m_FirstChild);
                 }
             }
@@ -572,6 +571,7 @@ namespace dmResource
                 // All children are already loaded.
                 while (req->m_FirstChild != -1)
                 {
+                    assert(preloader->m_Request[req->m_FirstChild].m_LoadRequest == 0);
                     PreloaderRemoveLeaf(preloader, req->m_FirstChild);
                 }
 
