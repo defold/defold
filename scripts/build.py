@@ -1398,7 +1398,7 @@ instructions.configure=\
 
         model['editor'] = {'stable': [ dict(name='Mac OSX', url='/%s/Defold-macosx.cocoa.x86_64.dmg' % self.channel),
                                        dict(name='Windows', url='/%s/Defold-win32.win32.x86.zip' % self.channel),
-                                       dict(name='Linux (64-bit)', url='/%s/Defold-linux.gtk.x86_64.zip' % self.channel)] }
+                                       dict(name='Linux', url='/%s/Defold-linux.gtk.x86_64.zip' % self.channel)] }
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
