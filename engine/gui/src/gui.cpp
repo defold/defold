@@ -1794,16 +1794,18 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
 
             Result result = RESULT_OK;
-            char scope_name[128];
+            const char* scope_name = 0;
             if (dmProfile::g_IsInitialized)
             {
                 if (custom_ref == LUA_NOREF)
                 {
-                    DM_SNPRINTF(scope_name, sizeof(scope_name), "%s@%s", SCRIPT_FUNCTION_NAMES[script_function], scene->m_Script->m_SourceFileName);
+                    char buffer[128];
+                    DM_SNPRINTF(buffer, sizeof(buffer), "%s@%s", SCRIPT_FUNCTION_NAMES[script_function], scene->m_Script->m_SourceFileName);
+                    scope_name = dmProfile::Internalize(buffer);
                 }
                 else
                 {
-                    DM_SNPRINTF(scope_name, sizeof(scope_name), "<unknown>@<unknown>");
+                    scope_name = "<unknown>@<unknown>";
                 }
             }
             {

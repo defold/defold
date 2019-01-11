@@ -119,10 +119,12 @@ namespace dmGameObject
                 ++arg_count;
             }
 
-            char scope_name[128];
+            const char* scope_name = 0;
             if (dmProfile::g_IsInitialized)
             {
-                DM_SNPRINTF(scope_name, sizeof(scope_name), "%s@%s", SCRIPT_FUNCTION_NAMES[script_function], script->m_LuaModule->m_Source.m_Filename);
+                char buffer[128];
+                DM_SNPRINTF(buffer, sizeof(buffer), "%s@%s", SCRIPT_FUNCTION_NAMES[script_function], script->m_LuaModule->m_Source.m_Filename);
+                scope_name = dmProfile::Internalize(buffer);
             }
             {
                 DM_PROFILE_SCOPE(gProfilerRunScriptScope, scope_name);
