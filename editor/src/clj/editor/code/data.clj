@@ -1852,17 +1852,21 @@
     (inc (- n 1000000))
     (inc n)))
 
-(defn append-distinct-lines [lines regions new-lines line-sub-regions-fn]
-  ;; NOTE: line-sub-regions-fn takes a zero-based row index and a line string,
+(defn append-distinct-lines [lines regions added-lines line-regions-fn]
+  ;; NOTE: line-regions-fn takes a zero-based row index and a line string,
   ;; and is expected to return a seq of ordered regions within the line.
-  (let [[lines' regions'] (loop [new-lines new-lines
-                                 lines (transient (if (= [""] lines) [] lines))
-                                 line-row (count lines)
+  ;; In addition to these, repeat lines will be encompassed by a :repeat region.
+  (assert (vector? lines))
+  (assert (vector? regions))
+  (let [clean-lines (if (= [""] lines) [] lines)
+        [lines' regions'] (loop [added-lines added-lines
+                                 lines (transient clean-lines)
+                                 line-row (count clean-lines)
                                  regions regions]
-                            (if-some [new-line (first new-lines)]
+                            (if-some [added-line (first added-lines)]
                               (let [prev-line (peek! lines)]
-                                (if (= prev-line new-line)
-                                  (recur (next new-lines)
+                                (if (= prev-line added-line)
+                                  (recur (next added-lines)
                                          lines
                                          line-row
                                          (let [prev-repeat-region-index (util/last-index-where #(= :repeat (:type %)) regions)
@@ -1870,20 +1874,23 @@
                                                prev-line-row (dec line-row)]
                                            (if (= prev-line-row (some-> prev-repeat-region :from :row))
                                              (assoc regions prev-repeat-region-index (update prev-repeat-region :count inc-limited))
-                                             (let [new-repeat-region (let [end-col (count new-line)]
+                                             (let [new-repeat-region (let [end-col (count added-line)]
                                                                        (assoc (->CursorRange (->Cursor prev-line-row 0)
                                                                                              (->Cursor prev-line-row end-col))
                                                                          :type :repeat
                                                                          :count 2))]
                                                (util/insert-sort regions new-repeat-region)))))
-                                  (recur (next new-lines)
-                                         (conj! lines new-line)
+                                  (recur (next added-lines)
+                                         (conj! lines added-line)
                                          (inc line-row)
-                                         (into regions (line-sub-regions-fn line-row new-line)))))
+                                         (into regions (line-regions-fn line-row added-line)))))
                               [(persistent! lines) regions]))
         lines' (if (empty? lines') [""] lines')]
-    {:lines lines'
-     :regions regions'}))
+    (cond-> {:lines lines'
+             :regions regions'}
+
+            (empty? clean-lines)
+            (assoc :invalidated-row 0))))
 
 (defn delete-character-before-cursor [lines cursor-range]
   (let [from (CursorRange->Cursor cursor-range)

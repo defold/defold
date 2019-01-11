@@ -455,10 +455,15 @@
 (defn clear-build-launch-progress! []
   (render-main-task-progress! progress/done))
 
-(defn- launch-engine! [engine project-directory prefs debug?]
+(defn- decorate-target [engine-descriptor target]
+  (assoc target :engine-id (:id engine-descriptor)))
+
+(defn- launch-engine! [engine-descriptor project-directory prefs debug?]
   (try
     (report-build-launch-progress! "Launching engine...")
-    (let [launched-target (->> (engine/launch! engine project-directory prefs debug?)
+    (let [engine (engine/install-engine! project-directory engine-descriptor)
+          launched-target (->> (engine/launch! engine project-directory prefs debug?)
+                               (decorate-target engine-descriptor)
                                (targets/add-launched-target!)
                                (targets/select-target! prefs))]
       (report-build-launch-progress! (format "Launched %s" (targets/target-message-label launched-target)))
@@ -499,29 +504,25 @@
 
 (def ^:private build-in-progress? (atom false))
 
-(defn- launch-built-project! [engine project-directory prefs web-server debug?]
-  (let [selected-target (targets/selected-target prefs)]
+(defn- launch-built-project! [engine-descriptor project-directory prefs web-server debug?]
+  (let [selected-target (targets/selected-target prefs)
+        launch-new-engine! (fn []
+                             (targets/kill-launched-targets!)
+                             (let [launched-target (launch-engine! engine-descriptor project-directory prefs debug?)
+                                   log-stream      (:log-stream launched-target)]
+                               (reset-console-stream! log-stream)
+                               (reset-remote-log-pump-thread! nil)
+                               (start-log-pump! log-stream (make-launched-log-sink launched-target))
+                               launched-target))]
     (try
       (cond
         (not selected-target)
-        (do (targets/kill-launched-targets!)
-            (let [launched-target (launch-engine! engine project-directory prefs debug?)
-                  log-stream      (:log-stream launched-target)]
-              (reset-console-stream! log-stream)
-              (reset-remote-log-pump-thread! nil)
-              (start-log-pump! log-stream (make-launched-log-sink launched-target))
-              launched-target))
+        (launch-new-engine!)
 
         (not (targets/controllable-target? selected-target))
         (do
           (assert (targets/launched-target? selected-target))
-          (targets/kill-launched-targets!)
-          (let [launched-target (launch-engine! engine project-directory prefs debug?)
-                log-stream      (:log-stream launched-target)]
-            (reset-console-stream! log-stream)
-            (reset-remote-log-pump-thread! nil)
-            (start-log-pump! log-stream (make-launched-log-sink launched-target))
-            launched-target))
+          (launch-new-engine!))
 
         (and (targets/controllable-target? selected-target) (targets/remote-target? selected-target))
         (do
@@ -533,13 +534,18 @@
         :else
         (do
           (assert (and (targets/controllable-target? selected-target) (targets/launched-target? selected-target)))
-          (reset-console-stream! (:log-stream selected-target))
-          (reset-remote-log-pump-thread! nil)
-          ;; Launched target log pump already
-          ;; running to keep engine process
-          ;; from halting because stdout/err is
-          ;; not consumed.
-          (reboot-engine! selected-target web-server debug?)))
+          (if (= (:id engine-descriptor) (:engine-id selected-target))
+            (do
+              ;; We're running "the same" engine and can reuse the
+              ;; running process by rebooting
+              (reset-console-stream! (:log-stream selected-target))
+              (reset-remote-log-pump-thread! nil)
+              ;; Launched target log pump already
+              ;; running to keep engine process
+              ;; from halting because stdout/err is
+              ;; not consumed.
+              (reboot-engine! selected-target web-server debug?))
+            (launch-new-engine!))))
       (catch Exception e
         (log/warn :exception e)
         (dialogs/make-error-dialog (format "Launching %s Failed"
@@ -591,12 +597,12 @@
         evaluation-context (g/make-evaluation-context)]
     (async-build! project evaluation-context prefs {:debug? false} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
-                  (fn [build-results engine build-engine-exception]
+                  (fn [build-results engine-descriptor build-engine-exception]
                     (g/update-cache-from-evaluation-context! evaluation-context)
                     (when (handle-build-results! workspace build-errors-view build-results)
-                      (when engine
+                      (when engine-descriptor
                         (console/show! console-view)
-                        (launch-built-project! engine project-directory prefs web-server false))
+                        (launch-built-project! engine-descriptor project-directory prefs web-server false))
                       (when build-engine-exception
                         (log/warn :exception build-engine-exception)
                         (engine-build-errors/handle-build-error! (make-render-build-error build-errors-view) project evaluation-context build-engine-exception)))))))
@@ -626,11 +632,11 @@ If you do not specifically require different script states, consider changing th
             evaluation-context (g/make-evaluation-context)]
         (async-build! project evaluation-context prefs {:debug? true} (workspace/artifact-map workspace)
                       (make-render-task-progress :build)
-                      (fn [build-results engine build-engine-exception]
+                      (fn [build-results engine-descriptor build-engine-exception]
                         (g/update-cache-from-evaluation-context! evaluation-context)
                         (when (handle-build-results! workspace build-errors-view build-results)
-                          (when engine
-                            (when-let [target (launch-built-project! engine project-directory prefs web-server true)]
+                          (when engine-descriptor
+                            (when-let [target (launch-built-project! engine-descriptor project-directory prefs web-server true)]
                               (when (nil? (debug-view/current-session debug-view))
                                 (debug-view/start-debugger! debug-view project (:address target "localhost")))))
                           (when build-engine-exception
