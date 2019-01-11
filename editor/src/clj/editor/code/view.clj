@@ -17,8 +17,7 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s])
-  (:import (clojure.lang IPersistentVector)
-           (com.defold.control ListView)
+  (:import (com.defold.control ListView)
            (com.sun.javafx.font FontResource FontStrike PGFont)
            (com.sun.javafx.geom.transform BaseTransform)
            (com.sun.javafx.perf PerformanceTracker)
@@ -70,8 +69,6 @@
 (g/deftype MatchingBraces [[(s/one r/TCursorRange "brace") (s/one r/TCursorRange "counterpart")]])
 (g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
 (g/deftype ResizeReference (s/enum :bottom :top))
-(g/deftype SyntaxInfo IPersistentVector)
-(g/deftype SideEffect (s/eq nil))
 
 (defn- enable-performance-tracker! [scene]
   (reset! *performance-tracker (PerformanceTracker/getSceneTracker scene)))
@@ -595,40 +592,22 @@
   (let [[gutter-width gutter-margin] gutter-metrics]
     (data/layout-info canvas-width canvas-height document-width scroll-x scroll-y lines gutter-width gutter-margin glyph-metrics tab-spaces visible-minimap?)))
 
-(defn- invalidated-row [seen-invalidated-rows invalidated-rows]
+(defn- invalidated-row
+  "Find the first invalidated row by comparing ever-growing histories of all
+  invalidated rows. Seen means the history at the point the view was last drawn.
+  By looking at the subset of added-since-seen or removed-since-seen, we can
+  find the first invalidated row since the previous repaint."
+  [seen-invalidated-rows invalidated-rows]
   (let [seen-invalidated-rows-count (count seen-invalidated-rows)
         invalidated-rows-count (count invalidated-rows)]
     (cond
-      (or (zero? seen-invalidated-rows-count)
-          (zero? invalidated-rows-count))
-      0
-
       ;; Redo scenario or regular use.
       (< seen-invalidated-rows-count invalidated-rows-count)
       (reduce min (subvec invalidated-rows seen-invalidated-rows-count))
 
       ;; Undo scenario.
       (> seen-invalidated-rows-count invalidated-rows-count)
-      (reduce min (subvec seen-invalidated-rows (dec invalidated-rows-count))))))
-
-(g/defnk produce-invalidated-syntax-info [canvas invalidated-rows lines]
-  (let [seen-invalidated-rows (or (ui/user-data canvas ::invalidated-rows) [])]
-    (ui/user-data! canvas ::invalidated-rows invalidated-rows)
-    (let [syntax-info (or (ui/user-data canvas ::syntax-info) [])]
-      (when-some [invalidated-row (invalidated-row seen-invalidated-rows invalidated-rows)]
-        (let [invalidated-syntax-info (data/invalidate-syntax-info syntax-info invalidated-row (count lines))]
-          (ui/user-data! canvas ::syntax-info invalidated-syntax-info)
-          nil)))))
-
-(g/defnk produce-syntax-info [canvas grammar invalidated-syntax-info layout lines]
-  (assert (nil? invalidated-syntax-info))
-  (if (some? grammar)
-    (let [invalidated-syntax-info (or (ui/user-data canvas ::syntax-info) [])
-          syntax-info (data/highlight-visible-syntax lines invalidated-syntax-info layout grammar)]
-      (when-not (identical? invalidated-syntax-info syntax-info)
-        (ui/user-data! canvas ::syntax-info syntax-info))
-      syntax-info)
-    []))
+      (reduce min (subvec seen-invalidated-rows invalidated-rows-count)))))
 
 (g/defnk produce-matching-braces [lines cursor-ranges focus-state]
   (when (= :input-focused focus-state)
@@ -742,10 +721,16 @@
                        (data/execution-marker lines (dec line) type))))
           debugger-execution-locations)))
 
-(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap? execution-markers]
+(g/defnk produce-canvas-repaint-info [canvas color-scheme cursor-range-draw-infos execution-markers font grammar gutter-view hovered-element indent-type invalidated-rows layout lines minimap-cursor-range-draw-infos minimap-layout regions repaint-trigger visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace? :as canvas-repaint-info]
+  canvas-repaint-info)
+
+(defn- repaint-canvas! [{:keys [^Canvas canvas font gutter-view hovered-element layout minimap-layout color-scheme lines regions cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap? execution-markers] :as _canvas-repaint-info} syntax-info]
   (let [regions (into [] cat [regions execution-markers])]
     (draw! (.getGraphicsContext2D canvas) font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?))
   nil)
+
+(g/defnk produce-cursor-repaint-info [canvas color-scheme cursor-opacity layout lines repaint-trigger visible-cursors :as cursor-repaint-info]
+  cursor-repaint-info)
 
 (defn- make-cursor-rectangle
   ^Rectangle [^Paint fill opacity ^Rect cursor-rect]
@@ -754,7 +739,7 @@
     (.setFill fill)
     (.setOpacity opacity)))
 
-(g/defnk produce-repaint-cursors [repaint-trigger ^Canvas canvas ^LayoutInfo layout color-scheme lines visible-cursors cursor-opacity]
+(defn- repaint-cursors! [{:keys [^Canvas canvas ^LayoutInfo layout color-scheme lines visible-cursors cursor-opacity] :as _cursor-repaint-info}]
   ;; To avoid having to redraw everything while the cursor blink animation
   ;; plays, the cursors are children of the Pane that also hosts the Canvas.
   (let [^Pane canvas-pane (.getParent canvas)
@@ -850,8 +835,6 @@
   (output glyph-metrics data/GlyphMetrics :cached produce-glyph-metrics)
   (output gutter-metrics GutterMetrics :cached produce-gutter-metrics)
   (output layout LayoutInfo :cached produce-layout)
-  (output invalidated-syntax-info SideEffect :cached produce-invalidated-syntax-info)
-  (output syntax-info SyntaxInfo :cached produce-syntax-info)
   (output matching-braces MatchingBraces :cached produce-matching-braces)
   (output tab-trigger-scope-regions r/Regions :cached produce-tab-trigger-scope-regions)
   (output tab-trigger-word-regions-by-scope-id r/RegionGrouping :cached produce-tab-trigger-word-regions-by-scope-id)
@@ -864,8 +847,8 @@
   (output minimap-layout LayoutInfo :cached produce-minimap-layout)
   (output minimap-cursor-range-draw-infos CursorRangeDrawInfos :cached produce-minimap-cursor-range-draw-infos)
   (output execution-markers r/Regions :cached produce-execution-markers)
-  (output repaint-canvas SideEffect :cached produce-repaint-canvas)
-  (output repaint-cursors SideEffect :cached produce-repaint-cursors))
+  (output canvas-repaint-info g/Any :cached produce-canvas-repaint-info)
+  (output cursor-repaint-info g/Any :cached produce-cursor-repaint-info))
 
 (defn- mouse-button [^MouseEvent event]
   (condp = (.getButton event)
@@ -893,10 +876,6 @@
           [(g/operation-sequence opseq)
            (g/set-property view-node :undo-grouping-info [undo-grouping opseq])])))))
 
-;; Since the elapsed time updates at 60 fps, we keep it outside the graph to avoid transaction churn.
-;; This is updated from the repaint-view! function elsewhere in this file.
-(defonce ^:private *elapsed-time-by-view-node (atom {}))
-
 (defn- prelude-tx-data [view-node undo-grouping values-by-prop-kw]
   ;; Along with undo grouping info, we also keep track of when an action was
   ;; last performed in the document. We use this to stop the cursor from
@@ -904,7 +883,7 @@
   (into (operation-sequence-tx-data view-node undo-grouping)
         (when (or (contains? values-by-prop-kw :cursor-ranges)
                   (contains? values-by-prop-kw :lines))
-          (g/set-property view-node :elapsed-time-at-last-action (get @*elapsed-time-by-view-node view-node 0.0)))))
+          (g/set-property view-node :elapsed-time-at-last-action (or (g/user-data view-node :elapsed-time) 0.0)))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -920,8 +899,8 @@
   [view-node prop-kw]
   (case prop-kw
     :invalidated-row
-    (invalidated-row (ui/user-data (g/node-value view-node :canvas) ::invalidated-rows)
-                     (g/node-value (g/node-value view-node :resource-node) :invalidated-rows))
+    (invalidated-row (:invalidated-rows (g/user-data view-node :canvas-repaint-info))
+                     (g/node-value view-node :invalidated-rows))
 
     (g/node-value view-node prop-kw)))
 
@@ -939,8 +918,13 @@
                           (:cursor-ranges :regions)
                           (g/set-property resource-node prop-kw value)
 
-                          ;; Several rows could have been invalidated between repaints.
-                          ;; We accumulate these to compare against seen invalidations.
+                          ;; Several actions might have invalidated rows since
+                          ;; we last produced syntax-info. We keep an ever-
+                          ;; growing history of invalidated-rows. Then when
+                          ;; producing syntax-info we find the first invalidated
+                          ;; row by comparing the history of invalidated rows to
+                          ;; what it was at the time of the last call. See the
+                          ;; invalidated-row function for details.
                           :invalidated-row
                           (g/update-property resource-node :invalidated-rows conj value)
 
@@ -977,8 +961,7 @@
 
 (defn- cursor-bottom
   ^Point2D [^LayoutInfo layout lines ^Cursor adjusted-cursor]
-  (let [^Rect canvas (.canvas layout)
-        ^Rect r (data/cursor-rect layout lines adjusted-cursor)]
+  (let [^Rect r (data/cursor-rect layout lines adjusted-cursor)]
     (Point2D. (.x r) (+ (.y r) (.h r)))))
 
 (defn- pref-suggestions-popup-position
@@ -2095,28 +2078,56 @@
     (.fillText gc (format "%.3f fps" fps) (- right 5.0) (+ top 16.0))))
 
 (defn repaint-view! [view-node elapsed-time]
-  (swap! *elapsed-time-by-view-node assoc view-node elapsed-time)
-  (let [evaluation-context (g/make-evaluation-context)
-        elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action evaluation-context)
-        old-cursor-opacity (g/node-value view-node :cursor-opacity evaluation-context)
-        new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
-    (set-properties! view-node nil
-                     (cond-> (data/tick (g/node-value view-node :lines evaluation-context)
-                                        (g/node-value view-node :layout evaluation-context)
-                                        (g/node-value view-node :gesture-start evaluation-context))
-                             (not= old-cursor-opacity new-cursor-opacity) (assoc :cursor-opacity new-cursor-opacity)))
-    (g/update-cache-from-evaluation-context! evaluation-context))
-  (let [evaluation-context (g/make-evaluation-context)]
-    (g/node-value view-node :repaint-canvas evaluation-context)
-    (g/node-value view-node :repaint-cursors evaluation-context)
+  ;; Since the elapsed time updates at 60 fps, we store it as user-data to avoid transaction churn.
+  (g/user-data! view-node :elapsed-time elapsed-time)
+
+  ;; Perform necessary property updates in preparation for repaint.
+  (g/with-auto-evaluation-context evaluation-context
+    (let [elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action evaluation-context)
+          old-cursor-opacity (g/node-value view-node :cursor-opacity evaluation-context)
+          new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
+      (set-properties! view-node nil
+                       (cond-> (data/tick (g/node-value view-node :lines evaluation-context)
+                                          (g/node-value view-node :layout evaluation-context)
+                                          (g/node-value view-node :gesture-start evaluation-context))
+                               (not= old-cursor-opacity new-cursor-opacity) (assoc :cursor-opacity new-cursor-opacity)))))
+
+  ;; Repaint the view.
+  (let [prev-canvas-repaint-info (g/user-data view-node :canvas-repaint-info)
+        prev-cursor-repaint-info (g/user-data view-node :cursor-repaint-info)
+        [resource-node canvas-repaint-info cursor-repaint-info]
+        (g/with-auto-evaluation-context evaluation-context
+          [(g/node-value view-node :resource-node evaluation-context)
+           (g/node-value view-node :canvas-repaint-info evaluation-context)
+           (g/node-value view-node :cursor-repaint-info evaluation-context)])]
+
+    ;; Repaint canvas if needed.
+    (when-not (identical? prev-canvas-repaint-info canvas-repaint-info)
+      (g/user-data! view-node :canvas-repaint-info canvas-repaint-info)
+      (let [{:keys [grammar layout lines]} canvas-repaint-info
+            syntax-info (if (nil? grammar)
+                          []
+                          (if-some [prev-syntax-info (g/user-data resource-node :syntax-info)]
+                            (let [invalidated-syntax-info (if-some [invalidated-row (invalidated-row (:invalidated-rows prev-canvas-repaint-info) (:invalidated-rows canvas-repaint-info))]
+                                                            (data/invalidate-syntax-info prev-syntax-info invalidated-row (count lines))
+                                                            prev-syntax-info)]
+                              (data/highlight-visible-syntax lines invalidated-syntax-info layout grammar))
+                            (data/highlight-visible-syntax lines [] layout grammar)))]
+        (g/user-data! resource-node :syntax-info syntax-info)
+        (repaint-canvas! canvas-repaint-info syntax-info)))
+
+    ;; Repaint cursors if needed.
+    (when-not (identical? prev-cursor-repaint-info cursor-repaint-info)
+      (g/user-data! view-node :cursor-repaint-info cursor-repaint-info)
+      (repaint-cursors! cursor-repaint-info))
+
+    ;; Draw average fps indicator if enabled.
     (when-some [^PerformanceTracker performance-tracker @*performance-tracker]
-      (let [^long repaint-trigger (g/node-value view-node :repaint-trigger evaluation-context)
-            ^Canvas canvas (g/node-value view-node :canvas evaluation-context)]
+      (let [{:keys [^Canvas canvas ^long repaint-trigger]} canvas-repaint-info]
         (g/set-property! view-node :repaint-trigger (unchecked-inc repaint-trigger))
         (draw-fps-counters! (.getGraphicsContext2D canvas) (.getInstantFPS performance-tracker))
         (when (= 0 (mod repaint-trigger 10))
-          (.resetAverageFPS performance-tracker))))
-    (g/update-cache-from-evaluation-context! evaluation-context)))
+          (.resetAverageFPS performance-tracker))))))
 
 (defn- make-suggestions-list-view
   ^ListView [^Canvas canvas]
@@ -2381,8 +2392,6 @@
                              (dispose-goto-line-bar! goto-line-bar)
                              (dispose-find-bar! find-bar)
                              (dispose-replace-bar! replace-bar)
-                             (swap! *elapsed-time-by-view-node dissoc view-node)
-                             (g/set-property! view-node :elapsed-time-at-last-action 0.0)
                              (.removeListener find-case-sensitive-property find-case-sensitive-setter)
                              (.removeListener find-whole-word-property find-whole-word-setter)
                              (.removeListener font-size-property font-size-setter)
