@@ -30,6 +30,16 @@ def build(bld):
         obj.find_sources_in_dirs('. flash ../proto')
 
     obj = bld.new_task_gen(features = 'cxx cstaticlib',
+                               includes = ['. vulkan'],
+                               proto_gen_py = True,
+                               protoc_includes = '../proto',
+                               target = 'graphics_vulkan')
+
+    obj.find_sources_in_dirs('. vulkan ../proto')
+
+    obj.source.append('null/glsl_uniform_parser.cpp');
+
+    obj = bld.new_task_gen(features = 'cxx cstaticlib',
                            includes = ['. null'],
                            proto_gen_py = True,
                            protoc_includes = '../proto',

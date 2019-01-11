@@ -1,0 +1,29 @@
+diff --git a/fetchDependencies b/fetchDependencies
+index 86dda2e..756ef99 100755
+--- a/fetchDependencies
++++ b/fetchDependencies
+@@ -174,24 +174,6 @@ else
+ fi
+ 
+ 
+-# ----------------- Vulkan-Tools -------------------
+-
+-REPO_NAME=Vulkan-Tools
+-REPO_URL="https://github.com/KhronosGroup/${REPO_NAME}.git"
+-REPO_REV=$(cat "../${EXT_REV_DIR}/${REPO_NAME}_repo_revision")
+-
+-update_repo ${REPO_NAME} ${REPO_URL} ${REPO_REV}
+-
+-
+-# ----------------- VulkanSamples -------------------
+-
+-REPO_NAME=VulkanSamples
+-REPO_URL="https://github.com/LunarG/${REPO_NAME}.git"
+-REPO_REV=$(cat "../${EXT_REV_DIR}/${REPO_NAME}_repo_revision")
+-
+-update_repo ${REPO_NAME} ${REPO_URL} ${REPO_REV}
+-
+-
+ # ----------------- Cleanup -------------------
+ 
+ cd ..
