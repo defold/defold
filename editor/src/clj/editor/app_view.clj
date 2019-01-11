@@ -1402,9 +1402,9 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :show-in-desktop :global
   (active? [app-view selection] (context-resource app-view selection))
   (enabled? [app-view selection] (when-let [r (context-resource app-view selection)]
-                                   (or (= (resource/path r) "")
-                                       (and (resource/abs-path r)
-                                        (resource/exists? r)))))
+                                   (and (resource/abs-path r)
+                                        (or (resource/exists? r)
+                                            (empty? (resource/path r))))))
   (run [app-view selection] (when-let [r (context-resource app-view selection)]
                               (let [f (File. (resource/abs-path r))]
                                 (ui/open-file (fs/to-folder f))))))
