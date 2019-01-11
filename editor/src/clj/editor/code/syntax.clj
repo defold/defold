@@ -98,6 +98,8 @@
         (:name parent-pattern))))
 
 (defn make-context [scope patterns]
+  (assert (string? (not-empty scope)))
+  (assert (seq patterns))
   (->AnalysisContext {:name scope :patterns patterns} nil))
 
 (defn analyze [contexts line]
