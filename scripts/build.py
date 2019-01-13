@@ -741,7 +741,7 @@ class Configuration(object):
 
     def _get_build_flags(self):
         supported_tests = {}
-        supported_tests['darwin'] = ['darwin', 'x86_64-darwin']
+        supported_tests['darwin'] = ['darwin', 'x86_64-darwin', 'win32', 'x86_64-win32']
         supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32']
 
         supports_tests = self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform

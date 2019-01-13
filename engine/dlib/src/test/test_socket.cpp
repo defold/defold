@@ -829,6 +829,7 @@ TEST(Socket, GetHostByName_IPv4_Localhost)
     ASSERT_EQ(0x0100007f, *dmSocket::IPv4(&address));
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, GetHostByName_IPv6_Localhost)
 {
     dmSocket::Address address;
@@ -843,6 +844,7 @@ TEST(Socket, GetHostByName_IPv6_Localhost)
     ASSERT_EQ(0x00000000, address.m_address[2]);
     ASSERT_EQ(0x01000000, address.m_address[3]);
 }
+#endif
 
 TEST(Socket, GetHostByName_IPv4_External)
 {
@@ -881,6 +883,7 @@ TEST(Socket, GetHostByName_IPv4_Unavailable)
     ASSERT_EQ(dmSocket::RESULT_HOST_NOT_FOUND, result);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, GetHostByName_IPv6_Unavailable)
 {
     dmSocket::Address address;
@@ -900,6 +903,7 @@ TEST(Socket, GetHostByName_NoValidAddressFamily)
     result = dmSocket::GetHostByName(hostname, &address, false, false);
     ASSERT_EQ(dmSocket::RESULT_HOST_NOT_FOUND, result);
 }
+#endif
 
 TEST(Socket, ServerSocketIPv4)
 {

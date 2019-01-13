@@ -331,7 +331,7 @@ def default_flags(self):
 
         # 0x0600 = _WIN32_WINNT_VISTA
         for f in ['CCDEFINES', 'CXXDEFINES']:
-            self.env.append_value(f, ['LUA_BYTECODE_ENABLE','DDF_EXPOSE_DESCRIPTORS','GOOGLE_PROTOBUF_NO_RTTI','_CRT_SECURE_NO_WARNINGS','_SCL_SECURE_NO_WARNINGS','_WINSOCK_DEPRECATED_NO_WARNINGS','__STDC_LIMIT_MACROS','WINVER=0x0600','_WIN32_WINNT=0x0600','_MT','WIN32'])
+            self.env.append_value(f, ['LUA_BYTECODE_ENABLE','DDF_EXPOSE_DESCRIPTORS','GOOGLE_PROTOBUF_NO_RTTI','_CRT_SECURE_NO_WARNINGS','_SCL_SECURE_NO_WARNINGS','_WINSOCK_DEPRECATED_NO_WARNINGS','__STDC_LIMIT_MACROS','WINVER=0x0600','_WIN32_WINNT=0x0600','_MT','WIN32','GTEST_HAS_EXCEPTIONS=0'])
 
         if cross_use_cl:
             for f in ['CCFLAGS', 'CXXFLAGS']:
@@ -351,8 +351,7 @@ def default_flags(self):
             clang_includes = [x.strip() for x in clang_includes.strip().split()]
 
             for f in ['CCFLAGS', 'CXXFLAGS']:
-                # '-fno-exceptions',
-                self.env.append_value(f, ['-msse4.2', '-fno-rtti', '-fms-compatibility','-fdelayed-template-parsing','-fms-extensions','-Wno-nonportable-include-path', '-Wno-ignored-attributes', '-target', 'x86_64-pc-win32-msvc', '-m64', '-g', '-gcodeview', '-gno-column-info', '-Wall', '-Werror=format', '-fvisibility=hidden','-Wno-expansion-to-defined', '-Wno-c++11-narrowing'])
+                self.env.append_value(f, ['-msse4.2', '-fno-rtti', '-fno-exceptions', '-fms-compatibility','-fdelayed-template-parsing','-fms-extensions','-Wno-nonportable-include-path', '-Wno-ignored-attributes', '-target', 'x86_64-pc-win32-msvc', '-m64', '-g', '-gcodeview', '-Wall', '-Werror=format', '-fvisibility=hidden','-Wno-expansion-to-defined', '-Wno-c++11-narrowing'])
                 self.env.append_value(f, ['-flto', '-mthread-model', 'posix'])
 
                 for i in clang_includes + sdk_includes + llvm_includes:
@@ -1237,6 +1236,8 @@ def run_gtests(valgrind = False, configfile = None):
         Build.bld.env.HAS_PYTHON = False
         wine = True
         valgrind = False
+        os.environ['DMSOCKET_INET_FAMILY'] = 'AF_INET' # Wine doesn't support IPV6 but reports the interfaces, which fails the tests
+        os.environ['WINEDBG'] = 'fixme-all,fixme+winsock' # toggle abundant messages
 
     if 'web' in Build.bld.env.PLATFORM and not Build.bld.env['NODEJS']:
         Logs.info('Not running tests. node.js not found')
@@ -1618,11 +1619,29 @@ def detect(conf):
         conf.env['LIB_UUID'] = 'uuid'
     
     if 'win32' in platform:
-        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 Iphlpapi'.split()
+        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 IPHlpApi'.split()
         conf.env['LIB_PLATFORM_SYS'] = 'shell32 User32'.split()
+        conf.env['LIB_PLATFORM_GRAPHICS'] = 'OpenGL32'.split()
+        conf.env['LIB_PLATFORM_INPUT'] = 'Xinput9_1_0'.split()
+        conf.env['LIB_PSAPI'] = 'Psapi'
+    elif 'linux' in platform:
+        conf.env['LIB_PLATFORM_SOCKET'] = ''
+        conf.env['LIB_PLATFORM_SYS'] = ''
+        conf.env['LIB_PLATFORM_GRAPHICS'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
+        conf.env['LIB_PLATFORM_INPUT'] = ''
+    elif 'android' in platform:
+        conf.env['LIB_PLATFORM_SOCKET'] = ''
+        conf.env['LIB_PLATFORM_SYS'] = ''
+        conf.env['LIB_PLATFORM_GRAPHICS'] = ['EGL', 'GLESv1_CM', 'GLESv2', 'android']
+        conf.env['LIB_PLATFORM_INPUT'] = ''
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
         conf.env['LIB_PLATFORM_SYS'] = ''
+        conf.env['LIB_PLATFORM_GRAPHICS'] = ''
+        conf.env['LIB_PLATFORM_INPUT'] = ''
+
+    if platform in ('darwin', 'x86_64-darwin'):
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
 
     use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
     if build_util.get_target_os() == 'web':
