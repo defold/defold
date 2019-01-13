@@ -878,6 +878,26 @@ namespace dmSocket
         else if (ipv6)
             hints.ai_family = AF_INET6;
 
+        const char* env_net_family = getenv("DMSOCKET_INET_FAMILY");
+        if (env_net_family)
+        {
+            if (strcmp(env_net_family, "AF_INET") == 0) {
+                hints.ai_family = AF_INET;
+                ipv4 = true;
+                ipv6 = false;
+            }
+            else if (strcmp(env_net_family, "AF_INET6") == 0) {
+                hints.ai_family = AF_INET6;
+                ipv4 = false;
+                ipv6 = true;
+            }
+            else if (strcmp(env_net_family, "AF_UNSPEC") == 0) {
+                hints.ai_family = AF_UNSPEC;
+                ipv4 = true;
+                ipv6 = true;
+            }
+        }
+
         hints.ai_socktype = SOCK_STREAM;
 
         // getaddrinfo_a is an asynchronous alternative, but it is specific to glibc.

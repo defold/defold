@@ -7,6 +7,7 @@
 #include <dlib/time.h>
 #include <dlib/message.h>
 #include <dlib/thread.h>
+#include <dlib/windefines.h>
 #include <ddf/ddf.h>
 #include "resource_ddf.h"
 #include "../resource.h"

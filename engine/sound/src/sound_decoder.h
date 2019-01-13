@@ -81,7 +81,7 @@ namespace dmSoundCodec
      */
     const DecoderInfo* FindDecoderByName(const char *name);
 
-    #ifdef __GNUC__
+    #if defined(__GNUC__) || defined(__clang__)
         // Workaround for dead-stripping on OSX/iOS. The symbol "name" is explicitly exported. See wscript "exported_symbols"
         // Otherwise it's dead-stripped even though -no_dead_strip_inits_and_terms is passed to the linker
         // The bug only happens when the symbol is in a static library though

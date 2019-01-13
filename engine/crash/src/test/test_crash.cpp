@@ -63,6 +63,9 @@ TEST_F(dmCrashTest, TestLoad)
     ASSERT_EQ(0, strcmp(info.m_Territory, dmCrash::GetSysField(d, dmCrash::SYSFIELD_TERRITORY)));
 
     uint32_t addresses = dmCrash::GetBacktraceAddrCount(d);
+#if defined(WIN32) && defined(__clang__)
+    ASSERT_EQ(addresses, 0); // in Wine, the RtlCaptureStackBackTrace is only a stub function
+#else
     ASSERT_GT(addresses, 4);
     for (uint32_t i=0;i!=addresses;i++)
     {
@@ -72,6 +75,7 @@ TEST_F(dmCrashTest, TestLoad)
             ASSERT_NE((void*)0, dmCrash::GetBacktraceAddr(d, i));
         }
     }
+#endif
 
     char buf[4096];
 

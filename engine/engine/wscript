@@ -176,8 +176,8 @@ def build(bld):
                 bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)
 
 def shutdown():
-    # unit tests disabled on win32 for now
-    #if not 'win32' in Build.bld.env.PLATFORM:
-    #    waf_dynamo.run_gtests(valgrind = True)
-    # waf_dynamo.run_gtests(valgrind = True)
-    pass
+    # Currently we don't have python+32bit dll support when running through Wine
+    if not Build.bld.env.HAS_PYTHON:
+        os.environ['GTEST_FILTER'] = '-*.HttpPost:*.ConnectionReboot:*.ConnectionRunScript'
+        print("USING GTEST_FILTER='%s'" % os.environ['GTEST_FILTER'])
+    waf_dynamo.run_gtests(valgrind = True)

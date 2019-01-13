@@ -132,8 +132,8 @@ namespace dmExtension
     /**
      * Extension declaration helper. Internal
      */
-    #ifdef __GNUC__
-        // Workaround for dead-stripping on OSX/iOS. The symbol "name" is explicitly exported. See wscript "exported_symbols"
+    #if defined(__GNUC__) || defined(__clang__)
+        // Workaround for dead-stripping with clang. The symbol "name" is explicitly exported. See wscript "exported_symbols"
         // Otherwise it's dead-stripped even though -no_dead_strip_inits_and_terms is passed to the linker
         // The bug only happens when the symbol is in a static library though
         #define DM_REGISTER_EXTENSION(symbol, desc, desc_size, name, app_init, app_final, init, update, on_event, final) extern "C" void __attribute__((constructor)) symbol () { \
