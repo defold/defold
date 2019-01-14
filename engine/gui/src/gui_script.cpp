@@ -3462,6 +3462,7 @@ namespace dmGui
     LUAGETSETV4(Shadow, PROPERTY_SHADOW)
 
 #undef LUAGETSET
+
     // Custom setter and getter for gui.set_rotation to be able to handle
     // pass a quaternion for rotations of GUI nodes.
     int LuaGetRotation(lua_State* L)
