@@ -3456,43 +3456,12 @@ namespace dmGui
     LUASET(name, property)\
 
     LUAGETSETV3(Position, PROPERTY_POSITION)
+    LUAGETSETV3(Scale, PROPERTY_SCALE)
     LUAGETSETV4(Color, PROPERTY_COLOR)
     LUAGETSETV4(Outline, PROPERTY_OUTLINE)
     LUAGETSETV4(Shadow, PROPERTY_SHADOW)
 
 #undef LUAGETSET
-
-    int LuaGetScale(lua_State* L)
-    {
-        InternalNode* n = LuaCheckNode(L, 1, 0);
-        const Vector4& v = n->m_Node.m_Properties[PROPERTY_SCALE];
-        dmScript::PushVector3(L, Vector3(v.getX(), v.getY(), v.getZ()));
-        return 1;
-    }
-
-    int LuaSetScale(lua_State* L)
-    {
-        HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
-        if (n->m_Node.m_IsBone) {
-            return 0;
-        }
-        Vector4 v;
-        if (dmScript::IsVector3(L, 2))
-        {
-            Scene* scene = GetScene(L);
-            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_SCALE);
-            v = Vector4(*dmScript::CheckVector3(L, 2), original.getW());
-        }
-        else
-            v = *dmScript::CheckVector4(L, 2);
-        v.setZ(1.0f);
-        v.setW(1.0f);
-        n->m_Node.m_Properties[PROPERTY_SCALE] = v;
-        n->m_Node.m_DirtyLocal = 1;
-        return 0;
-    }
-
     // Custom setter and getter for gui.set_rotation to be able to handle
     // pass a quaternion for rotations of GUI nodes.
     int LuaGetRotation(lua_State* L)
