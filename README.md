@@ -675,7 +675,6 @@ In that web app manager, you can see the console output, take screenshots or sho
 * Investigate mutex and dmProfile overhead. Removing DM_PROFILE, DM_COUNTER_HASH, dmMutex::Lock and dmMutex::Unlock from dmMessage::Post resulted in 4x improvement
 * Verify that exceptions are disabled
 
-
 ## Asset loading
 
 Assets can be loaded from file-system, from an archive or over http.
