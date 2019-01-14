@@ -820,7 +820,6 @@ TEST_P(dmSoundVerifyWavTest, Mix)
 
     uint64_t tend = dmTime::GetTime();
     ASSERT_GT(250, tend-tstart);
-    printf("time: %llu\n", tend - tstart);
 
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);

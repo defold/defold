@@ -258,6 +258,29 @@ TEST_F(dmHttpClientParserTest, TestWhitespaceHeaders)
     ASSERT_EQ((size_t) 3, m_Headers.size());
 }
 
+TEST_F(dmHttpClientParserTest, TestNoWhitespaceHeaders)
+{
+    const char* headers = "HTTP/1.1 200 OK\r\n"
+"Content-Type:text/html;charset=UTF-8\r\n"
+"Content-Length:21\r\n"
+"Server:Jetty(7.0.2.v20100331)\r\n"
+"\r\n";
+
+    dmHttpClientPrivate::ParseResult r;
+    r = Parse(headers, false);
+    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
+
+    ASSERT_EQ(1, m_Major);
+    ASSERT_EQ(1, m_Minor);
+    ASSERT_EQ(200, m_Status);
+    ASSERT_EQ("OK", m_StatusString);
+
+    ASSERT_EQ("text/html;charset=UTF-8", m_Headers["Content-Type"]);
+    ASSERT_EQ("21", m_Headers["Content-Length"]);
+    ASSERT_EQ("Jetty(7.0.2.v20100331)", m_Headers["Server"]);
+    ASSERT_EQ((size_t) 3, m_Headers.size());
+}
+
 TEST_F(dmHttpClientParserTest, TestContent)
 {
     const char* headers = "HTTP/1.1 200 OK\r\n"

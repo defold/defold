@@ -64,6 +64,9 @@ ENGINE="${DYNAMO_HOME:-}/bin/${PLATFORM:-}/dmengine"
 [ -f "${PROFILE}" ] || terminate "Profile does not exist: ${PROFILE}"
 [ -f "${ENGINE}" ] || terminate "Engine does not exist: ${ENGINE}"
 
+ASAN_PATH=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain/usr/lib/clang/9.0.0/lib/darwin
+# e.g. libclang_rt.asan_ios_dynamic.dylib
+ASAN=$(basename $(otool -L ${ENGINE} | grep libclang_rt.asan | awk '{print $1;}'))
 
 # ----------------------------------------------------------------------------
 # Script
@@ -93,6 +96,11 @@ mkdir -p "${BUILD}"
     rm -rf "Payload/${APPLICATION}.app/_CodeSignature"
     cp "${PROVISION}" "Payload/${APPLICATION}.app/embedded.mobileprovision"
     "${CODESIGN}" -f -s "${IDENTITY}" --entitlements "${ENTITLEMENT}" "Payload/${APPLICATION}.app"
+
+    if [ "$ASAN" != "" ]; then
+        cp -v "${ASAN_PATH}/${ASAN}" "Payload/${APPLICATION}.app/${ASAN}"
+        "${CODESIGN}" -f -s "${IDENTITY}" --entitlements "${ENTITLEMENT}" --timestamp=none "Payload/${APPLICATION}.app/${ASAN}"
+    fi
 
     "${ZIP}" -qr "${TARGET}.ipa" "Payload"
     [ -d "${TARGET}.app" ] && rm -rf "${TARGET}.app"

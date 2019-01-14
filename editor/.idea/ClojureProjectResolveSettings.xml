@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ClojureProjectResolveSettings">
+    <item key="editor.git-test/with-new-git" resolves-as="clojure.core/def" />
+    <item key="dynamo.graph/fnk" resolves-as="clojure.core/defn" />
+    <item key="dynamo.graph/deftype" resolves-as="clojure.core/def" />
+    <item key="dynamo.graph/defnk" resolves-as="clojure.core/defn" />
+    <item key="dynamo.graph/defnode" resolves-as="clojure.core/def" />
+    <item key="editor.git-test/with-git" resolves-as="clojure.core/let" />
+    <currentScheme>PROJECT</currentScheme>
+  </component>
+</project>

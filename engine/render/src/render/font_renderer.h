@@ -49,6 +49,7 @@ namespace dmRender
         uint32_t m_OutlineColor;
         uint32_t m_ShadowColor;
         float    m_SdfParams[4];
+        uint8_t  m_LayerMasks[3];
     };
 
     /**
@@ -75,6 +76,8 @@ namespace dmRender
         float m_SdfOffset;
         /// Distance value where outline should end
         float m_SdfOutline;
+        /// Distance value where shadow should end
+        float m_SdfShadow;
         /// Font alpha
         float m_Alpha;
         /// Font outline alpha
@@ -91,6 +94,7 @@ namespace dmRender
         uint32_t m_CacheCellHeight;
         uint32_t m_CacheCellMaxAscent;
         uint8_t m_CacheCellPadding;
+        uint8_t m_LayerMask;
 
         dmRenderDDF::FontTextureFormat m_ImageFormat;
     };

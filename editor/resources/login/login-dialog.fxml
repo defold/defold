@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+
+<StackPane id="login-dialog" styleClass="df-style" prefHeight="440" prefWidth="600" stylesheets="/editor.css" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
+    <fx:include source="/login/state-not-signed-in.fxml" />
+    <fx:include source="/login/state-browser-open.fxml" />
+    <fx:include source="/login/state-login-fields.fxml" />
+    <fx:include source="/login/state-forgot-password.fxml" />
+    <fx:include source="/login/state-email-sent.fxml" />
+</StackPane>

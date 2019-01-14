@@ -40,6 +40,7 @@ struct Command
 {
     @public int m_WebViewID;
     @public int m_RequestID;
+    @public NSString *m_ContinueLoadingUrl;
 }
 @end
 
@@ -73,6 +74,24 @@ WebViewExtensionState g_WebView;
 
 @implementation WebViewDelegate
 
+- (BOOL)webView:(UIWebView *)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(UIWebViewNavigationType)navigationType
+{
+    NSString *url = request.URL.absoluteString;
+    if (m_ContinueLoadingUrl && [m_ContinueLoadingUrl isEqualToString:url]) {
+        return true;
+    }
+
+    dmWebView::CallbackInfo cbinfo;
+    cbinfo.m_Info = &g_WebView.m_Info[m_WebViewID];
+    cbinfo.m_WebViewID = m_WebViewID;
+    cbinfo.m_RequestID = m_RequestID;
+    cbinfo.m_Url = [url UTF8String];
+    cbinfo.m_Type = dmWebView::CALLBACK_RESULT_URL_LOADING;
+    cbinfo.m_Result = 0;
+    RunCallback(&cbinfo);
+    return false;
+}
+
 - (void)webViewDidFinishLoad:(UIWebView *)webView
 {
     dmWebView::CallbackInfo cbinfo;
@@ -83,6 +102,7 @@ WebViewExtensionState g_WebView;
     cbinfo.m_Type = dmWebView::CALLBACK_RESULT_URL_OK;
     cbinfo.m_Result = 0;
     RunCallback(&cbinfo);
+    m_ContinueLoadingUrl = NULL;
 }
 
 - (void)webView:(UIWebView *)webView didFailLoadWithError:(NSError *)error
@@ -95,6 +115,7 @@ WebViewExtensionState g_WebView;
     cbinfo.m_Type = dmWebView::CALLBACK_RESULT_URL_ERROR;
     cbinfo.m_Result = [error.localizedDescription UTF8String];
     RunCallback(&cbinfo);
+    m_ContinueLoadingUrl = NULL;
 }
 
 @end
@@ -198,6 +219,16 @@ int Platform_OpenRaw(lua_State* L, int webview_id, const char* html, dmWebView::
     return ++g_WebView.m_WebViewDelegates[webview_id]->m_RequestID;
 }
 
+int Platform_ContinueOpen(lua_State* L, int webview_id, int request_id, const char* url)
+{
+    CHECK_WEBVIEW_AND_RETURN();
+
+    NSURL* ns_url = [NSURL URLWithString: [NSString stringWithUTF8String: url]];
+    NSURLRequest* request = [NSURLRequest requestWithURL: ns_url];
+    g_WebView.m_WebViewDelegates[webview_id]->m_ContinueLoadingUrl = ns_url.absoluteString;
+    [g_WebView.m_WebViews[webview_id] loadRequest:request];
+    return request_id;
+}
 
 int Platform_Eval(lua_State* L, int webview_id, const char* code)
 {

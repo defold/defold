@@ -1,16 +1,16 @@
 (ns editor.pipeline.fontc
   (:require [editor.resource :as resource]
-            [clojure.java.io :as io]
-            [clojure.string :as string])
+            [clojure.java.io :as io])
   (:import [com.defold.editor.pipeline BMFont BMFont$BMFontFormatException BMFont$Char DistanceFieldGenerator]
            [com.google.protobuf ByteString]
            [javax.imageio ImageIO]
            [java.util Arrays]
-           [java.awt Canvas BasicStroke Font FontMetrics Graphics2D Color RenderingHints Composite CompositeContext Shape]
+           [java.awt Canvas BasicStroke Font FontMetrics Graphics2D Color RenderingHints Composite CompositeContext Shape Transparency]
            [java.awt.font FontRenderContext GlyphVector]
            [java.awt.geom AffineTransform PathIterator FlatteningPathIterator]
-           [java.awt.image BufferedImage Kernel ConvolveOp Raster WritableRaster]
-           [java.io InputStream ByteArrayOutputStream FileNotFoundException IOException]
+           [java.awt.image BufferedImage Kernel ConvolveOp Raster WritableRaster DataBuffer DataBufferByte ComponentColorModel]
+           [java.awt.color ColorSpace]
+           [java.io InputStream FileNotFoundException IOException]
            [java.nio.file Paths]
            [org.apache.commons.io FilenameUtils]))
 
@@ -230,7 +230,7 @@
 
 (def ^:private blend-context (reify CompositeContext
                                (^void compose [this ^Raster src ^Raster dst-in ^WritableRaster dst-out]
-                                (do-blend-rasters src dst-in dst-out))
+                                 (do-blend-rasters src dst-in dst-out))
                                (^void dispose [this])))
 
 (def ^:private blend-composite (reify Composite
@@ -379,6 +379,26 @@
       (throw (ex-info "No character glyphs were included! Maybe turn on 'all_chars'?" {})))
     semi-glyphs))
 
+(defn- calculate-ttf-layer-mask [font-desc]
+  (let [antialias (int->boolean (:antialias font-desc))
+        ^double alpha (:alpha font-desc)
+        ^double shadow-alpha (:shadow-alpha font-desc)
+        ^double outline-alpha (:outline-alpha font-desc)
+        ^double outline-width (:outline-width font-desc)
+        render-mode (:render-mode font-desc)
+        face-layer 0x1
+        outline-layer (if (and (> outline-width 0.0)
+                               (> outline-alpha 0.0)
+                               (= render-mode :mode-multi-layer)
+                               antialias)
+                        0x2 0x0)
+        shadow-layer (if (and (> shadow-alpha 0.0)
+                              (> alpha 0.0)
+                              (= render-mode :mode-multi-layer)
+                              antialias)
+                       0x4 0x0)]
+    (bit-or face-layer outline-layer shadow-layer)))
+
 (defn- compile-ttf-bitmap [font-desc font-resource]
   (let [font (create-ttf-font font-desc font-resource)
         antialias (int->boolean (:antialias font-desc))
@@ -403,10 +423,11 @@
         line-height (+ cache-cell-max-ascent cache-cell-max-descent)
         ;; BOB: "Some hardware don't like doing subimage updates on non-aligned cell positions."
         cache-cell-wh (cond-> (max-glyph-cell-wh glyph-extents line-height padding glyph-cell-padding)
-                        (= channel-count 3)
-                        (update :width #(* (int (Math/ceil (/ ^double % 4.0))) 4)))
+                              (= channel-count 3)
+                              (update :width #(* (int (Math/ceil (/ ^double % 4.0))) 4)))
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
-        glyph-data-bank (make-glyph-data-bank glyph-extents)]
+        glyph-data-bank (make-glyph-data-bank glyph-extents)
+        layer-mask (calculate-ttf-layer-mask font-desc)]
     (doall
       (pmap (fn [[semi-glyph glyph-extents]]
               (let [^BufferedImage glyph-image (let [face-color (Color. ^double (:alpha font-desc) 0.0 0.0)
@@ -451,6 +472,7 @@
      :max-ascent (.getMaxAscent font-metrics)
      :max-descent (.getMaxDescent font-metrics)
      :image-format (:output-format font-desc)
+     :layer-mask layer-mask
      :cache-width (:width cache-wh)
      :cache-height (:height cache-wh)
      :glyph-padding glyph-cell-padding
@@ -460,16 +482,32 @@
      :glyph-channels channel-count
      :glyph-data (ByteString/copyFrom glyph-data-bank)}))
 
+(defn- calculate-ttf-distance-field-edge-limit [^double width ^double spread ^double edge]
+  (let [sdf-limit-value (- (/ width spread))]
+    (+ (* sdf-limit-value (- 1.0 edge)) edge)))
+
 (defn- draw-ttf-distance-field [{^int glyph-ascent :ascent
                                  ^double glyph-left-bearing :left-bearing
                                  ^GlyphVector glyph-vector :vector
                                  :as glyph}
                                 padding
+                                channel-count
+                                outline-width
+                                sdf-outline
                                 sdf-spread
-                                edge]
+                                sdf-shadow-spread
+                                edge
+                                shadow-blur
+                                shadow-alpha]
   (let [^int padding padding
+        ^double outline-width outline-width
         ^double sdf-spread sdf-spread
+        ^double sdf-shadow-spread sdf-shadow-spread
         ^double edge edge
+        ^double shadow-alpha shadow-alpha
+        ^double sdf-outline sdf-outline
+        ^int channel-count channel-count
+        ^int shadow-blur shadow-blur
         {^int width :width ^int height :height} (pad-wh padding (glyph-wh glyph))
         ^Shape glyph-outline (.getGlyphOutline glyph-vector 0)
         ^PathIterator outline-iterator (FlatteningPathIterator. (.getPathIterator glyph-outline identity-transform) 0.1)
@@ -505,23 +543,54 @@
                        lastmy))
 
             (do (assert false "Unexpected segment type"))))))
-
     (let [u0 (double (- glyph-left-bearing padding))
           v0 (double (- (+ glyph-ascent padding)))
           res (double-array (* width height))
-          image (byte-array (* width height))]
+          image (byte-array (* width height channel-count))]
       (.render distance-field-generator res u0 v0 (+ u0 width) (+ v0 height) width height)
       (doseq [^int v (range height)
               ^int u (range width)]
         (let [gx (+ u0 u)
               gy (+ v0 v)
-              ofs (+ (* v width) u)
-              value' (aget res ofs)
-              value (if-not (.contains glyph-outline gx gy) (- value') value')
-              df-norm (+ (* (/ value sdf-spread) (- 1.0 edge)) edge)
-              oval' (int (* 255.0 df-norm))
-              oval (max 0 (min oval' 255))]
-          (aset image ofs (unchecked-byte oval))))
+              df-offset (+ (* v width) u)
+              out-face-offset (* df-offset channel-count)
+              out-outline-offset (+ out-face-offset 1)
+              out-shadow-offset (+ out-face-offset 2)
+              df-face' (aget res df-offset)
+              df-outline' (- outline-width df-face')
+              df-face (if-not (.contains glyph-outline gx gy) (- df-face') df-face')
+              df-face-norm (+ (* (/ df-face sdf-spread) (- 1.0 edge)) edge)
+              df-outline (if (> df-face-norm sdf-outline)
+                           edge df-outline')
+              df-face-channel (max 0 (min (int (* 255.0 df-face-norm)) 255))
+              df-outline-norm (+ (* (/ df-outline sdf-shadow-spread) (- 1.0 edge)) edge)
+              df-outline-channel (max 0 (min (int (* 255.0 df-outline-norm)) 255))]
+          (aset image out-face-offset (unchecked-byte df-face-channel))
+          (when (> channel-count 1)
+            (aset image out-outline-offset (unchecked-byte 0))
+            (aset image out-shadow-offset (unchecked-byte df-outline-channel)))))
+      (when (and (> shadow-alpha 0.0) (> shadow-blur 0) (> channel-count 1))
+        (let [image-byte-length (* width height channel-count)
+              shadow-image' (byte-array image-byte-length)
+              shadow-image (do (System/arraycopy image 0 shadow-image' 0 image-byte-length) shadow-image')
+              shadow-data-buffer (DataBufferByte. shadow-image image-byte-length)
+              shadow-band-offsets (int-array [0 1 2])
+              shadow-n-bits (int-array [8 8 8])
+              shadow-raster (Raster/createInterleavedRaster shadow-data-buffer width height (* width channel-count) channel-count shadow-band-offsets nil)
+              shadow-cs (ColorSpace/getInstance ColorSpace/CS_sRGB)
+              shadow-cm (ComponentColorModel. shadow-cs shadow-n-bits false false Transparency/TRANSLUCENT DataBuffer/TYPE_BYTE)
+              shadow-image (BufferedImage. shadow-cm shadow-raster false nil)
+              ;; When the blur kernel is != 0, make sure to always blur the DF data set
+              ;; at least once so we can avoid the jaggies around the face edges. This is mostly
+              ;; prominent when the blur size is small and the offset is large.
+              ^BufferedImage tmp (.getSubimage shadow-image 0 0 width height)]
+          (.filter shadow-convolve tmp shadow-image)
+          (doseq [^int v (range height)
+                  ^int u (range width)]
+            (let [df-offset (+ (* v width) u)
+                  shadow-offset (+ (* df-offset channel-count) 2)
+                  shadow-pixel (.getRGB shadow-image u v)]
+              (aset image shadow-offset (unchecked-byte shadow-pixel))))))
       {:field image
        :width width
        :height height})))
@@ -531,14 +600,26 @@
         antialias (int->boolean (:antialias font-desc))
         semi-glyphs (ttf-semi-glyphs font-desc font antialias)
         font-metrics (font-metrics font)
-        padding (+ (int (if antialias
-                          (int (:outline-width font-desc))
-                          0))
-                   1)
-        channel-count 1
+        ^double outline-width (:outline-width font-desc)
+        ^double shadow-blur (:shadow-blur font-desc)
+        ^double face-alpha (:alpha font-desc)
+        ^double shadow-alpha (:shadow-alpha font-desc)
+        padding (if antialias
+                  (+ (int shadow-blur)
+                     (int outline-width)
+                     1)
+                  1)
+        channel-count (if (and (> shadow-alpha 0.0)
+                               (> face-alpha 0.0))
+                        3 1)
         glyph-cell-padding 1
-        sdf-spread (+ (Math/sqrt 2.0) ^double (:outline-width font-desc))
         edge 0.75
+        sdf-spread (+ (Math/sqrt 2.0) outline-width)
+        sdf-shadow-spread (+ (Math/sqrt 2.0) shadow-blur)
+        sdf-outline (calculate-ttf-distance-field-edge-limit outline-width sdf-spread edge)
+        sdf-shadow (if (= (int shadow-blur) 0)
+                     1.0
+                     (calculate-ttf-distance-field-edge-limit shadow-blur sdf-shadow-spread edge))
         glyph-extents (make-glyph-extents channel-count padding glyph-cell-padding semi-glyphs)
         ;; Note: see comment in compile-ttf-bitmap regarding the cache ascent/descent
         ^long cache-cell-max-ascent (reduce max 0 (map :ascent semi-glyphs))
@@ -546,23 +627,23 @@
         line-height (+ cache-cell-max-ascent cache-cell-max-descent)
         cache-cell-wh (max-glyph-cell-wh glyph-extents line-height padding glyph-cell-padding)
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
-        glyph-data-bank (make-glyph-data-bank glyph-extents)]
-
+        glyph-data-bank (make-glyph-data-bank glyph-extents)
+        layer-mask (calculate-ttf-layer-mask font-desc)]
     (doall
       (pmap (fn [[semi-glyph glyph-extents]]
-              (let [{:keys [^bytes field]} (draw-ttf-distance-field semi-glyph padding sdf-spread edge)
+              (let [{:keys [^bytes field]} (draw-ttf-distance-field semi-glyph padding channel-count outline-width sdf-outline sdf-spread sdf-shadow-spread edge shadow-blur shadow-alpha)
                     {:keys [image-wh glyph-cell-wh ^int glyph-data-size ^int glyph-data-offset]} glyph-extents
                     ^int image-width (:width image-wh)
                     ^int image-height (:height image-wh)
-                    ^int row-size (:width glyph-cell-wh)]
+                    row-size (* (int (:width glyph-cell-wh)) channel-count)]
                 (Arrays/fill glyph-data-bank glyph-data-offset (+ glyph-data-offset row-size) (unchecked-byte 0))
                 (doseq [^int y (range image-height)]
                   (let [y-offset (+ glyph-data-offset
                                     row-size
                                     (* y row-size))]
                     (aset glyph-data-bank y-offset (unchecked-byte 0))
-                    (System/arraycopy field (+ (* y image-width) 0) glyph-data-bank (inc y-offset) image-width)
-                    (aset glyph-data-bank (+ (inc y-offset) image-width) (unchecked-byte 0))))
+                    (System/arraycopy field (+ (* y image-width channel-count) 0) glyph-data-bank (+ y-offset channel-count) (* image-width channel-count))
+                    (aset glyph-data-bank (+ (+ y-offset channel-count) (* image-width channel-count)) (unchecked-byte 0))))
                 (let [last-y-offset (- (+ glyph-data-offset glyph-data-size) row-size)]
                   (Arrays/fill glyph-data-bank last-y-offset (+ last-y-offset row-size) (unchecked-byte 0)))))
             (sequence positive-glyph-extent-pairs-xf
@@ -576,9 +657,12 @@
      :max-ascent (.getMaxAscent font-metrics)
      :max-descent (.getMaxDescent font-metrics)
      :image-format (:output-format font-desc)
+     :layer-mask layer-mask
+     :render-mode (:render-mode font-desc)
      :sdf-spread sdf-spread
-     :sdf-outline (let [outline-edge (- (/ ^double (:outline-width font-desc) sdf-spread))]
-                    (+ (* outline-edge (- 1.0 edge)) edge))
+     :sdf-shadow-spread sdf-shadow-spread
+     :sdf-outline sdf-outline
+     :sdf-shadow sdf-shadow
      :cache-width (:width cache-wh)
      :cache-height (:height cache-wh)
      :glyph-padding glyph-cell-padding

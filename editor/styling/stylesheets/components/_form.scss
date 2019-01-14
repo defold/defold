@@ -22,21 +22,24 @@
     }
 }
 
+// Warning: These make a lot of assumptions and target very generally.
+// You might want to avoid these style classes for your field validation.
+
 .field-error {
     -fx-border-width: 1 !important;
-    -fx-border-color: $defold-red !important;
+    -fx-border-color: $error-severity-fatal !important;
     -fx-effect: none !important;
 }
 
 .field-warning {
     -fx-border-width: 1 !important;
-    -fx-border-color: $defold-yellow !important;
+    -fx-border-color: $error-severity-warning !important;
     -fx-effect: none !important;
 }
 
 .field-info {
     -fx-border-width: 1 !important;
-    -fx-border-color: $defold-light-blue !important;
+    -fx-border-color: $error-severity-info !important;
     -fx-effect: none !important;
 }
 

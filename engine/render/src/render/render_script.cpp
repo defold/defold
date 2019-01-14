@@ -2204,7 +2204,7 @@ namespace dmRender
      * for the predicate. If multiple tags are provided, the predicate matches materials
      * with all tags ANDed together.
      *
-     * The current limit to the number of tags that can be defined is `32`.
+     * The current limit to the number of tags that can be defined is `64`.
      *
      * @name render.predicate
      * @param tags [type:table] table of tags that the predicate should match. The tags can be of either hash or string type

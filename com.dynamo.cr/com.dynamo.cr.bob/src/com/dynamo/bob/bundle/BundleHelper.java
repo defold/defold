@@ -124,7 +124,6 @@ public class BundleHelper {
     }
 
     private IResource getResource(String category, String key) throws IOException {
-        File projectRoot = new File(project.getRootDirectory());
         Map<String, Object> c = propertiesMap.get(category);
         if (c != null) {
             Object o = c.get(key);

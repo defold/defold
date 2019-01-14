@@ -938,7 +938,9 @@
                            (let [drawable (gl/offscreen-drawable w h)]
                              (ui/user-data! image-view ::view-id view-id)
                              (register-event-handler! this view-id)
-                             (ui/on-closed! (:tab opts) (fn [_] (dispose-scene-view! view-id)))
+                             (ui/on-closed! (:tab opts) (fn [_]
+                                                          (ui/kill-event-dispatch! this)
+                                                          (dispose-scene-view! view-id)))
                              (g/set-property! view-id :drawable drawable :async-copier (make-copier viewport))
                              (frame-selection view-id false)))))
                      (catch Throwable error

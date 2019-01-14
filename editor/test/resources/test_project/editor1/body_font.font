@@ -14,3 +14,4 @@ output_format: TYPE_BITMAP
 all_chars: false
 cache_width: 0
 cache_height: 0
+render_mode: MODE_SINGLE_LAYER

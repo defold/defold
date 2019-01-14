@@ -10,3 +10,4 @@ game_binding = game.input_bindingc
 
 [custom]
 love = defold
+should_be_empty =

@@ -57,13 +57,11 @@
 
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2"]
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-linux-amd64"]
-                     [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-linux-i586"]
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-macosx-universal"]
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-windows-amd64"]
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-windows-i586"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-linux-amd64"]
-                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-linux-i586"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-macosx-universal"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-amd64"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]]
@@ -86,8 +84,7 @@
                       "../engine/render/proto/render"
                       "../engine/resource/proto"
                       "../engine/rig/proto"
-                      "../engine/script/src"
-                      "../engine/vscript/proto"]
+                      "../engine/script/src"]
 
   :protobuf-includes ["../engine/gameobject/proto"
                       "../engine/gamesys/proto"
@@ -137,6 +134,6 @@
                                                     "-Ddefold.log.dir="
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"
-                                                    "-XX:+UnlockCommercialFeatures"
-                                                    "-XX:+FlightRecorder"
+                                                    ;"-XX:+UnlockCommercialFeatures"
+                                                    ;"-XX:+FlightRecorder"
                                                     "-XX:-OmitStackTraceInFastThrow"]}})

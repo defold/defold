@@ -20,6 +20,7 @@ enum CommandType
     CMD_LOAD_ERROR,
     CMD_EVAL_OK,
     CMD_EVAL_ERROR,
+    CMD_LOADING,
 };
 
 struct Command
@@ -71,6 +72,7 @@ struct WebViewExtensionState
     jmethodID               m_Destroy;
     jmethodID               m_Load;
     jmethodID               m_LoadRaw;
+    jmethodID               m_ContinueLoading;
     jmethodID               m_Eval;
     jmethodID               m_SetVisible;
     jmethodID               m_IsVisible;
@@ -139,6 +141,18 @@ int Platform_Open(lua_State* L, int webview_id, const char* url, dmWebView::Requ
     JNIEnv* env = Attach();
     jstring jurl = env->NewStringUTF(url);
     env->CallVoidMethod(g_WebView.m_WebViewJNI, g_WebView.m_Load, jurl, webview_id, request_id, options->m_Hidden);
+    env->DeleteLocalRef(jurl);
+    Detach();
+    return request_id;
+}
+
+int Platform_ContinueOpen(lua_State* L, int webview_id, int request_id, const char* url)
+{
+    CHECK_WEBVIEW_AND_RETURN();
+
+    JNIEnv* env = Attach();
+    jstring jurl = env->NewStringUTF(url);
+    env->CallVoidMethod(g_WebView.m_WebViewJNI, g_WebView.m_ContinueLoading, jurl, webview_id, request_id);
     env->DeleteLocalRef(jurl);
     Detach();
     return request_id;
@@ -264,6 +278,16 @@ JNIEXPORT void JNICALL Java_com_defold_webview_WebViewJNI_onEvalFailed(JNIEnv* e
     QueueCommand(&cmd);
 }
 
+JNIEXPORT void JNICALL Java_com_defold_webview_WebViewJNI_onPageLoading(JNIEnv* env, jobject, jstring url, jint webview_id, jint request_id)
+{
+    Command cmd;
+    cmd.m_Type = CMD_LOADING;
+    cmd.m_WebViewID = webview_id;
+    cmd.m_RequestID = request_id;
+    cmd.m_Url = CopyString(env, url);
+    QueueCommand(&cmd);
+}
+
 #ifdef __cplusplus
 }
 #endif
@@ -281,6 +305,16 @@ dmExtension::Result Platform_Update(dmExtension::Params* params)
         dmWebView::CallbackInfo cbinfo;
         switch (cmd.m_Type)
         {
+        case CMD_LOADING:
+            cbinfo.m_Info = &g_WebView.m_Info[cmd.m_WebViewID];
+            cbinfo.m_WebViewID = cmd.m_WebViewID;
+            cbinfo.m_RequestID = cmd.m_RequestID;
+            cbinfo.m_Url = cmd.m_Url;
+            cbinfo.m_Type = dmWebView::CALLBACK_RESULT_URL_LOADING;
+            cbinfo.m_Result = 0;
+            RunCallback(&cbinfo);
+            break;
+
         case CMD_LOAD_OK:
             cbinfo.m_Info = &g_WebView.m_Info[cmd.m_WebViewID];
             cbinfo.m_WebViewID = cmd.m_WebViewID;
@@ -355,6 +389,7 @@ dmExtension::Result Platform_AppInitialize(dmExtension::AppParams* params)
     g_WebView.m_Destroy = env->GetMethodID(webview_class, "destroy", "(I)V");
     g_WebView.m_Load = env->GetMethodID(webview_class, "load", "(Ljava/lang/String;III)V");
     g_WebView.m_LoadRaw = env->GetMethodID(webview_class, "loadRaw", "(Ljava/lang/String;III)V");
+    g_WebView.m_ContinueLoading = env->GetMethodID(webview_class, "continueLoading", "(Ljava/lang/String;II)V");
     g_WebView.m_Eval = env->GetMethodID(webview_class, "eval", "(Ljava/lang/String;II)V");
     g_WebView.m_SetVisible = env->GetMethodID(webview_class, "setVisible", "(II)V");
     g_WebView.m_IsVisible = env->GetMethodID(webview_class, "isVisible", "(I)I");
@@ -408,4 +443,3 @@ dmExtension::Result Platform_Finalize(dmExtension::Params* params)
 
 
 } // namespace dmWebView
-

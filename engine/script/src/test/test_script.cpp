@@ -128,53 +128,16 @@ TEST_F(ScriptTest, TestPPrint)
     ASSERT_TRUE(RunFile(L, "test_script.luac"));
     ASSERT_EQ(top, lua_gettop(L));
 
-    const char* ExpectedOutput = 
-        "DEBUG:SCRIPT: testing pprint\n"
-        "DEBUG:SCRIPT: 123\n"
-        "DEBUG:SCRIPT: smore\n"
-        "DEBUG:SCRIPT: \n"
-        "{ --[[0]]\n"
-        "  1 = { --[[0]]\n"
-        "    y = { --[[0]]\n"
-        "      m = vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1),\n"
-        "      q = vmath.quat(0, 0, 0, 1),\n"
-        "      n = vmath.vector3(0, 0, 0)\n"
-        "    },\n"
-        "    x = 1,\n"
-        "    z = 3\n"
-        "  },\n"
-        "  2 = \"hello\",\n"
-        "  3 = { } --[[0]],\n"
-        "  foo = 123\n"
-        "}\n"
-        "DEBUG:SCRIPT: \n"
-        "{ --[[0]]\n"
-        "  1 = { --[[0]]\n"
-        "    y = { --[[0]]\n"
-        "      m = vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1),\n"
-        "      q = vmath.quat(0, 0, 0, 1),\n"
-        "      n = vmath.vector3(0, 0, 0)\n"
-        "    },\n"
-        "    x = 1,\n"
-        "    z = 3\n"
-        "  },\n"
-        "  2 = \"hello\",\n"
-        "  3 = { } --[[0]],\n"
-        "  foo = 123\n"
-        "},\n"
-        "more,\n"
-        "{ --[[0]]\n"
-        "  b = 2,\n"
-        "  a = 1,\n"
-        "  c = 3\n"
-        "},\n"
-        "77,\n"
-        "78,\n"
-        "79,\n"
-        "80\n"
-        "DEBUG:SCRIPT: 5\n";
-
-    ASSERT_STREQ(ExpectedOutput, RemoveTableAddresses(GetLog()));
+    const char* result = RemoveTableAddresses(GetLog());
+    ASSERT_EQ(result, strstr(result, "DEBUG:SCRIPT: testing pprint\n"));
+    ASSERT_NE((const char*)0, strstr(result, "{ --[[0]]"));
+    ASSERT_NE((const char*)0, strstr(result, "      m = vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)"));
+    ASSERT_NE((const char*)0, strstr(result, "  3 = { } --[[0]]"));
+    ASSERT_NE((const char*)0, strstr(result, "  2 = \"hello\""));
+    ASSERT_NE((const char*)0, strstr(result, "      m = vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1),"));
+    ASSERT_NE((const char*)0, strstr(result, "      q = vmath.quat(0, 0, 0, 1),"));
+    ASSERT_NE((const char*)0, strstr(result, "      n = vmath.vector3(0, 0, 0)"));
+    ASSERT_NE((const char*)0, strstr(result, "DEBUG:SCRIPT: 5"));
 }
 
 
@@ -184,18 +147,16 @@ TEST_F(ScriptTest, TestCircularRefPPrint)
     ASSERT_TRUE(RunFile(L, "test_circular_ref_pprint.luac"));
     ASSERT_EQ(top, lua_gettop(L));
 
-    const char* ExpectedOutput = 
-        "DEBUG:SCRIPT: testing pprint with circular ref\n"
-        "DEBUG:SCRIPT: \n"
-        "{ --[[0]]\n"
-        "  foo = \"an old man was telling stories of circular references.\",\n"
-        "  gnu = { --[[0]]\n"
-        "    gnat = { ... } --[[0]],\n"
-        "    bar = \"It was a dark and stormy night,\"\n"
-        "  }\n"
-        "}\n";
-
-    ASSERT_STREQ(ExpectedOutput, RemoveTableAddresses(GetLog()));
+    const char* result = RemoveTableAddresses(GetLog());
+    ASSERT_EQ(result, strstr(result, "DEBUG:SCRIPT: testing pprint with circular ref\n"));
+    ASSERT_NE((const char*)0, strstr(result, "DEBUG:SCRIPT: \n"));
+    ASSERT_NE((const char*)0, strstr(result, "{ --[[0]]"));
+    ASSERT_NE((const char*)0, strstr(result, "  foo = \"an old man was telling stories of circular references.\""));
+    ASSERT_NE((const char*)0, strstr(result, "  gnu = { --[[0]]"));
+    ASSERT_NE((const char*)0, strstr(result, "    gnat = { ... } --[[0]]"));
+    ASSERT_NE((const char*)0, strstr(result, "    bar = \"It was a dark and stormy night,\""));
+    ASSERT_NE((const char*)0, strstr(result, "  }"));
+    ASSERT_NE((const char*)0, strstr(result, "}"));
 }
 
 TEST_F(ScriptTest, TestPPrintTruncate)

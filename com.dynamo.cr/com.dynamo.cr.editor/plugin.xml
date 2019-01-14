@@ -741,10 +741,6 @@
             <or>
                 <systemProperty
                       name="com.defold.platform"
-                      value="linux">
-                </systemProperty>
-                <systemProperty
-                      name="com.defold.platform"
                       value="x86_64-linux">
                 </systemProperty>
             </or>

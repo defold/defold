@@ -340,7 +340,7 @@ namespace dmCrash
 
         /*# device manufacturer as reported by sys.get_sys_info
          *
-         * @name crash.SYSFIELD_DEVICE_MANUFACTURER
+         * @name crash.SYSFIELD_MANUFACTURER
          * @variable
          */
         SETCONSTANT(SYSFIELD_MANUFACTURER);

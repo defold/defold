@@ -80,22 +80,22 @@
   [build-targets]
   (into {} (map #(let [key (target-key %)] [key (assoc % :key key)])) build-targets))
 
-(defn- flatten-build-targets
+(defn flatten-build-targets
   "Breadth first traversal / collection of build-targets and their child :deps,
   skipping seen targets identified by target-key."
   [build-targets]
   (loop [targets build-targets
          queue []
          seen #{}
-         result []]
+         result (transient [])]
     (if-let [t (first targets)]
       (let [key (target-key t)]
         (if (contains? seen key)
           (recur (rest targets) queue seen result)
-          (recur (rest targets) (conj queue (flatten (:deps t))) (conj seen key) (conj result t))))
+          (recur (rest targets) (conj queue (flatten (:deps t))) (conj seen key) (conj! result t))))
       (if-let [targets (first queue)]
         (recur targets (rest queue) seen result)
-        result))))
+        (persistent! result)))))
 
 (defn- make-build-targets-by-key
   [build-targets]

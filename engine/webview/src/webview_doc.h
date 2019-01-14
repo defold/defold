@@ -34,6 +34,7 @@
  *
  * - `webview.CALLBACK_RESULT_URL_OK`
  * - `webview.CALLBACK_RESULT_URL_ERROR`
+ * - `webview.CALLBACK_RESULT_URL_LOADING`
  * - `webview.CALLBACK_RESULT_EVAL_OK`
  * - `webview.CALLBACK_RESULT_EVAL_ERROR`
  *
@@ -55,6 +56,13 @@
  *     elseif type == webview.CALLBACK_RESULT_URL_ERROR then
  *         print("Failed to load url: " .. data["url"])
  *         print("Error: " .. data["error"])
+ *     elseif type == webview.CALLBACK_RESULT_URL_LOADING then
+ *         -- a page is loading
+ *         -- return false to prevent it from loading
+ *         -- return true or nil to continue loading the page
+ *         if data.url ~= "https://www.defold.com/" then
+ *             return false
+ *         end
  *     elseif type == webview.CALLBACK_RESULT_EVAL_OK then
  *         print("Eval ok. Result: " .. data['result'])
  *     elseif type == webview.CALLBACK_RESULT_EVAL_ERROR then
@@ -174,14 +182,3 @@
  * @param width [type:number] The width of the webview (-1 to match screen width)
  * @param height [type:number] The height of the webview (-1 to match screen height)
  */
-
-
-
-
-
-
-
-
-
-
-

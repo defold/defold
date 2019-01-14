@@ -130,7 +130,7 @@ public class AndroidBundler implements IBundler {
         File ap1 = new File(appDir, title + ".ap1");
 
         Map<String, String> aaptEnv = new HashMap<String, String>();
-        if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
+        if (Platform.getHostPlatform() == Platform.X86_64Linux) {
             aaptEnv.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
         }
 

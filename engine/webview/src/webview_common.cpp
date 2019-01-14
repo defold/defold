@@ -53,9 +53,18 @@ void RunCallback(CallbackInfo* cbinfo)
     lua_rawset(L, -3);
 
 
-    int ret = lua_pcall(L, 5, 0, 0);
+    int ret = lua_pcall(L, 5, 1, 0);
     if (ret != 0) {
         dmLogError("Error running WebView callback: %s", lua_tostring(L,-1));
+        lua_pop(L, 1);
+    } else {
+        if (cbinfo->m_Type == dmWebView::CALLBACK_RESULT_URL_LOADING) {
+            // returning either nothing (nil) or a boolean true should continue
+            // to load the url
+            if (lua_isnil(L, 1) || lua_toboolean(L, 1) == 1) {
+               Platform_ContinueOpen(L, cbinfo->m_WebViewID, cbinfo->m_RequestID, cbinfo->m_Url);
+            }
+        }
         lua_pop(L, 1);
     }
     assert(top == lua_gettop(L));
@@ -250,6 +259,7 @@ static void LuaInit(lua_State* L)
     SETCONSTANT(CALLBACK_RESULT_URL_ERROR)
     SETCONSTANT(CALLBACK_RESULT_EVAL_OK)
     SETCONSTANT(CALLBACK_RESULT_EVAL_ERROR)
+    SETCONSTANT(CALLBACK_RESULT_URL_LOADING)
 
 #undef SETCONSTANT
 

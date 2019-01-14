@@ -180,6 +180,11 @@ namespace dmGameSystem
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, COLLECTION_FACTORY_EXT, &user_data, &receiver, 0);
         CollectionFactoryComponent* component = (CollectionFactoryComponent*) user_data;
 
+        if (component->m_Loading) {
+            dmLogError("Trying to load collection factory resource when already loading.");
+            return luaL_error(L, "Error loading collection factory resources");
+        }
+
         lua_pushvalue(L, 2);
         component->m_PreloaderCallbackRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
         dmScript::GetInstance(L);
@@ -193,6 +198,11 @@ namespace dmGameSystem
             dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderCallbackRef);
             dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderSelfRef);
             dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderURLRef);
+
+            component->m_PreloaderCallbackRef = LUA_NOREF;
+            component->m_PreloaderSelfRef = LUA_NOREF;
+            component->m_PreloaderURLRef = LUA_NOREF;
+
             return luaL_error(L, "Error loading collection factory resources");
         }
 

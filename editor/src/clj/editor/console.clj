@@ -334,12 +334,18 @@
                   (make-resource-reference-region row start-col end-col resource-proj-path (dec (long resource-row)) on-region-click!))))))
         (re-match-result-seq line-sub-regions-pattern line)))
 
+(defn- make-whole-line-region [type ^long row line]
+  (assert (keyword? type))
+  (assert (not (neg? row)))
+  (assert (string? line))
+  (assoc (data/->CursorRange (data/->Cursor row 0)
+                             (data/->Cursor row (count line)))
+    :type type))
+
 (defn- make-line-regions [resource-map on-region-click! ^long row [type line]]
   (assert (keyword? type))
   (assert (string? line))
-  (cons (assoc (data/->CursorRange (data/->Cursor row 0)
-                                   (data/->Cursor row (count line)))
-          :type type)
+  (cons (make-whole-line-region type row line)
         (make-line-sub-regions resource-map on-region-click! row line)))
 
 (defn- append-distinct-lines [{:keys [lines regions] :as props} entries resource-map on-region-click!]
@@ -349,12 +355,21 @@
                                      (partial make-line-sub-regions resource-map on-region-click!))))
 
 (defn- append-regioned-lines [{:keys [lines regions] :as props} entries resource-map on-region-click!]
-  (assoc props
-    :lines (into lines (map second) entries)
-    :regions (into regions
-                   (mapcat (partial make-line-regions resource-map on-region-click!)
-                           (iterate inc (count lines))
-                           entries))))
+  (assert (vector? lines))
+  (assert (vector? regions))
+  (let [clean-lines (if (= [""] lines) [] lines)
+        lines' (into clean-lines (map second) entries)
+        lines' (if (empty? lines') [""] lines')
+        regions' (into regions
+                       (mapcat (partial make-line-regions resource-map on-region-click!)
+                               (iterate inc (count clean-lines))
+                               entries))]
+    (cond-> (assoc props
+              :lines lines'
+              :regions regions')
+
+            (empty? clean-lines)
+            (assoc :invalidated-row 0))))
 
 (defn- append-entries [props entries resource-map on-region-click!]
   (assert (map? props))
@@ -385,6 +400,7 @@
                               (cond-> (assoc props :document-width document-width)
                                       was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
                                       clear? (assoc :cursor-ranges [data/document-start-cursor-range])
+                                      clear? (assoc :invalidated-row 0)
                                       clear? (data/frame-cursor prev-layout))))))
   (view/repaint-view! view-node elapsed-time))
 

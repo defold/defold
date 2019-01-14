@@ -1,3 +1,4 @@
 {
+    "extensions-server": "https://build-stage.defold.com",
     "foo": "bar"
 }
