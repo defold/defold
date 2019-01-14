@@ -91,6 +91,12 @@ message WindowResized
     required uint32 height = 2;
 }
 
+message Resize
+{
+    required uint32 width = 1;
+    required uint32 height = 2;
+}
+
 /*# set clear color
  * Set render clear color. This is the color that appears on the screen where nothing is rendered, i.e. background.
  *

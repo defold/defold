@@ -501,6 +501,8 @@ namespace dmGraphics
      */
     void SetWindowSize(HContext context, uint32_t width, uint32_t height);
 
+    void ResizeWindow(HContext context, uint32_t width, uint32_t height);
+
     /**
      * Return the default texture filtering modes.
      * @param context Graphics context handle

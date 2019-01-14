@@ -817,6 +817,30 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
     }
 
+    void ResizeWindow(HContext context, uint32_t width, uint32_t height)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            context->m_WindowWidth = width;
+            context->m_WindowHeight = height;
+            glfwSetWindowSize((int)width, (int)height);
+
+            int res_width, res_height;
+            glfwGetWindowSize(&res_width, &res_height);
+            if (res_height < height) {
+                float aspect = (float)res_height / (float)height;
+                width = width * aspect;
+                height = res_height;
+                glfwSetWindowSize((int)width, (int)height);
+            }
+            if (context->m_WindowResizeCallback)
+            {
+                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, width, height);
+            }
+        }
+    }
+
     void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
     {
         out_min_filter = context->m_DefaultTextureMinFilter;

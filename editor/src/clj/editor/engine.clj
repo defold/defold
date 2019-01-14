@@ -11,6 +11,7 @@
             [editor.system :as system])
   (:import [com.defold.editor Platform]
            [com.dynamo.resource.proto Resource$Reload]
+           [com.dynamo.render.proto Render$Resize]
            [java.io BufferedReader File InputStream IOException]
            [java.net HttpURLConnection InetSocketAddress Socket URI]
            [java.util.zip ZipFile]))
@@ -46,6 +47,26 @@
         (.write os ^bytes (protobuf/map->bytes
                             Resource$Reload
                             {:resources proj-paths})))
+      (with-open [is (.getInputStream conn)]
+        (ignore-all-output is))
+      (finally
+        (.disconnect conn)))))
+
+(defn change-resolution! [target user-data]
+  (let [uri (URI. (str (:url target) "/post/@render/resize"))
+        conn ^HttpURLConnection (get-connection uri)
+        width (if (:rotate user-data)
+                (:height user-data)
+                (:width user-data))
+        height (if (:rotate user-data)
+                 (:width user-data)
+                 (:height user-data))]
+    (try
+      (with-open [os (.getOutputStream conn)]
+        (.write os ^bytes (protobuf/map->bytes
+                            Render$Resize
+                            {:width width
+                             :height height})))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))
       (finally

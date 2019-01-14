@@ -158,6 +158,26 @@
      (ui/show-and-wait! stage)
      @result)))
 
+(defn make-resolution-dialog []
+  (let [root     ^Region (ui/load-fxml "resolution.fxml")
+        stage    (ui/make-dialog-stage)
+        scene    (Scene. root)
+        result   (atom false)
+        width    (atom 320)
+        height   (atom 420)]
+    (ui/with-controls root [^TextField resolution-width ^TextField resolution-height ^Button ok ^Button cancel]
+      (ui/on-action! ok (fn [_]
+                          (reset! result true)
+                          (reset! width (Integer. (.getText resolution-width)))
+                          (reset! height (Integer. (.getText resolution-height)))
+                          (.close stage)))
+      (ui/on-action! cancel (fn [_]
+                              (.close stage))))
+    (ui/title! stage "Custom resolution")
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+  [@result @width @height]))
+
 (defn make-pending-update-dialog
   [^Stage owner]
   (let [root ^Parent (ui/load-fxml "update-alert.fxml")

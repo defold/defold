@@ -16,6 +16,7 @@
    [editor.resource :as resource]
    [editor.ui :as ui]
    [editor.workspace :as workspace]
+   [editor.targets :as targets]
    [service.log :as log])
   (:import
    (com.dynamo.lua.proto Lua$LuaModule)
@@ -462,6 +463,34 @@
   (enabled? [debug-view] (current-session debug-view))
   (run [debug-view] (mobdebug/exit! (current-session debug-view))))
 
+(defn- can-change-resolution? [debug-view prefs]
+  (and (targets/controllable-target? (targets/selected-target prefs))
+         (not (suspended? debug-view))))
+
+(def should-rotate-device?
+  (atom  false))
+
+(handler/defhandler :change-res :global
+  (enabled? [debug-view prefs]
+            (can-change-resolution? debug-view prefs))
+  (run [project app-view prefs build-errors-view selection user-data]
+       (engine/change-resolution! (targets/selected-target prefs) {:width (:width user-data) :height (:height user-data) :rotate @should-rotate-device?})))
+
+(handler/defhandler :set-custom-resolution :global
+  (enabled? [debug-view prefs]
+            (can-change-resolution? debug-view prefs))
+  (run [project app-view prefs build-errors-view selection user-data]
+       (let [[ok width height] (dialogs/make-resolution-dialog)]
+         (if (true? ok)
+           (engine/change-resolution! (targets/selected-target prefs) {:width width :height height :rotate false})))))
+
+(handler/defhandler :set-rotate-device :global
+  (enabled? [debug-view prefs]
+            (can-change-resolution? debug-view prefs))
+  (run [project app-view prefs build-errors-view selection user-data]
+       (reset! should-rotate-device? (not @should-rotate-device?)))
+  (state [app-view user-data] @should-rotate-device?))
+
 (ui/extend-menu ::menubar :editor.defold-project/project
                 [{:label "Debug"
                   :id ::debug
@@ -483,4 +512,153 @@
                              {:label detach-debugger-label
                               :command :detach-debugger}
                              {:label stop-debugger-label
-                              :command :stop-debugger}]}])
+                              :command :stop-debugger}
+                             {:label :separator}
+                             {:label "Simulate Resolution..."
+                              :id ::debug
+                              :children [{:label "Custom Resolution..."
+                                          :command :set-custom-resolution}
+                                         {:label :separator}
+                                         {:label "iPhone"
+                                          :id ::debug
+                                          :children [{:label "iPhone XR (826x1792)"
+                                                     :command :change-res
+                                                     :user-data {:width 826
+                                                                 :height 1792}}
+                                                     {:label "iPhone XS Max (1242x2688)"
+                                                     :command :change-res
+                                                     :user-data {:width 1242
+                                                                 :height 2688}}
+                                                     {:label "iPhone XS (1125x2436)"
+                                                     :command :change-res
+                                                     :user-data {:width 1125
+                                                                 :height 2436}}
+                                                     {:label "iPhone X (1125x2436)"
+                                                     :command :change-res
+                                                     :user-data {:width 1125
+                                                                 :height 2436}}
+                                                     {:label "iPhone 8 Plus (1242x2208)"
+                                                     :command :change-res
+                                                     :user-data {:width 1242
+                                                                 :height 2208}}
+                                                     {:label "iPhone 8 (750x1334)"
+                                                     :command :change-res
+                                                     :user-data {:width 750
+                                                                 :height 1334}}
+                                                     {:label "iPhone 7 Plus (1242x2208)"
+                                                     :command :change-res
+                                                     :user-data {:width 1242
+                                                                 :height 2208}}
+                                                     {:label "iPhone 7 (750x1334)"
+                                                     :command :change-res
+                                                     :user-data {:width 750
+                                                                 :height 1334}}
+                                                     {:label "iPhone SE (640x1136)"
+                                                     :command :change-res
+                                                     :user-data {:width 640
+                                                                 :height 1136}}
+                                                     {:label "iPhone 6s Plus (1242x2208)"
+                                                     :command :change-res
+                                                     :user-data {:width 1242
+                                                                 :height 2208}}
+                                                     {:label "iPhone 6s (750x1334)"
+                                                     :command :change-res
+                                                     :user-data {:width 750
+                                                                 :height 1334}}
+                                                     {:label "iPhone 6 Plus (1242x2208)"
+                                                     :command :change-res
+                                                     :user-data {:width 1242
+                                                                 :height 2208}}
+                                                     {:label "iPhone 6 (750x1334)"
+                                                     :command :change-res
+                                                     :user-data {:width 750
+                                                                 :height 1334}}
+                                                     {:label "iPhone 5c (640x1136)"
+                                                     :command :change-res
+                                                     :user-data {:width 640
+                                                                 :height 1136}}
+                                                     {:label "iPhone 5s (640x1136)"
+                                                     :command :change-res
+                                                     :user-data {:width 640
+                                                                 :height 1136}}
+                                                     {:label "iPhone 5 (640x1136)"
+                                                     :command :change-res
+                                                     :user-data {:width 640
+                                                                 :height 1136}}
+                                                     {:label "iPhone 4S (640x960)"
+                                                     :command :change-res
+                                                     :user-data {:width 640
+                                                                 :height 960}}
+                                                     {:label "iPhone 4 (640x960)"
+                                                     :command :change-res
+                                                     :user-data {:width 640
+                                                                 :height 960}}]}
+                                         {:label "iPad"
+                                          :id ::debug
+                                          :children [{:label "iPad 2018 (1536x2048)"
+                                                     :command :change-res
+                                                     :user-data {:width 1536
+                                                                 :height 2048}}
+                                                     {:label "iPad Pro (2nd gen 12.9\") (2048x2732)"
+                                                     :command :change-res
+                                                     :user-data {:width 2048
+                                                                 :height 2732}}
+                                                     {:label "iPad Pro (2nd gen 10.5\") (1668x2224)"
+                                                     :command :change-res
+                                                     :user-data {:width 1668
+                                                                 :height 2224}}
+                                                     {:label "iPad Pro 2017 (1536x2048)"
+                                                     :command :change-res
+                                                     :user-data {:width 1536
+                                                                 :height 2048}}
+                                                     {:label "iPad Pro (1st gen 9.7\") (1536x2048)"
+                                                     :command :change-res
+                                                     :user-data {:width 1536
+                                                                 :height 2048}}
+                                                     {:label "iPad Pro (1st gen 12.9\") (2048x2732)"
+                                                     :command :change-res
+                                                     :user-data {:width 2048
+                                                                 :height 2732}}
+                                                     {:label "iPad Mini 4 (1536x2048)"
+                                                     :command :change-res
+                                                     :user-data {:width 1536
+                                                                 :height 2048}}
+                                                     {:label "iPad Air 2 (1536x2048)"
+                                                     :command :change-res
+                                                     :user-data {:width 1536
+                                                                 :height 2048}}
+                                                     {:label "iPad Mini 3 (1536x2048)"
+                                                     :command :change-res
+                                                     :user-data {:width 1536
+                                                                 :height 2048}}
+                                                     {:label "iPad Mini 2 (1536x2048)"
+                                                     :command :change-res
+                                                     :user-data {:width 1536
+                                                                 :height 2048}}
+                                                     {:label "iPad Air (1536x2048)"
+                                                     :command :change-res
+                                                     :user-data {:width 1536
+                                                                 :height 2048}}
+                                                     {:label "iPad 4th Gen (1536x2048)"
+                                                     :command :change-res
+                                                     :user-data {:width 1536
+                                                                 :height 2048}}
+                                                     {:label "iPad Mini (768x1024)"
+                                                     :command :change-res
+                                                     :user-data {:width 768
+                                                                 :height 1024}}
+                                                     {:label "iPad 3rd Gen (1536x2048)"
+                                                     :command :change-res
+                                                     :user-data {:width 1536
+                                                                 :height 2048}}
+                                                     {:label "iPad 2nd Gen (768x1024)"
+                                                     :command :change-res
+                                                     :user-data {:width 768
+                                                                 :height 1024}}
+                                                     {:label "iPad 1st Gen (768x1024)"
+                                                     :command :change-res
+                                                     :user-data {:width 768
+                                                                 :height 1024}}]}
+                                         {:label "Rotated Device"
+                                          :command :set-rotate-device
+                                          :check true}]}]}])

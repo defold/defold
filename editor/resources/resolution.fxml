@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox id="resolution-dialog" prefWidth="300.0" spacing="12.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+  <children>
+    <HBox spacing="10.0">
+        <children>
+            <Label prefWidth="100.0" text="Width:" wrapText="false" alignment="CENTER_RIGHT"/>
+            <TextField id="resolution-width" HBox.hgrow="ALWAYS">320</TextField>
+        </children>
+    </HBox>
+    <HBox spacing="10.0">
+        <children>
+            <Label prefWidth="100.0" text="Height:" wrapText="false" alignment="CENTER_RIGHT"/>
+            <TextField id="resolution-height" HBox.hgrow="ALWAYS">460</TextField>
+        </children>
+    </HBox>
+    <HBox spacing="10.0" alignment="CENTER_RIGHT">
+        <children>
+          <Button id="cancel" minWidth="80.0" mnemonicParsing="false" text="Cancel" AnchorPane.rightAnchor="0.0" AnchorPane.bottomAnchor="0.0" />
+          <Button id="ok" minWidth="80.0" mnemonicParsing="false" text="OK" AnchorPane.rightAnchor="0.0" AnchorPane.bottomAnchor="0.0" />
+        </children>
+      </HBox>
+    </children>
+  <padding>
+    <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />
+  </padding>
+</VBox>
