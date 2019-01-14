@@ -20,9 +20,9 @@ import datetime
 import imp
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
-                    'x86-linux': 'linux-i586',
-                    'x86_64-darwin': 'macosx-x64',
-                    'x86-win32': 'windows-i586',
+                    'x86-linux': 'linux-x64',  # Currently just build 64-bit
+                    'x86_64-darwin': 'osx-x64',
+                    'x86-win32': 'windows-x64',  # Currently just build 64-bit
                     'x86_64-win32': 'windows-x64'}
 
 platform_to_legacy = {'x86_64-linux': 'x86_64-linux',
@@ -153,7 +153,7 @@ def launcher_path(options, platform, exe_suffix):
         return options.launcher
     elif options.engine_sha1:
         launcher_version = options.engine_sha1
-        launcher_url = 'https://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform_to_legacy[platform], exe_suffix)
+        launcher_url = 'https://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform, exe_suffix)
         launcher = download(launcher_url)
         if not launcher:
             print 'Failed to download launcher', launcher_url
@@ -165,9 +165,7 @@ def launcher_path(options, platform, exe_suffix):
 def bundle(platform, jar_file, options):
     rmtree('tmp')
 
-    jre_minor = 102
-    ext = 'tar.gz'
-    jre_url = 'https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u%d-%s.%s' % (jre_minor, platform_to_java[platform], ext)
+    jre_url = 'https://s3-eu-west-1.amazonaws.com/defold-packages/openjdk-11.0.1_%s_bin.tar.gz' % platform_to_java[platform]
     jre = download(jre_url)
     if not jre:
         print('Failed to download %s' % jre_url)
@@ -236,9 +234,9 @@ def bundle(platform, jar_file, options):
 
     print 'Creating bundle'
     if is_mac:
-        jre_glob = 'tmp/jre1.8.0_%s.jre/Contents/Home/*' % (jre_minor)
+        jre_glob = 'tmp/jdk11.0.1.jdk/Contents/Home/*'
     else:
-        jre_glob = 'tmp/jre1.8.0_%s/*' % (jre_minor)
+        jre_glob = 'tmp/jdk11.0.1.jdk/*'
 
     for p in glob.glob(jre_glob):
         shutil.move(p, '%s/jre' % packages_dir)
