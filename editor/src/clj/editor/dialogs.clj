@@ -142,15 +142,19 @@
                     (ui/make-dialog-stage))
          scene    (Scene. root)
          result   (atom false)]
-     (ui/with-controls root [^Label message ^Button ok ^Button cancel]
-       (ui/text! message text)
-       (ui/text! ok (get options :ok-label "OK"))
-       (ui/text! cancel (get options :cancel-label "Cancel"))
-       (ui/on-action! ok (fn [_]
-                           (reset! result true)
-                           (.close stage)))
-       (ui/on-action! cancel (fn [_]
-                               (.close stage))))
+     (letfn [(ok-fn [& _]
+               (reset! result true)
+               (.close stage))
+             (cancel-fn [& _]
+               (.close stage))]
+       (ui/with-controls root [^Label message ^Button ok ^Button cancel]
+         (ui/text! message text)
+         (ui/text! ok (get options :ok-label "OK"))
+         (ui/text! cancel (get options :cancel-label "Cancel"))
+         (ui/on-action! ok ok-fn)
+         (ui/on-action! cancel cancel-fn)
+         (ui/bind-key! root "Enter" ok-fn)
+         (ui/bind-key! root "Esc" cancel-fn)))
      (when-let [pref-width (:pref-width options)]
        (.setPrefWidth root pref-width))
      (ui/title! stage (get options :title "Please Confirm"))
