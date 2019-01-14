@@ -63,6 +63,38 @@ function cmi_do() {
     cmi_patch
     cmi_configure $1 $2
     cmi_make
+    popd >/dev/null
+}
+
+function cmi_package_common() {
+    local TGZ_COMMON="$PRODUCT-$VERSION-common.tar.gz"
+    pushd $PREFIX  >/dev/null
+    tar cfvz $TGZ_COMMON include share
+    popd >/dev/null
+
+    [ ! -d ../build ] && mkdir ../build
+    mv -v $PREFIX/$TGZ_COMMON ../build
+    echo "../build/$TGZ_COMMON created"
+}
+
+function cmi_package_platform() {
+    local TGZ="$PRODUCT-$VERSION-$1.tar.gz"
+    pushd $PREFIX  >/dev/null
+    if [ -z ${TAR_INCLUDES+x} ]; then
+        tar cfvz $TGZ lib bin
+    else
+        tar cfvz $TGZ lib bin include
+    fi
+    popd >/dev/null
+
+    [ ! -d ../build ] && mkdir ../build
+    mv -v $PREFIX/$TGZ ../build
+    echo "../build/$TGZ created"
+}
+
+function cmi_cleanup() {
+    rm -rf tmp
+    rm -rf $PREFIX
 }
 
 function cmi_cross() {
@@ -75,41 +107,15 @@ function cmi_cross() {
         cmi_do $1 "--host=$2"
     fi
 
-    local TGZ="$PRODUCT-$VERSION-$1.tar.gz"
-    pushd $PREFIX  >/dev/null
-    tar cfz $TGZ lib
-    popd >/dev/null
-    popd >/dev/null
-
-    mkdir ../build
-
-    echo "../build/$TGZ created"
-    mv -v $PREFIX/$TGZ ../build
-
-    rm -rf tmp
-    rm -rf $PREFIX
+    cmi_package_platform $1
+    cmi_cleanup
 }
 
 function cmi_buildplatform() {
     cmi_do $1 ""
-
-    local TGZ="$PRODUCT-$VERSION-$1.tar.gz"
-    local TGZ_COMMON="$PRODUCT-$VERSION-common.tar.gz"
-    pushd $PREFIX  >/dev/null
-    tar cfvz $TGZ lib bin
-    tar cfvz $TGZ_COMMON include share
-    popd >/dev/null
-    popd >/dev/null
-
-    mkdir ../build
-
-    mv -v $PREFIX/$TGZ ../build
-    echo "../build/$TGZ created"
-    mv -v $PREFIX/$TGZ_COMMON ../build
-    echo "../build/$TGZ_COMMON created"
-
-    rm -rf tmp
-    rm -rf $PREFIX
+    cmi_package_common
+    cmi_package_platform $1
+    cmi_cleanup
 }
 
 # Trick to override functions
@@ -238,7 +244,7 @@ function cmi() {
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             export CPPFLAGS="-m32"
-            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -m32 -stdlib=libstdc++ "
+            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -m32 -stdlib=libc++ "
             export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -m32"
             export LDFLAGS="-m32"
             cmi_buildplatform $1
@@ -247,19 +253,22 @@ function cmi() {
         x86_64-darwin)
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
-            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libstdc++"
+            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
             cmi_buildplatform $1
             ;;
 
         linux)
-            export CPPFLAGS="-m32"
-            export CXXFLAGS="${CXXFLAGS} -m32"
-            export CFLAGS="${CFLAGS} -m32"
+            export CPPFLAGS="-m32 -fPIC"
+            export CXXFLAGS="${CXXFLAGS} -m32 -fPIC"
+            export CFLAGS="${CFLAGS} -m32 -fPIC"
             export LDFLAGS="-m32"
             cmi_buildplatform $1
             ;;
 
         x86_64-linux)
+            export CFLAGS="${CFLAGS} -fPIC"
+            export CXXFLAGS="${CXXFLAGS} -fPIC"
+            export CPPFLAGS="${CPPFLAGS} -fPIC"
             cmi_buildplatform $1
             ;;
 

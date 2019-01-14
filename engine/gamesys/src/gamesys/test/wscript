@@ -45,6 +45,7 @@ def build(bld):
             'sprite',
             'tile',
             'texture',
+            'textureset',
             'vertex_program',
             'window']
     exts = ['animationset',

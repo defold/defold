@@ -683,9 +683,16 @@
             :regions []}
            (append-distinct-lines ["a"] [] ["b"]))))
 
+  (testing "Invalidates first row when appending to empty document"
+    (is (= {:lines ["first"]
+            :regions []
+            :invalidated-row 0}
+           (append-distinct-lines [""] [] ["first"]))))
+
   (testing "Creates repeat region instead of appending duplicate lines"
     (is (= {:lines ["a"]
-            :regions []}
+            :regions []
+            :invalidated-row 0}
            (append-distinct-lines [""] [] ["a"])))
     (is (= {:lines ["a"]
             :regions [(repeat-region 0 "a" 2)]}

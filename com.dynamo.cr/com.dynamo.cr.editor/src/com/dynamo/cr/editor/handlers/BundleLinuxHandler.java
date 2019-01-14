@@ -17,13 +17,7 @@ public class BundleLinuxHandler extends BundleGenericHandler {
     }
 
     private String getPlatformString() {
-        if (System.getProperty("os.arch") == "x86") {
-            return "x86-linux";
-        }
-        else
-        {
-            return "x86_64-linux";
-        }
+        return "x86_64-linux";
     }
 
     @Override

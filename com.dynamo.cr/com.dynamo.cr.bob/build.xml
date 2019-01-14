@@ -80,7 +80,6 @@
             <proto dir="../../engine/script/src" file="script/lua_source_ddf.proto"/>
             <proto dir="../../engine/script/src/script" file="script_doc_ddf.proto"/>
             <proto dir="../../engine/script/src" file="script/ddf_script.proto"/>
-            <proto dir="../../engine/vscript/proto" file="vscript_ddf.proto"/>
         </parallel>
 
         <exec dir="." executable="python">
@@ -111,17 +110,11 @@
                          to the final name. Only files that are matched by either glob below are included in
                          the copy -->
                     <globmapper from="x86_64-darwin/luajit-2.0.5" to="x86_64-darwin/luajit"/>
-                    <globmapper from="linux/luajit-2.0.5" to="x86-linux/luajit"/>
                     <globmapper from="x86_64-linux/luajit-2.0.5" to="x86_64-linux/luajit"/>
                     <globmapper from="win32/luajit.exe" to="x86-win32/luajit.exe"/>
 		            <globmapper from="x86_64-win32/luajit.exe" to="x86_64-win32/luajit.exe"/>
                 </compositemapper>
             </chainedmapper>
-            <tarfileset includes="bin/linux/**">
-                <gzipresource>
-                    <file file="../../packages/luajit-2.0.5-linux.tar.gz" />
-                </gzipresource>
-            </tarfileset>
             <tarfileset includes="bin/x86_64-linux/**">
                 <gzipresource>
                     <file file="../../packages/luajit-2.0.5-x86_64-linux.tar.gz" />
@@ -187,14 +180,6 @@
             </fileset>
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
                 <include name="x86_64-darwin/*PVRTexLib*"/>
-            </fileset>
-        </copy>
-        <copy todir="lib/x86-linux" overwrite="true" flatten="true">
-            <fileset dir="${env.DYNAMO_HOME}/lib">
-                <include name="linux/*texc_shared*"/>
-            </fileset>
-            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="linux/*PVRTexLib*"/>
             </fileset>
         </copy>
         <copy todir="lib/x86_64-linux" overwrite="true" flatten="true">

@@ -177,23 +177,33 @@ public class IapGooglePlayActivity extends Activity {
         Bundle bundle = new Bundle();
         bundle.putString("action", Action.RESTORE.toString());
 
+        Bundle items = new Bundle();
         try {
-            Bundle allItems = new Bundle();
+            ArrayList<String> purchaseItemList = new ArrayList<String>();
+            ArrayList<String> purchaseDataList = new ArrayList<String>();
+            ArrayList<String> signatureList = new ArrayList<String>();
 
-            Bundle items = service.getPurchases(3, getPackageName(), "inapp", null);
-            if (getResponseCodeFromBundle(items) == IapJNI.BILLING_RESPONSE_RESULT_OK) {
-                allItems.putAll(items);
+            Bundle inapp = service.getPurchases(3, getPackageName(), "inapp", null);
+            if (getResponseCodeFromBundle(inapp) == IapJNI.BILLING_RESPONSE_RESULT_OK) {
+                purchaseItemList.addAll(inapp.getStringArrayList(IapGooglePlay.RESPONSE_INAPP_ITEM_LIST));
+                purchaseDataList.addAll(inapp.getStringArrayList(IapGooglePlay.RESPONSE_INAPP_PURCHASE_DATA_LIST));
+                signatureList.addAll(inapp.getStringArrayList(IapGooglePlay.RESPONSE_INAPP_SIGNATURE_LIST));
             }
 
-            Bundle subscriptions = service.getPurchases(3, getPackageName(), "subs", null);
-            if (getResponseCodeFromBundle(subscriptions) == IapJNI.BILLING_RESPONSE_RESULT_OK) {
-                allItems.putAll(subscriptions);
+            Bundle subs = service.getPurchases(3, getPackageName(), "subs", null);
+            if (getResponseCodeFromBundle(subs) == IapJNI.BILLING_RESPONSE_RESULT_OK) {
+                purchaseItemList.addAll(subs.getStringArrayList(IapGooglePlay.RESPONSE_INAPP_ITEM_LIST));
+                purchaseDataList.addAll(subs.getStringArrayList(IapGooglePlay.RESPONSE_INAPP_PURCHASE_DATA_LIST));
+                signatureList.addAll(subs.getStringArrayList(IapGooglePlay.RESPONSE_INAPP_SIGNATURE_LIST));
             }
 
-            bundle.putBundle("items", allItems);
+            items.putStringArrayList(IapGooglePlay.RESPONSE_INAPP_ITEM_LIST, purchaseItemList);
+            items.putStringArrayList(IapGooglePlay.RESPONSE_INAPP_PURCHASE_DATA_LIST, purchaseDataList);
+            items.putStringArrayList(IapGooglePlay.RESPONSE_INAPP_SIGNATURE_LIST, signatureList);
         } catch (RemoteException e) {
             Log.e(IapGooglePlay.TAG, "Failed to restore purchases", e);
         }
+        bundle.putBundle("items", items);
 
         bundle.putInt(IapGooglePlay.RESPONSE_CODE, response);
         Message msg = new Message();
