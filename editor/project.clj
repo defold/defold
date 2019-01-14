@@ -133,7 +133,7 @@
 
   :uberjar-exclusions [#"^natives/"]
 
-  :profiles          {:test    {:injections [(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))]
+  :profiles          {:test    {:injections [(defonce force-toolkit-init (javafx.application.Platform/startup (fn [])))]
                                 :resource-paths ["test/resources"]}
                       :uberjar {:prep-tasks  ^:replace ["clean" "protobuf" ["sass" "once"] "javac" ["run" "-m" "aot"]]
                                 :aot          :all
