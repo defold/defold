@@ -88,7 +88,7 @@ Create apkc, by invoking the following from the root defold directory:
 
 This will result in the production of apkc under “go/bin”.
 
-    $ PLATFORM=x86-darwin
+    $ PLATFORM=x86-64_darwin
     $ cp go/bin/apkc com.dynamo.cr/com.dynamo.cr.target/libexec/$PLATFORM
 
 Copy classes.dex
@@ -272,7 +272,7 @@ You can also contact the Platform Partnerships team which are our internal Googl
 
 ### AAPT Binaries
 
-We ship Android "aapt" (Android Asset Packaging Tool) binaries for all platforms that the editor runs on. When upgrading the Android SDK, these needs to be copied from the Android SDK directory into `com.dynamo.cr/com.dynamo.cr.bob/libexec/<PLATFORM>/`. Currently the Linux `aapt` binary is dynamically linked against a version of `libc++.so` that comes with the Android SDK. This forces us to also copy this library into `com.dynamo.cr/com.dynamo.cr.bob/libexec/x86-linux/lib/`.
+We ship Android "aapt" (Android Asset Packaging Tool) binaries for all platforms that the editor runs on. When upgrading the Android SDK, these needs to be copied from the Android SDK directory into `com.dynamo.cr/com.dynamo.cr.bob/libexec/<PLATFORM>/`. Currently the Linux `aapt` binary is dynamically linked against a version of `libc++.so` that comes with the Android SDK. This forces us to also copy this library into `com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-linux/lib/`.
 
 ### Creating the android tar ball
 
