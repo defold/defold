@@ -41,8 +41,8 @@ namespace dmPhysics
     class MotionState : public btMotionState
     {
     public:
-        MotionState(HContext3D context, void* user_data, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
-        : m_Context(context)
+        MotionState(HWorld3D world, void* user_data, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
+        : m_World(world)
         , m_UserData(user_data)
         , m_GetWorldTransform(get_world_transform)
         , m_SetWorldTransform(set_world_transform)
@@ -58,12 +58,13 @@ namespace dmPhysics
         {
             if (m_GetWorldTransform != 0x0)
             {
+                // dmLogError("Getting world transform!")
                 dmTransform::Transform world_transform;
                 m_GetWorldTransform(m_UserData, world_transform);
                 Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
                 Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
                 btVector3 origin;
-                ToBt(position, origin, m_Context->m_Scale);
+                ToBt(position, origin, m_World->m_Context->m_Scale);
                 world_trans.setOrigin(origin);
                 world_trans.setRotation(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()));
             }
@@ -73,23 +74,40 @@ namespace dmPhysics
             }
         }
 
-        virtual void setWorldTransform(const btTransform &worldTrans)
+        virtual void setWorldTransform(const btTransform &worldTrans, const btTransform &prevWorldTrans)
         {
             if (m_SetWorldTransform != 0x0)
             {
-                // dmLogError("Setting world transform!")
+                float alpha = dmMath::Min(1.0f, m_World->m_DtAccum / m_World->m_FixedDt);
+                dmLogWarning("3d set alpha: %f", alpha);
+
                 btVector3 bt_pos = worldTrans.getOrigin();
                 btQuaternion bt_rot = worldTrans.getRotation();
+                btVector3 prev_bt_pos = prevWorldTrans.getOrigin();
+                btQuaternion prev_bt_rot = prevWorldTrans.getRotation();
+
+                btVector3 interpolated_bt_pos = alpha * bt_pos + (1.0f - alpha) * prev_bt_pos;
 
                 Vector3 translation;
-                FromBt(bt_pos, translation, m_Context->m_InvScale);
-                Quat rot = Quat(bt_rot.getX(), bt_rot.getY(), bt_rot.getZ(), bt_rot.getW());
+                Quat rot;
+                if (true) // do interpolate
+                {
+                    FromBt(interpolated_bt_pos, translation, m_World->m_Context->m_InvScale);
+                    rot = slerp(alpha, Quat(prev_bt_rot.getX(), prev_bt_rot.getY(), prev_bt_rot.getZ(), prev_bt_rot.getW()), Quat(bt_rot.getX(), bt_rot.getY(), bt_rot.getZ(), bt_rot.getW()));
+                }
+                else
+                {
+                    FromBt(bt_pos, translation, m_World->m_Context->m_InvScale);
+                    rot = Quat(bt_rot.getX(), bt_rot.getY(), bt_rot.getZ(), bt_rot.getW());
+                }
+
+                // TODO interpolate pos and rot
                 m_SetWorldTransform(m_UserData, Point3(translation), rot);
             }
         }
 
     protected:
-        HContext3D m_Context;
+        HWorld3D m_World;
         void* m_UserData;
         GetWorldTransformCallback m_GetWorldTransform;
         SetWorldTransformCallback m_SetWorldTransform;
@@ -229,6 +247,7 @@ namespace dmPhysics
         }
         World3D* world = new World3D(context, params);
         context->m_Worlds.Push(world);
+        dmLogError("Num 3d worlds: %u", context->m_Worlds.Size());
         return world;
     }
 
@@ -267,6 +286,7 @@ namespace dmPhysics
 
     void StepWorld3D(HWorld3D world, const StepWorldContext& step_context)
     {
+        // dmLogInfo("-------------- FRAME --------------");
         float dt = step_context.m_DT;
         // dmLogWarning("dt: %f", dt);
         world->m_DtAccum += dt;
@@ -350,17 +370,35 @@ namespace dmPhysics
             world->m_RayCastRequests.SetSize(0);
         }
 
-        // dmLogInfo("-------------- FRAME --------------");
         {
             DM_PROFILE(Physics, "StepSimulation");
 
-            // dmLogInfo("----- FRAME -----");
+            if (world->m_SetWorldTransform)
+            {
+                // dmLogWarning("Body count: %u", world->m_DynamicsWorld->getCollisionObjectArray().size());
+                for (uint32_t i = 0; i < world->m_DynamicsWorld->getCollisionObjectArray().size(); ++i)
+                {
+                    btCollisionObject* colObj = world->m_DynamicsWorld->getCollisionObjectArray().at(i);
+                    btRigidBody* body = btRigidBody::upcast(colObj);
+                    if (body && body->isActive())
+                    {
+                        // dmLogWarning("ACTIVE BODY!");
+                        world->m_DynamicsWorld->synchronizeSingleMotionState(body);
+                    }
+                    else
+                    {
+                        // dmLogWarning("NO ACTIVE BODY!");
+                    }
+                }
+            }
+
             while (world->m_DtAccum >= world->m_FixedDt - EPSILON)
             {
                 // dmLogWarning("step, world->m_FixedDt: %f", world->m_FixedDt);
-                // dt = world->m_FixedDt;
+                dt = world->m_FixedDt;
                 // 0 here means means we promise that dt is fixed; https://pybullet.org/Bullet/BulletFull/classbtDynamicsWorld.html#a5ab26a0d6e8b2b21fbde2ed8f8dd6294
-                world->m_DynamicsWorld->stepSimulation(world->m_FixedDt, 0);
+                // printf("#### HELLO FROM DEFOLD land!\n");
+                world->m_DynamicsWorld->stepSimulation(dt, 0);
                 // world->m_DynamicsWorld->stepSimulation(dt, max_substeps, world->m_FixedDt);
                 world->m_DtAccum -= world->m_FixedDt;
 
@@ -444,8 +482,8 @@ namespace dmPhysics
                             }
                         }
                     }
+                    UpdateOverlapCache(&world->m_TriggerOverlaps, context, dispatcher, step_context);
                 }
-                UpdateOverlapCache(&world->m_TriggerOverlaps, context, dispatcher, step_context);
             }
         }
         world->m_DynamicsWorld->debugDrawWorld();
@@ -629,7 +667,7 @@ namespace dmPhysics
         btCollisionObject* collision_object = 0x0;
         if (data.m_Type != COLLISION_OBJECT_TYPE_TRIGGER)
         {
-            MotionState* motion_state = new MotionState(world->m_Context, data.m_UserData, world->m_GetWorldTransform, world->m_SetWorldTransform);
+            MotionState* motion_state = new MotionState(world, data.m_UserData, world->m_GetWorldTransform, world->m_SetWorldTransform);
             btRigidBody::btRigidBodyConstructionInfo rb_info(data.m_Mass, motion_state, compound_shape, local_inertia);
             rb_info.m_friction = data.m_Friction;
             rb_info.m_restitution = data.m_Restitution;

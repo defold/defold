@@ -1,8 +1,11 @@
 # config
 
-IOS_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain
+IOS_TOOLCHAIN_ROOT=/Applications/Xcode.app//Contents/Developer/Toolchains/XcodeDefault.xctoolchain
+
 ARM_DARWIN_ROOT=${DYNAMO_HOME}/ext
-IOS_SDK_VERSION=11.2
+IOS_SDK_VERSION=10.13
+
+OSX_SDK_ROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk
 
 IOS_MIN_SDK_VERSION=6.0
 OSX_MIN_SDK_VERSION=10.7
@@ -252,6 +255,20 @@ function cmi() {
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
+
+            export PATH=$IOS_TOOLCHAIN_ROOT/usr/bin:$PATH
+            export CPPFLAGS="-isysroot ${OSX_SDK_ROOT}"
+            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
+            # Force libstdc++ for now
+            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ -isysroot ${OSX_SDK_ROOT}"
+            export CFLAGS="${CPPFLAGS}"
+            # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
+            # Wrong include-directories and defines are selected.
+            export CPP="$IOS_TOOLCHAIN_ROOT/usr/bin/clang -E"
+            export CC=$IOS_TOOLCHAIN_ROOT/usr/bin/clang
+            export CXX=$IOS_TOOLCHAIN_ROOT/usr/bin/clang++
+            export AR=$IOS_TOOLCHAIN_ROOT/usr/bin/ar
+            export RANLIB=$IOS_TOOLCHAIN_ROOT/usr/bin/ranlib
             cmi_buildplatform $1
             ;;
 
