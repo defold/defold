@@ -5,9 +5,7 @@
             [editor.console :as console]
             [editor.outline-view :as outline-view]
             [editor.prefs :as prefs]
-            [editor.properties-view :as properties-view])
-  (:import (com.sun.javafx.stage StageHelper)
-           (javafx.stage Stage)))
+            [editor.properties-view :as properties-view]))
 
 (set! *warn-on-reflection* true)
 
@@ -54,10 +52,6 @@
 
 (defn view-of-type [node-type]
   (first (views-of-type node-type)))
-
-(defn windows []
-  (filter #(.isShowing ^Stage %)
-          (StageHelper/getStages)))
 
 (def assets-view (partial view-of-type asset-browser/AssetBrowser))
 (def changed-files-view (partial view-of-type changes-view/ChangesView))
