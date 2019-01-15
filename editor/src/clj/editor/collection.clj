@@ -709,7 +709,8 @@
        (if-let [coll-node (selection->collection selection)]
          (let [ext           "collection"
                resource-type (workspace/get-resource-type workspace ext)
-               accept (fn [x] (not= (resource/abs-path x) (resource/abs-path (:resource (g/node-by-id coll-node)))))]
+               coll-node-path (resource/proj-path (g/node-value coll-node :resource))
+               accept (fn [x] (not= (resource/proj-path x) coll-node-path))]
            (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext ext :title "Select Collection File" :accept-fn accept}))]
              (let [base (resource/base-name resource)
                    id (gen-instance-id coll-node base)
