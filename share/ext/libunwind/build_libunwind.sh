@@ -65,8 +65,7 @@ case $CONF_TARGET in
             echo -e "Applying patch files"
             patch -p1 -s -f < ../../android_changes.patch || exit 1
 
-            echo -e "Building libunwind with ndk-buildsrfgjkhdfghjkfgdnjk"
-            echo -e "ANDROID_NDK: ${ANDROID_NDK}."
+            echo -e "Building libunwind with ndk-build"
             ${ANDROID_NDK}/ndk-build NDK_PROJECTPATH="." NDK_TOOLCHAIN_VERSION="4.9" APP_STL=gnustl_static NDK_DEBUG=0 -B -j16 || exit 1
             popd
 
