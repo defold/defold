@@ -35,8 +35,9 @@
     (ui/title! stage "Alert")
     (ui/with-controls root [^TextArea message ^Button ok]
       (ui/text! message text)
-      (.setDefaultButton ok true)
       (ui/on-action! ok (fn [_] (.close stage)))
+      (.setDefaultButton ok true)
+      (.setCancelButton ok true)
       (.setOnShown stage (ui/event-handler _ (.setScrollTop message 0.0))))
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
@@ -315,7 +316,6 @@
     (ui/context! root :dialog {:stage stage} (ui/->selection-provider item-list))
     (ui/text! (:ok controls) ok-label)
     (ui/bind-action! (:ok controls) ::confirm)
-    (.setDefaultButton ^Button (:ok controls) true)
     (ui/observe-selection item-list (fn [_ _] (ui/refresh-bound-action-enabled! (:ok controls))))
     (ui/bind-double-click! item-list ::confirm)
     (ui/bind-keys! root {KeyCode/ENTER ::confirm
