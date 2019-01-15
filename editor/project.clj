@@ -129,7 +129,7 @@
                       "--add-opens=java.desktop/sun.java2d.opengl=ALL-UNNAMED"
                       ;; hide warnings about illegal reflective access by clojure
                       "--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED"]
-  :main ^:skip-aot   com.defold.editor.Start
+  :main ^:skip-aot   com.defold.editor.Main
 
   :uberjar-exclusions [#"^natives/"]
 

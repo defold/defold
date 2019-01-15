@@ -165,10 +165,10 @@ def launcher_path(options, platform, exe_suffix):
 def bundle(platform, jar_file, options):
     rmtree('tmp')
 
-    jre_url = 'https://s3-eu-west-1.amazonaws.com/defold-packages/openjdk-11.0.1_%s_bin.tar.gz' % platform_to_java[platform]
-    jre = download(jre_url)
-    if not jre:
-        print('Failed to download %s' % jre_url)
+    jdk_url = 'https://s3-eu-west-1.amazonaws.com/defold-packages/openjdk-11.0.1_%s_bin.tar.gz' % platform_to_java[platform]
+    jdk = download(jdk_url)
+    if not jdk:
+        print('Failed to download %s' % jdk_url)
         sys.exit(5)
 
     exe_suffix = ''
@@ -230,15 +230,15 @@ def bundle(platform, jar_file, options):
     if not 'win32' in platform:
         exec_command(['chmod', '+x', '%s/Defold%s' % (exe_dir, exe_suffix)])
 
-    extract(jre, 'tmp', is_mac)
+    extract(jdk, 'tmp', is_mac)
 
     print 'Creating bundle'
     if is_mac:
-        jre_glob = 'tmp/jdk11.0.1.jdk/Contents/Home/*'
+        jdk_glob = 'tmp/jdk-11.0.1.jdk/Contents/Home/*'
     else:
-        jre_glob = 'tmp/jdk11.0.1.jdk/*'
+        jdk_glob = 'tmp/jdk-11.0.1/*'
 
-    for p in glob.glob(jre_glob):
+    for p in glob.glob(jdk_glob):
         shutil.move(p, '%s/jre' % packages_dir)
 
     if is_mac:
