@@ -41,14 +41,18 @@
    [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
    [javafx.stage Stage Modality Window PopupWindow StageStyle]
    [javafx.util Callback Duration StringConverter]
-   [com.sun.javafx.scene KeyboardShortcutsHandler SceneEventDispatcher]))
+   [com.sun.javafx.scene KeyboardShortcutsHandler SceneEventDispatcher]
+   [com.sun.javafx.application PlatformImpl]))
 
 (set! *warn-on-reflection* true)
 
-;; These two lines initialize JavaFX and OpenGL when we're generating
-;; API docs
-(import com.sun.javafx.application.PlatformImpl)
-(PlatformImpl/startup (constantly nil))
+;; Next line of code makes sure JavaFX is initialized, which is required during
+;; compilation even when we are not actually running the editor. To properly
+;; generate reflection-less code, clojure compiler loads classes and searches
+;; for fitting methods while compiling it. Loading javafx.scene.control.Control
+;; class requires application to be running, because it sets default platform
+;; stylesheet, and this requires Application to be running.
+(PlatformImpl/startup (fn []))
 
 (defonce text-cursor-white (ImageCursor. (jfx/get-image "text-cursor-white.png") 16.0 16.0))
 (defonce ^:dynamic *main-stage* (atom nil))
