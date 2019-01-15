@@ -1221,6 +1221,7 @@ instructions.configure=\
 
         return releases
 
+
     def release(self):
         page = """
 <!DOCTYPE html>
