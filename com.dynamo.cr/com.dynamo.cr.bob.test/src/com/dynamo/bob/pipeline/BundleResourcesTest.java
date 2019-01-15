@@ -344,7 +344,10 @@ public class BundleResourcesTest {
         assertTrue(findInResourceList(resources, "extension1/lib/common/common.a") != null);
         ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
         String synthesizedManifest = new String(appManifest.getContent());
-        String expectedManifest = "context:" + System.getProperty("line.separator") + "    baseVariant: release" + System.getProperty("line.separator");
+        String expectedManifest = "";
+        expectedManifest += "context:" + System.getProperty("line.separator");
+        expectedManifest += "    baseVariant: release" + System.getProperty("line.separator");
+        expectedManifest += "    withSymbols: false" + System.getProperty("line.separator");
         assertEquals(synthesizedManifest, expectedManifest);
     }
 
@@ -355,7 +358,10 @@ public class BundleResourcesTest {
         assertEquals(5, resources.size());
         ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
         String patchedManifest = new String(appManifest.getContent());
-        String expectedManifest = "context:" + System.getProperty("line.separator") + "    baseVariant: debug" + System.getProperty("line.separator");
+        String expectedManifest = "";
+        expectedManifest += "context:" + System.getProperty("line.separator");
+        expectedManifest += "    baseVariant: debug" + System.getProperty("line.separator");
+        expectedManifest += "    withSymbols: false" + System.getProperty("line.separator");
         assertTrue(patchedManifest.length() > expectedManifest.length());
         assertEquals(patchedManifest.substring(0, expectedManifest.length()), expectedManifest);
     }
