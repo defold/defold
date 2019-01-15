@@ -295,6 +295,20 @@ DrawCountParams draw_count_params[] =
 };
 INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, ::testing::ValuesIn(draw_count_params));
 
+// Test that we can reload a full collection containing a spine scene
+// while the first gameobject has been already been deleted (marked for
+// deletion through a `go.delete()` call, invalidating any "delayed delete"
+// list entries).
+TEST_F(EngineTest, DEF_3652)
+{
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/def-3652/def-3652.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
+    HttpTestContext ctx;
+    ctx.m_Script = "/def-3652/post_reload_collection.py";
+
+    ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, PreRunHttpPort, 0, &ctx));
+    dmThread::Join(ctx.m_Thread);
+    ASSERT_EQ(0, g_PostExitResult);
+}
 
 int main(int argc, char **argv)
 {
