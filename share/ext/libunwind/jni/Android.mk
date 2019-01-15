@@ -88,7 +88,7 @@ LOCAL_SRC_FILES := \
     ../src/ptrace/_UPT_resume.c
 
 
-ifeq ($(TARGET_ARCH_ABI),$(filter $(TARGET_ARCH_ABI),armeabi armeabi-v7a))
+ifeq ($(TARGET_ARCH_ABI),$(filter $(TARGET_ARCH_ABI),armeabi armeabi-v7a aarch64))
 LOCAL_C_INCLUDES += \
 	$(LOCAL_PATH)/../include/tdep-arm
 

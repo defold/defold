@@ -33,6 +33,6 @@
 #NDK_TOOLCHAIN_VERSION := clang
 #APP_STL := c++_static
 
-APP_ABI := armeabi-v7a
+APP_ABI := arm64-v8a
 APP_CXXFLAGS := -std=c++11 -frtti -D__STDC_LIMIT_MACROS -D_THREAD_SAFE
 APP_PLATFORM := android-9

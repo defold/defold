@@ -9,9 +9,12 @@ OSX_MIN_SDK_VERSION=10.7
 
 ANDROID_ROOT=~/android
 ANDROID_NDK_VERSION=10e
-# ANDROID_VERSION=14 # Android 4.0
-ANDROID_VERSION=21 # Android 5.0
+ANDROID_NDK=${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
+
+ANDROID_VERSION=14 # Android 4.0
 ANDROID_GCC_VERSION='4.8'
+
+ANDROID_64_VERSION=21 # Android 5.0
 ANDROID_64_GCC_VERSION='4.9'
 
 FLASCC=~/local/FlasCC1.0/sdk
@@ -247,7 +250,7 @@ function cmi() {
             # local bin="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/${platform}-x86_64/bin"
             # TODO dont hardcode 4.9, have ANDROID_64_GCC_VERSION ?
             local bin="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/aarch64-linux-android-${ANDROID_64_GCC_VERSION}/prebuilt/${platform}-x86_64/bin"
-            local sysroot="--sysroot=${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_VERSION}/arch-arm64" # no arm64? Need to upgrade ndk?
+            local sysroot="--sysroot=${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_64_VERSION}/arch-arm64"
             #  -fstack-protector
 #            local stl="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/stlport/stlport"
             local stl="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_64_GCC_VERSION}/include"
