@@ -6,10 +6,7 @@ import stat
 import glob
 import sys
 import json
-import tempfile
-import urllib
 import optparse
-import urlparse
 import re
 import shutil
 import subprocess
@@ -18,6 +15,8 @@ import zipfile
 import ConfigParser
 import datetime
 import imp
+
+java_version = '11.0.1'
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
                     'x86-linux': 'linux-x64',  # Currently just build 64-bit
@@ -30,6 +29,10 @@ platform_to_legacy = {'x86_64-linux': 'x86_64-linux',
                       'x86_64-darwin': 'x86_64-darwin',
                       'x86-win32': 'win32',
                       'x86_64-win32': 'x86_64-win32'}
+
+python_platform_to_java = {'linux2': 'linux-x64',
+                           'win32': 'windows-x64',
+                           'darwin': 'osx-x64'}
 
 def log(msg):
     print msg
@@ -162,10 +165,31 @@ def launcher_path(options, platform, exe_suffix):
     else:
         return path.join(os.environ['DYNAMO_HOME'], "bin", platform_to_legacy[platform], "launcher%s" % exe_suffix)
 
+
+def full_jdk_url(jdk_platform):
+    return 'https://s3-eu-west-1.amazonaws.com/defold-packages/openjdk-%s_%s_bin.tar.gz' % (java_version, jdk_platform)
+
+
+def download_build_java():
+    rmtree('build/jdk')
+    is_mac = sys.platform == 'darwin'
+    jdk_url = full_jdk_url(python_platform_to_java[sys.platform])
+    jdk = download(jdk_url)
+    if not jdk:
+        print('Failed to download build jdk %s' % jdk_url)
+        sys.exit(5)
+    mkdirs('build/jdk')
+    extract(jdk, 'build/jdk', is_mac)
+    if is_mac:
+        return 'build/jdk/jdk-%s.jdk/Contents/Home/bin/java' % java_version
+    else:
+        return 'build/jdk/jdk-%s/bin/java' % java_version
+
+
 def bundle(platform, jar_file, options):
     rmtree('tmp')
 
-    jdk_url = 'https://s3-eu-west-1.amazonaws.com/defold-packages/openjdk-11.0.1_%s_bin.tar.gz' % platform_to_java[platform]
+    jdk_url = full_jdk_url(platform_to_java[platform])
     jdk = download(jdk_url)
     if not jdk:
         print('Failed to download %s' % jdk_url)
@@ -234,9 +258,9 @@ def bundle(platform, jar_file, options):
 
     print 'Creating bundle'
     if is_mac:
-        jdk_glob = 'tmp/jdk-11.0.1.jdk/Contents/Home/*'
+        jdk_glob = 'tmp/jdk-%s.jdk/Contents/Home/*' % java_version
     else:
-        jdk_glob = 'tmp/jdk-11.0.1/*'
+        jdk_glob = 'tmp/jdk-%s/*' % java_version
 
     for p in glob.glob(jdk_glob):
         shutil.move(p, '%s/jre' % packages_dir)
@@ -249,13 +273,13 @@ def bundle(platform, jar_file, options):
     if is_mac:
         create_dmg(dmg_dir, bundle_dir, 'target/editor/Defold-%s.dmg' % platform)
 
-def check_reflections():
+def check_reflections(java_cmd_env):
     reflection_prefix = 'Reflection warning, ' # final space important
     included_reflections = ['editor/', 'util/'] # [] = include all
     ignored_reflections = []
 
     # lein check puts reflection warnings on stderr, redirect to stdout to capture all output
-    output = exec_command(['./scripts/lein', 'check'])
+    output = exec_command(['env', java_cmd_env, 'bash', './scripts/lein', 'check'])
     lines = output.splitlines()
     reflection_lines = (line for line in lines if re.match(reflection_prefix, line))
     reflections = (re.match('(' + reflection_prefix + ')(.*)', line).group(2) for line in reflection_lines)
@@ -329,21 +353,26 @@ if __name__ == '__main__':
 
     rmtree('target/editor')
 
+    print('Downloading build jdk')
+
+    build_java = download_build_java()
+    java_cmd_env = 'JAVA_CMD=%s' % build_java
+
     print 'Building editor'
 
-    init_command = ['bash', './scripts/lein', 'with-profile', '+release', 'init']
+    init_command = ['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+release', 'init']
     if options.engine_sha1:
         init_command += [options.engine_sha1]
 
     exec_command(init_command)
-    check_reflections()
+    check_reflections(java_cmd_env)
 
     if options.skip_tests:
         print 'Skipping tests'
     else:
-        exec_command(['./scripts/lein', 'test'])
+        exec_command(['env', java_cmd_env, 'bash', './scripts/lein', 'test'])
 
-    exec_command(['bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
+    exec_command(['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
 
     jar_file = 'defold-%s.jar' % options.editor_sha1
 

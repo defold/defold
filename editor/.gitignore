@@ -21,3 +21,4 @@ pom.xml.asc
 /.project
 /.pydevproject
 /resources/doc/
+/build
