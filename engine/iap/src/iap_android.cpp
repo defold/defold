@@ -327,8 +327,15 @@ void HandleProductResult(const Command* cmd)
         dmJson::Document doc;
         dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
         if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-            dmScript::JsonToLua(L, &doc, 0);
-            lua_pushnil(L);
+            char err_str[128];
+            if (dmScript::JsonToLua(L, &doc, 0, err_str, 128) < 0) {
+                lua_pop(L, lua_gettop(L) - top - 2); // Need to leave function and self references.
+                dmLogError("Failed converting product result JSON to Lua; %s", err_str);
+                lua_pushnil(L);
+                IAP_PushError(L, "failed to convert JSON to Lua for product response", REASON_UNSPECIFIED);
+            } else {
+                lua_pushnil(L);
+            }
         } else {
             dmLogError("Failed to parse product response (%d)", r);
             lua_pushnil(L);
@@ -382,8 +389,15 @@ void HandlePurchaseResult(const Command* cmd)
             dmJson::Document doc;
             dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
             if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-                dmScript::JsonToLua(L, &doc, 0);
-                lua_pushnil(L);
+                char err_str[128];
+                if (dmScript::JsonToLua(L, &doc, 0, err_str, 128) < 0) {
+                    lua_pop(L, lua_gettop(L) - top - 2); // Need to leave function and self references.
+                    dmLogError("Failed converting purchase JSON result to Lua; %s", err_str);
+                    lua_pushnil(L);
+                    IAP_PushError(L, "failed to convert purchase response JSON to Lua", REASON_UNSPECIFIED);
+                } else {
+                    lua_pushnil(L);
+                }
             } else {
                 dmLogError("Failed to parse purchase response (%d)", r);
                 lua_pushnil(L);
