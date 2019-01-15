@@ -12,8 +12,8 @@
     <TextField id="path" editable="false"/>
     <HBox spacing="10.0" alignment="CENTER_RIGHT">
       <children>
-        <Button id="cancel" minWidth="80.0" mnemonicParsing="false" text="Cancel" defaultButton="false" />
-	      <Button id="ok" minWidth="80.0" mnemonicParsing="false" text="OK" defaultButton="true" />
+        <Button id="cancel" minWidth="80.0" mnemonicParsing="false" text="Cancel" />
+        <Button id="ok" minWidth="80.0" mnemonicParsing="false" text="OK" />
       </children>
     </HBox>
   </children>
