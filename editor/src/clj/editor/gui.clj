@@ -1268,15 +1268,16 @@
                              (let [properties-by-node-id (comp (or (:overrides new-value) {})
                                                                (into {} (map (fn [[k v]] [v k]))
                                                                      (g/node-value scene-node :node-ids evaluation-context)))]
-                               (g/override scene-node {:traverse? (fn [basis [src src-label tgt tgt-label]]
-                                                                    (if (not= src current-scene)
-                                                                      (or (g/node-instance? basis GuiNode src)
-                                                                          (g/node-instance? basis NodeTree src)
-                                                                          (g/node-instance? basis GuiSceneNode src)
-                                                                          (g/node-instance? basis LayoutsNode src)
-                                                                          (g/node-instance? basis LayoutNode src))
-                                                                      false))
-                                                       :properties-by-node-id properties-by-node-id}
+                               (g/override self scene-node
+                                           {:traverse? (fn [basis [src src-label tgt tgt-label]]
+                                                         (if (not= src current-scene)
+                                                           (or (g/node-instance? basis GuiNode src)
+                                                               (g/node-instance? basis NodeTree src)
+                                                               (g/node-instance? basis GuiSceneNode src)
+                                                               (g/node-instance? basis LayoutsNode src)
+                                                               (g/node-instance? basis LayoutNode src))
+                                                           false))
+                                            :properties-by-node-id properties-by-node-id}
                                            (fn [evaluation-context id-mapping]
                                              (let [or-scene (get id-mapping scene-node)]
                                                (concat
@@ -1860,10 +1861,11 @@
                          scene (ffirst (g/targets-of basis self :_node-id))
                          node-tree (g/node-value scene :node-tree evaluation-context)
                          or-data new-value]
-                     (g/override node-tree {:traverse? (fn [basis [src src-label tgt tgt-label]]
-                                                         (or (g/node-instance? basis GuiNode src)
-                                                             (g/node-instance? basis NodeTree src)
-                                                             (g/node-instance? basis GuiSceneNode src)))}
+                     (g/override self node-tree
+                                 {:traverse? (fn [basis [src src-label tgt tgt-label]]
+                                               (or (g/node-instance? basis GuiNode src)
+                                                   (g/node-instance? basis NodeTree src)
+                                                   (g/node-instance? basis GuiSceneNode src)))}
                                  (fn [evaluation-context id-mapping]
                                    (let [or-node-tree (get id-mapping node-tree)
                                          node-mapping (comp id-mapping (g/node-value node-tree :node-ids evaluation-context))]

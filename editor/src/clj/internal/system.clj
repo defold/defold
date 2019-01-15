@@ -217,6 +217,14 @@
   [system graph-id]
   (next-override-id* (override-id-generator system) graph-id))
 
+(defn claim-override-id*
+  [override-id-generator graph-id override-key]
+  (gt/make-override-id graph-id (claim-id! override-id-generator override-key)))
+
+(defn claim-override-id
+  [system graph-id override-key]
+  (claim-override-id* (override-id-generator system) graph-id override-key))
+
 (defn- attach-graph*
   [system graph-id graph]
   (-> system

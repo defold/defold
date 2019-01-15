@@ -275,7 +275,7 @@
                                                               (:overrides new-value)))]
                            (concat
                              connect-tx-data
-                             (g/override go-node {:traverse? or-go-traverse?}
+                             (g/override self go-node {:traverse? or-go-traverse?}
                                          (fn [evaluation-context id-mapping]
                                            (let [or-node (get id-mapping go-node)
                                                  component-ids (substitute-error (g/node-value go-node :component-ids evaluation-context) {})
@@ -520,7 +520,7 @@
                (when-some [{connect-tx-data :tx-data coll-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
                  (concat
                    connect-tx-data
-                   (g/override coll-node {:traverse? or-coll-traverse?}
+                   (g/override self coll-node {:traverse? or-coll-traverse?}
                                (fn [evaluation-context id-mapping]
                                  (let [go-inst-ids (substitute-error (g/node-value coll-node :go-inst-ids evaluation-context) {})
                                        component-overrides (for [{:keys [id properties]} (:overrides new-value)

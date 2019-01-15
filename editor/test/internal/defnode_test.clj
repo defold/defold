@@ -850,7 +850,7 @@
   (is (contains? (in/cached-outputs CustomPropertiesOutput) :_declared-properties)))
 
 (defn- override [node-id]
-  (-> (g/override node-id {})
+  (-> (g/override :test-override-key node-id {})
     tx-nodes))
 
 (deftest overridden-properties

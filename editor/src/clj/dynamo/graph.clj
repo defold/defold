@@ -1214,13 +1214,13 @@
   (get (cascade-deletes (node-type* basis target-id)) target-label))
 
 (defn override
-  ([root-id]
-   (override root-id {}))
-  ([root-id opts]
-   (override root-id opts (clojure.core/constantly [])))
-  ([root-id {:keys [traverse? properties-by-node-id] :or {traverse? (clojure.core/constantly true) properties-by-node-id (clojure.core/constantly {})}} init-fn]
+  ([override-key root-id]
+   (override override-key root-id {}))
+  ([override-key root-id opts]
+   (override override-key root-id opts (clojure.core/constantly [])))
+  ([override-key root-id {:keys [traverse? properties-by-node-id] :or {traverse? (clojure.core/constantly true) properties-by-node-id (clojure.core/constantly {})}} init-fn]
    (let [traverse-fn (partial predecessors (every-arc-pred in-same-graph? traverse-cascade-delete traverse?))]
-     (it/override root-id traverse-fn init-fn properties-by-node-id))))
+     (it/override override-key root-id traverse-fn init-fn properties-by-node-id))))
 
 (defn transfer-overrides [from-id->to-id]
   (it/transfer-overrides from-id->to-id))

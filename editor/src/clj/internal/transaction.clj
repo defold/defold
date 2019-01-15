@@ -62,8 +62,9 @@
     :override-node-id override-node-id}])
 
 (defn override
-  [root-id traverse-fn init-fn properties-by-node-id]
+  [override-key root-id traverse-fn init-fn properties-by-node-id]
   [{:type :override
+    :override-key override-key
     :root-id root-id
     :traverse-fn traverse-fn
     :init-fn init-fn
@@ -178,8 +179,8 @@
 (defn- claim-node-id [ctx graph-id node-key]
   (is/claim-node-id* (:node-id-generators ctx) graph-id node-key))
 
-(defn- next-override-id [ctx graph-id]
-  (is/next-override-id* (:override-id-generator ctx) graph-id))
+(defn- claim-override-id [ctx graph-id override-key]
+  (is/claim-override-id* (:override-id-generator ctx) graph-id override-key))
 
 (defmulti perform
   "A multimethod used for defining methods that perform the individual
@@ -325,11 +326,11 @@
 (declare apply-tx)
 
 (defmethod perform :override
-  [ctx {:keys [root-id traverse-fn init-fn properties-by-node-id]}]
+  [ctx {:keys [override-key root-id traverse-fn init-fn properties-by-node-id]}]
   (let [basis (:basis ctx)
         graph-id (gt/node-id->graph-id root-id)
         node-ids (ig/pre-traverse basis [root-id] traverse-fn)
-        override-id (next-override-id ctx graph-id)
+        override-id (claim-override-id ctx graph-id override-key)
         override-nodes (mapv (fn [original-node-id]
                                (let [override-node-key [override-id original-node-id]
                                      override-node-id (claim-node-id ctx graph-id override-node-key)

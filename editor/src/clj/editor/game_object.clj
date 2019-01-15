@@ -287,7 +287,7 @@
                            (when-some [{connect-tx-data :tx-data comp-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
                              (concat
                                connect-tx-data
-                               (g/override comp-node {:traverse? (constantly true)}
+                               (g/override self comp-node {:traverse? (constantly true)}
                                            (fn [evaluation-context id-mapping]
                                              (let [or-node (get id-mapping comp-node)
                                                    comp-props (:properties (g/node-value comp-node :_properties evaluation-context))]
