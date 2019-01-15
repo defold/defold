@@ -124,7 +124,7 @@ TEST_P(JsonToLuaTest, TestJsonToLua)
         ASSERT_TRUE(doc.m_NodeCount > 0);
 
         char err_str[128];
-        int convert_r = dmScript::JsonToLua(L, &doc, 0, err_str, 128);
+        int convert_r = dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str));
 
         if (p.m_ExpectedConvertOK) {
             ASSERT_NE(-1, convert_r);

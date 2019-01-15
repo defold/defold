@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <float.h>
 
+#include <dlib/dstrings.h>
+
 #include "script.h"
 
 extern "C"
@@ -35,7 +37,7 @@ namespace dmScript
         if (index >= doc->m_NodeCount)
         {
             dmJson::Free(doc);
-            snprintf(error_str_out, error_str_size, "Unexpected JSON index, unable to parse content.");
+            DM_SNPRINTF(error_str_out, error_str_size, "Unexpected JSON index, unable to parse content.");
             return -1;
         }
 
@@ -72,7 +74,7 @@ namespace dmScript
                 else
                 {
                     dmJson::Free(doc);
-                    snprintf(error_str_out, error_str_size, "Invalid JSON primitive: %s", buffer);
+                    DM_SNPRINTF(error_str_out, error_str_size, "Invalid JSON primitive: %s", buffer);
                     return -1;
                 }
             }
@@ -119,13 +121,13 @@ namespace dmScript
                 char buffer[buffer_len] = { 0 };
                 memcpy(buffer, json + n.m_Start, dmMath::Min(buffer_len - 1, l));
                 dmJson::Free(doc);
-                snprintf(error_str_out, error_str_size, "Incomplete JSON object: %s", buffer);
+                DM_SNPRINTF(error_str_out, error_str_size, "Incomplete JSON object: %s", buffer);
                 return -1;
             }
         }
 
         dmJson::Free(doc);
-        snprintf(error_str_out, error_str_size, "Unsupported JSON type (%d), unable to parse content.", n.m_Type);
+        DM_SNPRINTF(error_str_out, error_str_size, "Unsupported JSON type (%d), unable to parse content.", n.m_Type);
         return -1;
     }
 

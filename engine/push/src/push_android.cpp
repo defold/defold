@@ -627,7 +627,7 @@ void HandlePushMessageResult(const Command* cmd, bool local)
     dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
     if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
         char err_str[128];
-        if (dmScript::JsonToLua(L, &doc, 0, err_str, 128) < 0) {
+        if (dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str)) < 0) {
             lua_pop(L, lua_gettop(L) - top); // Need to leave function and self references.
             dmLogError("Failed converting push result JSON to Lua; %s", err_str);
             assert(top == lua_gettop(L));

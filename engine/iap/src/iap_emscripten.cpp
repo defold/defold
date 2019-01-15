@@ -79,7 +79,7 @@ void IAPList_Callback(void* Lv, const char* result_json)
             dmJson::Result r = dmJson::Parse(result_json, &doc);
             if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
                 char err_str[128];
-                if (dmScript::JsonToLua(L, &doc, 0, err_str, 128) < 0) {
+                if (dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str)) < 0) {
                     lua_pop(L, lua_gettop(L) - top - 2); // Need to leave function and self references.
                     dmLogError("Failed converting list result JSON to Lua; %s", err_str);
                     lua_pushnil(L);
@@ -164,7 +164,7 @@ void IAPListener_Callback(void* Lv, const char* result_json, int error_code)
         dmJson::Result r = dmJson::Parse(result_json, &doc);
         if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
             char err_str[128];
-            if (dmScript::JsonToLua(L, &doc, 0, err_str, 128) < 0) {
+            if (dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str)) < 0) {
                 lua_pop(L, lua_gettop(L) - top - 2); // Need to leave function and self references.
                 dmLogError("Failed converting purchase result JSON to Lua; %s", err_str);
                 lua_pushnil(L);
