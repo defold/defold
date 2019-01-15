@@ -401,6 +401,7 @@ typedef unsigned char   GLubyte;
 #define GLFW_PHASE_ENDED (3)
 #define GLFW_PHASE_CANCELLED (4)
 #define GLFW_PHASE_TAPPED (5)
+#define GLFW_PHASE_IDLE (6)
 
 /*************************************************************************
  * Typedefs
