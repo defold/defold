@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <string.h>
 #include "dlib/index_pool.h"
 #include "testutil.h"
 
