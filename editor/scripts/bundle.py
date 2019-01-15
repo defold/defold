@@ -279,7 +279,7 @@ def check_reflections(java_cmd_env):
     ignored_reflections = []
 
     # lein check puts reflection warnings on stderr, redirect to stdout to capture all output
-    output = exec_command(['env', java_cmd_env, 'bash', './scripts/lein', 'check'])
+    output = exec_command(['env', java_cmd_env, 'bash', './scripts/lein', 'check-and-exit'])
     lines = output.splitlines()
     reflection_lines = (line for line in lines if re.match(reflection_prefix, line))
     reflections = (re.match('(' + reflection_prefix + ')(.*)', line).group(2) for line in reflection_lines)
