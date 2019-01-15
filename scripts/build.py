@@ -251,6 +251,9 @@ class Configuration(object):
         sys.stderr.flush()
 
     def distclean(self):
+        if self.target_platform == 'linux':
+            self._log("Skipping distclean for platform '%s'" % (self.target_platform))
+            return
         if os.path.exists(self.dynamo_home):
             self._log('Removing %s' % self.dynamo_home)
             shutil.rmtree(self.dynamo_home)
@@ -332,6 +335,9 @@ class Configuration(object):
             self._extract_tgz(self._make_package_path(platform, package), self.ext)
 
     def install_ext(self):
+        if self.target_platform == 'linux':
+            self._log("Skipping install_ext for platform '%s'" % (self.target_platform))
+            return
         print("Installing common packages")
         for p in PACKAGES_ALL:
             self._extract_tgz(self._make_package_path('common', p), self.ext)
@@ -669,6 +675,9 @@ class Configuration(object):
             self._ziptree(join(self.dynamo_home, 'content', 'builtins'), outfile = f, directory = join(self.dynamo_home, 'content'))
 
     def archive_engine(self):
+        if self.target_platform == 'linux':
+            self._log("Skipping archive_engine for platform '%s'" % (self.target_platform))
+            return
         sha1 = self._git_sha1()
         full_archive_path = join(self.archive_path, sha1, 'engine', self.target_platform).replace('\\', '/')
         share_archive_path = join(self.archive_path, sha1, 'engine', 'share').replace('\\', '/')
@@ -780,6 +789,9 @@ class Configuration(object):
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'))
 
     def build_engine(self):
+        if self.target_platform == 'linux':
+            self._log("Skipping build_engine for platform '%s'" % (self.target_platform))
+            return
         cmd = self._build_engine_cmd(**self._get_build_flags())
         args = cmd.split()
         host = self.host2
