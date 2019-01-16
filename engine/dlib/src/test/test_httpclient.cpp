@@ -404,7 +404,7 @@ TEST_P(dmHttpClientTest, ThreadStress)
     ASSERT_EQ(0, dmHttpClient::ShutdownConnectionPool());
     dmHttpClient::ReopenConnectionPool();
 
-    const int thread_count = 32;    // This is the maximum number of items in the connection pool, can't go any higher than that
+    const int thread_count = 16;    // 32 is the maximum number of items in the connection pool, stay below that
     dmThread::Thread threads[thread_count];
     HttpStressHelper* helpers[thread_count];
 
