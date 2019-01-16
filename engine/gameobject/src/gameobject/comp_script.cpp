@@ -83,8 +83,7 @@ namespace dmGameObject
 
     ScriptResult RunScript(lua_State* L, HScript script, ScriptFunction script_function, HScriptInstance script_instance, const RunScriptParams& params)
     {
-        static dmProfile::Scope* gProfilerRunScriptScope = dmProfile::g_IsInitialized ? dmProfile::AllocateScope("Script") : 0;
-        DM_PROFILE_SCOPE(gProfilerRunScriptScope, "RunScript");
+        DM_NAMED_PROFILE(gProfilerRunScriptScope, Script, "RunScript");
 
         ScriptResult result = SCRIPT_RESULT_OK;
 
@@ -113,15 +112,8 @@ namespace dmGameObject
                 ++arg_count;
             }
 
-            const char* scope_name = 0;
-            if (dmProfile::g_IsInitialized)
             {
-                char buffer[128];
-                DM_SNPRINTF(buffer, sizeof(buffer), "%s@%s", SCRIPT_FUNCTION_NAMES[script_function], script->m_LuaModule->m_Source.m_Filename);
-                scope_name = dmProfile::Internalize(buffer);
-            }
-            {
-                DM_PROFILE_SCOPE(gProfilerRunScriptScope, scope_name);
+                DM_PROFILE_FMT(gProfilerRunScriptScope, "%s@%s", SCRIPT_FUNCTION_NAMES[script_function], script->m_LuaModule->m_Source.m_Filename);
                 if (dmScript::PCall(L, arg_count, 0) != 0)
                 {
                     result = SCRIPT_RESULT_FAILED;
