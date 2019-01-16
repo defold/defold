@@ -1250,6 +1250,34 @@ def js_web_web_link_flags(self):
                 js = os.path.join(jsLibHome, lib)
             self.link_task.env.append_value('LINKFLAGS', ['--js-library', js])
 
+Task.simple_task_type('dSYM', '${DSYMUTIL} -o ${TGT} ${SRC}',
+                      color='YELLOW',
+                      after='cxx_link',
+                      shell=True)
+
+Task.simple_task_type('DSYMZIP', '${ZIP} -r ${TGT} ${SRC}',
+                      color='BROWN',
+                      after='dSYM') # Not sure how I could ensure this task running after the dSYM task /MAWE
+
+@feature('extract_symbols')
+@after('cprogram')
+def extract_symbols(self):
+    platform = self.env['PLATFORM']
+    if not 'darwin' in platform:
+        return
+
+    engine = self.path.find_or_declare(self.target)
+    dsym = engine.change_ext('.dSYM')
+    dsymtask = self.create_task('dSYM')
+    dsymtask.set_inputs(engine)
+    dsymtask.set_outputs(dsym)
+
+    archive = engine.change_ext('.dSYM.zip')
+    ziptask = self.create_task('DSYMZIP')
+    ziptask.set_inputs(dsymtask.outputs[0])
+    ziptask.set_outputs(archive)
+    ziptask.install_path = self.install_path
+
 def create_clang_wrapper(conf, exe):
     clang_wrapper_path = os.path.join(conf.env['DYNAMO_HOME'], 'bin', '%s-wrapper.sh' % exe)
 
@@ -1408,6 +1436,10 @@ def detect(conf):
 
         conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = search_path)
 
+    if  build_util.get_target_os() in ('osx', 'ios'):
+        conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True) # or possibly llvm-dsymutil
+        conf.find_program('zip', var='ZIP', mandatory = True)
+
     if 'osx' == build_util.get_target_os():
         # Force gcc without llvm on darwin.
         # We got strange bugs with http cache with gcc-llvm...
@@ -1421,7 +1453,7 @@ def detect(conf):
         conf.env['RANLIB']  = '%s/usr/bin/ranlib' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['LD']      = '%s/usr/bin/ld' % (DARWIN_TOOLCHAIN_ROOT)
 
-    if 'ios' == build_util.get_target_os() and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture()):
+    elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7','arm64'):
         # Wrap clang in a bash-script due to a bug in clang related to cwd
         # waf change directory from ROOT to ROOT/build when building.
         # clang "thinks" however that cwd is ROOT instead of ROOT/build
