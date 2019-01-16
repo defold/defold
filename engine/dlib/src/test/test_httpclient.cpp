@@ -399,7 +399,12 @@ static void HttpStressThread(void* param)
 
 TEST_P(dmHttpClientTest, ThreadStress)
 {
-    const int thread_count = 16;
+    // Shut down and reopen the connection pool so we can use it to it's full extent
+    // on each pass
+    ASSERT_EQ(0, dmHttpClient::ShutdownConnectionPool());
+    dmHttpClient::ReopenConnectionPool();
+
+    const int thread_count = 32;    // This is the maximum number of items in the connection pool, can't go any higher than that
     dmThread::Thread threads[thread_count];
     HttpStressHelper* helpers[thread_count];
 
