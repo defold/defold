@@ -228,6 +228,7 @@ namespace dmGameObject
 
     UpdateResult CompScriptOnMessage(const ComponentOnMessageParams& params)
     {
+        DM_NAMED_PROFILE(gProfilerRunScriptScope, Script, "RunScript");
         UpdateResult result = UPDATE_RESULT_OK;
 
         ScriptInstance* script_instance = (ScriptInstance*)*params.m_UserData;
@@ -293,10 +294,14 @@ namespace dmGameObject
             dmScript::PushURL(L, params.m_Message->m_Sender);
 
             // An on_message function shouldn't return anything.
-            ret = dmScript::PCall(L, 4, 0);
-            if (ret != 0)
             {
-                result = UPDATE_RESULT_UNKNOWN_ERROR;
+                const char* function_name = is_callback ? "<message_callback>" : SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE];
+                DM_PROFILE_FMT(gProfilerRunScriptScope, "%s@%s", function_name, script_instance->m_Script->m_LuaModule->m_Source.m_Filename);
+                ret = dmScript::PCall(L, 4, 0);
+                if (ret != 0)
+                {
+                    result = UPDATE_RESULT_UNKNOWN_ERROR;
+                }
             }
 
             lua_pushnil(L);
@@ -309,6 +314,7 @@ namespace dmGameObject
 
     InputResult CompScriptOnInput(const ComponentOnInputParams& params)
     {
+        DM_NAMED_PROFILE(gProfilerRunScriptScope, Script, "RunScript");
         InputResult result = INPUT_RESULT_IGNORED;
 
         ScriptInstance* script_instance = (ScriptInstance*)*params.m_UserData;
@@ -494,7 +500,11 @@ namespace dmGameObject
 
             int arg_count = 3;
             int input_ret = lua_gettop(L) - arg_count;
-            int ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
+            int ret;
+            {
+                DM_PROFILE_FMT(gProfilerRunScriptScope, "%s@%s", SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT], script_instance->m_Script->m_LuaModule->m_Source.m_Filename);
+                dmScript::PCall(L, arg_count, LUA_MULTRET);
+            }
             const char* function_name = SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT];
             if (ret != 0)
             {
