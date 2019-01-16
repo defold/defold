@@ -8,16 +8,11 @@
 #include "liveupdate_ddf.h"
 #include "resource_archive.h"
 
-namespace dmBuffer
-{
-    typedef uint32_t HBuffer;
-}
-
 namespace dmResource
 {
     const static uint32_t MANIFEST_MAGIC_NUMBER = 0x43cb6d06;
 
-    const static uint32_t MANIFEST_VERSION = 0x02;
+    const static uint32_t MANIFEST_VERSION = 0x03;
 
     const uint32_t MANIFEST_PROJ_ID_LEN = 41; // SHA1 + NULL terminator
 
@@ -467,7 +462,7 @@ namespace dmResource
      * @param buffer The buffer
      * @return RESULT_OK on success
      */
-    Result SetResource(HFactory factory, uint64_t hashed_name, dmBuffer::HBuffer buffer);
+    Result SetResource(HFactory factory, uint64_t hashed_name, void* buffer, uint32_t size);
 
     /**
      * Updates a preexisting resource with new data
@@ -608,6 +603,11 @@ namespace dmResource
     Result ManifestLoadMessage(uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest);
 
     Result StoreManifest(Manifest* manifest);
+
+    /**
+     * Verify that all resources the manifest expects to be bundled actually are bundled.
+     */
+    Result VerifyResourcesBundled(HFactory factory, Manifest* manifest);
 
     /**
      * Loads the public RSA key from the bundle.

@@ -128,6 +128,8 @@ void _glfwClearInput( void )
     for (i = 0; i < GLFW_MAX_TOUCH; ++i) {
         memset(&_glfwInput.Touch[i], 0, sizeof(_glfwInput.Touch[i]));
         _glfwInput.Touch[i].Id = i;
+        _glfwInput.Touch[i].Reference = 0x0;
+        _glfwInput.Touch[i].Phase = GLFW_PHASE_IDLE;
     }
 
     // The default is to disable key repeat
@@ -250,9 +252,16 @@ void _glfwInputMouseClick( int button, int action )
 {
     if( button >= 0 && button <= GLFW_MOUSE_BUTTON_LAST )
     {
-        // Register mouse button action
-        if( action == GLFW_RELEASE && _glfwInput.StickyMouseButtons )
+        if (_glfwInput.MouseButton[ button ] == GLFW_CLICKED) {
+            return;
+        }
+
+        if( action == GLFW_RELEASE && _glfwInput.MouseButton[ button ] == GLFW_PRESS )
         {
+            _glfwInput.MouseButton[ button ] = GLFW_CLICKED;
+        } else if( action == GLFW_RELEASE && _glfwInput.StickyMouseButtons )
+        {
+            // Register mouse button action
             _glfwInput.MouseButton[ button ] = GLFW_STICK;
         }
         else
@@ -839,6 +848,15 @@ GLFWAPI void GLFWAPIENTRY glfwRestoreWindow( void )
     _glfwPlatformRefreshWindowParams();
 }
 
+GLFWAPI int GLFWAPIENTRY glfwGetWindowRefreshRate( void )
+{
+    if( !_glfwInitialized || !_glfwWin.opened )
+    {
+        return 0;
+    }
+
+    return _glfwPlatformGetWindowRefreshRate();
+}
 
 //========================================================================
 // Swap buffers (double-buffering) and poll any new events

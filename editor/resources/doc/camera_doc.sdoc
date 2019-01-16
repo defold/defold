@@ -1,24 +1,0 @@
-
-‡acquire_camera_focus:<p>makes the receiving camera become the active camera</p>"à<p>Post this message to a camera-component to activate it.</p>
-<p>Several cameras can be active at the same time, but only the camera that was last activated will be used for rendering.
-When the camera is deactivated (see <code>release_camera_focus</code>), the previously activated camera will again be used for rendering automatically.</p>
-<p>The reason it is called "camera focus" is the similarity to how acquiring input focus works (see <code>acquire_input_focus</code>).</p>:Í<p>In the examples, it is assumed that the instance of the script has a camera-component with id "camera".</p>
-<div class="codehilite"><pre><span></span><span class="n">msg</span><span class="p">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">#camera&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="s">acquire_camera_focus&quot;</span><span class="p">)</span>
-</pre></div>
-órelease_camera_focus'<p>deactivates the receiving camera</p>"ß<p>
-Post this message to a camera-component to deactivate it. The camera is then removed from the active cameras.
-See <code>acquire_camera_focus</code> for more information how the active cameras are used in rendering.
-</p>:Í<p>In the examples, it is assumed that the instance of the script has a camera-component with id "camera".</p>
-<div class="codehilite"><pre><span></span><span class="n">msg</span><span class="p">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">#camera&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="s">release_camera_focus&quot;</span><span class="p">)</span>
-</pre></div>
-ð
-set_camera<p>sets camera properties</p>"S<p>
-Post this message to a camera-component to set its properties at run-time.
-</p>2l
-aspect_ratio\<p><span class="type">number</span> aspect ratio of the screen (width divided by height)</p>2‹
-fovƒ<p><span class="type">number</span> field of view of the lens, measured as the angle in radians between the right and left edge</p>2}
-near_zs<p><span class="type">number</span> position of the near clipping plane (distance from camera along relative z)</p>2{
-far_zr<p><span class="type">number</span> position of the far clipping plane (distance from camera along relative z)</p>:ó<p>In the examples, it is assumed that the instance of the script has a camera-component with id "camera".</p>
-<div class="codehilite"><pre><span></span><span class="n">msg</span><span class="p">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">#camera&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="s">set_camera&quot;</span><span class="p">,</span> <span class="p">{</span><span class="n">aspect_ratio</span> <span class="o">=</span> <span class="mi">16</span><span class="o">/</span><span class="mi">9</span><span class="p">,</span> <span class="n">fov</span> <span class="o">=</span> <span class="nb">math.pi</span> <span class="o">*</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">near_z</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span> <span class="n">far_z</span> <span class="o">=</span> <span class="mi">500</span><span class="p">})</span>
-</pre></div>q
-cameraCamera<p>Camera API documentation</p>"><p>Messages to control camera components and camera focus.</p>

@@ -1,0 +1,10 @@
+function init(self)
+	msg.post(".", "acquire_input_focus")
+end
+
+function on_input(self, action_id, action)
+	last_input_object = go.get_id()
+	if action.pressed then
+		return true
+	end
+end

@@ -49,6 +49,7 @@ namespace dmRender
         uint32_t m_OutlineColor;
         uint32_t m_ShadowColor;
         float    m_SdfParams[4];
+        uint8_t  m_LayerMasks[3];
     };
 
     /**
@@ -75,6 +76,8 @@ namespace dmRender
         float m_SdfOffset;
         /// Distance value where outline should end
         float m_SdfOutline;
+        /// Distance value where shadow should end
+        float m_SdfShadow;
         /// Font alpha
         float m_Alpha;
         /// Font outline alpha
@@ -89,7 +92,9 @@ namespace dmRender
 
         uint32_t m_CacheCellWidth;
         uint32_t m_CacheCellHeight;
+        uint32_t m_CacheCellMaxAscent;
         uint8_t m_CacheCellPadding;
+        uint8_t m_LayerMask;
 
         dmRenderDDF::FontTextureFormat m_ImageFormat;
     };
@@ -154,7 +159,7 @@ namespace dmRender
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters);
     void FinalizeTextContext(HRenderContext render_context);
 
-    const int MAX_FONT_RENDER_CONSTANTS = 4;
+    const int MAX_FONT_RENDER_CONSTANTS = 16;
     /**
      * Draw text params.
      */

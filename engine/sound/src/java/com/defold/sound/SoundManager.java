@@ -5,6 +5,9 @@ import android.content.Context;
 import android.media.AudioManager;
 import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyManager;
+import android.support.v4.content.ContextCompat;
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.util.Log;
 
 public class SoundManager {
@@ -62,12 +65,21 @@ public class SoundManager {
             this.telephonyManager = (TelephonyManager) activity.getSystemService(Context.TELEPHONY_SERVICE);
             this.listener = new SoundManager.AudioFocusListener();
 
-            activity.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    SoundManager.this.telephonyManager.listen(new CustomPhoneCallListener(SoundManager.this), PhoneStateListener.LISTEN_CALL_STATE);
-                }
-            });
+            // DEF-3316
+            // On older devices (v5 and below) with apps not specifying the READ_PHONE_STATE permission, the call to
+            // SoundManager.this.telephonyManager.listen will trigger a crash.
+            // To avoid this we manually check if we have the permission and only register the listener below if the
+            // permission is available. However, this means that the app will continue playing audio even if there is a phone call.
+            if (ContextCompat.checkSelfPermission(activity, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+                Log.e(TAG, "App is missing the READ_PHONE_STATE permission. Audio will continue while phone call is active.");
+            } else {
+                activity.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        SoundManager.this.telephonyManager.listen(new CustomPhoneCallListener(SoundManager.this), PhoneStateListener.LISTEN_CALL_STATE);
+                    }
+                });
+            }
 
             this.updatePhoneCallState(this.telephonyManager.getCallState());
         } catch (Exception e) {

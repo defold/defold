@@ -12,6 +12,7 @@
 extern "C" {
     // Implementation in library_sound.js
     int dmDeviceJSOpen(int buffers);
+    int dmGetDeviceSampleRate(int device);
     void dmDeviceJSQueue(int device, const int16_t* samples, uint32_t sample_count);
     int dmDeviceJSFreeBufferSlots(int device);
 }
@@ -52,7 +53,8 @@ namespace dmDeviceJS
 
     void DeviceJSDeviceInfo(dmSound::HDevice device, dmSound::DeviceInfo* info)
     {
-        info->m_MixRate = 44100;
+        JSDevice *dev = (JSDevice*) device;
+        info->m_MixRate = dmGetDeviceSampleRate(dev->devId);
     }
 
     void DeviceJSRestart(dmSound::HDevice device)

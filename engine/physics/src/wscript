@@ -5,10 +5,8 @@ def set_options(opt):
 
 def configure(conf):
     conf.sub_config('box2d')
-    conf.sub_config('bullet')
     conf.sub_config('physics')
 
 def build(bld):
     bld.add_subdirs('box2d')
-    bld.add_subdirs('bullet')
     bld.add_subdirs('physics')

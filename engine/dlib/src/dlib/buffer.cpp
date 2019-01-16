@@ -10,7 +10,6 @@
 
 #if defined(_WIN32)
 #include <malloc.h>
-#define alloca(_SIZE) _alloca(_SIZE)
 #endif
 
 #include <stdio.h>

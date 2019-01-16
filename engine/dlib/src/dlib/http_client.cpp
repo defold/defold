@@ -150,7 +150,7 @@ namespace dmHttpClient
     struct Client
     {
         char*               m_Hostname;
-        char                m_URI[1024];
+        char                m_URI[dmURI::MAX_URI_LEN];
         dmSocket::Result    m_SocketResult;
 
         void*               m_Userdata;

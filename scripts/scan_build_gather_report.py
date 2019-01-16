@@ -169,11 +169,11 @@ def generate_output(targetdir, bugs):
         class_counts[bug['BUG_CLASS']] += 1
         class_to_type[bug['BUG_CLASS']] = bug['BUG_TYPE']
 
-    # store the bug count with 
+    # store the bug count with
     BUG_SUMMARIES = ""
     for cls, count in class_counts.iteritems():
         BUG_SUMMARIES += BUG_SUMMARY_FMT % {'BUG_CLASS':cls, 'BUG_TYPE_COUNT':'%d'%count, 'BUG_TYPE':class_to_type[cls]} + '\n'
-    
+
     BUG_REPORTS = ""
     for _, _, bug in bugs:
         BUG_REPORTS += BUG_REPORT_FMT % bug + '\n'

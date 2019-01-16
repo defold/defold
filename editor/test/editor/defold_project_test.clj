@@ -21,12 +21,18 @@
   (property source-resource resource/Resource
             (set (fn [evaluation-context self _old-value new-value]
                    (let [project (project/get-project (:basis evaluation-context) self)]
-                     (project/connect-resource-node evaluation-context project new-value self [[:value :value-input]])))))
+                     (:tx-data (project/connect-resource-node evaluation-context project new-value self [[:value :value-input]]))))))
   (input value-input g/Str))
 
 (g/defnode BNode
   (inherits resource-node/ResourceNode)
   (property value g/Str))
+
+(defn- read-a [resource]
+  (read-string (slurp resource)))
+
+(defn- dependencies-a [source-value]
+  (keep source-value [:b]))
 
 (defn- load-a [project self resource]
   (swap! load-counter inc)
@@ -56,6 +62,8 @@
         (g/transact
           (register-resource-types workspace [{:ext "type_a"
                                                :node-type ANode
+                                               :read-fn read-a
+                                               :dependencies-fn dependencies-a
                                                :load-fn load-a
                                                :label "Type A"}
                                               {:ext "type_b"

@@ -8,6 +8,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
@@ -15,6 +16,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
@@ -58,31 +61,30 @@ public class AndroidBundler implements IBundler {
     private Pattern aaptResourceErrorRe = Pattern.compile("^invalid resource directory name:\\s(.+)\\s(.+)\\s.*$", Pattern.MULTILINE);
 
     @Override
-    public void bundleApplication(Project project, File bundleDir)
-            throws IOException, CompileExceptionError {
-
-        // Collect bundle/package resources to be included in APK zip
-        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Armv7Android);
+    public void bundleApplication(Project project, File bundleDir) throws IOException, CompileExceptionError {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        final boolean debug = project.hasOption("debug");
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+        final boolean strip_executable = project.hasOption("strip-executable");
 
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
-        String exeName = title.replace(' ', '_');
+        String exeName = BundleHelper.projectNameToBinaryName(title);
 
         String certificate = project.option("certificate", "");
         String key = project.option("private-key", "");
+        boolean debuggable = Integer.parseInt(projectProperties.getStringValue("android", "debuggable", "0")) != 0;
 
         // If a custom engine was built we need to copy it
         Platform targetPlatform = Platform.Armv7Android;
-        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-        File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
-        File bundleExe = defaultExe;
+
         ArrayList<File> classesDex = new ArrayList<File>();
         classesDex.add(new File(Bob.getPath("lib/classes.dex")));
-        if (extenderExe.exists()) {
-            bundleExe = extenderExe;
+        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
+        List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+        if (bundleExes == null) {
+            bundleExes = Bob.getDefaultDmengineFiles(targetPlatform, variant);
+        }
+        else {
             classesDex = new ArrayList<File>();
             int i = 1;
             while(true)
@@ -96,6 +98,10 @@ public class AndroidBundler implements IBundler {
                 classesDex.add(f);
             }
         }
+        if (bundleExes.size() > 1) {
+            throw new IOException("Invalid number of binaries for Android when bundling: " + bundleExes.size());
+        }
+        File bundleExe = bundleExes.get(0);
 
         File appDir = new File(bundleDir, title);
         File resDir = new File(appDir, "res");
@@ -116,7 +122,7 @@ public class AndroidBundler implements IBundler {
         FileUtils.forceMkdir(new File(appDir, "libs/armeabi-v7a"));
 
         // Create AndroidManifest.xml and output icon resources (if available)
-        BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, "");
+        BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, "");
         File manifestFile = new File(appDir, "AndroidManifest.xml");
         helper.createAndroidManifest(projectProperties, projectRoot, manifestFile, resDir, exeName);
 
@@ -124,16 +130,40 @@ public class AndroidBundler implements IBundler {
         File ap1 = new File(appDir, title + ".ap1");
 
         Map<String, String> aaptEnv = new HashMap<String, String>();
-        if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
+        if (Platform.getHostPlatform() == Platform.X86_64Linux) {
             aaptEnv.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
         }
 
-        List<String> androidResourceFolders = ExtenderUtil.getAndroidResourcePaths(project, targetPlatform);
+        // AAPT needs all resources on disc
+        File tmpResourceDir = Files.createTempDirectory("res").toFile();
+        Map<String, IResource> androidResources = ExtenderUtil.getAndroidResources(project);
+
+        // Write out all resources to disc. Needed for those resources that are located withing .zip files (libraries)
+        ExtenderUtil.storeAndroidResources(tmpResourceDir, androidResources);
+
+        // Find the actual android resource folders on disc
+        Set<String> androidResourceFolders = new HashSet<>();
+        {
+            Iterator<Map.Entry<String, IResource>> it = androidResources.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>) it.next();
+
+                String absPath = entry.getValue().getAbsPath();                                 // /topfolder/extension/res/android/res/path/to/res.xml
+                String relativePath = entry.getKey();                                           // path/to/res.xml
+                String dir = absPath.substring(0, absPath.length() - relativePath.length());    // /topfolder/extension/res/android/res
+                androidResourceFolders.add(dir);
+            }
+        }
+
+        // Collect bundle/package resources to be included in APK zip
+        Map<String, IResource> allResources = ExtenderUtil.collectResources(project, targetPlatform);
 
         // Remove any paths that begin with any android resource paths so they are not added twice (once by us, and once by aapt)
+        // This step is used to detect which resources that shouldn't be manually bundled, since aapt does that for us.
+        Map<String, IResource> bundleResources = null;
         {
             Map<String, IResource> newBundleResources = new HashMap<String, IResource>();
-            Iterator<Map.Entry<String, IResource>> it = bundleResources.entrySet().iterator();
+            Iterator<Map.Entry<String, IResource>> it = allResources.entrySet().iterator();
             while (it.hasNext()) {
                 Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>)it.next();
 
@@ -161,13 +191,14 @@ public class AndroidBundler implements IBundler {
         args.add("--extra-packages");
         args.add("com.facebook:com.google.android.gms");
         args.add("-m");
-        //args.add("--debug-mode");
         args.add("--auto-add-overlay");
 
-        for( String s : androidResourceFolders )
-        {
-            args.add("-S"); args.add(s);
+        if (debuggable) {
+            args.add("--debug-mode");
         }
+
+        // Resources here will both be added to R.java, and also be added to the .apk file
+        args.add("-S"); args.add(tmpResourceDir.getAbsolutePath());
 
         args.add("-S"); args.add(resDir.getAbsolutePath());
         args.add("-S"); args.add(Bob.getPath("res/facebook"));
@@ -241,7 +272,7 @@ public class AndroidBundler implements IBundler {
 
             // Strip executable
             String strippedpath = bundleExe.getAbsolutePath();
-            if( !debug )
+            if( strip_executable )
             {
                 File tmp = File.createTempFile(title, "." + bundleExe.getName() + ".stripped");
                 tmp.deleteOnExit();
@@ -308,7 +339,8 @@ public class AndroidBundler implements IBundler {
                 // Some files need to be STORED instead of DEFLATED to
                 // get "correct" memory mapping at runtime.
                 int zipMethod = ZipEntry.DEFLATED;
-                if (Arrays.asList("assets/game.projectc", "assets/game.arci", "assets/game.arcd", "assets/game.dmanifest", "assets/game.public.der").contains(inE.getName())) {
+                boolean isAsset = inE.getName().startsWith("assets");
+                if (isAsset) {
                     // Set up uncompresed file, unfortunately need to calculate crc32 and other data for this to work.
                     // https://blogs.oracle.com/CoreJavaTechTips/entry/creating_zip_and_jar_files
                     crc = new CRC32();
@@ -367,5 +399,6 @@ public class AndroidBundler implements IBundler {
         ap2.delete();
         ap3.delete();
         ap4.delete();
+        FileUtils.deleteDirectory(tmpResourceDir);
     }
 }

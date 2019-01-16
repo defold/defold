@@ -88,7 +88,7 @@ Create apkc, by invoking the following from the root defold directory:
 
 This will result in the production of apkc under “go/bin”.
 
-    $ PLATFORM=x86-darwin
+    $ PLATFORM=x86-64_darwin
     $ cp go/bin/apkc com.dynamo.cr/com.dynamo.cr.target/libexec/$PLATFORM
 
 Copy classes.dex
@@ -160,24 +160,24 @@ To get debug symbols you will need to download the system libraries from the dev
     $ cd vendor_libs
     $ adb pull /vendor/lib
     $ cd ..
-    $ adb pull /system/bin/linker
+    $ adb pull /system/bin/linker
 
 Once you have an executable gdbserver on the device, and have downloaded the system libraries, do the following:
 
-    $ adb pull /system/bin/app_process
+    $ adb pull /system/bin/app_process
 This fetches the `app_process` binary from the Android device to your machine which you will need when starting `gdb` later on.
 
-    $ adb forward tcp:5039 tcp:5039
+    $ adb forward tcp:5039 tcp:5039
 This forwards the port 5039 from the Android device to your local machine.
 
 Start your application on the device and find its PID (for example via `adb logcat | grep "ENGINE"`).
 
-    $ adb shell "run-as <your-app-package-name> /data/data/com.defold.dmengine/lib/gdbserver :5039 --attach <PID>"
+    $ adb shell "run-as <your-app-package-name> /data/data/com.defold.dmengine/lib/gdbserver :5039 --attach <PID>"
 This will start the gdbserver (which in this case is located inside dmengine.apk) on port 5039 and attach to the running process id.
 
 Next you will need to start a local gdb instance and connect to the gdbserver. The correct gdb binaries are located in the Android NDK:
 
-    $ android-ndk-r10b/toolchains/arm-linux-androideabi-4.6/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-gdb app_process
+    $ android-ndk-r10b/toolchains/arm-linux-androideabi-4.6/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-gdb app_process
     ...
     (gdb) target remote :5039
     ...
@@ -272,7 +272,7 @@ You can also contact the Platform Partnerships team which are our internal Googl
 
 ### AAPT Binaries
 
-We ship Android "aapt" (Android Asset Packaging Tool) binaries for all platforms that the editor runs on. When upgrading the Android SDK, these needs to be copied from the Android SDK directory into `com.dynamo.cr/com.dynamo.cr.bob/libexec/<PLATFORM>/`. Currently the Linux `aapt` binary is dynamically linked against a version of `libc++.so` that comes with the Android SDK. This forces us to also copy this library into `com.dynamo.cr/com.dynamo.cr.bob/libexec/x86-linux/lib/`.
+We ship Android "aapt" (Android Asset Packaging Tool) binaries for all platforms that the editor runs on. When upgrading the Android SDK, these needs to be copied from the Android SDK directory into `com.dynamo.cr/com.dynamo.cr.bob/libexec/<PLATFORM>/`. Currently the Linux `aapt` binary is dynamically linked against a version of `libc++.so` that comes with the Android SDK. This forces us to also copy this library into `com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-linux/lib/`.
 
 ### Creating the android tar ball
 
@@ -293,6 +293,12 @@ Creating a new android package is straight forward:
 #### Support libs?
 
 The android-support-v4.jar is apparently needed by our facebook api, and hopefully, we won't need to update that.
+
+### Facebook SDK
+
+Current SDK used is 4.7.0. It is located in `<defold>/packages/facebook/facebook-<fb-sdk-version>-armv7-android.tar.gz`. A patch to facebook's SDK is applied in order to run on Android API levels < 11. The patch is the same as FF uses (https://github.int.midasplayer.com/GamePlatform/game-platform/commit/80d70bedb41ece050684d9bd22dc80731786ffef#diff-1bf400d252c1af6a063b5773019109f5).
+
+Apply the patch by downloading the appropriate Facebook Android SDK (https://developers.facebook.com/docs/android/downloads/). Modify the source files as needed and build the sdk using the grade scripts bundled with the SDK. Copy `classes.jar` from `<fb-sdk-dir>/facebook/build/` directory to you facebook sdk package dir and rename it to `facebooksdk.jar`.
 
 ### Update build script
 

@@ -1,21 +1,19 @@
 (ns editor.engine
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
+            [editor.engine.native-extensions :as native-extensions]
+            [editor.fs :as fs]
             [editor.process :as process]
             [editor.prefs :as prefs]
-            [editor.error-reporting :as error-reporting]
+            [editor.process :as process]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.system :as system]
-            [editor.ui :as ui]
-            [editor.defold-project :as project]
-            [editor.workspace :as workspace]
-            [editor.engine.native-extensions :as native-extensions])
+            [editor.system :as system])
   (:import [com.defold.editor Platform]
-           [java.net HttpURLConnection InetSocketAddress Socket URI URL]
-           [java.io SequenceInputStream BufferedReader File InputStream ByteArrayOutputStream IOException]
-           [java.nio.charset Charset StandardCharsets]
-           [java.lang Process ProcessBuilder]))
+           [com.dynamo.resource.proto Resource$Reload]
+           [java.io BufferedReader File InputStream IOException]
+           [java.net HttpURLConnection InetSocketAddress Socket URI]
+           [java.util.zip ZipFile]))
 
 (set! *warn-on-reflection* true)
 
@@ -39,14 +37,15 @@
         ;; For instance socket closed because engine was killed
         nil))))
 
-(defn reload-resource [target resource]
-  (let [uri  (URI. (str (:url target) "/post/@resource/reload"))
-        conn ^HttpURLConnection (get-connection uri)]
+(defn reload-build-resources! [target build-resources]
+  (let [uri (URI. (str (:url target) "/post/@resource/reload"))
+        conn ^HttpURLConnection (get-connection uri)
+        proj-paths (mapv resource/proj-path build-resources)]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
-                            com.dynamo.resource.proto.Resource$Reload
-                            {:resource (str (resource/proj-path resource) "c")})))
+                            Resource$Reload
+                            {:resources proj-paths})))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))
       (finally
@@ -120,11 +119,84 @@
              {:log-port log-port
               :address loopback-address}))))
 
-(defn- do-launch [^File path launch-dir prefs debug?]
+(defn- bundled-engine [platform]
+  (let [suffix (.getExeSuffix (Platform/getHostPlatform))
+        path   (format "%s/%s/bin/dmengine%s" (system/defold-unpack-path) platform suffix)
+        engine (io/file path)]
+    {:id {:type :bundled :path (.getCanonicalPath engine)} :dmengine engine :platform platform}))
+
+(def custom-engine-pref-key "dev-custom-engine")
+
+(defn- dev-custom-engine
+  [prefs platform]
+  (when (system/defold-dev?)
+    (when-some [custom-engine (prefs/get-prefs prefs custom-engine-pref-key nil)]
+      (when-not (str/blank? custom-engine)
+        (assert (= platform (.getPair (Platform/getHostPlatform))) "Can't use custom engine for platform different than host")
+        (let [engine (io/file custom-engine)]
+          (assert (.exists engine))
+          {:id {:type :dev :path (.getCanonicalPath engine)} :dmengine engine :platform platform})))))
+
+(defn get-engine
+  "Returns an engine descriptor map:
+  {:id {:type <:dev :bundled :custom> + entries for sha/path - something identifying this engine version}
+   :dmengine <File to bundled/dev dmengine>
+   :engine-archive <File to custom engine archive downloaded from extension server>
+   :extender-platform <String platform the engine was compiled for>}"
+  [project evaluation-context prefs platform]
+  (or (dev-custom-engine prefs platform)
+      (if (native-extensions/has-extensions? project evaluation-context)
+        (let [build-server (native-extensions/get-build-server-url prefs)]
+          (native-extensions/get-engine-archive project evaluation-context platform build-server))
+        (bundled-engine platform))))
+
+(defn current-platform []
+  (.getPair (Platform/getJavaPlatform)))
+
+(defn- unpack-dmengine!
+  [^File engine-archive entry-name ^File engine-file]
+  (with-open [zip-file (ZipFile. engine-archive)]
+    (let [dmengine-entry (.getEntry zip-file entry-name)
+          stream (.getInputStream zip-file dmengine-entry)]
+      (io/copy stream engine-file)
+      (fs/set-executable! engine-file)
+      engine-file)))
+
+(def ^:private dmengine-dependencies
+  {"x86_64-win32" #{"OpenAL32.dll" "wrap_oal.dll"}
+   "x86-win32"    #{"OpenAL32.dll" "wrap_oal.dll"}})
+
+(defn- copy-dmengine-dependencies!
+  [unpack-dir extender-platform]
+  (let [bundled-engine-dir (io/file (system/defold-unpack-path) extender-platform "bin")]
+    (doseq [dep (dmengine-dependencies extender-platform)]
+      (fs/copy! (io/file bundled-engine-dir dep) (io/file unpack-dir dep)))))
+
+(defn- engine-install-path ^File [^File project-directory engine-descriptor]
+  (let [suffix (.getExeSuffix (Platform/getHostPlatform))
+        unpack-dir (io/file project-directory "build" (:extender-platform engine-descriptor))]
+    (io/file unpack-dir (format "dmengine%s" suffix))))
+
+(defn install-engine! ^File [^File project-directory {:keys [^File dmengine ^File engine-archive extender-platform] :as engine-descriptor}]
+  (assert (or dmengine engine-archive))
+  (cond
+    (some? dmengine)
+    dmengine
+
+    (some? engine-archive)
+    (let [engine-file (engine-install-path project-directory engine-descriptor)
+          engine-dir (.getParentFile engine-file)]
+      (fs/delete-directory! engine-dir {:missing :ignore})
+      (fs/create-directories! engine-dir)
+      (unpack-dmengine! engine-archive (.getName engine-file) engine-file)
+      (copy-dmengine-dependencies! engine-dir extender-platform)
+      engine-file)))
+
+(defn launch! [^File engine project-directory prefs debug?]
   (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
                                (File.)
                                (.getAbsolutePath))
-        command (.getAbsolutePath path)
+        command (.getAbsolutePath engine)
         args (cond-> []
                defold-log-dir
                (into ["--config=project.write_log=1"
@@ -135,7 +207,7 @@
         env {"DM_SERVICE_PORT" "dynamic"
              "DM_QUIT_ON_ESC" (if (prefs/get-prefs prefs "general-quit-on-esc" false)
                                 "1" "0")}
-        opts {:directory launch-dir
+        opts {:directory project-directory
               :redirect-error-stream? true
               :env env}]
     ;; Closing "is" seems to cause any dmengine output to stdout/err
@@ -146,34 +218,5 @@
     (let [p (process/start! command args opts)
           is (.getInputStream p)]
       {:process p
-       :name (.getName path)
+       :name (.getName engine)
        :log-stream is})))
-
-(defn- bundled-engine [platform]
-  (let [suffix (.getExeSuffix (Platform/getHostPlatform))
-        path   (format "%s/%s/bin/dmengine%s" (system/defold-unpack-path) platform suffix)]
-    (io/file path)))
-
-(def custom-engine-pref-key "dev-custom-engine")
-
-(defn- custom-engine
-  [prefs platform]
-  (when (system/defold-dev?)
-    (when-some [custom-engine (prefs/get-prefs prefs custom-engine-pref-key nil)]
-      (when-not (str/blank? custom-engine)
-        (assert (= platform (.getPair (Platform/getHostPlatform))) "Can't use custom engine for platform different than host")
-        (let [file (io/file custom-engine)]
-          (assert (.exists file))
-          file)))))
-
-(defn get-engine [project prefs platform]
-  (or (custom-engine prefs platform)
-      (if-let [native-extension-roots (native-extensions/extension-roots project)]
-        (let [build-server (native-extensions/get-build-server-url prefs)]
-          (native-extensions/get-engine project native-extension-roots platform build-server))
-        (bundled-engine platform))))
-
-(defn launch! [project prefs debug?]
-  (let [launch-dir   (io/file (workspace/project-path (project/workspace project)))
-        ^File engine (get-engine project prefs (.getPair (Platform/getJavaPlatform)))]
-    (do-launch engine launch-dir prefs debug?)))

@@ -35,20 +35,25 @@ function init(self)
     -- Flips
     res = tilemap.set_tile("#tilemap", "layer", 1, 1, 0, true, true)
     assert(res == true)
-    -- out of range
+    -- Cell index out of range
     res = tilemap.set_tile("#tilemap", "layer", 1, 2, 0)
     assert(res == false)
     -- Invalid layer
     res = tilemap.set_tile("#tilemap", "not_found_layer", 0, 0, 0)
     assert(res == false)
+    -- Tile index out-of-range
+    ret = pcall(function() tilemap.set_tile("#tilemap", "layer", 0, 0, -1) end)
+    assert(ret == false)
+    ret = pcall(function() tilemap.set_tile("#tilemap", "layer", 0, 0, 4) end)
+    assert(ret == false)
 
     -- verify hashed string works as argument to layer
     tile = tilemap.get_tile("#tilemap", "layer", 1, 1)
     assert(tile == 0)
-    res = tilemap.set_tile("#tilemap", hash("layer"), 1, 1, 1)
+    res = tilemap.set_tile("#tilemap", hash("layer"), 1, 1, 0)
     assert(res == true)
     tile = tilemap.get_tile("#tilemap", hash("layer"), 1, 1)
-    assert(tile == 1)
+    assert(tile == 0)
 
     -- Set tile out-of-range. Test for previous bug
     msg.post("#tilemap", "set_tile", {layer_id = hash("layer"), position = go.get_position(), dx = 1})

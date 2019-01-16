@@ -12,7 +12,7 @@
 /*# Creates a webview
 
  * Creates a webview instance. It can show HTML pages as well as evaluate Javascript.
- * The view remains hidden until the first call.
+ * The view remains hidden until the first call. There can exist a maximum of 4 webviews at the same time.
  *
  * [icon:ios] On iOS, the callback will never get a webview.CALLBACK_RESULT_EVAL_ERROR,
  * due to the iOS SDK implementation.
@@ -34,6 +34,7 @@
  *
  * - `webview.CALLBACK_RESULT_URL_OK`
  * - `webview.CALLBACK_RESULT_URL_ERROR`
+ * - `webview.CALLBACK_RESULT_URL_LOADING`
  * - `webview.CALLBACK_RESULT_EVAL_OK`
  * - `webview.CALLBACK_RESULT_EVAL_ERROR`
  *
@@ -55,6 +56,13 @@
  *     elseif type == webview.CALLBACK_RESULT_URL_ERROR then
  *         print("Failed to load url: " .. data["url"])
  *         print("Error: " .. data["error"])
+ *     elseif type == webview.CALLBACK_RESULT_URL_LOADING then
+ *         -- a page is loading
+ *         -- return false to prevent it from loading
+ *         -- return true or nil to continue loading the page
+ *         if data.url ~= "https://www.defold.com/" then
+ *             return false
+ *         end
  *     elseif type == webview.CALLBACK_RESULT_EVAL_OK then
  *         print("Eval ok. Result: " .. data['result'])
  *     elseif type == webview.CALLBACK_RESULT_EVAL_ERROR then
@@ -162,11 +170,15 @@
  */
 
 
-
-
-
-
-
-
-
-
+/*# Sets the position and size of the webview
+ *
+ * Sets the position and size of the webview
+ *
+ * @name webview.set_position
+ *
+ * @param webview_id [type:number] The webview id (returned by the webview.create() call)
+ * @param x [type:number] The x position of the webview
+ * @param y [type:number] The y position of the webview
+ * @param width [type:number] The width of the webview (-1 to match screen width)
+ * @param height [type:number] The height of the webview (-1 to match screen height)
+ */

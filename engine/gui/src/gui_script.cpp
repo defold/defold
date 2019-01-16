@@ -247,29 +247,48 @@ namespace dmGui
 
     static int NodeProxy_tostring (lua_State *L)
     {
-        int top = lua_gettop(L);
-        (void) top;
-        InternalNode* n = LuaCheckNode(L, 1, 0);
-        Vector4 pos = n->m_Node.m_Properties[PROPERTY_POSITION];
-        switch (n->m_Node.m_NodeType)
+        DM_LUA_STACK_CHECK(L,1);
+
+        NodeProxy* np = NodeProxy_Check(L, 1);
+
+        if (np->m_Scene == GetScene(L))
         {
-            case NODE_TYPE_BOX:
-                lua_pushfstring(L, "box@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
-                break;
-            case NODE_TYPE_TEXT:
-                lua_pushfstring(L, "%s@(%f, %f, %f)", n->m_Node.m_Text, pos.getX(), pos.getY(), pos.getZ());
-                break;
-            case NODE_TYPE_SPINE:
-                lua_pushfstring(L, "spine@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
-                break;
-            case NODE_TYPE_PARTICLEFX:
-                lua_pushfstring(L, "particlefx@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
-                break;
-            default:
-                lua_pushfstring(L, "unknown@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
-                break;
+            InternalNode* n = 0;
+
+            if (IsValidNode(np->m_Scene, np->m_Node))
+            {
+                n = GetNode(np->m_Scene, np->m_Node);
+            }
+            else
+            {
+                luaL_error(L, "Deleted node");
+            }
+
+            Vector4 pos = n->m_Node.m_Properties[PROPERTY_POSITION];
+            switch (n->m_Node.m_NodeType)
+            {
+                case NODE_TYPE_BOX:
+                    lua_pushfstring(L, "box@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
+                    break;
+                case NODE_TYPE_TEXT:
+                    lua_pushfstring(L, "%s@(%f, %f, %f)", n->m_Node.m_Text, pos.getX(), pos.getY(), pos.getZ());
+                    break;
+                case NODE_TYPE_SPINE:
+                    lua_pushfstring(L, "spine@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
+                    break;
+                case NODE_TYPE_PARTICLEFX:
+                    lua_pushfstring(L, "particlefx@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
+                    break;
+                default:
+                    lua_pushfstring(L, "unknown@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
+                    break;
+            }
         }
-        assert(top + 1 == lua_gettop(L));
+        else
+        {
+            lua_pushstring(L,"<foreign scene node>");
+        }
+
         return 1;
     }
 
@@ -301,6 +320,14 @@ namespace dmGui
         }
 
         if (!LuaIsNode(L, 2))
+        {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+
+        NodeProxy* np1 = NodeProxy_Check(L, 1);
+        NodeProxy* np2 = NodeProxy_Check(L, 2);
+        if (np1->m_Scene != np2->m_Scene)
         {
             lua_pushboolean(L, 0);
             return 1;
@@ -579,7 +606,7 @@ namespace dmGui
         HScene m_Scene;
         int m_NodeRef;
     };
-    
+
     static void LuaCallbackCustomArgsCB(lua_State* L, void* user_args)
     {
         LuaAnimationCompleteArgs* args = (LuaAnimationCompleteArgs*)user_args;
@@ -3008,9 +3035,12 @@ namespace dmGui
      * @name gui.set_parent
      * @param node [type:node] node for which to set its parent
      * @param parent [type:node] parent node to set
+     * @param keep_scene_transform [type:boolean] optional flag to make the scene position being perserved
      */
     static int LuaSetParent(lua_State* L)
     {
+        int top = lua_gettop(L);
+
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         if(n->m_Node.m_IsBone) {
@@ -3021,8 +3051,13 @@ namespace dmGui
         {
             parent = GetNodeHandle(LuaCheckNode(L, 2, &hnode));
         }
+        bool keep_scene_transform = false;
+        if (top > 2 && lua_isboolean(L, 3) && lua_toboolean(L, 3))
+        {
+            keep_scene_transform = true;
+        }
         Scene* scene = GuiScriptInstance_Check(L);
-        dmGui::Result result = dmGui::SetNodeParent(scene, GetNodeHandle(n), parent);
+        dmGui::Result result = dmGui::SetNodeParent(scene, GetNodeHandle(n), parent, keep_scene_transform);
         switch (result)
         {
         case dmGui::RESULT_INF_RECURSION:
@@ -3111,7 +3146,7 @@ namespace dmGui
             result = CloneNodeToTable(L, scene, node, &out_node);
             if (result == dmGui::RESULT_OK)
             {
-                dmGui::SetNodeParent(scene, out_node, parent);
+                dmGui::SetNodeParent(scene, out_node, parent, false);
             }
             index = node->m_NextIndex;
         }
@@ -3154,7 +3189,7 @@ namespace dmGui
                 {
                     parent = GetNodeHandle(&scene->m_Nodes[root->m_ParentIndex]);
                 }
-                dmGui::SetNodeParent(scene, out_node, parent);
+                dmGui::SetNodeParent(scene, out_node, parent, false);
             }
         }
         else
@@ -3448,13 +3483,48 @@ namespace dmGui
     LUASET(name, property)\
 
     LUAGETSETV3(Position, PROPERTY_POSITION)
-    LUAGETSETV3(Rotation, PROPERTY_ROTATION)
     LUAGETSETV3(Scale, PROPERTY_SCALE)
     LUAGETSETV4(Color, PROPERTY_COLOR)
     LUAGETSETV4(Outline, PROPERTY_OUTLINE)
     LUAGETSETV4(Shadow, PROPERTY_SHADOW)
 
 #undef LUAGETSET
+
+    // Custom setter and getter for gui.set_rotation to be able to handle
+    // pass a quaternion for rotations of GUI nodes.
+    int LuaGetRotation(lua_State* L)
+    {
+        InternalNode* n = LuaCheckNode(L, 1, 0);
+        const Vector4& v = n->m_Node.m_Properties[PROPERTY_ROTATION];
+        dmScript::PushVector3(L, Vector3(v.getX(), v.getY(), v.getZ()));
+        return 1;
+    }
+
+    int LuaSetRotation(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        if (n->m_Node.m_IsBone) {
+            return 0;
+        }
+        Vector4 v;
+        if (dmScript::IsVector3(L, 2))
+        {
+            Scene* scene = GetScene(L);
+            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_ROTATION);
+            v = Vector4(*dmScript::CheckVector3(L, 2), original.getW());
+        } else if (dmScript::IsVector4(L, 2)) {
+            v = *dmScript::CheckVector4(L, 2);
+        } else {
+            Scene* scene = GetScene(L);
+            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_ROTATION);
+            Quat* q = dmScript::CheckQuat(L, 2);
+            v = Vector4(dmVMath::QuatToEuler(q->getX(), q->getY(), q->getZ(), q->getW()), original.getW());
+        }
+        n->m_Node.m_Properties[PROPERTY_ROTATION] = v;
+        n->m_Node.m_DirtyLocal = 1;
+        return 0;
+    }
 
     void SetDefaultNewContextParams(NewContextParams* params)
     {
@@ -4065,7 +4135,11 @@ namespace dmGui
             return DM_LUA_ERROR("Out of nodes (max %d)", scene->m_Nodes.Capacity());
         }
 
-        dmGui::SetNodeParticlefx(scene, node, particlefx);
+        dmGui::Result r = dmGui::SetNodeParticlefx(scene, node, particlefx);
+        if (r == RESULT_RESOURCE_NOT_FOUND) {
+            char name[128];
+            return DM_LUA_ERROR("No particlefx resource '%s' found.", dmScript::GetStringFromHashOrString(L, 2, name, sizeof(name)));
+        }
         LuaPushNode(L, scene, node);
         return 1;
     }

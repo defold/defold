@@ -198,7 +198,12 @@ static void RunListener(NSDictionary *userdata, bool local, bool wasActivated)
             NSString* json = (NSString*)[userdata objectForKey:@"payload"];
             dmJson::Result r = dmJson::Parse([json UTF8String], &doc);
             if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-                dmScript::JsonToLua(L, &doc, 0);
+                char err_str[128];
+                if (dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str)) < 0) {
+                    lua_pop(L, lua_gettop(L) - top);
+                    dmLogError("Error running push listener: %s", err_str);
+                    return;
+                }
             } else {
                 dmLogError("Failed to parse local push response (%d)", r);
             }
@@ -806,14 +811,6 @@ static const luaL_reg Push_methods[] =
  * @name push.ORIGIN_REMOTE
  * @variable
  */
-
-
-/*# remote push origin
- *
- * @name push.ORIGIN_REMOTE
- * @variable
- */
-
 
 /*# lowest notification priority [icon:android]
  *

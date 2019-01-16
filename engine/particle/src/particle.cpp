@@ -564,7 +564,7 @@ namespace dmParticle
     static void UpdateParticles(Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* emitter_ddf, float dt);
     static void UpdateEmitterState(Instance* instance, Emitter* emitter, EmitterPrototype* emitter_prototype, dmParticleDDF::Emitter* emitter_ddf, float dt);
     static void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT]);
-    static void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties);
+    static void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties, dmParticleDDF::Emitter* emitter_ddf, float dt);
     static uint32_t UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const Vector4& color, uint32_t vertex_index, void* vertex_buffer, uint32_t vertex_buffer_size, float dt, ParticleVertexFormat format);
     static void GenerateKeys(Emitter* emitter, float max_particle_life_time);
     static void SortParticles(Emitter* emitter);
@@ -613,7 +613,7 @@ namespace dmParticle
             return;
 
         Instance* inst = GetInstance(context, instance);
-        
+
         if (IsSleeping(inst))
             return;
 
@@ -963,6 +963,7 @@ namespace dmParticle
         {
         case PARTICLE_ORIENTATION_DEFAULT:
         case PARTICLE_ORIENTATION_MOVEMENT_DIRECTION:
+        case PARTICLE_ORIENTATION_ANGULAR_VELOCITY:
             // rotation is already identity
             // or will be defined in simulation
             break;
@@ -973,16 +974,18 @@ namespace dmParticle
 
         transform = dmTransform::Mul(emitter_transform, transform);
         particle->SetPosition(Point3(transform.GetTranslation()));
-        if (ddf->m_ParticleOrientation == PARTICLE_ORIENTATION_MOVEMENT_DIRECTION)
+        if (ddf->m_ParticleOrientation == PARTICLE_ORIENTATION_MOVEMENT_DIRECTION) {
             particle->SetSourceRotation(dmVMath::QuatFromAngle(2, DEG_RAD * emitter_properties[EMITTER_KEY_PARTICLE_ROTATION]));
-        else
+        } else {
             particle->SetSourceRotation(transform.GetRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * emitter_properties[EMITTER_KEY_PARTICLE_ROTATION]));
+        }
         particle->SetRotation(particle->GetSourceRotation());
         particle->SetVelocity(dmTransform::Apply(emitter_transform, velocity) + emitter_velocity);
         particle->m_SourceStretchFactorX = emitter_properties[EMITTER_KEY_PARTICLE_STRETCH_FACTOR_X];
         particle->m_StretchFactorX = particle->m_SourceStretchFactorX;
         particle->m_SourceStretchFactorY = emitter_properties[EMITTER_KEY_PARTICLE_STRETCH_FACTOR_Y];
         particle->m_StretchFactorY = particle->m_SourceStretchFactorY;
+        particle->m_SourceAngularVelocity = emitter_properties[EMITTER_KEY_PARTICLE_ANGULAR_VELOCITY];
     }
 
     static float unit_tex_coords[] =
@@ -1276,7 +1279,7 @@ namespace dmParticle
         }
     }
 
-    void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties)
+    void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties, dmParticleDDF::Emitter* emitter_ddf, float dt)
     {
         float properties[PARTICLE_KEY_COUNT];
         // TODO Optimize this
@@ -1293,20 +1296,58 @@ namespace dmParticle
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_GREEN].m_Segments[segment_index], x, properties[PARTICLE_KEY_GREEN])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_BLUE].m_Segments[segment_index], x, properties[PARTICLE_KEY_BLUE])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_ALPHA].m_Segments[segment_index], x, properties[PARTICLE_KEY_ALPHA])
-            SAMPLE_PROP(particle_properties[PARTICLE_KEY_ROTATION].m_Segments[segment_index], x, properties[PARTICLE_KEY_ROTATION])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_STRETCH_FACTOR_X].m_Segments[segment_index], x, properties[PARTICLE_KEY_STRETCH_FACTOR_X])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_STRETCH_FACTOR_Y].m_Segments[segment_index], x, properties[PARTICLE_KEY_STRETCH_FACTOR_Y])
-
             Vector4 c = particle->GetSourceColor();
             particle->SetScale(Vector3(properties[PARTICLE_KEY_SCALE]));
             particle->SetColor(Vector4(dmMath::Clamp(c.getX() * properties[PARTICLE_KEY_RED], 0.0f, 1.0f),
                     dmMath::Clamp(c.getY() * properties[PARTICLE_KEY_GREEN], 0.0f, 1.0f),
                     dmMath::Clamp(c.getZ() * properties[PARTICLE_KEY_BLUE], 0.0f, 1.0f),
                     dmMath::Clamp(c.getW() * properties[PARTICLE_KEY_ALPHA], 0.0f, 1.0f)));
-            particle->SetRotation(particle->GetSourceRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * properties[PARTICLE_KEY_ROTATION]));
             particle->m_StretchFactorX = particle->m_SourceStretchFactorX + (properties[PARTICLE_KEY_STRETCH_FACTOR_X]);
             particle->m_StretchFactorY = particle->m_SourceStretchFactorY + (properties[PARTICLE_KEY_STRETCH_FACTOR_Y]);
         }
+
+        if (emitter_ddf->m_ParticleOrientation == PARTICLE_ORIENTATION_MOVEMENT_DIRECTION) {
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                Particle* particle = &particles[i];
+                float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
+                uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+                SAMPLE_PROP(particle_properties[PARTICLE_KEY_ROTATION].m_Segments[segment_index], x, properties[PARTICLE_KEY_ROTATION])
+                particle->SetRotation(particle->GetSourceRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * properties[PARTICLE_KEY_ROTATION]));
+                if (lengthSqr(particle->m_Velocity) > EPSILON)
+                {
+                    Vector3 vel_norm = normalize(particle->m_Velocity);
+                    float y_dot = dot(Vector3::yAxis(), vel_norm);
+                    // Corner case, https://gamedev.stackexchange.com/questions/61672/align-a-rotation-to-a-direction
+                    Quat q_vel = (dmMath::Abs(y_dot + 1.0f) > EPSILON) ? Quat::rotation(Vector3::yAxis(), vel_norm) : Quat(0.0, 0.0, 1.0, 0.0);
+                    Quat q = particle->GetRotation() * q_vel;
+                    particle->SetRotation(q);
+                }
+            }
+
+        } else if (emitter_ddf->m_ParticleOrientation == PARTICLE_ORIENTATION_ANGULAR_VELOCITY) {
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                Particle* particle = &particles[i];
+                float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
+                uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+                SAMPLE_PROP(particle_properties[PARTICLE_KEY_ANGULAR_VELOCITY].m_Segments[segment_index], x, properties[PARTICLE_KEY_ANGULAR_VELOCITY])
+                particle->SetRotation(particle->GetRotation() * Quat::rotationZ(DEG_RAD * (particle->m_SourceAngularVelocity * (properties[PARTICLE_KEY_ANGULAR_VELOCITY])) * dt));
+            }
+
+        } else {
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                Particle* particle = &particles[i];
+                float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
+                uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+                SAMPLE_PROP(particle_properties[PARTICLE_KEY_ROTATION].m_Segments[segment_index], x, properties[PARTICLE_KEY_ROTATION])
+                particle->SetRotation(particle->GetSourceRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * properties[PARTICLE_KEY_ROTATION]));
+            }
+        }
+
     }
 
     void ApplyAcceleration(dmArray<Particle>& particles, Property* modifier_properties, const Quat& rotation, float scale, float emitter_t, float dt)
@@ -1448,8 +1489,11 @@ namespace dmParticle
         DM_PROFILE(Particle, "Simulate");
 
         dmArray<Particle>& particles = emitter->m_Particles;
-        EvaluateParticleProperties(emitter, prototype->m_ParticleProperties);
+        EvaluateParticleProperties(emitter, prototype->m_ParticleProperties, ddf, dt);
         float emitter_t = dmMath::Select(-ddf->m_Duration, 0.0f, emitter->m_Timer / ddf->m_Duration);
+        float scale = 1.0f;
+        if (ddf->m_Space == EMISSION_SPACE_WORLD)
+            scale = instance->m_WorldTransform.GetScale();
         // Apply modifiers
         uint32_t modifier_count = prototype->m_Modifiers.Size();
         for (uint32_t i = 0; i < modifier_count; ++i)
@@ -1461,7 +1505,7 @@ namespace dmParticle
             case dmParticleDDF::MODIFIER_TYPE_ACCELERATION:
                 {
                     Quat rotation = CalculateModifierRotation(instance, ddf, modifier_ddf);
-                    ApplyAcceleration(particles, modifier->m_Properties, rotation, instance->m_WorldTransform.GetScale(), emitter_t, dt);
+                    ApplyAcceleration(particles, modifier->m_Properties, rotation, scale, emitter_t, dt);
                 }
                 break;
             case dmParticleDDF::MODIFIER_TYPE_DRAG:
@@ -1473,14 +1517,14 @@ namespace dmParticle
             case dmParticleDDF::MODIFIER_TYPE_RADIAL:
                 {
                     Point3 position = CalculateModifierPosition(instance, ddf, modifier_ddf);
-                    ApplyRadial(particles, modifier->m_Properties, position, instance->m_WorldTransform.GetScale(), emitter_t, dt);
+                    ApplyRadial(particles, modifier->m_Properties, position, scale, emitter_t, dt);
                 }
                 break;
             case dmParticleDDF::MODIFIER_TYPE_VORTEX:
                 {
                     Point3 position = CalculateModifierPosition(instance, ddf, modifier_ddf);
                     Quat rotation = CalculateModifierRotation(instance, ddf, modifier_ddf);
-                    ApplyVortex(particles, modifier->m_Properties, position, rotation, instance->m_WorldTransform.GetScale(), emitter_t, dt);
+                    ApplyVortex(particles, modifier->m_Properties, position, rotation, scale, emitter_t, dt);
                 }
                 break;
             }
@@ -1498,23 +1542,6 @@ namespace dmParticle
                 p->m_Scale[1] += p->m_Scale[1] * p->m_StretchFactorY;
             else
                 p->m_Scale[1] += p->m_Scale[1] * p->m_StretchFactorY * length(p->m_Velocity) * STRETCH_SCALING;
-        }
-
-        if (ddf->m_ParticleOrientation == PARTICLE_ORIENTATION_MOVEMENT_DIRECTION)
-        {
-            for (uint32_t i = 0; i < particle_count; ++i)
-            {
-                Particle* p = &particles[i];
-                if (lengthSqr(p->m_Velocity) > EPSILON)
-                {
-                    Vector3 vel_norm = normalize(p->m_Velocity);
-                    float y_dot = dot(Vector3::yAxis(), vel_norm);
-                    // Corner case, https://gamedev.stackexchange.com/questions/61672/align-a-rotation-to-a-direction
-                    Quat q_vel = (dmMath::Abs(y_dot + 1.0f) > EPSILON) ? Quat::rotation(Vector3::yAxis(), vel_norm) : Quat(0.0, 0.0, 1.0, 0.0);
-                    Quat q = p->GetRotation() * q_vel;
-                    p->SetRotation(q);
-                }
-            }
         }
     }
 
@@ -1768,7 +1795,7 @@ namespace dmParticle
     uint32_t GetInstanceEmitterCount(HParticleContext context, HInstance instance)
     {
         Instance* inst = GetInstance(context, instance);
-        return inst->m_Emitters.Size();
+        return (inst != 0x0) ? inst->m_Emitters.Size() : 0;
     }
 
     void RenderEmitter(Instance* instance, uint32_t emitter_index, void* usercontext, RenderEmitterCallback render_emitter_callback);

@@ -466,10 +466,10 @@ namespace dmProfile
             if (tls_data == 0)
             {
                 // NOTE: We store thread_id + 1. Otherwise we can't differentiate between thread-id 0 and not initialized
-                int32_t thread_id = g_ThreadCount + 1;
-                g_ThreadCount++;
-                dmThread::SetTlsValue(g_TlsKey, (void*) thread_id);
-                tls_data = (void*) thread_id;
+                int32_t next_thread_id = ++g_ThreadCount;
+                void* thread_id = (void*)((uintptr_t)next_thread_id);
+                dmThread::SetTlsValue(g_TlsKey, thread_id);
+                tls_data = thread_id;
             }
             intptr_t thread_id = ((intptr_t) tls_data) - 1;
             assert(thread_id >= 0);

@@ -24,6 +24,16 @@
    "a comma separated list of resources that will be included in the project. If directories are specified, all files and directories in that directory are recursively included",
    :default "",
    :path ["project" "custom_resources"]}
+  {:type :string,
+   :help
+   "A directory containing resource files and folders that should be copied as-is into the resulting package when bundling.\nSee documentation for details",
+   :default "",
+   :path ["project" "bundle_resources"]}
+  {:type :string,
+   :help
+   "A comma separated list of resources that should not be included in the bundle",
+   :default "",
+   :path ["project" "bundle_exclude_resources"]}
   {:type :resource,
    :filter "collection",
    :help
@@ -78,18 +88,6 @@
    "start the application full screen instead of windowed",
    :default false,
    :path ["display" "fullscreen"]}
-  {:type :integer,
-   :help
-   "frame update frequency, 60 by default. Valid values are 60, 30, 20, 15, 12, 10, 6, 5, 4, 3, 2 and 1",
-   :default 60,
-   :path ["display" "update_frequency"]
-   :options [[60 "60"] [30 "30"] [20 "20"] [15 "15"] [12 "12"] [10 "10"] [6 "6"] [5 "5"] [4 "4"] [3 "3"] [2 "2"] [1 "1"]]
-   }
-  {:type :boolean,
-   :help
-   "measure frame step time against actual time instead of locking to update_frequency",
-   :default false,
-   :path ["display" "variable_dt"]}
   {:type :resource,
    :filter "display_profiles",
    :help
@@ -100,6 +98,22 @@
    :help "dynamic screen orientation support",
    :default false,
    :path ["display" "dynamic_orientation"]}
+  {:type :integer,
+   :help "if Vsync checked, snaps to the closest matching swap interval for the set frame cap. Otherwise uses timers to respect the set value, 0 means no cap. For deprecated 'variable_dt' behavior, set to 0 and uncheck 'Vsync'",
+   :label "Frame cap"
+   :default 0,
+   :path ["display" "update_frequency"]}
+  {:type :boolean,
+   :help "Vertical sync, rely on hardware vsync for frame timing. Can be overridden depending on graphics driver and platform specifics. For deprecated 'variable_dt' behavior, uncheck this setting and set frame cap 0",
+   :default true,
+   :path ["display" "vsync"]}
+  {:type :boolean
+   :default false
+   :deprecated true
+   :severity-override :fatal
+   :severity-default :warning
+   :help "This setting is deprecated. When checked, will disable \"Vsync\" and set \"Frame cap\" to 0 for equivalent behaviour."
+   :path ["display" "variable_dt"]}
   {:type :string,
    :help "which type of physics to use, 2D (default) or 3D",
    :default "2D",
@@ -441,13 +455,23 @@
   {:type :resource,
    :filter "png",
    :preserve-extension true,
-   :help "iPad Pro portrait launch image (.png)",
+   :help "iPad Pro 12.9 portrait launch image (.png)",
    :path ["ios" "launch_image_2048x2732"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
-   :help "iPad Pro landscape launch image (.png)",
+   :help "iPad Pro 12.9 landscape launch image (.png)",
    :path ["ios" "launch_image_2732x2048"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPad Pro 10.5 portrait launch image (.png)",
+   :path ["ios" "launch_image_1668x2224"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPad Pro 10.5 landscape launch image (.png)",
+   :path ["ios" "launch_image_2224x1668"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
@@ -471,7 +495,15 @@
    :preserve-extension true,
    :help "custom Info.plist template file",
    :label "Info.plist"
+   :default "/builtins/manifests/ios/Info.plist",
    :path ["ios" "infoplist"]}
+  {:type :resource,
+   :filter ["entitlements", "xcent", "plist"],
+   :preserve-extension true,
+   :help "custom entitlements to use when signing an iOS bundle. Can replace any wildcard entitlements in the supplied provisioning profile",
+   :label "Custom entitlements"
+   :default "",
+   :path ["ios" "entitlements"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
@@ -597,6 +629,7 @@
    :filter "xml",
    :preserve-extension true,
    :help "custom AndroidManifest.xml template file",
+   :default "/builtins/manifests/android/AndroidManifest.xml",
    :path ["android" "manifest"]}
   {:type :string,
    :help
@@ -614,6 +647,10 @@
    :help "hide the navigation and status bars and lets your app capture all touch events on the screen",
    :default false,
    :path ["android" "immersive_mode"]}
+  {:type :boolean,
+   :help "helps you debug the application and also get files from the application",
+   :default false,
+   :path ["android" "debuggable"]}
   {:type :resource,
    :filter "icns",
    :preserve-extension true,
@@ -628,6 +665,7 @@
    :preserve-extension true,
    :help "custom Info.plist template file",
    :label "Info.plist",
+   :default "/builtins/manifests/osx/Info.plist",
    :path ["osx" "infoplist"]}
   {:type :resource,
    :filter "ico",
@@ -656,6 +694,7 @@
    :filter "html",
    :preserve-extension true,
    :help "html shell for canvas",
+   :default "/builtins/manifests/web/engine_template.html",
    :label ".html Shell"
    :path ["html5" "htmlfile"]}
   {:type :resource,
@@ -701,6 +740,7 @@
    :help "liveupdate settings"
    :preserve-extension true,
    :path ["liveupdate" "settings"]}]
+
  :categories
  {"sound" {:help "Sound related settings"},
   "html5" {:help "HTML5 related settings"},

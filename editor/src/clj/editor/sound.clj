@@ -55,6 +55,7 @@
 (g/defnk produce-outline-data
   [_node-id]
   {:node-id _node-id
+   :node-outline-key "Sound"
    :label "Sound"
    :icon sound-icon})
 
@@ -79,7 +80,7 @@
                          :type :boolean}
                         {:path [:group]
                          :label "Group"
-                         :type :number}
+                         :type :string}
                         {:path [:gain]
                          :label "Gain"
                          :type :number}]}]

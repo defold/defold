@@ -1,5 +1,6 @@
 #include "graphics.h"
 #include <string.h>
+#include <assert.h>
 
 namespace dmGraphics
 {
@@ -56,5 +57,25 @@ namespace dmGraphics
         m_FormatToBPP[TEXTURE_FORMAT_RG16F]              = 32;
         m_FormatToBPP[TEXTURE_FORMAT_R32F]               = 32;
         m_FormatToBPP[TEXTURE_FORMAT_RG32F]              = 64;
+    }
+
+    AttachmentToBufferType::AttachmentToBufferType()
+    {
+        memset(m_AttachmentToBufferType, 0x0, sizeof(m_AttachmentToBufferType));
+        m_AttachmentToBufferType[ATTACHMENT_COLOR] = BUFFER_TYPE_COLOR_BIT;
+        m_AttachmentToBufferType[ATTACHMENT_DEPTH] = BUFFER_TYPE_DEPTH_BIT;
+        m_AttachmentToBufferType[ATTACHMENT_STENCIL] = BUFFER_TYPE_STENCIL_BIT;
+    }
+
+    static inline BufferType GetAttachmentBufferType(RenderTargetAttachment attachment)
+    {
+        static AttachmentToBufferType g_AttachmentToBufferType;
+        assert(attachment < MAX_ATTACHMENT_COUNT);
+        return g_AttachmentToBufferType.m_AttachmentToBufferType[attachment];
+    }
+
+    HTexture GetRenderTargetAttachment(HRenderTarget render_target, RenderTargetAttachment attachment)
+    {
+        return GetRenderTargetTexture(render_target, GetAttachmentBufferType(attachment));
     }
 }

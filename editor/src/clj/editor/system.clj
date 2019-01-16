@@ -49,9 +49,17 @@
   ^String []
   (System/getProperty "defold.editor.sha1"))
 
+(defn set-defold-editor-sha1! [^String sha1]
+  (assert (not-empty sha1))
+  (System/setProperty "defold.editor.sha1" sha1))
+
 (defn defold-engine-sha1
   ^String []
   (System/getProperty "defold.engine.sha1"))
+
+(defn set-defold-engine-sha1! [^String sha1]
+  (assert (not-empty sha1))
+  (System/setProperty "defold.engine.sha1" sha1))
 
 (defn defold-build-time
   ^String []

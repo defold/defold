@@ -20,6 +20,7 @@ enum CommandType
     CMD_LOAD_ERROR,
     CMD_EVAL_OK,
     CMD_EVAL_ERROR,
+    CMD_LOADING,
 };
 
 struct Command
@@ -47,9 +48,9 @@ static void Detach()
     g_AndroidApp->activity->vm->DetachCurrentThread();
 }
 
-struct WebView
+struct WebViewExtensionState
 {
-    WebView()
+    WebViewExtensionState()
     {
         memset(this, 0, sizeof(*this));
     }
@@ -64,20 +65,23 @@ struct WebView
     }
 
     dmWebView::WebViewInfo  m_Info[dmWebView::MAX_NUM_WEBVIEWS];
+    bool                    m_Used[dmWebView::MAX_NUM_WEBVIEWS];
     int                     m_RequestIds[dmWebView::MAX_NUM_WEBVIEWS];
     jobject                 m_WebViewJNI;
     jmethodID               m_Create;
     jmethodID               m_Destroy;
     jmethodID               m_Load;
     jmethodID               m_LoadRaw;
+    jmethodID               m_ContinueLoading;
     jmethodID               m_Eval;
     jmethodID               m_SetVisible;
     jmethodID               m_IsVisible;
+    jmethodID               m_SetPosition;
     dmMutex::Mutex          m_Mutex;
     dmArray<Command>        m_CmdQueue;
 };
 
-WebView g_WebView;
+WebViewExtensionState g_WebView;
 
 namespace dmWebView
 {
@@ -90,7 +94,7 @@ int Platform_Create(lua_State* L, dmWebView::WebViewInfo* _info)
     int webview_id = -1;
     for( int i = 0; i < MAX_NUM_WEBVIEWS; ++i )
     {
-        if( g_WebView.m_Info[i].m_L == 0 )
+        if( !g_WebView.m_Used[i] )
         {
             webview_id = i;
             break;
@@ -103,6 +107,7 @@ int Platform_Create(lua_State* L, dmWebView::WebViewInfo* _info)
         return -1;
     }
 
+    g_WebView.m_Used[webview_id] = true;
     g_WebView.m_Info[webview_id] = *_info;
 
     JNIEnv* env = Attach();
@@ -112,15 +117,19 @@ int Platform_Create(lua_State* L, dmWebView::WebViewInfo* _info)
     return webview_id;
 }
 
+static void DestroyWebView(int webview_id)
+{
+    ClearWebViewInfo(&g_WebView.m_Info[webview_id]);
+    g_WebView.m_Used[webview_id] = false;
+}
+
 int Platform_Destroy(lua_State* L, int webview_id)
 {
     CHECK_WEBVIEW_AND_RETURN();
     JNIEnv* env = Attach();
     env->CallVoidMethod(g_WebView.m_WebViewJNI, g_WebView.m_Destroy, webview_id);
     Detach();
-    g_WebView.m_Info[webview_id].m_L = 0;
-    g_WebView.m_Info[webview_id].m_Self = LUA_NOREF;
-    g_WebView.m_Info[webview_id].m_Callback = LUA_NOREF;
+    DestroyWebView(webview_id);
     return 0;
 }
 
@@ -132,6 +141,18 @@ int Platform_Open(lua_State* L, int webview_id, const char* url, dmWebView::Requ
     JNIEnv* env = Attach();
     jstring jurl = env->NewStringUTF(url);
     env->CallVoidMethod(g_WebView.m_WebViewJNI, g_WebView.m_Load, jurl, webview_id, request_id, options->m_Hidden);
+    env->DeleteLocalRef(jurl);
+    Detach();
+    return request_id;
+}
+
+int Platform_ContinueOpen(lua_State* L, int webview_id, int request_id, const char* url)
+{
+    CHECK_WEBVIEW_AND_RETURN();
+
+    JNIEnv* env = Attach();
+    jstring jurl = env->NewStringUTF(url);
+    env->CallVoidMethod(g_WebView.m_WebViewJNI, g_WebView.m_ContinueLoading, jurl, webview_id, request_id);
     env->DeleteLocalRef(jurl);
     Detach();
     return request_id;
@@ -180,10 +201,16 @@ int Platform_IsVisible(lua_State* L, int webview_id)
     return visible;
 }
 
+int Platform_SetPosition(lua_State* L, int webview_id, int x, int y, int width, int height)
+{
+    CHECK_WEBVIEW_AND_RETURN();
+    JNIEnv* env = Attach();
+    int visible = env->CallIntMethod(g_WebView.m_WebViewJNI, g_WebView.m_SetPosition, webview_id, x, y, width, height);
+    Detach();
+    return visible;
+}
+
 #undef CHECK_WEBVIEW_AND_RETURN
-
-} // namespace dmWebView
-
 
 static char* CopyString(JNIEnv* env, jstring s)
 {
@@ -251,15 +278,25 @@ JNIEXPORT void JNICALL Java_com_defold_webview_WebViewJNI_onEvalFailed(JNIEnv* e
     QueueCommand(&cmd);
 }
 
+JNIEXPORT void JNICALL Java_com_defold_webview_WebViewJNI_onPageLoading(JNIEnv* env, jobject, jstring url, jint webview_id, jint request_id)
+{
+    Command cmd;
+    cmd.m_Type = CMD_LOADING;
+    cmd.m_WebViewID = webview_id;
+    cmd.m_RequestID = request_id;
+    cmd.m_Url = CopyString(env, url);
+    QueueCommand(&cmd);
+}
+
 #ifdef __cplusplus
 }
 #endif
 
-dmExtension::Result UpdateWebView(dmExtension::Params* params)
+dmExtension::Result Platform_Update(dmExtension::Params* params)
 {
     if (g_WebView.m_CmdQueue.Empty())
         return dmExtension::RESULT_OK; // avoid a lock (~300us on iPhone 4s)
-    
+
     dmMutex::ScopedLock lk(g_WebView.m_Mutex);
     for (uint32_t i=0; i != g_WebView.m_CmdQueue.Size(); ++i)
     {
@@ -268,6 +305,16 @@ dmExtension::Result UpdateWebView(dmExtension::Params* params)
         dmWebView::CallbackInfo cbinfo;
         switch (cmd.m_Type)
         {
+        case CMD_LOADING:
+            cbinfo.m_Info = &g_WebView.m_Info[cmd.m_WebViewID];
+            cbinfo.m_WebViewID = cmd.m_WebViewID;
+            cbinfo.m_RequestID = cmd.m_RequestID;
+            cbinfo.m_Url = cmd.m_Url;
+            cbinfo.m_Type = dmWebView::CALLBACK_RESULT_URL_LOADING;
+            cbinfo.m_Result = 0;
+            RunCallback(&cbinfo);
+            break;
+
         case CMD_LOAD_OK:
             cbinfo.m_Info = &g_WebView.m_Info[cmd.m_WebViewID];
             cbinfo.m_WebViewID = cmd.m_WebViewID;
@@ -322,7 +369,7 @@ dmExtension::Result UpdateWebView(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result AppInitializeWebView(dmExtension::AppParams* params)
+dmExtension::Result Platform_AppInitialize(dmExtension::AppParams* params)
 {
     g_WebView.m_Mutex = dmMutex::New();
     g_WebView.m_CmdQueue.SetCapacity(8);
@@ -342,10 +389,12 @@ dmExtension::Result AppInitializeWebView(dmExtension::AppParams* params)
     g_WebView.m_Destroy = env->GetMethodID(webview_class, "destroy", "(I)V");
     g_WebView.m_Load = env->GetMethodID(webview_class, "load", "(Ljava/lang/String;III)V");
     g_WebView.m_LoadRaw = env->GetMethodID(webview_class, "loadRaw", "(Ljava/lang/String;III)V");
+    g_WebView.m_ContinueLoading = env->GetMethodID(webview_class, "continueLoading", "(Ljava/lang/String;II)V");
     g_WebView.m_Eval = env->GetMethodID(webview_class, "eval", "(Ljava/lang/String;II)V");
     g_WebView.m_SetVisible = env->GetMethodID(webview_class, "setVisible", "(II)V");
     g_WebView.m_IsVisible = env->GetMethodID(webview_class, "isVisible", "(I)I");
-    
+    g_WebView.m_SetPosition = env->GetMethodID(webview_class, "setPosition", "(IIIII)V");
+
     jmethodID jni_constructor = env->GetMethodID(webview_class, "<init>", "(Landroid/app/Activity;I)V");
     g_WebView.m_WebViewJNI = env->NewGlobalRef(env->NewObject(webview_class, jni_constructor, g_AndroidApp->activity->clazz, dmWebView::MAX_NUM_WEBVIEWS));
 
@@ -354,14 +403,12 @@ dmExtension::Result AppInitializeWebView(dmExtension::AppParams* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result InitializeWebView(dmExtension::Params* params)
+dmExtension::Result Platform_Initialize(dmExtension::Params* params)
 {
-    dmWebView::LuaInit(params->m_L);
-
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result AppFinalizeWebView(dmExtension::AppParams* params)
+dmExtension::Result Platform_AppFinalize(dmExtension::AppParams* params)
 {
     JNIEnv* env = Attach();
     env->DeleteGlobalRef(g_WebView.m_WebViewJNI);
@@ -373,9 +420,26 @@ dmExtension::Result AppFinalizeWebView(dmExtension::AppParams* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result FinalizeWebView(dmExtension::Params* params)
+dmExtension::Result Platform_Finalize(dmExtension::Params* params)
 {
+    for( int i = 0; i < dmWebView::MAX_NUM_WEBVIEWS; ++i )
+    {
+        if (g_WebView.m_Used[i]) {
+            DestroyWebView(i);
+        }
+    }
+
+    dmMutex::ScopedLock lk(g_WebView.m_Mutex);
+    for (uint32_t i=0; i != g_WebView.m_CmdQueue.Size(); ++i)
+    {
+        const Command& cmd = g_WebView.m_CmdQueue[i];
+        if (cmd.m_Url) {
+            free((void*)cmd.m_Url);
+        }
+    }
+    g_WebView.m_CmdQueue.SetSize(0);
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(WebViewExt, "WebView", AppInitializeWebView, AppFinalizeWebView, InitializeWebView, UpdateWebView, 0, FinalizeWebView)
+
+} // namespace dmWebView

@@ -467,6 +467,15 @@
     (visible-clipper? scene)
     (update :children #(into [(make-visible-clipper-scene scene)] %))))
 
+(defn- remove-clipper-renderable-tags
+  "We remove the renderable tags for all clipper scenes to make sure
+  the clipping state is drawn. Any visible clipper representation
+  retains the tags and can be hidden."
+  [scene]
+  (cond-> (update scene :children #(map remove-clipper-renderable-tags %))
+    (clipper-scene? scene)
+    (update-in [:renderable] dissoc :tags)))
+
 (defn- clipper-tree->trie [clipper-tree]
   (reduce (fn [trie clipper-tree]
             (assoc-in trie (:path clipper-tree) (select-keys clipper-tree [:ref-val :mask :child-ref-val :child-mask :clear])))
@@ -547,7 +556,9 @@
      (run! #(print-clipper-tree % (str prefix "  ")) (:children clipper-tree))))
 
 (defn setup-states [scene]
-  (let [scene-with-visible-clippers (inject-visible-clipper-scenes scene)
+  (let [scene-with-visible-clippers (-> scene
+                                        inject-visible-clipper-scenes
+                                        remove-clipper-renderable-tags)
         clipper-tree (-> scene-with-visible-clippers
                          clipper-trees
                          wrap-trees

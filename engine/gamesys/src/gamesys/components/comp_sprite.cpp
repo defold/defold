@@ -27,7 +27,6 @@
 using namespace Vectormath::Aos;
 namespace dmGameSystem
 {
-    const uint32_t MAX_CONSTANTS = 4;
 
     struct SpriteComponent
     {
@@ -42,8 +41,6 @@ namespace dmGameSystem
         uint32_t                    m_MixedHash;
         dmMessage::URL              m_Listener;
         uint32_t                    m_AnimationID;
-        dmGameObject::HInstance     m_ListenerInstance;
-        dmhash_t                    m_ListenerComponent;
         SpriteResource*             m_Resource;
         CompRenderConstants         m_RenderConstants;
         /// Currently playing animation
@@ -117,7 +114,7 @@ namespace dmGameSystem
             void* indices = (void*)malloc(indices_count * size_type);
             if (sprite_world->m_Is16BitIndex) {
                 uint16_t* index = (uint16_t*)indices;
-                for(int32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
+                for(uint32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
                 {
                     *index++ = v;
                     *index++ = v+1;
@@ -128,7 +125,7 @@ namespace dmGameSystem
                 }
             } else {
                 uint32_t* index = (uint32_t*)indices;
-                for(int32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
+                for(uint32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
                 {
                     *index++ = v;
                     *index++ = v+1;
@@ -241,8 +238,6 @@ namespace dmGameSystem
         component->m_Rotation = params.m_Rotation;
         component->m_Resource = (SpriteResource*)params.m_Resource;
         dmMessage::ResetURL(component->m_Listener);
-        component->m_ListenerInstance = 0x0;
-        component->m_ListenerComponent = 0xff;
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_Scale = Vector3(1.0f);
@@ -493,10 +488,9 @@ namespace dmGameSystem
             if (once && component->m_AnimTimer >= 1.0f)
             {
                 component->m_Playing = 0;
-                if (component->m_ListenerInstance != 0x0)
+                if (component->m_Listener.m_Fragment != 0x0)
                 {
                     dmMessage::URL sender;
-                    dmMessage::URL receiver = component->m_Listener;
                     if (!GetSender(component, &sender))
                     {
                         dmLogError("Could not send animation_done to listener.");
@@ -508,21 +502,25 @@ namespace dmGameSystem
                     // Engine has 0-based indices, scripts use 1-based
                     message.m_CurrentTile = component->m_CurrentAnimationFrame + 1;
                     message.m_Id = component->m_CurrentAnimation;
-                    receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_ListenerInstance));
+
+                    dmGameObject::HInstance listener_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), component->m_Listener.m_Path);
+                    if (!listener_instance)
+                    {
+                        dmLogError("Could not send animation_done to instance: %s#%s", dmHashReverseSafe64(component->m_Listener.m_Path), dmHashReverseSafe64(component->m_Listener.m_Fragment));
+                        return;
+                    }
+
+                    dmMessage::URL receiver = component->m_Listener;
                     sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_Instance));
                     if (dmMessage::IsSocketValid(receiver.m_Socket) && dmMessage::IsSocketValid(sender.m_Socket))
                     {
                         dmGameObject::Result go_result = dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &sender.m_Fragment);
                         if (go_result == dmGameObject::RESULT_OK)
                         {
-                            receiver.m_Path = dmGameObject::GetIdentifier(component->m_ListenerInstance);
-                            receiver.m_Fragment = component->m_ListenerComponent;
                             sender.m_Path = dmGameObject::GetIdentifier(component->m_Instance);
                             uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::AnimationDone::m_DDFDescriptor;
                             uint32_t data_size = sizeof(dmGameSystemDDF::AnimationDone);
                             dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0);
-                            component->m_ListenerInstance = 0x0;
-                            component->m_ListenerComponent = 0xff;
                             dmMessage::ResetURL(component->m_Listener);
                             if (result != dmMessage::RESULT_OK)
                             {
@@ -536,8 +534,7 @@ namespace dmGameSystem
                     }
                     else
                     {
-                        component->m_ListenerInstance = 0x0;
-                        component->m_ListenerComponent = 0xff;
+                        dmMessage::ResetURL(component->m_Listener);
                     }
                 }
             }
@@ -679,14 +676,9 @@ namespace dmGameSystem
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
 
-            uint32_t const_count = component.m_RenderConstants.m_ConstantCount;
-            for (uint32_t const_i = 0; const_i < const_count; ++const_i)
+            if (dmGameSystem::AreRenderConstantsUpdated(&component.m_RenderConstants))
             {
-                if (lengthSqr(component.m_RenderConstants.m_RenderConstants[const_i].m_Value - component.m_RenderConstants.m_PrevRenderConstants[const_i]) > 0)
-                {
-                    ReHash(&component);
-                    break;
-                }
+                ReHash(&component);
             }
 
             const Vector4 trans = component.m_World.getCol(3);
@@ -736,8 +728,6 @@ namespace dmGameSystem
                 dmGameSystemDDF::PlayAnimation* ddf = (dmGameSystemDDF::PlayAnimation*)params.m_Message->m_Data;
                 if (PlayAnimation(component, ddf->m_Id))
                 {
-                    component->m_ListenerInstance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), params.m_Message->m_Sender.m_Path);
-                    component->m_ListenerComponent = params.m_Message->m_Sender.m_Fragment;
                     component->m_Listener = params.m_Message->m_Sender;
                 }
             }
@@ -769,18 +759,9 @@ namespace dmGameSystem
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
-                dmRender::Constant* constants = component->m_RenderConstants.m_RenderConstants;
-                uint32_t size = component->m_RenderConstants.m_ConstantCount;
-                for (uint32_t i = 0; i < size; ++i)
+                if (dmGameSystem::ClearRenderConstant(&component->m_RenderConstants, ddf->m_NameHash))
                 {
-                    if (constants[i].m_NameHash == ddf->m_NameHash)
-                    {
-                        constants[i] = constants[size - 1];
-                        component->m_RenderConstants.m_PrevRenderConstants[i] = component->m_RenderConstants.m_PrevRenderConstants[size - 1];
-                        component->m_RenderConstants.m_ConstantCount--;
-                        ReHash(component);
-                        break;
-                    }
+                    ReHash(component);
                 }
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::SetScale::m_DDFDescriptor->m_NameHash)

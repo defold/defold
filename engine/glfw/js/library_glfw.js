@@ -155,6 +155,14 @@ var LibraryGLFW = {
         res = (event.target == Module["canvas"]);
       }
 
+      // Pass along focus to element that the event was meant for.
+      // Chrome on Android (and perhaps more mobile browsers) does not
+      // seem to set the document.activeElement, at least while we call
+      // event.preventDefault, meaning if the fullscreen button has a
+      // click handler it will never be called since the element would
+      // never be "active".
+      event.target.focus();
+
       return res;
     },
 
@@ -189,7 +197,7 @@ var LibraryGLFW = {
       // This logic comes directly from the sdl implementation. We cannot
       // call preventDefault on all keydown events otherwise onKeyPress will
       // not get called
-      if (event.keyCode === 8 /* backspace */ || event.keyCode === 9 /* tab */) {
+      if (event.keyCode === 8 /* backspace */ || event.keyCode === 9 /* tab */ || event.keyCode === 13 /* enter */) {
         event.preventDefault();
       }
     },
@@ -785,6 +793,10 @@ var LibraryGLFW = {
 
   glfwGetTouch: function(touch, count, out_count) {
       return 0;
+  },
+
+  glfwGetWindowRefreshRate: function() {
+    return 0;
   },
 
   glfwGetDefaultFramebuffer: function() {

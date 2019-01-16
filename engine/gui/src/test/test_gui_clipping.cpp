@@ -185,7 +185,7 @@ public:
         dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(), Vector3(), dmGui::NODE_TYPE_BOX);
         dmGui::SetNodeId(m_Scene, node, id);
         if (parent != dmGui::INVALID_HANDLE) {
-            dmGui::SetNodeParent(m_Scene, node, parent);
+            dmGui::SetNodeParent(m_Scene, node, parent, false);
         }
         return node;
     }

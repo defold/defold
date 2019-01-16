@@ -164,67 +164,86 @@ If eclipse doesn’t get the JDK setup automatically:
 
 * OSX: On OSX you must run the python version shipped with OSX, eg no homebrew installed python versions)
 
+Make sure you have python2 installed by running `which python2`.
+If that is not the case symlink python2 to python or python2.7(if installed already), which is enough to build Emscripten.
+`ln -s /usr/bin/python2.7 /usr/local/bin/python2`
+
 ### General Setup
 
 #### Linux
 
-    >$ sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev python-setuptools build-essential libopenal-dev rpm git curl autoconf libtool automake
+    >$ sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev python-setuptools build-essential libopenal-dev rpm git curl autoconf libtool automake cmake tofrodos valgrind tree silversearcher-ag
+
+###### Easy Install
+
+Since the executable doesn't install anymore, easiest to create a wrapper:
+
+    >$ sudo sh -c "echo \#\!/usr/bin/env bash > /usr/local/bin/easy_install"
+    >$ sudo sh -c "echo python /usr/lib/python2.7/dist-packages/easy_install.py $\* >> /usr/local/bin/easy_install"
+    >$ sudo chmod +x /usr/local/bin/easy_install
 
 #### Windows
 
-    Binaries are available on this shared [drive](https://drive.google.com/drive/folders/0BxFxQdv6jzsec0RPeEpaOHFCZ2M?usp=sharing)
+Binaries are available on this shared [drive](https://drive.google.com/drive/folders/0BxFxQdv6jzsec0RPeEpaOHFCZ2M?usp=sharing)
 
-    - [Visual C++ 2015 Community](https://www.visualstudio.com/downloads/) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseY3liUDZmd0I3Z1E)
+- [Visual C++ 2015 Community](https://www.visualstudio.com/downloads/) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseY3liUDZmd0I3Z1E)
 
-        We only use Visual Studio 2015. Professional/Enterprise version should also work if you have a proper licence. When installing, don't forget to select VC++ and the 'Windows 8.1 and windows phone' SDK. There is also an optional 3rd party git client.
+	We only use Visual Studio 2015. Professional/Enterprise version should also work if you have a proper licence. When installing, don't forget to select VC++ and the 'Windows 8.1 and windows phone' SDK. There is also an optional 3rd party git client.
 
-    - [Python](https://www.python.org/downloads/windows/) - [download](https://drive.google.com/open?id=0BxFxQdv6jzsedW1iNXFIbGFYLVE)
+- [Python](https://www.python.org/downloads/windows/) - [download](https://drive.google.com/open?id=0BxFxQdv6jzsedW1iNXFIbGFYLVE)
 
-        Install the 32-bit 2.7.12 version. This is latest one known to work. There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually
-        During the build of the 32 bit version of Defold, a python script needs to load a shared defold library (texc). This will not work using a 64 bit python.
-        Building the 64 bit version of Defold begins with building a set of 32 bit libraries.
+	Install the 32-bit 2.7.12 version. This is latest one known to work. There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually
+During the build of the 32 bit version of Defold, a python script needs to load a shared defold library (texc). This will not work using a 64 bit python.
+Building the 64 bit version of Defold begins with building a set of 32 bit libraries.
 
-    - [easy_install/ez_setup](https://pypi.python.org/pypi/setuptools#id3) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseaTdqQXpxbl96bTA)
+- [easy_install/ez_setup](https://pypi.python.org/pypi/setuptools#id3) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseaTdqQXpxbl96bTA)
 
-        Download `ez_setup.py` and run it. Add `C:\Python27\Scripts` (where `easy_install` should now be located) to PATH.
+	Download `ez_setup.py` and run it. If `ez_setup.py` fails to connect using https when run, try adding `--insecure` as argument to enable http download. Add `C:\Python27\Scripts` (where `easy_install` should now be located) to PATH.
 
-    - [MSYS/MinGW](http://www.mingw.org/download/installer) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseZ1hKaGJRZE1pM1U)
+	- Update setuptools and pip - you might get errors running easy_install when running the install-ext command with build.py otherwise
 
-        This will get you a shell that behaves like Linux and is much easier to build Defold through.
-        Run the installer and check these packages (binary):
+		python -m pip install --upgrade pip
 
-        * MingW Base System: `mingw32-base`, `mingw-developer-toolkit`
-        * MSYS Base System: `msys-base`, `msys-bash`
+		pip install setuptools --upgrade
 
-        Select the menu option `Installation -> Apply Changes`
-        
-        You also need to install wget, from a cmd command line run
+- [MSYS/MinGW](http://www.mingw.org/download/installer) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseZ1hKaGJRZE1pM1U)
+	This will get you a shell that behaves like Linux and is much easier to build Defold through.
+	Run the installer and check these packages (binary):
 
-            mingw-get install msys-wget-bin.
+	* MingW Base System: `mingw32-base`, `mingw-developer-toolkit`
+	* MSYS Base System: `msys-base`, `msys-bash`
+	* optional packages `msys-dos2unix`
 
-    - [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html) - [download](https://drive.google.com/a/king.com/file/d/0BxFxQdv6jzsedTRiazdWaE5NZkU/view?usp=sharing)
+	Select the menu option `Installation -> Apply Changes`
+	You also need to install wget, from a cmd command line run
 
-    This time the x64 version works fine. Make sure to set the `JAVA_HOME` env variable to the JDK path (for instance `C:\Program Files\Java\jdk1.8.0_112`) and also add the JDK path and JDK path/bin to PATH. If other JRE's appear in your path, make sure they come after the JDK or be brutal and remove them. For instance `C:\ProgramData\Oracle\Java\javapath` needs to be after the JDK path.
+		mingw-get install msys-wget-bin msys-zip msys-unzip
 
-    - [Git](https://git-scm.com/download/win) - [download](https://drive.google.com/a/king.com/file/d/0BxFxQdv6jzseQ0JfX2todndWZmM/view?usp=sharing)
+- [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html) - [download](https://drive.google.com/a/king.com/file/d/0BxFxQdv6jzsedTRiazdWaE5NZkU/view?usp=sharing)
 
-        During install, select the option to not do any CR/LF conversion. If you use ssh (public/private keys) to access github then:
-        - Run Git GUI
-        - Help > Show SSH Key
-        - If you don't have an SSH Key, press Generate Key
-        - Add the public key to your Github profile
-        - You might need to run start-ssh-agent (in `C:\Program Files\Git\cmd`)
+	This time the x64 version works fine. Make sure to set the `JAVA_HOME` env variable to the JDK path (for instance `C:\Program Files\Java\jdk1.8.0_112`) and also add the JDK path and JDK path/bin to PATH. If other JRE's appear in your path, make sure they come after the JDK or be brutal and remove them. For instance `C:\ProgramData\Oracle\Java\javapath` needs to be after the JDK path.
 
-        Now you should be able to clone the defold repo from a cmd prompt:
+- [Git](https://git-scm.com/download/win) - [download](https://drive.google.com/a/king.com/file/d/0BxFxQdv6jzseQ0JfX2todndWZmM/view?usp=sharing)
 
-                git clone git@github.com:defold/defold.git
+	During install, select the option to not do any CR/LF conversion. If you use ssh (public/private keys) to access github then:
+	- Run Git GUI
+	- Help > Show SSH Key
+	- If you don't have an SSH Key, press Generate Key
+	- Add the public key to your Github profile
+	- You might need to run start-ssh-agent (in `C:\Program Files\Git\cmd`)
 
-        If this won't work, you can try cloning using Github Desktop.
+	Now you should be able to clone the defold repo from a cmd prompt:
+
+		git clone git@github.com:defold/defold.git
+
+	If this won't work, you can try cloning using Github Desktop.
 
 #### OSX
 
     - [Homebrew](http://brew.sh/)
         Install with Terminal: `ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"`
+
+    >$ brew install dos2unix
 
 ### Optional Software
 
@@ -333,13 +352,17 @@ see [Running a Subset of the Tests](https://code.google.com/p/googletest/wiki/Ad
 
 Note: When running the editor and building a Defold project you must first go to Preferences->Defold->Custom Application and point it to a dmengine built for your OS.
 
+## Running JUnit test in Eclipse
+* Run the tests with JUnit Plug-in Test
+	- Some test may fail due in com.dynamo.bob.bundle.test.BundlerTest due to missing engine builds for some platforms
+
 **Notes for building the editor under Linux:**
 * Install JDK8 (from Oracle) and make sure Eclipse is using it (`Preferences > Java > Installed JREs`).
 * Install [libssl0.9.8](https://packages.debian.org/squeeze/i386/libssl0.9.8/download), the Git version bundled with the editor is currently linked against libcrypto.so.0.9.8.
 * Make sure that the [protobuf-compiler](http://www.rpmseek.com/rpm-dl/protobuf-compiler_2.3.0-2_i386.html) version used is 2.3, latest (2.4) does not work.
 * `.deb` files can be installed by running:
 
-        $ sudo dpkg -i <filename>.deb
+        $ sudo dpkg -i <filename>.deb
 
         # If dpkg complains about dependencies, run this directly afterwards:
         $ sudo apt-get install -f
@@ -442,10 +465,13 @@ You probably have an incompatible version of the JDK. 1.8_144 works, 1.8_160 doe
 * **lz4** [http://cyan4973.github.io/lz4/](http://cyan4973.github.io/lz4/)  **BSD**
 * **box2d** [http://box2d.org](http://box2d.org) **zlib**
 * **bullet** [http://bulletphysics.org](http://bulletphysics.org) **zlib**
-* **vp8** [http://www.webmproject.org](http://www.webmproject.org) **BSD**
+* **vpx/vp8** [http://www.webmproject.org](http://www.webmproject.org) **BSD**
+* **WebP** [http://www.webmproject.org/license/software/](http://www.webmproject.org/license/software/) **BSD**
 * **openal** [http://kcat.strangesoft.net/openal.html](http://kcat.strangesoft.net/openal.html) **LGPL**
-* **alut** [https://github.com/vancegroup/freealut](https://github.com/vancegroup/freealut) was **BSD** but changed to **LGPL**
 * **md5** Based on md5 in axTLS
+
+### Unused??
+* **alut** [https://github.com/vancegroup/freealut](https://github.com/vancegroup/freealut) was **BSD** but changed to **LGPL**
 * **xxtea-c** [https://github.com/xxtea](https://github.com/xxtea) **MIT**
 
 
@@ -649,7 +675,6 @@ In that web app manager, you can see the console output, take screenshots or sho
 * Investigate mutex and dmProfile overhead. Removing DM_PROFILE, DM_COUNTER_HASH, dmMutex::Lock and dmMutex::Unlock from dmMessage::Post resulted in 4x improvement
 * Verify that exceptions are disabled
 
-
 ## Asset loading
 
 Assets can be loaded from file-system, from an archive or over http.
@@ -707,8 +732,8 @@ To debug memory and alignment issues the following parameters should be added bo
 
 - `-g4` should be **added** to build with additional debug symbols.
 - `-s ASSERTIONS=1` should be **added** explicitly since they are otherwise turned off by optimizations.
-- `-s SAFE_HEAP=1` should be **added** to enable additional memory access checks. 
-- `-s STACK_OVERFLOW_CHECK=2` should be **added** to enable additional stack checks. 
+- `-s SAFE_HEAP=1` should be **added** to enable additional memory access checks.
+- `-s STACK_OVERFLOW_CHECK=2` should be **added** to enable additional stack checks.
 - `-s AGGRESSIVE_VARIABLE_ELIMINATION=1` should be **removed**, otherwise errors might be ignored.
 - `-s DISABLE_EXCEPTION_CATCHING=1` should be **removed**, otherwise errors might be ignored.
 

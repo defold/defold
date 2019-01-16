@@ -443,15 +443,14 @@ namespace dmGameSystem
     int Sound_SetGain(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        int top = lua_gettop(L);
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
-        dmhash_t id_hash = dmScript::CheckHashOrString(L, 1);
-        float gain = luaL_checknumber(L, 2);
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        float gain = luaL_checknumber(L, 2);
 
         dmGameSystemDDF::SetGain msg;
         msg.m_Gain = gain;

@@ -307,12 +307,13 @@
   [project debug-view]
   (let [state   (volatile! {})
         tick-fn (fn [timer _]
-                  ;; if we don't have a debug session going on, there is no point in pulling
-                  ;; project/breakpoints or updating the "last breakpoints" state.
-                  (when-some [debug-session (g/node-value debug-view :debug-session)]
-                    (let [breakpoints (set (g/node-value project :breakpoints))]
-                      (update-breakpoints! debug-session (:breakpoints @state) breakpoints)
-                      (vreset! state {:breakpoints breakpoints}))))]
+                  (when-not (ui/ui-disabled?)
+                    ;; if we don't have a debug session going on, there is no point in pulling
+                    ;; project/breakpoints or updating the "last breakpoints" state.
+                    (when-some [debug-session (g/node-value debug-view :debug-session)]
+                      (let [breakpoints (set (g/node-value project :breakpoints))]
+                        (update-breakpoints! debug-session (:breakpoints @state) breakpoints)
+                        (vreset! state {:breakpoints breakpoints})))))]
     (ui/->timer 4 "debugger-update-timer" tick-fn)))
 
 (defn- setup-view! [debug-view app-view]
@@ -417,9 +418,9 @@
                                true
                                (catch Exception exception
                                  (let [msg (str "Failed to attach debugger to " target-address ":" mobdebug-port ".\n"
-                                                "Check that the game is running and is reachable over the network.")]
+                                                "Check that the game is running and is reachable over the network.\n")]
                                    (log/error :msg msg :exception exception)
-                                   (dialogs/make-alert-dialog msg)
+                                   (dialogs/make-error-dialog "Attach Debugger Failed" msg (.getMessage exception))
                                    false)))]
       (when attach-successful?
         (start-debugger! debug-view project target-address)))))

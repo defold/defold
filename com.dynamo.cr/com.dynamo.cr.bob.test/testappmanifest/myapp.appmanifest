@@ -1,0 +1,7 @@
+# Settings: Remove Profiler, use Release engine
+platforms:
+    common:
+        context:
+            excludeLibs: ["profilerext", "engine"]
+            excludeSymbols: ["ProfilerExt"]
+            libs: ["engine_release"]
