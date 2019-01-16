@@ -13,18 +13,45 @@
 #include <dlib/log.h>
 #include <dlib/atomic.h>
 #include <dlib/dlib.h>
+#include <dlib/dstrings.h>
 
 #define DM_PROFILE_PASTE(x, y) x ## y
 #define DM_PROFILE_PASTE2(x, y) DM_PROFILE_PASTE(x, y)
 
 /**
+ * Profiler string internalize macro
+ * name is the string to internalize
+ * returns the internalized string pointer or zero if profiling is disabled
+ */
+#define DM_INTERNALIZE(name)
+#undef DM_INTERNALIZE
+
+/**
+ * Profile macro.
+ * scope_instance_name is the name of the scope instance. Must be a literal
+ * scope_name is the scope name. Must be a literal
+ * name is the sample name. An arbitrary constant string and *must* be valid during the life-time
+ * of the application. If not, use DM_INTERNALIZE()
+ */
+#define DM_NAMED_PROFILE(scope_instance_name, scope_name, name)
+#undef DM_NAMED_PROFILE
+
+/**
  * Profile macro.
  * scope_name is the scope name. Must be a literal
  * name is the sample name. An arbitrary constant string and *must* be valid during the life-time
- * of the application. If not, use dmProfile::Internalize()
+ * of the application. If not, use DM_INTERNALIZE()
  */
 #define DM_PROFILE(scope_name, name)
 #undef DM_PROFILE
+
+/**
+ * Profile macro for dynamic strings.
+ * scope_name is the scope name. Must be a literal
+ * fmt String format, uses printf formatting limited to 128 characters
+ */
+#define DM_PROFILE_FMT(scope, fmt, ...)
+#undef DM_PROFILE_FMT
 
 /**
  * Profile counter macro
@@ -44,28 +71,52 @@
 #undef DM_COUNTER_HASH
 
 #if defined(NDEBUG)
+    #define DM_INTERNALIZE(name)
+    #define DM_NAMED_PROFILE(scope_instance_name, scope_name, name)
     #define DM_PROFILE_SCOPE(scope_instance_name, name)
     #define DM_PROFILE(scope_name, name)
+    #define DM_PROFILE_FMT(scope, fmt, ...)
+    #define DM_HASH_COUNTER_NAME(name)
     #define DM_COUNTER(name, amount)
     #define DM_COUNTER_HASH(name, name_hash, amount)
 #else
+    #define DM_INTERNALIZE(name) \
+        (dmProfile::g_IsInitialized ? dmProfile::Internalize(name) : 0)
+
     #define DM_PROFILE_SCOPE(scope, name) \
         dmProfile::ProfileScope DM_PROFILE_PASTE2(profile_scope, __LINE__)(scope, name);\
 
-    #define DM_PROFILE(scope_name, name) \
-        static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = 0; \
-        if (dmProfile::g_IsInitialized && DM_PROFILE_PASTE2(scope, __LINE__) == 0) \
+    #define DM_NAMED_PROFILE(scope_instance_name, scope_name, name) \
+        static dmProfile::Scope* scope_instance_name = 0; \
+        if (dmProfile::g_IsInitialized && scope_instance_name == 0) \
         {\
-            DM_PROFILE_PASTE2(scope, __LINE__) = dmProfile::AllocateScope(#scope_name);\
+            scope_instance_name = dmProfile::AllocateScope(#scope_name);\
         }\
-        DM_PROFILE_SCOPE(DM_PROFILE_PASTE2(scope, __LINE__), name)
+        DM_PROFILE_SCOPE(scope_instance_name, name)
 
+    #define DM_PROFILE(scope_name, name) \
+        DM_NAMED_PROFILE(DM_PROFILE_PASTE2(scope, __LINE__), scope_name, name)
 
-    #define DM_COUNTER(name, amount) \
-        dmProfile::AddCounter(name, amount);
+    #define DM_PROFILE_FMT(scope, fmt, ...) \
+        const char* DM_PROFILE_PASTE2(name, __LINE__) = 0; \
+        if (dmProfile::g_IsInitialized) { \
+            char buffer[128]; \
+            DM_SNPRINTF(buffer, sizeof(buffer), fmt, __VA_ARGS__); \
+            DM_PROFILE_PASTE2(name, __LINE__) = dmProfile::Internalize(buffer); \
+        } \
+        DM_PROFILE_SCOPE(scope, DM_PROFILE_PASTE2(name, __LINE__))
+
+    #define DM_HASH_COUNTER_NAME(name) \
+        (dmProfile::g_IsInitialized ? dmProfile::HashCounterName(name) : 0)
 
     #define DM_COUNTER_HASH(name, name_hash, amount) \
-        dmProfile::AddCounterHash(name, name_hash, amount);
+        if (dmProfile::g_IsInitialized) { \
+            dmProfile::AddCounterHash(name, name_hash, amount); \
+        }
+
+    #define DM_COUNTER(name, amount) \
+        DM_COUNTER_HASH(name, DM_HASH_COUNTER_NAME(name), amount);
+
 #endif
 
 namespace dmProfile
@@ -247,9 +298,16 @@ namespace dmProfile
      * Create an internalized string. Use this function in DM_PROFILE if the
      * name isn't valid for the life-time of the application
      * @param string string to internalize
-     * @return internalized string
+     * @return internalized string or 0 if profiling is not enabled
      */
     const char* Internalize(const char* string);
+
+    /**
+     * Generates a hash for the counter name
+     * @param name Counter name
+     * @return the hash or 0 if profiling is not enabled
+     */
+    uint32_t HashCounterName(const char* name);
 
     /**
      * Add #amount to counter with #name

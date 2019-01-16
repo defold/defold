@@ -1541,8 +1541,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
     Result RunScript(HScene scene, ScriptFunction script_function, int custom_ref, void* args)
     {
-        static dmProfile::Scope* gProfilerGuiScriptScope = dmProfile::g_IsInitialized ? dmProfile::AllocateScope("Script") : 0;
-        DM_PROFILE_SCOPE(gProfilerGuiScriptScope, "GuiScript");
+        DM_NAMED_PROFILE(gProfilerGuiScriptScope, Script, "GuiScript");
 
         if (scene->m_Script == 0x0)
             return RESULT_OK;
@@ -1793,22 +1792,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
 
             Result result = RESULT_OK;
-            const char* scope_name = 0;
-            if (dmProfile::g_IsInitialized)
             {
-                if (custom_ref == LUA_NOREF)
-                {
-                    char buffer[128];
-                    DM_SNPRINTF(buffer, sizeof(buffer), "%s@%s", SCRIPT_FUNCTION_NAMES[script_function], scene->m_Script->m_SourceFileName);
-                    scope_name = dmProfile::Internalize(buffer);
-                }
-                else
-                {
-                    scope_name = "<unknown>@<unknown>";
-                }
-            }
-            {
-                DM_PROFILE_SCOPE(gProfilerGuiScriptScope, scope_name);
+                const char* function_name = (custom_ref == LUA_NOREF) ? "<unknown>" : SCRIPT_FUNCTION_NAMES[script_function];
+                const char* file_name = (custom_ref == LUA_NOREF) ? "<unknown>" : scene->m_Script->m_SourceFileName;
+                DM_PROFILE_FMT(gProfilerGuiScriptScope, "%s@%s", function_name, file_name);
                 if (dmScript::PCall(L, arg_count, LUA_MULTRET) != 0)
                 {
                     assert(top == lua_gettop(L));
@@ -4171,7 +4158,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
         // m_SourceFileName will be null if profiling is not enabled, this is fine
         // as m_SourceFileName will only be used if profiling is enabled
-        script->m_SourceFileName = dmProfile::Internalize(source->m_Filename);
+        script->m_SourceFileName = DM_INTERNALIZE(source->m_Filename);
 bail:
         assert(top == lua_gettop(L));
         return res;
