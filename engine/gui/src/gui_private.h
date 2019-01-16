@@ -210,6 +210,7 @@ namespace dmGui
     {
         int         m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
         Context*    m_Context;
+        const char* m_SourceFileName;
         int         m_InstanceReference;
     };
 
