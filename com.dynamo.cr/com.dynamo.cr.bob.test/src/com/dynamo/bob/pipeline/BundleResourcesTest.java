@@ -336,7 +336,7 @@ public class BundleResourcesTest {
         assertTrue(findInResourceList(resources, "extension1/lib/common/common.a") != null);
         assertTrue(findInResourceList(resources, "extension1/lib/x86_64-osx/x86_64-osx.a") != null);
 
-        Map<String, String> appmanifestOptions = new HashMap<>();
+        Map<String, String> appmanifestOptions = new HashMap<String,String>();
         appmanifestOptions.put("baseVariant", "release");
         resources = ExtenderUtil.getExtensionSources(project, Platform.Armv7Darwin, appmanifestOptions);
         assertEquals(4, resources.size());
@@ -349,24 +349,22 @@ public class BundleResourcesTest {
         String expectedManifest = "";
         expectedManifest += "context:" + System.getProperty("line.separator");
         expectedManifest += "    baseVariant: release" + System.getProperty("line.separator");
-        expectedManifest += "    withSymbols: false" + System.getProperty("line.separator");
         assertEquals(synthesizedManifest, expectedManifest);
     }
 
     @Test
     public void testAppManifestVariant() throws Exception {
-        Map<String, String> appmanifestOptions = new HashMap<>();
+        Map<String, String> appmanifestOptions = new HashMap<String,String>();
         appmanifestOptions.put("baseVariant", "debug");
 
-    	project.getProjectProperties().putStringValue("native_extension", "app_manifest", "myapp.appmanifest");
-    	List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, appmanifestOptions);
+        project.getProjectProperties().putStringValue("native_extension", "app_manifest", "myapp.appmanifest");
+        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, appmanifestOptions);
         assertEquals(5, resources.size());
         ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
         String patchedManifest = new String(appManifest.getContent());
         String expectedManifest = "";
         expectedManifest += "context:" + System.getProperty("line.separator");
         expectedManifest += "    baseVariant: debug" + System.getProperty("line.separator");
-        expectedManifest += "    withSymbols: false" + System.getProperty("line.separator");
         assertTrue(patchedManifest.length() > expectedManifest.length());
         assertEquals(patchedManifest.substring(0, expectedManifest.length()), expectedManifest);
     }
