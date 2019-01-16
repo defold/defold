@@ -1356,10 +1356,8 @@ namespace dmRender
     int RenderScript_DrawDebug2d(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG2D)))
-            return 0;
-        else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        dmLogOnceWarning("render.draw_debug2d is deprecated and will be removed in future versions, please use render.draw_debug3d instead.");
+        return 0;
     }
 
     /*# sets the view matrix
