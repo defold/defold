@@ -136,6 +136,7 @@ TEST_P(JsonToLuaTest, TestJsonToLua)
             lua_pop(L, lua_gettop(L) - top);
         }
 
+        dmJson::Free(&doc);
     } else {
         ASSERT_NE(r, dmJson::RESULT_OK);
     }
