@@ -88,7 +88,7 @@ LOCAL_SRC_FILES := \
     ../src/ptrace/_UPT_resume.c
 
 
-ifeq ($(TARGET_ARCH_ABI),$(filter $(TARGET_ARCH_ABI),armeabi armeabi-v7a aarch64))
+ifeq ($(TARGET_ARCH_ABI),$(filter $(TARGET_ARCH_ABI),armeabi armeabi-v7a))
 LOCAL_C_INCLUDES += \
 	$(LOCAL_PATH)/../include/tdep-arm
 
@@ -122,6 +122,38 @@ LOCAL_SRC_FILES += \
 	../src/arm/Gex_tables.c \
 	../src/arm/Lis_signal_frame.c \
 	../src/arm/Lex_tables.c
+endif
+
+ifeq ($(TARGET_ARCH_ABI),$(filter $(TARGET_ARCH_ABI),arm64-v8a))
+LOCAL_C_INCLUDES += \
+    $(LOCAL_PATH)/../include/tdep-arm
+
+LOCAL_SRC_FILES += \
+    ../src/elf64.c \
+    ../src/aarch64/is_fpreg.c \
+    ../src/aarch64/regname.c \
+    ../src/aarch64/Gcreate_addr_space.c \
+    ../src/aarch64/Gget_proc_info.c \
+    ../src/aarch64/Gget_save_loc.c \
+    ../src/aarch64/Gglobal.c \
+    ../src/aarch64/Ginit.c \
+    ../src/aarch64/Ginit_local.c \
+    ../src/aarch64/Ginit_remote.c \
+    ../src/aarch64/Gregs.c \
+    ../src/aarch64/Gresume.c \
+    ../src/aarch64/Gstep.c \
+    ../src/aarch64/Lcreate_addr_space.c \
+    ../src/aarch64/Lget_proc_info.c \
+    ../src/aarch64/Lget_save_loc.c \
+    ../src/aarch64/Lglobal.c \
+    ../src/aarch64/Linit.c \
+    ../src/aarch64/Linit_local.c \
+    ../src/aarch64/Linit_remote.c \
+    ../src/aarch64/Lregs.c \
+    ../src/aarch64/Lresume.c \
+    ../src/aarch64/Lstep.c \
+    ../src/aarch64/Gis_signal_frame.c \
+    ../src/aarch64/Lis_signal_frame.c
 endif
 
 LOCAL_ADDITIONAL_DEPENDENCIES := \

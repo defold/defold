@@ -363,11 +363,10 @@ class Configuration(object):
         for platform in other_platforms:
             packages = platform_packages.get(platform, [])
             package_paths = self._make_package_paths(platform, packages)
-            if platform != 'arm64-android':
-                print("Installing %s packages " % platform)
-                for path in package_paths:
-                    self._extract_tgz(path, self.ext)
-                installed_packages.update(package_paths)
+            print("Installing %s packages " % platform)
+            for path in package_paths:
+                self._extract_tgz(path, self.ext)
+            installed_packages.update(package_paths)
 
         for base_platform in self.get_base_platforms():
             packages = list(PACKAGES_HOST)

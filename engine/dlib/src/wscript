@@ -125,7 +125,10 @@ def build(bld):
         #  (in particular denormal values are treated as zero), so the use of NEON instructions may lead to a loss of precision.
         # In other words - we only want this setting for dedicated neon code.
         webp_source_neon = ['webp/dsp/dec_neon.c', 'webp/dsp/lossless_neon.c', 'webp/dsp/rescaler_neon.c', 'webp/dsp/upsampling_neon.c']
-        neonobjs = bld.new_task_gen(features = 'cc config_neon',
+        android_features = 'cc'
+        if 'armv7-android' in bld.env.PLATFORM:
+            android_features += ' config_neon' # neon is implicit on arm64 android
+        neonobjs = bld.new_task_gen(features = android_features,
                                 includes = 'webp',
                                 #source = webp_source_neon,
                                 target = 'webp_neon_objs' )
