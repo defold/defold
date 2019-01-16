@@ -45,13 +45,13 @@ function copy_file() {
 # Resources
 # ----------------------------------------------------------------------------
 SOURCES=(
-    "x86_64-linux"  "x86_64-darwin" "win32"     "armv7-darwin"
-    "arm64-darwin"  "armv7-android" "js-web"    "x86_64-win32"
+    "x86_64-linux"  "x86_64-darwin" "win32"  "armv7-darwin" "arm64-darwin"
+    "armv7-android" "arm64-android" "js-web" "x86_64-win32"
 )
 
 TARGETS=(
-    "x86_64-linux"  "x86_64-darwin" "x86-win32" "armv7-darwin"
-    "arm64-darwin"  "armv7-android" "js-web"    "x86_64-win32"
+    "x86_64-linux"  "x86_64-darwin" "x86-win32" "armv7-darwin" "arm64-darwin"
+    "armv7-android" "arm64-android" "js-web"    "x86_64-win32"
 )
 
 # ----------------------------------------------------------------------------
