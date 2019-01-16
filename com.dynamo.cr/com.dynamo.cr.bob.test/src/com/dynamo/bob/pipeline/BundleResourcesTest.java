@@ -336,7 +336,9 @@ public class BundleResourcesTest {
         assertTrue(findInResourceList(resources, "extension1/lib/common/common.a") != null);
         assertTrue(findInResourceList(resources, "extension1/lib/x86_64-osx/x86_64-osx.a") != null);
 
-        resources = ExtenderUtil.getExtensionSources(project, Platform.Armv7Darwin, "release");
+        Map<String, String> appmanifestOptions = new HashMap<>();
+        appmanifestOptions.put("baseVariant", "release");
+        resources = ExtenderUtil.getExtensionSources(project, Platform.Armv7Darwin, appmanifestOptions);
         assertEquals(4, resources.size());
 
         assertTrue(findInResourceList(resources, "extension1/ext.manifest") != null);
@@ -353,8 +355,11 @@ public class BundleResourcesTest {
 
     @Test
     public void testAppManifestVariant() throws Exception {
+        Map<String, String> appmanifestOptions = new HashMap<>();
+        appmanifestOptions.put("baseVariant", "debug");
+
     	project.getProjectProperties().putStringValue("native_extension", "app_manifest", "myapp.appmanifest");
-    	List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, "debug");
+    	List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, appmanifestOptions);
         assertEquals(5, resources.size());
         ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
         String patchedManifest = new String(appManifest.getContent());
