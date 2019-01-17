@@ -3,7 +3,8 @@ import os
 import waf_dynamo
 
 def configure(conf):
-    pass
+    if platform == "darwin" or platform == "x86_64-darwin":
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa'])
 
 def build(bld):
     exe = bld.new_task_gen(features = ['cc', 'cxx', 'cprogram'],
@@ -11,6 +12,8 @@ def build(bld):
                            uselib = 'DLIB',
                            source = ['launcher.cpp', 'launcher_util.cpp'],
                            target = 'launcher')
+    if 'darwin' in bld.env.BUILD_PLATFORM:
+        exe.source.append('macos_events.mm')
 
     lib = bld.new_task_gen(features = 'cxx cstaticlib',
                            includes = ['.'],
