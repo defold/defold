@@ -300,7 +300,7 @@ namespace dmMessage
         memset((void*)&url, 0, sizeof(URL));
     }
 
-    uint32_t g_MessagesHash = dmHashString32("Messages");
+    uint32_t g_MessagesHash = dmProfile::HashCounterName("Messages");
 
     Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data, uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback)
     {
