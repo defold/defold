@@ -1,5 +1,5 @@
 (ns internal.paper-tape-test
-  (:require [internal.history :refer :all]
+  (:require [internal.paper-tape :refer :all]
             [clojure.test :refer :all]))
 
 (deftest shuffling-items

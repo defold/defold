@@ -3,7 +3,7 @@
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
-            [internal.history :as h]
+            [internal.paper-tape :as h]
             [internal.node :as in]))
 
 (set! *warn-on-reflection* true)

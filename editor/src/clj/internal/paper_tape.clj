@@ -1,4 +1,4 @@
-(ns internal.history)
+(ns internal.paper-tape)
 
 (set! *warn-on-reflection* true)
 
