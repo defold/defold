@@ -82,8 +82,8 @@ TEST(dmProfile, Profile)
         std::vector<dmProfile::Sample> samples;
         std::map<std::string, const dmProfile::ScopeData*> scopes;
 
-        dmProfile::IterateSamples(profile, &samples, &ProfileSampleCallback);
-        dmProfile::IterateScopeData(profile, &scopes, &ProfileScopeCallback);
+        dmProfile::IterateSamples(profile, &samples, false, &ProfileSampleCallback);
+        dmProfile::IterateScopeData(profile, &scopes, false, &ProfileScopeCallback);
         dmProfile::Release(profile);
 
         ASSERT_EQ(7U, samples.size());
@@ -151,8 +151,8 @@ TEST(dmProfile, Nested)
         std::vector<dmProfile::Sample> samples;
         std::map<std::string, const dmProfile::ScopeData*> scopes;
 
-        dmProfile::IterateSamples(profile, &samples, &ProfileSampleCallback);
-        dmProfile::IterateScopeData(profile, &scopes, &ProfileScopeCallback);
+        dmProfile::IterateSamples(profile, &samples, false, &ProfileSampleCallback);
+        dmProfile::IterateScopeData(profile, &scopes, false, &ProfileScopeCallback);
         dmProfile::Release(profile);
 
         ASSERT_EQ(2U, samples.size());
@@ -190,7 +190,7 @@ TEST(dmProfile, ProfileOverflow1)
     dmProfile::HProfile profile = dmProfile::Begin();
 
     std::vector<dmProfile::Sample> samples;
-    dmProfile::IterateSamples(profile, &samples, &ProfileSampleCallback);
+    dmProfile::IterateSamples(profile, &samples, false, &ProfileSampleCallback);
     dmProfile::Release(profile);
 
     ASSERT_EQ(2U, samples.size());
@@ -301,8 +301,8 @@ TEST(dmProfile, ThreadProfile)
     std::map<std::string, const dmProfile::ScopeData*> scopes;
 
     profile = dmProfile::Begin();
-    dmProfile::IterateSamples(profile, &samples, &ProfileSampleCallback);
-    dmProfile::IterateScopeData(profile, &scopes, &ProfileScopeCallback);
+    dmProfile::IterateSamples(profile, &samples, false, &ProfileSampleCallback);
+    dmProfile::IterateScopeData(profile, &scopes, false, &ProfileScopeCallback);
     dmProfile::Release(profile);
 
     ASSERT_EQ(20000U * 2U, samples.size());
@@ -357,8 +357,8 @@ TEST(dmProfile, DynamicScope)
     std::map<std::string, const dmProfile::ScopeData*> scopes;
 
     profile = dmProfile::Begin();
-    dmProfile::IterateSamples(profile, &samples, &ProfileSampleCallback);
-    dmProfile::IterateScopeData(profile, &scopes, &ProfileScopeCallback);
+    dmProfile::IterateSamples(profile, &samples, false ,&ProfileSampleCallback);
+    dmProfile::IterateScopeData(profile, &scopes, false ,&ProfileScopeCallback);
 
     ASSERT_EQ(10U * 4U, samples.size());
     ASSERT_EQ(10U * 2, scopes[SCOPE_NAMES[0]]->m_Count);
