@@ -503,7 +503,7 @@ namespace dmGameObject
             int ret;
             {
                 DM_PROFILE_FMT(gProfilerRunScriptScope, "%s@%s", SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT], script_instance->m_Script->m_LuaModule->m_Source.m_Filename);
-                dmScript::PCall(L, arg_count, LUA_MULTRET);
+                ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
             }
             const char* function_name = SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT];
             if (ret != 0)
