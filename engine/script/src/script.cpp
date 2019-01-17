@@ -1469,6 +1469,19 @@ namespace dmScript
         return true;
     }
 
+    bool GetLuaFunctionRefInfo(lua_State* L, int stack_index, LuaFunctionInfo* out_function_info)
+    {
+        lua_Debug ar;
+        lua_pushvalue(L, stack_index);
+        if (lua_getinfo(L, ">S", &ar))
+        {
+            out_function_info->m_ShortFileName = ar.short_src;
+            out_function_info->m_LineNumber = ar.linedefined;
+            return true;
+        }
+        return false;
+    }
+
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value)
     {
         int top = lua_gettop(L);

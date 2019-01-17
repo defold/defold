@@ -1792,9 +1792,23 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
 
             Result result = RESULT_OK;
+            if(custom_ref != LUA_NOREF)
             {
-                const char* function_name = (custom_ref == LUA_NOREF) ? "<message_callback>" : SCRIPT_FUNCTION_NAMES[script_function];
-                DM_PROFILE_FMT(gProfilerGuiScriptScope, "%s@%s", function_name, scene->m_Script->m_SourceFileName);
+                dmScript::LuaFunctionInfo fi = {scene->m_Script->m_SourceFileName, -1};
+                if (dmProfile::g_IsInitialized)
+                {
+                    (void)dmScript::GetLuaFunctionRefInfo(L, -5, &fi);
+                }
+                DM_PROFILE_FMT(gProfilerGuiScriptScope, "%d@%s", fi.m_LineNumber, fi.m_ShortFileName);
+                if (dmScript::PCall(L, arg_count, LUA_MULTRET) != 0)
+                {
+                    assert(top == lua_gettop(L));
+                    result = RESULT_SCRIPT_ERROR;
+                }
+            }
+            else
+            {
+                DM_PROFILE_FMT(gProfilerGuiScriptScope, "%s@%s", SCRIPT_FUNCTION_NAMES[script_function], scene->m_Script->m_SourceFileName);
                 if (dmScript::PCall(L, arg_count, LUA_MULTRET) != 0)
                 {
                     assert(top == lua_gettop(L));
