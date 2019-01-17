@@ -628,10 +628,10 @@ namespace dmProfile
         {}
         bool operator()(uint32_t a, uint32_t b) const
         {
-            Sample* sample_a = &m_Profile->m_Samples[a];
-            Sample* sample_b = &m_Profile->m_Samples[b];
-            ScopeData* scope_data_a = &m_Profile->m_ScopesData[sample_a->m_Scope->m_Index];
-            ScopeData* scope_data_b = &m_Profile->m_ScopesData[sample_b->m_Scope->m_Index];
+            const Sample* sample_a = &m_Profile->m_Samples[a];
+            const Sample* sample_b = &m_Profile->m_Samples[b];
+            const ScopeData* scope_data_a = &m_Profile->m_ScopesData[sample_a->m_Scope->m_Index];
+            const ScopeData* scope_data_b = &m_Profile->m_ScopesData[sample_b->m_Scope->m_Index];
             if (scope_data_a == scope_data_b)
             {
                 return sample_b->m_Elapsed < sample_a->m_Elapsed;
