@@ -502,13 +502,17 @@ namespace dmProfile
 
     void AddCounter(const char* name, uint32_t amount)
     {
+        // dmProfile::Initialize allocates memory. If memprofile is activated this function is called from overloaded malloc while g_CountersTable is being created. No good!
+        if (!g_IsInitialized)
+        {
+            return;
+        }
         AddCounterHash(name, HashCounterName(name), amount);
     }
 
     void AddCounterHash(const char* name, uint32_t name_hash, uint32_t amount)
     {
-        // dmProfile::Initialize allocates memory. Is memprofile is activated this function is called from overloaded malloc while g_CountersTable is being created. No good!
-        if (!g_IsInitialized || g_Paused)
+        if (g_Paused)
             return;
 
         dmSpinlock::Lock(&g_ProfileLock);
