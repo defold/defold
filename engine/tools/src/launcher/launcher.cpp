@@ -1,4 +1,5 @@
-#include <launcher.h>
+#include "launcher.h"
+#include "macos_events.h"
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -171,6 +172,18 @@ int Launch(int argc, char **argv) {
     }
 
     args[i++] = (char*) main;
+#if defined(__MACH__)
+    char** fileList;
+    ReceiveFileOpenEvent(&fileList);
+    if(fileList) {
+      char** p = fileList;
+      while(*p) {
+        // fileList max is 100 and args max is 128 so this should be fine.
+        args[i++] = *p;
+        p++;
+      }
+    }
+#endif
     args[i++] = 0;
 
     for (int j = 0; j < i; j++) {
@@ -232,6 +245,10 @@ int Launch(int argc, char **argv) {
     }
     int stat;
     wait(&stat);
+
+#if defined(__MACH__)
+    FreeFileList(fileList);
+#endif
 
     delete[] args;
     dmConfigFile::Delete(config);
