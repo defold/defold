@@ -18,15 +18,8 @@ extern "C"
 
 namespace dmGameObject
 {
-    static dmProfile::Scope* gProfilerRunScriptScope = 0;
-
     CreateResult CompScriptNewWorld(const ComponentNewWorldParams& params)
     {
-        if (dmProfile::g_IsInitialized && gProfilerRunScriptScope == 0)
-        {
-            gProfilerRunScriptScope = dmProfile::AllocateScope("Script");
-        }
-
         if (params.m_World != 0x0)
         {
             CompScriptWorld* w = new CompScriptWorld();
@@ -90,6 +83,7 @@ namespace dmGameObject
 
     ScriptResult RunScript(lua_State* L, HScript script, ScriptFunction script_function, HScriptInstance script_instance, const RunScriptParams& params)
     {
+        static dmProfile::Scope* gProfilerRunScriptScope = dmProfile::g_IsInitialized ? dmProfile::AllocateScope("Script") : 0;
         DM_PROFILE_SCOPE(gProfilerRunScriptScope, "RunScript");
 
         ScriptResult result = SCRIPT_RESULT_OK;
