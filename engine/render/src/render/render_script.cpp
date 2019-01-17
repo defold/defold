@@ -56,8 +56,6 @@ namespace dmRender
         "on_reload"
     };
 
-    static dmProfile::Scope* gProfilerRunScriptScope = 0;
-
     static HNamedConstantBuffer* RenderScriptConstantBuffer_Check(lua_State *L, int index)
     {
         return (HNamedConstantBuffer*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_CONSTANTBUFFER, "Expected a constant buffer (acquired from a render.* function)");
@@ -2614,11 +2612,6 @@ bail:
 
     HRenderScript NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source)
     {
-        if (dmProfile::g_IsInitialized && gProfilerRunScriptScope == 0)
-        {
-            gProfilerRunScriptScope = dmProfile::AllocateScope("Script");
-        }
-
         lua_State* L = render_context->m_RenderScriptContext.m_LuaState;
         int top = lua_gettop(L);
         (void)top;
@@ -2754,6 +2747,7 @@ bail:
 
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)
     {
+        static dmProfile::Scope* gProfilerRunScriptScope = dmProfile::g_IsInitialized ? dmProfile::AllocateScope("Script") : 0;
         DM_PROFILE_SCOPE(gProfilerRunScriptScope, "RenderScript");
 
         RenderScriptResult result = RENDER_SCRIPT_RESULT_OK;
