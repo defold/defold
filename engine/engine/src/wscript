@@ -105,7 +105,7 @@ def build(bld):
               '%s/share/java/iac_android.jar' % (dynamo_home)]
 
     obj = bld.new_task_gen(
-        features = 'cc cxx cprogram apk web',
+        features = 'cc cxx cprogram apk web extract_symbols',
         uselib = 'WEBVIEWEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine engine_service',
         exported_symbols = exported_symbols,
@@ -134,7 +134,7 @@ def build(bld):
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine.android/dmengine.apk')
 
     obj = bld.new_task_gen(
-        features = 'cc cxx cprogram apk web',
+        features = 'cc cxx cprogram apk web extract_symbols',
         uselib = 'WEBVIEWEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine_release engine_service_null',
         exported_symbols = exported_symbols,
@@ -169,7 +169,7 @@ def build(bld):
     additional_libs = ' '.join(additional_libs)
 
     obj = bld.new_task_gen(
-        features = 'cc cxx cprogram apk web',
+        features = 'cc cxx cprogram apk web extract_symbols',
         uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH DLIB LIVEUPDATE SOUND_NULL CRASH %s' % (additional_libs,),
         exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine engine_service',
