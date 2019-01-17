@@ -48,8 +48,6 @@ namespace dmGui
     const uint64_t INDEX_SHIFT = CLIPPER_SHIFT + CLIPPER_RANGE;
     const uint64_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
 
-    static dmProfile::Scope* gProfilerGuiScriptScope = 0;
-
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
 
     static const char* SCRIPT_FUNCTION_NAMES[] =
@@ -1543,6 +1541,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
     Result RunScript(HScene scene, ScriptFunction script_function, int custom_ref, void* args)
     {
+        static dmProfile::Scope* gProfilerGuiScriptScope = dmProfile::g_IsInitialized ? dmProfile::AllocateScope("Script") : 0;
         DM_PROFILE_SCOPE(gProfilerGuiScriptScope, "GuiScript");
 
         if (scene->m_Script == 0x0)
@@ -4089,11 +4088,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
     HScript NewScript(HContext context)
     {
-        if (dmProfile::g_IsInitialized && gProfilerGuiScriptScope == 0)
-        {
-            gProfilerGuiScriptScope = dmProfile::AllocateScope("Script");
-        }
-
         lua_State* L = context->m_LuaState;
         Script* script = (Script*)lua_newuserdata(L, sizeof(Script));
         ResetScript(script);
