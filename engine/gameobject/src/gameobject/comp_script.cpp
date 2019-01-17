@@ -248,7 +248,6 @@ namespace dmGameObject
             lua_State* L = GetLuaState(params.m_Context);
             int top = lua_gettop(L);
             (void) top;
-            int ret;
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
             dmScript::SetInstance(L);
@@ -294,11 +293,23 @@ namespace dmGameObject
             dmScript::PushURL(L, params.m_Message->m_Sender);
 
             // An on_message function shouldn't return anything.
+            if (is_callback)
             {
-                const char* function_name = is_callback ? "<message_callback>" : SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE];
-                DM_PROFILE_FMT(gProfilerRunScriptScope, "%s@%s", function_name, script_instance->m_Script->m_LuaModule->m_Source.m_Filename);
-                ret = dmScript::PCall(L, 4, 0);
-                if (ret != 0)
+                dmScript::LuaFunctionInfo fi = {script_instance->m_Script->m_LuaModule->m_Source.m_Filename, -1};
+                if (dmProfile::g_IsInitialized)
+                {
+                    (void)dmScript::GetLuaFunctionRefInfo(L, -5, &fi);
+                }
+                DM_PROFILE_FMT(gProfilerRunScriptScope, "%d@%s", fi.m_LineNumber, fi.m_ShortFileName);
+                if (dmScript::PCall(L, 4, 0) != 0)
+                {
+                    result = UPDATE_RESULT_UNKNOWN_ERROR;
+                }
+            }
+            else
+            {
+                DM_PROFILE_FMT(gProfilerRunScriptScope, "%s@%s", SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE], script_instance->m_Script->m_LuaModule->m_Source.m_Filename);
+                if (dmScript::PCall(L, 4, 0) != 0)
                 {
                     result = UPDATE_RESULT_UNKNOWN_ERROR;
                 }
