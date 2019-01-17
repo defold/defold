@@ -202,17 +202,19 @@ namespace dmProfile
      * Iterate over all scopes
      * @param profile Profile snapshot to iterate over
      * @param context User context
+     * @param sort sort the entries
      * @param call_back Call-back function pointer
      */
-    void IterateScopeData(HProfile profile, void* context, void (*call_back)(void* context, const ScopeData* scope_data));
+    void IterateScopeData(HProfile profile, void* context, bool sort, void (*call_back)(void* context, const ScopeData* scope_data));
 
     /**
      * Iterate over all samples
      * @param profile Profile snapshot to iterate over
      * @param context User context
+     * @param sort sort the entries
      * @param call_back Call-back function pointer
      */
-    void IterateSamples(HProfile profile, void* context, void (*call_back)(void* context, const Sample* sample));
+    void IterateSamples(HProfile profile, void* context, bool sort, void (*call_back)(void* context, const Sample* sample));
 
     /**
      * Iterate over all counters

@@ -316,10 +316,10 @@ namespace dmProfileRender
             ctx.m_FontMap = font_map;
             ctx.m_SampleStats.SetCapacity(64, 256);
 
-            dmProfile::IterateSamples(profile, &ctx, &ProfileSampleCallback);
+            dmProfile::IterateSamples(profile, &ctx, false, &ProfileSampleCallback);
 
             ctx.m_Index = 0;
-            dmProfile::IterateScopeData(profile, &ctx, &ProfileScopeCallback);
+            dmProfile::IterateScopeData(profile, &ctx, false, &ProfileScopeCallback);
 
             ctx.m_Index = 0;
             if (ctx.m_SampleStats.Size() > 0)
