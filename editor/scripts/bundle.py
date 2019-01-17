@@ -170,7 +170,7 @@ def full_jdk_url(jdk_platform):
     return 'https://s3-eu-west-1.amazonaws.com/defold-packages/openjdk-%s_%s_bin.tar.gz' % (java_version, jdk_platform)
 
 
-def download_build_java():
+def download_build_jdk():
     rmtree('build/jdk')
     is_mac = sys.platform == 'darwin'
     jdk_url = full_jdk_url(python_platform_to_java[sys.platform])
@@ -181,12 +181,12 @@ def download_build_java():
     mkdirs('build/jdk')
     extract(jdk, 'build/jdk', is_mac)
     if is_mac:
-        return 'build/jdk/jdk-%s.jdk/Contents/Home/bin/java' % java_version
+        return 'build/jdk/jdk-%s.jdk/Contents/Home' % java_version
     else:
-        return 'build/jdk/jdk-%s/bin/java' % java_version
+        return 'build/jdk/jdk-%s' % java_version
 
 
-def bundle(platform, jar_file, options):
+def bundle(platform, jar_file, options, build_jdk):
     rmtree('tmp')
 
     jdk_url = full_jdk_url(platform_to_java[platform])
@@ -222,7 +222,6 @@ def bundle(platform, jar_file, options):
     mkdirs(exe_dir)
     mkdirs(resources_dir)
     mkdirs(packages_dir)
-    mkdirs('%s/jre' % packages_dir)
 
     if is_mac:
         shutil.copy('bundle-resources/Info.plist', '%s/Contents' % bundle_dir)
@@ -258,12 +257,14 @@ def bundle(platform, jar_file, options):
 
     print 'Creating bundle'
     if is_mac:
-        jdk_glob = 'tmp/jdk-%s.jdk/Contents/Home/*' % java_version
+        platform_jdk = 'tmp/jdk-%s.jdk/Contents/Home' % java_version
     else:
-        jdk_glob = 'tmp/jdk-%s/*' % java_version
+        platform_jdk = 'tmp/jdk-%s' % java_version
 
-    for p in glob.glob(jdk_glob):
-        shutil.move(p, '%s/jre' % packages_dir)
+    exec_command(['%s/bin/jlink' % build_jdk,
+                  '@jlink-options',
+                  '--module-path=%s/jmods' % platform_jdk,
+                  '--output=%s/jre' % packages_dir])
 
     if is_mac:
         ziptree(bundle_dir, 'target/editor/Defold-%s.zip' % platform, dmg_dir)
@@ -355,8 +356,8 @@ if __name__ == '__main__':
 
     print('Downloading build jdk')
 
-    build_java = download_build_java()
-    java_cmd_env = 'JAVA_CMD=%s' % build_java
+    build_jdk = download_build_jdk()
+    java_cmd_env = 'JAVA_CMD=%s/bin/java' % build_jdk
 
     print 'Building editor'
 
@@ -380,7 +381,7 @@ if __name__ == '__main__':
     shutil.copy('target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', 'target/editor/update/%s' % jar_file)
 
     for platform in options.target_platform:
-        bundle(platform, jar_file, options)
+        bundle(platform, jar_file, options, build_jdk)
 
     package_info = {'version' : options.version,
                     'sha1' : options.editor_sha1,
