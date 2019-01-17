@@ -50,8 +50,8 @@
  * scope_name is the scope name. Must be a literal
  * fmt String format, uses printf formatting limited to 128 characters
  */
-#define DM_PROFILE_FMT(scope, fmt, ...)
-#undef DM_PROFILE_FMT
+#define DM_PROFILE_SCOPE_FMT(scope, fmt, ...)
+#undef DM_PROFILE_SCOPE_FMT
 
 /**
  * Profile counter macro
@@ -71,11 +71,11 @@
 #undef DM_COUNTER_HASH
 
 #if defined(NDEBUG)
-    #define DM_INTERNALIZE(name)
+    #define DM_INTERNALIZE(name) 0
     #define DM_NAMED_PROFILE(scope_instance_name, scope_name, name)
     #define DM_PROFILE_SCOPE(scope_instance_name, name)
     #define DM_PROFILE(scope_name, name)
-    #define DM_PROFILE_FMT(scope, fmt, ...)
+    #define DM_PROFILE_SCOPE_FMT(scope, fmt, ...)
     #define DM_HASH_COUNTER_NAME(name)
     #define DM_COUNTER(name, amount)
     #define DM_COUNTER_HASH(name, name_hash, amount)
@@ -97,7 +97,7 @@
     #define DM_PROFILE(scope_name, name) \
         DM_NAMED_PROFILE(DM_PROFILE_PASTE2(scope, __LINE__), scope_name, name)
 
-    #define DM_PROFILE_FMT(scope, fmt, ...) \
+    #define DM_PROFILE_SCOPE_FMT(scope, fmt, ...) \
         const char* DM_PROFILE_PASTE2(name, __LINE__) = 0; \
         if (dmProfile::g_IsInitialized) { \
             char buffer[128]; \
