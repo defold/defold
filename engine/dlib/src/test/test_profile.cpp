@@ -242,7 +242,7 @@ TEST(dmProfile, Counter1)
     dmProfile::Finalize();
 }
 
-uint32_t g_c1hash = dmHashString32("c1");
+static uint32_t g_c1hash = dmProfile::HashCounterName("c1");
 void CounterThread(void* arg)
 {
     for (int i = 0; i < 2000; ++i)
