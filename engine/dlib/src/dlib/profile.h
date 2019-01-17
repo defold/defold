@@ -87,11 +87,7 @@
         dmProfile::ProfileScope DM_PROFILE_PASTE2(profile_scope, __LINE__)(scope, name);\
 
     #define DM_NAMED_PROFILE(scope_instance_name, scope_name, name) \
-        static dmProfile::Scope* scope_instance_name = 0; \
-        if (dmProfile::g_IsInitialized && scope_instance_name == 0) \
-        {\
-            scope_instance_name = dmProfile::AllocateScope(#scope_name);\
-        }\
+        static dmProfile::Scope* scope_instance_name = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : 0; \
         DM_PROFILE_SCOPE(scope_instance_name, name)
 
     #define DM_PROFILE(scope_name, name) \
