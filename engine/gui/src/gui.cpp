@@ -1799,7 +1799,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 {
                     (void)dmScript::GetLuaFunctionRefInfo(L, -5, &fi);
                 }
-                DM_PROFILE_SCOPE_FMT(gProfilerGuiScriptScope, "%d@%s", fi.m_LineNumber, fi.m_ShortFileName);
+                DM_PROFILE_SCOPE_FMT(ProfilerGuiScriptScope, "%d@%s", fi.m_LineNumber, fi.m_ShortFileName);
                 if (dmScript::PCall(L, arg_count, LUA_MULTRET) != 0)
                 {
                     assert(top == lua_gettop(L));
@@ -1808,7 +1808,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
             else
             {
-                DM_PROFILE_SCOPE_FMT(gProfilerGuiScriptScope, "%s@%s", SCRIPT_FUNCTION_NAMES[script_function], scene->m_Script->m_SourceFileName);
+                DM_PROFILE_SCOPE_FMT(ProfilerGuiScriptScope, "%s@%s", SCRIPT_FUNCTION_NAMES[script_function], scene->m_Script->m_SourceFileName);
                 if (dmScript::PCall(L, arg_count, LUA_MULTRET) != 0)
                 {
                     assert(top == lua_gettop(L));

@@ -113,7 +113,7 @@ namespace dmGameObject
             }
 
             {
-                DM_PROFILE_SCOPE_FMT(gProfilerRunScriptScope, "%s@%s", SCRIPT_FUNCTION_NAMES[script_function], script->m_LuaModule->m_Source.m_Filename);
+                DM_PROFILE_SCOPE_FMT(ProfilerRunScriptScope, "%s@%s", SCRIPT_FUNCTION_NAMES[script_function], script->m_LuaModule->m_Source.m_Filename);
                 if (dmScript::PCall(L, arg_count, 0) != 0)
                 {
                     result = SCRIPT_RESULT_FAILED;
@@ -300,7 +300,7 @@ namespace dmGameObject
                 {
                     (void)dmScript::GetLuaFunctionRefInfo(L, -5, &fi);
                 }
-                DM_PROFILE_SCOPE_FMT(gProfilerRunScriptScope, "%d@%s", fi.m_LineNumber, fi.m_ShortFileName);
+                DM_PROFILE_SCOPE_FMT(ProfilerRunScriptScope, "%d@%s", fi.m_LineNumber, fi.m_ShortFileName);
                 if (dmScript::PCall(L, 4, 0) != 0)
                 {
                     result = UPDATE_RESULT_UNKNOWN_ERROR;
@@ -308,7 +308,7 @@ namespace dmGameObject
             }
             else
             {
-                DM_PROFILE_SCOPE_FMT(gProfilerRunScriptScope, "%s@%s", SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE], script_instance->m_Script->m_LuaModule->m_Source.m_Filename);
+                DM_PROFILE_SCOPE_FMT(ProfilerRunScriptScope, "%s@%s", SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE], script_instance->m_Script->m_LuaModule->m_Source.m_Filename);
                 if (dmScript::PCall(L, 4, 0) != 0)
                 {
                     result = UPDATE_RESULT_UNKNOWN_ERROR;
@@ -513,7 +513,7 @@ namespace dmGameObject
             int input_ret = lua_gettop(L) - arg_count;
             int ret;
             {
-                DM_PROFILE_SCOPE_FMT(gProfilerRunScriptScope, "%s@%s", SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT], script_instance->m_Script->m_LuaModule->m_Source.m_Filename);
+                DM_PROFILE_SCOPE_FMT(ProfilerRunScriptScope, "%s@%s", SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT], script_instance->m_Script->m_LuaModule->m_Source.m_Filename);
                 ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
             }
             const char* function_name = SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT];
