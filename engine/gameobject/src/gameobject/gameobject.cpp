@@ -2396,7 +2396,7 @@ namespace dmGameObject
             uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
             ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
 
-            DM_COUNTER(component_type->m_Name, collection->m_ComponentInstanceCount[update_index]);
+            DM_COUNTER_DYN(component_type->m_Name, collection->m_ComponentInstanceCount[update_index]);
 
             // Avoid to call UpdateTransforms for each/all component types.
             if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms) {

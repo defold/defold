@@ -242,12 +242,11 @@ TEST(dmProfile, Counter1)
     dmProfile::Finalize();
 }
 
-static uint32_t g_c1hash = dmProfile::HashCounterName("c1");
 void CounterThread(void* arg)
 {
     for (int i = 0; i < 2000; ++i)
     {
-        DM_COUNTER_HASH("c1", g_c1hash, 1);
+        DM_COUNTER("c1", 1);
     }
 }
 
