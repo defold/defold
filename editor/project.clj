@@ -55,6 +55,11 @@
                      [com.amazonaws/aws-java-sdk-core             "1.11.63"]
                      [com.amazonaws/aws-java-sdk-s3               "1.11.63"]
 
+                     ;; bob needs javax.xml.bind, and it's removed in jdk 11
+                     [javax.xml.bind/jaxb-api "2.3.0"]
+                     [com.sun.xml.bind/jaxb-core "2.3.0"]
+                     [com.sun.xml.bind/jaxb-impl "2.3.0"]
+
                      [org.openjfx/javafx-base "12-ea+8"]
                      [org.openjfx/javafx-controls "12-ea+8"]
                      [org.openjfx/javafx-graphics "12-ea+8"]
