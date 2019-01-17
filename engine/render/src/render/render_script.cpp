@@ -2790,7 +2790,7 @@ bail:
             }
 
             {
-                DM_PROFILE_SCOPE_FMT(gProfilerRunScriptScope, "%s@%s", RENDER_SCRIPT_FUNCTION_NAMES[script_function], script->m_SourceFileName);
+                DM_PROFILE_SCOPE_FMT(ProfilerRunScriptScope, "%s@%s", RENDER_SCRIPT_FUNCTION_NAMES[script_function], script->m_SourceFileName);
                 if (dmScript::PCall(L, arg_count, 0) != 0)
                 {
                     assert(top == lua_gettop(L));
