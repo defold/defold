@@ -505,11 +505,6 @@ namespace dmProfile
         }
     }
 
-    uint32_t HashCounterName(const char* name)
-    {
-        return dmHashBufferNoReverse32(name, strlen(name));
-    }
-
     void AddCounter(const char* name, uint32_t amount)
     {
         uint32_t name_hash = GetNameHash(name);
