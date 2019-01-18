@@ -2747,7 +2747,7 @@ bail:
 
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)
     {
-        DM_NAMED_PROFILE(ProfilerRunScriptScope, Script, "RenderScript");
+        DM_PROFILE(Script, "RenderScript");
 
         RenderScriptResult result = RENDER_SCRIPT_RESULT_OK;
         HRenderScript script = script_instance->m_RenderScript;
@@ -2790,7 +2790,7 @@ bail:
             }
 
             {
-                DM_NAMED_PROFILE_FMT(ProfilerRunScriptScope, "%s@%s", RENDER_SCRIPT_FUNCTION_NAMES[script_function], script->m_SourceFileName);
+                DM_PROFILE_FMT(Script, "%s@%s", RENDER_SCRIPT_FUNCTION_NAMES[script_function], script->m_SourceFileName);
                 if (dmScript::PCall(L, arg_count, 0) != 0)
                 {
                     assert(top == lua_gettop(L));

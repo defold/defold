@@ -28,15 +28,6 @@
 
 /**
  * Profile macro.
- * scope_instance_name is the name of the scope instance.
- * scope_name is the scope name. Must be a literal
- * name is the sample name. Must be a literal 
- */
-#define DM_NAMED_PROFILE(scope_instance_name, scope_name, name)
-#undef DM_NAMED_PROFILE
-
-/**
- * Profile macro.
  * scope_name is the scope name. Must be a literal
  * name is the sample name. Must be literal, to use non-literal name use DM_PROFILE_FMT
  */
@@ -46,20 +37,11 @@
 /**
  * Profile macro.
  * scope_name is the scope name. Must be a literal
- * fmt String format, uses printf formatting limited to 128 characters
+ * fmt is the String format, uses printf formatting limited to 128 characters
  * Has overhead due to printf style formatting and hashing of the formatted string
  */
 #define DM_PROFILE_FMT(scope_name, fmt, ...)
 #undef DM_PROFILE_FMT
-
-/**
- * Profile macro for dynamic strings.
- * scope is the scope used when creating it using DM_NAMED_PROFILE. Must be a literal
- * fmt String format, uses printf formatting limited to 128 characters
- * Has overhead due to printf style formatting and hashing of the formatted string
- */
-#define DM_NAMED_PROFILE_FMT(scope, fmt, ...)
-#undef DM_NAMED_PROFILE_FMT
 
 /**
  * Profile counter macro
@@ -81,10 +63,8 @@
 #if defined(NDEBUG)
     #define DM_INTERNALIZE(name) 0
     #define DM_PROFILE_SCOPE(scope_instance_name, name)
-    #define DM_NAMED_PROFILE(scope_instance_name, scope_name, name)
     #define DM_PROFILE(scope_name, name)
     #define DM_PROFILE_FMT(scope_name, fmt, ...)
-    #define DM_NAMED_PROFILE_FMT(scope, fmt, ...)
     #define DM_COUNTER(name, amount)
     #define DM_COUNTER_DYN(name, name_hash, amount)
 #else
@@ -94,25 +74,19 @@
     #define DM_PROFILE_SCOPE(scope, name) \
         dmProfile::ProfileScope DM_PROFILE_PASTE2(profile_scope, __LINE__)(scope, name);\
 
-    #define DM_NAMED_PROFILE(scope_instance_name, scope_name, name) \
-        static dmProfile::Scope* scope_instance_name = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : 0; \
-        DM_PROFILE_SCOPE(scope_instance_name, name)
-
     #define DM_PROFILE(scope_name, name) \
-        DM_NAMED_PROFILE(DM_PROFILE_PASTE2(scope, __LINE__), scope_name, name)
+        static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : 0; \
+        DM_PROFILE_SCOPE(DM_PROFILE_PASTE2(scope, __LINE__), name)
 
-    #define DM_NAMED_PROFILE_FMT(scope, fmt, ...) \
+    #define DM_PROFILE_FMT(scope_name, fmt, ...) \
+        static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : 0; \
         const char* DM_PROFILE_PASTE2(name, __LINE__) = 0; \
         if (dmProfile::g_IsInitialized) { \
             char buffer[128]; \
             DM_SNPRINTF(buffer, sizeof(buffer), fmt, __VA_ARGS__); \
             DM_PROFILE_PASTE2(name, __LINE__) = dmProfile::Internalize(buffer); \
         } \
-        DM_PROFILE_SCOPE(scope, DM_PROFILE_PASTE2(name, __LINE__))
-
-    #define DM_PROFILE_FMT(scope_name, fmt, ...) \
-        static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : 0; \
-        DM_NAMED_PROFILE_FMT(DM_PROFILE_PASTE2(scope, __LINE__), fmt, __VA_ARGS__)
+        DM_PROFILE_SCOPE(DM_PROFILE_PASTE2(scope, __LINE__), DM_PROFILE_PASTE2(name, __LINE__))
 
     #define DM_COUNTER(name, amount) \
         if (dmProfile::g_IsInitialized) { \
@@ -124,7 +98,6 @@
         if (dmProfile::g_IsInitialized) { \
             dmProfile::AddCounterHash(name, name_hash, amount); \
         }
-
 #endif
 
 namespace dmProfile
