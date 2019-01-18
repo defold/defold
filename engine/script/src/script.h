@@ -775,7 +775,7 @@ namespace dmScript
      */
     struct LuaFunctionInfo
     {
-        const char* m_ShortFileName;
+        const char* m_FileName;
         const char* m_OptionalName;
         int m_LineNumber;
     };

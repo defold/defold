@@ -1475,7 +1475,7 @@ namespace dmScript
         lua_pushvalue(L, stack_index);
         if (lua_getinfo(L, ">Sn", &ar))
         {
-            out_function_info->m_ShortFileName = ar.short_src;
+            out_function_info->m_FileName = (ar.source[0] == '@') ? &ar.source[1] : ar.source;
             out_function_info->m_LineNumber = ar.linedefined;
             out_function_info->m_OptionalName = ar.name;
             return true;
