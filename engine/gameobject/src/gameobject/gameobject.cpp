@@ -484,6 +484,10 @@ namespace dmGameObject
 
         regist->m_ComponentTypes[regist->m_ComponentTypeCount] = type;
         regist->m_ComponentTypesOrder[regist->m_ComponentTypeCount] = regist->m_ComponentTypeCount;
+        if (dmProfile::g_IsInitialized)
+        {
+            regist->m_ComponentNameHash[regist->m_ComponentTypeCount] = dmProfile::HashCounterName(type.m_Name);
+        }
         regist->m_ComponentTypeCount++;
         return RESULT_OK;
     }
@@ -2396,7 +2400,7 @@ namespace dmGameObject
             uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
             ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
 
-            DM_COUNTER_DYN(component_type->m_Name, collection->m_ComponentInstanceCount[update_index]);
+            DM_COUNTER_DYN(component_type->m_Name, collection->m_Register->m_ComponentNameHash[i], collection->m_ComponentInstanceCount[update_index]);
 
             // Avoid to call UpdateTransforms for each/all component types.
             if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms) {
