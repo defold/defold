@@ -1585,6 +1585,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             uint32_t arg_count = 1;
             uint32_t ret_count = 0;
 
+            const char* message_name = 0;
             switch (script_function)
             {
             case SCRIPT_FUNCTION_UPDATE:
@@ -1601,15 +1602,24 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
                     if (message->m_Descriptor)
                     {
+                        message_name = ((const dmDDF::Descriptor*)message->m_Descriptor)->m_Name;
                         dmScript::PushDDF(L, (dmDDF::Descriptor*)message->m_Descriptor, (const char*) message->m_Data, true);
-                    }
-                    else if (message->m_DataSize > 0)
-                    {
-                        dmScript::PushTable(L, (const char*) message->m_Data, message->m_DataSize);
                     }
                     else
                     {
-                        lua_newtable(L);
+                        if (dmProfile::g_IsInitialized)
+                        {
+                            // Try to find the message name via id and reverse hash
+                            message_name = (const char*)dmHashReverse64(message->m_Id, 0);
+                        }
+                        if (message->m_DataSize > 0)
+                        {
+                            dmScript::PushTable(L, (const char*) message->m_Data, message->m_DataSize);
+                        }
+                        else
+                        {
+                            lua_newtable(L);
+                        }
                     }
 
                     dmScript::PushURL(L, message->m_Sender);
@@ -1811,14 +1821,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                         }
                         else
                         {
-                            DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "%d", fi.m_LineNumber);
+                            DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
                             function_name = function_line_number_buffer;
                         }
                     }
                 }
             }
             {
-                DM_PROFILE_FMT(Script, "%s@%s", function_name, function_source);
+                DM_PROFILE_FMT(Script, "%s%s%s%s@%s", function_name, message_name ? "[" : "", message_name ? message_name : "", message_name ? "]" : "", function_source);
                 if (dmScript::PCall(L, arg_count, LUA_MULTRET) != 0)
                 {
                     assert(top == lua_gettop(L));
