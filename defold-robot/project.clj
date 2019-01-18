@@ -1,4 +1,4 @@
-(defproject defold-robot "0.3.0"
+(defproject defold-robot "0.4.0"
   :description "FIXME: write description"
   :url "https://www.defold.com"
   :license {:name "Eclipse Public License"
@@ -8,7 +8,13 @@
                  [commons-io/commons-io "2.4"]
                  [org.apache.ant/ant "1.10.1"]
                  [org.openjfx/javafx-graphics "12-ea+6"]
-                 [org.openjfx/javafx-swing "12-ea+6"]]
+                 [org.openjfx/javafx-graphics "12-ea+6" :classifier "linux"]
+                 [org.openjfx/javafx-graphics "12-ea+6" :classifier "mac"]
+                 [org.openjfx/javafx-graphics "12-ea+6" :classifier "win"]
+                 [org.openjfx/javafx-swing "12-ea+6"]
+                 [org.openjfx/javafx-swing "12-ea+6" :classifier "linux"]
+                 [org.openjfx/javafx-swing "12-ea+6" :classifier "mac"]
+                 [org.openjfx/javafx-swing "12-ea+6" :classifier "win"]]
   :resource-paths ["resources"]
   :main defold-robot.robot
   :aot [defold-robot.robot]
