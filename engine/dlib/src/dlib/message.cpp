@@ -368,7 +368,7 @@ namespace dmMessage
             dmMutex::Unlock(g_MessageContext->m_Mutex);
             return 0;
         }
-        DM_PROFILE(Message, DM_INTERNALIZE(s->m_Name));
+        DM_PROFILE_FMT(Message, "Dispatch %s", s->m_Name);
 
         dmMutex::Lock(s->m_Mutex);
         dmMutex::Unlock(g_MessageContext->m_Mutex);

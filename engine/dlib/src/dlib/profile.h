@@ -30,8 +30,7 @@
  * Profile macro.
  * scope_instance_name is the name of the scope instance.
  * scope_name is the scope name. Must be a literal
- * name is the sample name. An arbitrary constant string and *must* be valid during the life-time
- * of the application. If not, use DM_INTERNALIZE()
+ * name is the sample name. Must be a literal 
  */
 #define DM_NAMED_PROFILE(scope_instance_name, scope_name, name)
 #undef DM_NAMED_PROFILE
@@ -39,20 +38,28 @@
 /**
  * Profile macro.
  * scope_name is the scope name. Must be a literal
- * name is the sample name. An arbitrary constant string and *must* be valid during the life-time
- * of the application. If not, use DM_INTERNALIZE()
+ * name is the sample name. Must be literal, to use non-literal name use DM_PROFILE_FMT
  */
 #define DM_PROFILE(scope_name, name)
 #undef DM_PROFILE
 
 /**
+ * Profile macro.
+ * scope_name is the scope name. Must be a literal
+ * fmt String format, uses printf formatting limited to 128 characters
+ * Has overhead due to printf style formatting and hashing of the formatted string
+ */
+#define DM_PROFILE_FMT(scope_name, fmt, ...)
+#undef DM_PROFILE_FMT
+
+/**
  * Profile macro for dynamic strings.
  * scope is the scope used when creating it using DM_NAMED_PROFILE. Must be a literal
  * fmt String format, uses printf formatting limited to 128 characters
- * Has overhead du to printf style formatting and hashing of the formatted string
+ * Has overhead due to printf style formatting and hashing of the formatted string
  */
-#define DM_PROFILE_SCOPE_FMT(scope, fmt, ...)
-#undef DM_PROFILE_SCOPE_FMT
+#define DM_NAMED_PROFILE_FMT(scope, fmt, ...)
+#undef DM_NAMED_PROFILE_FMT
 
 /**
  * Profile counter macro
@@ -63,11 +70,12 @@
 #undef DM_COUNTER
 
 /**
- * Profile counter macro for non-literal strings, performance penalty compared to DM_COUNTER
+ * Profile counter macro for non-literal strings, caller must provide hash
  * name is the counter name.
+ * name_hash is the hash generated with HashCounterName
  * amount is the amount (integer) to add to the specific counter.
  */
-#define DM_COUNTER_DYN(name, amount)
+#define DM_COUNTER_DYN(name, name_hash, amount)
 #undef DM_COUNTER_DYN
 
 #if defined(NDEBUG)
@@ -75,9 +83,10 @@
     #define DM_PROFILE_SCOPE(scope_instance_name, name)
     #define DM_NAMED_PROFILE(scope_instance_name, scope_name, name)
     #define DM_PROFILE(scope_name, name)
-    #define DM_PROFILE_SCOPE_FMT(scope, fmt, ...)
+    #define DM_PROFILE_FMT(scope_name, fmt, ...)
+    #define DM_NAMED_PROFILE_FMT(scope, fmt, ...)
     #define DM_COUNTER(name, amount)
-    #define DM_COUNTER_DYN(name, amount)
+    #define DM_COUNTER_DYN(name, name_hash, amount)
 #else
     #define DM_INTERNALIZE(name) \
         (dmProfile::g_IsInitialized ? dmProfile::Internalize(name) : 0)
@@ -92,7 +101,7 @@
     #define DM_PROFILE(scope_name, name) \
         DM_NAMED_PROFILE(DM_PROFILE_PASTE2(scope, __LINE__), scope_name, name)
 
-    #define DM_PROFILE_SCOPE_FMT(scope, fmt, ...) \
+    #define DM_NAMED_PROFILE_FMT(scope, fmt, ...) \
         const char* DM_PROFILE_PASTE2(name, __LINE__) = 0; \
         if (dmProfile::g_IsInitialized) { \
             char buffer[128]; \
@@ -101,15 +110,19 @@
         } \
         DM_PROFILE_SCOPE(scope, DM_PROFILE_PASTE2(name, __LINE__))
 
+    #define DM_PROFILE_FMT(scope_name, fmt, ...) \
+        static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : 0; \
+        DM_NAMED_PROFILE_FMT(DM_PROFILE_PASTE2(scope, __LINE__), fmt, __VA_ARGS__)
+
     #define DM_COUNTER(name, amount) \
         if (dmProfile::g_IsInitialized) { \
             static const uint32_t DM_PROFILE_PASTE2(hash, __LINE__) = dmProfile::HashCounterName(name); \
             dmProfile::AddCounterHash(name, DM_PROFILE_PASTE2(hash, __LINE__), amount); \
         }
 
-    #define DM_COUNTER_DYN(name, amount) \
+    #define DM_COUNTER_DYN(name, name_hash, amount) \
         if (dmProfile::g_IsInitialized) { \
-            dmProfile::AddCounterHash(name, dmProfile::HashCounterName(name), amount); \
+            dmProfile::AddCounterHash(name, name_hash, amount); \
         }
 
 #endif
