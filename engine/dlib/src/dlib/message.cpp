@@ -368,10 +368,11 @@ namespace dmMessage
             dmMutex::Unlock(g_MessageContext->m_Mutex);
             return 0;
         }
-        DM_PROFILE_FMT(Message, "Dispatch %s", s->m_Name);
 
         dmMutex::Lock(s->m_Mutex);
         dmMutex::Unlock(g_MessageContext->m_Mutex);
+
+        DM_PROFILE_FMT(Message, "Dispatch %s", s->m_Name);
 
         MemoryAllocator* allocator = &s->m_Allocator;
 
