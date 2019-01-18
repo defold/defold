@@ -83,7 +83,7 @@ namespace dmGameObject
 
     ScriptResult RunScript(lua_State* L, HScript script, ScriptFunction script_function, HScriptInstance script_instance, const RunScriptParams& params)
     {
-        DM_NAMED_PROFILE(ProfilerRunScriptScope, Script, "RunScript");
+        DM_PROFILE(Script, "RunScript");
 
         ScriptResult result = SCRIPT_RESULT_OK;
 
@@ -113,7 +113,7 @@ namespace dmGameObject
             }
 
             {
-                DM_NAMED_PROFILE_FMT(ProfilerRunScriptScope, "%s@%s", SCRIPT_FUNCTION_NAMES[script_function], script->m_LuaModule->m_Source.m_Filename);
+                DM_PROFILE_FMT(Script, "%s@%s", SCRIPT_FUNCTION_NAMES[script_function], script->m_LuaModule->m_Source.m_Filename);
                 if (dmScript::PCall(L, arg_count, 0) != 0)
                 {
                     result = SCRIPT_RESULT_FAILED;
@@ -228,7 +228,7 @@ namespace dmGameObject
 
     UpdateResult CompScriptOnMessage(const ComponentOnMessageParams& params)
     {
-        DM_NAMED_PROFILE(ProfilerRunScriptScope, Script, "RunScript");
+        DM_PROFILE(Script, "RunScript");
         UpdateResult result = UPDATE_RESULT_OK;
 
         ScriptInstance* script_instance = (ScriptInstance*)*params.m_UserData;
@@ -319,7 +319,7 @@ namespace dmGameObject
 
             // An on_message function shouldn't return anything.
             {
-                DM_NAMED_PROFILE_FMT(ProfilerRunScriptScope, "%s@%s", function_name, function_source);
+                DM_PROFILE_FMT(Script, "%s@%s", function_name, function_source);
                 if (dmScript::PCall(L, 4, 0) != 0)
                 {
                     result = UPDATE_RESULT_UNKNOWN_ERROR;
@@ -336,7 +336,7 @@ namespace dmGameObject
 
     InputResult CompScriptOnInput(const ComponentOnInputParams& params)
     {
-        DM_NAMED_PROFILE(ProfilerRunScriptScope, Script, "RunScript");
+        DM_PROFILE(Script, "RunScript");
         InputResult result = INPUT_RESULT_IGNORED;
 
         ScriptInstance* script_instance = (ScriptInstance*)*params.m_UserData;
@@ -524,7 +524,7 @@ namespace dmGameObject
             int input_ret = lua_gettop(L) - arg_count;
             int ret;
             {
-                DM_NAMED_PROFILE_FMT(ProfilerRunScriptScope, "%s@%s", SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT], script_instance->m_Script->m_LuaModule->m_Source.m_Filename);
+                DM_PROFILE_FMT(Script, "%s@%s", SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT], script_instance->m_Script->m_LuaModule->m_Source.m_Filename);
                 ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
             }
             const char* function_name = SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT];
