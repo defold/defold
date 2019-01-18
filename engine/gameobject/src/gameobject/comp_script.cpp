@@ -292,23 +292,34 @@ namespace dmGameObject
 
             dmScript::PushURL(L, params.m_Message->m_Sender);
 
-            // An on_message function shouldn't return anything.
-            if (is_callback)
+            const char* function_source = script_instance->m_Script->m_LuaModule->m_Source.m_Filename;
+            const char* function_name = SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE];
+            char function_line_number_buffer[16];
+
+            if (dmProfile::g_IsInitialized)
             {
-                dmScript::LuaFunctionInfo fi = {script_instance->m_Script->m_LuaModule->m_Source.m_Filename, -1};
-                if (dmProfile::g_IsInitialized)
+                if (is_callback)
                 {
-                    (void)dmScript::GetLuaFunctionRefInfo(L, -5, &fi);
-                }
-                DM_PROFILE_SCOPE_FMT(ProfilerRunScriptScope, "%d@%s", fi.m_LineNumber, fi.m_ShortFileName);
-                if (dmScript::PCall(L, 4, 0) != 0)
-                {
-                    result = UPDATE_RESULT_UNKNOWN_ERROR;
+                    dmScript::LuaFunctionInfo fi;
+                    if (dmScript::GetLuaFunctionRefInfo(L, -5, &fi))
+                    {
+                        function_source = fi.m_ShortFileName;
+                        if (fi.m_OptionalName)
+                        {
+                            function_name = fi.m_OptionalName;
+                        }
+                        else
+                        {
+                            DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "%d", fi.m_LineNumber);
+                            function_name = function_line_number_buffer;
+                        }
+                    }
                 }
             }
-            else
+
+            // An on_message function shouldn't return anything.
             {
-                DM_PROFILE_SCOPE_FMT(ProfilerRunScriptScope, "%s@%s", SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE], script_instance->m_Script->m_LuaModule->m_Source.m_Filename);
+                DM_PROFILE_SCOPE_FMT(ProfilerRunScriptScope, "%s@%s", function_name, function_source);
                 if (dmScript::PCall(L, 4, 0) != 0)
                 {
                     result = UPDATE_RESULT_UNKNOWN_ERROR;
