@@ -303,7 +303,7 @@ namespace dmGameObject
                     dmScript::LuaFunctionInfo fi;
                     if (dmScript::GetLuaFunctionRefInfo(L, -5, &fi))
                     {
-                        function_source = fi.m_ShortFileName;
+                        function_source = fi.m_FileName;
                         if (fi.m_OptionalName)
                         {
                             function_name = fi.m_OptionalName;
