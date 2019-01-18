@@ -44,25 +44,28 @@
 #undef DM_COUNTER_HASH
 
 #if defined(NDEBUG)
+    #define DM_PROFILE_SCOPE(scope_instance_name, name)
     #define DM_PROFILE(scope_name, name)
     #define DM_COUNTER(name, amount)
     #define DM_COUNTER_HASH(name, name_hash, amount)
 #else
+    #define DM_PROFILE_SCOPE(scope, name) \
+        dmProfile::ProfileScope DM_PROFILE_PASTE2(profile_scope, __LINE__)(scope, name);\
+
     #define DM_PROFILE(scope_name, name) \
         static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = 0; \
         if (dmProfile::g_IsInitialized && DM_PROFILE_PASTE2(scope, __LINE__) == 0) \
         {\
             DM_PROFILE_PASTE2(scope, __LINE__) = dmProfile::AllocateScope(#scope_name);\
         }\
-        dmProfile::ProfileScope DM_PROFILE_PASTE2(profile_scope, __LINE__)(DM_PROFILE_PASTE2(scope, __LINE__), name);\
+        DM_PROFILE_SCOPE(DM_PROFILE_PASTE2(scope, __LINE__), name)
 
 
     #define DM_COUNTER(name, amount) \
-    dmProfile::AddCounter(name, amount);
+        dmProfile::AddCounter(name, amount);
 
     #define DM_COUNTER_HASH(name, name_hash, amount) \
-    dmProfile::AddCounterHash(name, name_hash, amount);
-
+        dmProfile::AddCounterHash(name, name_hash, amount);
 #endif
 
 namespace dmProfile
