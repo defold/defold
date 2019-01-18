@@ -5,7 +5,7 @@ public enum PlatformArchitectures {
     Windows(new String[] {"x86_64-win32", "x86-win32"}),
     Linux(new String[] {"x86_64-linux"}),
     iOS(new String[] {"arm64-darwin", "armv7-darwin"}),
-    Android(new String[] {"armv7-android"}),
+    Android(new String[] {"arm64-android", "armv7-android"}),
     Web(new String[] {"js-web", "wasm-web"});
 
     String[] architectures;
