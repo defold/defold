@@ -6,6 +6,7 @@ mkdir -p engine/x86_64-win32
 mkdir -p engine/ios
 mkdir -p engine/arm64-ios
 mkdir -p engine/android
+mkdir -p engine/arm64-android
 mkdir -p engine/js-web
 mkdir -p engine/wasm-web
 
@@ -38,6 +39,9 @@ copy arm64-darwin/dmengine_release engine/arm64-ios/dmengine_release
 
 copy armv7-darwin/dmengine engine/ios/dmengine
 copy armv7-darwin/dmengine_release engine/ios/dmengine_release
+
+copy arm64-android/libdmengine.so engine/arm64-android/libdmengine.so
+copy arm64-android/libdmengine_release.so engine/arm64-android/libdmengine_release.so
 
 copy armv7-android/libdmengine.so engine/android/libdmengine.so
 copy armv7-android/libdmengine_release.so engine/android/libdmengine_release.so

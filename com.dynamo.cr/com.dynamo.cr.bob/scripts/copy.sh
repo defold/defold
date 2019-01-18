@@ -13,6 +13,7 @@ mkdir -p libexec/x86_64-win32
 mkdir -p libexec/armv7-darwin
 mkdir -p libexec/arm64-darwin
 mkdir -p libexec/armv7-android
+mkdir -p libexec/arm64-android
 mkdir -p libexec/js-web
 mkdir -p libexec/wasm-web
 
@@ -29,6 +30,7 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/builtins.zip lib/builtins.zip
 
 jar cfM lib/android-res.zip -C $DYNAMO_HOME/ext/share/java/ res
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/armv7-android/classes.dex lib/classes.dex
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-android/classes.dex lib/classes.dex
 cp -v $DYNAMO_HOME/ext/share/java/android.jar lib/android.jar
 
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/dlib.jar lib/dlib.jar
@@ -90,6 +92,8 @@ copy arm64-darwin/dmengine arm64-darwin/dmengine
 copy arm64-darwin/dmengine_release arm64-darwin/dmengine_release
 copy armv7-android/libdmengine.so armv7-android/libdmengine.so
 copy armv7-android/libdmengine_release.so armv7-android/libdmengine_release.so
+copy arm64-android/libdmengine.so arm64-android/libdmengine.so
+copy arm64-android/libdmengine_release.so arm64-android/libdmengine_release.so
 copy js-web/dmengine.js js-web/dmengine.js
 copy js-web/defold_sound.swf js-web/defold_sound.swf
 #copy js-web/dmengine.js.mem js-web/dmengine.js.mem

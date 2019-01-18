@@ -53,6 +53,7 @@ ZIPALIGN="${DEFOLD_HOME}/com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-darwin/z
 APKC="${DEFOLD_HOME}/com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-darwin/apkc"
 
 ENGINE_LIB="${DYNAMO_HOME}/bin/armv7-android/libdmengine.so"
+ENGINE_64_LIB="${DYNAMO_HOME}/bin/arm64-android/libdmengine.so"
 ENGINE_DEX="${DYNAMO_HOME}/share/java/classes.dex"
 
 [ $(which "${ZIP}") ] || terminate "'${ZIP}' is not installed"
@@ -91,9 +92,11 @@ TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
     cd "${BUILD}"
 
     EXENAME=`(cd lib/armeabi-v7a && ls lib*.so)`
+    EXENAME_64=`(cd lib/arm64-v8a && ls lib*.so)`
 
     rm -rf "META-INF"
     cp -v "${ENGINE_LIB}" "lib/armeabi-v7a/${EXENAME}"
+    cp -v "${ENGINE_64_LIB}" "lib/arm64-v8a/${EXENAME_64}"
     cp -v "${ENGINE_DEX}" "classes.dex"
 
     cp -v "${ANDROID_NDK}/prebuilt/android-arm/gdbserver/gdbserver" ./lib/armeabi-v7a/gdbserver
