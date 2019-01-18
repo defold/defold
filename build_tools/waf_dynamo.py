@@ -16,10 +16,12 @@ HOME=os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
 ANDROID_ROOT=os.path.join(HOME, 'android')
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='10e'
-ANDROID_NDK_API_VERSION='14'
+ANDROID_NDK_API_VERSION='14' # Android 4.0
 ANDROID_TARGET_API_LEVEL='23'
 ANDROID_MIN_API_LEVEL='9'
 ANDROID_GCC_VERSION='4.8'
+ANDROID_64_NDK_API_VERSION='21' # Android 5.0
+ANDROID_64_GCC_VERSION='4.9'
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
 DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault.xctoolchain')
@@ -183,8 +185,7 @@ def default_flags(self):
     global MIN_IOS_SDK_VERSION
     build_util = create_build_utility(self.env)
 
-    #opt_level = Options.options.opt_level
-    opt_level = 0
+    opt_level = Options.options.opt_level
     if opt_level == "2" and 'web' == build_util.get_target_os():
         opt_level = "3" # emscripten highest opt level
     elif opt_level == "0" and 'win' in build_util.get_target_os():
@@ -257,8 +258,7 @@ def default_flags(self):
                                         '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)])
         self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
 
-    elif 'android' == build_util.get_target_os() and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture()):
-        print("############### ANDROID build_util.get_target_architecture(): " + build_util.get_target_architecture())
+    elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
         sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION)
         stl="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/include" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION)
         stl_lib="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/libs/armeabi-v7a" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION)
@@ -289,6 +289,37 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', [
                 '--sysroot=%s' % sysroot,
                 '-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text',
+                '-L%s' % stl_lib])
+    elif 'android' == build_util.get_target_os() and 'arm64' == build_util.get_target_architecture():
+        sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm64' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_64_NDK_API_VERSION)
+        stl="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/include" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_64_GCC_VERSION)
+        stl_lib="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/libs/arm64-v8a" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_64_GCC_VERSION)
+        stl_arch="%s/include" % stl_lib
+
+        for f in ['CCFLAGS', 'CXXFLAGS']:
+            # NOTE compared to armv7-android:
+            # -mthumb, -mfloat-abi, -mfpu are implicit on aarch64, removed from flags
+            self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
+                                      '-fpic', '-ffunction-sections', '-fstack-protector',
+                                      '-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI',
+                                      '-Wno-psabi', '-march=armv8-a', '-fvisibility=hidden',
+                                      '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions', '-funwind-tables',
+                                      '-I%s/android-ndk-r%s/sources/android/native_app_glue' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
+                                      '-I%s/android-ndk-r%s/sources/android/cpufeatures' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
+                                      '-I%s/android-ndk-r%s/platforms/android-%s/arch-arm64/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_64_NDK_API_VERSION),
+                                      '-I%s' % stl,
+                                      '-I%s' % stl_arch,
+                                      '--sysroot=%s' % sysroot,
+                                      '-DANDROID', '-Wa,--noexecstack'])
+            if f == 'CXXFLAGS':
+                self.env.append_value(f, ['-fno-rtti'])
+
+        # TODO: Should be part of shared libraries
+        # -Wl,-soname,libnative-activity.so -shared
+        # -lgnustl_static -lsupc++
+        self.env.append_value('LINKFLAGS', [
+                '--sysroot=%s' % sysroot,
+                '-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text',
                 '-L%s' % stl_lib])
     elif 'web' == build_util.get_target_os():
 
@@ -834,6 +865,10 @@ def android_package(task):
     if task.android_package:
         package = task.android_package
 
+    try:
+        build_util = create_build_utility(task.env)
+    except BuildUtilityException as ex:
+        task.fatal(ex.msg)
     manifest_file = open(task.manifest.bldpath(task.env), 'wb')
     manifest_file.write(ANDROID_MANIFEST % { 'package' : package, 'app_name' : task.exe_name, 'lib_name' : task.exe_name, 'extra_activities' : activities, 'min_api_level' : ANDROID_MIN_API_LEVEL, 'target_api_level' : ANDROID_TARGET_API_LEVEL })
     manifest_file.close()
@@ -864,7 +899,10 @@ def android_package(task):
     bld.exec_command('mkdir -p %s' % (gen))
     bld.exec_command('mkdir -p %s' % (r_java_gen_dir))
     shutil.copy(task.native_lib_in.abspath(task.env), native_lib)
-    shutil.copy('%s/android-ndk-r%s/prebuilt/android-arm/gdbserver/gdbserver' % (ANDROID_ROOT, ANDROID_NDK_VERSION), gdbserver)
+    if 'arm64' == build_util.get_target_architecture():
+        shutil.copy('%s/android-ndk-r%s/prebuilt/android-arm64/gdbserver/gdbserver' % (ANDROID_ROOT, ANDROID_NDK_VERSION), gdbserver)
+    else:
+        shutil.copy('%s/android-ndk-r%s/prebuilt/android-arm/gdbserver/gdbserver' % (ANDROID_ROOT, ANDROID_NDK_VERSION), gdbserver)
 
     res_args = ""
     for d in res_dirs:
@@ -935,6 +973,8 @@ def android_package(task):
                 relative_path = os.path.relpath(full_path, libs_dir)
                 if relative_path.startswith('armeabi-v7a'):
                     relative_path = os.path.join('lib', relative_path)
+                if relative_path.startswith('arm64-v8a'):
+                    relative_path = os.path.join('lib', relative_path)
                 zip.write(full_path, relative_path)
 
     shutil.copy(ap_, apk_unaligned)
@@ -958,13 +998,19 @@ def android_package(task):
         return 1
 
     with open(task.android_mk.abspath(task.env), 'wb') as f:
-        print >>f, 'APP_ABI := armeabi-v7a'
+        if 'arm64' == build_util.get_target_architecture():
+            print >>f, 'APP_ABI := arm64-v8a'
+        else:
+            print >>f, 'APP_ABI := armeabi-v7a'
 
     with open(task.application_mk.abspath(task.env), 'wb') as f:
         print >>f, ''
 
     with open(task.gdb_setup.abspath(task.env), 'wb') as f:
-        print >>f, 'set solib-search-path ./libs/armeabi-v7a:./obj/local/armeabi-v7a/'
+        if 'arm64' == build_util.get_target_architecture():
+            print >>f, 'set solib-search-path ./libs/arm64-v8a:./obj/local/arm64-v8a/'
+        else:
+            print >>f, 'set solib-search-path ./libs/armeabi-v7a:./obj/local/armeabi-v7a/'
 
     return 0
 
@@ -1000,11 +1046,21 @@ def create_android_package(self):
     manifest = self.path.exclusive_build_node("%s.android/AndroidManifest.xml" % exe_name)
     android_package_task.manifest = manifest
 
-    native_lib = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/%s" % (exe_name, lib_name))
+    try:
+        build_util = create_build_utility(android_package_task.env)
+    except BuildUtilityException as ex:
+        android_package_task.fatal(ex.msg)
+
+    if 'arm64' == build_util.get_target_architecture():
+        native_lib = self.path.exclusive_build_node("%s.android/libs/arm64-v8a/%s" % (exe_name, lib_name))
+    else:
+        native_lib = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/%s" % (exe_name, lib_name))
     android_package_task.native_lib = native_lib
     android_package_task.native_lib_in = self.link_task.outputs[0]
-
-    gdbserver = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/gdbserver" % (exe_name))
+    if 'arm64' == build_util.get_target_architecture():
+        gdbserver = self.path.exclusive_build_node("%s.android/libs/arm64-v8a/gdbserver" % (exe_name))
+    else:
+        gdbserver = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/gdbserver" % (exe_name))
     android_package_task.gdbserver = gdbserver
 
     ap_ = self.path.exclusive_build_node("%s.android/%s.ap_" % (exe_name, exe_name))
@@ -1024,7 +1080,10 @@ def create_android_package(self):
     # NOTE: These files are required for ndk-gdb
     android_package_task.android_mk = self.path.exclusive_build_node("%s.android/jni/Android.mk" % (exe_name))
     android_package_task.application_mk = self.path.exclusive_build_node("%s.android/jni/Application.mk" % (exe_name))
-    android_package_task.gdb_setup = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/gdb.setup" % (exe_name))
+    if 'arm64' == build_util.get_target_architecture():
+        android_package_task.gdb_setup = self.path.exclusive_build_node("%s.android/libs/arm64-v8a/gdb.setup" % (exe_name))
+    else:
+        android_package_task.gdb_setup = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/gdb.setup" % (exe_name))
 
     android_package_task.set_outputs([native_lib, manifest, ap_, apk_unaligned, apk, gdbserver,
                                       android_package_task.android_mk, android_package_task.application_mk, android_package_task.gdb_setup])
@@ -1473,11 +1532,11 @@ def detect(conf):
         conf.env['AR'] = '%s/usr/bin/ar' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['LD'] = '%s/usr/bin/ld' % (DARWIN_TOOLCHAIN_ROOT)
-    elif 'android' == build_util.get_target_os() and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture()):
+    elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
         # TODO: No windows support yet (unknown path to compiler when wrote this)
         arch = 'x86_64'
 
-        bin='%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, build_platform, arch)
+        bin='%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_64_GCC_VERSION, build_platform, arch)
         conf.env['CC'] = '%s/arm-linux-androideabi-gcc' % (bin)
         conf.env['CXX'] = '%s/arm-linux-androideabi-g++' % (bin)
         conf.env['LINK_CXX'] = '%s/arm-linux-androideabi-g++' % (bin)
@@ -1485,6 +1544,20 @@ def detect(conf):
         conf.env['AR'] = '%s/arm-linux-androideabi-ar' % (bin)
         conf.env['RANLIB'] = '%s/arm-linux-androideabi-ranlib' % (bin)
         conf.env['LD'] = '%s/arm-linux-androideabi-ld' % (bin)
+
+        conf.env['DX'] =  '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
+    elif 'android' == build_util.get_target_os() and 'arm64' == build_util.get_target_architecture():
+        # TODO: No windows support yet (unknown path to compiler when wrote this)
+        arch = 'x86_64'
+
+        bin='%s/android-ndk-r%s/toolchains/aarch64-linux-android-%s/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_64_GCC_VERSION, build_platform, arch)
+        conf.env['CC'] = '%s/aarch64-linux-android-gcc' % (bin)
+        conf.env['CXX'] = '%s/aarch64-linux-android-g++' % (bin)
+        conf.env['LINK_CXX'] = '%s/aarch64-linux-android-g++' % (bin)
+        conf.env['CPP'] = '%s/aarch64-linux-android-cpp' % (bin)
+        conf.env['AR'] = '%s/aarch64-linux-android-ar' % (bin)
+        conf.env['RANLIB'] = '%s/aarch64-linux-android-ranlib' % (bin)
+        conf.env['LD'] = '%s/aarch64-linux-android-ld' % (bin)
 
         conf.env['DX'] =  '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
 
@@ -1579,7 +1652,7 @@ def detect(conf):
     if build_util.get_target_platform() == 'x86_64-linux':
         # TODO: LuaJIT is currently broken on x86_64-linux
         use_vanilla = True
-    if build_util.get_target_platform() == 'arm64-darwin':
+    if build_util.get_target_platform() == 'arm64-darwin' or build_util.get_target_platform() == 'arm64-android':
         # TODO: LuaJIT is currently not supported on arm64
         # Note: There is some support in the head branch for LuaJit 2.1
         use_vanilla = True
