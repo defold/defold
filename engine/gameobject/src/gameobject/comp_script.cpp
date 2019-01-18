@@ -276,14 +276,21 @@ namespace dmGameObject
 
             dmScript::PushHash(L, params.m_Message->m_Id);
 
+            const char* message_name = 0;
             if (params.m_Message->m_Descriptor != 0)
             {
                 // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
                 // lua_cpcall?
+                message_name = ((const dmDDF::Descriptor*)params.m_Message->m_Descriptor)->m_Name;
                 dmScript::PushDDF(L, (const dmDDF::Descriptor*)params.m_Message->m_Descriptor, (const char*) params.m_Message->m_Data, true);
             }
             else
             {
+                if (dmProfile::g_IsInitialized)
+                {
+                    // Try to find the message name via id and reverse hash
+                    message_name = (const char*)dmHashReverse64(params.m_Message->m_Id, 0);
+                }
                 if (params.m_Message->m_DataSize > 0)
                     dmScript::PushTable(L, (const char*)params.m_Message->m_Data, params.m_Message->m_DataSize);
                 else
@@ -292,8 +299,8 @@ namespace dmGameObject
 
             dmScript::PushURL(L, params.m_Message->m_Sender);
 
-            const char* function_source = script_instance->m_Script->m_LuaModule->m_Source.m_Filename;
             const char* function_name = SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE];
+            const char* function_source = script_instance->m_Script->m_LuaModule->m_Source.m_Filename;
             char function_line_number_buffer[16];
 
             if (dmProfile::g_IsInitialized)
@@ -310,7 +317,7 @@ namespace dmGameObject
                         }
                         else
                         {
-                            DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "%d", fi.m_LineNumber);
+                            DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
                             function_name = function_line_number_buffer;
                         }
                     }
@@ -319,7 +326,7 @@ namespace dmGameObject
 
             // An on_message function shouldn't return anything.
             {
-                DM_PROFILE_FMT(Script, "%s@%s", function_name, function_source);
+                DM_PROFILE_FMT(Script, "%s%s%s%s@%s", function_name, message_name ? "[" : "", message_name ? message_name : "", message_name ? "]" : "", function_source);
                 if (dmScript::PCall(L, 4, 0) != 0)
                 {
                     result = UPDATE_RESULT_UNKNOWN_ERROR;
