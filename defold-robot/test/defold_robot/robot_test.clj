@@ -5,7 +5,8 @@
   (:import [java.io BufferedWriter File]
            [java.nio.file Files]
            [java.nio.file.attribute FileAttribute]
-           [org.apache.commons.io FileUtils]))
+           [org.apache.commons.io FileUtils]
+           [javafx.application Platform]))
 
 (set! *warn-on-reflection* true)
 
@@ -13,9 +14,11 @@
   (doto (File/createTempFile "robot" "log.txt")
     (.deleteOnExit)))
 
+(Platform/startup (fn []))
+
 (defn- f->desc [^File f]
-  {"pattern" (.getName f)
-   "dir" (.getParent f)})
+  {:pattern (.getName f)
+   :dir (.getParent f)})
 
 (defn- run [script]
   (let [output (.toFile (Files/createTempDirectory "robot-output" (into-array FileAttribute [])))]
@@ -37,8 +40,8 @@
 (deftest await-log []
   (testing "time-out waiting for log"
     (let [log (tmp-log)]
-      (is (false? (run {"logs" {"log" (f->desc log)}
-                        "steps" [["await-log" "log" 10 "no output here"]]})))))
+      (is (false? (run {:logs {:log (f->desc log)}
+                        :steps [[:await-log :log 10 "no output here"]]})))))
   (testing "wait for log when log was written before reading"
     (let [log (tmp-log)
           f (future
@@ -47,7 +50,7 @@
                 (write-line w "first output")
                 (sleep 100)
                 (write-line w "second output")))]
-      (is (true? (run {"logs" {"log" (f->desc log)}
-                       "steps" [["await-log" "log" 1000 "first output"]
-                                ["wait" 400]
-                                ["await-log" "log" 1000 "second output"]]}))))))
+      (is (true? (run {:logs {:log (f->desc log)}
+                       :steps [[:await-log :log 1000 "first output"]
+                               [:wait 400]
+                               [:await-log :log 1000 "second output"]]}))))))
