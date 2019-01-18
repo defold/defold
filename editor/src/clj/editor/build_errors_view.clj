@@ -4,11 +4,14 @@
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.ui :as ui]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [editor.handler :as handler]
+            [clojure.string :as string])
   (:import [clojure.lang MapEntry PersistentQueue]
            [java.util Collection]
            [javafx.collections ObservableList]
-           [javafx.scene.control TabPane TreeItem TreeView]))
+           [javafx.scene.control TabPane TreeItem TreeView]
+           [javafx.scene.input Clipboard ClipboardContent]))
 
 (set! *warn-on-reflection* true)
 
@@ -178,6 +181,35 @@
         (when (and (resource/openable-resource? resource) (resource/exists? resource))
           (ui/run-later
             (open-resource-fn resource selection opts)))))))
+
+(defn- error-line-for-clipboard [error]
+  (let [message (:message error)
+        line    (if-let [line (:line error)]
+                  (str "Line " line \:)
+                  "")]
+    (str line message)))
+
+(defn- error-text-for-clipboard [selection]
+  (let [children    (:children selection)
+        resource    (or (get-in selection [:value :resource])
+                        (get-in selection [:parent :resource]))
+        proj-path   (if (resource/file-resource? resource)
+                      (str (resource/proj-path resource) "\n\t")
+                      "")
+        error-lines (if (not-empty children)
+                      (string/join "\n\t" (map error-line-for-clipboard children))
+                      (error-line-for-clipboard selection))]
+    (str proj-path error-lines)))
+
+(handler/defhandler :copy :workbench
+  (active? [selection] (handler/selection->node-ids selection))
+  (run [build-errors-view]
+    (let [clip-board (Clipboard/getSystemClipboard)
+          content    (ClipboardContent.)
+          selection  (first (ui/selection build-errors-view))
+          error-text (error-text-for-clipboard selection)]
+      (.putString content error-text)
+      (.setContent clip-board content))))
 
 (defn make-build-errors-view [^TreeView errors-tree open-resource-fn]
   (doto errors-tree
