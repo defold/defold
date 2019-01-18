@@ -2765,6 +2765,7 @@ bail:
 
             int arg_count = 1;
 
+            const char* message_name = 0;
             if (script_function == RENDER_SCRIPT_FUNCTION_ONMESSAGE)
             {
                 arg_count = 4;
@@ -2776,21 +2777,30 @@ bail:
                     dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
                     // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
                     // lua_cpcall?
+                    message_name = descriptor->m_Name;
                     dmScript::PushDDF(L, descriptor, (const char*)message->m_Data, true);
-                }
-                else if (message->m_DataSize > 0)
-                {
-                    dmScript::PushTable(L, (const char*)message->m_Data, message->m_DataSize);
                 }
                 else
                 {
-                    lua_newtable(L);
+                    if (dmProfile::g_IsInitialized)
+                    {
+                        // Try to find the message name via id and reverse hash
+                        message_name = (const char*)dmHashReverse64(message->m_Id, 0);
+                    }
+                    if (message->m_DataSize > 0)
+                    {
+                        dmScript::PushTable(L, (const char*)message->m_Data, message->m_DataSize);
+                    }
+                    else
+                    {
+                        lua_newtable(L);
+                    }
                 }
                 dmScript::PushURL(L, message->m_Sender);
             }
 
             {
-                DM_PROFILE_FMT(Script, "%s@%s", RENDER_SCRIPT_FUNCTION_NAMES[script_function], script->m_SourceFileName);
+                DM_PROFILE_FMT(Script, "%s%s%s%s@%s", RENDER_SCRIPT_FUNCTION_NAMES[script_function], message_name ? "[" : "", message_name ? message_name : "", message_name ? "]" : "", script->m_SourceFileName);
                 if (dmScript::PCall(L, arg_count, 0) != 0)
                 {
                     assert(top == lua_gettop(L));
