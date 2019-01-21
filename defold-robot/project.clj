@@ -1,4 +1,4 @@
-(defproject defold-robot "0.4.0"
+(defproject defold-robot "0.5.0"
   :description "FIXME: write description"
   :url "https://www.defold.com"
   :license {:name "Eclipse Public License"
