@@ -19,6 +19,7 @@
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
+            [editor.colors :as colors]
             [schema.core :as schema]
             [service.log :as log])
   (:import [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontTextureFormat Font$FontRenderMode]
@@ -362,7 +363,7 @@
                                                         :align :left
                                                         :offset [0.0 0.0]
                                                         :world-transform (doto (Matrix4d.) (.setIdentity))
-                                                        :color [1.0 1.0 1.0 1.0] :outline [0.0 0.0 0.0 1.0] :shadow [0.0 0.0 0.0 0.0]}])
+                                                        :color (colors/alpha colors/defold-white-light 1.0) :outline (colors/alpha colors/mid-grey 1.0) :shadow [0.0 0.0 0.0 1.0]}])
         material-shader (:shader user-data)
         type (:type user-data)
         vcount (count vertex-buffer)]
@@ -375,7 +376,11 @@
             texture-size-recip (Vector4d. cache-width-recip cache-height-recip cache-cell-width-ratio cache-cell-height-ratio)]
         (gl/with-gl-bindings gl render-args [material-shader vertex-binding gpu-texture]
           (shader/set-uniform material-shader gl "texture_size_recip" texture-size-recip)
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))))
+          ;; Need to set the blend mode to alpha since alpha blending the source with GL_SRC_ALPHA and dest with GL_ONE_MINUS_SRC_ALPHA
+          ;; gives us a small black border around the outline that looks different than other views..
+          (gl/set-blend-mode gl :blend-mode-alpha)
+          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
+          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))))
 
 (g/defnk produce-scene [_node-id aabb gpu-texture font-map material material-shader type preview-text]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
