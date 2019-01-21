@@ -146,6 +146,21 @@
     m1
     m2))
 
+(defn map-of?
+  "Returns true if value is a map and the supplied predicates are true for every
+  key and value in the map."
+  [key-pred value-pred value]
+  (and (map? value)
+       (every? (every-pred (comp key-pred key)
+                           (comp value-pred val))
+               value)))
+
+(defn natural-number?
+  "Returns true if value is a non-negative integer."
+  [value]
+  (and (integer? value)
+       (not (neg? value))))
+
 (defn parse-number
   "Reads a number from a string. Returns nil if not a number."
   [s]

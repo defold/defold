@@ -463,8 +463,8 @@
                                                     [(resource/proj-path resource) resource-node]))
                                                 new-nodes))
           resource->new-node (comp resource-path->new-node resource/proj-path)
-          ;; when transfering overrides and arcs, the target is either a newly created or already (still!)
-          ;; existing node.
+          ;; When transferring overrides and arcs, the target is either a newly
+          ;; created or already (still!) existing node.
           resource->node (fn [resource]
                            (or (resource->new-node resource)
                                (resource->old-node resource)))]
@@ -475,8 +475,9 @@
       (let [transfers (into {}
                             (map (juxt second (comp resource->node first)))
                             (:transfer-overrides plan))]
-        (g/transact
-          (g/transfer-overrides transfers)))
+        (when (seq transfers)
+          (g/transact
+            (g/transfer-overrides transfers))))
 
       ;; must delete old versions of resource nodes before loading to avoid
       ;; load functions finding these when doing lookups of dependencies...

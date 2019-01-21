@@ -360,6 +360,15 @@
    :tarcs {}
    :tx-id 0})
 
+(defn graph?
+  [value]
+  (and (map? value)
+       (map? (:nodes value))
+       (map? (:sarcs value))
+       (map? (:successors value))
+       (map? (:tarcs value))
+       (util/natural-number? (:tx-id value))))
+
 (defn node-ids [graph] (keys (:nodes graph)))
 (defn node-values [graph] (vals (:nodes graph)))
 

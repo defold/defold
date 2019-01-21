@@ -70,7 +70,17 @@
     :init-fn init-fn
     :properties-by-node-id properties-by-node-id}])
 
+(defn- valid-from-id->to-id-map?
+  "Verify the argument is a non-empty map of node-ids to node-ids in the same graph."
+  [from-id->to-id]
+  (and (map? from-id->to-id)
+       (= 1 (count (into #{}
+                         (comp cat
+                               (map gt/node-id->graph-id))
+                         from-id->to-id)))))
+
 (defn transfer-overrides [from-id->to-id]
+  (assert (valid-from-id->to-id-map? from-id->to-id))
   [{:type :transfer-overrides
     :from-id->to-id from-id->to-id}])
 
