@@ -182,6 +182,7 @@ namespace dmGameObject
         uint32_t                    m_ComponentTypeCount;
         ComponentType               m_ComponentTypes[MAX_COMPONENT_TYPES];
         uint16_t                    m_ComponentTypesOrder[MAX_COMPONENT_TYPES];
+        uint32_t                    m_ComponentNameHash[MAX_COMPONENT_TYPES];
         dmMutex::Mutex              m_Mutex;
 
         // All collections. Protected by m_Mutex
