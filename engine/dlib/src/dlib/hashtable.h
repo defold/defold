@@ -6,6 +6,10 @@
 #include <string.h>
 #include <stdlib.h>
 
+#ifndef NDEBUG
+    #include <stdio.h> // printf
+#endif
+
 /**
  * Hashtable with chaining for collision resolution, memcpy-copy semantics and 32-bit indicies instead of pointers. (NUMA-friendly)
  * Only uint16_t, uint32_t and uint64_t is supported as KEY type.
@@ -336,6 +340,8 @@ public:
         }
     }
 
+#ifndef NDEBUG
+
     /**
      * Verify internal structure. "assert" if invalid.
      */
@@ -372,6 +378,7 @@ public:
         }
         assert(real_count == m_Count);
     }
+#endif
 
 private:
     // Forbid assignment operator and copy-constructor
