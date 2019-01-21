@@ -105,7 +105,8 @@
 		engine_arguments: ["{{DEFOLD_ENGINE_ARGUMENTS}}"],
 		{{/HAS_DEFOLD_ENGINE_ARGUMENTS}}
 		splash_image: "{{DEFOLD_SPLASH_IMAGE}}",
-		custom_heap_size: {{DEFOLD_HEAP_SIZE}}
+		custom_heap_size: {{DEFOLD_HEAP_SIZE}},
+		disable_context_menu: true
 	}
 
 	Module['onRuntimeInitialized'] = function() {
