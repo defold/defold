@@ -18,7 +18,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 
-public class OSX32Bundler implements IBundler {
+public class OSXBundler implements IBundler {
     public static final String ICON_NAME = "icon.icns";
 
     private void copyIcon(BobProjectProperties projectProperties, File projectRoot, File resourcesDir) throws IOException {
@@ -33,11 +33,8 @@ public class OSX32Bundler implements IBundler {
     @Override
     public void bundleApplication(Project project, File bundleDir)
             throws IOException, CompileExceptionError {
-        bundleApplicationForPlatform(Platform.X86Darwin, project, bundleDir);
-    }
 
-    public void bundleApplicationForPlatform(Platform platform, Project project, File bundleDir)
-            throws IOException, CompileExceptionError {
+        final Platform platform = Platform.X86_64Darwin;
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
