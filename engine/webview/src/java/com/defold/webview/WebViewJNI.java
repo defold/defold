@@ -35,6 +35,7 @@ public class WebViewJNI {
     private Activity activity;
     private static WebViewInfo[] infos;
 
+    public native void onPageLoading(String url, int webview_id, int request_id);
     public native void onPageFinished(String url, int webview_id, int request_id);
     public native void onReceivedError(String url, int webview_id, int request_id, String errorMessage);
     public native void onEvalFinished(String result, int webview_id, int request_id);
@@ -97,6 +98,7 @@ public class WebViewJNI {
         public Activity activity;
         public int webviewID;
         public int requestID;
+        private String continueLoadingUrl;
         private WebViewJNI webviewJNI;
         private String PACKAGE_NAME;
 
@@ -118,6 +120,12 @@ public class WebViewJNI {
         {
             this.requestID = request_id;
             this.hasError = false;
+            this.continueLoadingUrl = null;
+        }
+
+        // store a url that should be allowed to load
+        public void setContinueLoadingUrl(String url) {
+            this.continueLoadingUrl = url;
         }
 
         @Override
@@ -134,13 +142,27 @@ public class WebViewJNI {
                     return true;
                 }
             }
-            return false;
+
+            // should we continue to load this page?
+            // the continueLoadingUrl value is set as a result of a call to
+            // webviewJNI.onPageLoading (see below) which will let the client
+            // either allow or block the page from loading
+            if( continueLoadingUrl != null && continueLoadingUrl.equals(url) ) {
+                return false;
+            }
+            // block the page from loading and ask the client if it should load
+            // or not
+            webviewJNI.onPageLoading(url, webviewID, requestID);
+            return true;
         }
 
         @Override
         public void onPageFinished(WebView view, String url) {
             // NOTE! this callback will be called TWICE for errors, see comment above
-            if (!this.hasError) {
+            // NOTE! this callback will be called once when initially blocked in
+            // shouldOverrideUrlLoading and then once more if allowed to load
+            if (!this.hasError && continueLoadingUrl != null && continueLoadingUrl.equals(url)) {
+                continueLoadingUrl = null;
                 webviewJNI.onPageFinished(url, webviewID, requestID);
             }
         }
@@ -347,6 +369,18 @@ public class WebViewJNI {
                 WebViewJNI.this.infos[webview_id].webviewChromeClient.reset(request_id);
                 WebViewJNI.this.infos[webview_id].webview.loadUrl(url);
                 setVisibleInternal(WebViewJNI.this.infos[webview_id], hidden != 0 ? 0 : 1);
+            }
+        });
+    }
+
+    public void continueLoading(final String url, final int webview_id, final int request_id) {
+        this.activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                WebViewJNI.this.infos[webview_id].webviewClient.reset(request_id);
+                WebViewJNI.this.infos[webview_id].webviewChromeClient.reset(request_id);
+                WebViewJNI.this.infos[webview_id].webviewClient.setContinueLoadingUrl(url);
+                WebViewJNI.this.infos[webview_id].webview.loadUrl(url);
             }
         });
     }
