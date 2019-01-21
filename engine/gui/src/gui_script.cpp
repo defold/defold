@@ -247,29 +247,48 @@ namespace dmGui
 
     static int NodeProxy_tostring (lua_State *L)
     {
-        int top = lua_gettop(L);
-        (void) top;
-        InternalNode* n = LuaCheckNode(L, 1, 0);
-        Vector4 pos = n->m_Node.m_Properties[PROPERTY_POSITION];
-        switch (n->m_Node.m_NodeType)
+        DM_LUA_STACK_CHECK(L,1);
+
+        NodeProxy* np = NodeProxy_Check(L, 1);
+
+        if (np->m_Scene == GetScene(L))
         {
-            case NODE_TYPE_BOX:
-                lua_pushfstring(L, "box@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
-                break;
-            case NODE_TYPE_TEXT:
-                lua_pushfstring(L, "%s@(%f, %f, %f)", n->m_Node.m_Text, pos.getX(), pos.getY(), pos.getZ());
-                break;
-            case NODE_TYPE_SPINE:
-                lua_pushfstring(L, "spine@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
-                break;
-            case NODE_TYPE_PARTICLEFX:
-                lua_pushfstring(L, "particlefx@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
-                break;
-            default:
-                lua_pushfstring(L, "unknown@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
-                break;
+            InternalNode* n = 0;
+
+            if (IsValidNode(np->m_Scene, np->m_Node))
+            {
+                n = GetNode(np->m_Scene, np->m_Node);
+            }
+            else
+            {
+                luaL_error(L, "Deleted node");
+            }
+
+            Vector4 pos = n->m_Node.m_Properties[PROPERTY_POSITION];
+            switch (n->m_Node.m_NodeType)
+            {
+                case NODE_TYPE_BOX:
+                    lua_pushfstring(L, "box@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
+                    break;
+                case NODE_TYPE_TEXT:
+                    lua_pushfstring(L, "%s@(%f, %f, %f)", n->m_Node.m_Text, pos.getX(), pos.getY(), pos.getZ());
+                    break;
+                case NODE_TYPE_SPINE:
+                    lua_pushfstring(L, "spine@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
+                    break;
+                case NODE_TYPE_PARTICLEFX:
+                    lua_pushfstring(L, "particlefx@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
+                    break;
+                default:
+                    lua_pushfstring(L, "unknown@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
+                    break;
+            }
         }
-        assert(top + 1 == lua_gettop(L));
+        else
+        {
+            lua_pushstring(L,"<foreign scene node>");
+        }
+
         return 1;
     }
 
@@ -301,6 +320,14 @@ namespace dmGui
         }
 
         if (!LuaIsNode(L, 2))
+        {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+
+        NodeProxy* np1 = NodeProxy_Check(L, 1);
+        NodeProxy* np2 = NodeProxy_Check(L, 2);
+        if (np1->m_Scene != np2->m_Scene)
         {
             lua_pushboolean(L, 0);
             return 1;
@@ -579,7 +606,7 @@ namespace dmGui
         HScene m_Scene;
         int m_NodeRef;
     };
-    
+
     static void LuaCallbackCustomArgsCB(lua_State* L, void* user_args)
     {
         LuaAnimationCompleteArgs* args = (LuaAnimationCompleteArgs*)user_args;
