@@ -5,19 +5,19 @@
  :steps [[:await-log :editor 60000 "project loaded"]
          [:wait 2000]
          [:screen-capture "project_loaded"]
-         [:press :shortcut :shift :r] ;; TODO platform-specific
+         [:press :command :shift :r] ;; TODO platform-specific
          [:type ".coll"]
          [:press :down]
          [:press :enter]
          [:wait 2500]
          [:screen-capture "collection"]
-         [:press :shortcut :shift :r] ;; TODO platform-specific
+         [:press :command :shift :r] ;; TODO platform-specific
          [:type "player.script"]
          [:press :down]
          [:press :enter]
          [:wait 2000]
          [:screen-capture "script"]
-         [:press :shortcut :b] ;; TODO platform-specific
+         [:press :command :b] ;; TODO platform-specific
          [:await-log :engine 10000 "intro started"]
          [:await-log :engine 60000 " seconds"]
          [:screen-capture "game_intro"]
@@ -26,10 +26,10 @@
          [:screen-capture "game_running"]
          [:switch-focus]
          [:press :enter]
-         [:press :shortcut :r] ;; TODO platform-specific
-         [:press :shortcut :z] ;; TODO platform-specific
+         [:press :command :r] ;; TODO platform-specific
+         [:press :command :z] ;; TODO platform-specific
          [:await-log :engine 3000 "successfully reloaded"]
          [:screen-capture "test_end"]
          [:switch-focus]
-         [:press :shortcut :q] ;; TODO platform-specific
-         [:press :shortcut :q]]} ;; TODO platform-specific
+         [:press :command :q] ;; TODO platform-specific
+         [:press :command :q]]} ;; TODO platform-specific
