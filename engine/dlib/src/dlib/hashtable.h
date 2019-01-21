@@ -5,6 +5,9 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#if !defined(NDEBUG)
+    #include <stdio.h> // printf
+#endif
 
 /**
  * Hashtable with chaining for collision resolution, memcpy-copy semantics and 32-bit indicies instead of pointers. (NUMA-friendly)
@@ -341,6 +344,7 @@ public:
      */
     void Verify()
     {
+#if !defined(NDEBUG)
         // Ensure that not items in free list is used
         uint32_t free_ptr = m_FreeEntries;
         while (free_ptr != 0xffffffff)
@@ -371,6 +375,7 @@ public:
             }
         }
         assert(real_count == m_Count);
+#endif
     }
 
 private:
