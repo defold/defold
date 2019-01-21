@@ -131,7 +131,7 @@
 (defmethod exec-step :switch-focus [{:keys [robot log-fn]} _]
   (log-fn (format "<p>Switch-focus</p>"))
   ;; TODO - platform specific
-  (press robot [:shortcut :tab])
+  (press robot [:command :tab])
   true)
 
 (defmethod exec-step :default [{:keys [log-fn]} step]
