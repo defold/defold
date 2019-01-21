@@ -376,10 +376,11 @@
             texture-size-recip (Vector4d. cache-width-recip cache-height-recip cache-cell-width-ratio cache-cell-height-ratio)]
         (gl/with-gl-bindings gl render-args [material-shader vertex-binding gpu-texture]
           (shader/set-uniform material-shader gl "texture_size_recip" texture-size-recip)
-          ; Need to set the blend mode to alpha since alpha blending the source with GL_SRC_ALPHA and dest with GL_ONE_MINUS_SRC_ALPHA
-          ; gives us a small black border around the outline that looks different than other views..
+          ;; Need to set the blend mode to alpha since alpha blending the source with GL_SRC_ALPHA and dest with GL_ONE_MINUS_SRC_ALPHA
+          ;; gives us a small black border around the outline that looks different than other views..
           (gl/set-blend-mode gl :blend-mode-alpha)
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))))
+          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
+          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))))
 
 (g/defnk produce-scene [_node-id aabb gpu-texture font-map material material-shader type preview-text]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
