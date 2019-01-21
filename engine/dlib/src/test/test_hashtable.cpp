@@ -4,9 +4,8 @@
 #include <string>
 #include <map>
 
-#include <gtest/gtest.h>
-
 #include "dlib/hashtable.h"
+#include "testutil.h"
 
 TEST(dmHashTable, EmtpyConstructor)
 {

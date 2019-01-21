@@ -4,7 +4,7 @@
 #include <sys/stat.h>
 #include <string>
 #include <map>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/poolallocator.h"
 
 TEST(dmPoolAllocator, Test)

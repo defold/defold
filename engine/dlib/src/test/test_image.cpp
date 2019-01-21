@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/image.h"
 
 #include "data/color_check_2x2.png.embed.h"

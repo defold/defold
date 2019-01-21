@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string>
 #include <map>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/uuid.h"
 
 

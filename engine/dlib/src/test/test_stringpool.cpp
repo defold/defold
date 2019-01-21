@@ -4,7 +4,7 @@
 #include <string>
 #include <map>
 
-#include <gtest/gtest.h>
+#include "testutil.h"
 
 #include "dlib/stringpool.h"
 

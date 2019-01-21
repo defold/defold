@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <string.h>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/socket.h"
 #include "../dlib/thread.h"
 #include "../dlib/time.h"
