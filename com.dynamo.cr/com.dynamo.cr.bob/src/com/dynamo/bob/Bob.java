@@ -291,6 +291,7 @@ public class Bob {
         options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling). Deprecated, use --variant instead");
         options.addOption(null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)");
         options.addOption(null, "strip-executable", false, "Strip the dmengine of debug symbols (when bundling iOS or Android)");
+        options.addOption(null, "with-symbols", false, "Generate the symbol file (if applicable)");
 
         options.addOption("tp", "texture-profiles", true, "Use texture profiles (deprecated)");
         options.addOption("tc", "texture-compression", true, "Use texture compression as specified in texture profiles");
@@ -415,6 +416,13 @@ public class Bob {
                 project.setOption("variant", VARIANT_RELEASE);
                 project.setOption("strip-executable", "true");
             }
+        }
+
+        String variant = project.option("variant", VARIANT_RELEASE);
+        if (! (variant.equals(VARIANT_DEBUG) || variant.equals(VARIANT_RELEASE) || variant.equals(VARIANT_HEADLESS)) ) {
+            System.out.println(String.format("--variant option must be one of %s, %s, or %s", VARIANT_DEBUG, VARIANT_RELEASE, VARIANT_HEADLESS));
+            System.exit(1);
+            return;
         }
 
         if (cmd.hasOption("texture-profiles")) {

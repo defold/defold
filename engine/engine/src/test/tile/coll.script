@@ -35,12 +35,17 @@ function init(self)
     -- Flips
     res = tilemap.set_tile("#tilemap", "layer", 1, 1, 0, true, true)
     assert(res == true)
-    -- out of range
+    -- Cell index out of range
     res = tilemap.set_tile("#tilemap", "layer", 1, 2, 0)
     assert(res == false)
     -- Invalid layer
     res = tilemap.set_tile("#tilemap", "not_found_layer", 0, 0, 0)
     assert(res == false)
+    -- Tile index out-of-range
+    ret = pcall(function() tilemap.set_tile("#tilemap", "layer", 0, 0, -1) end)
+    assert(ret == false)
+    ret = pcall(function() tilemap.set_tile("#tilemap", "layer", 0, 0, 5) end)
+    assert(ret == false)
 
     -- verify hashed string works as argument to layer
     tile = tilemap.get_tile("#tilemap", "layer", 1, 1)

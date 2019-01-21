@@ -574,7 +574,7 @@ public class Project {
         return platformStrings;
     }
 
-    public void buildEngine(IProgress monitor, String[] platformStrings, String variant) throws IOException, CompileExceptionError, MultipleCompileException {
+    public void buildEngine(IProgress monitor, String[] platformStrings, Map<String,String> appmanifestOptions) throws IOException, CompileExceptionError, MultipleCompileException {
 
         // Store the engine one level above the content build since that folder gets removed during a distclean
         String internalDir = FilenameUtils.concat(rootDirectory, ".internal");
@@ -606,8 +606,8 @@ public class Project {
                 File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), name));
                 exes.add(exe);
             }
-            List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform, variant);
 
+            List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform, appmanifestOptions);
 
             File classesDexFile = null;
             if (platform.equals(Platform.Armv7Android)) {
@@ -757,12 +757,19 @@ public class Project {
                     break;
                 }
 
-                final String variant = this.option("variant", Bob.VARIANT_RELEASE);
                 final String[] platforms = getPlatformStrings();
                 // Get or build engine binary
                 boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
                 if (buildRemoteEngine) {
-                    buildEngine(monitor, platforms, variant);
+
+                    final String variant = this.option("variant", Bob.VARIANT_RELEASE);
+                    final Boolean withSymbols = this.hasOption("with-symbols");
+
+                    Map<String, String> appmanifestOptions = new HashMap<>();
+                    appmanifestOptions.put("baseVariant", variant);
+                    appmanifestOptions.put("withSymbols", withSymbols.toString());
+
+                    buildEngine(monitor, platforms, appmanifestOptions);
                 } else {
                     // Remove the remote built executables in the build folder, they're still in the cache
                     cleanEngine(monitor, platforms);

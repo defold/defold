@@ -701,6 +701,10 @@ class Configuration(object):
                 engine_symbols = join(bin_dir, engine_name + '.symbols')
                 if os.path.exists(engine_symbols):
                     self.upload_file(engine_symbols, '%s/%s.symbols' % (full_archive_path, engine_name))
+            elif 'darwin' in self.target_platform:
+                engine_symbols = join(bin_dir, engine_name + '.dSYM.zip')
+                if os.path.exists(engine_symbols):
+                    self.upload_file(engine_symbols, '%s/%s' % (full_archive_path, os.path.basename(engine_symbols)))
 
         zip_archs = []
         if not self.skip_docs:

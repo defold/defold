@@ -407,6 +407,15 @@ namespace dmGameObject
 
     void DeleteCollection(Collection* collection)
     {
+        // We mark the collection as beeing deleted here to avoid component
+        // triggered recursive deletes to add gameobjects to the delayed delete list.
+        //
+        // For example, deleting a Spine component would mark bone gameobjects
+        // to be deleted next frame. However, since DoDeleteAll just deletes all
+        // instances directly, the entries in the "delayed delete list" might already
+        // have been deleted, making it impossible to add the spine bones to this list.
+        collection->m_ToBeDeleted = 1;
+
         FinalCollection(collection);
         DoDeleteAll(collection);
 

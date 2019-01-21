@@ -217,10 +217,11 @@
                     :passes [pass/transparent pass/selection]}})))
 
 (g/defnk produce-layer-outline
-  [_node-id id]
+  [_node-id id z]
   {:node-id _node-id
    :node-outline-key id
    :label id
+   :z z
    :icon tile-map-layer-icon})
 
 (g/defnk produce-layer-pb-msg
@@ -314,7 +315,7 @@
    :node-outline-key "Tile Map"
    :label            "Tile Map"
    :icon             tile-map-icon
-   :children         (vec (sort-by :label child-outlines))})
+   :children         (vec (sort-by :z child-outlines))})
 
 (g/defnk produce-pb-msg
   [tile-source material blend-mode layer-msgs]

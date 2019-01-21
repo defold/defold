@@ -153,6 +153,14 @@ namespace dmGameSystem
         }
 
         dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) component->m_Resource->m_CollectionDesc;
+
+        // No need to process this collection further if there's nothing to load
+        if (collection_desc->m_Instances.m_Count == 0)
+        {
+            component->m_Loading = 1;
+            return true;
+        }
+
         dmArray<const char*> names;
         names.SetCapacity(collection_desc->m_Instances.m_Count);
         for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)

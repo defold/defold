@@ -1,0 +1,11 @@
+function init(self)
+    if g_do_exit then
+        msg.post("@system:", "exit", {code = 0})
+    end
+end
+
+function final( self )
+    go.delete()
+    g_do_exit = true
+end
+

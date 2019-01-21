@@ -26,6 +26,7 @@ namespace dmRender
     {
         int             m_FunctionReferences[MAX_RENDER_SCRIPT_FUNCTION_COUNT];
         RenderContext*  m_RenderContext;
+        const char*     m_SourceFileName;
         int             m_InstanceReference;
     };
 

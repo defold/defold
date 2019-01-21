@@ -3,6 +3,7 @@
 #include <map>
 #include <string>
 #include "testutil.h"
+#include "dlib/dstrings.h"
 #include "dlib/hash.h"
 #include "dlib/profile.h"
 #include "dlib/time.h"
@@ -306,6 +307,81 @@ TEST(dmProfile, ThreadProfile)
 
     ASSERT_EQ(20000U * 2U, samples.size());
     ASSERT_EQ(20000 * 2, scopes["X"]->m_Count);
+
+    dmProfile::Finalize();
+}
+
+TEST(dmProfile, DynamicScope)
+{
+    const char* FUNCTION_NAMES[] = {
+        "FirstFunction",
+        "SecondFunction",
+        "ThirdFunction"
+    };
+
+    const char* SCOPE_NAMES[] = {
+        "Scope1",
+        "Scope2"
+    };
+
+    dmProfile::Initialize(128, 1024 * 1024, 16);
+
+    dmProfile::Scope* scope0 = dmProfile::AllocateScope(SCOPE_NAMES[0]);
+    dmProfile::Scope* scope1 = dmProfile::AllocateScope(SCOPE_NAMES[1]);
+
+    dmProfile::HProfile profile = dmProfile::Begin();
+    dmProfile::Release(profile);
+
+    char name0[128];
+    DM_SNPRINTF(name0, sizeof(name0), "%s@%s", "test.script", FUNCTION_NAMES[0]);
+
+    char name1[128];
+    DM_SNPRINTF(name1, sizeof(name1), "%s@%s", "test.script", FUNCTION_NAMES[1]);
+
+    char name2[128];
+    DM_SNPRINTF(name2, sizeof(name2), "%s@%s", "test.script", FUNCTION_NAMES[2]);
+
+    for (uint i = 0; i < 10 ; ++i)
+    {
+        {
+            DM_PROFILE_SCOPE(scope0, name0);
+            DM_PROFILE_SCOPE(scope1, name1);
+        }
+        {
+            DM_PROFILE_SCOPE(scope1, name2);
+        }
+        DM_PROFILE_SCOPE(scope0, name0);
+    }
+
+    std::vector<dmProfile::Sample> samples;
+    std::map<std::string, const dmProfile::ScopeData*> scopes;
+
+    profile = dmProfile::Begin();
+    dmProfile::IterateSamples(profile, &samples, &ProfileSampleCallback);
+    dmProfile::IterateScopeData(profile, &scopes, &ProfileScopeCallback);
+
+    ASSERT_EQ(10U * 4U, samples.size());
+    ASSERT_EQ(10U * 2, scopes[SCOPE_NAMES[0]]->m_Count);
+    ASSERT_EQ(10U * 2, scopes[SCOPE_NAMES[1]]->m_Count);
+
+    for (size_t i = 0; i < samples.size(); i++)
+    {
+        dmProfile::Sample* sample = &samples[i];
+        if (sample->m_Scope == scope0)
+        {
+            ASSERT_STREQ(sample->m_Name, name0);
+        }
+        else if (sample->m_Scope == scope1)
+        {
+            ASSERT_TRUE(sample->m_Name == name1 || sample->m_Name == name2);
+        }
+        else
+        {
+            ASSERT_TRUE(false);
+        }
+    }
+
+    dmProfile::Release(profile);
 
     dmProfile::Finalize();
 }

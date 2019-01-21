@@ -324,6 +324,7 @@ GLFWAPI int GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_coun
             if (phase == GLFW_PHASE_ENDED || phase == GLFW_PHASE_CANCELLED) {
                 // Clear reference since this touch has ended.
                 t->Reference = 0x0;
+                t->Phase = GLFW_PHASE_IDLE;
             } else if (phase == GLFW_PHASE_BEGAN) {
                 // Touches that has begun will change to stationary until moved or released.
                 t->Phase = GLFW_PHASE_STATIONARY;

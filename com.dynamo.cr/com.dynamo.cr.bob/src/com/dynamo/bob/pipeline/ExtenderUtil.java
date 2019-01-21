@@ -235,14 +235,14 @@ public class ExtenderUtil {
         private IResource resource;
         private String alias;
         private String rootDir;
-        private String variant;
+        private Map<String, String> options;
 
-        FSAppManifestResource(IResource resource, String rootDir, String alias, String variant) {
+        FSAppManifestResource(IResource resource, String rootDir, String alias, Map<String, String> options) {
             super(resource);
             this.resource = resource;
             this.rootDir = rootDir;
             this.alias = alias;
-            this.variant = variant;
+            this.options = options;
         }
 
         public IResource getResource() {
@@ -277,16 +277,20 @@ public class ExtenderUtil {
 
         @Override
         public byte[] getContent() throws IOException {
-            byte[] content = resource.getContent();
-            if (variant == null)
-            {
-                return content;
+            String prefix = "";
+            if (options != null) {
+                prefix += "context:" + System.getProperty("line.separator");
+                for (String key : options.keySet()) {
+                    String value = options.get(key);
+                    prefix += String.format("    %s: %s", key, value) + System.getProperty("line.separator");
+                }
             }
-            String variantPrefix = "context:" + System.getProperty("line.separator") + "    baseVariant: " + variant + System.getProperty("line.separator");
-            byte[] variantBytes = variantPrefix.getBytes();
-            byte[] c = new byte[variantBytes.length + content.length];
-            System.arraycopy(variantBytes, 0, c, 0, variantBytes.length);
-            System.arraycopy(content, 0, c, variantBytes.length, content.length);
+
+            byte[] prefixBytes = prefix.getBytes();
+            byte[] content = resource.getContent();
+            byte[] c = new byte[prefixBytes.length + content.length];
+            System.arraycopy(prefixBytes, 0, c, 0, prefixBytes.length);
+            System.arraycopy(content, 0, c, prefixBytes.length, content.length);
             return c;
         }
 
@@ -362,7 +366,7 @@ public class ExtenderUtil {
         }
         return folders;
     }
-    
+
     /**
      * Returns true if the project should build remotely
      * @param project
@@ -377,7 +381,7 @@ public class ExtenderUtil {
                 return true;
             }
         }
-        
+
         ArrayList<String> paths = new ArrayList<>();
         project.findResourcePaths("", paths);
         for (String p : paths) {
@@ -394,7 +398,7 @@ public class ExtenderUtil {
      * @param project
      * @return A list of IExtenderResources that can be supplied to ExtenderClient
      */
-    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform, String variant) throws CompileExceptionError {
+    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform, Map<String, String> appmanifestOptions) throws CompileExceptionError {
         List<ExtenderResource> sources = new ArrayList<>();
 
         List<String> platformFolderAlternatives = new ArrayList<String>();
@@ -408,17 +412,17 @@ public class ExtenderUtil {
             IResource resource = project.getResource(appManifest);
             if (resource.exists()) {
                 // We use an alias so the the app manifest has a predefined name
-                sources.add( new FSAppManifestResource( resource, project.getRootDirectory(), appManifestPath, variant ) );
+                sources.add( new FSAppManifestResource( resource, project.getRootDirectory(), appManifestPath, appmanifestOptions ) );
             } else {
                 IResource projectResource = project.getResource("game.project");
                 throw new CompileExceptionError(projectResource, 0, String.format("No such resource: %s", resource.getAbsPath()));
             }
         }
-        else if (variant != null)
+        else if (appmanifestOptions != null)
         {
             // Make up appmanifest
         	IResource resource = new EmptyResource(project.getRootDirectory(), appManifestPath);
-        	sources.add( new FSAppManifestResource( resource, project.getRootDirectory(), appManifestPath, variant ) );
+        	sources.add( new FSAppManifestResource( resource, project.getRootDirectory(), appManifestPath, appmanifestOptions ) );
         }
 
         // Find extension folders

@@ -379,6 +379,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     {
         _glfwInput.Touch[i].Id = i;
         _glfwInput.Touch[i].Reference = 0x0;
+        _glfwInput.Touch[i].Phase = GLFW_PHASE_IDLE;
     }
 
     return self;
@@ -627,6 +628,11 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     int prevPhase = glfwt->Phase;
     int newPhase = t.phase;
 
+    // If previous phase was TAPPED, we need to return early since we currently cannot buffer actions/phases.
+    if (prevPhase == GLFW_PHASE_TAPPED) {
+        return;
+    }
+
     // If this touch is currently used for mouse emulation, and it ended, unset the mouse emulation pointer.
     if (newPhase == GLFW_PHASE_ENDED && _glfwInput.MouseEmulationTouch == glfwt) {
         _glfwInput.MouseEmulationTouch = 0x0;
@@ -674,6 +680,12 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
                 // we only support GLFW_MAX_TOUCH.
                 continue;
             }
+
+            // We can't start/begin a new touch if it already has an ongoing phase (ie not idle).
+            if (glfwt->Phase != GLFW_PHASE_IDLE) {
+                continue;
+            }
+
             [self touchStart: glfwt withTouch: t];
 
             if (glfwt == _glfwInput.MouseEmulationTouch) {
@@ -696,6 +708,12 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
                 // Could not find corresponding GLFWTouch.
                 // Possibly due to too many touches at once,
                 // we only support GLFW_MAX_TOUCH.
+                continue;
+            }
+
+            // We can only update previous touches that has been initialized (began, moved etc).
+            if (glfwt->Phase == GLFW_PHASE_IDLE) {
+                glfwt->Reference = 0x0;
                 continue;
             }
 

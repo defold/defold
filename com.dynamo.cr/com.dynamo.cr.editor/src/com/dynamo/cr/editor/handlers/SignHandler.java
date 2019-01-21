@@ -156,6 +156,9 @@ public class SignHandler extends AbstractHandler {
             try {
                 final String variant = Bob.VARIANT_DEBUG;  // We always sign the debug non-stripped executable
 
+                Map<String, String> appmanifestOptions = new HashMap<>();
+                appmanifestOptions.put("baseVariant", variant);
+
                 exeArmv7 = new File(Bob.getDefaultDmenginePaths(Platform.Armv7Darwin, variant).get(0));
                 exeArm64 = new File(Bob.getDefaultDmenginePaths(Platform.Arm64Darwin, variant).get(0));
 
@@ -177,7 +180,7 @@ public class SignHandler extends AbstractHandler {
                 // Get or build engine binary
                 boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(tmpProject);
                 if (buildRemoteEngine) {
-                    tmpProject.buildEngine(new ProgressDelegate(monitor), platforms, variant);
+                    tmpProject.buildEngine(new ProgressDelegate(monitor), platforms, appmanifestOptions);
                 }
 
                 // Get engine executables
