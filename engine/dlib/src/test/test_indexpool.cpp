@@ -1,7 +1,7 @@
-
 #include <stdint.h>
-#include <gtest/gtest.h>
+#include <string.h>
 #include "dlib/index_pool.h"
+#include "testutil.h"
 
 
 const uint32_t pool_size = 32;

@@ -1,7 +1,6 @@
-#include "dlib/array.h"
-
 #include <stdint.h>
-#include <gtest/gtest.h>
+#include "testutil.h"
+#include "dlib/array.h"
 
 const uint32_t array_size = 32;
 const uint32_t array_size_test_offset = 7;

@@ -1,7 +1,7 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
 #include <string.h>
 #include "dlib/dstrings.h"
+#include "testutil.h"
 
 TEST(dmStrings, dmSnprintfEmpty)
 {

@@ -1,7 +1,7 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
 #include <string.h>
 #include <string>
+#include "testutil.h"
 #include "../dlib/json.h"
 #include "data/flickr.json.embed.h"
 

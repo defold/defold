@@ -3,7 +3,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/sys.h"
 #include "../dlib/path.h"
 #include "../dlib/log.h"

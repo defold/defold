@@ -5,7 +5,7 @@
 #if defined(__EMSCRIPTEN__)
 #include <libc/malloc.h>
 #endif
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/memprofile.h"
 #include "../dlib/profile.h"
 

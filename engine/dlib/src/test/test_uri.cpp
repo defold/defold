@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "dlib/uri.h"
 #include "dlib/path.h"
 

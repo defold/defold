@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/atomic.h"
 #include "../dlib/thread.h"
 #include "../dlib/log.h"

@@ -3,8 +3,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string>
-#include <gtest/gtest.h>
 #include "../dlib/crypt.h"
+#include "testutil.h"
 
 TEST(dmCrypt, SameAsLibMCrypt)
 {
