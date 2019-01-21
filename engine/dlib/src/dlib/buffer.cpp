@@ -272,6 +272,11 @@ namespace dmBuffer
         return ValidateBuffer(GetBuffer(g_BufferContext, hbuffer));
     }
 #else
+    static inline void WriteGuard(void* ptr)
+    {
+        (void*)ptr;
+    }
+
     static inline Result ValidateBuffer(Buffer* buffer)
     {
         (void*)buffer;

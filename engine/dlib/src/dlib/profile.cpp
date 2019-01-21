@@ -9,7 +9,6 @@
 #include "math.h"
 #include "time.h"
 #include "thread.h"
-#include "dstrings.h"
 #include "array.h"
 #include "profile.h"
 
@@ -496,16 +495,24 @@ namespace dmProfile
         }
     }
 
+    uint32_t HashCounterName(const char* name)
+    {
+        return dmHashBufferNoReverse32(name, strlen(name));
+    }
+
     void AddCounter(const char* name, uint32_t amount)
     {
-        uint32_t name_hash = dmHashBufferNoReverse32(name, strlen(name));
-        AddCounterHash(name, name_hash, amount);
+        // dmProfile::Initialize allocates memory. If memprofile is activated this function is called from overloaded malloc while g_CountersTable is being created. No good!
+        if (!g_IsInitialized)
+        {
+            return;
+        }
+        AddCounterHash(name, HashCounterName(name), amount);
     }
 
     void AddCounterHash(const char* name, uint32_t name_hash, uint32_t amount)
     {
-        // dmProfile::Initialize allocates memory. Is memprofile is activated this function is called from overloaded malloc while g_CountersTable is being created. No good!
-        if (!g_IsInitialized || g_Paused)
+        if (g_Paused)
             return;
 
         dmSpinlock::Lock(&g_ProfileLock);
@@ -527,7 +534,7 @@ namespace dmProfile
 
             Counter* c = &g_Counters[new_index];
             c->m_Name = name;
-            c->m_NameHash = dmHashBufferNoReverse32(name, strlen(name));
+            c->m_NameHash = name_hash;
 
             CounterData* cd = &profile->m_CountersData[new_index];
             cd->m_Counter = c;
