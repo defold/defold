@@ -385,8 +385,6 @@ def default_flags(self):
             os.environ['WindowsSDKLibVersion'] = 'winv6.3/'
             os.environ['WindowsSDKVersion'] = 'winv6.3/'
 
-            #print self.env
-
     libpath = build_util.get_library_path()
 
     # Create directory in order to avoid warning 'ld: warning: directory not found for option' before first install
@@ -1228,7 +1226,7 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
 def run_gtests(valgrind = False, configfile = None):
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
         return
-    
+
     # TODO: Add something similar to this
     # http://code.google.com/p/v8/source/browse/trunk/tools/run-valgrind.py
     # to find leaks and set error code
@@ -1531,7 +1529,7 @@ def detect(conf):
 
                 conf.find_program('windres', var='WINRC', mandatory = True)
                 conf.check_tool('winres')
-            
+
             os.environ['CC'] = '%s/clang' % path
             os.environ['CXX'] = '%s/clang++' % path
             conf.env['CC']      = '%s/clang' % path
@@ -1658,7 +1656,7 @@ def detect(conf):
     if re.match('.*?linux', platform):
         conf.env['LIB_DL'] = 'dl'
         conf.env['LIB_UUID'] = 'uuid'
-    
+
     if 'win32' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 IPHlpApi'.split()
         conf.env['LIB_PLATFORM_SYS'] = 'shell32 User32'.split()
