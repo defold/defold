@@ -1,7 +1,6 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
 #include <vectormath/cpp/vectormath_aos.h>
-
+#include <dlib/test/testutil.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
 
@@ -718,10 +717,4 @@ TEST_F(dmRenderTest, FindRanges)
     ASSERT_EQ(4, range.m_TagMask);
     ASSERT_EQ(26, range.m_Start);
     ASSERT_EQ(6, range.m_Count);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }

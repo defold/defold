@@ -1,7 +1,5 @@
-#include <gtest/gtest.h>
-
 #include <stdint.h>
-
+#include <dlib/test/testutil.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 
@@ -242,12 +240,4 @@ TEST_F(FactoryTest, FactoryCreateCallback)
     dmhash_t id = dmGameObject::ConstructInstanceId(index);
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_create.goc", id, 0x0, 0, Point3(2.0f, 0.0f, 0.0f), Quat(), Vector3(2, 2, 2));
     ASSERT_NE((void*)0, instance);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

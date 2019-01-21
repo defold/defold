@@ -50,7 +50,7 @@ def build(bld):
 
     test_resource = bld.new_task_gen(features = 'cxx cprogram embed test',
                                      includes = '../../../src ../../proto',
-                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA',
+                                     uselib = 'TESTUTIL TESTMAIN DDF DLIB PLATFORM_SOCKET THREAD LUA',
                                      uselib_local = 'resource',
                                      proto_gen_py = True,
                                      target = 'test_resource',
@@ -61,7 +61,7 @@ def build(bld):
 
     test_resource_archive = bld.new_task_gen(features = 'cxx cprogram embed test',
                                              includes = '../../../src ../../proto',
-                                             uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA',
+                                             uselib = 'TESTUTIL TESTMAIN DDF DLIB PLATFORM_SOCKET THREAD LUA',
                                              uselib_local = 'resource',
                                              proto_gen_py = True,
                                              target = 'test_resource_archive',

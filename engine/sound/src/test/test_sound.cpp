@@ -2,7 +2,7 @@
 #include <map>
 #include <set>
 #include <vector>
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/log.h>
@@ -720,7 +720,7 @@ TEST_P(dmSoundVerifyOggTest, Kill)
 
     r = dmSound::DeleteSoundInstance(instanceA);
     ASSERT_EQ(dmSound::RESULT_OK, r);
-    
+
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
@@ -1059,9 +1059,3 @@ INSTANTIATE_TEST_CASE_P(dmSoundMixerTest,
 
 
 DM_DECLARE_SOUND_DEVICE(LoopBackDevice, "loopback", DeviceLoopbackOpen, DeviceLoopbackClose, DeviceLoopbackQueue, DeviceLoopbackFreeBufferSlots, DeviceLoopbackDeviceInfo, DeviceLoopbackRestart, DeviceLoopbackStop);
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

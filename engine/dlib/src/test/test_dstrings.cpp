@@ -156,9 +156,3 @@ TEST(dmStrings, dmStrCaseCmp)
     ASSERT_LT(0, dmStrCaseCmp("b", "a"));
     ASSERT_EQ(0, dmStrCaseCmp("a", "a"));
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

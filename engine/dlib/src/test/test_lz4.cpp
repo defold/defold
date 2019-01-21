@@ -109,9 +109,3 @@ TEST(dmLZ4, Stress)
         free(ref);
     }
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

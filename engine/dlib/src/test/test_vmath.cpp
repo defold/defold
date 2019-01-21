@@ -114,9 +114,3 @@ TEST(dmMath, TestEulerToQuat)
     ASSERT_NEAR(quat.getZ(), q.getZ(), epsilon);
     ASSERT_NEAR(quat.getW(), q.getW(), epsilon);
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

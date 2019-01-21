@@ -1,4 +1,4 @@
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 #include "../script.h"
 #include "test/test_ddf.h"
 
@@ -491,11 +491,4 @@ TEST_F(ScriptDDFTest, Uint64ToDDF)
     ASSERT_EQ(top, lua_gettop(L));
 
     delete[] test.m_Buffer;
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

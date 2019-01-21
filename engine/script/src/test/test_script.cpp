@@ -1,7 +1,5 @@
-#include <gtest/gtest.h>
-
 #include "script.h"
-
+#include <dlib/test/testutil.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -820,7 +818,7 @@ TEST_F(ScriptTest, ScriptExtension)
 {
     dmScript::HContext context = dmScript::NewContext(0x0, 0, true);
 
-    static dmScript::ScriptExtension extension = 
+    static dmScript::ScriptExtension extension =
     {
         TestScriptExtensionInitialize,
         TestScriptExtensionUpdate,
@@ -933,13 +931,4 @@ TEST_F(ScriptTest, InstanceId)
     dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref1);
     dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref2);
     dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref3);
-}
-
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

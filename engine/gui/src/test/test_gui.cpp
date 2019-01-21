@@ -1,6 +1,6 @@
 #include <map>
 #include <stdlib.h>
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
@@ -5724,7 +5724,7 @@ TEST_F(dmGuiTest, PlayNodeParticlefxAdjustModeStretch)
     dmGui::InternalNode* n = dmGui::GetNode(m_Scene, node_pfx);
 
     n->m_Node.m_AdjustMode = (uint32_t) dmGui::ADJUST_MODE_STRETCH;
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));    
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
     ASSERT_EQ(dmGui::ADJUST_MODE_FIT, (dmGui::AdjustMode)n->m_Node.m_AdjustMode);
 
     dmGui::FinalScene(m_Scene);

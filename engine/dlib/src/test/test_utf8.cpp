@@ -78,9 +78,3 @@ TEST(dmUtf8, ToUtf8)
     ASSERT_EQ(0x98U, (uint8_t) buf[1]);
     ASSERT_EQ(0x9eU, (uint8_t) buf[2]);
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

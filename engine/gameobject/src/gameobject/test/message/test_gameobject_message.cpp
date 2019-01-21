@@ -1,9 +1,7 @@
-#include <gtest/gtest.h>
-
 #include <assert.h>
 #include <stdint.h>
 #include <map>
-
+#include <dlib/test/testutil.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 

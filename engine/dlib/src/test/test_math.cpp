@@ -123,9 +123,3 @@ TEST(dmMath, Rand)
     ASSERT_NEAR(1.0f, out[1], epsilon);
     ASSERT_NEAR(0.0f, out[2], epsilon * 20);
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

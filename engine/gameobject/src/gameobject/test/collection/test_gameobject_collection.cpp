@@ -1,7 +1,5 @@
-#include <gtest/gtest.h>
-
 #include <stdint.h>
-
+#include <dlib/test/testutil.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
@@ -506,12 +504,4 @@ TEST_F(CollectionTest, CreateCallback)
     dmResource::Release(m_Factory, (void*) coll);
 
     dmGameObject::PostUpdate(m_Register);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

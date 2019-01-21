@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <script/script.h>
@@ -828,10 +828,4 @@ TEST_F(dmTrackingNoHookLocalhost, Test)
         dmTime::Sleep(10000);
     }
     dmTracking::Update(m_Tracking, 0.3f);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }

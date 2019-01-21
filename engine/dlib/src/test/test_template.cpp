@@ -114,9 +114,3 @@ TEST(dmTemplate, Stress)
         } while (r != dmTemplate::RESULT_OK);
     }
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

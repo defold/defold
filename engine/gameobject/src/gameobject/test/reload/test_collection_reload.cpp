@@ -1,7 +1,5 @@
-#include <gtest/gtest.h>
-
 #include <vectormath/cpp/vectormath_aos.h>
-
+#include <dlib/test/testutil.h>
 #include <dlib/hash.h>
 
 #include <resource/resource.h>

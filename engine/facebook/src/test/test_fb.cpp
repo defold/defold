@@ -1,4 +1,4 @@
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 
 #include "../facebook_private.h"
 #include "../facebook_util.h"
@@ -980,10 +980,3 @@ TEST_F(FBTest, SplitStringToTable)
     lua_pop(L, 1);
 }
 
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
-}

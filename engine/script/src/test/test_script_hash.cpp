@@ -1,8 +1,6 @@
-#include <gtest/gtest.h>
-
 #include "script.h"
 #include "script_hash.h"
-
+#include <dlib/test/testutil.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -173,12 +171,4 @@ TEST_F(ScriptHashTest, TestHashTString) // def2821 - Making sure that the string
 
     ASSERT_EQ(strlen(str), len);
     ASSERT_EQ(hash_tostring, hash_tolstring);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

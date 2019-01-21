@@ -28,9 +28,3 @@ TEST(dmTrigLookup, Cos)
         ASSERT_NEAR(cosf(radians), dmTrigLookup::Cos(radians), epsilon);
     }
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

@@ -20,7 +20,7 @@ create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParti
 def build(bld):
     test_gui = bld.new_task_gen(features = 'cxx cprogram embed test',
                                 includes = '../../../src .',
-                                uselib = 'GTEST SCRIPT EXTENSION RESOURCE PARTICLE RIG HID_NULL DDF DLIB PLATFORM_SOCKET LUA',
+                                uselib = 'TESTUTIL TESTMAIN SCRIPT EXTENSION RESOURCE PARTICLE RIG HID_NULL DDF DLIB PLATFORM_SOCKET LUA',
                                 uselib_local = 'gui',
                                 target = 'test_gui',
                                 source = 'test_gui.cpp test_gui_ddf.proto once.particlefx once_three_emitters.particlefx',
@@ -30,7 +30,7 @@ def build(bld):
 
     test_gui_script = bld.new_task_gen(features = 'cxx cprogram embed test',
                                 includes = '../../../src .',
-                                uselib = 'GTEST SCRIPT EXTENSION RESOURCE PARTICLE RIG HID_NULL DDF DLIB PLATFORM_SOCKET LUA',
+                                uselib = 'TESTUTIL TESTMAIN SCRIPT EXTENSION RESOURCE PARTICLE RIG HID_NULL DDF DLIB PLATFORM_SOCKET LUA',
                                 uselib_local = 'gui',
                                 target = 'test_gui_script',
                                 source = 'test_gui_script.cpp')
@@ -39,7 +39,7 @@ def build(bld):
 
     test_gui_clipping = bld.new_task_gen(features = 'cxx cprogram embed test',
                                 includes = '../../../src .',
-                                uselib = 'GTEST SCRIPT EXTENSION RESOURCE PARTICLE RIG HID_NULL DDF DLIB PLATFORM_SOCKET LUA',
+                                uselib = 'TESTUTIL TESTMAIN SCRIPT EXTENSION RESOURCE PARTICLE RIG HID_NULL DDF DLIB PLATFORM_SOCKET LUA',
                                 uselib_local = 'gui',
                                 target = 'test_gui_clipping',
                                 source = 'test_gui_clipping.cpp')

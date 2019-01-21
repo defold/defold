@@ -1,6 +1,5 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
-
+#include <dlib/test/testutil.h>
 #include <dlib/log.h>
 
 #include "graphics.h"
@@ -665,10 +664,4 @@ TEST_F(dmGraphicsTest, TestTextureFormatBPP)
     {
         ASSERT_NE(0, dmGraphics::GetTextureFormatBPP((dmGraphics::TextureFormat) i));
     }
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }

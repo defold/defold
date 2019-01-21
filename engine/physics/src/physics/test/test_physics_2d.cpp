@@ -1244,9 +1244,3 @@ TYPED_TEST(PhysicsTest, GridShapeFlipped)
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(grid_shape);
     dmPhysics::DeleteHullSet2D(hull_set);
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

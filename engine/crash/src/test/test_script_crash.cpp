@@ -1,10 +1,10 @@
-#include <gtest/gtest.h>
 #include <script/script.h>
 #include <extension/extension.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/configfile.h>
+#include <dlib/test/testutil.h>
 #include <resource/resource.h>
 #include "crash.h"
 
@@ -91,12 +91,4 @@ TEST_F(ScriptCrashTest, TestCrash)
     lua_pop(L, 1);
 
     ASSERT_EQ(top, lua_gettop(L));
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

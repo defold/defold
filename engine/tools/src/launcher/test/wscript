@@ -3,7 +3,7 @@ import os
 
 def build(bld):
     test = bld.new_task_gen(features='cxx cprogram test',
-                            uselib='GTEST DLIB',
+                            uselib='TESTUTIL TESTMAIN DLIB',
                             uselib_local='launcherutil',
                             includes = ['.'],
                             target='test_launcher',

@@ -4,7 +4,7 @@ import os
 def build(bld):
     test_graphics = bld.new_task_gen(features = 'cxx cprogram test',
                                  source = 'test_graphics.cpp',
-                                 uselib = 'GTEST DLIB',
+                                 uselib = 'TESTUTIL TESTMAIN DLIB',
                                  uselib_local = "graphics_null",
                                  includes = ['../../src'],
                                  target = 'test_graphics')
@@ -13,7 +13,7 @@ def build(bld):
 
     test_glsl_uniform_parser = bld.new_task_gen(features = 'cxx cprogram test',
                                  source = 'test_glsl_uniform_parser.cpp',
-                                 uselib = 'GTEST DLIB',
+                                 uselib = 'TESTUTIL TESTMAIN DLIB',
                                  uselib_local = "graphics_null",
                                  includes = ['../../src'],
                                  target = 'test_glsl_uniform_parser')

@@ -1,4 +1,4 @@
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 #include <dlib/image.h>
 #include <dlib/webp.h>
 
@@ -466,12 +466,4 @@ TEST_F(TexcTest, TranscodeWebEncodedTextureFormat)
     TranscodeWebEncodedFormat(dmTexc::PF_L8A8, dmWebP::TEXTURE_ENCODE_FORMAT_L8A8);
     TranscodeWebEncodedFormat(dmTexc::PF_R5G6B5, dmWebP::TEXTURE_ENCODE_FORMAT_RGB565);
     TranscodeWebEncodedFormat(dmTexc::PF_R4G4B4A4, dmWebP::TEXTURE_ENCODE_FORMAT_RGBA4444);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

@@ -476,9 +476,3 @@ TEST(dmHashTable, Swap)
     ASSERT_EQ(200, *h1.Get(20));
     ASSERT_EQ(300, *h1.Get(30));
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

@@ -1,5 +1,4 @@
-#include <gtest/gtest.h>
-
+#include <dlib/test/testutil.h>
 #include <resource/resource.h>
 
 #include "../gameobject.h"
@@ -95,12 +94,4 @@ TEST_F(IdTest, TestHierarchies)
     ASSERT_EQ(sub2_id, dmGameObject::GetAbsoluteIdentifier(sub1_instance, "go2", strlen("go2")));
     ASSERT_EQ(id, dmGameObject::GetAbsoluteIdentifier(sub2_instance, "/go", strlen("/go")));
     dmResource::Release(m_Factory, collection);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

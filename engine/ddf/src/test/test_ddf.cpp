@@ -4,7 +4,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 
 #ifdef _WIN32
 #include <io.h>

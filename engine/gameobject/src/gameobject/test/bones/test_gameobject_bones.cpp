@@ -1,7 +1,5 @@
-#include <gtest/gtest.h>
-
 #include <stdint.h>
-
+#include <dlib/test/testutil.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 
@@ -162,12 +160,4 @@ TEST_F(BonesTest, ComponentCreatingInstances)
 
     dmGameObject::DeleteCollection(m_Collection);
     dmGameObject::PostUpdate(m_Register);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

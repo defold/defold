@@ -54,10 +54,3 @@ TEST(atomic, CompareStore)
     ASSERT_EQ(10, dmAtomicCompareStore32(&x, 123, 10));
     ASSERT_EQ(123, x);
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
-

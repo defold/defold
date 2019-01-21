@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <gtest/gtest.h>
 #include "../extension.h"
-#include "test_extension.h"
 
 extern "C"
 {
@@ -36,8 +35,3 @@ TEST(dmExtension, Basic)
     ASSERT_EQ(0, g_TestAppInitCount);
 }
 
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

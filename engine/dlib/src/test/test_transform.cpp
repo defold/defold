@@ -201,9 +201,3 @@ TEST(dmTransform, Inverse)
 #undef ASSERT_V4_NEAR
 #undef ASSERT_TRANSFORMS1_NEAR
 #undef ASSERT_TRANSFORM_NEAR
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

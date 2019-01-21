@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string>
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 #include "../record/record.h"
 
 TEST(dmRecord, InvalidWidth1)

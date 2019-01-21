@@ -92,9 +92,3 @@ TEST(dmEasing, CurstomCurve)
         ASSERT_NEAR(t, dmEasing::GetValue(curve, t), 0.0001f);
     }
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

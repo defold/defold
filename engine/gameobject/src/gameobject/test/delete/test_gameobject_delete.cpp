@@ -1,11 +1,9 @@
-#include <gtest/gtest.h>
-
 #include <algorithm>
 #include <map>
 #include <vector>
 
 #include <resource/resource.h>
-
+#include <dlib/test/testutil.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 #include "gameobject/test/delete/test_gameobject_delete_ddf.h"
@@ -404,12 +402,4 @@ TEST_F(DeleteTest, TestScriptDeleteNonExistent)
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_EQ(2, m_Collection->m_Collection->m_InstanceIndices.Size());
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

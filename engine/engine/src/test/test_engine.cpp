@@ -1,5 +1,3 @@
-#include <gtest/gtest.h>
-
 #include <assert.h>
 
 #include <dlib/http_client.h>

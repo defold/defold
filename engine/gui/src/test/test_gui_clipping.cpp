@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>

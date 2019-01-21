@@ -30,9 +30,3 @@ TEST(dmSpinlock, Test)
     dmThread::Join(t2);
     ASSERT_EQ(ITER * 2, g_Value);
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

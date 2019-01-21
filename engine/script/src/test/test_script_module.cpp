@@ -1,8 +1,6 @@
-#include <gtest/gtest.h>
-
 #include "script.h"
 #include "script_private.h"
-
+#include <dlib/test/testutil.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -185,11 +183,3 @@ ChunknameParam chunkname_tests[] = {
     {"aabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script", "=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script"},
 };
 INSTANTIATE_TEST_CASE_P(Test, ChunknameTests, ::testing::ValuesIn(chunkname_tests));
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
-}

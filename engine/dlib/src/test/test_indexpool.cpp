@@ -157,9 +157,3 @@ TEST(dmIndexPool32, IterateRemaining)
     ASSERT_EQ(1u, ic.m_ValArray[0]);
     ASSERT_EQ(0u, ic.m_ValArray[1]);
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

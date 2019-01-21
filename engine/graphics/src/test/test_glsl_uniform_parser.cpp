@@ -1,5 +1,4 @@
-#include <gtest/gtest.h>
-
+#include <dlib/test/testutil.h>
 #include "graphics.h"
 #include "null/glsl_uniform_parser.h"
 
@@ -61,10 +60,4 @@ TEST_F(dmGLSLUniformTest, IntroductionJunk)
     ASSERT_TRUE(result);
     ASSERT_EQ(0, strncmp("DIFFUSE_TEXTURE", uniform.m_Name, strnlen("DIFFUSE_TEXTURE", uniform.m_Length)));
     ASSERT_EQ(dmGraphics::TYPE_SAMPLER_2D, uniform.m_Type);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }

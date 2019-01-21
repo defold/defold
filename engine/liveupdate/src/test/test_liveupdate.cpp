@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 #include "../liveupdate.h"
 #include "../liveupdate_private.h"
 
@@ -36,11 +36,4 @@ TEST(dmLiveUpdate, BytesToHexString)
     char buffer_long[513];
     dmResource::BytesToHexString(instance, dmResource::HashLength(dmLiveUpdateDDF::HASH_MD5), buffer_long, 513);
     ASSERT_STREQ("000102030405060708090a0b0c0d0e0f", buffer_long);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

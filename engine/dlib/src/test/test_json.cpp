@@ -656,9 +656,3 @@ TEST_F(dmJsonTest, Flickr)
 
     ASSERT_EQ(dmJson::RESULT_OK, dmJson::Parse(json.c_str(), &doc));
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

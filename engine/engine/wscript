@@ -79,8 +79,6 @@ namespace dmEngineVersion
     elif 'web' in operating_sys:
         pass
 
-    conf.env['LIB_GTEST'] = 'gtest'
-
     conf.env['STATICLIB_CRASH'] = 'crashext'
     conf.env['STATICLIB_DDF'] = 'ddf'
     conf.env['STATICLIB_DLIB'] = ['dlib', 'axtls']

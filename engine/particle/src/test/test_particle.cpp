@@ -1,8 +1,7 @@
-#include <gtest/gtest.h>
 #include <stdio.h>
 #include <algorithm>
 #include <map>
-
+#include <dlib/test/testutil.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -2071,12 +2070,4 @@ TEST_F(ParticleTest, Stats)
     ASSERT_NEAR(instance_stats.m_Time, 2 * dt, 0.001f);
 
     dmParticle::DestroyInstance(m_Context, instance);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

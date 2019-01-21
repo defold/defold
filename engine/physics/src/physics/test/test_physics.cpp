@@ -1977,9 +1977,3 @@ TYPED_TEST(PhysicsTest, DisabledFromStart)
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

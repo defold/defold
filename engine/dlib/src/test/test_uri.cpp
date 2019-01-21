@@ -318,9 +318,3 @@ TEST(dmURI, TestEncodeDecode)
     ASSERT_STRNE(dec_uri, enc_uri);
     ASSERT_STREQ(uri, dec_uri);
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

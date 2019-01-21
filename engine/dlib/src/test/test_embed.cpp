@@ -21,9 +21,3 @@ TEST(dlib, Embed)
     std::string generated_embed_str(generated_embed, strlen("generated data"));
     ASSERT_STREQ("generated data", generated_embed_str.c_str());
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

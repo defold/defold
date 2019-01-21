@@ -79,9 +79,3 @@ TEST(dmConditionVariable, ProducerConsumer)
 
     ASSERT_EQ((int64_t) (MAX/2) * (MAX-1), a.m_Sum);
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

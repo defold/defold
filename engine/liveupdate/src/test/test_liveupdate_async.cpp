@@ -1,6 +1,6 @@
-#include <gtest/gtest.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <dlib/test/testutil.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include "../liveupdate.h"
@@ -141,12 +141,4 @@ TEST_F(LiveUpdate, TestAsyncInvalidResource)
         dmLiveUpdate::AsyncUpdate();
 
     dmLiveUpdate::AsyncFinalize();
-}
-
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

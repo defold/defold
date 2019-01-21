@@ -182,9 +182,3 @@ TEST(dmArray, UserAllocated)
     ASSERT_EQ(2u, b[0]);
     ASSERT_DEATH_IF_SUPPORTED(dmArray<uint32_t> c(array, 2, 1), "");
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

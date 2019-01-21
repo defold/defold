@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 #include "../sound.h"
 
 // Basically just testing that the linkage works
@@ -52,9 +52,3 @@ static void DeviceStop(dmSound::HDevice device)
 }
 
 DM_DECLARE_SOUND_DEVICE(TestNullDevice, "device", DeviceOpen, DeviceClose, DeviceQueue, DeviceFreeBufferSlots, DeviceDeviceInfo, DeviceRestart, DeviceStop);
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

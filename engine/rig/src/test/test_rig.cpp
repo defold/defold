@@ -1,4 +1,4 @@
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 #include <dlib/log.h>
 
 #include <../rig.h>
@@ -1740,7 +1740,7 @@ TEST_F(RigInstanceTest, SkinColor)
     dmRig::RigSpineModelVertex data[4];
     dmRig::RigSpineModelVertex* data_end = data + 4;
 
-    
+
     // Trigger update which will recalculate mesh properties
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
 
@@ -1757,7 +1757,7 @@ TEST_F(RigInstanceTest, SkinColorAndSlotColor)
     dmRig::RigSpineModelVertex data[4];
     dmRig::RigSpineModelVertex* data_end = data + 4;
 
-    
+
     // Trigger update which will recalculate mesh properties
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
 
@@ -2501,11 +2501,3 @@ INSTANTIATE_TEST_CASE_P(Rig, PlaybackCursorTest, ::testing::ValuesIn(playback_cu
 #undef ASSERT_VERT_POS
 #undef ASSERT_VERT_NORM
 #undef ASSERT_VERT_COLOR
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
-}

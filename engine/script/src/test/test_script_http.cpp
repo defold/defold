@@ -1,8 +1,6 @@
-#include <gtest/gtest.h>
-
 #include "script.h"
 #include "script_http.h" // to set the timeout
-
+#include <dlib/test/testutil.h>
 #include <dlib/configfile.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>

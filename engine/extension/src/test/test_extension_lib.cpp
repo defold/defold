@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include "../extension.h"
-#include "test_extension.h"
 
 extern "C"
 {

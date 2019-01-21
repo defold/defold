@@ -1,9 +1,8 @@
-#include <gtest/gtest.h>
 #include <string.h>
 
 #include "script.h"
 #include "test/test_ddf.h"
-
+#include <dlib/test/testutil.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -722,7 +721,7 @@ TEST_F(ScriptMsgTest, TestURLCreateBeforeSocket)
     ASSERT_EQ(2u, user_data.m_TestValue);
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
-    
+
     ASSERT_FALSE(RunString(L,
         "local url = msg.url(\"socket:\")"
         "msg.post(url, \"table\", {uint_value = 1})\n"

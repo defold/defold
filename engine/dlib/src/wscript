@@ -67,6 +67,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/zlib.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/lz4.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/webp.h')
+    bld.install_files('${PREFIX}/include/dlib/test', 'test/testutil.h')
 
     bld.install_files('${PREFIX}/include/axtls/config', 'axtls/config/config.h')
     bld.install_files('${PREFIX}/include/axtls/crypto', 'axtls/crypto/bigint.h')
@@ -227,6 +228,16 @@ def build(bld):
     bld.new_task_gen(features='javac seq',
                      classpath=classpath  + os.pathsep + 'default/src/java',
                      source_root='java_test')
+
+    testutil = bld.new_task_gen(features = 'cxx cstaticlib',
+                            source='test/testutil.cpp',
+                            includes = '.',
+                            target = 'testutil')
+
+    testutil = bld.new_task_gen(features = 'cxx cstaticlib',
+                            source='test/testmain.cpp',
+                            includes = '.',
+                            target = 'testmain')
 
 @feature('config_neon')
 @after('configure')

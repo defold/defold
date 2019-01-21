@@ -124,10 +124,3 @@ TEST(dmPathConcat, Basic)
     dmPath::Concat("a", "", path, sizeof(path));
     ASSERT_STREQ("a", path);
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
-

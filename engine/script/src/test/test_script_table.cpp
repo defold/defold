@@ -1,9 +1,9 @@
 #include <stdlib.h>
+#include <dlib/test/testutil.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/align.h>
 #include <dlib/math.h>
-#include <gtest/gtest.h>
 #include "../script.h"
 #include "test/test_ddf.h"
 
@@ -879,11 +879,4 @@ TEST_F(LuaTableTest, Stress)
             delete[] buf;
         }
     }
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

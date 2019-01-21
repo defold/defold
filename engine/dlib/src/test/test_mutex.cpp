@@ -67,9 +67,3 @@ TEST(Mutex, TryLock)
     dmMutex::Unlock(a.m_Mutex);
     dmMutex::Delete(a.m_Mutex);
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

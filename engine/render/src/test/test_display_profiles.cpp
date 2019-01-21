@@ -1,6 +1,5 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
-
+#include <dlib/test/testutil.h>
 #include <dlib/hash.h>
 #include <script/script.h>
 
@@ -16,7 +15,7 @@ TEST(dmDisplayProfilesTest, TestDeviceModel)
 
     dmRender::DisplayProfiles::Qualifier qualifier;
     qualifier.m_DeviceModels = new char*[1];
-    
+
     qualifier.m_DeviceModels[0] =strdup("apple-phone");
     qualifier.m_NumDeviceModels = 1;
     ASSERT_EQ(false, dmRender::DeviceModelMatch(&qualifier, &sys_info));
@@ -108,10 +107,4 @@ TEST(dmDisplayProfilesTest, TestOptimalProfile)
     dmRender::DeleteDisplayProfiles(profiles);
     free(device_models[0]);
     delete[] device_models;
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }

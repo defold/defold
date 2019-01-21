@@ -65,9 +65,3 @@ TEST(dmPPrint, Truncate3)
     ASSERT_STREQ(" ", buf);
     ASSERT_EQ((char) 0xff, buf[2]);
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

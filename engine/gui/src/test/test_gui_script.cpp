@@ -1,4 +1,4 @@
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 #include <dlib/dstrings.h>
 
 #include <ddf/ddf.h>

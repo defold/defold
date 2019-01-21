@@ -1,7 +1,5 @@
-#include <gtest/gtest.h>
-
 #include <vectormath/cpp/vectormath_aos.h>
-
+#include <dlib/test/testutil.h>
 #include <dlib/hash.h>
 #include <dlib/dstrings.h>
 
@@ -275,12 +273,4 @@ TEST_F(InputTest, TestDeleteFocusInstance)
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
 
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

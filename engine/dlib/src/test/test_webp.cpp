@@ -79,9 +79,3 @@ TEST(dmWebP, DecompressLossy)
     r = dmWebP::DecodeRGBA(WEBP_RGBA_LOSSY_WEBP, WEBP_RGBA_LOSSY_WEBP_SIZE, &buffer, image_width*3*4, image_width*4);
     ASSERT_EQ(dmWebP::RESULT_OK, r);
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

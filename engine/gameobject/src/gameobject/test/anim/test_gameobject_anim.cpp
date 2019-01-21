@@ -1,7 +1,5 @@
-#include <gtest/gtest.h>
-
 #include <stdio.h>
-
+#include <dlib/test/testutil.h>
 #include <dlib/dstrings.h>
 #include <dlib/easing.h>
 #include <dlib/time.h>
@@ -795,12 +793,4 @@ TEST_F(AnimTest, ScaleZ)
     ASSERT_NEAR(2.0f, dmGameObject::GetScale(go).getZ(), 0.000001f);
 
     dmGameObject::Delete(m_Collection, go, false);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

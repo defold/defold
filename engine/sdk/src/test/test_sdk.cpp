@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 #include <extension/extension.h>
 
 extern "C"
@@ -32,10 +32,4 @@ TEST(testSdk, Basic)
 
     dmExtension::AppFinalize(&appparams);
     ASSERT_EQ(0, g_TestAppInitCount);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }

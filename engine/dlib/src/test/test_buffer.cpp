@@ -574,12 +574,4 @@ const AlignmentTestParams valid_stream_setups[] = {
 
 INSTANTIATE_TEST_CASE_P(AlignmentSequence, AlignmentTest, ::testing::ValuesIn(valid_stream_setups));
 
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
-}
-
 #undef CLEAR_OUT_VARS

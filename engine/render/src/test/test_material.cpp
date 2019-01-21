@@ -1,6 +1,5 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
-
+#include <dlib/test/testutil.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
 #include <script/script.h>
@@ -144,10 +143,4 @@ TEST(dmMaterialTest, TestMaterialConstantsOverride)
     dmRender::DeleteRenderContext(render_context, 0);
     dmGraphics::DeleteContext(context);
     dmScript::DeleteContext(params.m_ScriptContext);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }

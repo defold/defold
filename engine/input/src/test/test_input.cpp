@@ -1,7 +1,5 @@
-#include <gtest/gtest.h>
-
 #include <assert.h>
-
+#include <dlib/test/testutil.h>
 #include <dlib/configfile.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
@@ -746,12 +744,4 @@ TEST_F(InputTest, TestRepeat)
     ASSERT_FALSE(dmInput::Repeated(binding, key_0_id));
 
     dmInput::DeleteBinding(binding);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

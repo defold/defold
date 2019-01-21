@@ -1,7 +1,6 @@
-#include <gtest/gtest.h>
-
 #include <algorithm>
 #include <map>
+#include <dlib/test/testutil.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/dstrings.h>
@@ -781,11 +780,3 @@ TEST_F(HierarchyTest, TestEmptyInstance)
 }
 
 #undef EPSILON
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
-}

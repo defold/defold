@@ -1,7 +1,5 @@
-#include <gtest/gtest.h>
-
 #include "script.h"
-
+#include <dlib/test/testutil.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -186,11 +184,3 @@ const JsonToLuaParams json_to_lua_setups[] = {
 };
 
 INSTANTIATE_TEST_CASE_P(JsonToLuaTestSequence, JsonToLuaTest, ::testing::ValuesIn(json_to_lua_setups));
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
-}

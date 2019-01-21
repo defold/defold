@@ -1,7 +1,5 @@
-#include <gtest/gtest.h>
-
 #include <map>
-
+#include <dlib/test/testutil.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 
@@ -518,12 +516,4 @@ TEST_F(ComponentTest, FinalCallsFinal)
 
     dmGameObject::DeleteCollection(collection);
     dmGameObject::PostUpdate(m_Register);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

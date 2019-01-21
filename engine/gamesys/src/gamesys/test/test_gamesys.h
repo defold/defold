@@ -1,5 +1,4 @@
-#include <gtest/gtest.h>
-
+#include <dlib/test/testutil.h>
 #include <resource/resource.h>
 
 #include <hid/hid.h>

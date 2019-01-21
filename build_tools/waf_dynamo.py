@@ -1572,6 +1572,9 @@ def detect(conf):
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
 
+    conf.env['LIB_TESTUTIL'] = ['gtest','testutil']
+    conf.env['LIB_TESTMAIN'] = ['testmain']
+
     use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
     if build_util.get_target_os() == 'web':
         use_vanilla = True

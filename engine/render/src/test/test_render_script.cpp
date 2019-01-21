@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include "render/render.h"

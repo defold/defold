@@ -1,5 +1,4 @@
-#include <gtest/gtest.h>
-
+#include <dlib/test/testutil.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>

@@ -1,11 +1,9 @@
-#include <gtest/gtest.h>
-
 #include <stdio.h>
 #include <stdint.h>
 
 #include "script.h"
 #include "script_buffer.h"
-
+#include <dlib/test/testutil.h>
 #include <dlib/buffer.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -689,12 +687,4 @@ TEST_F(ScriptBufferTest, RefCount)
 
     dmLogWarning("<- Expected error outputs end.");
 #endif
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

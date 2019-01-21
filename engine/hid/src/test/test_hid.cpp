@@ -1,5 +1,4 @@
-#include <gtest/gtest.h>
-
+#include <dlib/test/testutil.h>
 #include "../hid.h"
 
 class HIDTest : public ::testing::Test
@@ -227,12 +226,4 @@ TEST_F(HIDTest, IgnoredDevices)
     ASSERT_FALSE(dmHID::IsTouchDeviceConnected(context));
     dmHID::Final(context);
     dmHID::DeleteContext(context);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

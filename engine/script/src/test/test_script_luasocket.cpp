@@ -1,11 +1,9 @@
-#include <gtest/gtest.h>
-
 #include <stdio.h>
 #include <stdint.h>
 
 #include "script.h"
 #include "script_vmath.h"
-
+#include <dlib/test/testutil.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 
@@ -80,12 +78,4 @@ TEST_F(ScriptLuasocketTest, TestLuasocket)
 	}
 
     ASSERT_EQ(top, lua_gettop(L));
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

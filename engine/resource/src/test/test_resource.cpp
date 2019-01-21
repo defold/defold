@@ -1,7 +1,5 @@
-#include <gtest/gtest.h>
-
+#include <dlib/test/testutil.h>
 #include <dlib/log.h>
-
 #include <dlib/socket.h>
 #include <dlib/http_client.h>
 #include <dlib/hash.h>
@@ -945,7 +943,7 @@ void SendReloadThread(void*)
     dmResourceDDF::Reload* reload_resources = (dmResourceDDF::Reload*) malloc(msg_size);
     memset(reload_resources, 0x0, msg_size);
     reload_resources->m_Resources.m_Count = 1;
-    uintptr_t str_ofs_offset = 2 * sizeof(uintptr_t); // 
+    uintptr_t str_ofs_offset = 2 * sizeof(uintptr_t); //
     uintptr_t str_offset = str_ofs_offset + reload_resources->m_Resources.m_Count * sizeof(uintptr_t);//0x18;
     memcpy((uint8_t*)reload_resources, &str_ofs_offset, sizeof(uintptr_t)); // offset to path string offsets
     memcpy((uint8_t*)reload_resources + str_ofs_offset, &str_offset, sizeof(uintptr_t)); // offset to start of resource path string

@@ -2,7 +2,7 @@
 #define PHYSICS_TEST_PHYSICS_H
 
 #include <stdint.h>
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 #include "../physics.h"
 #include "../physics_2d.h"
 #include "../physics_3d.h"

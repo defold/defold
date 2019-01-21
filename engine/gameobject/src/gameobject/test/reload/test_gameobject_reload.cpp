@@ -1,7 +1,5 @@
-#include <gtest/gtest.h>
-
 #include <vectormath/cpp/vectormath_aos.h>
-
+#include <dlib/test/testutil.h>
 #include <dlib/hash.h>
 
 #include <resource/resource.h>
@@ -323,12 +321,4 @@ TEST_F(ReloadTest, TestGameObjectReload)
     ASSERT_EQ(1, m_World->m_FinalCount);
     ASSERT_EQ(1, m_World->m_AddToUpdateCount);
     ASSERT_EQ(0, m_World->m_ReloadCount);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

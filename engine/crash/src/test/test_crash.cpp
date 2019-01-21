@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/sys.h>
@@ -114,9 +114,3 @@ TEST_F(dmCrashTest, TestPurgeDefaultPath)
     ASSERT_EQ(0, dmCrash::LoadPrevious());
 }
 
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

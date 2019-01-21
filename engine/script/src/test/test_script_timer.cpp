@@ -1,4 +1,4 @@
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 #include "../script.h"
 #include "../script_timer_private.h"
 
@@ -121,7 +121,7 @@ TEST_F(ScriptTimerTest, TestSameOwnerTimer)
         1u
     };
 
-    dmScript::HTimer handles[] = 
+    dmScript::HTimer handles[] =
     {
         dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, owner[0], 0x0),
         dmScript::AddTimer(timer_world, 0.017f, false, TestCallback, owner[0], 0x0),
@@ -157,7 +157,7 @@ TEST_F(ScriptTimerTest, TestMixedOwnersTimer)
         2u
     };
 
-    dmScript::HTimer handles[] = 
+    dmScript::HTimer handles[] =
     {
         dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, owner[0], 0x0),
         dmScript::AddTimer(timer_world, 0.017f, false, TestCallback, owner[1], 0x0),
@@ -604,7 +604,7 @@ TEST_F(ScriptTimerTest, TestTriggerTimerInCallback)
     cancelled = dmScript::CancelTimer(timer_world, inner_handle);
     ASSERT_EQ(false, cancelled);
     ASSERT_EQ(0u, TimerTestCallback::cancel_count);
-    
+
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(4u, TimerTestCallback::callback_count);
 
@@ -777,7 +777,7 @@ static int ScriptInstanceIsValid(lua_State* L)
     lua_pushboolean(L, i != 0x0 && i->m_ContextTableReference != LUA_NOREF);
     return 1;
 }
-    
+
 static const luaL_reg ScriptInstance_methods[] =
 {
     {0,0}
@@ -860,7 +860,7 @@ TEST_F(ScriptTimerTest, TestLuaOneshot)
     ASSERT_TRUE(RunString(L, post_script));
     ASSERT_EQ(top, lua_gettop(L));
 
-    FinalizeInstance(script_world);    
+    FinalizeInstance(script_world);
 
     dmScript::GetInstance(L);
     DeleteScriptInstance(L);
@@ -921,7 +921,7 @@ TEST_F(ScriptTimerTest, TestLuaRepeating)
     ASSERT_TRUE(RunString(L, post_script));
     ASSERT_EQ(top, lua_gettop(L));
 
-    FinalizeInstance(script_world);    
+    FinalizeInstance(script_world);
 
     dmScript::GetInstance(L);
     DeleteScriptInstance(L);
@@ -930,11 +930,4 @@ TEST_F(ScriptTimerTest, TestLuaRepeating)
     dmScript::SetInstance(L);
 
     dmScript::DeleteScriptWorld(script_world);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

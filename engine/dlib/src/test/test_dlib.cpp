@@ -561,10 +561,3 @@ TEST_F(dlib, Log)
 {
     dmLogWarning("Test warning message. Should have domain DLIB");
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
-

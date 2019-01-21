@@ -1,11 +1,9 @@
-#include <gtest/gtest.h>
-
 #include <stdio.h>
 #include <stdint.h>
 
 #include "script.h"
 #include "script_vmath.h"
-
+#include <dlib/test/testutil.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 
@@ -290,12 +288,4 @@ TEST_F(ScriptVmathTest, TestMatrix4Fail)
     ASSERT_FALSE(RunString(L, "local m = vmath.matrix4()\nm.a = 1"));
     // mul
     ASSERT_FALSE(RunString(L, "local m = vmath.matrix4() * true"));
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

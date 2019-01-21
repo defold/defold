@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <map>
 #include <vector>
-#include <gtest/gtest.h>
+#include <dlib/test/testutil.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/log.h>
@@ -138,10 +138,4 @@ TEST_F(dmSoundTest, MeasureTremolo)
 TEST_F(dmSoundTest, MeasureTremoloSkip)
 {
     RunSuite("VorbisDecoderTremolo", true);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }

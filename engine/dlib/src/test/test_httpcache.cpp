@@ -667,9 +667,3 @@ TEST_F(dmHttpCacheTest, Persist)
     ASSERT_EQ(0U, dmHttpCache::GetEntryCount(cache));
     dmHttpCache::Close(cache);
 }
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

@@ -1,5 +1,5 @@
-#include <gtest/gtest.h>
 #include <script/script.h>
+#include <dlib/test/testutil.h>
 #include <dlib/log.h>
 #include <dlib/json.h>
 #include <dlib/dstrings.h>
@@ -592,12 +592,4 @@ TEST_F(IAPGameroomTest, ValidProductNoNewlines)
     ASSERT_DOUBLE_EQ(100.0, product->m_Price);
     ASSERT_STREQ("100SEK", product->m_PriceString);
     ASSERT_STREQ("SEK", product->m_CurrencyCode);
-}
-
-int main(int argc, char **argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-
-    int ret = RUN_ALL_TESTS();
-    return ret;
 }

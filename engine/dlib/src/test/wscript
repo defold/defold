@@ -2,12 +2,16 @@
 import os, re
 
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
-                extra_includes = None, extra_defines = None):
+                extra_includes = None, extra_defines = None, use_testmain = True):
     req_libs = ['GTEST', 'UUID']
     req_features = ['cxx', 'cprogram', 'test']
     req_includes = ['../../src']
     req_embed = None
     req_defines = []
+
+    local_libs = ['dlib','axtls','testutil']
+    if use_testmain:
+        local_libs += ['testmain']
 
     if extra_features != None:
         req_features.extend(extra_features)
@@ -23,9 +27,9 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     task_args = {
         'features': ' '.join(req_features),
-        'source': name + '.cpp' + ' testutil.cpp',
+        'source': name + '.cpp',
         'uselib': ' '.join(req_libs),
-        'uselib_local': 'dlib axtls',
+        'uselib_local': local_libs,
         'includes': req_includes,
         'defines': req_defines,
         'target': name
@@ -57,20 +61,20 @@ def build(bld):
     create_test(bld, 'test_array')
     create_test(bld, 'test_indexpool')
     create_test(bld, 'test_dlib', extra_libs = ['THREAD'])
-    create_test(bld, 'test_socket', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
+    create_test(bld, 'test_socket', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], use_testmain = False)
     create_test(bld, 'test_time')
     create_test(bld, 'test_thread', extra_libs = ['THREAD'])
     create_test(bld, 'test_mutex', extra_libs =['THREAD'])
     create_test(bld, 'test_profile', extra_libs = ['THREAD'])
     create_test(bld, 'test_poolallocator', extra_libs = ['THREAD'])
-    create_test(bld, 'test_memprofile', extra_libs = ['DL', 'PLATFORM_SOCKET', 'THREAD'])
-    create_test(bld, 'test_message', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
-    create_test(bld, 'test_configfile', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
+    create_test(bld, 'test_memprofile', extra_libs = ['DL', 'PLATFORM_SOCKET', 'THREAD'], use_testmain = False)
+    create_test(bld, 'test_message', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], use_testmain = False)
+    create_test(bld, 'test_configfile', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], use_testmain = False)
     create_test(bld, 'test_dstrings', extra_libs = ['THREAD'])
-    create_test(bld, 'test_httpclient', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines)
+    create_test(bld, 'test_httpclient', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, use_testmain = False)
     create_test(bld, 'test_httpcache', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines)
-    create_test(bld, 'test_httpserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines)
-    create_test(bld, 'test_webserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines)
+    create_test(bld, 'test_httpserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, use_testmain = False)
+    create_test(bld, 'test_webserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, use_testmain = False)
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
     create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
 
@@ -83,12 +87,12 @@ def build(bld):
                 embed_source = ['data/test.embed', 'generated.embed'])
     create_test(bld, 'test_atomic', extra_libs = ['THREAD'])
     create_test(bld, 'test_spinlock', extra_libs = ['THREAD'])
-    create_test(bld, 'test_sys', extra_libs = ['THREAD'], extra_defines = extra_defines)
+    create_test(bld, 'test_sys', extra_libs = ['THREAD'], extra_defines = extra_defines, use_testmain = False)
     create_test(bld, 'test_uuid', extra_libs = ['THREAD'])
     create_test(bld, 'test_template', extra_libs = ['THREAD'])
-    create_test(bld, 'test_ssdp_internals', extra_libs = ['THREAD'])
-    create_test(bld, 'test_ssdp', extra_libs = ['THREAD'])
-    create_test(bld, 'test_log', extra_libs = ['THREAD'])
+    create_test(bld, 'test_ssdp_internals', extra_libs = ['THREAD'], use_testmain = False)
+    create_test(bld, 'test_ssdp', extra_libs = ['THREAD'], use_testmain = False)
+    create_test(bld, 'test_log', extra_libs = ['THREAD'], use_testmain = False)
     create_test(bld, 'test_path', extra_libs = ['THREAD'])
     create_test(bld, 'test_trig_lookup', extra_libs = ['THREAD'])
     create_test(bld, 'test_vmath', extra_libs = ['THREAD'])
@@ -124,7 +128,7 @@ def build(bld):
                 )
 
     create_test(bld, 'test_connection_pool', extra_features = ['embed'], extra_libs = ['THREAD'],
-                extra_includes = ['.'])
+                extra_includes = ['.'], use_testmain = False)
 
     create_test(bld, 'test_pprint', extra_libs = ['THREAD'])
     create_test(bld, 'test_md5', extra_libs = ['THREAD'])

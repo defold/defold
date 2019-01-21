@@ -16,7 +16,7 @@ def build(bld):
     test_record = bld.new_task_gen(features='cxx cprogram test',
                                    includes='../../../src .',
                                    defines=extra_defines,
-                                   uselib='GTEST DLIB %s' % vpx,
+                                   uselib='TESTUTIL TESTMAIN DLIB %s' % vpx,
                                    uselib_local=record,
                                    proto_gen_py=True,
                                    target='test_record',
