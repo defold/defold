@@ -30,7 +30,8 @@
 
 (defn- start-and-print
   [config]
-  (if-let [start-server (try-resolve 'clojure.tools.nrepl.server/start-server)]
+  (if-let [start-server (or (try-resolve 'clojure.tools.nrepl.server/start-server)
+                            (try-resolve 'nrepl.server/start-server))]
     (try
       (let [srv (if config
                   (apply start-server (mapcat identity config))
