@@ -726,7 +726,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
         BytesToHexString(factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, HashLength(dmLiveUpdateDDF::HASH_SHA1), id_buf, MANIFEST_PROJ_ID_LEN);
         dmSys::Result support_path_result = dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
-        if (support_path_result == dmSys::RESULT_OK)
+        if (support_path_result != dmSys::RESULT_OK)
         {
             dmLogError("Failed get application support path for \"%s\", result = %i", id_buf, support_path_result);
             r = RESULT_IO_ERROR;
