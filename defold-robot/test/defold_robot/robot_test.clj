@@ -14,7 +14,12 @@
   (doto (File/createTempFile "robot" "log.txt")
     (.deleteOnExit)))
 
-(Platform/startup (fn []))
+(use-fixtures
+  :once
+  (fn [f]
+    (Platform/startup (fn []))
+    (f)
+    (Platform/exit)))
 
 (defn- f->desc [^File f]
   {:pattern (.getName f)
