@@ -418,6 +418,9 @@ var Module = {
     *     'custom_heap_size':
     *         Number of bytes specifying the memory heap size.
     *
+    *     'disable_context_menu':
+    *         Disables the right-click context menu on the canvas element if true.
+    *
     **/
     runApp: function(app_canvas_id, extra_params) {
         app_canvas_id = (typeof app_canvas_id === 'undefined') ?  'canvas' : app_canvas_id;
@@ -428,7 +431,8 @@ var Module = {
             unsupported_webgl_callback: undefined,
             engine_arguments: [],
             persistent_storage: true,
-            custom_heap_size: undefined
+            custom_heap_size: undefined,
+            disable_context_menu: true
         };
 
         for (var k in extra_params) {
@@ -453,6 +457,14 @@ var Module = {
 
             // Add progress visuals
             Progress.addProgress(Module.canvas);
+
+            // Add context menu hide-handler if requested
+            if (params["disable_context_menu"])
+            {
+                Module.canvas.oncontextmenu = function(e) {
+                    e.preventDefault();
+                };
+            }
 
             // Load and assemble archive
             Combine.addCombineCompletedListener(Module.onArchiveFileLoaded);
