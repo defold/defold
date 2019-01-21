@@ -1,6 +1,7 @@
 
 #include "comp_script.h"
 
+#include <dlib/dstrings.h>
 #include <dlib/profile.h>
 
 #include <script/script.h>
@@ -82,7 +83,8 @@ namespace dmGameObject
 
     ScriptResult RunScript(lua_State* L, HScript script, ScriptFunction script_function, HScriptInstance script_instance, const RunScriptParams& params)
     {
-        DM_PROFILE(Script, "RunScript");
+        static dmProfile::Scope* gProfilerRunScriptScope = dmProfile::g_IsInitialized ? dmProfile::AllocateScope("Script") : 0;
+        DM_PROFILE_SCOPE(gProfilerRunScriptScope, "RunScript");
 
         ScriptResult result = SCRIPT_RESULT_OK;
 
@@ -111,10 +113,19 @@ namespace dmGameObject
                 ++arg_count;
             }
 
-            int ret = dmScript::PCall(L, arg_count, 0);
-            if (ret != 0)
+            const char* scope_name = 0;
+            if (dmProfile::g_IsInitialized)
             {
-                result = SCRIPT_RESULT_FAILED;
+                char buffer[128];
+                DM_SNPRINTF(buffer, sizeof(buffer), "%s@%s", SCRIPT_FUNCTION_NAMES[script_function], script->m_LuaModule->m_Source.m_Filename);
+                scope_name = dmProfile::Internalize(buffer);
+            }
+            {
+                DM_PROFILE_SCOPE(gProfilerRunScriptScope, scope_name);
+                if (dmScript::PCall(L, arg_count, 0) != 0)
+                {
+                    result = SCRIPT_RESULT_FAILED;
+                }
             }
 
             lua_pushnil(L);
