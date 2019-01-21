@@ -363,7 +363,7 @@
                                                         :align :left
                                                         :offset [0.0 0.0]
                                                         :world-transform (doto (Matrix4d.) (.setIdentity))
-                                                        :color (colors/alpha colors/defold-white-light 1.0) :outline (colors/alpha colors/bright-grey 1.0) :shadow [0.0 0.0 0.0 1.0]}])
+                                                        :color (colors/alpha colors/defold-white-light 1.0) :outline (colors/alpha colors/mid-grey 1.0) :shadow [0.0 0.0 0.0 1.0]}])
         material-shader (:shader user-data)
         type (:type user-data)
         vcount (count vertex-buffer)]
