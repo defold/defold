@@ -219,7 +219,7 @@ union SaveLoadBuffer
         dmSys::Result r = dmSys::GetApplicationSupportPath(application_id, app_support_path, sizeof(app_support_path));
         if (r != dmSys::RESULT_OK)
         {
-            luaL_error(L, "Unable to locate application support path (%d)", r);
+            luaL_error(L, "Unable to locate application support path for \"%s\": (%d)", application_id, r);
         }
 
         const char* filename = luaL_checkstring(L, 2);

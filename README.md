@@ -198,8 +198,8 @@ Building the 64 bit version of Defold begins with building a set of 32 bit libra
 
 - [easy_install/ez_setup](https://pypi.python.org/pypi/setuptools#id3) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseaTdqQXpxbl96bTA)
 
-	Download `ez_setup.py` and run it. Add `C:\Python27\Scripts` (where `easy_install` should now be located) to PATH.
-	
+	Download `ez_setup.py` and run it. If `ez_setup.py` fails to connect using https when run, try adding `--insecure` as argument to enable http download. Add `C:\Python27\Scripts` (where `easy_install` should now be located) to PATH.
+
 	- Update setuptools and pip - you might get errors running easy_install when running the install-ext command with build.py otherwise
 
 		python -m pip install --upgrade pip
@@ -211,13 +211,13 @@ Building the 64 bit version of Defold begins with building a set of 32 bit libra
 	Run the installer and check these packages (binary):
 
 	* MingW Base System: `mingw32-base`, `mingw-developer-toolkit`
-	* MSYS Base System: `msys-base`, `msys-bash`	
+	* MSYS Base System: `msys-base`, `msys-bash`
 	* optional packages `msys-dos2unix`
 
 	Select the menu option `Installation -> Apply Changes`
 	You also need to install wget, from a cmd command line run
 
-		mingw-get install msys-wget-bin msys-zip msys-unzip	
+		mingw-get install msys-wget-bin msys-zip msys-unzip
 
 - [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html) - [download](https://drive.google.com/a/king.com/file/d/0BxFxQdv6jzsedTRiazdWaE5NZkU/view?usp=sharing)
 
@@ -231,7 +231,7 @@ Building the 64 bit version of Defold begins with building a set of 32 bit libra
 	- If you don't have an SSH Key, press Generate Key
 	- Add the public key to your Github profile
 	- You might need to run start-ssh-agent (in `C:\Program Files\Git\cmd`)
-	
+
 	Now you should be able to clone the defold repo from a cmd prompt:
 
 		git clone git@github.com:defold/defold.git
@@ -465,10 +465,13 @@ You probably have an incompatible version of the JDK. 1.8_144 works, 1.8_160 doe
 * **lz4** [http://cyan4973.github.io/lz4/](http://cyan4973.github.io/lz4/)  **BSD**
 * **box2d** [http://box2d.org](http://box2d.org) **zlib**
 * **bullet** [http://bulletphysics.org](http://bulletphysics.org) **zlib**
-* **vp8** [http://www.webmproject.org](http://www.webmproject.org) **BSD**
+* **vpx/vp8** [http://www.webmproject.org](http://www.webmproject.org) **BSD**
+* **WebP** [http://www.webmproject.org/license/software/](http://www.webmproject.org/license/software/) **BSD**
 * **openal** [http://kcat.strangesoft.net/openal.html](http://kcat.strangesoft.net/openal.html) **LGPL**
-* **alut** [https://github.com/vancegroup/freealut](https://github.com/vancegroup/freealut) was **BSD** but changed to **LGPL**
 * **md5** Based on md5 in axTLS
+
+### Unused??
+* **alut** [https://github.com/vancegroup/freealut](https://github.com/vancegroup/freealut) was **BSD** but changed to **LGPL**
 * **xxtea-c** [https://github.com/xxtea](https://github.com/xxtea) **MIT**
 
 
@@ -671,7 +674,6 @@ In that web app manager, you can see the console output, take screenshots or sho
 
 * Investigate mutex and dmProfile overhead. Removing DM_PROFILE, DM_COUNTER_HASH, dmMutex::Lock and dmMutex::Unlock from dmMessage::Post resulted in 4x improvement
 * Verify that exceptions are disabled
-
 
 ## Asset loading
 
