@@ -153,12 +153,19 @@ platforms:
     symbolCmd: 'llvm-dsymutil -o {{src}}.dSYM {{src}}'
 
   armv7-android:
+    env:
+        NDK_PATH:           "{{env.ANDROID_NDK_PATH}}"
+        STL_LIB:            "{{env.ANDROID_STL_LIB}}"
+        NDK_INCLUDE:        "{{env.ANDROID_NDK_INCLUDE}}"
+        STL_INCLUDE:        "{{env.ANDROID_STL_INCLUDE}}"
+        STL_ARCH_INCLUDE:   "{{env.ANDROID_STL_ARCH_INCLUDE}}"
+        SYSROOT:            "{{env.ANDROID_SYSROOT}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/facebooksdk.jar", "{{dynamo_home}}/ext/share/java/bolts-android-1.2.0.jar", "{{dynamo_home}}/ext/share/java/google-play-services.jar", "{{dynamo_home}}/ext/share/java/android-support-v4.jar", "{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/in-app-purchasing-2.0.61.jar", "{{dynamo_home}}/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/facebook_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/iap_android.jar", "{{dynamo_home}}/share/java/push_android.jar", "{{dynamo_home}}/share/java/sound_android.jar", "{{dynamo_home}}/share/java/webview_android.jar", "{{dynamo_home}}/share/java/iac_android.jar"]
         engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "openal_soft", "tremolo", "liveupdate", "unwind"]
-        libPaths:   ["{{dynamo_home}}/lib/armv7-android", "{{dynamo_home}}/ext/lib/armv7-android", "{{android_stl_lib}}"]
+        libPaths:   ["{{dynamo_home}}/lib/armv7-android", "{{dynamo_home}}/ext/lib/armv7-android", "{{env.STL_LIB}}"]
         defines:    ["DM_PLATFORM_ANDROID", "LUA_BYTECODE_ENABLE", "__ARM_ARCH_5__", "__ARM_ARCH_5T__", "__ARM_ARCH_5E__", "__ARM_ARCH_5TE__"]
-        platformIncludes:   ["{{android_ndk_path}}/sources/android/native_app_glue", "{{android_ndk_path}}/sources/android/cpufeatures", "{{android_ndk_include}}", "{{android_stl_include}}", "{{android_stl_arch_include}}"]
+        platformIncludes:   ["{{env.NDK_PATH}}/sources/android/native_app_glue", "{{env.NDK_PATH}}/sources/android/cpufeatures", "{{env.NDK_INCLUDE}}", "{{env.STL_INCLUDE}}", "{{env.STL_ARCH_INCLUDE}}"]
         flags:      ["-fno-exceptions", "-fvisibility=hidden"]
         linkFlags:  []
         libs:       []
@@ -176,9 +183,47 @@ platforms:
     zipContentPattern: 'libdmengine.so'
     allowedLibs: [ "EGL","GLESv1_CM","GLESv2","GLESv3","OpenMAXAL","OpenSLES","RSSupport","RScpp_static","android","c","c\\+\\+_shared","c\\+\\+_static","compiler_rt","compiler_rt_shared","compiler_rt_static","dl","gabi\\+\\+_shared","gabi\\+\\+_static","gccunwind","gnustl_shared","gnustl_static","jnigraphics","log","m","m_hard","mediandk","portable","stdc\\+\\+","stlport_shared","stlport_static","supc\\+\\+","thread_db","z"]
     allowedFlags: ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9]+","-fno-rtti","-fpermissive"]
-    compileCmd: 'arm-linux-androideabi-g++ -c -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -Wno-psabi -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -fomit-frame-pointer -fno-strict-aliasing -finline-limit=64 -funwind-tables --sysroot={{android_sysroot}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
-    linkCmd: 'arm-linux-androideabi-g++ --sysroot={{android_sysroot}} {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--fix-cortex-a8 -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -lgnustl_static -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -shared'
+    compileCmd: 'arm-linux-androideabi-g++ -c -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -Wno-psabi -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -fomit-frame-pointer -fno-strict-aliasing -finline-limit=64 -funwind-tables --sysroot={{env.SYSROOT}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
+    linkCmd: 'arm-linux-androideabi-g++ --sysroot={{env.SYSROOT}} {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--fix-cortex-a8 -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -lgnustl_static -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -shared'
     libCmd: 'arm-linux-androideabi-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
+    javacCmd: 'javac -source 1.6 -target 1.6 -J-Xms2048m -J-Xmx2048m -classpath {{dynamo_home}}/ext/share/java/android-support-v4.jar:{{dynamo_home}}/ext/share/java/android.jar:{{classPath}} -d {{classesDir}} @{{sourcesListFile}}'
+    jarCmd: 'jar cf {{outputJar}} -C {{classesDir}} .'
+    dxCmd: 'dx -JXms2048m -JXmx2048m --dex --multi-dex --output {{classes_dex_dir}} {{#jars}}{{.}} {{/jars}} {{#engineJars}}{{.}} {{/engineJars}}'
+
+  arm64-android:
+    env:
+        NDK_PATH:           "{{env.ANDROID_NDK_PATH}}"
+        STL_LIB:            "{{env.ANDROID_64_STL_LIB}}"
+        NDK_INCLUDE:        "{{env.ANDROID_64_NDK_INCLUDE}}"
+        STL_INCLUDE:        "{{env.ANDROID_64_STL_INCLUDE}}"
+        STL_ARCH_INCLUDE:   "{{env.ANDROID_64_STL_ARCH_INCLUDE}}"
+        SYSROOT:            "{{env.ANDROID_64_SYSROOT}}"
+    context:
+        engineJars: ["{{dynamo_home}}/ext/share/java/facebooksdk.jar", "{{dynamo_home}}/ext/share/java/bolts-android-1.2.0.jar", "{{dynamo_home}}/ext/share/java/google-play-services.jar", "{{dynamo_home}}/ext/share/java/android-support-v4.jar", "{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/in-app-purchasing-2.0.61.jar", "{{dynamo_home}}/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/facebook_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/iap_android.jar", "{{dynamo_home}}/share/java/push_android.jar", "{{dynamo_home}}/share/java/sound_android.jar", "{{dynamo_home}}/share/java/webview_android.jar", "{{dynamo_home}}/share/java/iac_android.jar"]
+        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "openal_soft", "tremolo", "liveupdate", "unwind"]
+        libPaths:   ["{{dynamo_home}}/lib/arm64-android", "{{dynamo_home}}/ext/lib/arm64-android", "{{env.STL_LIB}}"]
+        defines:    ["DM_PLATFORM_ANDROID", "__aarch64__"]
+        platformIncludes:   ["{{env.NDK_PATH}}/sources/android/native_app_glue", "{{env.NDK_PATH}}/sources/android/cpufeatures", "{{env.NDK_INCLUDE}}", "{{env.STL_INCLUDE}}", "{{env.STL_ARCH_INCLUDE}}"]
+        flags:      ["-fno-exceptions", "-fvisibility=hidden"]
+        linkFlags:  []
+        libs:       []
+        dynamicLibs: ["EGL","GLESv1_CM","GLESv2","OpenSLES","m","log","c"]
+        symbols:    ["AudioDecoderTremolo"]
+
+    exePrefix: 'lib'
+    exeExt: '.so'
+    shlibRe: 'lib(.+).so'
+    stlibRe: 'lib(.+).a'
+    sourceRe: '(?i).+(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)$'
+    javaSourceRe: '(?i).+(\.java)$'
+    writeLibPattern: 'lib%s.a'
+    writeExePattern: 'libdmengine.so'
+    zipContentPattern: 'libdmengine.so'
+    allowedLibs: [ "EGL","GLESv1_CM","GLESv2","GLESv3","OpenMAXAL","OpenSLES","RSSupport","RScpp_static","android","c","c\\+\\+_shared","c\\+\\+_static","compiler_rt","compiler_rt_shared","compiler_rt_static","dl","gabi\\+\\+_shared","gabi\\+\\+_static","gccunwind","gnustl_shared","gnustl_static","jnigraphics","log","m","m_hard","mediandk","portable","stdc\\+\\+","stlport_shared","stlport_static","supc\\+\\+","thread_db","z"]
+    allowedFlags: ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9]+","-fno-rtti","-fpermissive"]
+    compileCmd: 'aarch64-linux-android-g++ -c -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -Wno-psabi -march=armv8-a -fomit-frame-pointer -fno-strict-aliasing -finline-limit=64 -funwind-tables --sysroot={{env.SYSROOT}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
+    linkCmd: 'aarch64-linux-android-g++ --sysroot={{env.SYSROOT}} {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -lgnustl_static -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -shared'
+    libCmd: 'aarch64-linux-android-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
     javacCmd: 'javac -source 1.6 -target 1.6 -J-Xms2048m -J-Xmx2048m -classpath {{dynamo_home}}/ext/share/java/android-support-v4.jar:{{dynamo_home}}/ext/share/java/android.jar:{{classPath}} -d {{classesDir}} @{{sourcesListFile}}'
     jarCmd: 'jar cf {{outputJar}} -C {{classesDir}} .'
     dxCmd: 'dx -JXms2048m -JXmx2048m --dex --multi-dex --output {{classes_dex_dir}} {{#jars}}{{.}} {{/jars}} {{#engineJars}}{{.}} {{/engineJars}}'
