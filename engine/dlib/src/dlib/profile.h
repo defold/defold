@@ -14,6 +14,7 @@
 #include <dlib/atomic.h>
 #include <dlib/dlib.h>
 #include <dlib/dstrings.h>
+#include <dlib/static_assert.h> // ANALYZE_USE_POINTER
 
 #define DM_PROFILE_PASTE(x, y) x ## y
 #define DM_PROFILE_PASTE2(x, y) DM_PROFILE_PASTE(x, y)
