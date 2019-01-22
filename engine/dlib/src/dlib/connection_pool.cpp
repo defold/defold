@@ -483,7 +483,8 @@ namespace dmConnectionPool
         // in-use connections.
         DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
         uint32_t count = 0;
-        for (uint32_t i=0;i!=pool->m_Connections.Size();i++) {
+        uint32_t n = pool->m_Connections.Size();
+        for (uint32_t i=0; i != n; i++) {
             Connection* c = &pool->m_Connections[i];
             if (c->m_State == STATE_INUSE) {
                 count++;
@@ -500,7 +501,22 @@ namespace dmConnectionPool
 
     void Reopen(HPool pool)
     {
+        // This function is used by tests to restore usage of a pool
+        // We purge any live connections so the test does not run out
+        // of connection pool items
         DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
+        uint32_t n = pool->m_Connections.Size();
+        for (uint32_t i=0; i != n; i++) {
+            Connection* c = &pool->m_Connections[i];
+            if (c->m_State == STATE_CONNECTED)
+            {
+                dmSocket::Delete(c->m_Socket);
+                if (c->m_SSLConnection) {
+                    ssl_free(c->m_SSLConnection);
+                }
+                c->Clear();
+            }
+        }
         pool->m_AllowNewConnections = 1;
     }
 }

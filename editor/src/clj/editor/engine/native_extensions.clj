@@ -184,7 +184,7 @@
                       (let [key (g/node-value resource-node :sha256 evaluation-context)]
                         {:path upload-path :key key}))
                     resource-nodes-by-upload-path)
-        json (json/write-str {:files items})
+        json (json/write-str {:files items :version 1 :hashType "sha256"})
         request (make-cache-request server-url json)
         response (http/request request)]
     ; Make a list of all files we intend to upload
@@ -212,7 +212,7 @@
   ;; build server, as it will fall back on using the DYNAMO_HOME env variable.
   ;; Otherwise, you will likely get an Internal Server Error response.
   (let [cc (DefaultClientConfig.)
-        ;; TODO: Random errors wihtout this... Don't understand why random!
+        ;; TODO: Random errors without this... Don't understand why random!
         ;; For example No MessageBodyWriter for body part of type 'java.io.BufferedInputStream' and media type 'application/octet-stream"
         _ (.add (.getClasses cc) MultiPartWriter)
         _ (.add (.getClasses cc) InputStreamProvider)
