@@ -2204,7 +2204,7 @@ namespace dmRender
      * for the predicate. If multiple tags are provided, the predicate matches materials
      * with all tags ANDed together.
      *
-     * The current limit to the number of tags that can be defined is `32`.
+     * The current limit to the number of tags that can be defined is `64`.
      *
      * @name render.predicate
      * @param tags [type:table] table of tags that the predicate should match. The tags can be of either hash or string type
@@ -2580,6 +2580,9 @@ namespace dmRender
                     }
                 }
                 result = true;
+                // m_SourceFileName will be null if profiling is not enabled, this is fine
+                // as m_SourceFileName will only be used if profiling is enabled
+                script->m_SourceFileName = dmProfile::Internalize(source->m_Filename);
             }
             lua_pushnil(L);
             dmScript::SetInstance(L);
@@ -2744,6 +2747,9 @@ bail:
 
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)
     {
+        static dmProfile::Scope* gProfilerRunScriptScope = dmProfile::g_IsInitialized ? dmProfile::AllocateScope("Script") : 0;
+        DM_PROFILE_SCOPE(gProfilerRunScriptScope, "RenderScript");
+
         RenderScriptResult result = RENDER_SCRIPT_RESULT_OK;
         HRenderScript script = script_instance->m_RenderScript;
         if (script->m_FunctionReferences[script_function] != LUA_NOREF)
@@ -2783,10 +2789,21 @@ bail:
                 }
                 dmScript::PushURL(L, message->m_Sender);
             }
-            int ret = dmScript::PCall(L, arg_count, 0);
-            if (ret != 0)
+
+            const char* scope_name = 0;
+            if (dmProfile::g_IsInitialized)
             {
-                result = RENDER_SCRIPT_RESULT_FAILED;
+                char buffer[128];
+                DM_SNPRINTF(buffer, sizeof(buffer), "%s@%s", RENDER_SCRIPT_FUNCTION_NAMES[script_function], script->m_SourceFileName);
+                scope_name = dmProfile::Internalize(buffer);
+            }
+            {
+                DM_PROFILE_SCOPE(gProfilerRunScriptScope, scope_name);
+                if (dmScript::PCall(L, arg_count, 0) != 0)
+                {
+                    assert(top == lua_gettop(L));
+                    result = RENDER_SCRIPT_RESULT_FAILED;
+                }
             }
 
             lua_pushnil(L);
