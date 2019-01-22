@@ -818,7 +818,7 @@ int main(int argc, char** argv)
     /* main loop */
     frame = 0;
     iter = 0;
-    dt = last_update_time = glfwGetTime();
+    last_update_time = glfwGetTime();
 
     while (running)
     {
