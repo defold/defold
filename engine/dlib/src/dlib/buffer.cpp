@@ -96,7 +96,7 @@ namespace dmBuffer
     static void GrowPool(BufferContext* ctx, uint32_t count)
     {
         uint32_t new_capacity = ctx->m_Capacity + count;
-        ctx->m_Buffers = (Buffer**)realloc(g_BufferContext->m_Buffers, new_capacity * sizeof(Buffer**));
+        ctx->m_Buffers = (Buffer**)realloc(g_BufferContext->m_Buffers, new_capacity * sizeof(Buffer*));
         for( uint32_t i = ctx->m_Capacity; i < new_capacity; ++i )
         {
             ctx->m_Buffers[i] = 0;
@@ -272,6 +272,11 @@ namespace dmBuffer
         return ValidateBuffer(GetBuffer(g_BufferContext, hbuffer));
     }
 #else
+    static inline void WriteGuard(void* ptr)
+    {
+        (void*)ptr;
+    }
+
     static inline Result ValidateBuffer(Buffer* buffer)
     {
         (void*)buffer;
