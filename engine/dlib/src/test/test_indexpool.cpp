@@ -1,5 +1,5 @@
-
 #include <stdint.h>
+#include <memory.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jctest/test.h>
 #include "dlib/index_pool.h"

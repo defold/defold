@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <string.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jctest/test.h>
 #include "dlib/uri.h"

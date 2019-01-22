@@ -341,7 +341,7 @@ TEST(dmProfile, DynamicScope)
     char name2[128];
     DM_SNPRINTF(name2, sizeof(name2), "%s@%s", "test.script", FUNCTION_NAMES[2]);
 
-    for (uint i = 0; i < 10 ; ++i)
+    for (uint32_t i = 0; i < 10 ; ++i)
     {
         {
             DM_PROFILE_SCOPE(scope0, name0);

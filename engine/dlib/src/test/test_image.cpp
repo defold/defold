@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <stdio.h>
+#include <string.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jctest/test.h>
 #include "../dlib/image.h"
