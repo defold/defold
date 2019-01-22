@@ -201,8 +201,9 @@
                       (error-line-for-clipboard selection))]
     (str proj-path error-lines)))
 
-(handler/defhandler :copy :workbench
-  (active? [selection] (handler/selection->node-ids selection))
+(handler/defhandler :copy :build-errors-view
+  (active? [selection] (not-empty selection))
+  (enabled? [selection] (not-empty selection))
   (run [build-errors-view]
     (let [clip-board (Clipboard/getSystemClipboard)
           content    (ClipboardContent.)
@@ -211,13 +212,21 @@
       (.putString content error-text)
       (.setContent clip-board content))))
 
+(ui/extend-menu ::build-errors-menu nil
+                [{:label "Copy"
+                  :command :copy}])
+
 (defn make-build-errors-view [^TreeView errors-tree open-resource-fn]
   (doto errors-tree
     (.setShowRoot false)
     (ui/cell-factory! make-tree-cell)
     (ui/on-double! (fn [_]
                      (when-let [selection (ui/selection errors-tree)]
-                       (open-error open-resource-fn selection))))))
+                       (open-error open-resource-fn selection))))
+    (ui/register-context-menu ::build-errors-menu)
+    (ui/context! :build-errors-view
+                 {:build-errors-view errors-tree}
+                 (ui/->selection-provider errors-tree))))
 
 (declare tree-item)
 
