@@ -117,6 +117,7 @@ public class AndroidBundler implements IBundler {
                 bundleExes = Bob.getDefaultDmengineFiles(targetPlatform, variant);
             }
             else {
+                logger.log(Level.INFO, "Using extender binary for Armv7");
                 classesDex = new ArrayList<File>();
                 int i = 1;
                 while(true)
@@ -144,6 +145,7 @@ public class AndroidBundler implements IBundler {
                 bundleArm64Exes = Bob.getDefaultDmengineFiles(targetPlatform, variant);
             }
             else {
+                logger.log(Level.INFO, "Using extender binary for Arm64");
                 classesDex = new ArrayList<File>();
                 int i = 1;
                 while(true)
@@ -162,9 +164,6 @@ public class AndroidBundler implements IBundler {
             throw new IOException("Invalid number of arm64-v8a binaries for Android when bundling: " + bundleArm64Exes.size());
         }
         File bundleArm64Exe = bundleArm64Exes.get(0);
-
-        logger.log(Level.INFO, "Android Armv7 binary: " + getFileDescription(bundleExe));
-        logger.log(Level.INFO, "Android Arm64 binary: " + getFileDescription(bundleArm64Exe));
 
         File appDir = new File(bundleDir, title);
         File resDir = new File(appDir, "res");
@@ -363,12 +362,17 @@ public class AndroidBundler implements IBundler {
             String filenameArmv7 = FilenameUtils.concat("lib/armeabi-v7a", "lib" + exeName + ".so");
             filenameArmv7 = FilenameUtils.normalize(filenameArmv7, true);
             zipOut.putNextEntry(new ZipEntry(filenameArmv7));
-            FileUtils.copyFile(new File(strippedpathArmv7), zipOut);
+            File fileArmv7 = new File(strippedpathArmv7);
+            FileUtils.copyFile(fileArmv7, zipOut);
             // arm64-v8a
             String filenameArm64 = FilenameUtils.concat("lib/arm64-v8a", "lib" + exeName + ".so");
             filenameArm64 = FilenameUtils.normalize(filenameArm64, true);
             zipOut.putNextEntry(new ZipEntry(filenameArm64));
-            FileUtils.copyFile(new File(strippedpathArm64), zipOut);
+            File fileArm64 = new File(strippedpathArm64);
+            FileUtils.copyFile(fileArm64, zipOut);
+
+            logger.log(Level.INFO, "Android Armv7 binary: " + getFileDescription(fileArmv7));
+            logger.log(Level.INFO, "Android Arm64 binary: " + getFileDescription(fileArm64));
         } finally {
             IOUtils.closeQuietly(zipIn);
             IOUtils.closeQuietly(zipOut);

@@ -560,7 +560,7 @@ public class Project {
         }
         PlatformArchitectures platformArchs = p.getArchitectures();
         String[] platformStrings;
-        if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin || p == Platform.JsWeb || p == Platform.WasmWeb)
+        if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin || p == Platform.JsWeb || p == Platform.WasmWeb || p == Platform.Armv7Android || p == Platform.Arm64Android)
         {
             // iOS is currently the only OS we use that supports fat binaries
             // Here we'll get a list of all associated architectures (armv7, arm64) and build them at the same time
@@ -610,7 +610,7 @@ public class Project {
             List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform, appmanifestOptions);
 
             File classesDexFile = null;
-            if (platform.equals(Platform.Armv7Android)) {
+            if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
 
                 // If we are building for Android, we expect a classes.dex file to be returned as well.
                 classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), "classes.dex"));
