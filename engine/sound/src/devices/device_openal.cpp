@@ -85,6 +85,8 @@ namespace dmDeviceOpenAL
 
         *device = openal;
 
+        alcMakeContextCurrent(NULL);
+
         return dmSound::RESULT_OK;
     }
 
@@ -92,6 +94,8 @@ namespace dmDeviceOpenAL
     {
         OpenALDevice* openal = (OpenALDevice*) device;
 
+        alcMakeContextCurrent(openal->m_Context);
+        
         int iter = 0;
         while (openal->m_Buffers.Size() != openal->m_Buffers.Capacity())
         {

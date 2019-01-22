@@ -352,11 +352,6 @@ namespace dmSound
                 PlatformReleaseAudioFocus();
                 g_SoundSystem->m_HasPlatformFocus = false;
             }
-            if (g_SoundSystem->m_IsDeviceStarted)
-            {
-                g_SoundSystem->m_DeviceType->m_DeviceStop(g_SoundSystem->m_Device);
-                g_SoundSystem->m_IsDeviceStarted = false;
-            }
         }
 
         PlatformFinalize();
@@ -1212,8 +1207,6 @@ namespace dmSound
             return RESULT_NOTHING_TO_PLAY;
         }
 
-        uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
-
         if (active_instance_count == 0)
         {
             if (sound->m_HasPlatformFocus == true && sound->m_IsDeviceStarted)
@@ -1221,6 +1214,7 @@ namespace dmSound
                 // DEF-3512 Wait with releasing audio focus until all our queued buffers have played, if any queued buffers are
                 // still playing we will get the wrong result in isMusicPlaying on android if we release audio focus to soon
                 // since it detects our buffered sounds as "other application".
+                uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
                 if (free_slots == SOUND_OUTBUFFER_COUNT)
                 {
                     bool ok = PlatformReleaseAudioFocus();
@@ -1266,6 +1260,7 @@ namespace dmSound
             }
         }
 
+        uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
         if (free_slots > 0) {
             StepGroupValues();
             StepInstanceValues();
