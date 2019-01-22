@@ -477,7 +477,7 @@ namespace dmHttpClient
                 return RESULT_HTTP_HEADERS_ERROR;
             }
 
-            int recv_bytes;
+            int recv_bytes = 0;
             dmSocket::Result r = Receive(response, client->m_Buffer + response->m_TotalReceived, max_to_recv, &recv_bytes);
 
             if( r == dmSocket::RESULT_WOULDBLOCK )
