@@ -4,6 +4,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/pprint.h>
+#include <dlib/profile.h>
 #include <extension/extension.h>
 
 #include "script_private.h"
@@ -1449,7 +1450,34 @@ namespace dmScript
         int user_args_end = lua_gettop(L);
 
         int number_of_arguments = 1 + user_args_end - user_args_start; // instance + number of arguments that the user pushed
-        int ret = PCall(L, number_of_arguments, 0);
+
+        const char* function_name = "on_timer";
+        const char* function_source = "?";
+        char function_line_number_buffer[16];
+        if (dmProfile::g_IsInitialized)
+        {
+            dmScript::LuaFunctionInfo fi;
+            if (dmScript::GetLuaFunctionRefInfo(L, -(number_of_arguments + 1), &fi))
+            {
+                function_source = fi.m_FileName;
+                if (fi.m_OptionalName)
+                {
+                    function_name = fi.m_OptionalName;
+                }
+                else
+                {
+                    DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
+                    function_name = function_line_number_buffer;
+                }
+            }
+        }
+
+
+        int ret;
+        {
+            DM_PROFILE_FMT(Script, "%s@%s", function_name, function_source);
+            ret = PCall(L, number_of_arguments, 0);
+        }
 
         if (ret != 0) {
             // [-2] old instance
@@ -1467,6 +1495,20 @@ namespace dmScript
 
         SetInstance(L);
         return true;
+    }
+
+    bool GetLuaFunctionRefInfo(lua_State* L, int stack_index, LuaFunctionInfo* out_function_info)
+    {
+        lua_Debug ar;
+        lua_pushvalue(L, stack_index);
+        if (lua_getinfo(L, ">Sn", &ar))
+        {
+            out_function_info->m_FileName = &ar.source[1];  // Skip source prefix character
+            out_function_info->m_LineNumber = ar.linedefined;
+            out_function_info->m_OptionalName = ar.name;
+            return true;
+        }
+        return false;
     }
 
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value)

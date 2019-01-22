@@ -781,7 +781,13 @@ class Configuration(object):
         self.exec_env_command(args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
 
     def build_bob_light(self):
-        self._log('Building bob')
+        self._log('Building bob light')
+
+        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        sha1 = self._git_sha1()
+        if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
+            self.exec_env_shell_command("./scripts/copy.sh", cwd = cwd)
+
         self.exec_env_shell_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'))
 

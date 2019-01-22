@@ -1140,14 +1140,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
-    uint32_t g_DrawCallsHash = dmHashString32("DrawCalls");
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context);
         assert(index_buffer);
         DM_PROFILE(Graphics, "DrawElements");
-        DM_COUNTER_HASH("DrawCalls", g_DrawCallsHash, 1);
+        DM_COUNTER("DrawCalls", 1);
 
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
         CHECK_GL_ERROR
@@ -1160,7 +1159,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         assert(context);
         DM_PROFILE(Graphics, "Draw");
-        DM_COUNTER_HASH("DrawCalls", g_DrawCallsHash, 1);
+        DM_COUNTER("DrawCalls", 1);
         glDrawArrays(prim_type, first, count);
         CHECK_GL_ERROR
     }
