@@ -807,10 +807,10 @@ namespace dmEngineService
         const uint32_t tps = dmProfile::GetTicksPerSecond();
         r = dmWebServer::Send(request, &tps, 4); CHECK_RESULT(r);
 
-        dmProfile::IterateSamples(engine_service->m_Profile, request, ProfileSendSamples);
+        dmProfile::IterateSamples(engine_service->m_Profile, request, true, ProfileSendSamples);
         r = SendString(request, "ENDD"); CHECK_RESULT(r);
 
-        dmProfile::IterateScopeData(engine_service->m_Profile, request, ProfileSendScopesData);
+        dmProfile::IterateScopeData(engine_service->m_Profile, request, true, ProfileSendScopesData);
         r = SendString(request, "ENDD"); CHECK_RESULT(r);
 
         dmProfile::IterateCounterData(engine_service->m_Profile, request, ProfileSendCountersData);
