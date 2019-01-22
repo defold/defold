@@ -674,9 +674,10 @@
     [tx-data-context pending-resource-node-id nil]
     (let [graph-id (g/node-id->graph-id project)
           node-type (resource-node-type resource)
-          creation-tx-data (g/make-nodes graph-id [resource-node-id [node-type :resource resource]]
-                                         (g/connect resource-node-id :_node-id project :nodes)
-                                         (g/connect resource-node-id :node-id+resource project :node-id+resources))
+          creation-tx-data (g/make-keyed-nodes graph-id resource
+                                               [resource-node-id [node-type :resource resource]]
+                             (g/connect resource-node-id :_node-id project :nodes)
+                             (g/connect resource-node-id :node-id+resource project :node-id+resources))
           created-resource-node-id (first (g/tx-data-nodes-added creation-tx-data))
           tx-data-context' (assoc-in tx-data-context [:created-resource-nodes resource] created-resource-node-id)]
       [tx-data-context' created-resource-node-id creation-tx-data])))

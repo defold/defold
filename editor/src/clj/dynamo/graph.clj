@@ -399,12 +399,13 @@
 
   Example:
 
-  (make-nodes view [render     AtlasRender
-                   scene      scene/SceneRenderer
-                   background background/Gradient
-                   camera     [c/CameraController :camera (c/make-orthographic)]]
-     (g/connect background   :renderable scene :renderables)
-     (g/connect atlas-render :renderable scene :renderables))"
+  (make-nodes view
+              [render     AtlasRender
+               scene      scene/SceneRenderer
+               background background/Gradient
+               camera     [c/CameraController :camera (c/make-orthographic)]]
+    (g/connect background   :renderable scene :renderables)
+    (g/connect atlas-render :renderable scene :renderables))"
   [graph-id binding-expr & body-exprs]
   (assert (vector? binding-expr) "make-nodes requires a vector for its binding")
   (assert (even? (count binding-expr)) "make-nodes requires an even number of forms in binding vector")
@@ -423,6 +424,45 @@
                      `(construct  ~ctor :_node-id ~id))))
            ctors locals)
         ~@body-exprs))))
+
+(defmacro make-keyed-nodes
+  "Similar to make-nodes, but assigns a node-key to each created node. The
+  node-key ensures repeated calls will generate the same node-ids, which is a
+  requirement inside property setters. The node-keys will be based on the
+  specified node-key-prefix and the names of the locals in the binding-vector.
+
+  Example:
+
+  (make-keyed-nodes project [scene-resource bone-name]
+                    [bone [SceneBoneNode :name bone-name]
+                     mesh SceneMeshNode]
+    (g/connect bone :transform mesh :parent-transform)
+    (g/connect bone :url mesh :parent-url))"
+  [graph-id node-key-prefix-expr binding-expr & body-exprs]
+  (assert (vector? binding-expr) "make-keyed-nodes requires a vector for its binding")
+  (assert (even? (count binding-expr)) "make-keyed-nodes requires an even number of forms in binding vector")
+  (let [id-generators (gensym "id-generators")
+        node-key-prefix (gensym "node-key-prefix")
+        locals (take-nth 2 binding-expr)
+        ctors (take-nth 2 (next binding-expr))
+        bindings (into [id-generators `(is/id-generators (deref *the-system*))
+                        node-key-prefix node-key-prefix-expr]
+                       (mapcat (fn [local]
+                                 (let [node-key [node-key-prefix (keyword (name local))]]
+                                   [local `(is/claim-node-id* ~id-generators ~graph-id ~node-key)])))
+                       locals)]
+    `(let ~bindings
+       (concat
+         ~@(map
+             (fn [ctor id]
+               (list `it/new-node
+                     (if (sequential? ctor)
+                       (if (= 2 (count ctor))
+                         `(apply construct ~(first ctor) :_node-id ~id (mapcat identity ~(second ctor)))
+                         `(construct ~@ctor :_node-id ~id))
+                       `(construct  ~ctor :_node-id ~id))))
+             ctors locals)
+         ~@body-exprs))))
 
 (defn operation-label
   "Set a human-readable label to describe the current transaction."

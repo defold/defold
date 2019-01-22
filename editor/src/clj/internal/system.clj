@@ -4,9 +4,7 @@
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.history :as h]
-            [internal.node :as in]
-            [service.log :as log])
-  (:import [java.util.concurrent.atomic AtomicLong]))
+            [internal.node :as in]))
 
 (set! *warn-on-reflection* true)
 
@@ -20,9 +18,37 @@
 (prefer-method print-method clojure.lang.IPersistentMap clojure.lang.IDeref)
 (prefer-method print-method clojure.lang.IRecord clojure.lang.IDeref)
 
-(defn- integer-counter
-  []
-  (AtomicLong. 0))
+(def ^:dynamic *allow-generated-ids* true)
+
+(defrecord IdGenerator [^long next-id claimed-ids])
+
+(defn- make-id-generator []
+  (atom (->IdGenerator 0 {})))
+
+(defn- generate-id!
+  "Generate and return a new id."
+  ^long [id-generator]
+  (assert *allow-generated-ids*)
+  (dec (.next-id ^IdGenerator (swap! id-generator
+                                     (fn [^IdGenerator state]
+                                       (->IdGenerator (inc (.next-id state))
+                                                      (.claimed-ids state)))))))
+
+(defn- claim-id!
+  "Generate and return a new id. The id becomes associated with the supplied
+  key, and subsequent calls with the same key will return the same id."
+  ^long [id-generator key]
+  (let [id-volatile (volatile! nil)]
+    (swap! id-generator
+           (fn [^IdGenerator state]
+             (if-some [existing-id (get (.claimed-ids state) key)]
+               (do (vreset! id-volatile existing-id)
+                   state)
+               (let [id (.next-id state)]
+                 (vreset! id-volatile id)
+                 (->IdGenerator (inc id)
+                                (assoc (.claimed-ids state) key id))))))
+    @id-volatile))
 
 (defn- new-history []
   {:tape (conj (h/paper-tape history-size-max) [])})
@@ -169,15 +195,23 @@
 
 (defn next-node-id*
   [id-generators graph-id]
-  (gt/make-node-id graph-id (.getAndIncrement ^AtomicLong (get id-generators graph-id))))
+  (gt/make-node-id graph-id (generate-id! (get id-generators graph-id))))
 
 (defn next-node-id
   [system graph-id]
   (next-node-id* (id-generators system) graph-id))
 
+(defn claim-node-id*
+  [id-generators graph-id node-key]
+  (gt/make-node-id graph-id (claim-id! (get id-generators graph-id) node-key)))
+
+(defn claim-node-id
+  [system graph-id node-key]
+  (claim-node-id* (id-generators system) graph-id node-key))
+
 (defn next-override-id*
   [override-id-generator graph-id]
-  (gt/make-override-id graph-id (.getAndIncrement ^AtomicLong override-id-generator)))
+  (gt/make-override-id graph-id (generate-id! override-id-generator)))
 
 (defn next-override-id
   [system graph-id]
@@ -187,7 +221,7 @@
   [system graph-id graph]
   (-> system
       (assoc :last-graph graph-id)
-      (assoc-in [:id-generators graph-id] (integer-counter))
+      (assoc-in [:id-generators graph-id] (make-id-generator))
       (assoc-in [:graphs graph-id] (assoc graph :_graph-id graph-id))))
 
 (defn attach-graph
@@ -215,7 +249,7 @@
         cache (make-cache configuration)]
     (-> {:graphs {}
          :id-generators {}
-         :override-id-generator (integer-counter)
+         :override-id-generator (make-id-generator)
          :cache cache
          :invalidate-counters {}
          :user-data {}}
@@ -366,10 +400,10 @@
   {:graphs (:graphs system)
    :history (:history system)
    :id-generators (into {}
-                        (map (fn [[graph-id ^AtomicLong gen]]
-                               [graph-id (AtomicLong. (.longValue gen))]))
+                        (map (fn [[graph-id id-generator]]
+                               [graph-id (atom (deref id-generator))]))
                         (:id-generators system))
-   :override-id-generator (AtomicLong. (.longValue ^AtomicLong (:override-id-generator system)))
+   :override-id-generator (atom (deref (:override-id-generator system)))
    :cache (:cache system)
    :user-data (:user-data system)
    :invalidate-counters (:invalidate-counters system)
@@ -378,10 +412,10 @@
 (defn system= [s1 s2]
   (and (= (:graphs s1) (:graphs s2))
        (= (:history s1) (:history s2))
-       (= (map (fn [[graph-id ^AtomicLong gen]] [graph-id (.longValue gen)]) (:id-generators s1))
-          (map (fn [[graph-id ^AtomicLong gen]] [graph-id (.longValue gen)]) (:id-generators s2)))
-       (= (.longValue ^AtomicLong (:override-id-generator s1))
-          (.longValue ^AtomicLong (:override-id-generator s2)))
+       (= (map (fn [[graph-id id-generator]] [graph-id (.next-id ^IdGenerator (deref id-generator))]) (:id-generators s1))
+          (map (fn [[graph-id id-generator]] [graph-id (.next-id ^IdGenerator (deref id-generator))]) (:id-generators s2)))
+       (= (.next-id ^IdGenerator (deref (:override-id-generator s1)))
+          (.next-id ^IdGenerator (deref (:override-id-generator s2))))
        (= (:cache s1) (:cache s2))
        (= (:user-data s1) (:user-data s2))
        (= (:invalidate-counters s1) (:invalidate-counters s2))

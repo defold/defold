@@ -175,8 +175,8 @@
                        in/output-labels)]
     (update ctx :nodes-affected assoc node-id (set all-labels))))
 
-(defn- next-node-id [ctx graph-id]
-  (is/next-node-id* (:node-id-generators ctx) graph-id))
+(defn- claim-node-id [ctx graph-id node-key]
+  (is/claim-node-id* (:node-id-generators ctx) graph-id node-key))
 
 (defn- next-override-id [ctx graph-id]
   (is/next-override-id* (:override-id-generator ctx) graph-id))
@@ -330,7 +330,12 @@
         graph-id (gt/node-id->graph-id root-id)
         node-ids (ig/pre-traverse basis [root-id] traverse-fn)
         override-id (next-override-id ctx graph-id)
-        override-nodes (mapv #(in/make-override-node override-id (next-node-id ctx graph-id) % (properties-by-node-id %)) node-ids)
+        override-nodes (mapv (fn [original-node-id]
+                               (let [override-node-key [override-id original-node-id]
+                                     override-node-id (claim-node-id ctx graph-id override-node-key)
+                                     node-properties (properties-by-node-id original-node-id)]
+                                 (in/make-override-node override-id override-node-id original-node-id node-properties)))
+                             node-ids)
         override-node-ids (map gt/node-id override-nodes)
         original-node-id->override-node-id (zipmap node-ids override-node-ids)
         new-override-nodes-tx-data (map new-node override-nodes)
@@ -360,7 +365,8 @@
               (if (some #(= override-id (node-id->override-id basis %)) (ig/get-overrides basis node-id))
                 ctx
                 (let [graph-id (gt/node-id->graph-id node-id)
-                      new-override-node-id (next-node-id ctx graph-id)
+                      new-override-node-key [override-id node-id]
+                      new-override-node-id (claim-node-id ctx graph-id new-override-node-key)
                       new-override-node (in/make-override-node override-id new-override-node-id node-id {})]
                   (-> ctx
                       (ctx-add-node new-override-node)
@@ -437,7 +443,12 @@
 (defn- call-setter-fn [ctx property setter-fn basis node-id old-value new-value]
   (try
     (let [tx-data-context (:tx-data-context ctx)
-          setter-actions (setter-fn (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context}) node-id old-value new-value)]
+          setter-actions (let [evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context})]
+                           ;; We don't allow generated ids inside property
+                           ;; setters, since they are required to produce the
+                           ;; same ids when re-evaluated during redo.
+                           (binding [is/*allow-generated-ids* false]
+                             (setter-fn evaluation-context node-id old-value new-value)))]
       (when *tx-debug*
         (println (txerrstr ctx "setter actions" (seq setter-actions))))
       setter-actions)
