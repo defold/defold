@@ -1394,7 +1394,8 @@ If you do not specifically require different script states, consider changing th
   (active? [app-view selection] (context-resource app-view selection))
   (enabled? [app-view selection] (when-let [r (context-resource app-view selection)]
                                    (and (resource/abs-path r)
-                                        (resource/exists? r))))
+                                        (or (resource/exists? r)
+                                            (empty? (resource/path r))))))
   (run [app-view selection] (when-let [r (context-resource app-view selection)]
                               (let [f (File. (resource/abs-path r))]
                                 (ui/open-file (fs/to-folder f))))))
