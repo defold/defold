@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include <../launcher.h>
 #include <string.h>
 #include <stdio.h>
@@ -79,7 +80,7 @@ void CheckRoundtrip(int argc, char const* argv[])
     char buffer[10000];
 
     QuoteArgv(argv, buffer);
-        
+
     wchar_t wide_buffer[10000];
 
     char* b = buffer;
@@ -121,7 +122,7 @@ TEST(Launcher, CreateProcessArgQuoting)
     fflush(stdout);
 
     srand(seed);
-    
+
     for (int i = 0; i < (ITERATIONS); ++i)
     {
         int argc = rand() % (MAX_ARGC) + 1;
@@ -162,6 +163,6 @@ TEST(Launcher, CreateProcessArgQuoting)
 
 int main(int argc, char* argv[])
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }

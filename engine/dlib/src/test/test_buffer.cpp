@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 
 #include "../dlib/log.h"
 #include "../dlib/hash.h"
@@ -6,7 +7,7 @@
 
 #define RIG_EPSILON 0.0001f
 
-class BufferTest : public ::testing::Test
+class BufferTest : public jc_test_base_class
 {
     virtual void SetUp() {
         dmBuffer::NewContext();
@@ -17,7 +18,7 @@ class BufferTest : public ::testing::Test
     }
 };
 
-class GetDataTest : public ::testing::Test
+class GetDataTest : public jc_test_base_class
 {
 public:
     dmBuffer::HBuffer buffer;
@@ -57,7 +58,7 @@ struct AlignmentTestParams
     uintptr_t expected_offsets[dmBuffer::MAX_VALUE_TYPE_COUNT];
 };
 
-class AlignmentTest : public ::testing::TestWithParam<AlignmentTestParams>
+class AlignmentTest : public jc_test_params_class<AlignmentTestParams>
 {
 public:
     dmBuffer::HBuffer buffer;
@@ -573,13 +574,13 @@ const AlignmentTestParams valid_stream_setups[] = {
     },
 };
 
-INSTANTIATE_TEST_CASE_P(AlignmentSequence, AlignmentTest, ::testing::ValuesIn(valid_stream_setups));
+INSTANTIATE_TEST_CASE_P(AlignmentSequence, AlignmentTest, jc_test_values_in(valid_stream_setups));
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = JC_TEST_RUN_ALL();
     return ret;
 }
 

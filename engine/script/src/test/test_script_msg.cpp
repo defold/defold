@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include <string.h>
 
 #include "script.h"
@@ -43,7 +44,7 @@ static const luaL_reg META_TABLE[] =
     {0, 0}
 };
 
-class ScriptMsgTest : public ::testing::Test
+class ScriptMsgTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -722,7 +723,7 @@ TEST_F(ScriptMsgTest, TestURLCreateBeforeSocket)
     ASSERT_EQ(2u, user_data.m_TestValue);
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
-    
+
     ASSERT_FALSE(RunString(L,
         "local url = msg.url(\"socket:\")"
         "msg.post(url, \"table\", {uint_value = 1})\n"
@@ -766,7 +767,7 @@ TEST_F(ScriptMsgTest, TestPostDeletedSocket)
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = JC_TEST_RUN_ALL();
     return ret;
 }

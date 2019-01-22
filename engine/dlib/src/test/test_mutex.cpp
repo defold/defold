@@ -1,5 +1,6 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include "../dlib/thread.h"
 #include "../dlib/mutex.h"
 #include "../dlib/time.h"
@@ -70,6 +71,6 @@ TEST(Mutex, TryLock)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }

@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 
 #include <resource/resource.h>
 
@@ -18,7 +19,7 @@ struct Params
 };
 
 template<typename T>
-class GamesysTest : public ::testing::TestWithParam<T>
+class GamesysTest : public jc_test_params_class<T>
 {
 protected:
     virtual void SetUp();

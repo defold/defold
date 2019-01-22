@@ -2,7 +2,8 @@
 #include <map>
 #include <set>
 #include <vector>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/log.h>
@@ -144,7 +145,7 @@ struct TestParams2
 #define MAX_BUFFERS 32
 #define MAX_SOURCES 16
 
-class dmSoundTest : public ::testing::TestWithParam<TestParams>
+class dmSoundTest : public jc_test_params_class<TestParams>
 {
 public:
     const char* m_DeviceName;
@@ -172,7 +173,7 @@ public:
     }
 };
 
-class dmSoundTest2 : public ::testing::TestWithParam<TestParams2>
+class dmSoundTest2 : public jc_test_params_class<TestParams2>
 {
 public:
     const char* m_DeviceName;
@@ -720,7 +721,7 @@ TEST_P(dmSoundVerifyOggTest, Kill)
 
     r = dmSound::DeleteSoundInstance(instanceA);
     ASSERT_EQ(dmSound::RESULT_OK, r);
-    
+
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
@@ -1062,6 +1063,6 @@ DM_DECLARE_SOUND_DEVICE(LoopBackDevice, "loopback", DeviceLoopbackOpen, DeviceLo
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }

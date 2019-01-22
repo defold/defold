@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include "../script.h"
 #include "test/test_ddf.h"
 
@@ -9,7 +10,7 @@ extern "C"
 #include <lua/lualib.h>
 }
 
-class ScriptDDFTest : public ::testing::Test
+class ScriptDDFTest : public jc_test_base_class
 {
 protected:
 protected:
@@ -495,7 +496,7 @@ TEST_F(ScriptDDFTest, Uint64ToDDF)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = JC_TEST_RUN_ALL();
     return ret;
 }

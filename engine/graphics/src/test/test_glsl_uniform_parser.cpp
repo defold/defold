@@ -1,9 +1,10 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 
 #include "graphics.h"
 #include "null/glsl_uniform_parser.h"
 
-class dmGLSLUniformTest : public ::testing::Test
+class dmGLSLUniformTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -65,6 +66,6 @@ TEST_F(dmGLSLUniformTest, IntroductionJunk)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }

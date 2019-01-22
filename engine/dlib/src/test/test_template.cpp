@@ -3,7 +3,8 @@
 #include <map>
 #include <vector>
 #include <string>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include "../dlib/template.h"
 
 const char* MapReplace(void* user_data, const char* key)
@@ -117,6 +118,6 @@ TEST(dmTemplate, Stress)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }

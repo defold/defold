@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 
 #include <vectormath/cpp/vectormath_aos.h>
 
@@ -47,7 +48,7 @@ static void ResetWorldCounters(Stats* stats) {
 }
 
 
-class ReloadCollectionTest : public ::testing::Test
+class ReloadCollectionTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()

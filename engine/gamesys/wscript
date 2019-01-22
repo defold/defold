@@ -78,4 +78,4 @@ import os, subprocess
 def shutdown():
     if not Options.commands['build']:
         return
-    waf_dynamo.run_gtests(valgrind = True)
+    waf_dynamo.run_tests(valgrind = True)

@@ -915,27 +915,27 @@ TEST_P(DrawCountTest, DrawCount)
 /* Camera */
 
 const char* valid_camera_resources[] = {"/camera/valid.camerac"};
-INSTANTIATE_TEST_CASE_P(Camera, ResourceTest, ::testing::ValuesIn(valid_camera_resources));
+INSTANTIATE_TEST_CASE_P(Camera, ResourceTest, jc_test_values_in(valid_camera_resources));
 
 ResourceFailParams invalid_camera_resources[] =
 {
     {"/camera/valid.camerac", "/camera/missing.camerac"},
 };
-INSTANTIATE_TEST_CASE_P(Camera, ResourceFailTest, ::testing::ValuesIn(invalid_camera_resources));
+INSTANTIATE_TEST_CASE_P(Camera, ResourceFailTest, jc_test_values_in(invalid_camera_resources));
 
 const char* valid_camera_gos[] = {"/camera/valid_camera.goc"};
-INSTANTIATE_TEST_CASE_P(Camera, ComponentTest, ::testing::ValuesIn(valid_camera_gos));
+INSTANTIATE_TEST_CASE_P(Camera, ComponentTest, jc_test_values_in(valid_camera_gos));
 
 const char* invalid_camera_gos[] = {"/camera/invalid_camera.goc"};
-INSTANTIATE_TEST_CASE_P(Camera, ComponentFailTest, ::testing::ValuesIn(invalid_camera_gos));
+INSTANTIATE_TEST_CASE_P(Camera, ComponentFailTest, jc_test_values_in(invalid_camera_gos));
 
 /* Collection Proxy */
 
 const char* valid_collection_proxy_resources[] = {"/collection_proxy/valid.collectionproxyc"};
-INSTANTIATE_TEST_CASE_P(CollectionProxy, ResourceTest, ::testing::ValuesIn(valid_collection_proxy_resources));
+INSTANTIATE_TEST_CASE_P(CollectionProxy, ResourceTest, jc_test_values_in(valid_collection_proxy_resources));
 
 const char* valid_collection_proxy_gos[] = {"/collection_proxy/valid_collection_proxy.goc"};
-INSTANTIATE_TEST_CASE_P(CollectionProxy, ComponentTest, ::testing::ValuesIn(valid_collection_proxy_gos));
+INSTANTIATE_TEST_CASE_P(CollectionProxy, ComponentTest, jc_test_values_in(valid_collection_proxy_gos));
 
 /* Collision Object */
 
@@ -943,23 +943,23 @@ const char* valid_collision_object_resources[] = {"/collision_object/valid.colli
                                                   "/collision_object/valid_tilegrid.collisionobjectc",
                                                   "/collision_object/embedded_shapes.collisionobjectc" };
 
-INSTANTIATE_TEST_CASE_P(CollisionObject, ResourceTest, ::testing::ValuesIn(valid_collision_object_resources));
+INSTANTIATE_TEST_CASE_P(CollisionObject, ResourceTest, jc_test_values_in(valid_collision_object_resources));
 
 ResourceFailParams invalid_collision_object_resources[] =
 {
     {"/collision_object/valid.collisionobjectc", "/collision_object/missing.collisionobjectc"},
     {"/collision_object/embedded_shapes.collisionobjectc", "/collision_object/invalid_embedded_shapes.collisionobjectc"},
 };
-INSTANTIATE_TEST_CASE_P(CollisionObject, ResourceFailTest, ::testing::ValuesIn(invalid_collision_object_resources));
+INSTANTIATE_TEST_CASE_P(CollisionObject, ResourceFailTest, jc_test_values_in(invalid_collision_object_resources));
 
 const char* valid_collision_object_gos[] = {"/collision_object/valid_collision_object.goc", "/collision_object/valid_tilegrid.goc"};
-INSTANTIATE_TEST_CASE_P(CollisionObject, ComponentTest, ::testing::ValuesIn(valid_collision_object_gos));
+INSTANTIATE_TEST_CASE_P(CollisionObject, ComponentTest, jc_test_values_in(valid_collision_object_gos));
 
 const char* invalid_collision_object_gos[] =
 {
     "/collision_object/invalid_shape.goc"
 };
-INSTANTIATE_TEST_CASE_P(CollisionObject, ComponentFailTest, ::testing::ValuesIn(invalid_collision_object_gos));
+INSTANTIATE_TEST_CASE_P(CollisionObject, ComponentFailTest, jc_test_values_in(invalid_collision_object_gos));
 
 /* Convex Shape */
 
@@ -970,7 +970,7 @@ const char* valid_cs_resources[] =
     "/convex_shape/hull.convexshapec",
     "/convex_shape/sphere.convexshapec",
 };
-INSTANTIATE_TEST_CASE_P(ConvexShape, ResourceTest, ::testing::ValuesIn(valid_cs_resources));
+INSTANTIATE_TEST_CASE_P(ConvexShape, ResourceTest, jc_test_values_in(valid_cs_resources));
 
 ResourceFailParams invalid_cs_resources[] =
 {
@@ -979,116 +979,116 @@ ResourceFailParams invalid_cs_resources[] =
     {"/convex_shape/hull.convexshapec", "/convex_shape/invalid_hull.convexshapec"},
     {"/convex_shape/sphere.convexshapec", "/convex_shape/invalid_sphere.convexshapec"},
 };
-INSTANTIATE_TEST_CASE_P(ConvexShape, ResourceFailTest, ::testing::ValuesIn(invalid_cs_resources));
+INSTANTIATE_TEST_CASE_P(ConvexShape, ResourceFailTest, jc_test_values_in(invalid_cs_resources));
 
 /* Emitter */
 
 const char* valid_emitter_resources[] = {"/emitter/valid.emitterc"};
-INSTANTIATE_TEST_CASE_P(Emitter, ResourceTest, ::testing::ValuesIn(valid_emitter_resources));
+INSTANTIATE_TEST_CASE_P(Emitter, ResourceTest, jc_test_values_in(valid_emitter_resources));
 
 const char* valid_emitter_gos[] = {"/emitter/valid_emitter.goc"};
-INSTANTIATE_TEST_CASE_P(Emitter, ComponentTest, ::testing::ValuesIn(valid_emitter_gos));
+INSTANTIATE_TEST_CASE_P(Emitter, ComponentTest, jc_test_values_in(valid_emitter_gos));
 
 /* Font map */
 
 const char* valid_font_resources[] = {"/font/valid_font.fontc"};
-INSTANTIATE_TEST_CASE_P(FontMap, ResourceTest, ::testing::ValuesIn(valid_font_resources));
+INSTANTIATE_TEST_CASE_P(FontMap, ResourceTest, jc_test_values_in(valid_font_resources));
 
 ResourceFailParams invalid_font_resources[] =
 {
     {"/font/valid_font.fontc", "/font/missing.fontc"},
     {"/font/valid_font.fontc", "/font/invalid_material.fontc"},
 };
-INSTANTIATE_TEST_CASE_P(FontMap, ResourceFailTest, ::testing::ValuesIn(invalid_font_resources));
+INSTANTIATE_TEST_CASE_P(FontMap, ResourceFailTest, jc_test_values_in(invalid_font_resources));
 
 /* Fragment Program */
 
 const char* valid_fp_resources[] = {"/fragment_program/valid.fpc"};
-INSTANTIATE_TEST_CASE_P(FragmentProgram, ResourceTest, ::testing::ValuesIn(valid_fp_resources));
+INSTANTIATE_TEST_CASE_P(FragmentProgram, ResourceTest, jc_test_values_in(valid_fp_resources));
 
 ResourceFailParams invalid_fp_resources[] =
 {
     {"/fragment_program/valid.fpc", "/fragment_program/missing.fpc"},
 };
-INSTANTIATE_TEST_CASE_P(FragmentProgram, ResourceFailTest, ::testing::ValuesIn(invalid_fp_resources));
+INSTANTIATE_TEST_CASE_P(FragmentProgram, ResourceFailTest, jc_test_values_in(invalid_fp_resources));
 
 /* Gui Script */
 
 const char* valid_gs_resources[] = {"/gui/valid.gui_scriptc"};
-INSTANTIATE_TEST_CASE_P(GuiScript, ResourceTest, ::testing::ValuesIn(valid_gs_resources));
+INSTANTIATE_TEST_CASE_P(GuiScript, ResourceTest, jc_test_values_in(valid_gs_resources));
 
 ResourceFailParams invalid_gs_resources[] =
 {
     {"/gui/valid.gui_scriptc", "/gui/missing.gui_scriptc"},
     {"/gui/valid.gui_scriptc", "/gui/missing_module.gui_scriptc"},
 };
-INSTANTIATE_TEST_CASE_P(GuiScript, ResourceFailTest, ::testing::ValuesIn(invalid_gs_resources));
+INSTANTIATE_TEST_CASE_P(GuiScript, ResourceFailTest, jc_test_values_in(invalid_gs_resources));
 
 /* Gui */
 
 const char* valid_gui_resources[] = {"/gui/valid.guic"};
-INSTANTIATE_TEST_CASE_P(Gui, ResourceTest, ::testing::ValuesIn(valid_gui_resources));
+INSTANTIATE_TEST_CASE_P(Gui, ResourceTest, jc_test_values_in(valid_gui_resources));
 
 ResourceFailParams invalid_gui_resources[] =
 {
     {"/gui/valid.guic", "/gui/missing.guic"},
     {"/gui/valid.guic", "/gui/invalid_font.guic"},
 };
-INSTANTIATE_TEST_CASE_P(Gui, ResourceFailTest, ::testing::ValuesIn(invalid_gui_resources));
+INSTANTIATE_TEST_CASE_P(Gui, ResourceFailTest, jc_test_values_in(invalid_gui_resources));
 
 const char* valid_gui_gos[] = {"/gui/valid_gui.goc"};
-INSTANTIATE_TEST_CASE_P(Gui, ComponentTest, ::testing::ValuesIn(valid_gui_gos));
+INSTANTIATE_TEST_CASE_P(Gui, ComponentTest, jc_test_values_in(valid_gui_gos));
 
 const char* invalid_gui_gos[] =
 {
     "/gui/invalid_font.goc"
 };
-INSTANTIATE_TEST_CASE_P(Gui, ComponentFailTest, ::testing::ValuesIn(invalid_gui_gos));
+INSTANTIATE_TEST_CASE_P(Gui, ComponentFailTest, jc_test_values_in(invalid_gui_gos));
 
 /* Input Binding */
 
 const char* valid_input_resources[] = {"/input/valid.input_bindingc"};
-INSTANTIATE_TEST_CASE_P(InputBinding, ResourceTest, ::testing::ValuesIn(valid_input_resources));
+INSTANTIATE_TEST_CASE_P(InputBinding, ResourceTest, jc_test_values_in(valid_input_resources));
 
 ResourceFailParams invalid_input_resources[] =
 {
     {"/input/valid.input_bindingc", "/input/missing.input_bindingc"},
 };
-INSTANTIATE_TEST_CASE_P(InputBinding, ResourceFailTest, ::testing::ValuesIn(invalid_input_resources));
+INSTANTIATE_TEST_CASE_P(InputBinding, ResourceFailTest, jc_test_values_in(invalid_input_resources));
 
 /* Light */
 
 const char* valid_light_resources[] = {"/light/valid.lightc"};
-INSTANTIATE_TEST_CASE_P(Light, ResourceTest, ::testing::ValuesIn(valid_light_resources));
+INSTANTIATE_TEST_CASE_P(Light, ResourceTest, jc_test_values_in(valid_light_resources));
 
 ResourceFailParams invalid_light_resources[] =
 {
     {"/light/valid.lightc", "/light/missing.lightc"},
 };
-INSTANTIATE_TEST_CASE_P(Light, ResourceFailTest, ::testing::ValuesIn(invalid_light_resources));
+INSTANTIATE_TEST_CASE_P(Light, ResourceFailTest, jc_test_values_in(invalid_light_resources));
 
 const char* valid_light_gos[] = {"/light/valid_light.goc"};
-INSTANTIATE_TEST_CASE_P(Light, ComponentTest, ::testing::ValuesIn(valid_light_gos));
+INSTANTIATE_TEST_CASE_P(Light, ComponentTest, jc_test_values_in(valid_light_gos));
 
 const char* invalid_light_gos[] = {"/light/invalid_light.goc"};
-INSTANTIATE_TEST_CASE_P(Light, ComponentFailTest, ::testing::ValuesIn(invalid_light_gos));
+INSTANTIATE_TEST_CASE_P(Light, ComponentFailTest, jc_test_values_in(invalid_light_gos));
 
 /* Material */
 
 const char* valid_material_resources[] = {"/material/valid.materialc"};
-INSTANTIATE_TEST_CASE_P(Material, ResourceTest, ::testing::ValuesIn(valid_material_resources));
+INSTANTIATE_TEST_CASE_P(Material, ResourceTest, jc_test_values_in(valid_material_resources));
 
 ResourceFailParams invalid_material_resources[] =
 {
     {"/material/valid.materialc", "/material/missing.materialc"},
     {"/material/valid.materialc", "/material/missing_name.materialc"},
 };
-INSTANTIATE_TEST_CASE_P(Material, ResourceFailTest, ::testing::ValuesIn(invalid_material_resources));
+INSTANTIATE_TEST_CASE_P(Material, ResourceFailTest, jc_test_values_in(invalid_material_resources));
 
 /* Mesh */
 
 const char* valid_mesh_resources[] = {"/mesh/valid.meshsetc", "/mesh/valid.skeletonc", "/mesh/valid.animationsetc"};
-INSTANTIATE_TEST_CASE_P(Mesh, ResourceTest, ::testing::ValuesIn(valid_mesh_resources));
+INSTANTIATE_TEST_CASE_P(Mesh, ResourceTest, jc_test_values_in(valid_mesh_resources));
 
 ResourceFailParams invalid_mesh_resources[] =
 {
@@ -1096,236 +1096,236 @@ ResourceFailParams invalid_mesh_resources[] =
     {"/mesh/valid.skeletonc", "/mesh/missing.skeletonc"},
     {"/mesh/valid.animationsetc", "/mesh/missing.animationsetc"},
 };
-INSTANTIATE_TEST_CASE_P(Mesh, ResourceFailTest, ::testing::ValuesIn(invalid_mesh_resources));
+INSTANTIATE_TEST_CASE_P(Mesh, ResourceFailTest, jc_test_values_in(invalid_mesh_resources));
 
 /* Model */
 
 const char* valid_model_resources[] = {"/model/valid.modelc", "/model/empty_texture.modelc"};
-INSTANTIATE_TEST_CASE_P(Model, ResourceTest, ::testing::ValuesIn(valid_model_resources));
+INSTANTIATE_TEST_CASE_P(Model, ResourceTest, jc_test_values_in(valid_model_resources));
 
 ResourceFailParams invalid_model_resources[] =
 {
     {"/model/valid.modelc", "/model/missing.modelc"},
     {"/model/valid.modelc", "/model/invalid_material.modelc"},
 };
-INSTANTIATE_TEST_CASE_P(Model, ResourceFailTest, ::testing::ValuesIn(invalid_model_resources));
+INSTANTIATE_TEST_CASE_P(Model, ResourceFailTest, jc_test_values_in(invalid_model_resources));
 
 const char* valid_model_gos[] = {"/model/valid_model.goc"};
-INSTANTIATE_TEST_CASE_P(Model, ComponentTest, ::testing::ValuesIn(valid_model_gos));
+INSTANTIATE_TEST_CASE_P(Model, ComponentTest, jc_test_values_in(valid_model_gos));
 
 const char* invalid_model_gos[] = {"/model/invalid_model.goc", "/model/invalid_material.goc"};
-INSTANTIATE_TEST_CASE_P(Model, ComponentFailTest, ::testing::ValuesIn(invalid_model_gos));
+INSTANTIATE_TEST_CASE_P(Model, ComponentFailTest, jc_test_values_in(invalid_model_gos));
 
 /* Animationset */
 
 const char* valid_animationset_resources[] = {"/animationset/valid.animationsetc"};
-INSTANTIATE_TEST_CASE_P(AnimationSet, ResourceTest, ::testing::ValuesIn(valid_animationset_resources));
+INSTANTIATE_TEST_CASE_P(AnimationSet, ResourceTest, jc_test_values_in(valid_animationset_resources));
 
 ResourceFailParams invalid_animationset_resources[] =
 {
     {"/animationset/valid.animationsetc", "/animationset/missing.animationsetc"},
     {"/animationset/valid.animationsetc", "/animationset/invalid_animationset.animationsetc"},
 };
-INSTANTIATE_TEST_CASE_P(AnimationSet, ResourceFailTest, ::testing::ValuesIn(invalid_animationset_resources));
+INSTANTIATE_TEST_CASE_P(AnimationSet, ResourceFailTest, jc_test_values_in(invalid_animationset_resources));
 
 /* Particle FX */
 
 const char* valid_particlefx_resources[] = {"/particlefx/valid.particlefxc"};
-INSTANTIATE_TEST_CASE_P(ParticleFX, ResourceTest, ::testing::ValuesIn(valid_particlefx_resources));
+INSTANTIATE_TEST_CASE_P(ParticleFX, ResourceTest, jc_test_values_in(valid_particlefx_resources));
 
 ResourceFailParams invalid_particlefx_resources[] =
 {
     {"/particlefx/valid.particlefxc", "/particlefx/invalid_material.particlefxc"},
 };
-INSTANTIATE_TEST_CASE_P(ParticleFX, ResourceFailTest, ::testing::ValuesIn(invalid_particlefx_resources));
+INSTANTIATE_TEST_CASE_P(ParticleFX, ResourceFailTest, jc_test_values_in(invalid_particlefx_resources));
 
 const char* valid_particlefx_gos[] = {"/particlefx/valid_particlefx.goc"};
-INSTANTIATE_TEST_CASE_P(ParticleFX, ComponentTest, ::testing::ValuesIn(valid_particlefx_gos));
+INSTANTIATE_TEST_CASE_P(ParticleFX, ComponentTest, jc_test_values_in(valid_particlefx_gos));
 
 const char* invalid_particlefx_gos[] =
 {
     "/particlefx/invalid_material.goc",
     "/particlefx/invalid_texture.goc"
 };
-INSTANTIATE_TEST_CASE_P(ParticleFX, ComponentFailTest, ::testing::ValuesIn(invalid_particlefx_gos));
+INSTANTIATE_TEST_CASE_P(ParticleFX, ComponentFailTest, jc_test_values_in(invalid_particlefx_gos));
 
 /* Render */
 
 const char* valid_render_resources[] = {"/render/valid.renderc"};
-INSTANTIATE_TEST_CASE_P(Render, ResourceTest, ::testing::ValuesIn(valid_render_resources));
+INSTANTIATE_TEST_CASE_P(Render, ResourceTest, jc_test_values_in(valid_render_resources));
 
 ResourceFailParams invalid_render_resources[] =
 {
     {"/render/valid.renderc", "/render/missing.renderc"},
     {"/render/valid.renderc", "/render/invalid_material.renderc"},
 };
-INSTANTIATE_TEST_CASE_P(Render, ResourceFailTest, ::testing::ValuesIn(invalid_render_resources));
+INSTANTIATE_TEST_CASE_P(Render, ResourceFailTest, jc_test_values_in(invalid_render_resources));
 
 /* Render Script */
 
 const char* valid_rs_resources[] = {"/render_script/valid.render_scriptc"};
-INSTANTIATE_TEST_CASE_P(RenderScript, ResourceTest, ::testing::ValuesIn(valid_rs_resources));
+INSTANTIATE_TEST_CASE_P(RenderScript, ResourceTest, jc_test_values_in(valid_rs_resources));
 
 ResourceFailParams invalid_rs_resources[] =
 {
     {"/render_script/valid.render_scriptc", "/render_script/missing.render_scriptc"},
 };
-INSTANTIATE_TEST_CASE_P(RenderScript, ResourceFailTest, ::testing::ValuesIn(invalid_rs_resources));
+INSTANTIATE_TEST_CASE_P(RenderScript, ResourceFailTest, jc_test_values_in(invalid_rs_resources));
 
 /* Display Profiles */
 
 const char* valid_dp_resources[] = {"/display_profiles/valid.display_profilesc"};
-INSTANTIATE_TEST_CASE_P(DisplayProfiles, ResourceTest, ::testing::ValuesIn(valid_dp_resources));
+INSTANTIATE_TEST_CASE_P(DisplayProfiles, ResourceTest, jc_test_values_in(valid_dp_resources));
 
 ResourceFailParams invalid_dp_resources[] =
 {
     {"/display_profiles/valid.display_profilesc", "/display_profiles/missing.display_profilesc"},
 };
-INSTANTIATE_TEST_CASE_P(DisplayProfiles, ResourceFailTest, ::testing::ValuesIn(invalid_dp_resources));
+INSTANTIATE_TEST_CASE_P(DisplayProfiles, ResourceFailTest, jc_test_values_in(invalid_dp_resources));
 
 /* Script */
 
 const char* valid_script_resources[] = {"/script/valid.scriptc"};
-INSTANTIATE_TEST_CASE_P(Script, ResourceTest, ::testing::ValuesIn(valid_script_resources));
+INSTANTIATE_TEST_CASE_P(Script, ResourceTest, jc_test_values_in(valid_script_resources));
 
 ResourceFailParams invalid_script_resources[] =
 {
     {"/script/valid.scriptc", "/script/missing.scriptc"},
 };
-INSTANTIATE_TEST_CASE_P(Script, ResourceFailTest, ::testing::ValuesIn(invalid_script_resources));
+INSTANTIATE_TEST_CASE_P(Script, ResourceFailTest, jc_test_values_in(invalid_script_resources));
 
 const char* valid_script_gos[] = {"/script/valid_script.goc"};
-INSTANTIATE_TEST_CASE_P(Script, ComponentTest, ::testing::ValuesIn(valid_script_gos));
+INSTANTIATE_TEST_CASE_P(Script, ComponentTest, jc_test_values_in(valid_script_gos));
 
 const char* invalid_script_gos[] = {"/script/missing_script.goc", "/script/invalid_script.goc"};
-INSTANTIATE_TEST_CASE_P(Script, ComponentFailTest, ::testing::ValuesIn(invalid_script_gos));
+INSTANTIATE_TEST_CASE_P(Script, ComponentFailTest, jc_test_values_in(invalid_script_gos));
 
 /* Sound */
 
 const char* valid_sound_resources[] = {"/sound/valid.soundc"};
-INSTANTIATE_TEST_CASE_P(Sound, ResourceTest, ::testing::ValuesIn(valid_sound_resources));
+INSTANTIATE_TEST_CASE_P(Sound, ResourceTest, jc_test_values_in(valid_sound_resources));
 
 ResourceFailParams invalid_sound_resources[] =
 {
     {"/sound/valid.soundc", "/sound/missing.soundc"},
 };
-INSTANTIATE_TEST_CASE_P(Sound, ResourceFailTest, ::testing::ValuesIn(invalid_sound_resources));
+INSTANTIATE_TEST_CASE_P(Sound, ResourceFailTest, jc_test_values_in(invalid_sound_resources));
 
 const char* valid_sound_gos[] = {"/sound/valid_sound.goc"};
-INSTANTIATE_TEST_CASE_P(Sound, ComponentTest, ::testing::ValuesIn(valid_sound_gos));
+INSTANTIATE_TEST_CASE_P(Sound, ComponentTest, jc_test_values_in(valid_sound_gos));
 
 const char* invalid_sound_gos[] = {"/sound/invalid_sound.goc", "/sound/invalid_sound.goc"};
-INSTANTIATE_TEST_CASE_P(Sound, ComponentFailTest, ::testing::ValuesIn(invalid_sound_gos));
+INSTANTIATE_TEST_CASE_P(Sound, ComponentFailTest, jc_test_values_in(invalid_sound_gos));
 
 /* Factory */
 
 const char* valid_sp_resources[] = {"/factory/valid.factoryc"};
-INSTANTIATE_TEST_CASE_P(Factory, ResourceTest, ::testing::ValuesIn(valid_sp_resources));
+INSTANTIATE_TEST_CASE_P(Factory, ResourceTest, jc_test_values_in(valid_sp_resources));
 
 ResourceFailParams invalid_sp_resources[] =
 {
     {"/factory/valid.factoryc", "/factory/missing.factoryc"},
 };
-INSTANTIATE_TEST_CASE_P(Factory, ResourceFailTest, ::testing::ValuesIn(invalid_sp_resources));
+INSTANTIATE_TEST_CASE_P(Factory, ResourceFailTest, jc_test_values_in(invalid_sp_resources));
 
 const char* valid_sp_gos[] = {"/factory/valid_factory.goc"};
-INSTANTIATE_TEST_CASE_P(Factory, ComponentTest, ::testing::ValuesIn(valid_sp_gos));
+INSTANTIATE_TEST_CASE_P(Factory, ComponentTest, jc_test_values_in(valid_sp_gos));
 
 const char* invalid_sp_gos[] = {"/factory/invalid_factory.goc"};
-INSTANTIATE_TEST_CASE_P(Factory, ComponentFailTest, ::testing::ValuesIn(invalid_sp_gos));
+INSTANTIATE_TEST_CASE_P(Factory, ComponentFailTest, jc_test_values_in(invalid_sp_gos));
 
 
 /* Collection Factory */
 
 const char* valid_cf_resources[] = {"/collection_factory/valid.collectionfactoryc"};
-INSTANTIATE_TEST_CASE_P(CollectionFactory, ResourceTest, ::testing::ValuesIn(valid_cf_resources));
+INSTANTIATE_TEST_CASE_P(CollectionFactory, ResourceTest, jc_test_values_in(valid_cf_resources));
 
 ResourceFailParams invalid_cf_resources[] =
 {
     {"/collection_factory/valid.collectionfactoryc", "/collection_factory/missing.collectionfactoryc"},
 };
-INSTANTIATE_TEST_CASE_P(CollectionFactory, ResourceFailTest, ::testing::ValuesIn(invalid_cf_resources));
+INSTANTIATE_TEST_CASE_P(CollectionFactory, ResourceFailTest, jc_test_values_in(invalid_cf_resources));
 
 const char* valid_cf_gos[] = {"/collection_factory/valid_collectionfactory.goc"};
-INSTANTIATE_TEST_CASE_P(CollectionFactory, ComponentTest, ::testing::ValuesIn(valid_cf_gos));
+INSTANTIATE_TEST_CASE_P(CollectionFactory, ComponentTest, jc_test_values_in(valid_cf_gos));
 
 const char* invalid_cf_gos[] = {"/collection_factory/invalid_collectionfactory.goc"};
-INSTANTIATE_TEST_CASE_P(CollectionFactory, ComponentFailTest, ::testing::ValuesIn(invalid_cf_gos));
+INSTANTIATE_TEST_CASE_P(CollectionFactory, ComponentFailTest, jc_test_values_in(invalid_cf_gos));
 
 
 /* Sprite */
 
 const char* valid_sprite_resources[] = {"/sprite/valid.spritec"};
-INSTANTIATE_TEST_CASE_P(Sprite, ResourceTest, ::testing::ValuesIn(valid_sprite_resources));
+INSTANTIATE_TEST_CASE_P(Sprite, ResourceTest, jc_test_values_in(valid_sprite_resources));
 
 ResourceFailParams invalid_sprite_resources[] =
 {
     {"/sprite/valid.spritec", "/sprite/invalid_animation.spritec"},
 };
-INSTANTIATE_TEST_CASE_P(Sprite, ResourceFailTest, ::testing::ValuesIn(invalid_sprite_resources));
+INSTANTIATE_TEST_CASE_P(Sprite, ResourceFailTest, jc_test_values_in(invalid_sprite_resources));
 
 const char* valid_sprite_gos[] = {"/sprite/valid_sprite.goc"};
-INSTANTIATE_TEST_CASE_P(Sprite, ComponentTest, ::testing::ValuesIn(valid_sprite_gos));
+INSTANTIATE_TEST_CASE_P(Sprite, ComponentTest, jc_test_values_in(valid_sprite_gos));
 
 const char* invalid_sprite_gos[] = {"/sprite/invalid_sprite.goc"};
-INSTANTIATE_TEST_CASE_P(Sprite, ComponentFailTest, ::testing::ValuesIn(invalid_sprite_gos));
+INSTANTIATE_TEST_CASE_P(Sprite, ComponentFailTest, jc_test_values_in(invalid_sprite_gos));
 
 /* TileSet */
 const char* valid_tileset_resources[] = {"/tile/valid.texturesetc"};
-INSTANTIATE_TEST_CASE_P(TileSet, ResourceTest, ::testing::ValuesIn(valid_tileset_resources));
+INSTANTIATE_TEST_CASE_P(TileSet, ResourceTest, jc_test_values_in(valid_tileset_resources));
 
 /* TileGrid */
 const char* valid_tilegrid_resources[] = {"/tile/valid.tilemapc"};
-INSTANTIATE_TEST_CASE_P(TileGrid, ResourceTest, ::testing::ValuesIn(valid_tilegrid_resources));
+INSTANTIATE_TEST_CASE_P(TileGrid, ResourceTest, jc_test_values_in(valid_tilegrid_resources));
 
 const char* valid_tileset_gos[] = {"/tile/valid_tilegrid.goc", "/tile/valid_tilegrid_collisionobject.goc"};
-INSTANTIATE_TEST_CASE_P(TileSet, ComponentTest, ::testing::ValuesIn(valid_tileset_gos));
+INSTANTIATE_TEST_CASE_P(TileSet, ComponentTest, jc_test_values_in(valid_tileset_gos));
 
 /* Texture */
 
 const char* valid_texture_resources[] = {"/texture/valid_png.texturec", "/texture/blank_4096_png.texturec"};
-INSTANTIATE_TEST_CASE_P(Texture, ResourceTest, ::testing::ValuesIn(valid_texture_resources));
+INSTANTIATE_TEST_CASE_P(Texture, ResourceTest, jc_test_values_in(valid_texture_resources));
 
 ResourceFailParams invalid_texture_resources[] =
 {
     {"/texture/valid_png.texturec", "/texture/missing.texturec"},
 };
-INSTANTIATE_TEST_CASE_P(Texture, ResourceFailTest, ::testing::ValuesIn(invalid_texture_resources));
+INSTANTIATE_TEST_CASE_P(Texture, ResourceFailTest, jc_test_values_in(invalid_texture_resources));
 
 /* Vertex Program */
 
 const char* valid_vp_resources[] = {"/vertex_program/valid.vpc"};
-INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceTest, ::testing::ValuesIn(valid_vp_resources));
+INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceTest, jc_test_values_in(valid_vp_resources));
 
 ResourceFailParams invalid_vp_resources[] =
 {
     {"/vertex_program/valid.vpc", "/vertex_program/missing.vpc"},
 };
-INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceFailTest, ::testing::ValuesIn(invalid_vp_resources));
+INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceFailTest, jc_test_values_in(invalid_vp_resources));
 
 /* Spine Scene */
 
 const char* valid_spine_scene_resources[] = {"/spine/valid.rigscenec"};
-INSTANTIATE_TEST_CASE_P(SpineScene, ResourceTest, ::testing::ValuesIn(valid_spine_scene_resources));
+INSTANTIATE_TEST_CASE_P(SpineScene, ResourceTest, jc_test_values_in(valid_spine_scene_resources));
 
 /* Spine Model */
 
 const char* valid_spine_model_resources[] = {"/spine/valid.spinemodelc"};
-INSTANTIATE_TEST_CASE_P(SpineModel, ResourceTest, ::testing::ValuesIn(valid_spine_model_resources));
+INSTANTIATE_TEST_CASE_P(SpineModel, ResourceTest, jc_test_values_in(valid_spine_model_resources));
 
 const char* valid_spine_gos[] = {"/spine/valid_spine.goc"};
-INSTANTIATE_TEST_CASE_P(SpineModel, ComponentTest, ::testing::ValuesIn(valid_spine_gos));
+INSTANTIATE_TEST_CASE_P(SpineModel, ComponentTest, jc_test_values_in(valid_spine_gos));
 
 /* Label */
 
 const char* valid_label_resources[] = {"/label/valid.labelc"};
-INSTANTIATE_TEST_CASE_P(Label, ResourceTest, ::testing::ValuesIn(valid_label_resources));
+INSTANTIATE_TEST_CASE_P(Label, ResourceTest, jc_test_values_in(valid_label_resources));
 
 const char* valid_label_gos[] = {"/label/valid_label.goc"};
-INSTANTIATE_TEST_CASE_P(Label, ComponentTest, ::testing::ValuesIn(valid_label_gos));
+INSTANTIATE_TEST_CASE_P(Label, ComponentTest, jc_test_values_in(valid_label_gos));
 
 const char* invalid_label_gos[] = {"/label/invalid_label.goc"};
-INSTANTIATE_TEST_CASE_P(Label, ComponentFailTest, ::testing::ValuesIn(invalid_label_gos));
+INSTANTIATE_TEST_CASE_P(Label, ComponentFailTest, jc_test_values_in(invalid_label_gos));
 
 /* Get texture0 property on sprite and model */
 
@@ -1334,7 +1334,7 @@ TexturePropParams texture_prop_params[] =
     {"/resource/sprite.goc", dmHashString64("sprite_1_1"), dmHashString64("sprite_1_2"), dmHashString64("sprite_2")},
     {"/resource/model.goc", dmHashString64("model_1_1"), dmHashString64("model_1_2"), dmHashString64("model_2")},
 };
-INSTANTIATE_TEST_CASE_P(TextureProperty, TexturePropTest, ::testing::ValuesIn(texture_prop_params));
+INSTANTIATE_TEST_CASE_P(TextureProperty, TexturePropTest, jc_test_values_in(texture_prop_params));
 
 /* Validate default and dynamic gameobject factories */
 
@@ -1345,7 +1345,7 @@ FactoryTestParams factory_testparams [] =
     {"/factory/factory_test.goc", false, true},
     {"/factory/factory_test.goc", false, false},
 };
-INSTANTIATE_TEST_CASE_P(Factory, FactoryTest, ::testing::ValuesIn(factory_testparams));
+INSTANTIATE_TEST_CASE_P(Factory, FactoryTest, jc_test_values_in(factory_testparams));
 
 /* Validate default and dynamic collection factories */
 
@@ -1356,7 +1356,7 @@ CollectionFactoryTestParams collection_factory_testparams [] =
     {"/collection_factory/collectionfactory_test.goc", false, true},
     {"/collection_factory/collectionfactory_test.goc", false, false},
 };
-INSTANTIATE_TEST_CASE_P(CollectionFactory, CollectionFactoryTest, ::testing::ValuesIn(collection_factory_testparams));
+INSTANTIATE_TEST_CASE_P(CollectionFactory, CollectionFactoryTest, jc_test_values_in(collection_factory_testparams));
 
 /* Validate draw count for different GOs */
 
@@ -1365,7 +1365,7 @@ DrawCountParams draw_count_params[] =
     {"/gui/draw_count_test.goc", 2},
     {"/gui/draw_count_test2.goc", 1},
 };
-INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, ::testing::ValuesIn(draw_count_params));
+INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_params));
 
 int main(int argc, char **argv)
 {
@@ -1373,8 +1373,8 @@ int main(int argc, char **argv)
     // Enable message descriptor translation when sending messages
     dmDDF::RegisterAllTypes();
 
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = JC_TEST_RUN_ALL();
     return ret;
 }

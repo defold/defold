@@ -67,4 +67,4 @@ def shutdown():
             sys.stdout.flush()
             time.sleep(0.5)
 
-    waf_dynamo.run_gtests(valgrind = True)
+    waf_dynamo.run_tests(valgrind = True)

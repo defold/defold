@@ -58,4 +58,4 @@ def build(bld):
 def shutdown():
     import Options, Build
 
-    waf_dynamo.run_gtests(valgrind = True)
+    waf_dynamo.run_tests(valgrind = True)

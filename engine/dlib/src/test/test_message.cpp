@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <vector>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include "../../src/dlib/hash.h"
 #include "../../src/dlib/message.h"
 #include "../../src/dlib/dstrings.h"
@@ -450,8 +451,8 @@ TEST(dmMessage, MessagePostDispatch)
 int main(int argc, char **argv)
 {
     dmProfile::Initialize(1024, 1024 * 1024, 64);
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = JC_TEST_RUN_ALL();
     dmProfile::Finalize();
     return ret;
 }

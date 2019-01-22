@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include <dlib/dstrings.h>
 
 #include <ddf/ddf.h>
@@ -33,7 +34,7 @@ static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str)
 void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
 bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data);
 
-class dmGuiScriptTest : public ::testing::Test
+class dmGuiScriptTest : public jc_test_base_class
 {
 public:
     dmScript::HContext m_ScriptContext;
@@ -1232,6 +1233,6 @@ TEST_F(dmGuiScriptTest, TestInstanceContext)
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }

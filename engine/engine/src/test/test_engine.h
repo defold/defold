@@ -1,6 +1,7 @@
 #pragma once
 
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 
 #include <resource/resource.h>
 
@@ -12,7 +13,7 @@
 #include "../engine.h"
 #include "../engine_private.h"
 
-class EngineTest : public ::testing::Test
+class EngineTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -29,7 +30,7 @@ protected:
 
 
 template<typename T>
-class EngineParamsTest : public ::testing::TestWithParam<T>
+class EngineParamsTest : public jc_test_params_class<T>
 {
 protected:
     virtual void SetUp()

@@ -1,7 +1,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include "../record/record.h"
 
 TEST(dmRecord, InvalidWidth1)
@@ -111,7 +112,7 @@ int main(int argc, char **argv)
 #if !defined(DM_NO_SYSTEM_FUNCTION)
     system("python src/test/test_record.py");
 #endif
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }
 

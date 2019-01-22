@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 
 #include <dlib/log.h>
 
@@ -22,7 +23,7 @@ extern uint32_t RESOURCES_ARCD_SIZE;
 extern unsigned char RESOURCES_DMANIFEST[];
 extern uint32_t RESOURCES_DMANIFEST_SIZE;
 
-class ResourceTest : public ::testing::Test
+class ResourceTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -45,7 +46,7 @@ protected:
     dmResource::HFactory factory;
 };
 
-class DynamicResourceTest : public ::testing::Test
+class DynamicResourceTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -160,7 +161,7 @@ dmResource::Result FooResourcePostCreate(const dmResource::ResourcePostCreatePar
 
 dmResource::Result FooResourceDestroy(const dmResource::ResourceDestroyParams& params);
 
-class GetResourceTest : public ::testing::TestWithParam<const char*>
+class GetResourceTest : public jc_test_params_class<const char*>
 {
 protected:
     virtual void SetUp()
@@ -945,7 +946,7 @@ void SendReloadThread(void*)
     dmResourceDDF::Reload* reload_resources = (dmResourceDDF::Reload*) malloc(msg_size);
     memset(reload_resources, 0x0, msg_size);
     reload_resources->m_Resources.m_Count = 1;
-    uintptr_t str_ofs_offset = 2 * sizeof(uintptr_t); // 
+    uintptr_t str_ofs_offset = 2 * sizeof(uintptr_t); //
     uintptr_t str_offset = str_ofs_offset + reload_resources->m_Resources.m_Count * sizeof(uintptr_t);//0x18;
     memcpy((uint8_t*)reload_resources, &str_ofs_offset, sizeof(uintptr_t)); // offset to path string offsets
     memcpy((uint8_t*)reload_resources + str_ofs_offset, &str_offset, sizeof(uintptr_t)); // offset to start of resource path string
@@ -1544,8 +1545,8 @@ TEST_F(DynamicResourceTest, RefCount)
 int main(int argc, char **argv)
 {
     dmSocket::Initialize();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = JC_TEST_RUN_ALL();
     dmSocket::Finalize();
     return ret;
 }

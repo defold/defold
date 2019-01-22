@@ -1,13 +1,14 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include "../dlib/http_cache.h"
 #include "../dlib/sys.h"
 #include "../dlib/time.h"
 #include "../dlib/hash.h"
 #include "../dlib/dstrings.h"
 
-class dmHttpCacheTest : public ::testing::Test
+class dmHttpCacheTest : public jc_test_base_class
 {
     virtual void SetUp()
     {
@@ -670,6 +671,6 @@ TEST_F(dmHttpCacheTest, Persist)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }

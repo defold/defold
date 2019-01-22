@@ -1,5 +1,6 @@
 #include <stdlib.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/sys.h>
@@ -14,7 +15,7 @@ extern "C"
 #include "../crash.h"
 #include "../crash_private.h"
 
-class dmCrashTest : public ::testing::Test
+class dmCrashTest : public jc_test_base_class
 {
     public:
 
@@ -117,6 +118,6 @@ TEST_F(dmCrashTest, TestPurgeDefaultPath)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }

@@ -3,7 +3,8 @@
 #include <dlib/log.h>
 #include <dlib/align.h>
 #include <dlib/math.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include "../script.h"
 #include "test/test_ddf.h"
 
@@ -52,7 +53,7 @@ static bool RunString(lua_State* L, const char* script)
 
 class LuaTableTest* g_LuaTableTest = 0;
 
-class LuaTableTest : public ::testing::Test
+class LuaTableTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -883,7 +884,7 @@ TEST_F(LuaTableTest, Stress)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = JC_TEST_RUN_ALL();
     return ret;
 }

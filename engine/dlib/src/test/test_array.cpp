@@ -1,7 +1,8 @@
 #include "dlib/array.h"
 
 #include <stdint.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 
 const uint32_t array_size = 32;
 const uint32_t array_size_test_offset = 7;
@@ -186,6 +187,6 @@ TEST(dmArray, UserAllocated)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }

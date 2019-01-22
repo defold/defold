@@ -76,4 +76,4 @@ def build(bld):
     bld.install_files('${PREFIX}/bin', 'bin/*', chmod=493)
 
 def shutdown():
-    waf_dynamo.run_gtests(valgrind = True)
+    waf_dynamo.run_tests(valgrind = True)

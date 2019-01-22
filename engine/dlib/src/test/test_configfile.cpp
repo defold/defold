@@ -2,7 +2,8 @@
 #include <stdint.h>
 #include <dlib/configfile.h>
 #include <dlib/log.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include "dlib/configfile.h"
 #include "testutil.h"
 
@@ -34,7 +35,7 @@ struct TestParam
 };
 
 
-class ConfigTest : public ::testing::TestWithParam<TestParam>
+class ConfigTest : public jc_test_params_class<TestParam>
 {
 public:
 
@@ -287,7 +288,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }
 

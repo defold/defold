@@ -2,7 +2,8 @@
 #include <stdlib.h>
 #include <map>
 #include <string>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include "dlib/configfile.h"
 #include "dlib/dstrings.h"
 #include "dlib/time.h"
@@ -22,7 +23,7 @@ int g_HttpPortSSLTest = -1;
 #define NAME_SOCKET_SSL "{server_socket_ssl}"
 #define NAME_SOCKET_SSL_TEST "{server_socket_ssl_test}"
 
-class dmHttpClientTest: public ::testing::TestWithParam<const char*>
+class dmHttpClientTest: public jc_test_params_class<const char*>
 {
 public:
     dmHttpClient::HClient m_Client;
@@ -133,7 +134,7 @@ class dmHttpClientTestSSL : public dmHttpClientTest
     // for gtest
 };
 
-class dmHttpClientParserTest: public ::testing::Test
+class dmHttpClientParserTest: public jc_test_base_class
 {
 public:
     std::map<std::string, std::string> m_Headers;
@@ -1048,8 +1049,8 @@ int main(int argc, char **argv)
 
     dmLogSetlevel(DM_LOG_SEVERITY_INFO);
     dmSocket::Initialize();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = JC_TEST_RUN_ALL();
     dmSocket::Finalize();
     return ret;
 }

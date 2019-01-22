@@ -1,5 +1,6 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include <vector>
 #include <set>
 #include <dlib/configfile.h>
@@ -12,7 +13,7 @@ int g_HttpPort = -1;
 
 static const uint32_t MAX_CONNECTIONS = 8;
 
-class dmConnectionPoolTest: public ::testing::Test
+class dmConnectionPoolTest: public jc_test_base_class
 {
 public:
 
@@ -253,8 +254,8 @@ int main(int argc, char **argv)
 
     dmLogSetlevel(DM_LOG_SEVERITY_INFO);
     dmSocket::Initialize();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = JC_TEST_RUN_ALL();
     dmSocket::Finalize();
     return ret;
 }

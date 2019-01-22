@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include <dlib/log.h>
 
 #include <../rig.h>
@@ -987,7 +988,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         dmRig::FillBoneListArrays(*mesh_set, *animation_set, *skeleton, track_idx_to_pose, pose_idx_to_influence);
 }
 
-class RigContextTest : public ::testing::Test
+class RigContextTest : public jc_test_base_class
 {
 public:
     dmRig::HRigContext m_Context;
@@ -1008,7 +1009,7 @@ protected:
 };
 
 template<typename T>
-class RigContextCursorTest : public ::testing::TestWithParam<T>
+class RigContextCursorTest : public jc_test_params_class<T>
 {
 public:
     dmRig::HRigContext m_Context;
@@ -1266,9 +1267,9 @@ dmRig::RigPlayback playback_modes_all[] = {
     dmRig::PLAYBACK_LOOP_FORWARD,   dmRig::PLAYBACK_ONCE_BACKWARD,  dmRig::PLAYBACK_LOOP_BACKWARD
 };
 
-INSTANTIATE_TEST_CASE_P(Rig, RigInstanceCursorForwardTest, ::testing::ValuesIn(playback_modes_forward));
-INSTANTIATE_TEST_CASE_P(Rig, RigInstanceCursorBackwardTest, ::testing::ValuesIn(playback_modes_backward));
-INSTANTIATE_TEST_CASE_P(Rig, RigInstanceCursorPingpongTest, ::testing::ValuesIn(playback_modes_pingpong));
+INSTANTIATE_TEST_CASE_P(Rig, RigInstanceCursorForwardTest, jc_test_values_in(playback_modes_forward));
+INSTANTIATE_TEST_CASE_P(Rig, RigInstanceCursorBackwardTest, jc_test_values_in(playback_modes_backward));
+INSTANTIATE_TEST_CASE_P(Rig, RigInstanceCursorPingpongTest, jc_test_values_in(playback_modes_pingpong));
 
 class RigInstanceTest : public RigContextTest
 {
@@ -1740,7 +1741,7 @@ TEST_F(RigInstanceTest, SkinColor)
     dmRig::RigSpineModelVertex data[4];
     dmRig::RigSpineModelVertex* data_end = data + 4;
 
-    
+
     // Trigger update which will recalculate mesh properties
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
 
@@ -1757,7 +1758,7 @@ TEST_F(RigInstanceTest, SkinColorAndSlotColor)
     dmRig::RigSpineModelVertex data[4];
     dmRig::RigSpineModelVertex* data_end = data + 4;
 
-    
+
     // Trigger update which will recalculate mesh properties
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
 
@@ -2493,7 +2494,7 @@ PlaybackCursorTestParams playback_cursor_test_params[] = {
     {dmRig::PLAYBACK_ONCE_BACKWARD, 0.0f, 1.0f, 0.0f},
     {dmRig::PLAYBACK_ONCE_BACKWARD, 0.5f, 0.5f, 0.0f}
 };
-INSTANTIATE_TEST_CASE_P(Rig, PlaybackCursorTest, ::testing::ValuesIn(playback_cursor_test_params));
+INSTANTIATE_TEST_CASE_P(Rig, PlaybackCursorTest, jc_test_values_in(playback_cursor_test_params));
 
 #undef ASSERT_VEC3
 #undef ASSERT_VEC4
@@ -2504,8 +2505,8 @@ INSTANTIATE_TEST_CASE_P(Rig, PlaybackCursorTest, ::testing::ValuesIn(playback_cu
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = JC_TEST_RUN_ALL();
     return ret;
 }

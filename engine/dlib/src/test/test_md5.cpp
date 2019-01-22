@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include "../dlib/md5.h"
 
 static void ASSERT_MD5(uint8_t* expected, const dmMD5::Digest& d)
@@ -53,7 +54,7 @@ TEST(dmMD5, Incremental)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }
 

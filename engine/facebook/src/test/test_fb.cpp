@@ -1,10 +1,11 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 
 #include "../facebook_private.h"
 #include "../facebook_util.h"
 #include <dlib/json.h>
 
-class FBTest : public ::testing::Test
+class FBTest : public jc_test_base_class
 {
 public:
     lua_State* L;
@@ -982,8 +983,8 @@ TEST_F(FBTest, SplitStringToTable)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = JC_TEST_RUN_ALL();
     return ret;
 }

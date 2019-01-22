@@ -2,7 +2,8 @@
 #include <stdlib.h>
 #include <map>
 #include <string>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include "../dlib/time.h"
 #include "../dlib/socket.h"
 #include "../dlib/math.h"
@@ -11,7 +12,7 @@
 #include "../dlib/web_server.h"
 #include "../dlib/hash.h"
 
-class dmWebServerTest: public ::testing::Test
+class dmWebServerTest: public jc_test_base_class
 {
 public:
     dmWebServer::HServer m_Server;
@@ -138,8 +139,8 @@ TEST_F(dmWebServerTest, TestServer)
 int main(int argc, char **argv)
 {
     dmSocket::Initialize();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = JC_TEST_RUN_ALL();
     dmSocket::Finalize();
     return ret;
 }

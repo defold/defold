@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 
 #include <map>
 
@@ -12,7 +13,7 @@
 
 #include "gameobject/test/component/test_gameobject_component_ddf.h"
 
-class ComponentTest : public ::testing::Test
+class ComponentTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -522,8 +523,8 @@ TEST_F(ComponentTest, FinalCallsFinal)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = JC_TEST_RUN_ALL();
     return ret;
 }

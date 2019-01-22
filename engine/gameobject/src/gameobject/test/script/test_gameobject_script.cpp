@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 
 #include <algorithm>
 #include <map>
@@ -16,7 +17,7 @@
 
 using namespace Vectormath::Aos;
 
-class ScriptTest : public ::testing::Test
+class ScriptTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -533,7 +534,7 @@ TEST_F(ScriptTest, TestInstanceContext)
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = JC_TEST_RUN_ALL();
     return ret;
 }

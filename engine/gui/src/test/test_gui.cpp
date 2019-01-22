@@ -1,6 +1,7 @@
 #include <map>
 #include <stdlib.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
@@ -209,7 +210,7 @@ void RigEventDataCallback(dmGui::HScene scene, void* node_ref, void* event_data)
     ++SpineAnimationKeyEventCount;
 }
 
-class dmGuiTest : public ::testing::Test
+class dmGuiTest : public jc_test_base_class
 {
 public:
     dmScript::HContext m_ScriptContext;
@@ -5724,7 +5725,7 @@ TEST_F(dmGuiTest, PlayNodeParticlefxAdjustModeStretch)
     dmGui::InternalNode* n = dmGui::GetNode(m_Scene, node_pfx);
 
     n->m_Node.m_AdjustMode = (uint32_t) dmGui::ADJUST_MODE_STRETCH;
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));    
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
     ASSERT_EQ(dmGui::ADJUST_MODE_FIT, (dmGui::AdjustMode)n->m_Node.m_AdjustMode);
 
     dmGui::FinalScene(m_Scene);
@@ -6148,6 +6149,6 @@ TEST_F(dmGuiTest, InheritAlpha)
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }

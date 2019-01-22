@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
@@ -43,7 +44,7 @@ dmGameObject::PropertyResult CompNoUserDataSetProperties(const dmGameObject::Com
     return dmGameObject::PROPERTY_RESULT_OK;
 }
 
-class PropsTest : public ::testing::Test
+class PropsTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -715,7 +716,7 @@ TEST(GameObjectProps, TestMergePropertyContainer)
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = JC_TEST_RUN_ALL();
     return ret;
 }

@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include <script/script.h>
 #include <dlib/log.h>
 #include <dlib/json.h>
@@ -215,7 +216,7 @@ static int MockHTTPRequest(lua_State* L)
     return 0;
 }
 
-class IAPGameroomTest : public ::testing::Test
+class IAPGameroomTest : public jc_test_base_class
 {
 public:
     lua_State* L;
@@ -596,8 +597,8 @@ TEST_F(IAPGameroomTest, ValidProductNoNewlines)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = JC_TEST_RUN_ALL();
     return ret;
 }

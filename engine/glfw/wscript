@@ -71,4 +71,4 @@ def build(bld):
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'js/library_glfw.js')
 
 def shutdown():
-    waf_dynamo.run_gtests(valgrind = True)
+    waf_dynamo.run_tests(valgrind = True)

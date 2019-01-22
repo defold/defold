@@ -2,7 +2,8 @@
 #define PHYSICS_TEST_PHYSICS_H
 
 #include <stdint.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include "../physics.h"
 #include "../physics_2d.h"
 #include "../physics_3d.h"
@@ -27,7 +28,7 @@ bool ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* us
 static const float PHYSICS_SCALE = 0.5f;
 
 template<typename T>
-class PhysicsTest : public ::testing::Test
+class PhysicsTest : public jc_test_base_class
 {
 protected:
 

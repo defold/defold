@@ -4,7 +4,8 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 
 #ifdef _WIN32
 #include <io.h>
@@ -757,8 +758,8 @@ TEST(AlignmentTests, AlignField)
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = JC_TEST_RUN_ALL();
     google::protobuf::ShutdownProtobufLibrary();
     return ret;
 }

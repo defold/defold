@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <dlib/log.h>
@@ -10,7 +11,7 @@
 static volatile bool g_TestAsyncCallbackComplete = false;
 static dmResource::HFactory g_ResourceFactory = 0x0;
 
-class LiveUpdate : public ::testing::Test
+class LiveUpdate : public jc_test_base_class
 {
 public:
     virtual void SetUp()
@@ -146,7 +147,7 @@ TEST_F(LiveUpdate, TestAsyncInvalidResource)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = JC_TEST_RUN_ALL();
     return ret;
 }

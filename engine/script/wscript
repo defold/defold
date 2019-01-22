@@ -56,7 +56,7 @@ def shutdown():
         serv = server.Server()
         serv.start()
     try:
-        waf_dynamo.run_gtests(valgrind = True)
+        waf_dynamo.run_tests(valgrind = True)
     finally:
         if serv:
             serv.stop()

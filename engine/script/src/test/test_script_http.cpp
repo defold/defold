@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 
 #include "script.h"
 #include "script_http.h" // to set the timeout
@@ -75,7 +76,7 @@ static const luaL_reg META_TABLE[] =
     {0, 0}
 };
 
-class ScriptHttpTest : public ::testing::Test
+class ScriptHttpTest : public jc_test_base_class
 {
 public:
     int m_HttpResponseCount;
@@ -360,8 +361,8 @@ int main(int argc, char **argv)
 {
     dmSocket::Initialize();
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = JC_TEST_RUN_ALL();
     dmSocket::Finalize();
     return ret;
 }

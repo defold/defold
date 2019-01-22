@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 
 #include "script.h"
 #include "script_private.h"
@@ -17,7 +18,7 @@ extern "C"
 
 #include <script/lua_source_ddf.h>
 
-class ScriptModuleTest : public ::testing::Test
+class ScriptModuleTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -159,7 +160,7 @@ struct ChunknameParam
     const char* m_Expected;
 };
 
-class ChunknameTests : public ::testing::TestWithParam<ChunknameParam>
+class ChunknameTests : public jc_test_params_class<ChunknameParam>
 {
 protected:
     void SetUp() {};
@@ -184,12 +185,12 @@ ChunknameParam chunkname_tests[] = {
     {"abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script", "=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script"},
     {"aabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script", "=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script"},
 };
-INSTANTIATE_TEST_CASE_P(Test, ChunknameTests, ::testing::ValuesIn(chunkname_tests));
+INSTANTIATE_TEST_CASE_P(Test, ChunknameTests, jc_test_values_in(chunkname_tests));
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = JC_TEST_RUN_ALL();
     return ret;
 }

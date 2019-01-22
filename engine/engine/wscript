@@ -177,4 +177,4 @@ def build(bld):
 def shutdown():
     # unit tests disabled on win32 for now
     if sys.platform != "win32":
-        waf_dynamo.run_gtests(valgrind = True)
+        waf_dynamo.run_tests(valgrind = True)

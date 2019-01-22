@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 
 #include <assert.h>
 #include <stdint.h>
@@ -16,7 +17,7 @@
 
 void DispatchCallback(dmMessage::Message *message, void* user_ptr);
 
-class MessageTest : public ::testing::Test
+class MessageTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -609,7 +610,7 @@ TEST_F(MessageTest, MessagePostDispatch)
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = JC_TEST_RUN_ALL();
     return ret;
 }

@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 
 #include <stdio.h>
 #include <stdint.h>
@@ -17,7 +18,7 @@ extern "C"
 
 #define PATH_FORMAT "build/default/src/test/%s"
 
-class ScriptLuasocketTest : public ::testing::Test
+class ScriptLuasocketTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -84,8 +85,8 @@ TEST_F(ScriptLuasocketTest, TestLuasocket)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = JC_TEST_RUN_ALL();
     return ret;
 }

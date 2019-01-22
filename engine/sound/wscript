@@ -58,4 +58,4 @@ def shutdown():
     elif sys.platform == 'darwin':
         run = True
     if run:
-        waf_dynamo.run_gtests(valgrind = True)
+        waf_dynamo.run_tests(valgrind = True)

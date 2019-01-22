@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 
 #include <stdio.h>
 #include <stdint.h>
@@ -19,7 +20,7 @@ extern "C"
 
 #define PATH_FORMAT "build/default/src/test/%s"
 
-class ScriptBufferTest : public ::testing::Test
+class ScriptBufferTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -476,7 +477,7 @@ struct CopyBufferTestParams
     bool m_ExpectedOk;
 };
 
-class ScriptBufferCopyTest : public ::testing::TestWithParam<CopyBufferTestParams>
+class ScriptBufferCopyTest : public jc_test_params_class<CopyBufferTestParams>
 {
 protected:
     virtual void SetUp()
@@ -650,7 +651,7 @@ const CopyBufferTestParams buffer_copy_setups[] = {
     {64, 0, 0, 0, false}, // zero elements
 };
 
-INSTANTIATE_TEST_CASE_P(ScriptBufferCopySequence, ScriptBufferCopyTest, ::testing::ValuesIn(buffer_copy_setups));
+INSTANTIATE_TEST_CASE_P(ScriptBufferCopySequence, ScriptBufferCopyTest, jc_test_values_in(buffer_copy_setups));
 
 
 TEST_F(ScriptBufferTest, RefCount)
@@ -693,8 +694,8 @@ TEST_F(ScriptBufferTest, RefCount)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = JC_TEST_RUN_ALL();
     return ret;
 }

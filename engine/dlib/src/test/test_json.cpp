@@ -1,11 +1,12 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include <string.h>
 #include <string>
 #include "../dlib/json.h"
 #include "data/flickr.json.embed.h"
 
-class dmJsonTest: public ::testing::Test
+class dmJsonTest: public jc_test_base_class
 {
 
 public:
@@ -659,6 +660,6 @@ TEST_F(dmJsonTest, Flickr)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }

@@ -5,7 +5,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -108,7 +109,7 @@ public:
     }
 };
 
-class dmGuiClippingTest : public ::testing::Test
+class dmGuiClippingTest : public jc_test_base_class
 {
 public:
     dmScript::HContext m_ScriptContext;
@@ -1138,6 +1139,6 @@ TEST_F(dmGuiClippingTest, TestOverflowClearEnd) {
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }

@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jctest/test.h>
 #include "../dlib/image.h"
 
 #include "data/color_check_2x2.png.embed.h"
@@ -264,6 +265,6 @@ TEST(dmImage, case2319)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }
