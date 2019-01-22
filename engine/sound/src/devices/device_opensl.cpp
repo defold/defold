@@ -333,9 +333,6 @@ namespace dmDeviceOpenSL
 
         *device = opensl;
 
-        res = (*play)->SetPlayState(play, SL_PLAYSTATE_PLAYING);
-        CheckAndPrintError(res);
-
         return dmSound::RESULT_OK;
 
 cleanup_device:
@@ -433,12 +430,18 @@ cleanup_sl:
 
     void DeviceOpenSLRestart(dmSound::HDevice device)
     {
-
+        OpenSLDevice* opensl = (OpenSLDevice*) device;
+        SLPlayItf play = opensl->m_Play;
+        SLresult res = (*play)->SetPlayState(play, SL_PLAYSTATE_PLAYING);
+        CheckAndPrintError(res);
     }
 
     void DeviceOpenSLStop(dmSound::HDevice device)
     {
-
+        OpenSLDevice* opensl = (OpenSLDevice*) device;
+        SLPlayItf play = opensl->m_Play;
+        SLresult res = (*play)->SetPlayState(play, SL_PLAYSTATE_STOPPED);
+        CheckAndPrintError(res);
     }
 
     DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenSLOpen, DeviceOpenSLClose, DeviceOpenSLQueue, DeviceOpenSLFreeBufferSlots, DeviceOpenSLDeviceInfo, DeviceOpenSLRestart, DeviceOpenSLStop);
