@@ -804,7 +804,7 @@ namespace dmEngineService
         dmWebServer::Result r;
         r = SendString(request, "PROF"); CHECK_RESULT(r);
 
-        const uint32_t tps = 1000000;//g_TicksPerSecond;
+        const uint32_t tps = dmProfile::GetTicksPerSecond();
         r = dmWebServer::Send(request, &tps, 4); CHECK_RESULT(r);
 
         dmProfile::IterateSamples(engine_service->m_Profile, request, ProfileSendSamples);
