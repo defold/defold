@@ -39,10 +39,14 @@ public class TexcLibrary {
             addToPath("jna.library.path", libPath);
             addToPath("java.library.path", libPath);
 
-            Bob.getLib(platform, "PVRTexLib"); // dependency of texc_shared
+            String pvrTextLibPath = Bob.getLib(platform, "PVRTexLib"); // dependency of texc_shared
 
             // TODO: sad with a platform specific hack and placing dependency knowledge here but...
-            if (platform == Platform.X86_64Win32 || platform == Platform.X86Win32) {
+            if (platform == Platform.X86Linux || platform == Platform.X86_64Linux) {
+                Bob.verbose("Loading PVRTexLib:'%s'", pvrTextLibPath);
+                System.load(pvrTextLibPath);		
+            }
+            else if (platform == Platform.X86_64Win32 || platform == Platform.X86Win32) {
                 Bob.getLib(platform, "msvcr120"); // dependency of PVRTexLib
             }
 
