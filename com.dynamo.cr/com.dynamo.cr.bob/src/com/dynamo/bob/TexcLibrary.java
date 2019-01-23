@@ -43,7 +43,7 @@ public class TexcLibrary {
 
             // TODO: sad with a platform specific hack and placing dependency knowledge here but...
             if (platform == Platform.X86Linux || platform == Platform.X86_64Linux) {
-                Bob.verbose("Loading PVRTexLib:'%s'", pvrTextLibPath);
+                Bob.verbose("Loading PVRTexLib from:'%s'", pvrTextLibPath);
                 System.load(pvrTextLibPath);		
             }
             else if (platform == Platform.X86_64Win32 || platform == Platform.X86Win32) {
