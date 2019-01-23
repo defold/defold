@@ -13,33 +13,8 @@ import android.util.Log;
 public class SoundManager {
 
     public static final String TAG = "defold.sound";
-    
+
     public native void setPhoneCallState(int active);
-
-    private static class AudioFocusListener implements AudioManager.OnAudioFocusChangeListener {
-
-        private boolean audioFocus = false;
-
-        @Override
-        public void onAudioFocusChange(int focusChange) {
-            if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
-                this.audioFocus = true;
-            } else {
-                // AUDIOFOCUS_LOSS
-                // AUDIOFOCUS_LOSS_TRANSIENT
-                // AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK
-                this.audioFocus = false;
-            }
-        }
-
-        public void setAudioFocus(boolean val) {
-            audioFocus = val;
-        }
-
-        public boolean hasAudioFocus() {
-            return audioFocus;
-        }
-    };
 
     private static class CustomPhoneCallListener extends PhoneStateListener {
         private SoundManager manager = null;
@@ -55,21 +30,28 @@ public class SoundManager {
         }
     }
 
-    private SoundManager.AudioFocusListener listener = null;
     private TelephonyManager telephonyManager = null;
     private AudioManager audioManager = null;
+    private boolean hasAudioFocus = false;
 
     public SoundManager(Activity activity) {
         try {
             this.audioManager = (AudioManager) activity.getSystemService(Context.AUDIO_SERVICE);
             this.telephonyManager = (TelephonyManager) activity.getSystemService(Context.TELEPHONY_SERVICE);
-            this.listener = new SoundManager.AudioFocusListener();
+            // DEF-3737
+            // We no longer acquire audio focus since that kills any currently playing music which is not
+            // what you want if your game just plays sound effects. And the android API only has audio focus
+            // for music (the closest type available).
+            // We still keep the audio focus state (as a bool) so we can more accurately determine if an other
+            // source is playing music.
+            this.hasAudioFocus = false;
 
             // DEF-3316
             // On older devices (v5 and below) with apps not specifying the READ_PHONE_STATE permission, the call to
             // SoundManager.this.telephonyManager.listen will trigger a crash.
             // To avoid this we manually check if we have the permission and only register the listener below if the
-            // permission is available. However, this means that the app will continue playing audio even if there is a phone call.
+            // permission is available. However, can't react to incoming phone calls ringing. As soon as the call is
+            // picked up Android will switch out the app and silence it.
             if (ContextCompat.checkSelfPermission(activity, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
                 Log.e(TAG, "App is missing the READ_PHONE_STATE permission. Audio will continue while phone call is active.");
             } else {
@@ -88,32 +70,16 @@ public class SoundManager {
     }
 
     public boolean acquireAudioFocus() {
-        try {
-            if (this.audioManager != null && this.listener != null) {
-                if (!this.listener.hasAudioFocus()) {
-                    int result = this.audioManager.requestAudioFocus(this.listener,
-                        AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
-                    if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-                        this.listener.setAudioFocus(true);
-                        return true;
-                    } else {
-                        this.listener.setAudioFocus(false);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "An exception occurred while aquiring audio focus", e);
-        }
-
-        return false;
+        this.hasAudioFocus = true;
+        return true;
     }
 
     public boolean isMusicPlaying() {
         try {
-            if (this.audioManager != null && this.listener != null) {
+            if (this.audioManager != null) {
                 if (this.audioManager.isMusicActive()) {
                     // Sound is playing on the device
-                    if (this.listener.hasAudioFocus()) {
+                    if (this.hasAudioFocus) {
                         // If everyone is respecting audio focus, our application
                         // should be responsible for the sound.
                         return false;
@@ -144,21 +110,8 @@ public class SoundManager {
     }
 
     public boolean releaseAudioFocus() {
-        try {
-            if (this.audioManager != null && this.listener != null) {
-                if (this.listener.hasAudioFocus()) {
-                    int result = this.audioManager.abandonAudioFocus(this.listener);
-                    if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-                        this.listener.setAudioFocus(false);
-                        return true;
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "An exception occurred while releasing audio focus", e);
-        }
-
-        return false;
+        this.hasAudioFocus = false;
+        return true;
     }
 
 }
