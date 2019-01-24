@@ -405,6 +405,8 @@ namespace dmGameSystem
 
     static inline void RenderBatchLocalVS(ModelWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
+        DM_PROFILE(Model, "RenderBatchLocal");
+
         for (uint32_t *i=begin;i!=end;i++)
         {
             dmRender::RenderObject& ro = *world->m_RenderObjects.End();
@@ -445,6 +447,8 @@ namespace dmGameSystem
 
     static inline void RenderBatchWorldVS(ModelWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
+        DM_PROFILE(Model, "RenderBatchWorld");
+
         uint32_t vertex_count = 0;
         uint32_t max_component_vertices = 0;
         uint32_t batchIndex = buf[*begin].m_MinorOrder;
