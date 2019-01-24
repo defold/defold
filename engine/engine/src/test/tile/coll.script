@@ -44,16 +44,16 @@ function init(self)
     -- Tile index out-of-range
     ret = pcall(function() tilemap.set_tile("#tilemap", "layer", 0, 0, -1) end)
     assert(ret == false)
-    ret = pcall(function() tilemap.set_tile("#tilemap", "layer", 0, 0, 4) end)
+    ret = pcall(function() tilemap.set_tile("#tilemap", "layer", 0, 0, 5) end)
     assert(ret == false)
 
     -- verify hashed string works as argument to layer
     tile = tilemap.get_tile("#tilemap", "layer", 1, 1)
     assert(tile == 0)
-    res = tilemap.set_tile("#tilemap", hash("layer"), 1, 1, 0)
+    res = tilemap.set_tile("#tilemap", hash("layer"), 1, 1, 1)
     assert(res == true)
     tile = tilemap.get_tile("#tilemap", hash("layer"), 1, 1)
-    assert(tile == 0)
+    assert(tile == 1)
 
     -- Set tile out-of-range. Test for previous bug
     msg.post("#tilemap", "set_tile", {layer_id = hash("layer"), position = go.get_position(), dx = 1})

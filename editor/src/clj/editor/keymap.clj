@@ -63,6 +63,7 @@
    ["F10"                   :step-over]
    ["F11"                   :step-into]
    ["Shift+F11"             :step-out]
+   ["F2"                    :rename]
    ["F5"                    :start-debugger]
    ["F6"                    :continue]
    ["F7"                    :break]

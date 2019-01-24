@@ -177,8 +177,12 @@ namespace dmGameSystem
         int y = luaL_checkinteger(L, 4) - 1;
         int lua_tile  = luaL_checkinteger(L, 5);
 
-        // Range check: tile indices that fall outside of the valid limits will crash the engine
-        if (lua_tile < 0 || lua_tile >= resource->m_TextureSet->m_TextureSet->m_TileCount)
+        /* Range check: tile indices that fall outside of the valid limits will crash the engine.
+         * 
+         * Note that 0 resets the tile cell, so the valid range is [0...N]
+         * where N is equal to the amount of tiles availabel in the tile source.
+         */
+        if (lua_tile < 0 || lua_tile > resource->m_TextureSet->m_TextureSet->m_TileCount)
         {
             return luaL_error(L, "tilemap.set_tile called with out-of-range tile index (%d)", lua_tile);
         }
