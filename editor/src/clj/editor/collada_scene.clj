@@ -151,7 +151,9 @@
             vertex-space (:vertex-space user-data)
             render-args (if (= vertex-space :vertex-space-world)
                           render-args
-                          (assoc-in render-args [:world-view] (doto (Matrix4d. ^Matrix4d (:view render-args)) (.mul ^Matrix4d (:world-transform renderable)))))]
+                          (let [world-view (doto (Matrix4d. ^Matrix4d (:view render-args)) (.mul ^Matrix4d (:world-transform renderable)))
+                                world-view-proj (doto (Matrix4d. ^Matrix4d (:projection render-args)) (.mul ^Matrix4d world-view))]
+                            (assoc-in (assoc-in render-args [:world-view-proj] world-view-proj) [:world-view] world-view)))]
         (gl/with-gl-bindings gl render-args [shader]
           (when (= pass pass/opaque)
             (doseq [[name t] textures]

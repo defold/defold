@@ -153,7 +153,8 @@
     :constant-type-view :view
     :constant-type-projection :projection
     :constant-type-normal :normal
-    :constant-type-worldview :world-view))
+    :constant-type-worldview :world-view
+    :constant-type-worldviewproj :world-view-proj))
 
 (def ^:private wrap-mode->gl {:wrap-mode-repeat GL2/GL_REPEAT
                               :wrap-mode-mirrored-repeat GL2/GL_MIRRORED_REPEAT
