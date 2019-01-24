@@ -134,7 +134,7 @@
 (defn- clear-form-op [{:keys [node-id]} [property]]
   (g/clear-property! node-id property))
 
-(g/defnk produce-form-data [_node-id name vertex-program fragment-program vertex-constants fragment-constants samplers tags :as args]
+(g/defnk produce-form-data [_node-id name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space :as args]
   (let [values (-> (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields]))))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
@@ -208,7 +208,7 @@
   (property fragment-constants g/Any (dynamic visible (g/constantly false)))
   (property samplers g/Any (dynamic visible (g/constantly false)))
   (property tags g/Any (dynamic visible (g/constantly false)))
-  (property vertex-space g/Any (dynamic visible (g/constantly false)))
+  (property vertex-space g/Keyword (dynamic visible (g/constantly false)))
 
   (output form-data g/Any :cached produce-form-data)
 

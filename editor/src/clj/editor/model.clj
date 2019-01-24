@@ -99,12 +99,16 @@
                 samplers
                 gpu-texture-generators)))
 
-(g/defnk produce-scene [scene shader gpu-textures]
+(g/defnk produce-scene [_node-id scene shader gpu-textures vertex-space]
   (update scene :renderable (fn [r]
                               (cond-> r
                                 shader (assoc-in [:user-data :shader] shader)
                                 true (assoc-in [:user-data :textures] gpu-textures)
-                                true (update :batch-key (fn [old-key] [old-key shader gpu-textures]))))))
+                                true (assoc-in [:user-data :vertex-space] vertex-space)
+                                true (update :batch-key (fn [old-key]
+                                                          [old-key shader gpu-textures (case vertex-space
+                                                                                         :vertex-space-local _node-id
+                                                                                         :vertex-space-world :vertex-space-world)]))))))
 
 (defn- vset [v i value]
   (let [c (count v)
@@ -134,7 +138,8 @@
                                             [:resource :material-resource]
                                             [:samplers :samplers]
                                             [:build-targets :dep-build-targets]
-                                            [:shader :shader])))
+                                            [:shader :shader]
+                                            [:vertex-space :vertex-space])))
             (dynamic error (g/fnk [_node-id material]
                                   (prop-resource-error :fatal _node-id :material material "Material")))
             (dynamic edit-type (g/constantly {:type resource/Resource
@@ -197,6 +202,7 @@
   (input dep-build-targets g/Any :array)
   (input scene g/Any)
   (input shader ShaderLifecycle)
+  (input vertex-space g/Keyword)
 
   (output animation-ids g/Any :cached (g/fnk [animation-set] (mapv :id (:animations animation-set))))
   (output pb-msg g/Any :cached produce-pb-msg)
