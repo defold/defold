@@ -173,12 +173,10 @@ int Launch(int argc, char **argv) {
 
     args[i++] = (char*) main;
 #if defined(__MACH__)
-    char** fileList;
-    ReceiveFileOpenEvent(&fileList);
+    char** fileList = ReceiveFileOpenEvent();
     if(fileList) {
       char** p = fileList;
-      while(*p) {
-        // fileList max is 100 and args max is 128 so this should be fine.
+      while(*p && i < max_args - 1) {
         args[i++] = *p;
         p++;
       }
