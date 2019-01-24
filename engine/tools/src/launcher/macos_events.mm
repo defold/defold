@@ -3,7 +3,7 @@
 #include <string.h> // strlen and memcpy
 #import <Cocoa/Cocoa.h> // NS stuff
 
-char*** files;
+char** files;
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 @end
@@ -11,33 +11,18 @@ char*** files;
 @implementation AppDelegate
 
 - (void)application:(NSApplication *)sender openFiles:(NSArray<NSString *> *)filenames {
-  if(filenames == nil || [filenames count] == 0) {
+  size_t names_count = [filenames count];
+  if(filenames == nil || names_count == 0) {
     return;
   }
-  // We expect to open only one file so 100 should be enough. Change if needed.
-  char* tmpArray[100];
-  // Use this to trick the compiler. If it detects usage of a stack allocated
-  // array in a block it will complain. But in this case it is safe because we
-  // are not using the block anywhere else.
-  char** array_cheat = tmpArray;
-  NSUInteger i = 0;
-  NSUInteger* i_cheat = &i;
+  files = (char**)malloc(names_count + 1);
   [filenames enumerateObjectsUsingBlock:^(NSString* str, NSUInteger idx, BOOL *stop) {
-      if(idx == 98) {
-        *stop = TRUE;
-      }
-      else {
-        const char *filename = [str cStringUsingEncoding:NSUTF8StringEncoding];
-        size_t len = strlen(filename);
-        array_cheat[idx] = (char*)malloc(len + 1);
-        memcpy(array_cheat[idx], filename, len + 1);
-      }
-      (*i_cheat)++;
+      const char *filename = [str cStringUsingEncoding:NSUTF8StringEncoding];
+      size_t len = strlen(filename) + 1;
+      files[idx] = (char*)malloc(len);
+      memcpy(files[idx], filename, len);
+      files[idx + 1] = NULL;
     }];
-  tmpArray[i] = NULL;
-  size_t list_size = (i + 1) * sizeof(char*);
-  *files = (char**)malloc(list_size);
-  memcpy(*files, tmpArray, list_size);
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
@@ -63,9 +48,8 @@ char*** files;
 
 @end
 
-void ReceiveFileOpenEvent(char*** fileList) {
-  files = fileList;
-  *files = NULL;
+char** ReceiveFileOpenEvent() {
+  files = NULL;
   [NSApplication sharedApplication];
   AppDelegate* delegate = [[AppDelegate alloc] init];
 
@@ -73,6 +57,7 @@ void ReceiveFileOpenEvent(char*** fileList) {
   [NSApp run];
 
   [delegate dealloc];
+  return files;
 }
 
 void FreeFileList(char** fileList) {
