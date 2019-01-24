@@ -181,6 +181,17 @@ int Launch(int argc, char **argv) {
         p++;
       }
     }
+#else
+    // Assumption that any command line option that does not start with --config
+    // is path to a project file.
+    for(int j = 1; j < argc; ++j) {
+      if(i >= max_args - 1) {
+        break;
+      }
+      if(strncmp("--config=", argv[j], sizeof("--config=")-1) != 0) {
+        args[i++] = argv[j];
+      }
+    }
 #endif
     args[i++] = 0;
 
