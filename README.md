@@ -267,7 +267,7 @@ Explanations:
 
 ## Build Engine
 
-*In the instructions below, the `--platform` argument to `build.py` will default to the host platform if not specified.*
+* In the instructions below, the `--platform` argument to `build.py` will default to the host platform if not specified.*
 
 ### Windows
 
@@ -672,7 +672,7 @@ In that web app manager, you can see the console output, take screenshots or sho
 
 **TODO**
 
-* Investigate mutex and dmProfile overhead. Removing DM_PROFILE, DM_COUNTER_HASH, dmMutex::Lock and dmMutex::Unlock from dmMessage::Post resulted in 4x improvement
+* Investigate mutex and dmProfile overhead. Removing DM_PROFILE, DM_COUNTER, dmMutex::Lock and dmMutex::Unlock from dmMessage::Post resulted in 4x improvement
 * Verify that exceptions are disabled
 
 ## Asset loading
