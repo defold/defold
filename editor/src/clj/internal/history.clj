@@ -2,15 +2,23 @@
   (:require [clojure.set :as set]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
-            [internal.system :as is]
             [internal.transaction :as it]
-            [internal.util :as util]))
+            [internal.util :as util])
+  (:import (java.util.concurrent.atomic AtomicLong)))
+
+(set! *warn-on-reflection* true)
 
 (defmulti ^:private replay-in-graph?
   (fn [_graph-id transaction-step]
     (case (:type transaction-step)
-      (:callback :label :sequence-label)
-      :ignored-transaction-step
+      (:label :sequence-label)
+      :always-repeated-transaction-step
+
+      :callback
+      :always-ignored-transaction-step
+
+      :update-graph-value
+      :graph-id-transaction-step
 
       (:become :clear-property :delete-node :invalidate :update-property)
       :node-id-transaction-step
@@ -28,13 +36,16 @@
       :override-node-transaction-step
 
       :transfer-overrides
-      :transfer-overrides-transaction-step
+      :transfer-overrides-transaction-step)))
 
-      :update-graph-value
-      :update-graph-value-transaction-step)))
+(defmethod replay-in-graph? :always-repeated-transaction-step [_graph-id _transaction-step]
+  true)
 
-(defmethod replay-in-graph? :ignored-transaction-step [_graph-id _transaction-step]
+(defmethod replay-in-graph? :always-ignored-transaction-step [_graph-id _transaction-step]
   false)
+
+(defmethod replay-in-graph? :graph-id-transaction-step [graph-id transaction-step]
+  (= graph-id (:graph-id transaction-step)))
 
 (defmethod replay-in-graph? :node-id-transaction-step [graph-id transaction-step]
   (= graph-id (gt/node-id->graph-id (:node-id transaction-step))))
@@ -56,28 +67,69 @@
 (defmethod replay-in-graph? :transfer-overrides-transaction-step [graph-id transaction-step]
   (= graph-id (-> transaction-step :from-id->to-id ffirst gt/node-id->graph-id)))
 
-(defmethod replay-in-graph? :update-graph-value-transaction-step [graph-id transaction-step]
-  (= graph-id (:graph-id transaction-step)))
-
 ;; -----------------------------------------------------------------------------
 
-(defrecord HistoryEntry [enabled? graph-after outputs-modified tx-data])
+(defrecord HistoryEntry [^long undo-group graph-after outputs-modified transaction-steps])
 
 (defn make-history [graph]
-  [(->HistoryEntry true graph #{} [])])
+  (assert (ig/graph? graph))
+  [(->HistoryEntry 0 graph #{} [])])
 
-(defn add-history-entry [history graph-after outputs-modified tx-data]
+(defn history-sequence-label [history]
+  (let [^HistoryEntry history-entry (peek history)]
+    (when (zero? (.undo-group history-entry))
+      (:tx-sequence-label (.graph-after history-entry)))))
+
+(defonce ^:private ^AtomicLong undo-group-counter (AtomicLong. 0))
+
+(defn find-undoable-entry [history]
+  (loop [history-entry-index (dec (count history))
+         current-undo-group 0]
+    (when (pos? history-entry-index)
+      (let [^HistoryEntry history-entry (history history-entry-index)
+            history-entry-undo-group (.undo-group history-entry)]
+        (if (zero? history-entry-undo-group)
+          {history-entry-index (if (zero? current-undo-group)
+                                 (.incrementAndGet undo-group-counter)
+                                 current-undo-group)}
+          (recur (dec history-entry-index)
+                 history-entry-undo-group))))))
+
+(defn find-redoable-entry [history]
+  (loop [history-entry-index (dec (count history))
+         current-undo-group 0]
+    (when-not (neg? history-entry-index)
+      (let [^HistoryEntry history-entry (history history-entry-index)
+            history-entry-undo-group (.undo-group history-entry)]
+        (if (zero? current-undo-group)
+          (when-not (zero? history-entry-undo-group)
+            (recur (dec history-entry-index)
+                   history-entry-undo-group))
+          (if (not= current-undo-group history-entry-undo-group)
+            {(inc history-entry-index) 0}
+            (recur (dec history-entry-index)
+                   history-entry-undo-group)))))))
+
+(defn write-history [history graph-after outputs-modified tx-data]
   (let [graph-id (:_graph-id graph-after)
-        replay-in-graph? (partial replay-in-graph? graph-id)
-        filtered-tx-data (filterv replay-in-graph? tx-data)
-        history-entry (->HistoryEntry true graph-after outputs-modified filtered-tx-data)]
-    (conj history history-entry)))
+        merge-into-previous-history-entry? (some-> graph-after :tx-sequence-label (= (history-sequence-label history)))
+        xform-tx-data->transaction-steps (comp (mapcat flatten)
+                                               (filter (partial replay-in-graph? graph-id)))]
+    (if merge-into-previous-history-entry?
+      (let [^HistoryEntry previous-history-entry (peek history)
+            merged-transaction-steps (into (:transaction-steps previous-history-entry) xform-tx-data->transaction-steps tx-data)
+            merged-outputs-modified (into (:outputs-modified previous-history-entry) outputs-modified)
+            merged-history-entry (->HistoryEntry (.undo-group previous-history-entry) graph-after merged-outputs-modified merged-transaction-steps)]
+        (assoc history (dec (count history)) merged-history-entry))
+      (let [transaction-steps (into [] xform-tx-data->transaction-steps tx-data)
+            history-entry (->HistoryEntry 0 graph-after outputs-modified transaction-steps)]
+        (conj history history-entry)))))
 
-(defn- rewind [basis history history-entry-index]
-  (assert (pos? history-entry-index) "Cannot rewind past the beginning of history.")
-  (let [rewound-history (subvec history 0 history-entry-index)
+(defn rewind-history [history basis history-entry-index]
+  (let [rewound-history-end-index (inc history-entry-index)
+        rewound-history (into [] (subvec history 0 rewound-history-end-index))
         rewound-graph (:graph-after (peek rewound-history))
-        rewound-outputs (transduce (map :outputs-modified) set/union (subvec history history-entry-index))
+        rewound-outputs (transduce (map :outputs-modified) set/union (subvec history rewound-history-end-index))
         {hydrated-basis :basis hydrated-outputs :outputs-to-refresh} (ig/hydrate-after-undo basis rewound-graph)
         outputs-to-refresh (into rewound-outputs hydrated-outputs)
         invalidated-labels-by-node-id (util/group-into #{} first second outputs-to-refresh)
@@ -86,23 +138,26 @@
      :history rewound-history
      :outputs-to-refresh outputs-to-refresh}))
 
-(defn- replay [rewound-basis rewound-history history enabled-by-history-entry-index graph-id node-id-generators override-id-generator]
+(defn- replay-history [rewound-history rewound-basis history undo-group-by-history-entry-index node-id-generators override-id-generator]
   (loop [altered-basis rewound-basis
-         altered-history (transient (into [] rewound-history))
+         altered-history (transient rewound-history)
          outputs-to-refresh (transient #{})
-         history-entry-index (count altered-history)]
-    (if-some [history-entry (get history history-entry-index)]
-      (let [enabled? (get (enabled-by-history-entry-index history-entry-index) (:enabled? history-entry))
-            tx-data (:tx-data history-entry)]
-        (if enabled?
+         history-entry-index (count rewound-history)]
+    (if-some [^HistoryEntry history-entry (get history history-entry-index)]
+      (let [undo-group (get undo-group-by-history-entry-index history-entry-index (.undo-group history-entry))
+            graph-id (:_graph-id (:graph-after history-entry))
+            transaction-steps (:transaction-steps history-entry)]
+        (if (zero? undo-group)
           (let [transaction-context (it/new-transaction-context altered-basis node-id-generators override-id-generator)
-                {:keys [basis outputs-modified]} (it/transact* transaction-context tx-data)
-                altered-history-entry (->HistoryEntry true (-> basis :graphs graph-id) outputs-modified tx-data)]
+                {:keys [basis outputs-modified]} (it/transact* transaction-context transaction-steps)
+                altered-graph (-> basis :graphs (get graph-id))
+                altered-history-entry (->HistoryEntry 0 altered-graph outputs-modified transaction-steps)]
             (recur basis
                    (conj! altered-history altered-history-entry)
                    (reduce conj! outputs-to-refresh outputs-modified)
                    (inc history-entry-index)))
-          (let [altered-history-entry (->HistoryEntry false (-> altered-basis :graphs graph-id) #{} tx-data)]
+          (let [altered-graph (-> altered-basis :graphs (get graph-id))
+                altered-history-entry (->HistoryEntry undo-group altered-graph #{} transaction-steps)]
             (recur altered-basis
                    (conj! altered-history altered-history-entry)
                    outputs-to-refresh
@@ -111,34 +166,15 @@
        :history (persistent! altered-history)
        :outputs-to-refresh (persistent! outputs-to-refresh)})))
 
-(defn- alter-history [graphs history enabled-by-history-entry-index graph-id node-id-generators override-id-generator]
-  (assert (util/map-of? util/natural-number? ig/graph? graphs))
-  (let [min-history-entry-index (reduce min (keys enabled-by-history-entry-index))
-        basis (ig/multigraph-basis graphs)
-        {rewound-basis :basis
-         rewound-history :history
-         rewound-outputs :outputs-to-refresh} (rewind basis history min-history-entry-index)
-        {altered-basis :basis
-         altered-history :history
-         altered-outputs :outputs-to-refresh} (replay rewound-basis rewound-history history enabled-by-history-entry-index graph-id node-id-generators override-id-generator)]
-    {:basis altered-basis
-     :history altered-history
-     :outputs-to-refresh (set/union rewound-outputs altered-outputs)}))
-
-(defn alter-history! [system graph-id enabled-by-history-entry-index]
-  (let [graph-refs (is/graphs system)
-        history-ref (is/graph-history system graph-id)
-        node-id-generators (is/id-generators system)
-        override-id-generator (is/override-id-generator system)]
-    (dosync
-      (let [history (deref history-ref)
-            graphs (util/map-vals deref graph-refs)
-            {altered-basis :basis
-             altered-history :history
-             altered-outputs :outputs-to-refresh} (alter-history graphs history enabled-by-history-entry-index graph-id node-id-generators override-id-generator)
-            altered-graph (-> altered-basis :graphs graph-id)
-            graph-ref (graph-refs graph-id)]
-        (ref-set graph-ref altered-graph)
-        (ref-set history-ref altered-history)
-        (is/invalidate-outputs! system altered-outputs)
-        altered-outputs))))
+(defn alter-history [history basis undo-group-by-history-entry-index node-id-generators override-id-generator]
+  (let [min-history-entry-index (reduce min (keys undo-group-by-history-entry-index))]
+    (assert (pos? min-history-entry-index) "Cannot alter the beginning of history.")
+    (let [{rewound-basis :basis
+           rewound-history :history
+           rewound-outputs :outputs-to-refresh} (rewind-history history basis (dec min-history-entry-index))
+          {altered-basis :basis
+           altered-history :history
+           altered-outputs :outputs-to-refresh} (replay-history rewound-history rewound-basis history undo-group-by-history-entry-index node-id-generators override-id-generator)]
+      {:basis altered-basis
+       :history altered-history
+       :outputs-to-refresh (set/union rewound-outputs altered-outputs)})))

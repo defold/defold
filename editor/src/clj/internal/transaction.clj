@@ -1,12 +1,11 @@
 (ns internal.transaction
   "Internal functions that implement the transactional behavior."
   (:require [clojure.set :as set]
-            [clojure.string :as str]
             [internal.util :as util]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
+            [internal.id-gen :as id-gen]
             [internal.node :as in]
-            [internal.system :as is]
             [schema.core :as s]))
 
 (set! *warn-on-reflection* true)
@@ -187,10 +186,10 @@
     (update ctx :nodes-affected assoc node-id (set all-labels))))
 
 (defn- claim-node-id [ctx graph-id node-key]
-  (is/claim-node-id* (:node-id-generators ctx) graph-id node-key))
+  (id-gen/claim-node-id! (:node-id-generators ctx) graph-id node-key))
 
 (defn- claim-override-id [ctx graph-id override-key]
-  (is/claim-override-id* (:override-id-generator ctx) graph-id override-key))
+  (id-gen/claim-override-id! (:override-id-generator ctx) graph-id override-key))
 
 (defmulti perform
   "A multimethod used for defining methods that perform the individual
@@ -458,7 +457,7 @@
                            ;; We don't allow generated ids inside property
                            ;; setters, since they are required to produce the
                            ;; same ids when re-evaluated during redo.
-                           (binding [is/*allow-generated-ids* false]
+                           (binding [id-gen/*allow-generated-ids* false]
                              (setter-fn evaluation-context node-id old-value new-value)))]
       (when *tx-debug*
         (println (txerrstr ctx "setter actions" (seq setter-actions))))
@@ -530,7 +529,7 @@
     (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
       (let [;; Fetch the node value by either evaluating (value ...) for the property or looking in the node map
             ;; The context is intentionally bare, i.e. only :basis, for this reason
-            old-value (is/node-property-value node property (in/custom-evaluation-context {:basis basis}))
+            old-value (in/node-property-value node property (in/custom-evaluation-context {:basis basis}))
             new-value (apply fn old-value args)
             override-node? (some? (gt/original node))
             dynamic? (not (contains? (some-> (gt/node-type node basis) in/all-properties) property))]

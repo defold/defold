@@ -1,18 +1,17 @@
 (ns dynamo.graph
   "Main api for graph and node"
   (:refer-clojure :exclude [deftype constantly])
-  (:require [clojure.set :as set]
-            [clojure.tools.macro :as ctm]
+  (:require [clojure.tools.macro :as ctm]
             [cognitect.transit :as transit]
             [internal.util :as util]
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
-            [internal.graph.error-values :as ie]
+            [internal.history :as history]
+            [internal.id-gen :as id-gen]
             [internal.node :as in]
             [internal.system :as is]
             [internal.transaction :as it]
-            [plumbing.core :as pc]
             [potemkin.namespaces :as namespaces]
             [schema.core :as s])
   (:import [internal.graph.error_values ErrorValue]
@@ -136,7 +135,7 @@
         override-id-generator (is/override-id-generator @*the-system*)
         tx-result (it/transact* (it/new-transaction-context basis id-generators override-id-generator) txs)]
     (when (= :ok (:status tx-result))
-      (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
+      (swap! *the-system* is/merge-graphs txs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
     tx-result))
 
 ;; ---------------------------------------------------------------------------
@@ -411,7 +410,7 @@
   (assert (even? (count binding-expr)) "make-nodes requires an even number of forms in binding vector")
   (let [locals (take-nth 2 binding-expr)
         ctors  (take-nth 2 (next binding-expr))
-        ids    (repeat (count locals) `(internal.system/next-node-id @*the-system* ~graph-id))]
+        ids    (repeat (count locals) `(internal.system/next-node-id! @*the-system* ~graph-id))]
     `(let [~@(interleave locals ids)]
        (concat
         ~@(map
@@ -449,7 +448,7 @@
                         node-key-prefix node-key-prefix-expr]
                        (mapcat (fn [local]
                                  (let [node-key [node-key-prefix (keyword (name local))]]
-                                   [local `(is/claim-node-id* ~id-generators ~graph-id ~node-key)])))
+                                   [local `(id-gen/claim-node-id! ~id-generators ~graph-id ~node-key)])))
                        locals)]
     `(let ~bindings
        (concat
@@ -475,16 +474,9 @@
   [label]
   (it/sequence-label label))
 
-(defn prev-sequence-label [graph-id]
-  (let [sys @*the-system*]
-    (when-let [prev-step (some-> (is/graph-history sys graph-id)
-                                 (is/undo-stack)
-                                 (last))]
-      (:sequence-label prev-step))))
-
 (defn- construct-node-with-id
   [graph-id node-type args]
-  (apply construct node-type :_node-id (is/next-node-id @*the-system* graph-id) (mapcat identity args)))
+  (apply construct node-type :_node-id (is/next-node-id! @*the-system* graph-id) (mapcat identity args)))
 
 (defn make-node
   "Returns the transaction step for creating a new node.
@@ -1329,8 +1321,8 @@
 (defn has-undo?
   "Returns true/false if a `graph-id` has an undo available"
   [graph-id]
-  (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph-id))]
-    (not (empty? undo-stack))))
+  (let [history-ref (is/graph-history @*the-system* graph-id)]
+    (some? (history/find-undoable-entry @history-ref))))
 
 (defn undo-stack-count
   "Returns the number of entries in the undo stack for `graph-id`"
@@ -1349,8 +1341,8 @@
 (defn has-redo?
   "Returns true/false if a `graph-id` has an redo available"
   [graph-id]
-  (let [redo-stack (is/redo-stack (is/graph-history @*the-system* graph-id))]
-    (not (empty? redo-stack))))
+  (let [history-ref (is/graph-history @*the-system* graph-id)]
+    (some? (history/find-redoable-entry @history-ref))))
 
 (defn reset-undo!
   "Given a `graph-id`, clears all undo history for the graph

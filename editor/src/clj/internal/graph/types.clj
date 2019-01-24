@@ -1,8 +1,7 @@
-(ns internal.graph.types
-  (:require [internal.util :as util]
-            [schema.core :as s]))
+(ns internal.graph.types)
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defrecord Arc [source-id source-label target-id target-label])
 
@@ -62,17 +61,24 @@
 ;; ID helpers
 ;; ---------------------------------------------------------------------------
 
-(def ^:const NID-BITS                                56)
-(def ^:const NID-MASK                  0xffffffffffffff)
-(def ^:const NID-SIGN-EXTEND         -72057594037927936) ;; as a signed long
-(def ^:const GID-BITS                                 7)
-(def ^:const GID-MASK                              0x7f)
-(def ^:const MAX-GROUP-ID                           254)
+(def ^:const ^long NID-BITS 56)
+(def ^:const ^long NID-MASK 0xffffffffffffff)
+(def ^:const ^long NID-SIGN-EXTEND -72057594037927936) ;; as a signed long
+(def ^:const ^long GID-BITS 7)
+(def ^:const ^long GID-MASK 0x7f)
+(def ^:const ^long MAX-GROUP-ID 254)
+
+(defn graph-id? [value]
+  (and (integer? value)
+       (let [^long value value]
+         (not (neg? value))
+         (= value (bit-and value GID-MASK)))))
 
 (defn make-node-id ^long [^long gid ^long nid]
+  (assert (= gid (bit-and gid GID-MASK)))
   (bit-or
-   (bit-shift-left gid NID-BITS)
-   (bit-and nid 0xffffffffffffff)))
+    (bit-shift-left gid NID-BITS)
+    (bit-and nid NID-MASK)))
 
 (defn node-id->graph-id ^long [^long node-id]
   (bit-and (bit-shift-right node-id NID-BITS) GID-MASK))
@@ -83,9 +89,10 @@
 (defn node->graph-id ^long [node] (node-id->graph-id (node-id node)))
 
 (defn make-override-id ^long [^long gid ^long oid]
+  (assert (= gid (bit-and gid GID-MASK)))
   (bit-or
-   (bit-shift-left gid NID-BITS)
-   (bit-and oid 0xffffffffffffff)))
+    (bit-shift-left gid NID-BITS)
+    (bit-and oid NID-MASK)))
 
 (defn override-id->graph-id ^long [^long override-id]
   (bit-and (bit-shift-right override-id NID-BITS) GID-MASK))
