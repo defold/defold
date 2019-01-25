@@ -651,6 +651,15 @@ int  _glfwPlatformOpenWindow( int width, int height,
         return GL_FALSE;
     }
 
+    [_glfwWin.window makeKeyAndOrderFront:nil];
+    
+    NSRect contentRect =
+        [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
+    contentRect = [[_glfwWin.window contentView] convertRectToBacking:contentRect];
+    _glfwWin.width = contentRect.size.width;
+    _glfwWin.height = contentRect.size.height;
+
+    /*
     _glfwWin.context = [[NSOpenGLContext alloc] initWithFormat:_glfwWin.pixelFormat
                                                   shareContext:nil];
     if( _glfwWin.context == nil )
@@ -691,6 +700,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
     CVDisplayLinkSetCurrentCGDisplayFromOpenGLContext(displayLink, cglContext, cglPixelFormat);
     CVDisplayLinkStart(displayLink);
     _glfwWin.displayLink = (uintptr_t) displayLink;
+    */
 
     return GL_TRUE;
 }

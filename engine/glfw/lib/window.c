@@ -585,7 +585,8 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
     // Read back window and context parameters
     _glfwPlatformRefreshWindowParams();
     _glfwRefreshContextParams();
-
+    
+    /*
     if( _glfwWin.glMajor < wndconfig.glMajor ||
         ( _glfwWin.glMajor == wndconfig.glMajor &&
           _glfwWin.glMinor < wndconfig.glMinor ) )
@@ -640,6 +641,7 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
     // remains in our OpenGL window)
     // glClear( GL_COLOR_BUFFER_BIT );
     //_glfwPlatformSwapBuffers();
+     */
 
     return GL_TRUE;
 }

@@ -11,10 +11,14 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 
+#include <graphics/glfw/glfw_native.h>
+
 #include "../graphics.h"
 #include "../graphics_native.h"
 #include "graphics_vulkan.h"
 #include "../null/glsl_uniform_parser.h"
+
+#include "graphics_vulkan_platform.h"
 
 using namespace Vectormath::Aos;
 
@@ -47,6 +51,7 @@ namespace dmGraphics
     struct VulkanContext
     {
         VkInstance                     instance;
+        VkSurfaceKHR                   surface;
         VkApplicationInfo              applicationInfo;
         VkDebugUtilsMessengerEXT       debugCallback;
 
@@ -289,6 +294,12 @@ namespace dmGraphics
     {
         if (!g_ContextCreated)
         {
+            if (glfwInit() == GL_FALSE)
+            {
+                dmLogError("Could not initialize glfw.");
+                return 0x0;
+            }
+
             g_ContextCreated = true;
             return new Context(params);
         }
@@ -314,6 +325,28 @@ namespace dmGraphics
         assert(params);
         if (context->m_WindowOpened)
             return WINDOW_RESULT_ALREADY_OPENED;
+
+        if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, GLFW_WINDOW))
+        {
+            dmLogError("Unable to open glfw window");
+        }
+
+        glfwWrapper::GLWFWindow wnd;
+
+        wnd.ns.view   = glfwGetOSXNSView();
+        wnd.ns.object = glfwGetOSXNSWindow();
+
+        if (glfwWrapper::glfwCreateWindowSurface(g_vk_context.instance, &wnd, 0, &g_vk_context.surface) != VK_SUCCESS)
+        {
+            dmLogError("Unable to create vulkan window");
+        }
+
+        int width, height;
+        glfwGetWindowSize(&width, &height);
+        context->m_WindowWidth = (uint32_t)width;
+        context->m_WindowHeight = (uint32_t)height;
+        context->m_Dpi = 0;
+
         context->m_WindowResizeCallback = params->m_ResizeCallback;
         context->m_WindowResizeCallbackUserData = params->m_ResizeCallbackUserData;
         context->m_WindowCloseCallback = params->m_CloseCallback;
@@ -475,6 +508,8 @@ namespace dmGraphics
 
     void Flip(HContext context)
     {
+        glfwSwapBuffers();
+        /*
         // Mimick glfw
         if (context->m_RequestWindowClose)
         {
@@ -483,8 +518,8 @@ namespace dmGraphics
                 CloseWindow(context);
             }
         }
-
         g_Flipped = 1;
+        */
     }
 
     void SetSwapInterval(HContext /*context*/, uint32_t /*swap_interval*/)
