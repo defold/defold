@@ -2204,7 +2204,7 @@ namespace dmRender
      * for the predicate. If multiple tags are provided, the predicate matches materials
      * with all tags ANDed together.
      *
-     * The current limit to the number of tags that can be defined is `32`.
+     * The current limit to the number of tags that can be defined is `64`.
      *
      * @name render.predicate
      * @param tags [type:table] table of tags that the predicate should match. The tags can be of either hash or string type
@@ -2580,6 +2580,9 @@ namespace dmRender
                     }
                 }
                 result = true;
+                // m_SourceFileName will be null if profiling is not enabled, this is fine
+                // as m_SourceFileName will only be used if profiling is enabled
+                script->m_SourceFileName = DM_INTERNALIZE(source->m_Filename);
             }
             lua_pushnil(L);
             dmScript::SetInstance(L);
@@ -2744,6 +2747,8 @@ bail:
 
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)
     {
+        DM_PROFILE(Script, "RenderScript");
+
         RenderScriptResult result = RENDER_SCRIPT_RESULT_OK;
         HRenderScript script = script_instance->m_RenderScript;
         if (script->m_FunctionReferences[script_function] != LUA_NOREF)
@@ -2760,6 +2765,7 @@ bail:
 
             int arg_count = 1;
 
+            const char* message_name = 0;
             if (script_function == RENDER_SCRIPT_FUNCTION_ONMESSAGE)
             {
                 arg_count = 4;
@@ -2771,22 +2777,35 @@ bail:
                     dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
                     // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
                     // lua_cpcall?
+                    message_name = descriptor->m_Name;
                     dmScript::PushDDF(L, descriptor, (const char*)message->m_Data, true);
-                }
-                else if (message->m_DataSize > 0)
-                {
-                    dmScript::PushTable(L, (const char*)message->m_Data, message->m_DataSize);
                 }
                 else
                 {
-                    lua_newtable(L);
+                    if (dmProfile::g_IsInitialized)
+                    {
+                        // Try to find the message name via id and reverse hash
+                        message_name = (const char*)dmHashReverse64(message->m_Id, 0);
+                    }
+                    if (message->m_DataSize > 0)
+                    {
+                        dmScript::PushTable(L, (const char*)message->m_Data, message->m_DataSize);
+                    }
+                    else
+                    {
+                        lua_newtable(L);
+                    }
                 }
                 dmScript::PushURL(L, message->m_Sender);
             }
-            int ret = dmScript::PCall(L, arg_count, 0);
-            if (ret != 0)
+
             {
-                result = RENDER_SCRIPT_RESULT_FAILED;
+                DM_PROFILE_FMT(Script, "%s%s%s%s@%s", RENDER_SCRIPT_FUNCTION_NAMES[script_function], message_name ? "[" : "", message_name ? message_name : "", message_name ? "]" : "", script->m_SourceFileName);
+                if (dmScript::PCall(L, arg_count, 0) != 0)
+                {
+                    assert(top == lua_gettop(L));
+                    result = RENDER_SCRIPT_RESULT_FAILED;
+                }
             }
 
             lua_pushnil(L);

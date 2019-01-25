@@ -344,7 +344,7 @@ namespace dmHttpService
         }
         else
         {
-            dmLogWarning("Unable to locate application support path (%d)", sys_result);
+            dmLogWarning("Unable to locate application support path for \"%s\": (%d)", "defold", sys_result);
         }
 
         service->m_Run = true;

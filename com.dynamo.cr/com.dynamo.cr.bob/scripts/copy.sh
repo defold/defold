@@ -43,7 +43,7 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/texc_shared.dll lib/x86_6
 cp -v $DYNAMO_HOME/ext/lib/win32/PVRTexLib.dll lib/x86-win32/PVRTexLib.dll
 cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/PVRTexLib.dll lib/x86_64-win32/PVRTexLib.dll
 cp -v $DYNAMO_HOME/ext/lib/x86_64-linux/libPVRTexLib.so lib/x86_64-linux/libPVRTexLib.so
-cp -v $DYNAMO_HOME/ext/lib/x86_64-darwin/libPVRTexLib.dylib lib/x86_64-linux/libPVRTexLib.dylib
+cp -v $DYNAMO_HOME/ext/lib/x86_64-darwin/libPVRTexLib.dylib lib/x86_64-darwin/libPVRTexLib.dylib
 
 # Win32 32
 cp -v $DYNAMO_HOME/ext/lib/win32/OpenAL32.dll lib/x86-win32/OpenAL32.dll
@@ -59,9 +59,7 @@ rm -rf tmp
 mkdir -p tmp
 tar xf ../../packages/luajit-2.0.5-win32.tar.gz -C tmp
 tar xf ../../packages/luajit-2.0.5-x86_64-win32.tar.gz -C tmp
-tar xf ../../packages/luajit-2.0.5-linux.tar.gz -C tmp
 tar xf ../../packages/luajit-2.0.5-x86_64-linux.tar.gz -C tmp
-tar xf ../../packages/luajit-2.0.5-darwin.tar.gz -C tmp
 tar xf ../../packages/luajit-2.0.5-x86_64-darwin.tar.gz -C tmp
 
 cp -v tmp/bin/x86_64-linux/luajit libexec/x86_64-linux/luajit

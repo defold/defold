@@ -184,60 +184,59 @@ Since the executable doesn't install anymore, easiest to create a wrapper:
 
 #### Windows
 
-    Binaries are available on this shared [drive](https://drive.google.com/drive/folders/0BxFxQdv6jzsec0RPeEpaOHFCZ2M?usp=sharing)
+Binaries are available on this shared [drive](https://drive.google.com/drive/folders/0BxFxQdv6jzsec0RPeEpaOHFCZ2M?usp=sharing)
 
-    - [Visual C++ 2015 Community](https://www.visualstudio.com/downloads/) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseY3liUDZmd0I3Z1E)
+- [Visual C++ 2015 Community](https://www.visualstudio.com/downloads/) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseY3liUDZmd0I3Z1E)
 
-        We only use Visual Studio 2015. Professional/Enterprise version should also work if you have a proper licence. When installing, don't forget to select VC++ and the 'Windows 8.1 and windows phone' SDK. There is also an optional 3rd party git client.
+	We only use Visual Studio 2015. Professional/Enterprise version should also work if you have a proper licence. When installing, don't forget to select VC++ and the 'Windows 8.1 and windows phone' SDK. There is also an optional 3rd party git client.
 
-    - [Python](https://www.python.org/downloads/windows/) - [download](https://drive.google.com/open?id=0BxFxQdv6jzsedW1iNXFIbGFYLVE)
+- [Python](https://www.python.org/downloads/windows/) - [download](https://drive.google.com/open?id=0BxFxQdv6jzsedW1iNXFIbGFYLVE)
 
-        Install the 32-bit 2.7.12 version. This is latest one known to work. There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually
-        During the build of the 32 bit version of Defold, a python script needs to load a shared defold library (texc). This will not work using a 64 bit python.
-        Building the 64 bit version of Defold begins with building a set of 32 bit libraries.
+	Install the 32-bit 2.7.12 version. This is latest one known to work. There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually
+During the build of the 32 bit version of Defold, a python script needs to load a shared defold library (texc). This will not work using a 64 bit python.
+Building the 64 bit version of Defold begins with building a set of 32 bit libraries.
 
-    - [easy_install/ez_setup](https://pypi.python.org/pypi/setuptools#id3) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseaTdqQXpxbl96bTA)
+- [easy_install/ez_setup](https://pypi.python.org/pypi/setuptools#id3) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseaTdqQXpxbl96bTA)
 
-        Download `ez_setup.py` and run it. Add `C:\Python27\Scripts` (where `easy_install` should now be located) to PATH.
-	
-    - Update setuptools and pip - you might get errors running easy_install when running the install-ext command with build.py otherwise
-	python -m pip install --upgrade pip
-        pip install setuptools --upgrade
+	Download `ez_setup.py` and run it. If `ez_setup.py` fails to connect using https when run, try adding `--insecure` as argument to enable http download. Add `C:\Python27\Scripts` (where `easy_install` should now be located) to PATH.
 
-    - [MSYS/MinGW](http://www.mingw.org/download/installer) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseZ1hKaGJRZE1pM1U)
+	- Update setuptools and pip - you might get errors running easy_install when running the install-ext command with build.py otherwise
 
-        This will get you a shell that behaves like Linux and is much easier to build Defold through.
-        Run the installer and check these packages (binary):
+		python -m pip install --upgrade pip
 
-        * MingW Base System: `mingw32-base`, `mingw-developer-toolkit`
-        * MSYS Base System: `msys-base`, `msys-bash`
+		pip install setuptools --upgrade
 
-        Select the menu option `Installation -> Apply Changes`
+- [MSYS/MinGW](http://www.mingw.org/download/installer) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseZ1hKaGJRZE1pM1U)
+	This will get you a shell that behaves like Linux and is much easier to build Defold through.
+	Run the installer and check these packages (binary):
 
-        You also need to install wget, from a cmd command line run
+	* MingW Base System: `mingw32-base`, `mingw-developer-toolkit`
+	* MSYS Base System: `msys-base`, `msys-bash`
+	* optional packages `msys-dos2unix`
 
-            mingw-get install msys-wget-bin msys-zip msys-unzip
+	Select the menu option `Installation -> Apply Changes`
+	You also need to install wget, from a cmd command line run
 
-            # optional packages [msys-dos2unix]
+		mingw-get install msys-wget-bin msys-zip msys-unzip
 
-    - [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html) - [download](https://drive.google.com/a/king.com/file/d/0BxFxQdv6jzsedTRiazdWaE5NZkU/view?usp=sharing)
+- [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html) - [download](https://drive.google.com/a/king.com/file/d/0BxFxQdv6jzsedTRiazdWaE5NZkU/view?usp=sharing)
 
-    This time the x64 version works fine. Make sure to set the `JAVA_HOME` env variable to the JDK path (for instance `C:\Program Files\Java\jdk1.8.0_112`) and also add the JDK path and JDK path/bin to PATH. If other JRE's appear in your path, make sure they come after the JDK or be brutal and remove them. For instance `C:\ProgramData\Oracle\Java\javapath` needs to be after the JDK path.
+	This time the x64 version works fine. Make sure to set the `JAVA_HOME` env variable to the JDK path (for instance `C:\Program Files\Java\jdk1.8.0_112`) and also add the JDK path and JDK path/bin to PATH. If other JRE's appear in your path, make sure they come after the JDK or be brutal and remove them. For instance `C:\ProgramData\Oracle\Java\javapath` needs to be after the JDK path.
 
-    - [Git](https://git-scm.com/download/win) - [download](https://drive.google.com/a/king.com/file/d/0BxFxQdv6jzseQ0JfX2todndWZmM/view?usp=sharing)
+- [Git](https://git-scm.com/download/win) - [download](https://drive.google.com/a/king.com/file/d/0BxFxQdv6jzseQ0JfX2todndWZmM/view?usp=sharing)
 
-        During install, select the option to not do any CR/LF conversion. If you use ssh (public/private keys) to access github then:
-        - Run Git GUI
-        - Help > Show SSH Key
-        - If you don't have an SSH Key, press Generate Key
-        - Add the public key to your Github profile
-        - You might need to run start-ssh-agent (in `C:\Program Files\Git\cmd`)
+	During install, select the option to not do any CR/LF conversion. If you use ssh (public/private keys) to access github then:
+	- Run Git GUI
+	- Help > Show SSH Key
+	- If you don't have an SSH Key, press Generate Key
+	- Add the public key to your Github profile
+	- You might need to run start-ssh-agent (in `C:\Program Files\Git\cmd`)
 
-        Now you should be able to clone the defold repo from a cmd prompt:
+	Now you should be able to clone the defold repo from a cmd prompt:
 
-                git clone git@github.com:defold/defold.git
+		git clone git@github.com:defold/defold.git
 
-        If this won't work, you can try cloning using Github Desktop.
+	If this won't work, you can try cloning using Github Desktop.
 
 #### OSX
 
@@ -466,10 +465,13 @@ You probably have an incompatible version of the JDK. 1.8_144 works, 1.8_160 doe
 * **lz4** [http://cyan4973.github.io/lz4/](http://cyan4973.github.io/lz4/)  **BSD**
 * **box2d** [http://box2d.org](http://box2d.org) **zlib**
 * **bullet** [http://bulletphysics.org](http://bulletphysics.org) **zlib**
-* **vp8** [http://www.webmproject.org](http://www.webmproject.org) **BSD**
+* **vpx/vp8** [http://www.webmproject.org](http://www.webmproject.org) **BSD**
+* **WebP** [http://www.webmproject.org/license/software/](http://www.webmproject.org/license/software/) **BSD**
 * **openal** [http://kcat.strangesoft.net/openal.html](http://kcat.strangesoft.net/openal.html) **LGPL**
-* **alut** [https://github.com/vancegroup/freealut](https://github.com/vancegroup/freealut) was **BSD** but changed to **LGPL**
 * **md5** Based on md5 in axTLS
+
+### Unused??
+* **alut** [https://github.com/vancegroup/freealut](https://github.com/vancegroup/freealut) was **BSD** but changed to **LGPL**
 * **xxtea-c** [https://github.com/xxtea](https://github.com/xxtea) **MIT**
 
 
@@ -670,9 +672,8 @@ In that web app manager, you can see the console output, take screenshots or sho
 
 **TODO**
 
-* Investigate mutex and dmProfile overhead. Removing DM_PROFILE, DM_COUNTER_HASH, dmMutex::Lock and dmMutex::Unlock from dmMessage::Post resulted in 4x improvement
+* Investigate mutex and dmProfile overhead. Removing DM_PROFILE, DM_COUNTER, dmMutex::Lock and dmMutex::Unlock from dmMessage::Post resulted in 4x improvement
 * Verify that exceptions are disabled
-
 
 ## Asset loading
 

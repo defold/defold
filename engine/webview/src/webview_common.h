@@ -15,6 +15,7 @@ enum CallbackResult
     CALLBACK_RESULT_URL_ERROR = -1,
     CALLBACK_RESULT_EVAL_OK = 1,
     CALLBACK_RESULT_EVAL_ERROR = -2,
+    CALLBACK_RESULT_URL_LOADING = -3,
 };
 
 struct WebViewInfo
@@ -60,6 +61,7 @@ int Platform_Create(lua_State* L, dmWebView::WebViewInfo* info);
 int Platform_Destroy(lua_State* L, int webview_id);
 int Platform_Open(lua_State* L, int webview_id, const char* url, dmWebView::RequestInfo* options);
 int Platform_OpenRaw(lua_State* L, int webview_id, const char* html, dmWebView::RequestInfo* options);
+int Platform_ContinueOpen(lua_State* L, int webview_id, int request_id, const char* url);
 int Platform_Eval(lua_State* L, int webview_id, const char* code);
 int Platform_SetVisible(lua_State* L, int webview_id, int visible);
 int Platform_IsVisible(lua_State* L, int webview_id);
@@ -75,4 +77,3 @@ dmExtension::Result Platform_Update(dmExtension::Params* params);
 } // namespace
 
 #endif // WEBVIEW_COMMON_H
-

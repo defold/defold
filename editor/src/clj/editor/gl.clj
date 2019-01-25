@@ -49,6 +49,25 @@
       (reset! last-make-current-failure now)
       true)))
 
+(def ^:private ignored-message-ids
+  (int-array
+    [;; Software processing fallback warning. The render mode is
+     ;; GL_FEEDBACK or GL_SELECT, neither of which is hardware accelerated.
+     0x20005
+     ;; Buffer object n will use VIDEO memory as the source for buffer
+     ;; object operations
+     0x20071]))
+
+(defn- ignore-some-gl-warnings! [^GLContext context]
+  (.glDebugMessageControl context
+                          GL2/GL_DEBUG_SOURCE_API
+                          GL2/GL_DEBUG_TYPE_OTHER
+                          GL2/GL_DONT_CARE
+                          (count ignored-message-ids)
+                          ignored-message-ids
+                          0
+                          false))
+
 (defn make-current ^GLContext [^GLAutoDrawable drawable]
   (when-let [^GLContext context (.getContext drawable)]
     (try
@@ -58,7 +77,7 @@
             (when (time-to-log?)
               (log/warn :message "Failed to set gl context as current."))
             nil)
-          context))
+          (doto context ignore-some-gl-warnings!)))
       (catch Exception e
         (when (time-to-log?)
           (log/error :exception e))

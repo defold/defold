@@ -407,6 +407,15 @@ namespace dmGameObject
 
     void DeleteCollection(Collection* collection)
     {
+        // We mark the collection as beeing deleted here to avoid component
+        // triggered recursive deletes to add gameobjects to the delayed delete list.
+        //
+        // For example, deleting a Spine component would mark bone gameobjects
+        // to be deleted next frame. However, since DoDeleteAll just deletes all
+        // instances directly, the entries in the "delayed delete list" might already
+        // have been deleted, making it impossible to add the spine bones to this list.
+        collection->m_ToBeDeleted = 1;
+
         FinalCollection(collection);
         DoDeleteAll(collection);
 
@@ -475,6 +484,10 @@ namespace dmGameObject
 
         regist->m_ComponentTypes[regist->m_ComponentTypeCount] = type;
         regist->m_ComponentTypesOrder[regist->m_ComponentTypeCount] = regist->m_ComponentTypeCount;
+        if (dmProfile::g_IsInitialized)
+        {
+            regist->m_ComponentNameHash[regist->m_ComponentTypeCount] = dmProfile::HashCounterName(type.m_Name);
+        }
         regist->m_ComponentTypeCount++;
         return RESULT_OK;
     }
@@ -2387,7 +2400,7 @@ namespace dmGameObject
             uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
             ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
 
-            DM_COUNTER(component_type->m_Name, collection->m_ComponentInstanceCount[update_index]);
+            DM_COUNTER_DYN(component_type->m_Name, collection->m_Register->m_ComponentNameHash[update_index], collection->m_ComponentInstanceCount[update_index]);
 
             // Avoid to call UpdateTransforms for each/all component types.
             if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms) {

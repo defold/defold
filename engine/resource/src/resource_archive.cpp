@@ -583,8 +583,8 @@ namespace dmResourceArchive
         {
             /// --- WRITE RESOURCE START
             // Write buf to resource file before creating EntryData instance
-            uint32_t bytes_written;
-            uint32_t offs;
+            uint32_t bytes_written = 0;
+            uint32_t offs = 0;
             Result write_res = WriteResourceToArchive(archive_container, (uint8_t*)resource->m_Data, resource->m_Count, bytes_written, offs);
             if (write_res != RESULT_OK)
             {
@@ -654,7 +654,12 @@ namespace dmResourceArchive
         char lu_index_path[DMPATH_MAX_PATH];
         char lu_index_tmp_path[DMPATH_MAX_PATH];
 
-        dmSys::GetApplicationSupportPath(proj_id, app_support_path, DMPATH_MAX_PATH);
+        dmSys::Result support_path_result = dmSys::GetApplicationSupportPath(proj_id, app_support_path, DMPATH_MAX_PATH);
+        if (support_path_result != dmSys::RESULT_OK)
+        {
+            dmLogError("Failed get application support path for \"%s\", result = %i", proj_id, support_path_result);
+            return RESULT_NOT_FOUND;
+        }
         dmPath::Concat(app_support_path, "liveupdate.arci", lu_index_path, DMPATH_MAX_PATH);
         CreateFilesIfNotExists(archive_container, lu_index_path);
 
