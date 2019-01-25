@@ -1356,10 +1356,8 @@ namespace dmRender
     int RenderScript_DrawDebug2d(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG2D)))
-            return 0;
-        else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        dmLogOnceWarning("render.draw_debug2d is deprecated and will be removed in future versions, please use render.draw_debug3d instead.");
+        return 0;
     }
 
     /*# sets the view matrix
@@ -2582,7 +2580,7 @@ namespace dmRender
                 result = true;
                 // m_SourceFileName will be null if profiling is not enabled, this is fine
                 // as m_SourceFileName will only be used if profiling is enabled
-                script->m_SourceFileName = dmProfile::Internalize(source->m_Filename);
+                script->m_SourceFileName = DM_INTERNALIZE(source->m_Filename);
             }
             lua_pushnil(L);
             dmScript::SetInstance(L);
@@ -2747,8 +2745,7 @@ bail:
 
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)
     {
-        static dmProfile::Scope* gProfilerRunScriptScope = dmProfile::g_IsInitialized ? dmProfile::AllocateScope("Script") : 0;
-        DM_PROFILE_SCOPE(gProfilerRunScriptScope, "RenderScript");
+        DM_PROFILE(Script, "RenderScript");
 
         RenderScriptResult result = RENDER_SCRIPT_RESULT_OK;
         HRenderScript script = script_instance->m_RenderScript;
@@ -2766,6 +2763,7 @@ bail:
 
             int arg_count = 1;
 
+            const char* message_name = 0;
             if (script_function == RENDER_SCRIPT_FUNCTION_ONMESSAGE)
             {
                 arg_count = 4;
@@ -2777,28 +2775,30 @@ bail:
                     dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
                     // TODO: setjmp/longjmp here... how to handle?!!! We are not running "from lua" here
                     // lua_cpcall?
+                    message_name = descriptor->m_Name;
                     dmScript::PushDDF(L, descriptor, (const char*)message->m_Data, true);
-                }
-                else if (message->m_DataSize > 0)
-                {
-                    dmScript::PushTable(L, (const char*)message->m_Data, message->m_DataSize);
                 }
                 else
                 {
-                    lua_newtable(L);
+                    if (dmProfile::g_IsInitialized)
+                    {
+                        // Try to find the message name via id and reverse hash
+                        message_name = (const char*)dmHashReverse64(message->m_Id, 0);
+                    }
+                    if (message->m_DataSize > 0)
+                    {
+                        dmScript::PushTable(L, (const char*)message->m_Data, message->m_DataSize);
+                    }
+                    else
+                    {
+                        lua_newtable(L);
+                    }
                 }
                 dmScript::PushURL(L, message->m_Sender);
             }
 
-            const char* scope_name = 0;
-            if (dmProfile::g_IsInitialized)
             {
-                char buffer[128];
-                DM_SNPRINTF(buffer, sizeof(buffer), "%s@%s", RENDER_SCRIPT_FUNCTION_NAMES[script_function], script->m_SourceFileName);
-                scope_name = dmProfile::Internalize(buffer);
-            }
-            {
-                DM_PROFILE_SCOPE(gProfilerRunScriptScope, scope_name);
+                DM_PROFILE_FMT(Script, "%s%s%s%s@%s", RENDER_SCRIPT_FUNCTION_NAMES[script_function], message_name ? "[" : "", message_name ? message_name : "", message_name ? "]" : "", script->m_SourceFileName);
                 if (dmScript::PCall(L, arg_count, 0) != 0)
                 {
                     assert(top == lua_gettop(L));
