@@ -8,44 +8,23 @@
 
 (set! *warn-on-reflection* true)
 
-(defmulti ^:private replay-in-graph?
+(defmulti replay-in-graph?
   (fn [_graph-id transaction-step]
-    (case (:type transaction-step)
-      (:label :sequence-label)
-      :always-repeated-transaction-step
+    (let [type (:type transaction-step)]
+      (case type
+        (:become :clear-property :delete-node :invalidate :update-property)
+        :node-id-transaction-step
 
-      :callback
-      :always-ignored-transaction-step
+        (:connect :disconnect)
+        :connection-transaction-step
 
-      :update-graph-value
-      :graph-id-transaction-step
+        (:new-override :override)
+        :root-id-transaction-step
 
-      (:become :clear-property :delete-node :invalidate :update-property)
-      :node-id-transaction-step
+        type))))
 
-      (:new-override :override)
-      :root-id-transaction-step
-
-      (:connect :disconnect)
-      :connection-transaction-step
-
-      :create-node
-      :create-node-transaction-step
-
-      :override-node
-      :override-node-transaction-step
-
-      :transfer-overrides
-      :transfer-overrides-transaction-step)))
-
-(defmethod replay-in-graph? :always-repeated-transaction-step [_graph-id _transaction-step]
-  true)
-
-(defmethod replay-in-graph? :always-ignored-transaction-step [_graph-id _transaction-step]
+(defmethod replay-in-graph? :default [_graph-id _transaction-step]
   false)
-
-(defmethod replay-in-graph? :graph-id-transaction-step [graph-id transaction-step]
-  (= graph-id (:graph-id transaction-step)))
 
 (defmethod replay-in-graph? :node-id-transaction-step [graph-id transaction-step]
   (= graph-id (gt/node-id->graph-id (:node-id transaction-step))))
@@ -58,40 +37,39 @@
      (gt/node-id->graph-id (:source-id transaction-step))
      (gt/node-id->graph-id (:target-id transaction-step))))
 
-(defmethod replay-in-graph? :create-node-transaction-step [graph-id transaction-step]
+(defmethod replay-in-graph? :create-node [graph-id transaction-step]
   (= graph-id (gt/node-id->graph-id (gt/node-id (:node transaction-step)))))
 
-(defmethod replay-in-graph? :override-node-transaction-step [graph-id transaction-step]
+(defmethod replay-in-graph? :override-node [graph-id transaction-step]
   (= graph-id (gt/node-id->graph-id (:original-node-id transaction-step))))
 
-(defmethod replay-in-graph? :transfer-overrides-transaction-step [graph-id transaction-step]
+(defmethod replay-in-graph? :transfer-overrides [graph-id transaction-step]
   (= graph-id (-> transaction-step :from-id->to-id ffirst gt/node-id->graph-id)))
+
+(defmethod replay-in-graph? :update-graph-value [graph-id transaction-step]
+  (= graph-id (:graph-id transaction-step)))
 
 ;; -----------------------------------------------------------------------------
 
-(defrecord HistoryEntry [^long undo-group graph-after outputs-modified transaction-steps])
+(defrecord HistoryEntry [^long undo-group label sequence-label graph-after outputs-modified transaction-steps])
 
 (defn make-history [graph]
   (assert (ig/graph? graph))
-  [(->HistoryEntry 0 graph #{} [])])
+  [(->HistoryEntry 0 nil nil graph #{} [])])
 
 (defn history-sequence-label [history]
   (let [^HistoryEntry history-entry (peek history)]
     (when (zero? (.undo-group history-entry))
-      (:tx-sequence-label (.graph-after history-entry)))))
-
-(defonce ^:private ^AtomicLong undo-group-counter (AtomicLong. 0))
+      (.sequence-label history-entry))))
 
 (defn find-undoable-entry [history]
   (loop [history-entry-index (dec (count history))
-         current-undo-group 0]
+         current-undo-group nil]
     (when (pos? history-entry-index)
       (let [^HistoryEntry history-entry (history history-entry-index)
             history-entry-undo-group (.undo-group history-entry)]
         (if (zero? history-entry-undo-group)
-          {history-entry-index (if (zero? current-undo-group)
-                                 (.incrementAndGet undo-group-counter)
-                                 current-undo-group)}
+          {history-entry-index current-undo-group}
           (recur (dec history-entry-index)
                  history-entry-undo-group))))))
 
@@ -110,19 +88,38 @@
             (recur (dec history-entry-index)
                    history-entry-undo-group)))))))
 
+(defn- process-tx-data [tx-data graph-id]
+  (loop [unfiltered-transaction-steps (flatten tx-data)
+         filtered-transaction-steps (transient [])
+         label nil
+         sequence-label nil]
+    (if-some [{:keys [type] :as transaction-step} (first unfiltered-transaction-steps)]
+      (recur (next unfiltered-transaction-steps)
+             (if (replay-in-graph? graph-id transaction-step)
+               (conj! filtered-transaction-steps transaction-step)
+               filtered-transaction-steps)
+             (if (= :label type)
+               (:label transaction-step)
+               label)
+             (if (= :sequence-label type)
+               (:label transaction-step)
+               sequence-label))
+      {:label label
+       :sequence-label sequence-label
+       :transaction-steps (persistent! filtered-transaction-steps)})))
+
 (defn write-history [history graph-after outputs-modified tx-data]
-  (let [graph-id (:_graph-id graph-after)
-        merge-into-previous-history-entry? (some-> graph-after :tx-sequence-label (= (history-sequence-label history)))
-        xform-tx-data->transaction-steps (comp (mapcat flatten)
-                                               (filter (partial replay-in-graph? graph-id)))]
+  (let [{:keys [label sequence-label transaction-steps]} (process-tx-data tx-data (:_graph-id graph-after))
+        merge-into-previous-history-entry? (some-> sequence-label (= (history-sequence-label history)))]
     (if merge-into-previous-history-entry?
-      (let [^HistoryEntry previous-history-entry (peek history)
-            merged-transaction-steps (into (:transaction-steps previous-history-entry) xform-tx-data->transaction-steps tx-data)
-            merged-outputs-modified (into (:outputs-modified previous-history-entry) outputs-modified)
-            merged-history-entry (->HistoryEntry (.undo-group previous-history-entry) graph-after merged-outputs-modified merged-transaction-steps)]
-        (assoc history (dec (count history)) merged-history-entry))
-      (let [transaction-steps (into [] xform-tx-data->transaction-steps tx-data)
-            history-entry (->HistoryEntry 0 graph-after outputs-modified transaction-steps)]
+      (let [last-history-entry-index (dec (count history))
+            merged-history-entry (cond-> (peek history)
+                                         (some? label) (assoc :label label)
+                                         (some? sequence-label) (assoc :sequence-label sequence-label)
+                                         (seq outputs-modified) (update :outputs-modified into outputs-modified)
+                                         (seq transaction-steps) (update :transaction-steps into transaction-steps))]
+        (assoc history last-history-entry-index merged-history-entry))
+      (let [history-entry (->HistoryEntry 0 label sequence-label graph-after outputs-modified transaction-steps)]
         (conj history history-entry)))))
 
 (defn rewind-history [history basis history-entry-index]
@@ -138,26 +135,32 @@
      :history rewound-history
      :outputs-to-refresh outputs-to-refresh}))
 
+(defonce ^:private ^AtomicLong undo-group-counter (AtomicLong. 0))
+
 (defn- replay-history [rewound-history rewound-basis history undo-group-by-history-entry-index node-id-generators override-id-generator]
   (loop [altered-basis rewound-basis
          altered-history (transient rewound-history)
          outputs-to-refresh (transient #{})
          history-entry-index (count rewound-history)]
     (if-some [^HistoryEntry history-entry (get history history-entry-index)]
-      (let [undo-group (get undo-group-by-history-entry-index history-entry-index (.undo-group history-entry))
-            graph-id (:_graph-id (:graph-after history-entry))
-            transaction-steps (:transaction-steps history-entry)]
+      (let [graph-id (:_graph-id (.graph-after history-entry))
+            label (.label history-entry)
+            sequence-label (.sequence-label history-entry)
+            transaction-steps (.transaction-steps history-entry)
+            ^long undo-group (or (get undo-group-by-history-entry-index history-entry-index
+                                      (.undo-group history-entry))
+                                 (.incrementAndGet undo-group-counter))]
         (if (zero? undo-group)
           (let [transaction-context (it/new-transaction-context altered-basis node-id-generators override-id-generator)
                 {:keys [basis outputs-modified]} (it/transact* transaction-context transaction-steps)
                 altered-graph (-> basis :graphs (get graph-id))
-                altered-history-entry (->HistoryEntry 0 altered-graph outputs-modified transaction-steps)]
+                altered-history-entry (->HistoryEntry 0 label sequence-label altered-graph outputs-modified transaction-steps)]
             (recur basis
                    (conj! altered-history altered-history-entry)
                    (reduce conj! outputs-to-refresh outputs-modified)
                    (inc history-entry-index)))
           (let [altered-graph (-> altered-basis :graphs (get graph-id))
-                altered-history-entry (->HistoryEntry undo-group altered-graph #{} transaction-steps)]
+                altered-history-entry (->HistoryEntry undo-group label sequence-label altered-graph #{} transaction-steps)]
             (recur altered-basis
                    (conj! altered-history altered-history-entry)
                    outputs-to-refresh

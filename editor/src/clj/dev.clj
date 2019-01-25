@@ -7,6 +7,8 @@
             [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
             [internal.graph :as ig]
+            [internal.history :as history]
+            [internal.system :as is]
             [internal.util :as util])
   (:import [clojure.lang MapEntry]
            [javafx.stage Window]))
@@ -16,11 +18,16 @@
 (defn- pair [a b]
   (MapEntry/create a b))
 
+(defn system []
+  (deref g/*the-system*))
+
 (defn workspace []
   0)
 
 (defn project []
   (ffirst (g/targets-of (workspace) :resource-types)))
+
+(def project-graph (comp g/node-id->graph-id project))
 
 (defn app-view []
   (ffirst (g/targets-of (project) :_node-id)))
@@ -124,6 +131,22 @@
 
 (defn console-view []
   (-> (view-of-type console/ConsoleNode) (g/targets-of :lines) ffirst))
+
+(defn history-ref []
+  (is/graph-history (system) (project-graph)))
+
+(def history (comp deref history-ref))
+
+(defn history-log []
+  (mapv (juxt :undo-group :label)
+        (history)))
+
+(defn update-history! [update-fn]
+  (#'is/update-history! (system) (project-graph) update-fn))
+
+(defn revert-history! []
+  (update-history! (fn [history basis]
+                     (history/rewind-history history basis 0))))
 
 (defn- node-value-type-symbol [node-value-type]
   (symbol (if-some [^Class class (:class (deref node-value-type))]

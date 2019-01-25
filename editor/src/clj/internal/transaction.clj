@@ -206,6 +206,8 @@
   such as [[connect]] and [[update-property]]."
   (fn [ctx m] (:type m)))
 
+(defmethod perform :default [ctx _] ctx)
+
 (def ^:private ctx-disconnect)
 
 (defn- ctx-disconnect-arc [ctx arc]
@@ -648,14 +650,6 @@
       (update-in [:basis :graphs graph-id :graph-values] #(apply fn % args))
       (update :graphs-modified conj graph-id)))
 
-(defmethod perform :label
-  [ctx {:keys [label]}]
-  (assoc ctx :label label))
-
-(defmethod perform :sequence-label
-  [ctx {:keys [label]}]
-  (assoc ctx :sequence-label label))
-
 (defmethod perform :invalidate
   [ctx {:keys [node-id] :as tx-data}]
   (if (gt/node-by-id-at (:basis ctx) node-id)
@@ -684,17 +678,6 @@
 (defn- mark-nodes-modified
   [{:keys [nodes-affected] :as ctx}]
   (assoc ctx :nodes-modified (set (keys nodes-affected))))
-
-(defn- map-vals-bargs
-  [m f]
-  (util/map-vals f m))
-
-(defn- apply-tx-label
-  [{:keys [basis label sequence-label] :as ctx}]
-  (cond-> (update-in ctx [:basis :graphs] map-vals-bargs #(assoc % :tx-sequence-label sequence-label))
-
-    label
-    (update-in [:basis :graphs] map-vals-bargs #(assoc % :tx-label label))))
 
 (def tx-report-keys [:basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :label :sequence-label])
 
@@ -745,5 +728,4 @@
       mark-nodes-modified
       update-successors
       trace-dependencies
-      apply-tx-label
       finalize-update))

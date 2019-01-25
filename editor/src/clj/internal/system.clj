@@ -180,10 +180,6 @@
                                                   {:_graph-id graph-id :start-tx start-tx :sidereal-tx sidereal-tx}))
                                   (let [meaningful-change? (contains? significantly-modified-graphs graph-id)
                                         graph-after (update graph :tx-id util/safe-inc)
-                                        graph-after (if meaningful-change?
-                                                      graph-after
-                                                      (let [prev-tx-sequence-label (get-in system [:graphs graph-id :tx-sequence-label])]
-                                                        (assoc graph-after :tx-sequence-label prev-tx-sequence-label)))
                                         system-after (assoc-in system [:graphs graph-id] graph-after)
                                         history-before (graph-history system graph-id)]
                                     (if (or (nil? history-before)
