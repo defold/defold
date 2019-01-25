@@ -186,7 +186,6 @@ namespace dmSound
         uint16_t                m_NextOutBuffer;
 
         bool                    m_IsDeviceStarted;
-        bool                    m_HasPlatformFocus;
         bool                    m_IsPhoneCallActive;
     };
 
@@ -279,7 +278,6 @@ namespace dmSound
         g_SoundSystem = new SoundSystem();
         SoundSystem* sound = g_SoundSystem;
         sound->m_IsDeviceStarted = false;
-        sound->m_HasPlatformFocus = false;
         sound->m_IsPhoneCallActive = false;
         sound->m_DeviceType = device_type;
         sound->m_Device = device;
@@ -345,15 +343,6 @@ namespace dmSound
 
     Result Finalize()
     {
-        if (g_SoundSystem)
-        {
-            if (g_SoundSystem->m_HasPlatformFocus)
-            {
-                PlatformReleaseAudioFocus();
-                g_SoundSystem->m_HasPlatformFocus = false;
-            }
-        }
-
         PlatformFinalize();
 
         Result result = RESULT_OK;
@@ -1190,7 +1179,7 @@ namespace dmSound
         else if (sound->m_IsPhoneCallActive && !currentIsPhoneCallActive)
         {
             sound->m_IsPhoneCallActive = false;
-            if (active_instance_count == 0 && sound->m_HasPlatformFocus == false)
+            if (active_instance_count == 0 && sound->m_IsDeviceStarted == false)
             {
                 return RESULT_NOTHING_TO_PLAY;
             }
@@ -1202,14 +1191,14 @@ namespace dmSound
             return RESULT_OK;
         }
 
-        if (active_instance_count == 0 && sound->m_HasPlatformFocus == false)
+        if (active_instance_count == 0 && sound->m_IsDeviceStarted == false)
         {
             return RESULT_NOTHING_TO_PLAY;
         }
 
         if (active_instance_count == 0)
         {
-            if (sound->m_HasPlatformFocus == true && sound->m_IsDeviceStarted)
+            if (sound->m_IsDeviceStarted)
             {
                 // DEF-3512 Wait with releasing audio focus until all our queued buffers have played, if any queued buffers are
                 // still playing we will get the wrong result in isMusicPlaying on android if we release audio focus to soon
@@ -1217,20 +1206,8 @@ namespace dmSound
                 uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
                 if (free_slots == SOUND_OUTBUFFER_COUNT)
                 {
-                    bool ok = PlatformReleaseAudioFocus();
-                    if (ok)
-                    {
-                        sound->m_HasPlatformFocus = false;
-                        if (sound->m_IsDeviceStarted)
-                        {
-                            sound->m_DeviceType->m_DeviceStop(sound->m_Device);
-                            sound->m_IsDeviceStarted = false;
-                        }
-                    }
-                    else
-                    {
-                        dmLogWarning("Failed to release audio focus");
-                    }
+                    sound->m_DeviceType->m_DeviceStop(sound->m_Device);
+                    sound->m_IsDeviceStarted = false;
                 }
             }
             return RESULT_NOTHING_TO_PLAY;
@@ -1241,23 +1218,10 @@ namespace dmSound
         // DEF-3138 If you queue silent audio to the device it will still be registered by Android
         // as music is playing, therefore we need to acquire the audio focus even if the resulting
         // sound of our mix is silence.
-        if (sound->m_HasPlatformFocus == false)
+        if (sound->m_IsDeviceStarted == false)
         {
-            if (!sound->m_IsDeviceStarted)
-            {
-                sound->m_DeviceType->m_DeviceRestart(sound->m_Device);
-                sound->m_IsDeviceStarted = true;
-            }
-            bool ok = PlatformAcquireAudioFocus();
-            if (ok)
-            {
-                sound->m_HasPlatformFocus = true;
-            }
-            else
-            {
-                dmLogWarning("Failed to acquire audio focus.");
-                return RESULT_NOTHING_TO_PLAY;
-            }
+            sound->m_DeviceType->m_DeviceStart(sound->m_Device);
+            sound->m_IsDeviceStarted = true;
         }
 
         uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
