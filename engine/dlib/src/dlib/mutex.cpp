@@ -19,9 +19,10 @@ namespace dmMutex
 
         assert(ret == 0);
 
-        pthread_mutex_t* mutex = new pthread_mutex_t;
+        OpaqueMutex* mutex = new OpaqueMutex();
+        mutex->m_NativeHandle = new pthread_mutex_t;
 
-        ret = pthread_mutex_init(mutex, &attr);
+        ret = pthread_mutex_init(mutex->m_NativeHandle, &attr);
         assert(ret == 0);
         ret = pthread_mutexattr_destroy(&attr);
         assert(ret == 0);
@@ -31,54 +32,65 @@ namespace dmMutex
 
     void Delete(Mutex mutex)
     {
-        int ret = pthread_mutex_destroy(mutex);
+        assert(mutex);
+        int ret = pthread_mutex_destroy(mutex->m_NativeHandle);
         assert(ret == 0);
+        delete mutex->m_NativeHandle;
         delete mutex;
     }
 
     void Lock(Mutex mutex)
     {
-        int ret = pthread_mutex_lock(mutex);
+        assert(mutex);
+        int ret = pthread_mutex_lock(mutex->m_NativeHandle);
         assert(ret == 0);
     }
 
     bool TryLock(Mutex mutex)
     {
-        return (pthread_mutex_trylock(mutex) == 0) ? true : false;
+        assert(mutex);
+        return (pthread_mutex_trylock(mutex->m_NativeHandle) == 0) ? true : false;
     }
 
     void Unlock(Mutex mutex)
     {
-        int ret = pthread_mutex_unlock(mutex);
+        assert(mutex);
+        int ret = pthread_mutex_unlock(mutex->m_NativeHandle);
         assert(ret == 0);
     }
 
 #elif defined(_WIN32)
     Mutex New()
     {
-        CRITICAL_SECTION* mutex = new CRITICAL_SECTION;
-        InitializeCriticalSection(mutex);
+        OpaqueMutex* mutex = new OpaqueMutex();
+        mutex->m_NativeHandle = new CRITICAL_SECTION;
+        InitializeCriticalSection(mutex->m_NativeHandle);
         return mutex;
     }
 
     void Delete(Mutex mutex)
     {
-        DeleteCriticalSection(mutex);
+        assert(mutex);
+        DeleteCriticalSection(mutex->m_NativeHandle);
+        delete mutex->m_NativeHandle;
         delete mutex;
     }
 
     void Lock(Mutex mutex)
     {
-        EnterCriticalSection(mutex);
+        assert(mutex);
+        EnterCriticalSection(mutex->m_NativeHandle);
     }
 
     bool TryLock(Mutex mutex)
     {
-        return (TryEnterCriticalSection(mutex)) == 0 ? false : true;
+        assert(mutex);
+        return (TryEnterCriticalSection(mutex->m_NativeHandle)) == 0 ? false : true;
     }
 
-    void Unlock(Mutex mutex)
+    void Unlock(Mutex mutex->m_NativeHandle)
     {
+        assert(mutex);
         LeaveCriticalSection(mutex);
     }
 
