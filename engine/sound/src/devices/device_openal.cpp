@@ -141,6 +141,12 @@ namespace dmDeviceOpenAL
     dmSound::Result DeviceOpenALQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
     {
         OpenALDevice* openal = (OpenALDevice*) device;
+        ALCcontext* current_context = alcGetCurrentContext();
+        CheckAndPrintError();
+        if (current_context != openal->m_Context)
+        {
+            return dmSound::RESULT_INIT_ERROR;
+        }
         ALuint buffer = openal->m_Buffers[0];
         openal->m_Buffers.EraseSwap(0);
         alBufferData(buffer, AL_FORMAT_STEREO16, samples, sample_count * 2 * sizeof(int16_t), openal->m_MixRate);
@@ -183,7 +189,7 @@ namespace dmDeviceOpenAL
         info->m_MixRate = openal->m_MixRate;
     }
 
-    void DeviceOpenALRestart(dmSound::HDevice device)
+    void DeviceOpenALStart(dmSound::HDevice device)
     {
         OpenALDevice* openal = (OpenALDevice*) device;
         if (!alcMakeContextCurrent(openal->m_Context)) {
@@ -198,6 +204,6 @@ namespace dmDeviceOpenAL
         }
     }
 
-    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenALOpen, DeviceOpenALClose, DeviceOpenALQueue, DeviceOpenALFreeBufferSlots, DeviceOpenALDeviceInfo, DeviceOpenALRestart, DeviceOpenALStop);
+    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenALOpen, DeviceOpenALClose, DeviceOpenALQueue, DeviceOpenALFreeBufferSlots, DeviceOpenALDeviceInfo, DeviceOpenALStart, DeviceOpenALStop);
 }
 
