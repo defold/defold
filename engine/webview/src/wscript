@@ -6,8 +6,10 @@ def configure(conf):
     pass
 
 def build(bld):
-    embed_source = ''
     source = ['webview_null.cpp']
+
+    if re.match('arm.*?darwin', bld.env.PLATFORM) or re.match('.*?android', bld.env.PLATFORM):
+        source = ['webview_mobile.cpp']
 
     webview = bld.new_task_gen(features = 'cxx cstaticlib',
                                includes = '.',

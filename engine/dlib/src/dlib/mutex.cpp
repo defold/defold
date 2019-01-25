@@ -88,10 +88,10 @@ namespace dmMutex
         return (TryEnterCriticalSection(mutex->m_NativeHandle)) == 0 ? false : true;
     }
 
-    void Unlock(Mutex mutex->m_NativeHandle)
+    void Unlock(Mutex mutex)
     {
         assert(mutex);
-        LeaveCriticalSection(mutex);
+        LeaveCriticalSection(mutex->m_NativeHandle);
     }
 
 #else
