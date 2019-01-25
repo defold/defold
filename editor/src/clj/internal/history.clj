@@ -71,22 +71,13 @@
         (if (zero? history-entry-undo-group)
           {history-entry-index current-undo-group}
           (recur (dec history-entry-index)
-                 history-entry-undo-group))))))
+                 (or current-undo-group history-entry-undo-group)))))))
 
 (defn find-redoable-entry [history]
-  (loop [history-entry-index (dec (count history))
-         current-undo-group 0]
-    (when-not (neg? history-entry-index)
-      (let [^HistoryEntry history-entry (history history-entry-index)
-            history-entry-undo-group (.undo-group history-entry)]
-        (if (zero? current-undo-group)
-          (when-not (zero? history-entry-undo-group)
-            (recur (dec history-entry-index)
-                   history-entry-undo-group))
-          (if (not= current-undo-group history-entry-undo-group)
-            {(inc history-entry-index) 0}
-            (recur (dec history-entry-index)
-                   history-entry-undo-group)))))))
+  (let [current-undo-group (.undo-group ^HistoryEntry (peek history))]
+    (when-not (zero? current-undo-group)
+      (let [history-entry-index (util/first-index-where #(= current-undo-group (.undo-group ^HistoryEntry %)) history)]
+        {history-entry-index 0}))))
 
 (defn- process-tx-data [tx-data graph-id]
   (loop [unfiltered-transaction-steps (flatten tx-data)
