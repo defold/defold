@@ -1,12 +1,12 @@
 (ns editor.build-errors-view
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.defold-project :as project]
+            [editor.handler :as handler]
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.ui :as ui]
-            [editor.workspace :as workspace]
-            [editor.handler :as handler]
-            [clojure.string :as string])
+            [editor.workspace :as workspace])
   (:import [clojure.lang MapEntry PersistentQueue]
            [java.util Collection]
            [javafx.collections ObservableList]
@@ -185,7 +185,7 @@
 (defn- error-line-for-clipboard [error]
   (let [message (:message error)
         line    (if-let [line (:line error)]
-                  (str "Line " line \:)
+                  (str "Line " line ": ")
                   "")]
     (str line message)))
 
@@ -193,11 +193,12 @@
   (let [children    (:children selection)
         resource    (or (get-in selection [:value :resource])
                         (get-in selection [:parent :resource]))
-        proj-path   (if (resource/file-resource? resource)
-                      (str (resource/proj-path resource) "\n\t")
+        next-line   (str \newline \tab)
+        proj-path   (if-let [res-path (not-empty (resource/resource->proj-path resource))]
+                      (str res-path next-line)
                       "")
         error-lines (if (not-empty children)
-                      (string/join "\n\t" (map error-line-for-clipboard children))
+                      (string/join next-line (map error-line-for-clipboard children))
                       (error-line-for-clipboard selection))]
     (str proj-path error-lines)))
 
@@ -205,12 +206,12 @@
   (active? [selection] (not-empty selection))
   (enabled? [selection] (not-empty selection))
   (run [build-errors-view]
-    (let [clip-board (Clipboard/getSystemClipboard)
+    (let [clipboard (Clipboard/getSystemClipboard)
           content    (ClipboardContent.)
           selection  (first (ui/selection build-errors-view))
           error-text (error-text-for-clipboard selection)]
       (.putString content error-text)
-      (.setContent clip-board content))))
+      (.setContent clipboard content))))
 
 (ui/extend-menu ::build-errors-menu nil
                 [{:label "Copy"
