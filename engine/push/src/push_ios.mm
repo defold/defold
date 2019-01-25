@@ -573,7 +573,16 @@ int Push_Schedule(lua_State* L)
     NSMutableDictionary* userdata = [NSMutableDictionary dictionaryWithCapacity:2];
     userdata[@"id"] = [NSNumber numberWithInt:g_Push.m_ScheduledID];
     if (top > 3) {
-        userdata[@"payload"] = [NSString stringWithUTF8String:luaL_checkstring(L, 4)];
+        const char* payload = luaL_checkstring(L, 4);
+        userdata[@"payload"] = [NSString stringWithUTF8String:payload];
+
+        // Verify that the payload is valid and can be delivered later on.
+        char payload_err[128];
+        if (!dmPush::VerifyPayload(L, payload, payload_err, sizeof(payload_err))) {
+            lua_pushnil(L);
+            lua_pushstring(L, payload_err);
+            return 2;
+        }
     } else {
         userdata[@"payload"] = nil;
     }
