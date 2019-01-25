@@ -32,7 +32,6 @@ public class SoundManager {
 
     private TelephonyManager telephonyManager = null;
     private AudioManager audioManager = null;
-    private boolean hasAudioFocus = false;
 
     public SoundManager(Activity activity) {
         try {
@@ -42,9 +41,6 @@ public class SoundManager {
             // We no longer acquire audio focus since that kills any currently playing music which is not
             // what you want if your game just plays sound effects. And the android API only has audio focus
             // for music (the closest type available).
-            // We still keep the audio focus state (as a bool) so we can more accurately determine if an other
-            // source is playing music.
-            this.hasAudioFocus = false;
 
             // DEF-3316
             // On older devices (v5 and below) with apps not specifying the READ_PHONE_STATE permission, the call to
@@ -69,24 +65,11 @@ public class SoundManager {
         }
     }
 
-    public boolean acquireAudioFocus() {
-        this.hasAudioFocus = true;
-        return true;
-    }
-
     public boolean isMusicPlaying() {
         try {
             if (this.audioManager != null) {
                 if (this.audioManager.isMusicActive()) {
-                    // Sound is playing on the device
-                    if (this.hasAudioFocus) {
-                        // If everyone is respecting audio focus, our application
-                        // should be responsible for the sound.
-                        return false;
-                    } else {
-                        // Another application is responsible for the sound.
-                        return true;
-                    }
+                    return true;
                 } else {
                     // No sound is playing on the device.
                     return false;
@@ -107,11 +90,6 @@ public class SoundManager {
 
     public void updatePhoneCallState(int state) {
         this.setPhoneCallState(isPhoneCallActive(state) ? 1 : 0);
-    }
-
-    public boolean releaseAudioFocus() {
-        this.hasAudioFocus = false;
-        return true;
     }
 
 }
