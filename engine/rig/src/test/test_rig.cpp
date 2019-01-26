@@ -1267,9 +1267,9 @@ dmRig::RigPlayback playback_modes_all[] = {
     dmRig::PLAYBACK_LOOP_FORWARD,   dmRig::PLAYBACK_ONCE_BACKWARD,  dmRig::PLAYBACK_LOOP_BACKWARD
 };
 
-INSTANTIATE_TEST_CASE_P(Rig, RigInstanceCursorForwardTest, jc_test_values_in(playback_modes_forward));
-INSTANTIATE_TEST_CASE_P(Rig, RigInstanceCursorBackwardTest, jc_test_values_in(playback_modes_backward));
-INSTANTIATE_TEST_CASE_P(Rig, RigInstanceCursorPingpongTest, jc_test_values_in(playback_modes_pingpong));
+INSTANTIATE_TEST_CASE_P(Rig, RigInstanceCursorForwardTest, jc_test_values(playback_modes_forward));
+INSTANTIATE_TEST_CASE_P(Rig, RigInstanceCursorBackwardTest, jc_test_values(playback_modes_backward));
+INSTANTIATE_TEST_CASE_P(Rig, RigInstanceCursorPingpongTest, jc_test_values(playback_modes_pingpong));
 
 class RigInstanceTest : public RigContextTest
 {
@@ -2494,7 +2494,7 @@ PlaybackCursorTestParams playback_cursor_test_params[] = {
     {dmRig::PLAYBACK_ONCE_BACKWARD, 0.0f, 1.0f, 0.0f},
     {dmRig::PLAYBACK_ONCE_BACKWARD, 0.5f, 0.5f, 0.0f}
 };
-INSTANTIATE_TEST_CASE_P(Rig, PlaybackCursorTest, jc_test_values_in(playback_cursor_test_params));
+INSTANTIATE_TEST_CASE_P(Rig, PlaybackCursorTest, jc_test_values(playback_cursor_test_params));
 
 #undef ASSERT_VEC3
 #undef ASSERT_VEC4

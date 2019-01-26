@@ -185,7 +185,7 @@ ChunknameParam chunkname_tests[] = {
     {"abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script", "=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script"},
     {"aabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script", "=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script"},
 };
-INSTANTIATE_TEST_CASE_P(Test, ChunknameTests, jc_test_values_in(chunkname_tests));
+INSTANTIATE_TEST_CASE_P(Test, ChunknameTests, jc_test_values(chunkname_tests));
 
 int main(int argc, char **argv)
 {

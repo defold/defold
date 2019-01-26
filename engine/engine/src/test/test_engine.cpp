@@ -294,7 +294,7 @@ DrawCountParams draw_count_params[] =
 {
     {"/render/drawcall.projectc", 2, 2},    // 1 draw call for sprite, 1 for debug physics
 };
-INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_params));
+INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values(draw_count_params));
 
 // Test that we can reload a full collection containing a spine scene
 // while the first gameobject has been already been deleted (marked for
