@@ -4,7 +4,7 @@
 #include <sys/stat.h>
 #include <string>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include "../dlib/path.h"
 
 TEST(dmPathNormalize, Basic)

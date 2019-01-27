@@ -3,7 +3,7 @@
 #include <set>
 #include <vector>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/log.h>
@@ -441,7 +441,7 @@ TEST_P(dmSoundVerifyTest, NoEarlyBailOnSoundInstances)
 
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyTest,
                         dmSoundVerifyTest,
-                        ::testing::Values(
+                        jc_test_values(
                                 TestParams("loopback",
                                             MONO_TONE_440_22050_44100_WAV,
                                             MONO_TONE_440_22050_44100_WAV_SIZE,
@@ -631,7 +631,7 @@ TEST_P(dmSoundTestGroupRampTest, GroupRamp)
 
 INSTANTIATE_TEST_CASE_P(dmSoundTestGroupRampTest,
         dmSoundTestGroupRampTest,
-                        ::testing::Values(
+                        jc_test_values(
                                 TestParams("loopback",
                                             MONO_DC_44100_88200_WAV,
                                             MONO_DC_44100_88200_WAV_SIZE,
@@ -754,7 +754,7 @@ TEST_P(dmSoundTestPlayTest, Play)
 
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest,
                         dmSoundVerifyOggTest,
-                        ::testing::Values(
+                        jc_test_values(
                                 TestParams("loopback",
                                             MONO_RESAMPLE_FRAMECOUNT_16000_OGG,
                                             MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE,
@@ -767,7 +767,7 @@ INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest,
 
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTest,
                         dmSoundTestPlayTest,
-                        ::testing::Values(
+                        jc_test_values(
                                 TestParams("default",
                                             MONO_TONE_440_32000_64000_WAV,
                                             MONO_TONE_440_32000_64000_WAV_SIZE,
@@ -838,7 +838,7 @@ TEST_P(dmSoundVerifyWavTest, Mix)
 
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyWavTest,
                         dmSoundVerifyWavTest,
-                        ::testing::Values(
+                        jc_test_values(
                                 TestParams("loopback",
                                             DEF2938_WAV,
                                             DEF2938_WAV_SIZE,
@@ -992,7 +992,7 @@ TEST_P(dmSoundMixerTest, Mixer)
 
 INSTANTIATE_TEST_CASE_P(dmSoundMixerTest,
                         dmSoundMixerTest,
-                        ::testing::Values(
+                        jc_test_values(
                                 TestParams2("loopback",
                                             MONO_TONE_440_22050_44100_WAV,
                                             MONO_TONE_440_22050_44100_WAV_SIZE,

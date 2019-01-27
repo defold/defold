@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <string.h>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include "../dlib/socket.h"
 #include "../dlib/thread.h"
 #include "../dlib/time.h"

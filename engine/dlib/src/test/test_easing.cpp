@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <math.h>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include "../dlib/easing.h"
 #include "../dlib/math.h"
 

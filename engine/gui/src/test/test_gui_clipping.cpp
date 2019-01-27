@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>

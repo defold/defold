@@ -2,7 +2,7 @@
 #include <map>
 #include <vector>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/log.h>

@@ -3,7 +3,7 @@
 #include <string>
 #include <map>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include "../dlib/uuid.h"
 
 

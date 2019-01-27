@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include "../liveupdate.h"
 #include "../liveupdate_private.h"
 

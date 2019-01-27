@@ -6,7 +6,7 @@
 #include <libc/malloc.h>
 #endif
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include "../dlib/memprofile.h"
 #include "../dlib/profile.h"
 

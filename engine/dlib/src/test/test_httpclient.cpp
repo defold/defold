@@ -3,7 +3,7 @@
 #include <map>
 #include <string>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include "dlib/configfile.h"
 #include "dlib/dstrings.h"
 #include "dlib/time.h"
@@ -792,11 +792,11 @@ TEST_P(dmHttpClientTest, PathWithSpaces)
 
 INSTANTIATE_TEST_CASE_P(dmHttpClientTest,
                         dmHttpClientTest,
-                        ::testing::Values("http://localhost:" NAME_SOCKET, "https://localhost:" NAME_SOCKET_SSL));
+                        jc_test_values("http://localhost:" NAME_SOCKET, "https://localhost:" NAME_SOCKET_SSL));
 
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL,
                         dmHttpClientTestSSL,
-                        ::testing::Values("https://localhost:" NAME_SOCKET_SSL_TEST));
+                        jc_test_values("https://localhost:" NAME_SOCKET_SSL_TEST));
 
 
 class dmHttpClientTestCache : public dmHttpClientTest
@@ -998,7 +998,7 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
 
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestCache,
                         dmHttpClientTestCache,
-                        ::testing::Values("http://localhost:" NAME_SOCKET));
+                        jc_test_values("http://localhost:" NAME_SOCKET));
 
 #endif // #ifndef _WIN32
 

@@ -1,6 +1,6 @@
 #include <stdint.h>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include <vector>
 #include <set>
 #include <dlib/configfile.h>

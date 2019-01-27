@@ -1,7 +1,7 @@
 #include <map>
 #include <stdlib.h>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>

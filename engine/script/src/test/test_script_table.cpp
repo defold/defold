@@ -4,7 +4,7 @@
 #include <dlib/align.h>
 #include <dlib/math.h>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include "../script.h"
 #include "test/test_ddf.h"
 

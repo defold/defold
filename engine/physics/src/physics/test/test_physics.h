@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include "../physics.h"
 #include "../physics_2d.h"
 #include "../physics_3d.h"

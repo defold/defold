@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <vector>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include "../../src/dlib/hash.h"
 #include "../../src/dlib/message.h"
 #include "../../src/dlib/dstrings.h"

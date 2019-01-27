@@ -1,6 +1,6 @@
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
-
+#include <jc/test.h>
+#include <stddef.h> // offsetof
 #include "../dlib/log.h"
 #include "../dlib/hash.h"
 #include "../dlib/buffer.h"
@@ -574,7 +574,7 @@ const AlignmentTestParams valid_stream_setups[] = {
     },
 };
 
-INSTANTIATE_TEST_CASE_P(AlignmentSequence, AlignmentTest, jc_test_values_in(valid_stream_setups));
+INSTANTIATE_TEST_CASE_P(AlignmentSequence, AlignmentTest, jc_test_values(valid_stream_setups));
 
 int main(int argc, char **argv)
 {

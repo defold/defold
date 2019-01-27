@@ -1,5 +1,5 @@
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include <script/script.h>
 #include <extension/extension.h>
 #include <dlib/dstrings.h>

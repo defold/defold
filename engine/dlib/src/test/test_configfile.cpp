@@ -3,7 +3,7 @@
 #include <dlib/configfile.h>
 #include <dlib/log.h>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include "dlib/configfile.h"
 #include "testutil.h"
 
@@ -93,14 +93,14 @@ TEST_P(Empty, Empty)
 #ifndef _WIN32
 INSTANTIATE_TEST_CASE_P(Empty,
                         Empty,
-                        ::testing::Values(TestParam("src/test/data/empty.config"),
-                                          TestParam("src/test/data/empty.config", true),
-                                          TestParam("http://localhost:%d/src/test/data/test.config")));
+                        jc_test_values(TestParam("src/test/data/empty.config"),
+                                       TestParam("src/test/data/empty.config", true),
+                                       TestParam("http://localhost:%d/src/test/data/test.config")));
 #else
 INSTANTIATE_TEST_CASE_P(Empty,
                         Empty,
-                        ::testing::Values(TestParam("src/test/data/empty.config"),
-                                          TestParam("src/test/data/empty.config", true)));
+                        jc_test_values(TestParam("src/test/data/empty.config"),
+                                       TestParam("src/test/data/empty.config", true)));
 #endif
 
 class MissingFile : public ConfigTest {};
@@ -114,12 +114,12 @@ TEST_P(MissingFile, MissingFile)
 #ifndef _WIN32
 INSTANTIATE_TEST_CASE_P(MissingFile,
                         MissingFile,
-                        ::testing::Values(TestParam("does_not_exists"),
-                                          TestParam("http://localhost:%d/does_not_exists")));
+                        jc_test_values(TestParam("does_not_exists"),
+                                       TestParam("http://localhost:%d/does_not_exists")));
 #else
 INSTANTIATE_TEST_CASE_P(MissingFile,
                         MissingFile,
-                        ::testing::Values(TestParam("does_not_exists")));
+                        jc_test_values(TestParam("does_not_exists")));
 #endif
 
 class NoSection : public ConfigTest {};
@@ -134,14 +134,14 @@ TEST_P(NoSection, NoSection)
 #ifndef _WIN32
 INSTANTIATE_TEST_CASE_P(NoSection,
                         NoSection,
-                        ::testing::Values(TestParam("src/test/data/nosection.config"),
-                                          TestParam("src/test/data/nosection.config", true),
-                                          TestParam("http://localhost:%d/src/test/data/nosection.config")));
+                        jc_test_values(TestParam("src/test/data/nosection.config"),
+                                       TestParam("src/test/data/nosection.config", true),
+                                       TestParam("http://localhost:%d/src/test/data/nosection.config")));
 #else
 INSTANTIATE_TEST_CASE_P(NoSection,
                         NoSection,
-                        ::testing::Values(TestParam("src/test/data/nosection.config"),
-                                          TestParam("src/test/data/nosection.config", true)));
+                        jc_test_values(TestParam("src/test/data/nosection.config"),
+                                       TestParam("src/test/data/nosection.config", true)));
 #endif
 
 class SectionError : public ConfigTest {};
@@ -154,14 +154,14 @@ TEST_P(SectionError, SectionError)
 #ifndef _WIN32
 INSTANTIATE_TEST_CASE_P(SectionError,
                         SectionError,
-                        ::testing::Values(TestParam("src/test/data/section_error.config"),
-                                          TestParam("src/test/data/section_error.config", true),
-                                          TestParam("http://localhost:%d/src/test/data/section_error.config")));
+                        jc_test_values(TestParam("src/test/data/section_error.config"),
+                                       TestParam("src/test/data/section_error.config", true),
+                                       TestParam("http://localhost:%d/src/test/data/section_error.config")));
 #else
 INSTANTIATE_TEST_CASE_P(SectionError,
                         SectionError,
-                        ::testing::Values(TestParam("src/test/data/section_error.config"),
-                                          TestParam("src/test/data/section_error.config", true)));
+                        jc_test_values(TestParam("src/test/data/section_error.config"),
+                                       TestParam("src/test/data/section_error.config", true)));
 #endif
 
 class Test01 : public ConfigTest {};
@@ -190,14 +190,14 @@ TEST_P(Test01, Test01)
 #ifndef _WIN32
 INSTANTIATE_TEST_CASE_P(Test01,
                         Test01,
-                        ::testing::Values(TestParam("src/test/data/test.config"),
-                                          TestParam("src/test/data/test.config", true),
-                                          TestParam("http://localhost:%d/src/test/data/test.config")));
+                        jc_test_values(TestParam("src/test/data/test.config"),
+                                       TestParam("src/test/data/test.config", true),
+                                       TestParam("http://localhost:%d/src/test/data/test.config")));
 #else
 INSTANTIATE_TEST_CASE_P(Test01,
                         Test01,
-                        ::testing::Values(TestParam("src/test/data/test.config"),
-                                          TestParam("src/test/data/test.config", true)));
+                        jc_test_values(TestParam("src/test/data/test.config"),
+                                       TestParam("src/test/data/test.config", true)));
 #endif
 
 class MissingTrailingNewline : public ConfigTest {};
@@ -211,14 +211,14 @@ TEST_P(MissingTrailingNewline, MissingTrailingNewline)
 #ifndef _WIN32
 INSTANTIATE_TEST_CASE_P(MissingTrailingNewline,
                         MissingTrailingNewline,
-                        ::testing::Values(TestParam("src/test/data/missing_trailing_nl.config"),
-                                          TestParam("src/test/data/missing_trailing_nl.config", true),
-                                          TestParam("http://localhost:%d/src/test/data/missing_trailing_nl.config")));
+                        jc_test_values(TestParam("src/test/data/missing_trailing_nl.config"),
+                                       TestParam("src/test/data/missing_trailing_nl.config", true),
+                                       TestParam("http://localhost:%d/src/test/data/missing_trailing_nl.config")));
 #else
 INSTANTIATE_TEST_CASE_P(MissingTrailingNewline,
                         MissingTrailingNewline,
-                        ::testing::Values(TestParam("src/test/data/missing_trailing_nl.config"),
-                                          TestParam("src/test/data/missing_trailing_nl.config", true)));
+                        jc_test_values(TestParam("src/test/data/missing_trailing_nl.config"),
+                                       TestParam("src/test/data/missing_trailing_nl.config", true)));
 #endif
 
 class CommandLine : public ConfigTest {};
@@ -251,14 +251,14 @@ int COMMNAD_LINE_ARGC = sizeof(COMMNAD_LINE_ARGV) / sizeof(COMMNAD_LINE_ARGV[0])
 #ifndef _WIN32
 INSTANTIATE_TEST_CASE_P(CommandLine,
                         CommandLine,
-                        ::testing::Values(TestParam("src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV),
-                                          TestParam("src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV, true),
-                                          TestParam("http://localhost:%d/src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV)));
+                        jc_test_values(TestParam("src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV),
+                                       TestParam("src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV, true),
+                                       TestParam("http://localhost:%d/src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV)));
 #else
 INSTANTIATE_TEST_CASE_P(CommandLine,
                         CommandLine,
-                        ::testing::Values(TestParam("src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV),
-                                          TestParam("src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV, true)));
+                        jc_test_values(TestParam("src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV),
+                                       TestParam("src/test/data/test.config", COMMNAD_LINE_ARGC, COMMNAD_LINE_ARGV, true)));
 #endif
 
 static void Usage()

@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include "../extension.h"
 #include "test_extension.h"
 

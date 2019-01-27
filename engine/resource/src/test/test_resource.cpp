@@ -1,5 +1,5 @@
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 
 #include <dlib/log.h>
 
@@ -440,7 +440,7 @@ TEST_P(GetResourceTest, Loop)
 
 INSTANTIATE_TEST_CASE_P(GetResourceTestURI,
                         GetResourceTest,
-                        ::testing::Values("build/default/src/test/", "http://127.0.0.1:6123", "dmanif:build/default/src/test/resources_pb.dmanifest"));
+                        jc_test_values("build/default/src/test/", "http://127.0.0.1:6123", "dmanif:build/default/src/test/resources_pb.dmanifest"));
 
 TEST_P(GetResourceTest, GetReference1)
 {

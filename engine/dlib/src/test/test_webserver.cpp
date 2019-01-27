@@ -3,7 +3,7 @@
 #include <map>
 #include <string>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include "../dlib/time.h"
 #include "../dlib/socket.h"
 #include "../dlib/math.h"

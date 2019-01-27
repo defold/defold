@@ -1,5 +1,5 @@
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 
 #include "graphics.h"
 #include "null/glsl_uniform_parser.h"

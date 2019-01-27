@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <string.h>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include "../dlib/image.h"
 
 #include "data/color_check_2x2.png.embed.h"

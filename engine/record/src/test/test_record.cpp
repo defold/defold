@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string>
 #define JC_TEST_IMPLEMENTATION
-#include <jctest/test.h>
+#include <jc/test.h>
 #include "../record/record.h"
 
 TEST(dmRecord, InvalidWidth1)
