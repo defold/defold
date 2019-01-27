@@ -574,7 +574,7 @@ const AlignmentTestParams valid_stream_setups[] = {
     },
 };
 
-INSTANTIATE_TEST_CASE_P(AlignmentSequence, AlignmentTest, jc_test_values(valid_stream_setups));
+INSTANTIATE_TEST_CASE_P(AlignmentSequence, AlignmentTest, jc_test_values_in(valid_stream_setups));
 
 int main(int argc, char **argv)
 {

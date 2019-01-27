@@ -651,7 +651,7 @@ const CopyBufferTestParams buffer_copy_setups[] = {
     {64, 0, 0, 0, false}, // zero elements
 };
 
-INSTANTIATE_TEST_CASE_P(ScriptBufferCopySequence, ScriptBufferCopyTest, jc_test_values(buffer_copy_setups));
+INSTANTIATE_TEST_CASE_P(ScriptBufferCopySequence, ScriptBufferCopyTest, jc_test_values_in(buffer_copy_setups));
 
 
 TEST_F(ScriptBufferTest, RefCount)

@@ -186,7 +186,7 @@ const JsonToLuaParams json_to_lua_setups[] = {
     {"{ 'data': 'asd' }", true, false}, // DEF-3707
 };
 
-INSTANTIATE_TEST_CASE_P(JsonToLuaTestSequence, JsonToLuaTest, jc_test_values(json_to_lua_setups));
+INSTANTIATE_TEST_CASE_P(JsonToLuaTestSequence, JsonToLuaTest, jc_test_values_in(json_to_lua_setups));
 
 int main(int argc, char **argv)
 {
