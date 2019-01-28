@@ -29,44 +29,450 @@ uint64_t g_Flipped = 0;
 bool g_ForceFragmentReloadFail = false;
 bool g_ForceVertexReloadFail = false;
 
-#define VK_ZERO_MEMORY(ptr,size) memset((void*)ptr,0,size)
-
 namespace dmGraphics
 {
-    const int g_enable_validation_layers = 1;
-    const char* g_validation_layers[]    = {
-    #ifdef __MACH__
-        "MoltenVK",
-    #else
-        "VK_LAYER_LUNARG_standard_validation",
-    #endif
-        NULL
-    };
-
-    const char* g_device_extensions[] = {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-        NULL
-    };
-
-    struct VulkanContext
+    namespace Vulkan
     {
-        VkInstance                     instance;
-        VkSurfaceKHR                   surface;
-        VkApplicationInfo              applicationInfo;
-        VkDebugUtilsMessengerEXT       debugCallback;
+        // This is not an enum. Queue families are index values
+        #define QUEUE_FAMILY_INVALID -1
+        #define VK_ZERO_MEMORY(ptr,size) memset((void*)ptr,0,size)
 
-        dmArray<VkExtensionProperties> extensions;
-    } g_vk_context;
+        const int g_enable_validation_layers = 1;
+        const char* g_validation_layers[]    = {
+        #ifdef __MACH__
+            "MoltenVK",
+        #else
+            "VK_LAYER_LUNARG_standard_validation",
+        #endif
+            NULL
+        };
 
-    static VKAPI_ATTR VkBool32 VKAPI_CALL g_vk_debug_callback(
-        VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
-        VkDebugUtilsMessageTypeFlagsEXT             messageType,
-        const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-        void* pUserData)
-    {
-        dmLogInfo("Validation Layer: %s", pCallbackData->pMessage);
+        const char* g_device_extensions[] = {
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+            NULL
+        };
 
-        return VK_FALSE;
+        struct Context
+        {
+            VkInstance                     instance;
+            VkPhysicalDevice               physical_device;
+            VkSurfaceKHR                   surface;
+            VkApplicationInfo              applicationInfo;
+            VkDebugUtilsMessengerEXT       debugCallback;
+            dmArray<VkExtensionProperties> extensions;
+        } g_vk_context;
+
+        struct QueueFamily
+        {
+            int32_t graphicsFamily;
+            int32_t presentFamily;
+        };
+
+        struct SwapChainSupport
+        {
+            VkSurfaceCapabilitiesKHR    surfaceCapabilities;
+            dmArray<VkSurfaceFormatKHR> formats;
+            dmArray<VkPresentModeKHR>   presentModes;
+        };
+
+        // This functions is invoked by the vulkan layer whenever
+        // it has something to say, which can be info, warnings, errors and such.
+        // Only used in debug.
+        static VKAPI_ATTR VkBool32 VKAPI_CALL g_vk_debug_callback(
+            VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
+            VkDebugUtilsMessageTypeFlagsEXT             messageType,
+            const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+            void* pUserData)
+        {
+            dmLogInfo("Validation Layer: %s", pCallbackData->pMessage);
+
+            return VK_FALSE;
+        }
+
+        void SetInstanceExtensionList()
+        {
+            uint32_t extension_count             = 0;
+            VkExtensionProperties* extension_ptr = 0;
+
+            vkEnumerateInstanceExtensionProperties(0, &extension_count, 0);
+
+            g_vk_context.extensions.SetCapacity(extension_count);
+            g_vk_context.extensions.SetSize(extension_count);
+
+            extension_ptr = g_vk_context.extensions.Begin();
+
+            vkEnumerateInstanceExtensionProperties(0, &extension_count, extension_ptr);
+
+            for(unsigned int i=0; i < extension_count; i++ )
+            {
+                dmLogInfo("Extension Enabled: %s", g_vk_context.extensions[i].extensionName);
+            }
+        }
+
+        bool GetValidationSupport()
+        {
+            uint32_t layer_count          = 0;
+            VkLayerProperties* layer_list = 0;
+
+            vkEnumerateInstanceLayerProperties(&layer_count, 0);
+
+            layer_list = new VkLayerProperties[layer_count];
+
+            vkEnumerateInstanceLayerProperties(&layer_count, layer_list);
+
+            bool all_layers_found = true;
+
+            for(uint32_t ext=0;;ext++)
+            {
+                bool layer_found = false;
+
+                if (g_validation_layers[ext] == NULL)
+                {
+                    break;
+                }
+
+                for(uint32_t layer_index=0; layer_index < layer_count; ++layer_index)
+                {
+                    if (strcmp(layer_list[layer_index].layerName, g_validation_layers[ext]) == 0)
+                    {
+                        layer_found = true;
+                        break;
+                    }
+                }
+
+                if (!layer_found)
+                {
+                    dmLogError("Validation Layer '%s' is not supported", g_validation_layers[ext]);
+                    all_layers_found = false;
+                }
+            }
+
+            delete[] layer_list;
+
+            return all_layers_found;
+        }
+
+        bool GetRequiredInstanceExtensions(dmArray<const char*>& extensionListOut)
+        {
+            uint32_t extension_count                 = 0;
+            VkExtensionProperties* vk_extension_list = 0;
+
+            if (vkEnumerateInstanceExtensionProperties(NULL, &extension_count, NULL) != VK_SUCCESS)
+            {
+                return false;
+            }
+
+            vk_extension_list = new VkExtensionProperties[extension_count];
+
+            extensionListOut.SetCapacity(extension_count);
+
+            for (uint32_t i = 0; i < extension_count; i++)
+            {
+                if (strcmp(VK_KHR_SURFACE_EXTENSION_NAME, vk_extension_list[i].extensionName) == 0)
+                {
+                    extensionListOut.Push(VK_KHR_SURFACE_EXTENSION_NAME);
+                }
+
+        // need similar ifdefs for other platforms here..
+        #if defined(__MACH__)
+                if (strcmp(VK_MVK_MACOS_SURFACE_EXTENSION_NAME, vk_extension_list[i].extensionName) == 0)
+                {
+                    extensionListOut.Push(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
+                }
+        #endif
+
+                if (strcmp(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, vk_extension_list[i].extensionName) == 0)
+                {
+                    if (g_enable_validation_layers) {
+                        extensionListOut.Push(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+                    }
+                }
+            }
+
+            delete[] vk_extension_list;
+
+            return true;
+        }
+
+        // All GPU operations are pushed to various queues. The physical device can have multiple
+        // queues with different properties supported, so we need to find a combination of queues
+        // that will work for our needs. Not that the present queue might not be the same queue as the
+        // present queue.
+        QueueFamily GetQueueFamily(VkPhysicalDevice device)
+        {
+            QueueFamily vk_family_selected = { QUEUE_FAMILY_INVALID, QUEUE_FAMILY_INVALID };
+            uint32_t queue_family_count    = 0;
+
+            vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, 0);
+
+            if (queue_family_count == 0)
+            {
+                return vk_family_selected;
+            }
+
+            VkQueueFamilyProperties* vk_family_list = new VkQueueFamilyProperties[queue_family_count];
+            vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, vk_family_list);
+
+            for (uint32_t i=0; i < queue_family_count; i++)
+            {
+                VkQueueFamilyProperties candidate = vk_family_list[i];
+
+                if (candidate.queueCount > 0 && candidate.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+                {
+                    vk_family_selected.graphicsFamily = i;
+                }
+
+                uint32_t present_support = 0;
+                vkGetPhysicalDeviceSurfaceSupportKHR(device, i, g_vk_context.surface, &present_support);
+
+                if (candidate.queueCount && present_support)
+                {
+                    vk_family_selected.presentFamily = i;
+                }
+
+                if (vk_family_selected.graphicsFamily >= 0 && vk_family_selected.presentFamily >= 0)
+                {
+                    break;
+                }
+            }
+
+            delete[] vk_family_list;
+
+            return vk_family_selected;
+        }
+
+        bool IsExtensionsSupported(VkPhysicalDevice device)
+        {
+            uint32_t ext_available_count = 0;
+            int32_t  ext_to_enable_count = 0;
+
+            while(g_device_extensions[++ext_to_enable_count]);
+
+            vkEnumerateDeviceExtensionProperties(device, 0, &ext_available_count, 0);
+
+            VkExtensionProperties* ext_properties = new VkExtensionProperties[ext_available_count];
+
+            vkEnumerateDeviceExtensionProperties(device, 0, &ext_available_count, ext_properties);
+
+            for (uint32_t i=0; i < ext_available_count; i++)
+            {
+                VkExtensionProperties ext_property = ext_properties[i];
+
+                int32_t g_ext_c = -1;
+
+                while(g_device_extensions[++g_ext_c])
+                {
+                    if (dmStrCaseCmp(ext_property.extensionName, g_device_extensions[g_ext_c]) == 0)
+                    {
+                        ext_to_enable_count--;
+                    }
+                }
+            }
+
+            delete[] ext_properties;
+
+            return ext_to_enable_count == 0;
+        }
+
+        bool SetLogicalDevice()
+        {
+            QueueFamily vk_queue_family = GetQueueFamily(g_vk_context.physical_device);
+
+            return true;
+        }
+
+        void GetSwapChainSupport(VkPhysicalDevice device, SwapChainSupport* swapChain)
+        {
+            uint32_t format_count        = 0;
+            uint32_t present_modes_count = 0;
+
+            vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, g_vk_context.surface, &swapChain->surfaceCapabilities);
+            vkGetPhysicalDeviceSurfaceFormatsKHR(device, g_vk_context.surface, &format_count, 0);
+            vkGetPhysicalDeviceSurfacePresentModesKHR(device, g_vk_context.surface, &present_modes_count, 0);
+
+            if (format_count > 0)
+            {
+                swapChain->formats.SetCapacity(format_count);
+                vkGetPhysicalDeviceSurfaceFormatsKHR(device, g_vk_context.surface, &format_count, swapChain->formats.Begin());
+            }
+
+            if (present_modes_count > 0)
+            {
+                swapChain->presentModes.SetCapacity(present_modes_count);
+                vkGetPhysicalDeviceSurfacePresentModesKHR(device, g_vk_context.surface, &present_modes_count, swapChain->presentModes.Begin());
+            }
+        }
+
+        bool IsDeviceCompatible(VkPhysicalDevice device)
+        {
+            QueueFamily vk_queue_family  = GetQueueFamily(device);
+            bool is_extensions_supported = IsExtensionsSupported(device);
+            bool is_swap_chain_supported = false;
+
+            if (is_extensions_supported)
+            {
+                SwapChainSupport swap_chain;
+                GetSwapChainSupport(device, &swap_chain);
+
+                is_swap_chain_supported  = swap_chain.formats.Size() > 0;
+                is_swap_chain_supported &= swap_chain.presentModes.Size() > 0;
+            }
+
+            return vk_queue_family.graphicsFamily != QUEUE_FAMILY_INVALID &&
+                   vk_queue_family.presentFamily  != QUEUE_FAMILY_INVALID &&
+                   is_extensions_supported && is_swap_chain_supported;
+        }
+
+        bool SetPhysicalDevice()
+        {
+            VkPhysicalDevice vk_selected_device = VK_NULL_HANDLE;
+            uint32_t device_count               = 0;
+
+            // Get number of present devices
+            vkEnumeratePhysicalDevices(g_vk_context.instance, &device_count, 0);
+
+            if (device_count == 0)
+            {
+                return false;
+            }
+
+            VkPhysicalDevice* vk_device_list = new VkPhysicalDevice[device_count];
+
+            vkEnumeratePhysicalDevices(g_vk_context.instance, &device_count, vk_device_list);
+
+            // Iterate list of possible physical devices and pick the first that is suitable
+            // There can be many GPUs present, but we can only support one.
+            for (uint32_t i=0; i < device_count; i++)
+            {
+                VkPhysicalDevice vk_candidate = vk_device_list[i];
+
+                if (IsDeviceCompatible(vk_candidate))
+                {
+                    vk_selected_device = vk_candidate;
+                    break;
+                }
+            }
+
+            delete[] vk_device_list;
+
+            if (vk_selected_device == VK_NULL_HANDLE)
+            {
+                return false;
+            }
+
+            g_vk_context.physical_device = vk_selected_device;
+
+            return true;
+        }
+
+        bool Initialize()
+        {
+            g_vk_context.applicationInfo;
+            VK_ZERO_MEMORY(&g_vk_context.applicationInfo, sizeof(g_vk_context.applicationInfo));
+
+            g_vk_context.applicationInfo.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+            g_vk_context.applicationInfo.pApplicationName   = "Defold";
+            g_vk_context.applicationInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+            g_vk_context.applicationInfo.pEngineName        = "Defold Engine";
+            g_vk_context.applicationInfo.engineVersion      = VK_MAKE_VERSION(1, 0, 0);
+            g_vk_context.applicationInfo.apiVersion         = VK_API_VERSION_1_0;
+
+            VkInstanceCreateInfo instance_create_info;
+            VK_ZERO_MEMORY(&instance_create_info, sizeof(instance_create_info));
+
+            instance_create_info.sType            = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+            instance_create_info.pApplicationInfo = &g_vk_context.applicationInfo;
+
+            // Populate the extension list with available API extensions (and print them)
+            SetInstanceExtensionList();
+
+            if (g_enable_validation_layers && GetValidationSupport())
+            {
+                dmLogInfo("Required validation layers are supported");
+
+                uint32_t enabled_layer_count = 0;
+
+                while(g_validation_layers[enabled_layer_count])
+                {
+                    enabled_layer_count++;
+                }
+
+                instance_create_info.enabledLayerCount   = enabled_layer_count;
+                instance_create_info.ppEnabledLayerNames = g_validation_layers;
+            }
+
+            dmArray<const char*> required_extensions;
+            GetRequiredInstanceExtensions(required_extensions);
+
+            instance_create_info.enabledExtensionCount   = required_extensions.Size();
+            instance_create_info.ppEnabledExtensionNames = required_extensions.Begin();
+
+            if (vkCreateInstance(&instance_create_info, 0, &g_vk_context.instance) == VK_SUCCESS)
+            {
+                dmLogInfo("Successfully created Vulkan instance!");
+            }
+            else
+            {
+                // TODO: We should do cleanup here and return
+                dmLogError("Failed to create Vulkan instance");
+            }
+
+            if (g_enable_validation_layers)
+            {
+                VkDebugUtilsMessengerCreateInfoEXT debug_callback_create_info;
+                VK_ZERO_MEMORY(&debug_callback_create_info, sizeof(debug_callback_create_info));
+
+                debug_callback_create_info.sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+                debug_callback_create_info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+                    VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+                    VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+
+                debug_callback_create_info.messageType     = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                    VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                    VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+
+                debug_callback_create_info.pfnUserCallback = g_vk_debug_callback;
+
+                PFN_vkCreateDebugUtilsMessengerEXT func_ptr =
+                    (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(g_vk_context.instance, "vkCreateDebugUtilsMessengerEXT");
+
+                if (func_ptr)
+                {
+                    func_ptr(g_vk_context.instance, &debug_callback_create_info, 0, &g_vk_context.debugCallback);
+                }
+                else
+                {
+                    dmLogError("Couldn't create validation callback");
+                }
+            }
+
+            return true;
+        }
+
+        bool OpenWindow(WindowParams* params)
+        {
+            if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, GLFW_WINDOW))
+            {
+                return false;
+            }
+
+            glfwWrapper::GLWFWindow wnd;
+
+            wnd.ns.view   = glfwGetOSXNSView();
+            wnd.ns.object = glfwGetOSXNSWindow();
+
+            if (glfwWrapper::glfwCreateWindowSurface(g_vk_context.instance, &wnd, 0, &g_vk_context.surface) != VK_SUCCESS)
+            {
+                return false;
+            }
+
+            if (!SetPhysicalDevice())
+            {
+                return false;
+            }
+
+            return true;
+        }
     }
 
     uint16_t TYPE_SIZE[] =
@@ -82,193 +488,9 @@ namespace dmGraphics
 
     bool g_ContextCreated = false;
 
-    void Vulkan_SetInstanceExtensionList()
-    {
-        uint32_t extension_count             = 0;
-        VkExtensionProperties* extension_ptr = 0;
-
-        vkEnumerateInstanceExtensionProperties(0, &extension_count, 0);
-
-        g_vk_context.extensions.SetCapacity(extension_count);
-        g_vk_context.extensions.SetSize(extension_count);
-
-        extension_ptr = g_vk_context.extensions.Begin();
-
-        vkEnumerateInstanceExtensionProperties(0, &extension_count, extension_ptr);
-
-        for(unsigned int i=0; i < extension_count; i++ )
-        {
-            dmLogInfo("Extension Enabled: %s", g_vk_context.extensions[i].extensionName);
-        }
-    }
-
-    bool Vulkan_GetValidationSupport()
-    {
-        uint32_t layer_count          = 0;
-        VkLayerProperties* layer_list = 0;
-
-        vkEnumerateInstanceLayerProperties(&layer_count, 0);
-
-        layer_list = new VkLayerProperties[layer_count];
-
-        vkEnumerateInstanceLayerProperties(&layer_count, layer_list);
-
-        bool all_layers_found = true;
-
-        for(uint32_t ext=0;;ext++)
-        {
-            bool layer_found = false;
-
-            if (g_validation_layers[ext] == NULL)
-            {
-                break;
-            }
-
-            for(uint32_t layer_index=0; layer_index < layer_count; ++layer_index)
-            {
-                if (strcmp(layer_list[layer_index].layerName, g_validation_layers[ext]) == 0)
-                {
-                    layer_found = true;
-                    break;
-                }
-            }
-
-            if (!layer_found)
-            {
-                dmLogError("Validation Layer '%s' is not supported", g_validation_layers[ext]);
-                all_layers_found = false;
-            }
-        }
-
-        delete[] layer_list;
-
-        return all_layers_found;
-    }
-
-    bool Vulkan_GetRequiredInstanceExtensions(dmArray<const char*>& extensionListOut)
-    {
-        uint32_t extension_count                 = 0;
-        VkExtensionProperties* vk_extension_list = 0;
-
-        if (vkEnumerateInstanceExtensionProperties(NULL, &extension_count, NULL) != VK_SUCCESS)
-        {
-            return false;
-        }
-
-        vk_extension_list = new VkExtensionProperties[extension_count];
-
-        extensionListOut.SetCapacity(extension_count);
-
-        for (uint32_t i = 0; i < extension_count; i++)
-        {
-            if (strcmp(VK_KHR_SURFACE_EXTENSION_NAME, vk_extension_list[i].extensionName) == 0)
-            {
-                extensionListOut.Push(VK_KHR_SURFACE_EXTENSION_NAME);
-            }
-
-    // need simialr ifdefs for other platforms here..
-    #if defined(__MACH__)
-            if (strcmp(VK_MVK_MACOS_SURFACE_EXTENSION_NAME, vk_extension_list[i].extensionName) == 0)
-            {
-                extensionListOut.Push(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
-            }
-    #endif
-
-            if (strcmp(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, vk_extension_list[i].extensionName) == 0)
-            {
-                if (g_enable_validation_layers) {
-                    extensionListOut.Push(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-                }
-            }
-        }
-
-        delete[] vk_extension_list;
-
-        return true;
-    }
-
     bool Initialize()
     {
-        g_vk_context.applicationInfo;
-        VK_ZERO_MEMORY(&g_vk_context.applicationInfo,sizeof(VkApplicationInfo));
-
-        g_vk_context.applicationInfo.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        g_vk_context.applicationInfo.pApplicationName   = "Defold";
-        g_vk_context.applicationInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-        g_vk_context.applicationInfo.pEngineName        = "Defold Engine";
-        g_vk_context.applicationInfo.engineVersion      = VK_MAKE_VERSION(1, 0, 0);
-        g_vk_context.applicationInfo.apiVersion         = VK_API_VERSION_1_0;
-
-        VkInstanceCreateInfo instance_create_info;
-        VK_ZERO_MEMORY(&instance_create_info, sizeof(VkInstanceCreateInfo));
-
-        instance_create_info.sType            = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-        instance_create_info.pApplicationInfo = &g_vk_context.applicationInfo;
-
-        // Populate the extension list with available API extensions (and print them)
-        Vulkan_SetInstanceExtensionList();
-
-        if (g_enable_validation_layers && Vulkan_GetValidationSupport())
-        {
-            dmLogInfo("Required validation layers are supported");
-
-            uint32_t enabled_layer_count = 0;
-
-            while(g_validation_layers[enabled_layer_count])
-            {
-                enabled_layer_count++;
-            }
-
-            instance_create_info.enabledLayerCount   = enabled_layer_count;
-            instance_create_info.ppEnabledLayerNames = g_validation_layers;
-        }
-
-        dmArray<const char*> required_extensions;
-        Vulkan_GetRequiredInstanceExtensions(required_extensions);
-
-        instance_create_info.enabledExtensionCount   = required_extensions.Size();
-        instance_create_info.ppEnabledExtensionNames = required_extensions.Begin();
-
-        if (vkCreateInstance(&instance_create_info, 0, &g_vk_context.instance) == VK_SUCCESS)
-        {
-            dmLogInfo("Successfully created Vulkan instance!");
-        }
-        else
-        {
-            // TODO: We should do cleanup here and return
-            dmLogError("Failed to create Vulkan instance");
-        }
-
-        if (g_enable_validation_layers)
-        {
-            VkDebugUtilsMessengerCreateInfoEXT debug_callback_create_info;
-            VK_ZERO_MEMORY(&debug_callback_create_info,sizeof(VkDebugUtilsMessengerCreateInfoEXT));
-
-            debug_callback_create_info.sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-            debug_callback_create_info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-                VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-                VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-
-            debug_callback_create_info.messageType     = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-                VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-                VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-
-            debug_callback_create_info.pfnUserCallback = g_vk_debug_callback;
-
-            PFN_vkCreateDebugUtilsMessengerEXT func_ptr =
-                (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(g_vk_context.instance, "vkCreateDebugUtilsMessengerEXT");
-
-            if (func_ptr)
-            {
-                func_ptr(g_vk_context.instance, &debug_callback_create_info, 0, &g_vk_context.debugCallback);
-            }
-            else
-            {
-                dmLogError("Couldn't create validation callback");
-            }
-        }
-
-        return true;
+        return Vulkan::Initialize();
     }
 
     void Finalize()
@@ -326,19 +548,9 @@ namespace dmGraphics
         if (context->m_WindowOpened)
             return WINDOW_RESULT_ALREADY_OPENED;
 
-        if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, GLFW_WINDOW))
+        if (!Vulkan::OpenWindow(params))
         {
-            dmLogError("Unable to open glfw window");
-        }
-
-        glfwWrapper::GLWFWindow wnd;
-
-        wnd.ns.view   = glfwGetOSXNSView();
-        wnd.ns.object = glfwGetOSXNSWindow();
-
-        if (glfwWrapper::glfwCreateWindowSurface(g_vk_context.instance, &wnd, 0, &g_vk_context.surface) != VK_SUCCESS)
-        {
-            dmLogError("Unable to create vulkan window");
+            dmLogError("Unable to open Vulkan window");
         }
 
         int width, height;
