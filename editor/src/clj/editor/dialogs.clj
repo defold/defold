@@ -192,6 +192,10 @@
             (reset! state-atom {:status :downloading
                                 :cancelled-atom cancelled-atom})
             (future
+              (try
+                @success?
+                (catch Exception e
+                  (.printStackTrace e)))
               (when @success?
                 (reset! state-atom {:status :completed})
                 (ui/run-later
