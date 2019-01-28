@@ -51,7 +51,7 @@
         url (download-url newest-sha1 platform)
         zip-file (.toFile (Files/createTempFile "defold-update" ".zip" (into-array FileAttribute [])))]
     (.deleteOnExit zip-file)
-    (log/info :message "Downloading update" :url url :file (str zip-file))
+    (log/info :message "Downloading update" :url url :file (.getAbsolutePath zip-file))
     (net/download! url zip-file
                    :progress-callback progress-callback
                    :chunk-size (* 1024 1024)
@@ -81,7 +81,8 @@
                   (when (.exists target-file)
                     (try
                       (.delete target-file)
-                      (catch IOException _
+                      (catch IOException e
+                        (.printStackTrace e)
                         (.mkdirs backup-dir)
                         (.renameTo target-file
                                    (io/file backup-dir target-file)))))
