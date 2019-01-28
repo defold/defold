@@ -99,8 +99,8 @@ namespace dmMessage
         Message*        m_Header;
         Message*        m_Tail;
         const char*     m_Name;
-        dmMutex::Mutex  m_Mutex;
-        dmConditionVariable::ConditionVariable m_Condition;
+        dmMutex::HMutex m_Mutex;
+        dmConditionVariable::HConditionVariable m_Condition;
         MemoryAllocator m_Allocator;
     };
 
@@ -109,7 +109,7 @@ namespace dmMessage
     struct MessageContext
     {
         dmHashTable64<MessageSocket> m_Sockets;
-        dmMutex::Mutex  m_Mutex;
+        dmMutex::HMutex  m_Mutex;
     };
 
     MessageContext* g_MessageContext = 0;
@@ -189,7 +189,7 @@ namespace dmMessage
         MessageSocket* s = g_MessageContext->m_Sockets.Get(socket);
         if (s != 0x0)
         {
-            dmMutex::Mutex mutex = s->m_Mutex;
+            dmMutex::HMutex mutex = s->m_Mutex;
             dmMutex::Lock(mutex);
 
             Message *message_object = s->m_Header;

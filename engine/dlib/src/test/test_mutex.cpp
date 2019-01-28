@@ -7,7 +7,7 @@
 struct ThreadArg
 {
     volatile uint32_t       m_Value;
-    dmMutex::Mutex m_Mutex;
+    dmMutex::HMutex m_Mutex;
 };
 
 static void ThreadFunctionBasic(void* arg)

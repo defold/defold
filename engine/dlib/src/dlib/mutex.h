@@ -13,12 +13,12 @@
 
 namespace dmMutex
 {
-    struct OpaqueMutex
+    struct Mutex
     {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
-        pthread_mutex_t*  m_NativeHandle;
-#elif defined(_WIN32)
-        CRITICAL_SECTION* m_NativeHandle;
+#if defined(_WIN32)
+        CRITICAL_SECTION m_NativeHandle;
+#else
+        pthread_mutex_t  m_NativeHandle;
 #endif
     };
 

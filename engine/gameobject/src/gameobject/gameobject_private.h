@@ -182,7 +182,7 @@ namespace dmGameObject
         uint32_t                    m_ComponentTypeCount;
         ComponentType               m_ComponentTypes[MAX_COMPONENT_TYPES];
         uint16_t                    m_ComponentTypesOrder[MAX_COMPONENT_TYPES];
-        dmMutex::Mutex              m_Mutex;
+        dmMutex::HMutex             m_Mutex;
 
         // All collections. Protected by m_Mutex
         dmArray<Collection*>        m_Collections;
@@ -252,7 +252,7 @@ namespace dmGameObject
         // Socket for sending to instances, dispatched once each update
         dmMessage::HSocket       m_FrameSocket;
 
-        dmMutex::Mutex           m_Mutex;
+        dmMutex::HMutex          m_Mutex;
 
         // Counter for generating instance ids, protected by m_Mutex
         uint32_t                 m_GenInstanceCounter;

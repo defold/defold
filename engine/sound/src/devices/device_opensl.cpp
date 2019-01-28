@@ -124,7 +124,7 @@ namespace dmDeviceOpenSL
 
         bool             m_Underflow;
 
-        dmMutex::Mutex   m_Mutex;
+        dmMutex::HMutex  m_Mutex;
 
         OpenSLDevice()
         {

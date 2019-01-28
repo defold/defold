@@ -39,7 +39,7 @@ namespace dmGraphics
         uint32_t                m_VerifyGraphicsCalls : 1;
 
         // Async queue data and synchronization objects
-        dmMutex::Mutex          m_AsyncMutex;
+        dmMutex::HMutex         m_AsyncMutex;
     };
 
     static inline void IncreaseModificationVersion(Context* context)

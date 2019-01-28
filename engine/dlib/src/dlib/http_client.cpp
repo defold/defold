@@ -79,7 +79,7 @@ namespace dmHttpClient
 
     private:
         dmConnectionPool::HPool m_Pool;
-        dmMutex::Mutex          m_Mutex;
+        dmMutex::HMutex         m_Mutex;
     };
 
     PoolCreator g_PoolCreator;
