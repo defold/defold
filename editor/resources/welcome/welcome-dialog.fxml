@@ -36,7 +36,7 @@
         <VBox alignment="CENTER" maxWidth="-Infinity">
             <VBox alignment="CENTER">
                 <Label id="progress-header" text="Downloading Project" />
-                <ProgressBar id="progress-bar" maxWidth="1.7976931348623157E308" />
+                <ProgressBar id="progress-bar" maxWidth="1.7976931348623157E308" styleClass="really-small-progress-bar"/>
                 <Button id="progress-cancel-button" styleClass="df-button" text="Cancel Download" focusTraversable="false" />
             </VBox>
         </VBox>

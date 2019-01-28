@@ -5,6 +5,7 @@
   :clojure.core/defonce :only-indent
   :cursive.formatting/align-conditionals false
   :cursive.formatting/align-maps false
+  :cursive.formatting/imports-use-vectors true
   :dynamo.graph/precluding-errors :only-indent
   :dynamo.graph/with-auto-evaluation-context :only-indent
   :dynamo.graph/with-system :only-indent
@@ -24,6 +25,7 @@
   :editor.ui.bindings/-if :only-indent
   :editor.ui.bindings/when :only-indent
   :editor.ui.bindings/when-not :only-indent
+  :editor.updater-test/with-server 2
   :integration.build-test/with-build-results :only-indent
   :integration.test-util/with-loaded-project :only-indent
   :integration.test-util/with-logged-calls :only-indent

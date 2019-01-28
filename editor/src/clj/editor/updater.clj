@@ -1,91 +1,143 @@
 (ns editor.updater
-  (:require [editor.system :as system]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.string :as string]
-            [service.log :as log])
-  (:import [com.defold.editor Updater Updater$PendingUpdate]
-           [java.io File IOException]
-           [java.util.concurrent.atomic AtomicReference]
+            [editor.system :as system]
+            [service.log :as log]
+            [util.net :as net])
+  (:import [com.defold.editor Platform]
+           [java.io IOException File FileNotFoundException]
+           [java.nio.file Files]
+           [java.nio.file.attribute FileAttribute]
            [java.util Timer TimerTask]
-           [javafx.scene Scene Parent]
-           [javafx.stage Stage]))
+           [org.apache.commons.io FilenameUtils]
+           [org.apache.commons.compress.archivers.zip ZipArchiveEntry ZipFile]))
 
 (set! *warn-on-reflection* true)
 
-(def ^:private initial-update-delay 1000)
-(def ^:private update-delay 60000)
+(defn- make-updater [channel editor-sha1 platform]
+  {:channel channel
+   :platform platform
+   :state-atom (atom {:installed-sha1 editor-sha1
+                      :newest-sha1 editor-sha1})})
 
-(defn make-update-context [update-url defold-sha1]
-  {:updater (Updater. update-url)
-   :last-update (AtomicReference.)
-   :last-update-sha1 (AtomicReference. defold-sha1)})
+(defn- download-url [sha1 platform]
+  (format "https://d.defold.com/editor2/%s/editor2/Defold-%s.zip" sha1 platform)
+  ;; TODO remove temporary code
+  "http://localhost:8000/Defold-x86_64-linux.zip")
 
-(defn pending-update [update-context]
-  (when-let [update ^Updater$PendingUpdate (.get ^AtomicReference (:last-update update-context))]
-    (.sha1 update)))
+(defn- update-url [channel]
+  (format "https://d.defold.com/editor2/channels/%s/update-v2.json" channel)
+  ;; TODO remove temporary code
+  "http://localhost:8000/update-v2.json")
 
-(defn install-pending-update! [{:keys [^AtomicReference last-update] :as update-context} ^File resources-path]
-  (when-let [update ^Updater$PendingUpdate (.getAndSet last-update nil)]
-    (try
-      (log/info :message "update installation requested")
-      (.install update resources-path)
-      (.deleteFiles update) ; maybe excessive since we're about to restart! anyhow
-      (log/info :message "update installed")
-      :installed
-      (catch IOException e
-        (log/debug :message "update installation failed" :exception e)
-        nil))))
+(defn has-update? [updater]
+  (let [state @(:state-atom updater)]
+    (not= (:installed-sha1 state)
+          (:newest-sha1 state))))
+
+(def execute-permission-flag
+  "9 bits in 3 triples: [rwx][rwx][rwx]
+  r is read, w is write, x is execute
+  1st triple is owner, 2nd is group, 3rd is others"
+  2r001000000)
+
+(defn executable? [unix-mode]
+  (not (zero? (bit-and unix-mode execute-permission-flag))))
+
+(defn download-and-install! [updater & {:keys [progress-callback cancelled-atom]}]
+  (let [{:keys [platform state-atom]} updater
+        {:keys [newest-sha1 installed-sha1]} @state-atom
+        url (download-url newest-sha1 platform)
+        zip-file (.toFile (Files/createTempFile "defold-update" ".zip" (into-array FileAttribute [])))]
+    (.deleteOnExit zip-file)
+    (log/info :message "Downloading update" :url url :file (str zip-file))
+    (net/download! url zip-file
+                   :progress-callback progress-callback
+                   :chunk-size (* 1024 1024)
+                   :cancelled-atom cancelled-atom)
+    (if (some-> cancelled-atom deref)
+      (do (.delete zip-file)
+          false)
+      (with-open [zip (ZipFile. zip-file)]
+        (log/info :message "Installing update")
+        (let [backup-dir (io/file (str installed-sha1 "-backup"))
+              es (.getEntries zip)]
+          (while (.hasMoreElements es)
+            (let [e ^ZipArchiveEntry (.nextElement es)]
+              (when-not (.isDirectory e)
+                (let [file-name-parts (-> e
+                                          .getName
+                                          (FilenameUtils/separatorsToUnix)
+                                          (string/split #"/")
+                                          next)
+                      target-file ^File (apply io/file file-name-parts)]
+                  ;; TODO remove logging spam
+                  (log/info :message "Extracting file"
+                            :from (.getName e)
+                            :to (str target-file))
+                  (when-let [target-dir-parts (butlast file-name-parts)]
+                    (.mkdirs ^File (apply io/file target-dir-parts)))
+                  (when (.exists target-file)
+                    (try
+                      (.delete target-file)
+                      (catch IOException _
+                        (.mkdirs backup-dir)
+                        (.renameTo target-file
+                                   (io/file backup-dir target-file)))))
+                  (with-open [out (io/output-stream target-file)]
+                    ;; TODO replace launcher on windows
+                    (io/copy (.getInputStream zip e) out))
+                  (when (executable? (.getUnixMode e))
+                    (.setExecutable target-file true)))))))
+        (swap! state-atom assoc :installed-sha1 newest-sha1)
+        (log/info :message "Update installed")
+        true))))
 
 (defn restart! []
-  (log/info :message "update restarting")
+  (log/info :message "Restarting editor")
+  ;; magic exit code that restarts editor
   (System/exit 17))
 
-(defn check! [{:keys [^Updater updater ^AtomicReference last-update ^AtomicReference last-update-sha1] :as update-context}]
-  (log/info :message "checking for updates")
-  (if-let [new-update (.check updater (.get last-update-sha1))]
-    (let [new-sha1 (.sha1 new-update)]
-      (log/info :message (format "new version found: %s" new-sha1))
-      (when-let [old-update ^Updater$PendingUpdate (.getAndSet last-update new-update)]
-        (.deleteFiles old-update))
-      (.set last-update-sha1 new-sha1)
-      new-sha1)
-    (do
-      (log/info :message "no update found")
-      nil)))
+(defn- check! [updater]
+  (let [{:keys [channel state-atom]} updater
+        url (update-url channel)]
+    (try
+      (log/info :message "Checking for updates" :url url)
+      (let [update (json/read (io/reader url) :key-fn keyword)
+            update-sha1 (:sha1 update)]
+        (swap! state-atom assoc :newest-sha1 update-sha1)
+        (if (has-update? updater)
+          (log/info :message "New version found" :sha1 update-sha1)
+          (log/info :message "No update found")))
+      (catch IOException e
+        (log/warn :message "Update check failed" :exception e)))))
 
-(defn- make-check-for-update-task ^TimerTask [^Timer update-timer update-delay update-context]
+(defn- make-check-for-update-task ^TimerTask [^Timer timer updater update-delay]
   (proxy [TimerTask] []
     (run []
-      (try
-        (check! update-context)
-        (catch IOException e
-          (log/warn :message "update check failed" :exception e))
-        (finally
-          (.schedule update-timer (make-check-for-update-task update-timer update-delay update-context) (long update-delay)))))))
+      (check! updater)
+      (.schedule timer
+                 (make-check-for-update-task timer updater update-delay)
+                 (long update-delay)))))
 
-(defn ^Timer start-update-timer! [update-context initial-update-delay update-delay]
-  (let [update-timer (Timer.)]
-    (.schedule update-timer (make-check-for-update-task update-timer update-delay update-context)
-               (long initial-update-delay))
-    update-timer))
-
-(defn stop-update-timer! [^Timer timer]
-  (doto timer
-    (.cancel)
-    (.purge)))
-
-(defn- update-url
-  [channel]
-  (format "https://d.defold.com/editor2/channels/%s" channel))
+(defn- start-timer! [updater initial-update-delay update-delay]
+  (let [timer (Timer.)]
+    (doto timer
+      (.schedule (make-check-for-update-task timer updater update-delay)
+                 (long initial-update-delay)))))
 
 (defn start!
-  ([] (start! (system/defold-channel) (system/defold-editor-sha1) initial-update-delay update-delay))
-  ([channel sha1 initial-update-delay update-delay]
-   (if (and (not (string/blank? channel)) (not (string/blank? sha1)))
-     (let [update-url (update-url channel)
-           update-context (make-update-context update-url sha1)
-           timer (start-update-timer! update-context initial-update-delay update-delay)]
-       (log/info :message (format "automatic updates enabled (channel='%s')" channel))
-       {:timer timer :update-context update-context})
-     (do
-       (log/info :message (format "automatic updates disabled (channel='%s', sha1='%s')" channel sha1))
-       nil))))
+  "Starts a timer that polls for updates periodically, returns updater which can be passed
+  to other public functions in this namespace"
+  []
+  (let [channel (system/defold-channel)
+        sha1 (system/defold-editor-sha1)
+        initial-update-delay 1000
+        update-delay 60000]
+    (if (or (string/blank? channel) (string/blank? sha1))
+      (do
+        (log/info :message "Automatic updates disabled" :channel channel :sha1 sha1)
+        nil)
+      (doto (make-updater channel sha1 (.getPair (Platform/getHostPlatform)))
+        (start-timer! initial-update-delay update-delay)))))
