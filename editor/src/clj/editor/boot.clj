@@ -48,7 +48,7 @@
     (require 'editor.boot-open-project)))
 
 (defn- open-project-with-progress-dialog
-  [namespace-loader prefs project dashboard-client update-context newly-created?]
+  [namespace-loader prefs project dashboard-client updater newly-created?]
   (ui/modal-progress
    "Loading project"
    (fn [render-progress!]
@@ -62,15 +62,15 @@
        (code-view/initialize! prefs)
        (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [])
        (welcome/add-recent-project! prefs project-file)
-       (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-project-progress! dashboard-client update-context newly-created?])
+       (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-project-progress! dashboard-client updater newly-created?])
        (reset! namespace-progress-reporter nil)))))
 
 (defn- select-project-from-welcome
-  [namespace-loader prefs dashboard-client update-context]
+  [namespace-loader prefs dashboard-client updater]
   (ui/run-later
-    (welcome/show-welcome-dialog! prefs dashboard-client update-context
+    (welcome/show-welcome-dialog! prefs dashboard-client updater
                                   (fn [project newly-created?]
-                                    (open-project-with-progress-dialog namespace-loader prefs project dashboard-client update-context newly-created?)))))
+                                    (open-project-with-progress-dialog namespace-loader prefs project dashboard-client updater newly-created?)))))
 
 (defn notify-user
   [ex-map sentry-id-promise]
@@ -121,7 +121,7 @@
                 (prefs/load-prefs prefs-path)
                 (prefs/make-prefs "defold"))
         dashboard-client (login/make-dashboard-client prefs)
-        update-context (:update-context (updater/start!))
+        updater (updater/start!)
         analytics-url "https://www.google-analytics.com/batch"
         analytics-send-interval 300
         invalidate-analytics-uid? (not (login/signed-in? dashboard-client))]
@@ -129,8 +129,8 @@
     (Shutdown/addShutdownAction analytics/shutdown!)
     (try
       (if-let [game-project-path (get-in opts [:arguments 0])]
-        (open-project-with-progress-dialog namespace-loader prefs game-project-path dashboard-client update-context false)
-        (select-project-from-welcome namespace-loader prefs dashboard-client update-context))
+        (open-project-with-progress-dialog namespace-loader prefs game-project-path dashboard-client updater false)
+        (select-project-from-welcome namespace-loader prefs dashboard-client updater))
       (catch Throwable t
         (log/error :exception t)
         (stack/print-stack-trace t)

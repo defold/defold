@@ -1,22 +1,24 @@
 (ns util.net
-  (:require [clojure.java.io :as io])
-  (:import [java.io OutputStream]
-           [java.net URLConnection]))
+  (:require [clojure.java.io :as io]))
+
+(set! *warn-on-reflection* true)
 
 (def ^:const ^:private default-read-timeout 2000)
+
 (def ^:const ^:private default-connect-timeout 2000)
 
-(defn download! [url ^OutputStream output & {:keys [read-timeout connect-timeout chunk-size progress-callback cancelled-atom]
-                               :or {read-timeout default-read-timeout
-                                    connect-timeout default-connect-timeout
-                                    chunk-size 0}}]
-  (let [conn ^URLConnection (doto (.openConnection (io/as-url url))
-                              (.setRequestProperty "Connection" "close")
-                              (.setConnectTimeout connect-timeout)
-                              (.setReadTimeout read-timeout))
+(defn download! [url out & {:keys [read-timeout connect-timeout chunk-size progress-callback cancelled-atom]
+                            :or {read-timeout default-read-timeout
+                                 connect-timeout default-connect-timeout
+                                 chunk-size 0}}]
+  (let [conn (doto (.openConnection (io/as-url url))
+               (.setRequestProperty "Connection" "close")
+               (.setConnectTimeout connect-timeout)
+               (.setReadTimeout read-timeout))
         length (.getContentLengthLong conn)]
     (when-not (some-> cancelled-atom deref)
-      (with-open [input (.getInputStream conn)]
+      (with-open [input (.getInputStream conn)
+                  output (io/output-stream out)]
         (if (< 0 chunk-size)
           (let [buf (byte-array chunk-size)]
             (loop [count (.read input buf)

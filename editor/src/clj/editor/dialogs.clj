@@ -4,6 +4,7 @@
             [editor.ui :as ui]
             [editor.ui.bindings :as b]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
+            [editor.updater :as updater]
             [editor.util :as util]
             [editor.handler :as handler]
             [editor.core :as core]
@@ -19,9 +20,8 @@
            [java.nio.file Path Paths]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control CheckBox Button Label ListView TextArea TextField Hyperlink]
-           [javafx.scene.input KeyCode KeyEvent]
-           [javafx.scene.input KeyEvent]
+           [javafx.scene.control CheckBox Button Label ListView TextArea TextField Hyperlink ProgressBar]
+           [javafx.scene.input KeyCode]
            [javafx.scene.layout HBox VBox Region]
            [javafx.scene.text Text TextFlow]
            [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]))
@@ -165,21 +165,47 @@
      (ui/show-and-wait! stage)
      @result)))
 
-(defn make-pending-update-dialog
-  [^Stage owner]
+(defn- download-and-install-update! [updater ^ProgressBar progress-bar ^Button cancel cancelled-atom]
+  (future
+    (updater/download-and-install!
+      updater
+      :progress-callback (fn [current total]
+                           (.setProgress progress-bar (double (/ current total)))
+                           (when (= current total)
+                             (.setDisable cancel true)))
+      :cancelled-atom cancelled-atom)))
+
+(defn make-pending-update-dialog [^Stage owner updater]
   (let [root ^Parent (ui/load-fxml "update-alert.fxml")
         stage (ui/make-dialog-stage owner)
         scene (Scene. root)
-        result (atom false)]
+        state-atom (atom {:status :waiting})]
     (ui/title! stage "Update Available")
-    (ui/with-controls root [^Button ok ^Button cancel]
-      (.setDefaultButton ok true)
-      (ui/on-action! ok (fn on-ok! [_] (reset! result true) (.close stage)))
-      (.setCancelButton cancel true)
-      (ui/on-action! cancel (fn on-cancel! [_] (.close stage))))
+    (ui/with-controls root [^Button ok ^Button cancel ^ProgressBar progress-bar]
+      (ui/on-action!
+        ok
+        (fn on-ok! [_]
+          (let [cancelled-atom (atom false)
+                success? (download-and-install-update! updater progress-bar cancel cancelled-atom)]
+            (.setDisable ok true)
+            (.setVisible progress-bar true)
+            (reset! state-atom {:status :downloading
+                                :cancelled-atom cancelled-atom})
+            (future
+              (when @success?
+                (reset! state-atom {:status :completed})
+                (ui/run-later
+                  (.close stage)))))))
+      (ui/on-action!
+        cancel
+        (fn on-cancel! [_]
+          (let [{:keys [status cancelled-atom]} @state-atom]
+            (when (= :downloading status)
+              (reset! cancelled-atom true))
+            (.close stage)))))
     (.setScene stage scene)
     (ui/show-and-wait! stage)
-    @result))
+    (= :completed (:status @state-atom))))
 
 (handler/defhandler ::report-error :dialog
   (run [sentry-id-promise]
@@ -471,11 +497,11 @@
         do-validation (fn []
                         (let [sanitized (some-> (not-empty (ui/text (:name controls))) sanitize-folder-name)
                               validation-msg (some-> sanitized validate)]
-                        (if (or (nil? sanitized) validation-msg)
-                          (do (ui/text! (:path controls) (or validation-msg ""))
-                              (ui/enable! (:ok controls) false))
-                          (do (ui/text! (:path controls) sanitized)
-                              (ui/enable! (:ok controls) true)))))]
+                          (if (or (nil? sanitized) validation-msg)
+                            (do (ui/text! (:path controls) (or validation-msg ""))
+                                (ui/enable! (:ok controls) false))
+                            (do (ui/text! (:path controls) sanitized)
+                                (ui/enable! (:ok controls) true)))))]
     (ui/title! stage "New Folder")
 
     (ui/on-action! (:ok controls) (fn [_] (close)))
@@ -522,8 +548,7 @@
       str/trim
       (str/replace #"[/\\]" "") ; strip path separators
       (str/replace #"[\"']" "") ; strip quotes
-      (str/replace #"^\.*" "") ; prevent hiding files (.dotfile)
-      ))
+      (str/replace #"^\.*" ""))) ; prevent hiding files (.dotfile)
 
 (defn sanitize-file-name [extension name]
   (-> name
