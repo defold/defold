@@ -286,6 +286,11 @@ static int convertMacKeyCode( unsigned int macKeyCode )
 
 @implementation GLFWContentView
 
+- (BOOL)wantsUpdateLayer
+{
+    return YES;
+}
+
 - (BOOL)isOpaque
 {
     return YES;
