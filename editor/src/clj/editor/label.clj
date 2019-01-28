@@ -170,7 +170,10 @@
   [_node-id aabb gpu-texture material-shader blend-mode pivot text-data scale]
   (let [scene {:node-id _node-id
                :aabb aabb
-               :transform (math/->mat4-scale scale)}]
+               :transform (math/->mat4-scale scale)}
+        font-map (get-in text-data [:font-data :font-map])
+        texture-recip-uniform (font/get-texture-recip-uniform font-map)
+        material-shader (assoc-in material-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
     (if text-data
       (let [min (types/min-p aabb)
             max (types/max-p aabb)
