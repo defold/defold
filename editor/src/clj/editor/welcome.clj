@@ -202,10 +202,7 @@
   "Downloads a template project zip file. Returns the file or nil if cancelled."
   ^File [url progress-callback cancelled-atom]
   (let [file ^File (fs/create-temp-file! "template-project" ".zip")]
-    (with-open [output (FileOutputStream. file)]
-      ;; The long timeout suggests we need some progress reporting even before d/l starts.
-      (let [timeout 2000]
-        (net/download! url output :connect-timeout timeout :read-timeout timeout :chunk-size 1024 :progress-callback progress-callback :cancelled-atom cancelled-atom)))
+    (net/download! url file :chunk-size 1024 :progress-callback progress-callback :cancelled-atom cancelled-atom)
     (if @cancelled-atom
       (do
         (fs/delete-file! file)
@@ -586,13 +583,10 @@
 ;; Automatic updates
 ;; -----------------------------------------------------------------------------
 
-(defn- install-pending-update-check-timer! [^Stage stage update-link update-context]
-  (let [update-visibility! (fn []
-                             (let [update (updater/pending-update update-context)
-                                   update-exists? (and (some? update)
-                                                       (not= update (system/defold-editor-sha1)))]
-                               (ui/visible! update-link update-exists?)
-                               update-exists?))]
+(defn- install-pending-update-check-timer! [^Stage stage update-link updater]
+  (let [update-visibility! #(let [has-update? (updater/has-update? updater)]
+                              (ui/visible! update-link has-update?)
+                              has-update?)]
     ;; Start checking for updates. On the Welcome screen we stop polling once we
     ;; found an update. If we find an update immediately, we don't even need to
     ;; install the polling timer.
@@ -604,13 +598,12 @@
         (.addEventHandler stage WindowEvent/WINDOW_SHOWN (ui/event-handler event (ui/timer-start! timer)))
         (.addEventHandler stage WindowEvent/WINDOW_HIDING (ui/event-handler event (ui/timer-stop! timer)))))))
 
-(defn- init-pending-update-indicator! [stage update-link update-context]
-  (install-pending-update-check-timer! stage update-link update-context)
+(defn- init-pending-update-indicator! [stage update-link updater]
+  (install-pending-update-check-timer! stage update-link updater)
   (ui/on-action! update-link
                  (fn [_]
-                   (when (dialogs/make-pending-update-dialog stage)
-                     (when (updater/install-pending-update! update-context (io/file (system/defold-resourcespath)))
-                       (updater/restart!))))))
+                   (when (dialogs/make-pending-update-dialog stage updater)
+                     (updater/restart!)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Welcome dialog
@@ -649,9 +642,9 @@
     (.setVisible progress-overlay false)))
 
 (defn show-welcome-dialog!
-  ([prefs dashboard-client update-context open-project-fn]
-   (show-welcome-dialog! prefs dashboard-client update-context open-project-fn nil))
-  ([prefs dashboard-client update-context open-project-fn opts]
+  ([prefs dashboard-client updater open-project-fn]
+   (show-welcome-dialog! prefs dashboard-client updater open-project-fn nil))
+  ([prefs dashboard-client updater open-project-fn opts]
    (let [[welcome-settings
           welcome-settings-load-error] (try
                                          [(load-welcome-settings "welcome/welcome.edn") nil]
@@ -777,8 +770,8 @@
      (ui/on-closed! stage (fn [_] (login/abort-incomplete-sign-in! dashboard-client)))
 
      ;; Install pending update check.
-     (when (some? update-context)
-       (init-pending-update-indicator! stage update-link update-context))
+     (when (some? updater)
+       (init-pending-update-indicator! stage update-link updater))
 
      ;; Add the pane buttons to the left panel and configure them to toggle between the panes.
      (doseq [^RadioButton pane-button pane-buttons]
@@ -813,7 +806,7 @@
                                   (when (and (.isShortcutDown key-event)
                                              (= "r" (.getText key-event)))
                                     (ui/close! stage)
-                                    (show-welcome-dialog! prefs dashboard-client update-context open-project-fn
+                                    (show-welcome-dialog! prefs dashboard-client updater open-project-fn
                                                           {:x (.getX stage)
                                                            :y (.getY stage)
                                                            :pane-index (first (keep-indexed (fn [pane-index pane-button]
