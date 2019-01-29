@@ -142,11 +142,11 @@
         (history)))
 
 (defn update-history! [update-fn]
-  (#'is/update-history! (system) (project-graph) update-fn))
+  (is/update-history! (system) (project-graph) update-fn))
 
 (defn revert-history! []
   (update-history! (fn [history basis]
-                     (history/rewind-history history basis 0))))
+                     (#'history/rewind-history history basis 0))))
 
 (defn- node-value-type-symbol [node-value-type]
   (symbol (if-some [^Class class (:class (deref node-value-type))]

@@ -250,7 +250,8 @@
                          :main-stage          stage
                          :asset-browser       asset-browser
                          :debug-view          debug-view}
-            dynamics {:active-resource [:app-view :active-resource]}]
+            dynamics {:active-resource [:app-view :active-resource]
+                      :history-context-pred [:app-view :history-context-pred]}]
         (ui/context! root :global context-env (ui/->selection-provider assets) dynamics)
         (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
       (g/transact
@@ -279,6 +280,9 @@
       (if (system/defold-dev?)
         (graph-view/setup-graph-view root)
         (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"]))))
+
+      ;; Use context from the app-view for undo history entries.
+      (g/set-history-context-fn! (partial app-view/history-context app-view))
 
       ;; If sync was in progress when we shut down the editor we offer to resume the sync process.
       (let [git (g/node-value changes-view :git)]

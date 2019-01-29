@@ -92,6 +92,12 @@
           (fire-tab-closed-event! tab))
         (.removeAll (.getTabs tab-pane) closed-tabs)))))
 
+(defn history-context [app-view]
+  (g/node-value app-view :active-resource))
+
+(g/defnk produce-history-context-pred [active-resource]
+  (partial = active-resource))
+
 (g/defnode AppView
   (property stage Stage)
   (property scene Scene)
@@ -130,8 +136,8 @@
                                           {:view-id (ui/user-data active-tab ::view)
                                            :view-type (ui/user-data active-tab ::view-type)})))
 
-  (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
-  (output active-resource resource/Resource :cached (g/fnk [active-view open-views] (:resource (get open-views active-view))))
+  (output active-resource-node g/NodeID (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
+  (output active-resource resource/Resource (g/fnk [active-view open-views] (:resource (get open-views active-view))))
   (output open-resource-nodes g/Any :cached (g/fnk [open-views] (->> open-views vals (map :resource-node))))
   (output selected-node-ids g/Any (g/fnk [selected-node-ids-by-resource-node active-resource-node]
                                     (get selected-node-ids-by-resource-node active-resource-node)))
@@ -151,7 +157,8 @@
                                                 (ui/text! tab title)))))
   (output keymap g/Any :cached (g/fnk []
                                  (keymap/make-keymap keymap/default-host-key-bindings {:valid-command? (set (handler/available-commands))})))
-  (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
+  (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations))
+  (output history-context-pred g/Any :cached produce-history-context-pred))
 
 (defn- selection->openable-resources [selection]
   (when-let [resources (handler/adapt-every selection resource/Resource)]

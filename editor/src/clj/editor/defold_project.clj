@@ -351,12 +351,12 @@
       (pipeline/build! build-targets build-dir old-artifact-map (progress/nest-render-progress render-progress! (progress/make "" 10 5) 5)))))
 
 (handler/defhandler :undo :global
-  (enabled? [project-graph] (g/has-undo? project-graph))
-  (run [project-graph] (g/undo! project-graph)))
+  (enabled? [project-graph history-context-pred] (g/can-undo? project-graph history-context-pred))
+  (run [project-graph history-context-pred] (g/undo! project-graph history-context-pred)))
 
 (handler/defhandler :redo :global
-  (enabled? [project-graph] (g/has-redo? project-graph))
-  (run [project-graph] (g/redo! project-graph)))
+  (enabled? [project-graph history-context-pred] (g/can-redo? project-graph history-context-pred))
+  (run [project-graph history-context-pred] (g/redo! project-graph history-context-pred)))
 
 (def ^:private bundle-targets
   (into []

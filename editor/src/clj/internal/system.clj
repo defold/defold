@@ -48,7 +48,7 @@
         (update :cache c/cache-invalidate cache-entries)
         (update :invalidate-counters bump-invalidate-counters cache-entries))))
 
-(defn- update-history [system graph-id update-fn]
+(defn update-history [system graph-id update-fn]
   (let [history (graph-history system graph-id)
         graphs (graphs system)
         basis (ig/multigraph-basis graphs)
@@ -63,41 +63,6 @@
             (assoc-in [:graphs graph-id] updated-graph)
             (assoc-in [:history graph-id] updated-history)
             (invalidate-outputs updated-outputs))))))
-
-(defn undo-history [system graph-id]
-  (update-history system graph-id
-                  (fn [history basis]
-                    (when-some [alteration (history/find-undoable-entry history)]
-                      (history/alter-history history basis alteration (id-generators system) (override-id-generator system))))))
-
-(defn redo-history [system graph-id]
-  (update-history system graph-id
-                  (fn [history basis]
-                    (when-some [alteration (history/find-redoable-entry history)]
-                      (history/alter-history history basis alteration (id-generators system) (override-id-generator system))))))
-
-(defn undo-stack [history]
-  ;; TODO: Inefficient. Remove!
-  (filterv :enabled? (rseq (subvec history 1))))
-
-(defn redo-stack [history]
-  ;; TODO: Inefficient. Remove!
-  (into []
-        (remove :enabled?)
-        history))
-
-(defn clear-history [system graph-id]
-  (let [graph (graph system graph-id)
-        cleared-history (history/make-history graph)]
-    (assoc-in system [:history graph-id] cleared-history)))
-
-(defn cancel [system graph-id sequence-label]
-  (assert (some? sequence-label))
-  (update-history system graph-id
-                  (fn [history basis]
-                    (let [history-length (count history)]
-                      (when (= sequence-label (history/history-sequence-label history))
-                        (history/rewind-history history basis (- history-length 2)))))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -169,8 +134,16 @@
         (attach-graph initial-graph))))
 
 (defn merge-graphs
-  [system tx-data post-tx-graphs significantly-modified-graphs outputs-modified nodes-deleted]
+  [system history-context-fn tx-data post-tx-graphs significantly-modified-graphs outputs-modified nodes-deleted]
   (let [outputs-modified-by-graph-id (util/group-into #{} (comp gt/node-id->graph-id first) outputs-modified)
+        history-by-graph-id (into {}
+                                  (keep (fn [graph-id]
+                                          (when (contains? significantly-modified-graphs graph-id)
+                                            (when-some [history (graph-history system graph-id)]
+                                              [graph-id history]))))
+                                  (keys outputs-modified-by-graph-id))
+        history-context (when (seq history-by-graph-id)
+                          (history-context-fn))
         post-system (reduce (fn [system [graph-id graph]]
                               (let [start-tx (:tx-id graph -1)
                                     sidereal-tx (graph-time system graph-id)]
@@ -178,15 +151,13 @@
                                   ;; graph was modified concurrently by a different transaction.
                                   (throw (ex-info "Concurrent modification of graph"
                                                   {:_graph-id graph-id :start-tx start-tx :sidereal-tx sidereal-tx}))
-                                  (let [meaningful-change? (contains? significantly-modified-graphs graph-id)
-                                        graph-after (update graph :tx-id util/safe-inc)
+                                  (let [graph-after (update graph :tx-id util/safe-inc)
                                         system-after (assoc-in system [:graphs graph-id] graph-after)
-                                        history-before (graph-history system graph-id)]
-                                    (if (or (nil? history-before)
-                                            (not meaningful-change?))
+                                        history-before (history-by-graph-id graph-id)]
+                                    (if (nil? history-before)
                                       system-after
                                       (let [outputs-modified (outputs-modified-by-graph-id graph-id)
-                                            history-after (history/write-history history-before graph-after outputs-modified tx-data)]
+                                            history-after (history/write-history history-before history-context graph-after outputs-modified tx-data)]
                                         (assoc-in system-after [:history graph-id] history-after)))))))
                             system
                             post-tx-graphs)]

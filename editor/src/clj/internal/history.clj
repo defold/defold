@@ -50,34 +50,54 @@
   (= graph-id (:graph-id transaction-step)))
 
 ;; -----------------------------------------------------------------------------
+;; Internals
+;; -----------------------------------------------------------------------------
 
-(defrecord HistoryEntry [^long undo-group label sequence-label graph-after outputs-modified transaction-steps])
+(defonce ^:private ^AtomicLong undo-group-counter (AtomicLong. 0))
 
-(defn make-history [graph]
-  (assert (ig/graph? graph))
-  [(->HistoryEntry 0 nil nil graph #{} [])])
+(defrecord ^:private HistoryEntry [^long undo-group label sequence-label context graph-after outputs-modified transaction-steps])
 
-(defn history-sequence-label [history]
+(defn- history-sequence-label [history]
   (let [^HistoryEntry history-entry (peek history)]
     (when (zero? (.undo-group history-entry))
       (.sequence-label history-entry))))
 
-(defn find-undoable-entry [history]
+(defn- find-undoable-entry
+  "Finds the first undoable entry whose context matches the supplied predicate.
+  The predicate should return true for contexts that are conceptually part of
+  the undo queue for the current state of the application. Returns a single-
+  entry map in undo-group-by-history-entry-index format suitable for use with
+  the alter-history function, or nil if there was no matching entry."
+  [history context-pred]
   (loop [history-entry-index (dec (count history))
          current-undo-group nil]
     (when (pos? history-entry-index)
-      (let [^HistoryEntry history-entry (history history-entry-index)
-            history-entry-undo-group (.undo-group history-entry)]
-        (if (zero? history-entry-undo-group)
-          {history-entry-index current-undo-group}
+      (let [^HistoryEntry history-entry (history history-entry-index)]
+        (if-not (context-pred (.context history-entry))
           (recur (dec history-entry-index)
-                 (or current-undo-group history-entry-undo-group)))))))
+                 current-undo-group)
+          (let [history-entry-undo-group (.undo-group history-entry)]
+            (if (zero? history-entry-undo-group)
+              {history-entry-index current-undo-group}
+              (recur (dec history-entry-index)
+                     (or current-undo-group history-entry-undo-group)))))))))
 
-(defn find-redoable-entry [history]
-  (let [current-undo-group (.undo-group ^HistoryEntry (peek history))]
-    (when-not (zero? current-undo-group)
-      (let [history-entry-index (util/first-index-where #(= current-undo-group (.undo-group ^HistoryEntry %)) history)]
-        {history-entry-index 0}))))
+(defn- find-redoable-entry
+  "Finds the first redoable entry whose context matches the supplied predicate.
+  The predicate should return true for contexts that are conceptually part of
+  the undo queue for the current state of the application. Returns a single-
+  entry map in undo-group-by-history-entry-index format suitable for use with
+  the alter-history function, or nil if there was no matching entry."
+  [history context-pred]
+  (let [history-entry-in-context? #(context-pred (.context ^HistoryEntry %))]
+    (when-some [^HistoryEntry last-history-entry-in-context (util/first-where history-entry-in-context? (rseq (subvec history 1)))]
+      (let [current-undo-group (.undo-group last-history-entry-in-context)]
+        (when-not (zero? current-undo-group)
+          (let [history-entry-index (util/first-index-where (fn [^HistoryEntry history-entry]
+                                                              (and (= current-undo-group (.undo-group history-entry))
+                                                                   (history-entry-in-context? history-entry)))
+                                                            history)]
+            {history-entry-index 0}))))))
 
 (defn- process-tx-data [tx-data graph-id]
   (loop [unfiltered-transaction-steps (flatten tx-data)
@@ -99,21 +119,7 @@
        :sequence-label sequence-label
        :transaction-steps (persistent! filtered-transaction-steps)})))
 
-(defn write-history [history graph-after outputs-modified tx-data]
-  (let [{:keys [label sequence-label transaction-steps]} (process-tx-data tx-data (:_graph-id graph-after))
-        merge-into-previous-history-entry? (some-> sequence-label (= (history-sequence-label history)))]
-    (if merge-into-previous-history-entry?
-      (let [last-history-entry-index (dec (count history))
-            merged-history-entry (cond-> (peek history)
-                                         (some? label) (assoc :label label)
-                                         (some? sequence-label) (assoc :sequence-label sequence-label)
-                                         (seq outputs-modified) (update :outputs-modified into outputs-modified)
-                                         (seq transaction-steps) (update :transaction-steps into transaction-steps))]
-        (assoc history last-history-entry-index merged-history-entry))
-      (let [history-entry (->HistoryEntry 0 label sequence-label graph-after outputs-modified transaction-steps)]
-        (conj history history-entry)))))
-
-(defn rewind-history [history basis history-entry-index]
+(defn- rewind-history [history basis history-entry-index]
   (let [rewound-history-end-index (inc history-entry-index)
         rewound-history (into [] (subvec history 0 rewound-history-end-index))
         rewound-graph (:graph-after (peek rewound-history))
@@ -126,8 +132,6 @@
      :history rewound-history
      :outputs-to-refresh outputs-to-refresh}))
 
-(defonce ^:private ^AtomicLong undo-group-counter (AtomicLong. 0))
-
 (defn- replay-history [rewound-history rewound-basis history undo-group-by-history-entry-index node-id-generators override-id-generator]
   (loop [altered-basis rewound-basis
          altered-history (transient rewound-history)
@@ -137,6 +141,7 @@
       (let [graph-id (:_graph-id (.graph-after history-entry))
             label (.label history-entry)
             sequence-label (.sequence-label history-entry)
+            context (.context history-entry)
             transaction-steps (.transaction-steps history-entry)
             ^long undo-group (or (get undo-group-by-history-entry-index history-entry-index
                                       (.undo-group history-entry))
@@ -145,13 +150,13 @@
           (let [transaction-context (it/new-transaction-context altered-basis node-id-generators override-id-generator)
                 {:keys [basis outputs-modified]} (it/transact* transaction-context transaction-steps)
                 altered-graph (-> basis :graphs (get graph-id))
-                altered-history-entry (->HistoryEntry 0 label sequence-label altered-graph outputs-modified transaction-steps)]
+                altered-history-entry (->HistoryEntry 0 label sequence-label context altered-graph outputs-modified transaction-steps)]
             (recur basis
                    (conj! altered-history altered-history-entry)
                    (reduce conj! outputs-to-refresh outputs-modified)
                    (inc history-entry-index)))
           (let [altered-graph (-> altered-basis :graphs (get graph-id))
-                altered-history-entry (->HistoryEntry undo-group label sequence-label altered-graph #{} transaction-steps)]
+                altered-history-entry (->HistoryEntry undo-group label sequence-label context altered-graph #{} transaction-steps)]
             (recur altered-basis
                    (conj! altered-history altered-history-entry)
                    outputs-to-refresh
@@ -160,7 +165,7 @@
        :history (persistent! altered-history)
        :outputs-to-refresh (persistent! outputs-to-refresh)})))
 
-(defn alter-history [history basis undo-group-by-history-entry-index node-id-generators override-id-generator]
+(defn- alter-history [history basis undo-group-by-history-entry-index node-id-generators override-id-generator]
   (let [min-history-entry-index (reduce min (keys undo-group-by-history-entry-index))]
     (assert (pos? min-history-entry-index) "Cannot alter the beginning of history.")
     (let [{rewound-basis :basis
@@ -172,3 +177,50 @@
       {:basis altered-basis
        :history altered-history
        :outputs-to-refresh (set/union rewound-outputs altered-outputs)})))
+
+;; -----------------------------------------------------------------------------
+;; Public interface
+;; -----------------------------------------------------------------------------
+
+(defn make-history [graph]
+  (assert (ig/graph? graph))
+  [(map->HistoryEntry {:undo-group 0
+                       :graph-after graph
+                       :outputs-modified #{}
+                       :transaction-steps []})])
+
+(defn write-history [history context graph-after outputs-modified tx-data]
+  (assert (ig/graph? graph-after))
+  (assert (set? outputs-modified))
+  (let [{:keys [label sequence-label transaction-steps]} (process-tx-data tx-data (:_graph-id graph-after))
+        merge-into-previous-history-entry? (some-> sequence-label (= (history-sequence-label history)))]
+    (if merge-into-previous-history-entry?
+      (let [last-history-entry-index (dec (count history))
+            merged-history-entry (cond-> (assoc (peek history) :context context)
+                                         (some? label) (assoc :label label)
+                                         (some? sequence-label) (assoc :sequence-label sequence-label)
+                                         (seq outputs-modified) (update :outputs-modified into outputs-modified)
+                                         (seq transaction-steps) (update :transaction-steps into transaction-steps))]
+        (assoc history last-history-entry-index merged-history-entry))
+      (let [history-entry (->HistoryEntry 0 label sequence-label context graph-after outputs-modified transaction-steps)]
+        (conj history history-entry)))))
+
+(defn can-undo? [history context-pred]
+  (some? (find-undoable-entry history context-pred)))
+
+(defn undo [history context-pred basis node-id-generators override-id-generator]
+  (when-some [alteration (find-undoable-entry history context-pred)]
+    (alter-history history basis alteration node-id-generators override-id-generator)))
+
+(defn can-redo? [history context-pred]
+  (some? (find-redoable-entry history context-pred)))
+
+(defn redo [history context-pred basis node-id-generators override-id-generator]
+  (when-some [alteration (find-redoable-entry history context-pred)]
+    (alter-history history basis alteration node-id-generators override-id-generator)))
+
+(defn cancel [history basis sequence-label]
+  (assert (some? sequence-label))
+  (when (= sequence-label (history-sequence-label history))
+    (let [history-length (count history)]
+      (rewind-history history basis (- history-length 2)))))

@@ -114,6 +114,17 @@
         (aset-long tps-counts 0 0)))
     tps-counts))
 
+(defonce ^:private history-context-fn-atom (atom (clojure.core/constantly nil)))
+
+(defn set-history-context-fn!
+  "Set the function that will be called to obtain context for written history
+  entries. The context value returned by the function will be associated with
+  the written history entry, and later given to the context predicate function
+  you provide in calls g/undo! and its ilk."
+  [history-context-fn]
+  (assert (ifn? history-context-fn))
+  (reset! history-context-fn-atom history-context-fn))
+
 (defn transact
   "Provides a way to run a transaction against the graph system.  It takes a list of transaction steps.
 
@@ -130,12 +141,13 @@
   [txs]
   (when *tps-debug*
     (send-off tps-counter tick (System/nanoTime)))
-  (let [basis     (is/basis @*the-system*)
-        id-generators   (is/id-generators @*the-system*)
+  (let [basis (is/basis @*the-system*)
+        id-generators (is/id-generators @*the-system*)
         override-id-generator (is/override-id-generator @*the-system*)
         tx-result (it/transact* (it/new-transaction-context basis id-generators override-id-generator) txs)]
     (when (= :ok (:status tx-result))
-      (swap! *the-system* is/merge-graphs txs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
+      (let [history-context-fn @history-context-fn-atom]
+        (swap! *the-system* is/merge-graphs history-context-fn txs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result))))
     tx-result))
 
 ;; ---------------------------------------------------------------------------
@@ -1309,56 +1321,53 @@
     nil))
 
 (defn undo!
-  "Given a `graph-id` resets the graph back to the last _step_ in time.
+  "Undoes the last performed action matching the provided context predicate."
+  [graph-id context-pred]
+  (swap! *the-system*
+         (fn [system]
+           (is/update-history system graph-id
+                              (fn [history basis]
+                                (history/undo history context-pred basis (is/id-generators system) (is/override-id-generator system)))))))
 
-  Example:
-
-  (undo gid)"
-  [graph-id]
-  (swap! *the-system* is/undo-history graph-id)
-  nil)
-
-(defn has-undo?
-  "Returns true/false if a `graph-id` has an undo available"
-  [graph-id]
-  (let [history-ref (is/graph-history @*the-system* graph-id)]
-    (some? (history/find-undoable-entry @history-ref))))
-
-(defn undo-stack-count
-  "Returns the number of entries in the undo stack for `graph-id`"
-  [graph-id]
-  (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph-id))]
-    (count undo-stack)))
+(defn can-undo?
+  "Returns true if the specified graph has an undoable action matching the
+  provided context predicate."
+  [graph-id context-pred]
+  (if-some [history (is/graph-history @*the-system* graph-id)]
+    (history/can-undo? history context-pred)
+    false))
 
 (defn redo!
-  "Given a `graph-id` reverts an undo of the graph
+  "Redoes the previously undone action matching the provided context predicate."
+  [graph-id context-pred]
+  (swap! *the-system*
+         (fn [system]
+           (is/update-history system graph-id
+                              (fn [history basis]
+                                (history/redo history context-pred basis (is/id-generators system) (is/override-id-generator system)))))))
 
-  Example: `(redo gid)`"
-  [graph-id]
-  (swap! *the-system* is/redo-history graph-id)
-  nil)
-
-(defn has-redo?
-  "Returns true/false if a `graph-id` has an redo available"
-  [graph-id]
-  (let [history-ref (is/graph-history @*the-system* graph-id)]
-    (some? (history/find-redoable-entry @history-ref))))
+(defn can-redo?
+  "Returns true if the specified graph has a redoable action matching the
+  provided context predicate."
+  [graph-id context-pred]
+  (if-some [history (is/graph-history @*the-system* graph-id)]
+    (history/can-redo? history context-pred)
+    false))
 
 (defn reset-undo!
-  "Given a `graph-id`, clears all undo history for the graph
-
-  Example:
-  `(reset-undo! gid)`"
+  "Given a `graph-id`, clears all undo history for the graph.
+  Warning: Does not invalidate outputs."
   [graph-id]
-  (swap! *the-system* is/clear-history graph-id)
-  nil)
+  (swap! *the-system*
+         (fn [system]
+           (let [graph (is/graph system graph-id)
+                 cleared-history (history/make-history graph)]
+             (assoc-in system [:history graph-id] cleared-history)))))
 
 (defn cancel!
-  "Given a `graph-id` and a `sequence-id` _cancels_ any sequence of undos on the graph as
-  if they had never happened in the history.
-
-  Example:
-  `(cancel! gid :a)`"
+  "Given a `graph-id` and a `sequence-id` _cancels_ any sequence of undos on the
+  graph as if they had never happened in the history."
   [graph-id sequence-id]
-  (swap! *the-system* is/cancel graph-id sequence-id)
-  nil)
+  (swap! *the-system* is/update-history graph-id
+         (fn [history basis]
+           (history/cancel history basis sequence-id))))
