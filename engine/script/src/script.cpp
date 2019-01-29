@@ -21,7 +21,7 @@
 #include "script_luasocket.h"
 #include "script_bitop.h"
 #include "script_timer.h"
-#include "script_native_extensions.h"
+#include "script_extensions.h"
 
 extern "C"
 {
@@ -50,7 +50,7 @@ namespace dmScript
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
 
-    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_native_extensions)
+    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_extensions)
     {
         Context* context = new Context();
         context->m_Modules.SetCapacity(127, 256);
@@ -61,7 +61,7 @@ namespace dmScript
         context->m_ResourceFactory = factory;
         context->m_LuaState = lua_open();
         context->m_ContextTableRef = LUA_NOREF;
-        context->m_EnableNativeExtensions = enable_native_extensions;
+        context->m_EnableExtensions = enable_extensions;
         return context;
     }
 
@@ -181,9 +181,9 @@ namespace dmScript
 
         InitializeHttp(context);
         InitializeTimer(context);
-        if (context->m_EnableNativeExtensions)
+        if (context->m_EnableExtensions)
         {
-            InitializeNativeExtensions(context);
+            InitializeExtensions(context);
         }
 
         for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)

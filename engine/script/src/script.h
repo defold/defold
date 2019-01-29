@@ -66,10 +66,10 @@ namespace dmScript
      * Create and return a new context.
      * @param config_file optional config file handle
      * @param factory resource factory
-     * @param enable_native_extensions true if extensions should be initialized for this context
+     * @param enable_extensions true if extensions should be initialized for this context
      * @return context
      */
-    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_native_extensions);
+    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_extensions);
 
     /**
      * Delete an existing context.
