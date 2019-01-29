@@ -54,25 +54,35 @@ namespace dmGraphics
 
         struct Context
         {
-            VkInstance                     instance;
-            VkPhysicalDevice               physical_device;
-            VkSurfaceKHR                   surface;
-            VkApplicationInfo              applicationInfo;
-            VkDebugUtilsMessengerEXT       debugCallback;
-            dmArray<VkExtensionProperties> extensions;
+            VkInstance                     m_Instance;
+            VkPhysicalDevice               m_PhysicalDevice;
+            VkDevice                       m_LogicalDevice;
+            VkQueue                        m_PresentQueue;
+            VkQueue                        m_GraphicsQueue;
+            VkSwapchainKHR                 m_SwapChain;
+            VkFormat                       m_SwapChainImageFormat;
+            VkExtent2D                     m_SwapChainImageExtent;
+
+            VkSurfaceKHR                   m_Surface;
+            VkApplicationInfo              m_ApplicationInfo;
+            VkDebugUtilsMessengerEXT       m_DebugCallback;
+
+            dmArray<VkImage>               m_SwapChainImages;
+            dmArray<VkImageView>           m_SwapChainImageViews;
+            dmArray<VkExtensionProperties> m_Extensions;
         } g_vk_context;
 
         struct QueueFamily
         {
-            int32_t graphicsFamily;
-            int32_t presentFamily;
+            int32_t m_GraphicsFamily;
+            int32_t m_PresentFamily;
         };
 
         struct SwapChainSupport
         {
-            VkSurfaceCapabilitiesKHR    surfaceCapabilities;
-            dmArray<VkSurfaceFormatKHR> formats;
-            dmArray<VkPresentModeKHR>   presentModes;
+            VkSurfaceCapabilitiesKHR    m_SurfaceCapabilities;
+            dmArray<VkSurfaceFormatKHR> m_Formats;
+            dmArray<VkPresentModeKHR>   m_PresentModes;
         };
 
         // This functions is invoked by the vulkan layer whenever
@@ -89,6 +99,27 @@ namespace dmGraphics
             return VK_FALSE;
         }
 
+        static inline uint32_t CountStringArray(const char** arr)
+        {
+            int str_c = -1;
+            while(arr[++str_c]);
+            return str_c;
+        }
+
+        static inline bool IsInDeviceExtensionList(const char* ext_to_find)
+        {
+            int g_ext_c = -1;
+            while(g_device_extensions[++g_ext_c])
+            {
+                if (dmStrCaseCmp(ext_to_find, g_device_extensions[g_ext_c]) == 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         void SetInstanceExtensionList()
         {
             uint32_t extension_count             = 0;
@@ -96,16 +127,16 @@ namespace dmGraphics
 
             vkEnumerateInstanceExtensionProperties(0, &extension_count, 0);
 
-            g_vk_context.extensions.SetCapacity(extension_count);
-            g_vk_context.extensions.SetSize(extension_count);
+            g_vk_context.m_Extensions.SetCapacity(extension_count);
+            g_vk_context.m_Extensions.SetSize(extension_count);
 
-            extension_ptr = g_vk_context.extensions.Begin();
+            extension_ptr = g_vk_context.m_Extensions.Begin();
 
             vkEnumerateInstanceExtensionProperties(0, &extension_count, extension_ptr);
 
             for(unsigned int i=0; i < extension_count; i++ )
             {
-                dmLogInfo("Extension Enabled: %s", g_vk_context.extensions[i].extensionName);
+                dmLogInfo("Extension Enabled: %s", g_vk_context.m_Extensions[i].extensionName);
             }
         }
 
@@ -196,8 +227,8 @@ namespace dmGraphics
 
         // All GPU operations are pushed to various queues. The physical device can have multiple
         // queues with different properties supported, so we need to find a combination of queues
-        // that will work for our needs. Not that the present queue might not be the same queue as the
-        // present queue.
+        // that will work for our needs. Note that the present queue might not be the same queue as the
+        // graphics queue. The graphics queue support is needed to do graphics operations at all.
         QueueFamily GetQueueFamily(VkPhysicalDevice device)
         {
             QueueFamily vk_family_selected = { QUEUE_FAMILY_INVALID, QUEUE_FAMILY_INVALID };
@@ -219,18 +250,18 @@ namespace dmGraphics
 
                 if (candidate.queueCount > 0 && candidate.queueFlags & VK_QUEUE_GRAPHICS_BIT)
                 {
-                    vk_family_selected.graphicsFamily = i;
+                    vk_family_selected.m_GraphicsFamily = i;
                 }
 
                 uint32_t present_support = 0;
-                vkGetPhysicalDeviceSurfaceSupportKHR(device, i, g_vk_context.surface, &present_support);
+                vkGetPhysicalDeviceSurfaceSupportKHR(device, i, g_vk_context.m_Surface, &present_support);
 
                 if (candidate.queueCount && present_support)
                 {
-                    vk_family_selected.presentFamily = i;
+                    vk_family_selected.m_PresentFamily = i;
                 }
 
-                if (vk_family_selected.graphicsFamily >= 0 && vk_family_selected.presentFamily >= 0)
+                if (vk_family_selected.m_GraphicsFamily >= 0 && vk_family_selected.m_PresentFamily >= 0)
                 {
                     break;
                 }
@@ -258,14 +289,9 @@ namespace dmGraphics
             {
                 VkExtensionProperties ext_property = ext_properties[i];
 
-                int32_t g_ext_c = -1;
-
-                while(g_device_extensions[++g_ext_c])
+                if (IsInDeviceExtensionList(ext_property.extensionName))
                 {
-                    if (dmStrCaseCmp(ext_property.extensionName, g_device_extensions[g_ext_c]) == 0)
-                    {
-                        ext_to_enable_count--;
-                    }
+                    ext_to_enable_count--;
                 }
             }
 
@@ -276,30 +302,98 @@ namespace dmGraphics
 
         bool SetLogicalDevice()
         {
-            QueueFamily vk_queue_family = GetQueueFamily(g_vk_context.physical_device);
+            QueueFamily vk_queue_family = GetQueueFamily(g_vk_context.m_PhysicalDevice);
+
+            // NOTE: Different queues can have different priority from [0..1], but
+            //       we only have a single queue right now so set to 1.0f
+            float queue_priority    = 1.0f;
+            int queue_family_set[2] = { QUEUE_FAMILY_INVALID, QUEUE_FAMILY_INVALID };
+            int queue_family_c      = 0;
+
+            VkDeviceQueueCreateInfo queue_create_info_list[2];
+            VK_ZERO_MEMORY(queue_create_info_list, sizeof(queue_create_info_list));
+
+            if (vk_queue_family.m_PresentFamily != vk_queue_family.m_GraphicsFamily)
+            {
+                queue_family_set[0] = vk_queue_family.m_PresentFamily;
+                queue_family_set[1] = vk_queue_family.m_GraphicsFamily;
+            }
+            else
+            {
+                queue_family_set[0] = vk_queue_family.m_PresentFamily;
+            }
+
+            while(queue_family_set[queue_family_c] != QUEUE_FAMILY_INVALID)
+            {
+                int queue_family_index                         = queue_family_set[queue_family_c];
+                VkDeviceQueueCreateInfo& vk_queue_create_info = queue_create_info_list[queue_family_c];
+
+                vk_queue_create_info.sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+                vk_queue_create_info.queueFamilyIndex = queue_family_index;
+                vk_queue_create_info.queueCount       = 1;
+                vk_queue_create_info.pQueuePriorities = &queue_priority;
+
+                queue_family_c++;
+            }
+
+            if (!queue_family_c)
+            {
+                return false;
+            }
+
+            VkDeviceCreateInfo vk_device_create_info;
+            VK_ZERO_MEMORY(&vk_device_create_info,sizeof(vk_device_create_info));
+
+            vk_device_create_info.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+            vk_device_create_info.pQueueCreateInfos       = queue_create_info_list;
+            vk_device_create_info.queueCreateInfoCount    = queue_family_c;
+            vk_device_create_info.pEnabledFeatures        = 0;
+            vk_device_create_info.enabledExtensionCount   = CountStringArray(g_device_extensions);
+            vk_device_create_info.ppEnabledExtensionNames = g_device_extensions;
+
+            if (g_enable_validation_layers)
+            {
+                vk_device_create_info.enabledLayerCount   = CountStringArray(g_validation_layers);
+                vk_device_create_info.ppEnabledLayerNames = g_validation_layers;
+            }
+            else
+            {
+                vk_device_create_info.enabledLayerCount = 0;
+            }
+
+            if (vkCreateDevice(g_vk_context.m_PhysicalDevice, &vk_device_create_info, 0, &g_vk_context.m_LogicalDevice) != VK_SUCCESS)
+            {
+                return false;
+            }
+
+            vkGetDeviceQueue(g_vk_context.m_LogicalDevice, vk_queue_family.m_GraphicsFamily, 0, &g_vk_context.m_GraphicsQueue);
+            vkGetDeviceQueue(g_vk_context.m_LogicalDevice, vk_queue_family.m_PresentFamily, 0, &g_vk_context.m_PresentQueue);
 
             return true;
         }
 
-        void GetSwapChainSupport(VkPhysicalDevice device, SwapChainSupport* swapChain)
+        // Extract all swap chain formats and present modes. We use these tables to select the most suitable modes later.
+        void GetSwapChainSupport(VkPhysicalDevice device, SwapChainSupport& swapChain)
         {
             uint32_t format_count        = 0;
             uint32_t present_modes_count = 0;
 
-            vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, g_vk_context.surface, &swapChain->surfaceCapabilities);
-            vkGetPhysicalDeviceSurfaceFormatsKHR(device, g_vk_context.surface, &format_count, 0);
-            vkGetPhysicalDeviceSurfacePresentModesKHR(device, g_vk_context.surface, &present_modes_count, 0);
+            vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, g_vk_context.m_Surface, &swapChain.m_SurfaceCapabilities);
+            vkGetPhysicalDeviceSurfaceFormatsKHR(device, g_vk_context.m_Surface, &format_count, 0);
+            vkGetPhysicalDeviceSurfacePresentModesKHR(device, g_vk_context.m_Surface, &present_modes_count, 0);
 
             if (format_count > 0)
             {
-                swapChain->formats.SetCapacity(format_count);
-                vkGetPhysicalDeviceSurfaceFormatsKHR(device, g_vk_context.surface, &format_count, swapChain->formats.Begin());
+                swapChain.m_Formats.SetCapacity(format_count);
+                swapChain.m_Formats.SetSize(format_count);
+                vkGetPhysicalDeviceSurfaceFormatsKHR(device, g_vk_context.m_Surface, &format_count, swapChain.m_Formats.Begin());
             }
 
             if (present_modes_count > 0)
             {
-                swapChain->presentModes.SetCapacity(present_modes_count);
-                vkGetPhysicalDeviceSurfacePresentModesKHR(device, g_vk_context.surface, &present_modes_count, swapChain->presentModes.Begin());
+                swapChain.m_PresentModes.SetCapacity(present_modes_count);
+                swapChain.m_PresentModes.SetSize(present_modes_count);
+                vkGetPhysicalDeviceSurfacePresentModesKHR(device, g_vk_context.m_Surface, &present_modes_count, swapChain.m_PresentModes.Begin());
             }
         }
 
@@ -311,15 +405,15 @@ namespace dmGraphics
 
             if (is_extensions_supported)
             {
-                SwapChainSupport swap_chain;
-                GetSwapChainSupport(device, &swap_chain);
+                SwapChainSupport swap_chain_support;
+                GetSwapChainSupport(device, swap_chain_support);
 
-                is_swap_chain_supported  = swap_chain.formats.Size() > 0;
-                is_swap_chain_supported &= swap_chain.presentModes.Size() > 0;
+                is_swap_chain_supported  = swap_chain_support.m_Formats.Size() > 0;
+                is_swap_chain_supported &= swap_chain_support.m_PresentModes.Size() > 0;
             }
 
-            return vk_queue_family.graphicsFamily != QUEUE_FAMILY_INVALID &&
-                   vk_queue_family.presentFamily  != QUEUE_FAMILY_INVALID &&
+            return vk_queue_family.m_GraphicsFamily != QUEUE_FAMILY_INVALID &&
+                   vk_queue_family.m_PresentFamily  != QUEUE_FAMILY_INVALID &&
                    is_extensions_supported && is_swap_chain_supported;
         }
 
@@ -329,7 +423,7 @@ namespace dmGraphics
             uint32_t device_count               = 0;
 
             // Get number of present devices
-            vkEnumeratePhysicalDevices(g_vk_context.instance, &device_count, 0);
+            vkEnumeratePhysicalDevices(g_vk_context.m_Instance, &device_count, 0);
 
             if (device_count == 0)
             {
@@ -338,7 +432,7 @@ namespace dmGraphics
 
             VkPhysicalDevice* vk_device_list = new VkPhysicalDevice[device_count];
 
-            vkEnumeratePhysicalDevices(g_vk_context.instance, &device_count, vk_device_list);
+            vkEnumeratePhysicalDevices(g_vk_context.m_Instance, &device_count, vk_device_list);
 
             // Iterate list of possible physical devices and pick the first that is suitable
             // There can be many GPUs present, but we can only support one.
@@ -360,28 +454,243 @@ namespace dmGraphics
                 return false;
             }
 
-            g_vk_context.physical_device = vk_selected_device;
+            g_vk_context.m_PhysicalDevice = vk_selected_device;
+
+            return true;
+        }
+
+        VkSurfaceFormatKHR GetSuitableSwapChainFormat(dmArray<VkSurfaceFormatKHR>& availableFormats)
+        {
+            if (availableFormats.Size() > 0)
+            {
+                VkSurfaceFormatKHR format_head = availableFormats[0];
+
+                VkSurfaceFormatKHR format_wanted;
+                format_wanted.format     = VK_FORMAT_B8G8R8A8_UNORM;
+                format_wanted.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+
+                // The window surface has no preferred format so we can return whatever we want here.
+                if (format_head.format == VK_FORMAT_UNDEFINED)
+                {
+                    return format_wanted;
+                }
+
+                // Try to find a suitable format candidate that matches our
+                // suggested format. If not, just return the first.
+                // NOTE: We could get the "closest" format here aswell,
+                //       but not sure how to rank formats really.
+                for (uint32_t i=0; i < availableFormats.Size(); i++)
+                {
+                    VkSurfaceFormatKHR format_candidate = availableFormats[i];
+
+                    if (format_candidate.format     == format_wanted.format &&
+                        format_candidate.colorSpace == format_wanted.colorSpace)
+                    {
+                        return format_candidate;
+                    }
+                }
+
+                return format_head;
+            }
+            else
+            {
+                VkSurfaceFormatKHR format_null;
+                VK_ZERO_MEMORY(&format_null, sizeof(format_null));
+                return format_null;
+            }
+        }
+
+        // Present modes: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPresentModeKHR.html
+        VkPresentModeKHR GetSuitablePresentMode(dmArray<VkPresentModeKHR>& presentModes)
+        {
+            VkPresentModeKHR mode_most_suitable = VK_PRESENT_MODE_FIFO_KHR;
+
+            for (uint32_t i=0; i < presentModes.Size(); i++)
+            {
+                VkPresentModeKHR mode_candidate = presentModes[i];
+
+                if (mode_candidate == VK_PRESENT_MODE_MAILBOX_KHR)
+                {
+                    return mode_candidate;
+                }
+                else if (mode_candidate == VK_PRESENT_MODE_IMMEDIATE_KHR)
+                {
+                    mode_most_suitable = mode_candidate;
+                }
+            }
+
+            return mode_most_suitable;
+        }
+
+        VkExtent2D GetSwapChainExtent(VkSurfaceCapabilitiesKHR capabilities, uint32_t wantedWidth, uint32_t wantedHeight)
+        {
+            VkExtent2D extent_current = capabilities.currentExtent;
+
+            if (extent_current.width == 0xFFFFFFFF || extent_current.width == 0xFFFFFFFF)
+            {
+                VkExtent2D extent_wanted;
+                // Clamp swap buffer extent to our wanted width / height.
+                // TODO: Figure out how will this change when running in fullscreen mode?
+                extent_wanted.width  = dmMath::Clamp<uint32_t>(wantedWidth, 0, extent_current.width);
+                extent_wanted.height = dmMath::Clamp<uint32_t>(wantedHeight, 0, extent_current.height);
+
+                return extent_wanted;
+            }
+            else
+            {
+                return extent_current;
+            }
+        }
+
+        bool CreateSwapChain(uint32_t wantedWidth, uint32_t wantedHeight)
+        {
+            SwapChainSupport swap_chain_support;
+            GetSwapChainSupport(g_vk_context.m_PhysicalDevice, swap_chain_support);
+
+            VkSurfaceFormatKHR swap_chain_format       = GetSuitableSwapChainFormat(swap_chain_support.m_Formats);
+            VkPresentModeKHR   swap_chain_present_mode = GetSuitablePresentMode(swap_chain_support.m_PresentModes);
+            VkExtent2D         swap_chain_extent       = GetSwapChainExtent(swap_chain_support.m_SurfaceCapabilities, wantedWidth, wantedHeight);
+
+            // From the docs:
+            // ==============
+            // minImageCount: the minimum number of images the specified device supports for a swapchain created for the surface, and will be at least one.
+            // maxImageCount: the maximum number of images the specified device supports for a swapchain created for the surface,
+            //  and will be either 0, or greater than or equal to minImageCount. A value of 0 means that there is no limit on the number of images,
+            //  though there may be limits related to the total amount of memory used by presentable images.
+
+            // The +1 here is to add a little bit of headroom, from vulkan-tutorial.com:
+            // "we may sometimes have to wait on the driver to complete internal operations
+            // before we can acquire another image to render to"
+            uint32_t swap_chain_image_count = swap_chain_support.m_SurfaceCapabilities.minImageCount + 1;
+
+            if (swap_chain_support.m_SurfaceCapabilities.maxImageCount > 0)
+            {
+                swap_chain_image_count = dmMath::Clamp(swap_chain_image_count,
+                    swap_chain_support.m_SurfaceCapabilities.minImageCount,
+                    swap_chain_support.m_SurfaceCapabilities.maxImageCount);
+            }
+
+            VkSwapchainCreateInfoKHR swap_chain_create_info;
+            VK_ZERO_MEMORY(&swap_chain_create_info,sizeof(swap_chain_create_info));
+
+            swap_chain_create_info.sType   = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+            swap_chain_create_info.surface = g_vk_context.m_Surface;
+
+            swap_chain_create_info.minImageCount    = swap_chain_image_count;
+            swap_chain_create_info.imageFormat      = swap_chain_format.format;
+            swap_chain_create_info.imageColorSpace  = swap_chain_format.colorSpace;
+            swap_chain_create_info.imageExtent      = swap_chain_extent;
+
+            // imageArrayLayers: the number of views in a multiview/stereo surface.
+            // For non-stereoscopic-3D applications, this value is 1
+            swap_chain_create_info.imageArrayLayers = 1;
+            swap_chain_create_info.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+            QueueFamily queue_family = GetQueueFamily(g_vk_context.m_PhysicalDevice);
+
+            // Move queue indices over to uint32_t array
+            uint32_t queue_family_indices[2] = {queue_family.m_GraphicsFamily, queue_family.m_PresentFamily};
+
+            // If we have different queues for the different types, we just stick with
+            // concurrent mode. An option here would be to do ownership transfers:
+            // https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#synchronization-queue-transfers
+            if (queue_family.m_GraphicsFamily != queue_family.m_PresentFamily)
+            {
+                swap_chain_create_info.imageSharingMode      = VK_SHARING_MODE_CONCURRENT;
+                swap_chain_create_info.queueFamilyIndexCount = 2;
+                swap_chain_create_info.pQueueFamilyIndices   = queue_family_indices;
+            }
+            else
+            {
+                // This mode is best for performance and can be used with no penality
+                // if we are using the same queue for everything.
+                swap_chain_create_info.imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE;
+                swap_chain_create_info.queueFamilyIndexCount = 0;
+                swap_chain_create_info.pQueueFamilyIndices   = 0;
+            }
+
+            // The preTransform field can be used to rotate the swap chain when presenting
+            swap_chain_create_info.preTransform   = swap_chain_support.m_SurfaceCapabilities.currentTransform;
+            swap_chain_create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+            swap_chain_create_info.presentMode    = swap_chain_present_mode;
+            swap_chain_create_info.clipped        = VK_TRUE;
+            swap_chain_create_info.oldSwapchain   = VK_NULL_HANDLE;
+
+            if (vkCreateSwapchainKHR(g_vk_context.m_LogicalDevice,
+                &swap_chain_create_info, 0, &g_vk_context.m_SwapChain) != VK_SUCCESS)
+            {
+                return false;
+            }
+
+            vkGetSwapchainImagesKHR(g_vk_context.m_LogicalDevice, g_vk_context.m_SwapChain, &swap_chain_image_count, 0);
+
+            g_vk_context.m_SwapChainImages.SetCapacity(swap_chain_image_count);
+            g_vk_context.m_SwapChainImages.SetSize(swap_chain_image_count);
+
+            vkGetSwapchainImagesKHR(g_vk_context.m_LogicalDevice, g_vk_context.m_SwapChain, &swap_chain_image_count, g_vk_context.m_SwapChainImages.Begin());
+
+            g_vk_context.m_SwapChainImageFormat = swap_chain_format.format;
+            g_vk_context.m_SwapChainImageExtent = swap_chain_extent;
+
+            return true;
+        }
+
+        bool CreateSwapChainImageViews()
+        {
+            uint32_t num_views = g_vk_context.m_SwapChainImages.Size();
+
+            g_vk_context.m_SwapChainImageViews.SetCapacity(num_views);
+            g_vk_context.m_SwapChainImageViews.SetSize(num_views);
+
+            for (uint32_t i=0; i < num_views; i++)
+            {
+                VkImageViewCreateInfo create_info_image_view;
+                VK_ZERO_MEMORY(&create_info_image_view, sizeof(create_info_image_view));
+
+                create_info_image_view.sType        = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+                create_info_image_view.image        = g_vk_context.m_SwapChainImages[i];
+                create_info_image_view.viewType     = VK_IMAGE_VIEW_TYPE_2D;
+                create_info_image_view.format       = g_vk_context.m_SwapChainImageFormat;
+                create_info_image_view.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+                create_info_image_view.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+                create_info_image_view.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+                create_info_image_view.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+                create_info_image_view.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+                create_info_image_view.subresourceRange.baseMipLevel   = 0;
+                create_info_image_view.subresourceRange.levelCount     = 1;
+                create_info_image_view.subresourceRange.baseArrayLayer = 0;
+                create_info_image_view.subresourceRange.layerCount     = 1;
+
+                if (vkCreateImageView(g_vk_context.m_LogicalDevice,
+                    &create_info_image_view, 0, &g_vk_context.m_SwapChainImageViews[i]) != VK_SUCCESS)
+                {
+                    g_vk_context.m_SwapChainImageViews.SetCapacity(0);
+                    g_vk_context.m_SwapChainImageViews.SetSize(0);
+                    return false;
+                }
+            }
 
             return true;
         }
 
         bool Initialize()
         {
-            g_vk_context.applicationInfo;
-            VK_ZERO_MEMORY(&g_vk_context.applicationInfo, sizeof(g_vk_context.applicationInfo));
+            g_vk_context.m_ApplicationInfo;
+            VK_ZERO_MEMORY(&g_vk_context.m_ApplicationInfo, sizeof(g_vk_context.m_ApplicationInfo));
 
-            g_vk_context.applicationInfo.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-            g_vk_context.applicationInfo.pApplicationName   = "Defold";
-            g_vk_context.applicationInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-            g_vk_context.applicationInfo.pEngineName        = "Defold Engine";
-            g_vk_context.applicationInfo.engineVersion      = VK_MAKE_VERSION(1, 0, 0);
-            g_vk_context.applicationInfo.apiVersion         = VK_API_VERSION_1_0;
+            g_vk_context.m_ApplicationInfo.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+            g_vk_context.m_ApplicationInfo.pApplicationName   = "Defold";
+            g_vk_context.m_ApplicationInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+            g_vk_context.m_ApplicationInfo.pEngineName        = "Defold Engine";
+            g_vk_context.m_ApplicationInfo.engineVersion      = VK_MAKE_VERSION(1, 0, 0);
+            g_vk_context.m_ApplicationInfo.apiVersion         = VK_API_VERSION_1_0;
 
             VkInstanceCreateInfo instance_create_info;
             VK_ZERO_MEMORY(&instance_create_info, sizeof(instance_create_info));
 
             instance_create_info.sType            = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-            instance_create_info.pApplicationInfo = &g_vk_context.applicationInfo;
+            instance_create_info.pApplicationInfo = &g_vk_context.m_ApplicationInfo;
 
             // Populate the extension list with available API extensions (and print them)
             SetInstanceExtensionList();
@@ -407,7 +716,7 @@ namespace dmGraphics
             instance_create_info.enabledExtensionCount   = required_extensions.Size();
             instance_create_info.ppEnabledExtensionNames = required_extensions.Begin();
 
-            if (vkCreateInstance(&instance_create_info, 0, &g_vk_context.instance) == VK_SUCCESS)
+            if (vkCreateInstance(&instance_create_info, 0, &g_vk_context.m_Instance) == VK_SUCCESS)
             {
                 dmLogInfo("Successfully created Vulkan instance!");
             }
@@ -434,15 +743,15 @@ namespace dmGraphics
                 debug_callback_create_info.pfnUserCallback = g_vk_debug_callback;
 
                 PFN_vkCreateDebugUtilsMessengerEXT func_ptr =
-                    (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(g_vk_context.instance, "vkCreateDebugUtilsMessengerEXT");
+                    (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(g_vk_context.m_Instance, "vkCreateDebugUtilsMessengerEXT");
 
                 if (func_ptr)
                 {
-                    func_ptr(g_vk_context.instance, &debug_callback_create_info, 0, &g_vk_context.debugCallback);
+                    func_ptr(g_vk_context.m_Instance, &debug_callback_create_info, 0, &g_vk_context.m_DebugCallback);
                 }
                 else
                 {
-                    dmLogError("Couldn't create validation callback");
+                    dmLogError("Unable to create validation layer callback");
                 }
             }
 
@@ -461,13 +770,33 @@ namespace dmGraphics
             wnd.ns.view   = glfwGetOSXNSView();
             wnd.ns.object = glfwGetOSXNSWindow();
 
-            if (glfwWrapper::glfwCreateWindowSurface(g_vk_context.instance, &wnd, 0, &g_vk_context.surface) != VK_SUCCESS)
+            if (glfwWrapper::glfwCreateWindowSurface(g_vk_context.m_Instance, &wnd, 0, &g_vk_context.m_Surface) != VK_SUCCESS)
             {
+                dmLogError("Unable to create window");
                 return false;
             }
 
             if (!SetPhysicalDevice())
             {
+                dmLogError("Unable to set a physical device");
+                return false;
+            }
+
+            if (!SetLogicalDevice())
+            {
+                dmLogError("Unable to set a logical device");
+                return false;
+            }
+
+            if (!CreateSwapChain(params->m_Width, params->m_Height))
+            {
+                dmLogError("Unable to create swap chain");
+                return false;
+            }
+
+            if (!CreateSwapChainImageViews())
+            {
+                dmLogError("Unable to create swap chain image views");
                 return false;
             }
 
@@ -548,7 +877,11 @@ namespace dmGraphics
         if (context->m_WindowOpened)
             return WINDOW_RESULT_ALREADY_OPENED;
 
-        if (!Vulkan::OpenWindow(params))
+        if (Vulkan::OpenWindow(params))
+        {
+            dmLogInfo("Successfully opened window");
+        }
+        else
         {
             dmLogError("Unable to open Vulkan window");
         }
