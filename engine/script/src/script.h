@@ -629,6 +629,8 @@ namespace dmScript
      */
     lua_State* GetLuaState(HContext context);
 
+    dmConfigFile::HConfig GetConfigFile(HContext context);
+
     /**
      * Add (load) module
      * @param context script context

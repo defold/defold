@@ -145,7 +145,6 @@ namespace dmScript
         InitializeModule(L);
         InitializeImage(L);
         InitializeJson(L);
-        InitializeHttp(L, context->m_ConfigFile);
         InitializeZlib(L);
         InitializeHtml5(L);
         InitializeLuasocket(L);
@@ -181,6 +180,7 @@ namespace dmScript
         lua_newtable(L);
         context->m_ContextTableRef = Ref(L, LUA_REGISTRYINDEX);
 
+        InitializeHttp(context);
         InitializeTimer(context);
 
         for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
@@ -259,7 +259,6 @@ namespace dmScript
     void Finalize(HContext context)
     {
         lua_State* L = context->m_LuaState;
-        FinalizeHttp(L);
 
         for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
         {
@@ -307,6 +306,15 @@ namespace dmScript
     lua_State* GetLuaState(HContext context) {
         if (context != 0x0) {
             return context->m_LuaState;
+        }
+        return 0x0;
+    }
+
+    dmConfigFile::HConfig GetConfigFile(HContext context)
+    {
+        if (context != 0x0)
+        {
+            return context->m_ConfigFile;
         }
         return 0x0;
     }
