@@ -123,6 +123,7 @@ namespace dmDeviceOpenSL
         SLVolumeItf      m_Volume;
 
         bool             m_Underflow;
+        bool             m_IsPlaying;
 
         dmMutex::HMutex  m_Mutex;
 
@@ -141,6 +142,7 @@ namespace dmDeviceOpenSL
             m_Volume = 0;
 
             m_Underflow = true;
+            m_IsPlaying = false;
 
             m_Mutex = 0;
         }
@@ -206,6 +208,8 @@ namespace dmDeviceOpenSL
 
     dmSound::Result DeviceOpenSLOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
     {
+        assert(params);
+        assert(device);
         SLObjectItf sl = 0;
         SLEngineItf engine = 0;
         SLObjectItf output_mix = 0;
@@ -333,9 +337,6 @@ namespace dmDeviceOpenSL
 
         *device = opensl;
 
-        res = (*play)->SetPlayState(play, SL_PLAYSTATE_PLAYING);
-        CheckAndPrintError(res);
-
         return dmSound::RESULT_OK;
 
 cleanup_device:
@@ -352,6 +353,7 @@ cleanup_sl:
 
     void DeviceOpenSLClose(dmSound::HDevice device)
     {
+        assert(device);
         OpenSLDevice* opensl = (OpenSLDevice*) device;
         dmMutex::Lock(opensl->m_Mutex);
 
@@ -399,7 +401,12 @@ cleanup_sl:
 
     dmSound::Result DeviceOpenSLQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
     {
+        assert(device);
         OpenSLDevice* opensl = (OpenSLDevice*) device;
+        if (!opensl->m_IsPlaying)
+        {
+            return dmSound::RESULT_INIT_ERROR;
+        }
         DM_MUTEX_SCOPED_LOCK(opensl->m_Mutex);
 
         assert(opensl->m_Free.Size() > 0);
@@ -419,6 +426,7 @@ cleanup_sl:
 
     uint32_t DeviceOpenSLFreeBufferSlots(dmSound::HDevice device)
     {
+        assert(device);
         OpenSLDevice* opensl = (OpenSLDevice*) device;
         DM_MUTEX_SCOPED_LOCK(opensl->m_Mutex);
 
@@ -427,20 +435,32 @@ cleanup_sl:
 
     void DeviceOpenSLDeviceInfo(dmSound::HDevice device, dmSound::DeviceInfo* info)
     {
+        assert(device);
+        assert(info);
         OpenSLDevice* opensl = (OpenSLDevice*) device;
         info->m_MixRate = opensl->m_MixRate;
     }
 
-    void DeviceOpenSLRestart(dmSound::HDevice device)
+    void DeviceOpenSLStart(dmSound::HDevice device)
     {
-
+        assert(device);
+        OpenSLDevice* opensl = (OpenSLDevice*) device;
+        SLPlayItf play = opensl->m_Play;
+        SLresult res = (*play)->SetPlayState(play, SL_PLAYSTATE_PLAYING);
+        CheckAndPrintError(res);
+        opensl->m_IsPlaying = true;
     }
 
     void DeviceOpenSLStop(dmSound::HDevice device)
     {
-
+        assert(device);
+        OpenSLDevice* opensl = (OpenSLDevice*) device;
+        SLPlayItf play = opensl->m_Play;
+        SLresult res = (*play)->SetPlayState(play, SL_PLAYSTATE_STOPPED);
+        CheckAndPrintError(res);
+        opensl->m_IsPlaying = false;
     }
 
-    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenSLOpen, DeviceOpenSLClose, DeviceOpenSLQueue, DeviceOpenSLFreeBufferSlots, DeviceOpenSLDeviceInfo, DeviceOpenSLRestart, DeviceOpenSLStop);
+    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenSLOpen, DeviceOpenSLClose, DeviceOpenSLQueue, DeviceOpenSLFreeBufferSlots, DeviceOpenSLDeviceInfo, DeviceOpenSLStart, DeviceOpenSLStop);
 }
 

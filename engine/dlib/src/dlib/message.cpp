@@ -300,12 +300,10 @@ namespace dmMessage
         memset((void*)&url, 0, sizeof(URL));
     }
 
-    uint32_t g_MessagesHash = dmHashString32("Messages");
-
     Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data, uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback)
     {
         DM_PROFILE(Message, "Post")
-        DM_COUNTER_HASH("Messages", g_MessagesHash, 1)
+        DM_COUNTER("Messages", 1)
 
         if (receiver == 0x0)
         {
@@ -370,10 +368,11 @@ namespace dmMessage
             dmMutex::Unlock(g_MessageContext->m_Mutex);
             return 0;
         }
-        DM_PROFILE(Message, dmProfile::Internalize(s->m_Name));
 
         dmMutex::Lock(s->m_Mutex);
         dmMutex::Unlock(g_MessageContext->m_Mutex);
+
+        DM_PROFILE_FMT(Message, "Dispatch %s", s->m_Name);
 
         MemoryAllocator* allocator = &s->m_Allocator;
 
