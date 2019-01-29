@@ -28,6 +28,8 @@ namespace dmDeviceJS
 
     dmSound::Result DeviceJSOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
     {
+        assert(params);
+        assert(device);
         JSDevice *dev = new JSDevice();
         dev->devId = dmDeviceJSOpen(params->m_BufferCount);
         dev->isStarted = false;
@@ -37,11 +39,13 @@ namespace dmDeviceJS
 
     void DeviceJSClose(dmSound::HDevice device)
     {
+        assert(device);
         delete (JSDevice*)(device);
     }
 
     dmSound::Result DeviceJSQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
     {
+        assert(device);
         JSDevice *dev = (JSDevice*) device;
         if (!dev->isStarted)
         {
@@ -53,24 +57,29 @@ namespace dmDeviceJS
 
     uint32_t DeviceJSFreeBufferSlots(dmSound::HDevice device)
     {
+        assert(device);
         JSDevice *dev = (JSDevice*) device;
         return dmDeviceJSFreeBufferSlots(dev->devId);
     }
 
     void DeviceJSDeviceInfo(dmSound::HDevice device, dmSound::DeviceInfo* info)
     {
+        assert(device);
+        assert(info);
         JSDevice *dev = (JSDevice*) device;
         info->m_MixRate = dmGetDeviceSampleRate(dev->devId);
     }
 
     void DeviceJSStart(dmSound::HDevice device)
     {
+        assert(device);
         JSDevice *dev = (JSDevice*) device;
         dev->isStarted = true;
     }
 
     void DeviceJSStop(dmSound::HDevice device)
     {
+        assert(device);
         JSDevice *dev = (JSDevice*) device;
         dev->isStarted = false;
     }
