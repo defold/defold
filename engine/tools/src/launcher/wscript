@@ -5,11 +5,18 @@ from BuildUtility import create_build_utility
 
 def configure(conf):
     build_util = create_build_utility(conf.env)
-    if 'osx' == build_util.get_target_os():
+    target = build_util.get_target_os()
+    if 'ios' == target:
+        return
+    if 'osx' == target:
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa'])
 
 def build(bld):
     build_util = create_build_utility(bld.env)
+    target = build_util.get_target_os()
+
+    if 'ios' == target:
+        return
 
     exe = bld.new_task_gen(features = ['cc', 'cxx', 'cprogram'],
                            includes = ['.'],
@@ -17,7 +24,7 @@ def build(bld):
                            source = ['launcher.cpp', 'launcher_util.cpp'],
                            target = 'launcher')
 
-    if 'osx' == build_util.get_target_os():
+    if 'osx' == target:
         exe.source.append('macos_events.mm')
 
     lib = bld.new_task_gen(features = 'cxx cstaticlib',
