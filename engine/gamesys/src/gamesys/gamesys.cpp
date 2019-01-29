@@ -40,6 +40,7 @@
 #include "resources/res_display_profiles.h"
 #include "resources/res_label.h"
 
+#include "components/comp_private.h"
 #include "components/comp_collection_proxy.h"
 #include "components/comp_collision_object.h"
 #include "components/comp_emitter.h"
@@ -76,6 +77,8 @@ namespace dmGameSystem
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, GuiContext* gui_context, dmInput::HContext input_context, PhysicsContext* physics_context)
     {
         dmResource::Result e;
+
+        DM_STATIC_ASSERT( dmGameSystem::MAX_COMP_RENDER_CONSTANTS == dmRender::RenderObject::MAX_CONSTANT_COUNT, Constant_Count_Must_Be_Equal );
 
 #define REGISTER_RESOURCE_TYPE(extension, context, preload_func, create_func, post_create_func, destroy_func, recreate_func, duplicate_func)\
     e = dmResource::RegisterType(factory, extension, context, preload_func, create_func, post_create_func, destroy_func, recreate_func, duplicate_func);\
