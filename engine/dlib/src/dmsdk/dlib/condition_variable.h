@@ -66,10 +66,6 @@ namespace dmConditionVariable
      */
     void Signal(HConditionVariable condition);
 
-    /**
-     * Broadcast condition variable
-     * @param condition
-     */
     /*# broadcast condition variable
      *
      * Broadcast condition variable, effectively unblocks all of the waithing threads blocked
