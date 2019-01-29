@@ -1355,7 +1355,7 @@ namespace dmRender
      */
     int RenderScript_DrawDebug2d(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        RenderScriptInstance_Check(L);
         dmLogOnceWarning("render.draw_debug2d is deprecated and will be removed in future versions, please use render.draw_debug3d instead.");
         return 0;
     }
