@@ -29,7 +29,7 @@ namespace dmScript
         dmArray<HScriptExtension>   m_ScriptExtensions;
         lua_State*                  m_LuaState;
         int                         m_ContextTableRef;
-        bool                        m_EnableNativeExtensions;
+        bool                        m_EnableExtensions;
     };
 
     bool ResolvePath(lua_State* L, const char* path, uint32_t path_size, dmhash_t& out_hash);
