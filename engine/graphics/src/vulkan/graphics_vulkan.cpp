@@ -62,6 +62,7 @@ namespace dmGraphics
             VkSwapchainKHR                 m_SwapChain;
             VkFormat                       m_SwapChainImageFormat;
             VkExtent2D                     m_SwapChainImageExtent;
+            VkRenderPass                   m_DefaultRenderPass;
 
             VkSurfaceKHR                   m_Surface;
             VkApplicationInfo              m_ApplicationInfo;
@@ -674,6 +675,134 @@ namespace dmGraphics
             return true;
         }
 
+        VkFormat GetSupportedFormat(VkFormat* formatCandidates, uint32_t numFormatCandidates,
+            VkImageTiling tilingType, VkFormatFeatureFlags formatFlags)
+        {
+            #define HAS_FLAG(v,flag) ((v & flag) == flag)
+
+            for (uint32_t i=0; i < numFormatCandidates; i++)
+            {
+                VkFormatProperties format_properties;
+                VkFormat formatCandidate = formatCandidates[i];
+
+                vkGetPhysicalDeviceFormatProperties(g_vk_context.m_PhysicalDevice, formatCandidate, &format_properties);
+
+                if ((tilingType == VK_IMAGE_TILING_LINEAR && HAS_FLAG(format_properties.linearTilingFeatures, formatFlags)) ||
+                    (tilingType == VK_IMAGE_TILING_OPTIMAL && HAS_FLAG(format_properties.optimalTilingFeatures, formatFlags)))
+                {
+                    return formatCandidate;
+                }
+            }
+
+            #undef HAS_FLAG
+
+            return VK_FORMAT_UNDEFINED;
+        }
+
+        bool CreateDefaultRenderPass()
+        {
+            // Depth formats are optional, so we need to query
+            // what available formats we have.
+            VkFormat format_depth_list[] = {
+                VK_FORMAT_D32_SFLOAT_S8_UINT,
+                VK_FORMAT_D32_SFLOAT,
+                VK_FORMAT_D24_UNORM_S8_UINT,
+                VK_FORMAT_D16_UNORM_S8_UINT,
+                VK_FORMAT_D16_UNORM
+            };
+
+            VkFormat format_color = g_vk_context.m_SwapChainImageFormat;
+            VkFormat format_depth = GetSupportedFormat(format_depth_list,
+                sizeof(format_depth_list) / sizeof(VkFormat), VK_IMAGE_TILING_OPTIMAL,
+                VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+
+            VkAttachmentDescription attachments[2];
+            VK_ZERO_MEMORY(attachments, sizeof(attachments));
+
+            // TODO: Refactor this into helper functions!
+
+            // Color attachment
+            // NOTE: For multisampling, we must pass a different
+            //       enum into the samples property.
+            attachments[0].format         = format_color;
+            attachments[0].samples        = VK_SAMPLE_COUNT_1_BIT;
+            attachments[0].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachments[0].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+            attachments[0].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            attachments[0].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+            attachments[0].finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+            // Depth attachment
+            attachments[1].format         = format_depth;
+            attachments[1].samples        = VK_SAMPLE_COUNT_1_BIT;
+            attachments[1].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachments[1].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+            attachments[1].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            attachments[1].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+            attachments[1].finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+            VkAttachmentReference attachment_references[2];
+            VK_ZERO_MEMORY(attachment_references, sizeof(attachment_references));
+
+            attachment_references[0].attachment = 0;
+            attachment_references[0].layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            attachment_references[1].attachment = 1;
+            attachment_references[1].layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+            VkSubpassDescription sub_pass_description;
+            VK_ZERO_MEMORY(&sub_pass_description, sizeof(sub_pass_description));
+
+            sub_pass_description.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+            sub_pass_description.colorAttachmentCount    = 1;
+            sub_pass_description.pColorAttachments       = &attachment_references[0];
+            sub_pass_description.pDepthStencilAttachment = &attachment_references[1];
+            sub_pass_description.inputAttachmentCount    = 0;
+            sub_pass_description.pInputAttachments       = 0;
+            sub_pass_description.preserveAttachmentCount = 0;
+            sub_pass_description.pPreserveAttachments    = 0;
+            sub_pass_description.pResolveAttachments     = 0;
+
+            // Subpass sub_pass_dependencies for layout transitions
+            VkSubpassDependency sub_pass_dependencies[2];
+            VK_ZERO_MEMORY(sub_pass_dependencies, sizeof(sub_pass_dependencies));
+
+            sub_pass_dependencies[0].srcSubpass      = VK_SUBPASS_EXTERNAL;
+            sub_pass_dependencies[0].dstSubpass      = 0;
+            sub_pass_dependencies[0].srcStageMask    = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+            sub_pass_dependencies[0].dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            sub_pass_dependencies[0].srcAccessMask   = VK_ACCESS_MEMORY_READ_BIT;
+            sub_pass_dependencies[0].dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            sub_pass_dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+            sub_pass_dependencies[1].srcSubpass      = 0;
+            sub_pass_dependencies[1].dstSubpass      = VK_SUBPASS_EXTERNAL;
+            sub_pass_dependencies[1].srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            sub_pass_dependencies[1].dstStageMask    = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+            sub_pass_dependencies[1].srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            sub_pass_dependencies[1].dstAccessMask   = VK_ACCESS_MEMORY_READ_BIT;
+            sub_pass_dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+            VkRenderPassCreateInfo render_pass_create_info;
+            VK_ZERO_MEMORY(&render_pass_create_info, sizeof(render_pass_create_info));
+
+            render_pass_create_info.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+            render_pass_create_info.attachmentCount = sizeof(attachments) / sizeof(VkAttachmentDescription);
+            render_pass_create_info.pAttachments    = attachments;
+            render_pass_create_info.subpassCount    = 1;
+            render_pass_create_info.pSubpasses      = &sub_pass_description;
+            render_pass_create_info.dependencyCount = sizeof(sub_pass_dependencies) / sizeof(VkSubpassDependency);
+            render_pass_create_info.pDependencies   = sub_pass_dependencies;
+
+            if(vkCreateRenderPass(g_vk_context.m_LogicalDevice, &render_pass_create_info, 0, &g_vk_context.m_DefaultRenderPass) != VK_SUCCESS)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
         bool Initialize()
         {
             g_vk_context.m_ApplicationInfo;
@@ -800,6 +929,11 @@ namespace dmGraphics
                 return false;
             }
 
+            if (!CreateDefaultRenderPass())
+            {
+                dmLogError("Unable to create default renderpass");
+            }
+
             return true;
         }
     }
@@ -877,11 +1011,7 @@ namespace dmGraphics
         if (context->m_WindowOpened)
             return WINDOW_RESULT_ALREADY_OPENED;
 
-        if (Vulkan::OpenWindow(params))
-        {
-            dmLogInfo("Successfully opened window");
-        }
-        else
+        if (!Vulkan::OpenWindow(params))
         {
             dmLogError("Unable to open Vulkan window");
         }
