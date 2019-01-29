@@ -15,9 +15,10 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- make-updater [channel editor-sha1 platform]
+(defn- make-updater [channel editor-sha1 platform install-dir]
   {:channel channel
    :platform platform
+   :install-dir install-dir
    :state-atom (atom {:installed-sha1 editor-sha1
                       :newest-sha1 editor-sha1})})
 
@@ -46,13 +47,10 @@
   (not (zero? (bit-and unix-mode execute-permission-flag))))
 
 (defn download-and-install! [updater & {:keys [progress-callback cancelled-atom]}]
-  (let [{:keys [platform state-atom]} updater
+  (let [{:keys [platform state-atom install-dir]} updater
         {:keys [newest-sha1 installed-sha1]} @state-atom
         url (download-url newest-sha1 platform)
         zip-file (.toFile (Files/createTempFile "defold-update" ".zip" (into-array FileAttribute [])))
-        install-dir (if system/mac?
-                      (io/file (system/defold-resourcespath) "../../")
-                      (io/file (system/defold-resourcespath)))
         backup-dir (io/file install-dir (str installed-sha1 "-backup"))]
     (.deleteOnExit zip-file)
     (log/info :message "Downloading update" :url url :file (.getAbsolutePath zip-file))
@@ -137,11 +135,15 @@
   []
   (let [channel (system/defold-channel)
         sha1 (system/defold-editor-sha1)
+        resources-path (system/defold-resourcespath)
+        install-dir (if system/mac?
+                      (io/file resources-path "../../")
+                      (io/file resources-path))
         initial-update-delay 1000
         update-delay 60000]
     (if (or (string/blank? channel) (string/blank? sha1))
       (do
         (log/info :message "Automatic updates disabled" :channel channel :sha1 sha1)
         nil)
-      (doto (make-updater channel sha1 (.getPair (Platform/getHostPlatform)))
+      (doto (make-updater channel sha1 (.getPair (Platform/getHostPlatform)) install-dir)
         (start-timer! initial-update-delay update-delay)))))
