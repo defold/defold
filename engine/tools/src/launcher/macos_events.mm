@@ -12,9 +12,6 @@ char** files;
 
 - (void)application:(NSApplication *)sender openFiles:(NSArray<NSString *> *)filenames {
   size_t names_count = [filenames count];
-  if(filenames == nil || names_count == 0) {
-    return;
-  }
   files = (char**)malloc(names_count + 1);
   [filenames enumerateObjectsUsingBlock:^(NSString* str, NSUInteger idx, BOOL *stop) {
       const char *filename = [str cStringUsingEncoding:NSUTF8StringEncoding];
