@@ -106,8 +106,8 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".soundc", SoundDesc.class);
         extToMessageClass.put(".labelc", LabelDesc.class);
         extToMessageClass.put(".modelc", Model.class);
-        extToMessageClass.put(".fpc", ShaderDesc.Shader.class);
-        extToMessageClass.put(".vpc", ShaderDesc.Shader.class);
+        extToMessageClass.put(".fpc", ShaderDesc.class);
+        extToMessageClass.put(".vpc", ShaderDesc.class);
         extToMessageClass.put(".input_bindingc", InputBinding.class);
         extToMessageClass.put(".gamepadsc", GamepadMaps.class);
         extToMessageClass.put(".renderc", RenderPrototypeDesc.class);
