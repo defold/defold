@@ -1,18 +1,23 @@
 #! /usr/bin/env python
 import os
 import waf_dynamo
+from BuildUtility import create_build_utility
 
 def configure(conf):
-    if platform == "darwin" or platform == "x86_64-darwin":
+    build_util = create_build_utility(conf.env)
+    if 'osx' == build_util.get_target_os():
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa'])
 
 def build(bld):
+    build_util = create_build_utility(bld.env)
+
     exe = bld.new_task_gen(features = ['cc', 'cxx', 'cprogram'],
                            includes = ['.'],
                            uselib = 'DLIB',
                            source = ['launcher.cpp', 'launcher_util.cpp'],
                            target = 'launcher')
-    if 'darwin' in bld.env.BUILD_PLATFORM:
+
+    if 'osx' == build_util.get_target_os():
         exe.source.append('macos_events.mm')
 
     lib = bld.new_task_gen(features = 'cxx cstaticlib',
