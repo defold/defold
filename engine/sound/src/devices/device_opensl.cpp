@@ -208,6 +208,8 @@ namespace dmDeviceOpenSL
 
     dmSound::Result DeviceOpenSLOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
     {
+        assert(params);
+        assert(device);
         SLObjectItf sl = 0;
         SLEngineItf engine = 0;
         SLObjectItf output_mix = 0;
@@ -351,6 +353,7 @@ cleanup_sl:
 
     void DeviceOpenSLClose(dmSound::HDevice device)
     {
+        assert(device);
         OpenSLDevice* opensl = (OpenSLDevice*) device;
         dmMutex::Lock(opensl->m_Mutex);
 
@@ -398,6 +401,7 @@ cleanup_sl:
 
     dmSound::Result DeviceOpenSLQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
     {
+        assert(device);
         OpenSLDevice* opensl = (OpenSLDevice*) device;
         if (!opensl->m_IsPlaying)
         {
@@ -422,6 +426,7 @@ cleanup_sl:
 
     uint32_t DeviceOpenSLFreeBufferSlots(dmSound::HDevice device)
     {
+        assert(device);
         OpenSLDevice* opensl = (OpenSLDevice*) device;
         DM_MUTEX_SCOPED_LOCK(opensl->m_Mutex);
 
@@ -430,12 +435,15 @@ cleanup_sl:
 
     void DeviceOpenSLDeviceInfo(dmSound::HDevice device, dmSound::DeviceInfo* info)
     {
+        assert(device);
+        assert(info);
         OpenSLDevice* opensl = (OpenSLDevice*) device;
         info->m_MixRate = opensl->m_MixRate;
     }
 
     void DeviceOpenSLStart(dmSound::HDevice device)
     {
+        assert(device);
         OpenSLDevice* opensl = (OpenSLDevice*) device;
         SLPlayItf play = opensl->m_Play;
         SLresult res = (*play)->SetPlayState(play, SL_PLAYSTATE_PLAYING);
@@ -445,6 +453,7 @@ cleanup_sl:
 
     void DeviceOpenSLStop(dmSound::HDevice device)
     {
+        assert(device);
         OpenSLDevice* opensl = (OpenSLDevice*) device;
         SLPlayItf play = opensl->m_Play;
         SLresult res = (*play)->SetPlayState(play, SL_PLAYSTATE_STOPPED);

@@ -46,6 +46,8 @@ namespace dmDeviceOpenAL
 
     dmSound::Result DeviceOpenALOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
     {
+        assert(params);
+        assert(device);
         ALCdevice* al_device;
         ALCcontext* al_context;
 
@@ -92,6 +94,11 @@ namespace dmDeviceOpenAL
 
     void DeviceOpenALClose(dmSound::HDevice device)
     {
+        if (!device)
+        {
+            return;
+        }
+
         OpenALDevice* openal = (OpenALDevice*) device;
 
         alcMakeContextCurrent(openal->m_Context);
@@ -140,6 +147,7 @@ namespace dmDeviceOpenAL
 
     dmSound::Result DeviceOpenALQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
     {
+        assert(device);
         OpenALDevice* openal = (OpenALDevice*) device;
         ALCcontext* current_context = alcGetCurrentContext();
         CheckAndPrintError();
@@ -167,6 +175,7 @@ namespace dmDeviceOpenAL
 
     uint32_t DeviceOpenALFreeBufferSlots(dmSound::HDevice device)
     {
+        assert(device);
         OpenALDevice* openal = (OpenALDevice*) device;
         int processed;
         alGetSourcei(openal->m_Source, AL_BUFFERS_PROCESSED, &processed);
@@ -185,12 +194,15 @@ namespace dmDeviceOpenAL
 
     void DeviceOpenALDeviceInfo(dmSound::HDevice device, dmSound::DeviceInfo* info)
     {
+        assert(device);
+        assert(info);
         OpenALDevice* openal = (OpenALDevice*) device;
         info->m_MixRate = openal->m_MixRate;
     }
 
     void DeviceOpenALStart(dmSound::HDevice device)
     {
+        assert(device);
         OpenALDevice* openal = (OpenALDevice*) device;
         if (!alcMakeContextCurrent(openal->m_Context)) {
             dmLogError("Failed to restart OpenAL device, could not enable context!");
@@ -199,6 +211,7 @@ namespace dmDeviceOpenAL
 
     void DeviceOpenALStop(dmSound::HDevice device)
     {
+        assert(device);
         if (!alcMakeContextCurrent(NULL)) {
             dmLogError("Failed to stop OpenAL device, could not disable context!");
         }
