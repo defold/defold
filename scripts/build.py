@@ -1277,7 +1277,7 @@ instructions.configure=\
         </div>
 
         <script id="templ-releases" type="text/html">
-            <h2>Editor</h2>
+            <h2>Editor {{editor.version}}</h2>
             {{#editor.stable}}
                 <p>
                     <a href="{{url}}" class="btn btn-primary" style="width: 20em;" role="button">Download for {{name}}</a>
@@ -1402,9 +1402,21 @@ instructions.configure=\
             if response[0] != 'y':
                 return
 
-        model['editor'] = {'stable': [ dict(name='Mac OSX', url='/%s/Defold-macosx.cocoa.x86_64.dmg' % self.channel),
-                                       dict(name='Windows', url='/%s/Defold-win32.win32.x86.zip' % self.channel),
-                                       dict(name='Linux', url='/%s/Defold-linux.gtk.x86_64.zip' % self.channel)] }
+        # Pick editor URLs from the current SHA1 build.
+        model['editor'] = {'stable': [ dict(name='macOS 10.7+', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-darwin.dmg' % release_sha1),
+                                       dict(name='Windows 64bit', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-win32.zip' % release_sha1),
+                                       dict(name='Windows 32bit', url='https://d.defold.com/editor2/%s/editor2/Defold-x86-win32.zip' % release_sha1),
+                                       dict(name='Ubuntu 16.04+ 64bit', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-linux.zip' % release_sha1)] }
+
+        # We handle the stable channel seperately, since we want it to point
+        # to the editor-dev release (which uses the latest stable engine).
+        if self.channel == "stable":
+            model['editor'] = {'stable': [ dict(name='macOS 10.7+', url='https://www.defold.com/download/editor2/Defold-x86_64-darwin.dmg'),
+                                           dict(name='Windows 64bit', url='https://www.defold.com/download/editor2/Defold-x86_64-win32.zip'),
+                                           dict(name='Windows 32bit', url='https://www.defold.com/download/editor2/Defold-x86-win32.zip'),
+                                           dict(name='Ubuntu 16.04+ 64bit', url='https://www.defold.com/download/editor2/Defold-x86_64-linux.zip')] }
+
+        model['editor']['version'] = self.version
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
