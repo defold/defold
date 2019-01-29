@@ -1,4 +1,4 @@
-#include "script_native_extensions.h"
+#include "script_extensions.h"
 
 #include "script.h"
 
@@ -15,7 +15,7 @@ namespace dmScript
     #define BIT_INDEX(b) ((b) / sizeof(uint32_t))
     #define BIT_OFFSET(b) ((b) % sizeof(uint32_t))
 
-    const char* NATIVE_EXTENSIONS_CONTEXT_NAME = "__native_extensions_context__";
+    const char* EXTENSIONS_CONTEXT_NAME = "__extensions_context__";
 
     struct ExtensionsData
     {
@@ -40,12 +40,12 @@ namespace dmScript
         // [-1] extension_data
         extension_data->m_Ref = Ref(L, LUA_REGISTRYINDEX);
         // [-1] extension_data
-        lua_pushstring(L, NATIVE_EXTENSIONS_CONTEXT_NAME);
+        lua_pushstring(L, EXTENSIONS_CONTEXT_NAME);
         // [-2] extension_data
-        // [-1] NATIVE_EXTENSIONS_CONTEXT_NAME
+        // [-1] EXTENSIONS_CONTEXT_NAME
 
         lua_insert(L, -2);
-        // [-2] NATIVE_EXTENSIONS_CONTEXT_NAME
+        // [-2] EXTENSIONS_CONTEXT_NAME
         // [-1] extension_data
         
         SetContextValue(extension_data->m_Context);
@@ -71,7 +71,7 @@ namespace dmScript
     {
         lua_State* L = GetLuaState(context);
         DM_LUA_STACK_CHECK(L, 0);
-        lua_pushstring(L, NATIVE_EXTENSIONS_CONTEXT_NAME);
+        lua_pushstring(L, EXTENSIONS_CONTEXT_NAME);
         GetContextValue(context);
 
         ExtensionsData* extension_data = (ExtensionsData*)lua_touserdata(L, -1);
@@ -143,7 +143,7 @@ namespace dmScript
         memset(extension_data->m_InitializedExtensions, 0, sizeof(extension_data->m_InitializedExtensions));
     }
 
-    void InitializeNativeExtensions(HContext context)
+    void InitializeExtensions(HContext context)
     {
         static ScriptExtension sl;
         sl.Initialize = InitializeExtensions;
