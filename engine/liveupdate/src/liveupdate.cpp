@@ -178,7 +178,7 @@ namespace dmLiveUpdate
     static Result VerifyManifestBundledResources(dmResource::Manifest* manifest)
     {
         dmResource::Result res;
-        dmMutex::Mutex mutex = dmResource::GetLoadMutex(m_ResourceFactory);
+        dmMutex::HMutex mutex = dmResource::GetLoadMutex(m_ResourceFactory);
         while(!dmMutex::TryLock(mutex))
         {
             dmTime::Sleep(100);
