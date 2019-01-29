@@ -24,7 +24,7 @@ namespace dmScript
         int         m_Ref;
     };
 
-    static void InitializeExtensions(HContext context)
+    static void InternalInitializeExtensions(HContext context)
     {
         lua_State* L = GetLuaState(context);
         DM_LUA_STACK_CHECK(L, 0);
@@ -79,7 +79,7 @@ namespace dmScript
         return extension_data;
     }
 
-    static void UpdateExtensions(HContext context)
+    static void InternalUpdateExtensions(HContext context)
     {
         lua_State* L = GetLuaState(context);
         DM_LUA_STACK_CHECK(L, 0);
@@ -110,7 +110,7 @@ namespace dmScript
         }
     }
 
-    static void FinalizeExtensions(HContext context)
+    static void InternalFinalizeExtensions(HContext context)
     {
         lua_State* L = GetLuaState(context);
         DM_LUA_STACK_CHECK(L, 0);
@@ -146,9 +146,9 @@ namespace dmScript
     void InitializeExtensions(HContext context)
     {
         static ScriptExtension sl;
-        sl.Initialize = InitializeExtensions;
-        sl.Update = UpdateExtensions;
-        sl.Finalize = FinalizeExtensions;
+        sl.Initialize = InternalInitializeExtensions;
+        sl.Update = InternalUpdateExtensions;
+        sl.Finalize = InternalFinalizeExtensions;
         sl.NewScriptWorld = 0x0;
         sl.DeleteScriptWorld = 0x0;
         sl.UpdateScriptWorld = 0x0;
