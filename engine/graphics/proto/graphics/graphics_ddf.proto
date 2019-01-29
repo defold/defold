@@ -163,7 +163,7 @@ message ShaderDesc
 
     message Shader
     {
-        required Language Language  = 1;
+        required Language language  = 1;
         optional bytes source       = 2;
         optional bytes binary       = 3;
     }
