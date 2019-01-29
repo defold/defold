@@ -267,7 +267,7 @@ Explanations:
 
 ## Build Engine
 
-* In the instructions below, the `--platform` argument to `build.py` will default to the host platform if not specified.*
+*In the instructions below, the `--platform` argument to `build.py` will default to the host platform if not specified.*
 
 ### Windows
 
