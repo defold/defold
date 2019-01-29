@@ -16,6 +16,7 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 public class FragmentProgramBuilder extends ShaderProgramBuilder {
 
     private static final ES2ToES3Converter.ShaderType SHADER_TYPE = ES2ToES3Converter.ShaderType.FRAGMENT_SHADER;
+    private boolean soft_fail = true;
 
     @Override
     public void build(Task<Void> task) throws IOException, CompileExceptionError {
@@ -23,7 +24,7 @@ public class FragmentProgramBuilder extends ShaderProgramBuilder {
         try (ByteArrayInputStream is = new ByteArrayInputStream(in.getContent())) {
             boolean isDebug = (project.hasOption("debug") || (project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
 
-            ShaderDesc shaderDesc = compile(is, SHADER_TYPE, in, task.getOutputs().get(0).getPath(), project.getPlatformStrings()[0], isDebug);
+            ShaderDesc shaderDesc = compile(is, SHADER_TYPE, in, task.getOutputs().get(0).getPath(), project.getPlatformStrings()[0], isDebug, soft_fail);
             task.output(0).setContent(shaderDesc.toByteArray());
         }
     }
@@ -44,6 +45,7 @@ public class FragmentProgramBuilder extends ShaderProgramBuilder {
     public static void main(String[] args) throws IOException, CompileExceptionError {
         System.setProperty("java.awt.headless", "true");
         FragmentProgramBuilder builder = new FragmentProgramBuilder();
+        builder.soft_fail = false;
         builder.BuildShader(args, SHADER_TYPE);
     }
 
