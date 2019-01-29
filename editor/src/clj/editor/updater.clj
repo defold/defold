@@ -6,7 +6,7 @@
             [service.log :as log]
             [util.net :as net])
   (:import [com.defold.editor Platform]
-           [java.io IOException File FileNotFoundException]
+           [java.io IOException File]
            [java.nio.file Files]
            [java.nio.file.attribute FileAttribute]
            [java.util Timer TimerTask]
@@ -49,7 +49,11 @@
   (let [{:keys [platform state-atom]} updater
         {:keys [newest-sha1 installed-sha1]} @state-atom
         url (download-url newest-sha1 platform)
-        zip-file (.toFile (Files/createTempFile "defold-update" ".zip" (into-array FileAttribute [])))]
+        zip-file (.toFile (Files/createTempFile "defold-update" ".zip" (into-array FileAttribute [])))
+        install-dir (if system/mac?
+                      (io/file (system/defold-resourcespath) "../../")
+                      (io/file (system/defold-resourcespath)))
+        backup-dir (io/file install-dir (str installed-sha1 "-backup"))]
     (.deleteOnExit zip-file)
     (log/info :message "Downloading update" :url url :file (.getAbsolutePath zip-file))
     (net/download! url zip-file
@@ -61,8 +65,7 @@
           false)
       (with-open [zip (ZipFile. zip-file)]
         (log/info :message "Installing update")
-        (let [backup-dir (io/file (str installed-sha1 "-backup"))
-              es (.getEntries zip)]
+        (let [es (.getEntries zip)]
           (while (.hasMoreElements es)
             (let [e ^ZipArchiveEntry (.nextElement es)]
               (when-not (.isDirectory e)
@@ -71,13 +74,13 @@
                                           (FilenameUtils/separatorsToUnix)
                                           (string/split #"/")
                                           next)
-                      target-file ^File (apply io/file file-name-parts)]
+                      target-file ^File (apply io/file install-dir file-name-parts)]
                   ;; TODO remove logging spam
                   (log/info :message "Extracting file"
                             :from (.getName e)
                             :to (str target-file))
                   (when-let [target-dir-parts (butlast file-name-parts)]
-                    (.mkdirs ^File (apply io/file target-dir-parts)))
+                    (.mkdirs ^File (apply io/file install-dir target-dir-parts)))
                   (when (.exists target-file)
                     (try
                       (.delete target-file)
