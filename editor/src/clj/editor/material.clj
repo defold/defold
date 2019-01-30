@@ -126,7 +126,9 @@
           :element {:type :string :default "New Tag"}}
          {:path [:vertex-space]
           :label "Vertex Space"
-          :type :choicebox :options (protobuf-forms/make-options (protobuf/enum-values Material$MaterialDesc$VertexSpace)) :default (ffirst (protobuf/enum-values Material$MaterialDesc$VertexSpace))}]}]}))
+          :type :choicebox
+          :options (protobuf-forms/make-options (protobuf/enum-values Material$MaterialDesc$VertexSpace))
+          :default (ffirst (protobuf/enum-values Material$MaterialDesc$VertexSpace))}]}]}))
 
 (defn- set-form-op [{:keys [node-id]} [property] value]
   (g/set-property! node-id property value))

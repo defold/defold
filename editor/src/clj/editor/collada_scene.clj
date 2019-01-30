@@ -97,17 +97,19 @@
                                                              (.transform world-transform world-point)
                                                              (.get world-point d3))))
                             positions)
-        ^floats normals (let [world-normal (Vector3f.)
-                              normal-transform (let [tmp (Matrix3f.)]
-                                                 (.getRotationScale world-transform tmp)
-                                                 (.invert tmp)
-                                                 (.transpose tmp)
-                                                 tmp)]
-                          (transform-array3! normals (fn [^floats d3]
-                                                       (.set world-normal d3)
-                                                       (.transform normal-transform world-normal)
-                                                       (.normalize world-normal) ; need to normalize since since normal-transform may be scaled
-                                                       (.get world-normal d3))))]
+        ^floats normals (if (= vertex-space :vertex-space-world)
+                          (let [world-normal (Vector3f.)
+                                normal-transform (let [tmp (Matrix3f.)]
+                                                   (.getRotationScale world-transform tmp)
+                                                   (.invert tmp)
+                                                   (.transpose tmp)
+                                                   tmp)]
+                            (transform-array3! normals (fn [^floats d3]
+                                                         (.set world-normal d3)
+                                                         (.transform normal-transform world-normal)
+                                                         (.normalize world-normal) ; need to normalize since since normal-transform may be scaled
+                                                         (.get world-normal d3))))
+                          normals)]
     ;; Raw access to run as fast as possible
     ;; 3x faster than using generated *-put! function
     ;; Not clear how to turn this into pretty API
@@ -152,8 +154,12 @@
             render-args (if (= vertex-space :vertex-space-world)
                           render-args
                           (let [world-view (doto (Matrix4d. ^Matrix4d (:view render-args)) (.mul ^Matrix4d (:world-transform renderable)))
-                                world-view-proj (doto (Matrix4d. ^Matrix4d (:projection render-args)) (.mul ^Matrix4d world-view))]
-                            (assoc-in (assoc-in render-args [:world-view-proj] world-view-proj) [:world-view] world-view)))]
+                                world-view-proj (doto (Matrix4d. ^Matrix4d (:projection render-args)) (.mul ^Matrix4d world-view))
+                                normal (doto (math/affine-inverse world-view) (.transpose))]
+                            (assoc render-args
+                              :world-view-proj world-view-proj
+                              :world-view world-view
+                              :normal normal)))]
         (gl/with-gl-bindings gl render-args [shader]
           (when (= pass pass/opaque)
             (doseq [[name t] textures]
