@@ -107,6 +107,7 @@
                                 true (assoc-in [:user-data :vertex-space] vertex-space)
                                 true (update :batch-key (fn [old-key]
                                                           [old-key shader gpu-textures (case vertex-space
+                                                                                         nil _node-id
                                                                                          :vertex-space-local _node-id
                                                                                          :vertex-space-world :vertex-space-world)]))))))
 
