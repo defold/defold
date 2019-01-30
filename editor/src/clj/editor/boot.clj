@@ -125,6 +125,8 @@
         analytics-url "https://www.google-analytics.com/batch"
         analytics-send-interval 300
         invalidate-analytics-uid? (not (login/signed-in? dashboard-client))]
+    (when (some? updater)
+      (updater/delete-backup-files! updater))
     (analytics/start! analytics-url analytics-send-interval invalidate-analytics-uid?)
     (Shutdown/addShutdownAction analytics/shutdown!)
     (try
