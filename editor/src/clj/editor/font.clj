@@ -352,13 +352,20 @@
                                   :text-entries text-entries
                                   :glyph-cache glyph-cache})))
 
+(defn get-texture-recip-uniform [font-map]
+  (let [cache-width (:cache-width font-map)
+        cache-height (:cache-height font-map)
+        cache-width-recip (/ 1.0 cache-width)
+        cache-height-recip (/ 1.0 cache-height)
+        cache-cell-width-ratio (/ (:cache-cell-width font-map) cache-width)
+        cache-cell-height-ratio (/ (:cache-cell-height font-map) cache-height)]
+    (Vector4d. cache-width-recip cache-height-recip cache-cell-width-ratio cache-cell-height-ratio)))
+
 (defn render-font [^GL2 gl render-args renderables rcount]
   (let [user-data (get (first renderables) :user-data)
         gpu-texture (:texture user-data)
         font-map (:font-map user-data)
-        cache-width (:cache-width font-map)
-        cache-height (:cache-height font-map)
-        text-layout (layout-text font-map (:text user-data) true cache-width 0 1)
+        text-layout (layout-text font-map (:text user-data) true (:cache-width font-map) 0 1)
         vertex-buffer (gen-vertex-buffer gl user-data [{:text-layout text-layout
                                                         :align :left
                                                         :offset [0.0 0.0]
@@ -369,13 +376,9 @@
         vcount (count vertex-buffer)]
     (when (> vcount 0)
       (let [vertex-binding (vtx/use-with ::vb vertex-buffer material-shader)
-            cache-width-recip (/ 1.0 cache-width)
-            cache-height-recip (/ 1.0 cache-height)
-            cache-cell-width-ratio (/ (:cache-cell-width font-map) cache-width)
-            cache-cell-height-ratio (/ (:cache-cell-height font-map) cache-height)
-            texture-size-recip (Vector4d. cache-width-recip cache-height-recip cache-cell-width-ratio cache-cell-height-ratio)]
+            texture-recip-uniform (get-texture-recip-uniform font-map)]
         (gl/with-gl-bindings gl render-args [material-shader vertex-binding gpu-texture]
-          (shader/set-uniform material-shader gl "texture_size_recip" texture-size-recip)
+          (shader/set-uniform material-shader gl "texture_size_recip" texture-recip-uniform)
           ;; Need to set the blend mode to alpha since alpha blending the source with GL_SRC_ALPHA and dest with GL_ONE_MINUS_SRC_ALPHA
           ;; gives us a small black border around the outline that looks different than other views..
           (gl/set-blend-mode gl :blend-mode-alpha)
