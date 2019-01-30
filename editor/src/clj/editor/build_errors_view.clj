@@ -1,6 +1,8 @@
 (ns editor.build-errors-view
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.defold-project :as project]
+            [editor.handler :as handler]
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -8,7 +10,8 @@
   (:import [clojure.lang MapEntry PersistentQueue]
            [java.util Collection]
            [javafx.collections ObservableList]
-           [javafx.scene.control TabPane TreeItem TreeView]))
+           [javafx.scene.control TabPane TreeItem TreeView]
+           [javafx.scene.input Clipboard ClipboardContent]))
 
 (set! *warn-on-reflection* true)
 
@@ -179,13 +182,52 @@
           (ui/run-later
             (open-resource-fn resource selection opts)))))))
 
+(defn- error-line-for-clipboard [error]
+  (let [message (:message error)
+        line    (if-let [line (:line error)]
+                  (str "Line " line ": ")
+                  "")]
+    (str line message)))
+
+(defn- error-text-for-clipboard [selection]
+  (let [children    (:children selection)
+        resource    (or (get-in selection [:value :resource])
+                        (get-in selection [:parent :resource]))
+        next-line   (str \newline \tab)
+        proj-path   (if-let [res-path (not-empty (resource/resource->proj-path resource))]
+                      (str res-path next-line)
+                      "")
+        error-lines (if (not-empty children)
+                      (string/join next-line (map error-line-for-clipboard children))
+                      (error-line-for-clipboard selection))]
+    (str proj-path error-lines)))
+
+(handler/defhandler :copy :build-errors-view
+  (active? [selection] (not-empty selection))
+  (enabled? [selection] (not-empty selection))
+  (run [build-errors-view]
+    (let [clipboard (Clipboard/getSystemClipboard)
+          content    (ClipboardContent.)
+          selection  (first (ui/selection build-errors-view))
+          error-text (error-text-for-clipboard selection)]
+      (.putString content error-text)
+      (.setContent clipboard content))))
+
+(ui/extend-menu ::build-errors-menu nil
+                [{:label "Copy"
+                  :command :copy}])
+
 (defn make-build-errors-view [^TreeView errors-tree open-resource-fn]
   (doto errors-tree
     (.setShowRoot false)
     (ui/cell-factory! make-tree-cell)
     (ui/on-double! (fn [_]
                      (when-let [selection (ui/selection errors-tree)]
-                       (open-error open-resource-fn selection))))))
+                       (open-error open-resource-fn selection))))
+    (ui/register-context-menu ::build-errors-menu)
+    (ui/context! :build-errors-view
+                 {:build-errors-view errors-tree}
+                 (ui/->selection-provider errors-tree))))
 
 (declare tree-item)
 
