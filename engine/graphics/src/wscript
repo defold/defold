@@ -17,7 +17,7 @@ def build(bld):
                                target = 'graphics')
 
         obj.find_sources_in_dirs('. opengl ../proto/graphics')
-        if 'js-web' in bld.env.PLATFORM:
+        if 'web' in bld.env.PLATFORM:
              obj.source.append('opengl/async/job_queue_sync.cpp');
         else:
              obj.source.append('opengl/async/job_queue_threaded.cpp');
