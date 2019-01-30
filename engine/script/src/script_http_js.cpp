@@ -171,8 +171,11 @@ namespace dmScript
         {0, 0}
     };
 
-    void InitializeHttp(lua_State* L, dmConfigFile::HConfig config_file)
+    void InitializeHttp(HContext context)
     {
+        lua_State* L = dmScript::GetLuaState(context);
+        dmConfigFile::HConfig config_file = dmScript::GetConfigFile(context);
+
         int top = lua_gettop(L);
 
         dmScript::RegisterDDFDecoder(dmHttpDDF::HttpResponse::m_DDFDescriptor, &HttpResponseDecoder);
@@ -185,9 +188,5 @@ namespace dmScript
         luaL_register(L, "http", HTTP_COMP_FUNCTIONS);
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
-    }
-
-    void FinalizeHttp(lua_State* L)
-    {
     }
 }
