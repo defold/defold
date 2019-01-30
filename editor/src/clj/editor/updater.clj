@@ -10,7 +10,7 @@
            [java.nio.file Files]
            [java.nio.file.attribute FileAttribute]
            [java.util Timer TimerTask]
-           [org.apache.commons.io FilenameUtils]
+           [org.apache.commons.io FilenameUtils FileUtils]
            [org.apache.commons.compress.archivers.zip ZipArchiveEntry ZipFile]))
 
 (set! *warn-on-reflection* true)
@@ -148,6 +148,17 @@
     (doto timer
       (.schedule (make-check-for-update-task timer updater update-delay)
                  (long initial-update-delay)))))
+
+(defn delete-backup-files!
+  "Delete files left from previous update"
+  [updater]
+  (let [{:keys [^File install-dir]} updater
+        backup-files (FileUtils/listFiles
+                       install-dir
+                       ^"[Ljava.lang.String;" (into-array ["backup"])
+                       true)]
+    (doseq [^File file backup-files]
+      (.delete file))))
 
 (defn start!
   "Starts a timer that polls for updates periodically, returns updater which can be passed
