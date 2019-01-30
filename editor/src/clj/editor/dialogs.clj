@@ -14,7 +14,8 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.defold-project :as project]
-            [editor.github :as github])
+            [editor.github :as github]
+            [service.log :as log])
   (:import [java.io File]
            [java.util List Collection]
            [java.nio.file Path Paths]
@@ -169,10 +170,9 @@
   (future
     (updater/download-and-install!
       updater
-      :progress-callback (fn [current total]
-                           (.setProgress progress-bar (double (/ current total)))
-                           (when (= current total)
-                             (.setDisable cancel true)))
+      :progress-callback (fn [progress cancelable]
+                           (.setProgress progress-bar (double progress))
+                           (.setDisable cancel (not cancelable)))
       :cancelled-atom cancelled-atom)))
 
 (defn make-pending-update-dialog [^Stage owner updater]
@@ -193,13 +193,13 @@
                                 :cancelled-atom cancelled-atom})
             (future
               (try
-                @success?
+                (when @success?
+                  (reset! state-atom {:status :completed})
+                  (ui/run-later
+                    (.close stage)))
                 (catch Exception e
-                  (.printStackTrace e)))
-              (when @success?
-                (reset! state-atom {:status :completed})
-                (ui/run-later
-                  (.close stage)))))))
+                  (log/info :message "Exception installing update"
+                            :exception e)))))))
       (ui/on-action!
         cancel
         (fn on-cancel! [_]
