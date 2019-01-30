@@ -16,7 +16,7 @@
 
 (defn- sequence-vertices-in-mesh [mesh]
   (-> mesh
-      (sequence-buffer-in-mesh 3 :positions :indices)
+      (sequence-buffer-in-mesh 3 :positions :position-indices)
       (sequence-buffer-in-mesh 3 :normals :normals-indices)
       (sequence-buffer-in-mesh 2 :texcoord0 :texcoord0-indices)))
 
