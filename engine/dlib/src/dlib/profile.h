@@ -7,6 +7,7 @@
 #include <dlib/atomic.h>
 #include <dlib/dlib.h>
 #include <dlib/dstrings.h>
+#include <dlib/static_assert.h> // ANALYZE_USE_POINTER
 
 #define DM_PROFILE_PASTE(x, y) x ## y
 #define DM_PROFILE_PASTE2(x, y) DM_PROFILE_PASTE(x, y)
@@ -21,29 +22,20 @@
 
 /**
  * Profile macro.
- * scope_instance_name is the name of the scope instance.
  * scope_name is the scope name. Must be a literal
- * name is the sample name. Must be a literal
- */
-#define DM_NAMED_PROFILE(scope_instance_name, scope_name, name)
-#undef DM_NAMED_PROFILE
-
-/**
- * Profile macro.
- * scope_name is the scope name. Must be a literal
- * name is the sample name. Must be a literal
+ * name is the sample name. Must be literal, to use non-literal name use DM_PROFILE_FMT
  */
 #define DM_PROFILE(scope_name, name)
 #undef DM_PROFILE
 
 /**
- * Profile macro for dynamic strings.
- * scope is the scope used when creating it using DM_NAMED_PROFILE. Must be a literal
- * fmt String format, uses printf formatting limited to 128 characters
- * Has overhead du to printf style formatting and hashing of the formatted string
+ * Profile macro.
+ * scope_name is the scope name. Must be a literal
+ * fmt is the String format, uses printf formatting limited to 128 characters
+ * Has overhead due to printf style formatting and hashing of the formatted string
  */
-#define DM_PROFILE_SCOPE_FMT(scope, fmt, ...)
-#undef DM_PROFILE_SCOPE_FMT
+#define DM_PROFILE_FMT(scope_name, fmt, ...)
+#undef DM_PROFILE_FMT
 
 /**
  * Profile counter macro
@@ -54,21 +46,21 @@
 #undef DM_COUNTER
 
 /**
- * Profile counter macro for non-literal strings, performance penalty compared to DM_COUNTER
+ * Profile counter macro for non-literal strings, caller must provide hash
  * name is the counter name.
+ * name_hash is the hash generated with HashCounterName
  * amount is the amount (integer) to add to the specific counter.
  */
-#define DM_COUNTER_DYN(name, amount)
+#define DM_COUNTER_DYN(name, name_hash, amount)
 #undef DM_COUNTER_DYN
 
 #if defined(NDEBUG)
     #define DM_INTERNALIZE(name) 0
-    #define DM_PROFILE_SCOPE(scope_instance_name, name, name_hash)
-    #define DM_NAMED_PROFILE(scope_instance_name, scope_name, name)
+    #define DM_PROFILE_SCOPE(scope_instance_name, name)
     #define DM_PROFILE(scope_name, name)
-    #define DM_PROFILE_SCOPE_FMT(scope, fmt, ...)
+    #define DM_PROFILE_FMT(scope_name, fmt, ...)
     #define DM_COUNTER(name, amount)
-    #define DM_COUNTER_DYN(name, amount)
+    #define DM_COUNTER_DYN(name, name_hash, amount)
 #else
     #define DM_INTERNALIZE(name) \
         (dmProfile::g_IsInitialized ? dmProfile::Internalize(name) : 0)
@@ -76,34 +68,32 @@
     #define DM_PROFILE_SCOPE(scope, name, name_hash) \
         dmProfile::ProfileScope DM_PROFILE_PASTE2(profile_scope, __LINE__)(scope, name, name_hash);
 
-    #define DM_NAMED_PROFILE(scope_instance_name, scope_name, name) \
-        static dmProfile::Scope* scope_instance_name = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : 0; \
-        static const uint32_t DM_PROFILE_PASTE2(name_hash, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::GetNameHash(name) : 0; \
-        DM_PROFILE_SCOPE(scope_instance_name, name, DM_PROFILE_PASTE2(name_hash, __LINE__))
-
     #define DM_PROFILE(scope_name, name) \
-        DM_NAMED_PROFILE(DM_PROFILE_PASTE2(scope, __LINE__), scope_name, name)
+        static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : 0; \
+        static const uint32_t DM_PROFILE_PASTE2(hash, __LINE__) = dmProfile::HashCounterName(name); \
+        DM_PROFILE_SCOPE(DM_PROFILE_PASTE2(scope, __LINE__), name, DM_PROFILE_PASTE2(hash, __LINE__))
 
-    #define DM_PROFILE_SCOPE_FMT(scope, fmt, ...) \
+    #define DM_PROFILE_FMT(scope_name, fmt, ...) \
+        static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : 0; \
         const char* DM_PROFILE_PASTE2(name, __LINE__) = 0; \
-        uint32_t DM_PROFILE_PASTE2(name_hash, __LINE__) = 0; \
+        static uint32_t DM_PROFILE_PASTE2(hash, __LINE__) = 0; \
         if (dmProfile::g_IsInitialized) { \
             char buffer[128]; \
             DM_SNPRINTF(buffer, sizeof(buffer), fmt, __VA_ARGS__); \
             DM_PROFILE_PASTE2(name, __LINE__) = dmProfile::Internalize(buffer); \
-            DM_PROFILE_PASTE2(name_hash, __LINE__) = dmProfile::GetNameHash(buffer); \
+            DM_PROFILE_PASTE2(hash, __LINE__) = dmProfile::HashCounterName(buffer); \
         } \
-        DM_PROFILE_SCOPE(scope, DM_PROFILE_PASTE2(name, __LINE__), DM_PROFILE_PASTE2(name_hash, __LINE__))
+        DM_PROFILE_SCOPE(DM_PROFILE_PASTE2(scope, __LINE__), DM_PROFILE_PASTE2(name, __LINE__), DM_PROFILE_PASTE2(hash, __LINE__))
 
     #define DM_COUNTER(name, amount) \
         if (dmProfile::g_IsInitialized) { \
-            static const uint32_t DM_PROFILE_PASTE2(hash, __LINE__) = dmProfile::GetNameHash(name); \
+            static const uint32_t DM_PROFILE_PASTE2(hash, __LINE__) = dmProfile::HashCounterName(name); \
             dmProfile::AddCounterHash(name, DM_PROFILE_PASTE2(hash, __LINE__), amount); \
         }
 
-    #define DM_COUNTER_DYN(name, amount) \
+    #define DM_COUNTER_DYN(name, name_hash, amount) \
         if (dmProfile::g_IsInitialized) { \
-            dmProfile::AddCounterHash(name, dmProfile::GetNameHash(name), amount); \
+            dmProfile::AddCounterHash(name, name_hash, amount); \
         }
 #endif
 
@@ -244,17 +234,19 @@ namespace dmProfile
      * Iterate over all scopes
      * @param profile Profile snapshot to iterate over
      * @param context User context
+     * @param sort sort the entries
      * @param call_back Call-back function pointer
      */
-    void IterateScopeData(HProfile profile, void* context, void (*call_back)(void* context, const ScopeData* scope_data));
+    void IterateScopeData(HProfile profile, void* context, bool sort, void (*call_back)(void* context, const ScopeData* scope_data));
 
     /**
      * Iterate over all samples
      * @param profile Profile snapshot to iterate over
      * @param context User context
+     * @param sort sort the entries
      * @param call_back Call-back function pointer
      */
-    void IterateSamples(HProfile profile, void* context, void (*call_back)(void* context, const Sample* sample));
+    void IterateSamples(HProfile profile, void* context, bool sort, void (*call_back)(void* context, const Sample* sample));
 
     /**
      * Iterate over all counters
@@ -292,6 +284,13 @@ namespace dmProfile
      * @return internalized string or 0 if profiling is not enabled
      */
     const char* Internalize(const char* string);
+
+    /**
+     * Generates a hash for the counter name
+     * @param name Counter name
+     * @return the hash or 0 if profiling is not enabled
+     */
+    uint32_t HashCounterName(const char* name);
 
     /**
      * Add #amount to counter with #name

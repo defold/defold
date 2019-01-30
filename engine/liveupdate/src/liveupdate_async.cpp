@@ -20,8 +20,8 @@ namespace dmLiveUpdate
 
     /// The liveupdate thread and synchronization objects, used for sequentially processing async liveupdate resource requests
     static dmThread::Thread m_AsyncThread = 0x0;
-    static dmMutex::Mutex  m_ConsumerThreadMutex;
-    static dmConditionVariable::ConditionVariable m_ConsumerThreadCondition;
+    static dmMutex::HMutex  m_ConsumerThreadMutex;
+    static dmConditionVariable::HConditionVariable m_ConsumerThreadCondition;
     static volatile bool m_ThreadJobComplete = false;
     static volatile bool m_Active = false;
 
@@ -88,7 +88,7 @@ namespace dmLiveUpdate
             dmMutex::ScopedLock lk(m_ConsumerThreadMutex);
             if(m_ThreadJobComplete)
             {
-                dmMutex::Mutex mutex = dmResource::GetLoadMutex(m_ResourceFactory);
+                dmMutex::HMutex mutex = dmResource::GetLoadMutex(m_ResourceFactory);
                 if(!dmMutex::TryLock(mutex))
                     return;
                 ProcessRequestComplete();

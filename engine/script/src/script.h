@@ -163,7 +163,7 @@ namespace dmScript
     void RegisterScriptExtension(HContext context, HScriptExtension script_extension);
 
     /**
-     * Updates the extensions initalized in this script context.
+     * Updates the script extensions initalized in this script context.
      * @param context script contetx
      */
     void Update(HContext context);
@@ -629,6 +629,8 @@ namespace dmScript
      */
     lua_State* GetLuaState(HContext context);
 
+    dmConfigFile::HConfig GetConfigFile(HContext context);
+
     /**
      * Add (load) module
      * @param context script context
@@ -775,7 +777,7 @@ namespace dmScript
      */
     struct LuaFunctionInfo
     {
-        const char* m_ShortFileName;
+        const char* m_FileName;
         const char* m_OptionalName;
         int m_LineNumber;
     };
