@@ -163,7 +163,7 @@ namespace dmScript
     void RegisterScriptExtension(HContext context, HScriptExtension script_extension);
 
     /**
-     * Updates the extensions initalized in this script context.
+     * Updates the script extensions initalized in this script context.
      * @param context script contetx
      */
     void Update(HContext context);
