@@ -46,7 +46,7 @@ function cmi_configure() {
     set -e
     mkdir -p build >/dev/null
     pushd build >/dev/null
-    cmake -G"${CMAKE_GENERATOR}" ..
+    cmake -DSHADERC_SKIP_TESTS=ON -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -G"${CMAKE_GENERATOR}" ..
     popd >/dev/null
 }
 
