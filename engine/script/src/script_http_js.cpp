@@ -171,10 +171,10 @@ namespace dmScript
         {0, 0}
     };
 
-    void InitializeHttp(HContext context)
+    static void HttpInitialize(HContext context)
     {
-        lua_State* L = dmScript::GetLuaState(context);
-        dmConfigFile::HConfig config_file = dmScript::GetConfigFile(context);
+        lua_State* L = GetLuaState(context);
+        dmConfigFile::HConfig config_file = GetConfigFile(context);
 
         int top = lua_gettop(L);
 
@@ -189,4 +189,19 @@ namespace dmScript
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
     }
+
+    void InitializeHttp(HContext context)
+    {
+        static ScriptExtension sl;
+        sl.Initialize = HttpInitialize;
+        sl.Update = 0x0;
+        sl.Finalize = 0x0;
+        sl.NewScriptWorld = 0x0;
+        sl.DeleteScriptWorld = 0x0;
+        sl.UpdateScriptWorld = 0x0;
+        sl.InitializeScriptInstance = 0x0;
+        sl.FinalizeScriptInstance = 0x0;
+        RegisterScriptExtension(context, &sl);
+    }
+
 }
