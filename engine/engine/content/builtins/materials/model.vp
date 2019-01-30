@@ -28,3 +28,4 @@ void main()
     var_normal = normalize((mtx_normal * vec4(normal, 0.0)).xyz);
     gl_Position = mtx_proj * p;
 }
+
