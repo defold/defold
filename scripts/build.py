@@ -1125,9 +1125,13 @@ instructions.configure=\
         bucket = self._get_s3_bucket(archive_url.hostname)
         key = bucket.new_key('editor2/channels/%(channel)s/update.json' % {'channel': self.channel})
         key.content_type = 'application/json'
-
-        self._log("Updating channel '%s': %s" % (self.channel, key))
+        self._log("Updating channel '%s' for update.json: %s" % (self.channel, key))
         key.set_contents_from_string(json.dumps(update_data))
+
+        key_v2 = bucket.new_key('editor2/channels/%(channel)s/update-v2.json' % {'channel': self.channel})
+        key_v2.content_type = 'application/json'
+        self._log("Updating channel '%s' for update-v2.json: %s" % (self.channel, key_v2))
+        key_v2.set_contents_from_string(json.dumps({'sha1': sha1}))
 
     def bump(self):
         sha1 = self._git_sha1()
