@@ -43,7 +43,7 @@
 
 (defn defold-resourcespath
   ^String []
-  (System/getProperty "defold.resourcespath"))
+  (System/getProperty "defold.resourcespath" ""))
 
 (defn defold-editor-sha1
   ^String []
