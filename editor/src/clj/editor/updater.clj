@@ -23,14 +23,10 @@
                       :newest-sha1 editor-sha1})})
 
 (defn- download-url [sha1 platform]
-  (format "https://d.defold.com/editor2/%s/editor2/Defold-%s.zip" sha1 platform)
-  ;; TODO remove temporary code
-  "http://localhost:8000/Defold-x86_64-linux.zip")
+  (format "https://d.defold.com/editor2/%s/editor2/Defold-%s.zip" sha1 platform))
 
 (defn- update-url [channel]
-  (format "https://d.defold.com/editor2/channels/%s/update-v2.json" channel)
-  ;; TODO remove temporary code
-  "http://localhost:8000/update-v2.json")
+  (format "https://d.defold.com/editor2/channels/%s/update-v2.json" channel))
 
 (defn has-update?
   "Returns true if update can be downloaded and installed"
