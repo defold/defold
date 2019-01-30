@@ -38,7 +38,7 @@ namespace dmGameSystem
             dmParticle::SetMaterial(prototype, i, material);
             if(dmRender::GetMaterialVertexSpace((dmRender::HMaterial)material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
             {
-                dmLogError("Failed to create ParticleFX component. Material vertex space option only supports VERTEX_SPACE_WORLD");
+                dmLogError("Failed to create ParticleFX component. This component only supports materials with the Vertex Space property set to 'vertex-space-world'");
                 return dmResource::RESULT_NOT_SUPPORTED;
             }
         }

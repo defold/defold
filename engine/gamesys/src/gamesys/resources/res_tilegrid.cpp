@@ -38,7 +38,7 @@ namespace dmGameSystem
         }
         if(dmRender::GetMaterialVertexSpace(tile_grid->m_Material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
         {
-            dmLogError("Failed to create Tile Grid component. Material vertex space option only supports VERTEX_SPACE_WORLD");
+            dmLogError("Failed to create Tile Grid component. This component only supports materials with the Vertex Space property set to 'vertex-space-world'");
             return dmResource::RESULT_NOT_SUPPORTED;
         }
 

@@ -27,7 +27,7 @@ namespace dmGameSystem
         }
         if(dmRender::GetMaterialVertexSpace(resource->m_Material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
         {
-            dmLogError("Failed to create Sprite component. Material vertex space option only supports VERTEX_SPACE_WORLD");
+            dmLogError("Failed to create Sprite component. This component only supports materials with the Vertex Space property set to 'vertex-space-world'");
             return dmResource::RESULT_NOT_SUPPORTED;
         }
         resource->m_DefaultAnimation = dmHashString64(resource->m_DDF->m_DefaultAnimation);
