@@ -17,6 +17,7 @@
             [editor.ui :as ui]
             [editor.ui.bindings :as b]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
+            [editor.ui.updater :as ui.updater]
             [editor.updater :as updater]
             [schema.core :as s]
             [util.net :as net]
@@ -28,7 +29,6 @@
            (javax.net.ssl SSLException)
            (java.time Instant)
            (java.util.zip ZipInputStream)
-           (javafx.animation AnimationTimer)
            (javafx.beans.property SimpleObjectProperty StringProperty)
            (javafx.event Event)
            (javafx.scene Node Parent Scene)
@@ -38,7 +38,6 @@
            (javafx.scene.layout HBox Priority Region StackPane VBox)
            (javafx.scene.shape Rectangle)
            (javafx.scene.text Text TextFlow)
-           (javafx.stage Stage WindowEvent)
            (org.apache.commons.io FilenameUtils)))
 
 (set! *warn-on-reflection* true)
@@ -583,23 +582,8 @@
 ;; Automatic updates
 ;; -----------------------------------------------------------------------------
 
-(defn- install-pending-update-check-timer! [^Stage stage update-link updater]
-  (let [update-visibility! #(let [has-update? (updater/has-update? updater)]
-                              (ui/visible! update-link has-update?)
-                              has-update?)]
-    ;; Start checking for updates. On the Welcome screen we stop polling once we
-    ;; found an update. If we find an update immediately, we don't even need to
-    ;; install the polling timer.
-    (when-not (update-visibility!)
-      (let [tick-fn (fn [^AnimationTimer timer _]
-                      (when (update-visibility!)
-                        (.stop timer)))
-            timer (ui/->timer 0.1 "pending-update-check" tick-fn)]
-        (.addEventHandler stage WindowEvent/WINDOW_SHOWN (ui/event-handler event (ui/timer-start! timer)))
-        (.addEventHandler stage WindowEvent/WINDOW_HIDING (ui/event-handler event (ui/timer-stop! timer)))))))
-
 (defn- init-pending-update-indicator! [stage update-link updater]
-  (install-pending-update-check-timer! stage update-link updater)
+  (ui.updater/install-check-timer! stage update-link updater)
   (ui/on-action! update-link
                  (fn [_]
                    (when (dialogs/make-pending-update-dialog stage updater)

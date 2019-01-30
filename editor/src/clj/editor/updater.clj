@@ -32,69 +32,93 @@
   ;; TODO remove temporary code
   "http://localhost:8000/update-v2.json")
 
-(defn has-update? [updater]
+(defn has-update?
+  "Returns true if update can be downloaded and installed"
+  [updater]
   (let [state @(:state-atom updater)]
     (not= (:installed-sha1 state)
           (:newest-sha1 state))))
 
-(def execute-permission-flag
+(def ^:private execute-permission-flag
   "9 bits in 3 triples: [rwx][rwx][rwx]
   r is read, w is write, x is execute
   1st triple is owner, 2nd is group, 3rd is others"
   2r001000000)
 
-(defn executable? [unix-mode]
+(defn- executable? [unix-mode]
   (not (zero? (bit-and unix-mode execute-permission-flag))))
 
-(defn download-and-install! [updater & {:keys [progress-callback cancelled-atom]}]
-  (let [{:keys [platform state-atom install-dir]} updater
-        {:keys [newest-sha1 installed-sha1]} @state-atom
-        url (download-url newest-sha1 platform)
-        zip-file (.toFile (Files/createTempFile "defold-update" ".zip" (into-array FileAttribute [])))
-        backup-dir (io/file install-dir (str installed-sha1 "-backup"))]
-    (.deleteOnExit zip-file)
-    (log/info :message "Downloading update" :url url :file (.getAbsolutePath zip-file))
-    (net/download! url zip-file
-                   :progress-callback progress-callback
-                   :chunk-size (* 1024 1024)
-                   :cancelled-atom cancelled-atom)
-    (if (some-> cancelled-atom deref)
-      (do (.delete zip-file)
-          false)
-      (with-open [zip (ZipFile. zip-file)]
+(defn- download! [url ^File zip-file progress-callback cancelled-atom]
+  (log/info :message "Downloading update" :url url :file (.getAbsolutePath zip-file))
+  (net/download! url zip-file
+                 :progress-callback (fn [current total]
+                                      ;; divide progress by 2 because download and install
+                                      ;; is a 2-step process
+                                      (progress-callback (/ current total 2) (not= current total)))
+                 :chunk-size (* 1024 1024)
+                 :cancelled-atom cancelled-atom))
+
+(defn install! [updater ^File zip-file installed-sha1 newest-sha1 progress-callback]
+  (let [{:keys [state-atom install-dir]} updater]
+    (with-open [zip (ZipFile. zip-file)]
+      (let [entry-count (count (enumeration-seq (.getEntries zip)))]
         (log/info :message "Installing update")
-        (let [es (.getEntries zip)]
-          (while (.hasMoreElements es)
-            (let [e ^ZipArchiveEntry (.nextElement es)]
-              (when-not (.isDirectory e)
-                (let [file-name-parts (-> e
+        (doseq [[i ^ZipArchiveEntry e] (->> zip
+                                            .getEntries
+                                            enumeration-seq
+                                            (map-indexed vector))
+                :when (not (.isDirectory e))
+                :let [file-name-parts (-> e
                                           .getName
                                           (FilenameUtils/separatorsToUnix)
                                           (string/split #"/")
                                           next)
-                      target-file ^File (apply io/file install-dir file-name-parts)]
-                  ;; TODO remove logging spam
-                  (log/info :message "Extracting file"
-                            :from (.getName e)
-                            :to (str target-file))
-                  (when-let [target-dir-parts (butlast file-name-parts)]
-                    (.mkdirs ^File (apply io/file install-dir target-dir-parts)))
-                  (when (.exists target-file)
-                    (try
-                      (.delete target-file)
-                      (catch IOException e
-                        (.printStackTrace e)
-                        (.mkdirs backup-dir)
-                        (.renameTo target-file
-                                   (io/file backup-dir target-file)))))
-                  (with-open [out (io/output-stream target-file)]
-                    ;; TODO replace launcher on windows
-                    (io/copy (.getInputStream zip e) out))
-                  (when (executable? (.getUnixMode e))
-                    (.setExecutable target-file true)))))))
-        (swap! state-atom assoc :installed-sha1 newest-sha1)
-        (log/info :message "Update installed")
-        true))))
+                      target-dir-parts (butlast file-name-parts)
+                      target-file ^File (apply io/file install-dir file-name-parts)]]
+          (log/info :message "Extracting file" :from (.getName e) :to (str target-file))
+          (.mkdirs ^File (apply io/file install-dir target-dir-parts))
+          (when (and (.exists target-file)
+                     (not (.delete target-file)))
+            ;; delete may fail if we are trying to replace running launcher file
+            ;; on windows. renaming it works as a workaround
+            (.renameTo target-file
+                       (io/file (format "%s-%s.backup" target-file installed-sha1))))
+          (with-open [in (.getInputStream zip e)
+                      out (io/output-stream target-file)]
+            (io/copy in out))
+          (when (executable? (.getUnixMode e))
+            (.setExecutable target-file true))
+          ;; add 1/2 and divide by 2 to progress because download and install
+          ;; is a 2-step process and it's a second step
+          (progress-callback (+ 1/2 (/ (inc i) entry-count 2)) false)))
+      (swap! state-atom assoc :installed-sha1 newest-sha1)
+      (log/info :message "Update installed")
+      true)))
+
+(defn- ^File create-temp-zip-file []
+  (.toFile (Files/createTempFile "defold-update" ".zip" (into-array FileAttribute []))))
+
+(defn download-and-install!
+  "Downloads newest zip distribution to temporary directory and extracts it to
+  installation directory
+
+  - `progress-callback` receives progress (a number between 0 and 1) and
+    cancelable indicator (boolean, representing whether it can be stopped)
+  - `cancelled-atom` can be used to stop this process. Note that only
+  downloading can be stopped, once we start extracting, there is no way back"
+  [updater & {:keys [progress-callback cancelled-atom]
+              :or {progress-callback (fn [progress cancelable])
+                   cancelled-atom (atom false)}}]
+  (let [{:keys [platform state-atom]} updater
+        {:keys [newest-sha1 installed-sha1]} @state-atom
+        url (download-url newest-sha1 platform)
+        zip-file (create-temp-zip-file)]
+    (.deleteOnExit zip-file)
+    (download! url zip-file progress-callback cancelled-atom)
+    (if @cancelled-atom
+      (do (.delete zip-file)
+          false)
+      (install! updater zip-file installed-sha1 newest-sha1 progress-callback))))
 
 (defn restart! []
   (log/info :message "Restarting editor")
@@ -136,9 +160,9 @@
   (let [channel (system/defold-channel)
         sha1 (system/defold-editor-sha1)
         resources-path (system/defold-resourcespath)
-        install-dir (if system/mac?
-                      (io/file resources-path "../../")
-                      (io/file resources-path))
+        install-dir (.getAbsoluteFile (if system/mac?
+                                        (io/file resources-path "../../")
+                                        (io/file resources-path)))
         initial-update-delay 1000
         update-delay 60000]
     (if (or (string/blank? channel) (string/blank? sha1))

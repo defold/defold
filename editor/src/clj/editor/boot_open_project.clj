@@ -29,6 +29,7 @@
             [editor.targets :as targets]
             [editor.text :as text]
             [editor.ui :as ui]
+            [editor.ui.updater :as ui.updater]
             [editor.web-profiler :as web-profiler]
             [editor.workspace :as workspace]
             [editor.scene-visibility :as scene-visibility]
@@ -40,9 +41,8 @@
             [service.log :as log]
             [util.http-server :as http-server])
   (:import [java.io File]
-           [javafx.animation AnimationTimer]
            [javafx.scene Node Scene]
-           [javafx.stage Stage WindowEvent]
+           [javafx.stage Stage]
            [javafx.scene.layout Region VBox]
            [javafx.scene.control Label MenuBar SplitPane Tab TabPane TreeView]))
 
@@ -99,18 +99,6 @@
   (app-view/remove-invalid-tabs! tab-panes open-views)
   (changes-view/refresh! changes-view render-progress!))
 
-(defn- install-pending-update-check-timer! [^Stage stage ^Label label updater]
-  (let [update-visibility! #(let [has-update? (updater/has-update? updater)]
-                              (ui/visible! label has-update?)
-                              has-update?)]
-    (when-not (update-visibility!)
-      (let [tick-fn (fn [^AnimationTimer timer _]
-                      (when (update-visibility!)
-                        (.stop timer)))
-            timer (ui/->timer 0.1 "pending-update-check" tick-fn)]
-        (.addEventHandler stage WindowEvent/WINDOW_SHOWN (ui/event-handler event (ui/timer-start! timer)))
-        (.addEventHandler stage WindowEvent/WINDOW_HIDING (ui/event-handler event (ui/timer-stop! timer)))))))
-
 (defn- init-pending-update-indicator! [^Stage stage ^Label label project changes-view updater]
   (.setOnMouseClicked label
                       (ui/event-handler event
@@ -124,7 +112,7 @@
                                                   (updater/restart!)
                                                   (do (ui/enable-ui!)
                                                       (changes-view/refresh! changes-view render-reload-progress!)))))))))
-  (install-pending-update-check-timer! stage label updater))
+  (ui.updater/install-check-timer! stage label updater))
 
 (defn- show-tracked-internal-files-warning! []
   (dialogs/make-alert-dialog (str "It looks like internal files such as downloaded dependencies or build output were placed under source control.\n"
