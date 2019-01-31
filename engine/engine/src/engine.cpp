@@ -1298,6 +1298,8 @@ bail:
 
                     dmRender::RenderListEnd(engine->m_RenderContext);
 
+                    dmGraphics::BeginFrame(engine->m_GraphicsContext);
+
                     if (engine->m_RenderScriptPrototype)
                     {
                         dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt);

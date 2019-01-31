@@ -43,7 +43,7 @@ namespace dmGraphics
             #define VK_CHECK(stmt) \
                 if (stmt != VK_SUCCESS) \
                 { \
-                    dmLogError("Vulkan Error: \n%s", #stmt); \
+                    dmLogError("Vulkan Error (%s:%d): \n%s", __FILE__, __LINE__, #stmt); \
                 }
         #endif
 
@@ -61,6 +61,9 @@ namespace dmGraphics
             VK_KHR_SWAPCHAIN_EXTENSION_NAME,
             NULL
         };
+
+        // TODO: Need to figure out proper frames-in-flight management..
+        static const uint8_t g_vk_max_frames_in_flight = 1;
 
         struct QueueFamily
         {
@@ -86,8 +89,18 @@ namespace dmGraphics
             VkRenderPass m_Handle;
         };
 
+        struct FrameResource
+        {
+            VkSemaphore m_ImageAvailable;
+            VkSemaphore m_RenderFinished;
+            VkFence     m_SubmitFence;
+        };
+
         struct Context
         {
+            uint8_t                        m_CurrentFrameImageIx;
+            uint8_t                        m_CurrentFrameInFlight;
+
             VkInstance                     m_Instance;
             VkPhysicalDevice               m_PhysicalDevice;
             VkDevice                       m_LogicalDevice;
@@ -96,16 +109,21 @@ namespace dmGraphics
             VkSwapchainKHR                 m_SwapChain;
             VkFormat                       m_SwapChainImageFormat;
             VkExtent2D                     m_SwapChainImageExtent;
-            RenderPass                     m_DefaultRenderPass;
+            RenderPass                     m_MainRenderPass;
+            VkDescriptorPool               m_DescriptorPool;
 
+            VkCommandPool                  m_MainCommandPool;
             VkSurfaceKHR                   m_Surface;
             VkApplicationInfo              m_ApplicationInfo;
             VkDebugUtilsMessengerEXT       m_DebugCallback;
 
-            dmArray<VkFramebuffer>         m_DefaultFramebuffers;
+            dmArray<VkCommandBuffer>       m_MainCommandBuffers;
+            dmArray<VkFramebuffer>         m_MainFramebuffers;
             dmArray<VkImage>               m_SwapChainImages;
             dmArray<VkImageView>           m_SwapChainImageViews;
             dmArray<VkExtensionProperties> m_Extensions;
+
+            FrameResource                  m_FrameResource[g_vk_max_frames_in_flight];
         } g_vk_context;
 
         // This functions is invoked by the vulkan layer whenever
@@ -819,7 +837,7 @@ namespace dmGraphics
             return rp;
         }
 
-        void CreateDefaultRenderPass()
+        void CreateMainRenderPass()
         {
             VkFormat format_color = g_vk_context.m_SwapChainImageFormat;
             VkFormat format_depth = GetSuitableDepthFormat();
@@ -832,17 +850,17 @@ namespace dmGraphics
             attachments[1].m_Format = format_depth;
             attachments[1].m_Layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-            g_vk_context.m_DefaultRenderPass = CreateRenderPass(attachments,1,&attachments[1]);
+            g_vk_context.m_MainRenderPass = CreateRenderPass(attachments,1,&attachments[1]);
         }
 
-        void CreateDefaultFrameBuffers()
+        void CreateMainFrameBuffers()
         {
             // We need to create a framebuffer per swap chain image
             // so that they can be used in different states in the rendering pipeline
-            g_vk_context.m_DefaultFramebuffers.SetCapacity(g_vk_context.m_SwapChainImages.Size());
-            g_vk_context.m_DefaultFramebuffers.SetSize(g_vk_context.m_SwapChainImages.Size());
+            g_vk_context.m_MainFramebuffers.SetCapacity(g_vk_context.m_SwapChainImages.Size());
+            g_vk_context.m_MainFramebuffers.SetSize(g_vk_context.m_SwapChainImages.Size());
 
-            for (uint8_t i=0; i < g_vk_context.m_DefaultFramebuffers.Size(); i++)
+            for (uint8_t i=0; i < g_vk_context.m_MainFramebuffers.Size(); i++)
             {
                 VkImageView& image_view = g_vk_context.m_SwapChainImageViews[i];
 
@@ -850,17 +868,77 @@ namespace dmGraphics
                 VK_ZERO_MEMORY(&framebuffer_create_info,sizeof(framebuffer_create_info));
 
                 framebuffer_create_info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-                framebuffer_create_info.renderPass      = g_vk_context.m_DefaultRenderPass.m_Handle;
+                framebuffer_create_info.renderPass      = g_vk_context.m_MainRenderPass.m_Handle;
                 framebuffer_create_info.attachmentCount = 1;
                 framebuffer_create_info.pAttachments    = &image_view;
                 framebuffer_create_info.width           = g_vk_context.m_SwapChainImageExtent.width;
                 framebuffer_create_info.height          = g_vk_context.m_SwapChainImageExtent.height;
                 framebuffer_create_info.layers          = 1;
 
-                VkFramebuffer* framebuffer_ptr = &g_vk_context.m_DefaultFramebuffers[i];
+                VkFramebuffer* framebuffer_ptr = &g_vk_context.m_MainFramebuffers[i];
 
                 VK_CHECK(vkCreateFramebuffer(g_vk_context.m_LogicalDevice, &framebuffer_create_info, 0, framebuffer_ptr));
             }
+        }
+
+        void CreateCommandBuffer(VkCommandBuffer* commandBuffersOut, uint8_t numBuffersToCreate, VkCommandPool commandPool)
+        {
+            VkCommandBufferAllocateInfo buffers_allocate_info;
+            VK_ZERO_MEMORY(&buffers_allocate_info,sizeof(VkCommandBufferAllocateInfo));
+
+            buffers_allocate_info.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+            buffers_allocate_info.commandPool        = commandPool;
+            buffers_allocate_info.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            buffers_allocate_info.commandBufferCount = (uint32_t) numBuffersToCreate;
+
+            VK_CHECK(vkAllocateCommandBuffers(g_vk_context.m_LogicalDevice, &buffers_allocate_info, commandBuffersOut));
+        }
+
+        void CreateMainCommandPool()
+        {
+            QueueFamily vk_queue_family = GetQueueFamily(g_vk_context.m_PhysicalDevice);
+
+            VkCommandPoolCreateInfo vk_create_pool_info;
+            VK_ZERO_MEMORY(&vk_create_pool_info,sizeof(vk_create_pool_info));
+
+            vk_create_pool_info.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+            vk_create_pool_info.queueFamilyIndex = vk_queue_family.m_GraphicsFamily;
+            vk_create_pool_info.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+
+            VK_CHECK(vkCreateCommandPool(g_vk_context.m_LogicalDevice, &vk_create_pool_info, 0, &g_vk_context.m_MainCommandPool));
+        }
+
+        void CreateMainCommandBuffer()
+        {
+            g_vk_context.m_MainCommandBuffers.SetCapacity(g_vk_context.m_SwapChainImages.Size());
+            g_vk_context.m_MainCommandBuffers.SetSize(g_vk_context.m_SwapChainImages.Size());
+
+            CreateCommandBuffer(g_vk_context.m_MainCommandBuffers.Begin(),
+                g_vk_context.m_MainCommandBuffers.Size(),
+                g_vk_context.m_MainCommandPool);
+        }
+
+        void CreateMainDescriptorPool()
+        {
+            // NOTE: This needs further investigation! Not sure how to deal with descriptor pools correctly..
+            VkDescriptorPoolSize vk_pool_size[2];
+            VK_ZERO_MEMORY(vk_pool_size, sizeof(vk_pool_size));
+
+            vk_pool_size[0].type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            vk_pool_size[0].descriptorCount = g_vk_context.m_SwapChainImages.Size();
+
+            vk_pool_size[1].type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            vk_pool_size[1].descriptorCount = g_vk_context.m_SwapChainImages.Size();
+
+            VkDescriptorPoolCreateInfo vk_pool_create_info;
+            VK_ZERO_MEMORY(&vk_pool_create_info, sizeof(VkDescriptorPoolCreateInfo));
+
+            vk_pool_create_info.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+            vk_pool_create_info.poolSizeCount = sizeof(vk_pool_size) / sizeof(VkDescriptorPoolSize);
+            vk_pool_create_info.pPoolSizes    = vk_pool_size;
+            vk_pool_create_info.maxSets       = g_vk_context.m_SwapChainImages.Size();
+
+            VK_CHECK(vkCreateDescriptorPool(g_vk_context.m_LogicalDevice, &vk_pool_create_info, 0, &g_vk_context.m_DescriptorPool) != VK_SUCCESS)
         }
 
         bool Initialize()
@@ -947,6 +1025,19 @@ namespace dmGraphics
             return true;
         }
 
+        void CreateMainFrameResources()
+        {
+            VkSemaphoreCreateInfo vk_create_semaphore_info;
+            VK_ZERO_MEMORY(&vk_create_semaphore_info,sizeof(vk_create_semaphore_info));
+            vk_create_semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+            for(uint8_t i=0; i < g_vk_max_frames_in_flight; i++)
+            {
+                VK_CHECK(vkCreateSemaphore(g_vk_context.m_LogicalDevice, &vk_create_semaphore_info, 0, &g_vk_context.m_FrameResource[i].m_ImageAvailable));
+                VK_CHECK(vkCreateSemaphore(g_vk_context.m_LogicalDevice, &vk_create_semaphore_info, 0, &g_vk_context.m_FrameResource[i].m_RenderFinished));
+            }
+        }
+
         bool OpenWindow(WindowParams* params)
         {
             if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, GLFW_WINDOW))
@@ -989,10 +1080,68 @@ namespace dmGraphics
                 return false;
             }
 
-            CreateDefaultRenderPass();
-            CreateDefaultFrameBuffers();
+            CreateMainRenderPass();
+            CreateMainFrameBuffers();
+            CreateMainCommandPool();
+            CreateMainCommandBuffer();
+            CreateMainDescriptorPool();
+            CreateMainFrameResources();
 
             return true;
+        }
+
+        void BeginFrame()
+        {
+            vkAcquireNextImageKHR(g_vk_context.m_LogicalDevice, g_vk_context.m_SwapChain, UINT64_MAX, 
+                g_vk_context.m_FrameResource[g_vk_context.m_CurrentFrameInFlight].m_ImageAvailable, VK_NULL_HANDLE, (uint32_t*) &g_vk_context.m_CurrentFrameImageIx);
+
+            VkCommandBufferBeginInfo command_buffer_begin_info;
+
+            command_buffer_begin_info.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            command_buffer_begin_info.flags            = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+            command_buffer_begin_info.pInheritanceInfo = 0;
+            command_buffer_begin_info.pNext            = 0;
+
+            VK_CHECK(vkBeginCommandBuffer(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx], &command_buffer_begin_info));
+        }
+
+        void EndFrame()
+        {
+            FrameResource& current_frame_resource = g_vk_context.m_FrameResource[g_vk_context.m_CurrentFrameInFlight];
+
+            VK_CHECK(vkEndCommandBuffer(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx]))
+
+            VkPipelineStageFlags vk_pipeline_stage_flags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+            VkSubmitInfo vk_submit_info;
+            vk_submit_info.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            vk_submit_info.pNext                = 0;
+            vk_submit_info.waitSemaphoreCount   = 1;
+            vk_submit_info.pWaitSemaphores      = &current_frame_resource.m_ImageAvailable;
+            vk_submit_info.pWaitDstStageMask    = &vk_pipeline_stage_flags;
+            vk_submit_info.commandBufferCount   = 1;
+            vk_submit_info.pCommandBuffers      = &g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx];
+            vk_submit_info.signalSemaphoreCount = 1;
+            vk_submit_info.pSignalSemaphores    = &current_frame_resource.m_RenderFinished;
+
+            VK_CHECK(vkQueueSubmit(g_vk_context.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE));
+
+            VkPresentInfoKHR vk_present_info;
+            vk_present_info.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+            vk_present_info.pNext              = 0;
+            vk_present_info.waitSemaphoreCount = 1;
+            vk_present_info.pWaitSemaphores    = &current_frame_resource.m_RenderFinished;
+            vk_present_info.swapchainCount     = 1;
+            vk_present_info.pSwapchains        = &g_vk_context.m_SwapChain;
+            vk_present_info.pImageIndices      = (uint32_t*) &g_vk_context.m_CurrentFrameImageIx;
+            vk_present_info.pResults           = 0;
+
+            VK_CHECK(vkQueuePresentKHR(g_vk_context.m_PresentQueue, &vk_present_info));
+
+            // NOTE: This should probably be removed when we have better frame syncing.. 
+            VK_CHECK(vkQueueWaitIdle(g_vk_context.m_PresentQueue));
+
+            g_vk_context.m_CurrentFrameInFlight = (g_vk_context.m_CurrentFrameInFlight + 1) % g_vk_max_frames_in_flight;
         }
     }
 
@@ -1007,7 +1156,7 @@ namespace dmGraphics
         sizeof(float) // TYPE_FLOAT
     };
 
-    bool g_ContextCreated = false;
+    Context* g_Context = 0x0;
 
     bool Initialize()
     {
@@ -1035,7 +1184,7 @@ namespace dmGraphics
 
     HContext NewContext(const ContextParams& params)
     {
-        if (!g_ContextCreated)
+        if (!g_Context)
         {
             if (glfwInit() == GL_FALSE)
             {
@@ -1043,8 +1192,8 @@ namespace dmGraphics
                 return 0x0;
             }
 
-            g_ContextCreated = true;
-            return new Context(params);
+            g_Context = new Context(params);
+            return g_Context;
         }
         else
         {
@@ -1055,11 +1204,29 @@ namespace dmGraphics
     void DeleteContext(HContext context)
     {
         assert(context);
-        if (g_ContextCreated)
+        if (g_Context)
         {
             delete context;
-            g_ContextCreated = false;
+            g_Context = 0x0;
         }
+    }
+
+    void OnWindowResize(int width, int height)
+    {
+    }
+
+    int OnWindowClose()
+    {
+        if (g_Context->m_WindowCloseCallback != 0x0)
+            return g_Context->m_WindowCloseCallback(g_Context->m_WindowCloseCallbackUserData);
+        return 1;
+    }
+
+    static void OnWindowFocus(int focus)
+    {
+        assert(g_Context);
+        if (g_Context->m_WindowFocusCallback != 0x0)
+            g_Context->m_WindowFocusCallback(g_Context->m_WindowFocusCallbackUserData, focus);
     }
 
     WindowResult OpenWindow(HContext context, WindowParams* params)
@@ -1080,10 +1247,20 @@ namespace dmGraphics
         context->m_WindowHeight = (uint32_t)height;
         context->m_Dpi = 0;
 
+        glfwSetWindowTitle(params->m_Title);
+        glfwSetWindowSizeCallback(OnWindowResize);
+        glfwSetWindowCloseCallback(OnWindowClose);
+        glfwSetWindowFocusCallback(OnWindowFocus);
+        glfwSwapInterval(1);
+
         context->m_WindowResizeCallback = params->m_ResizeCallback;
         context->m_WindowResizeCallbackUserData = params->m_ResizeCallbackUserData;
         context->m_WindowCloseCallback = params->m_CloseCallback;
         context->m_WindowCloseCallbackUserData = params->m_CloseCallbackUserData;
+
+        //context->m_WindowFocusCallback          = params->m_FocusCallback;
+        //context->m_WindowFocusCallbackUserData  = params->m_FocusCallbackUserData;
+
         context->m_Width = params->m_Width;
         context->m_Height = params->m_Height;
         context->m_WindowWidth = params->m_Width;
@@ -1129,6 +1306,11 @@ namespace dmGraphics
             context->m_WindowWidth = 0;
             context->m_WindowHeight = 0;
         }
+    }
+
+    void BeginFrame(HContext context)
+    {
+        Vulkan::BeginFrame();
     }
 
     void IconifyWindow(HContext context)
@@ -1241,18 +1423,7 @@ namespace dmGraphics
 
     void Flip(HContext context)
     {
-        glfwSwapBuffers();
-        /*
-        // Mimick glfw
-        if (context->m_RequestWindowClose)
-        {
-            if (context->m_WindowCloseCallback != 0x0 && context->m_WindowCloseCallback(context->m_WindowCloseCallbackUserData))
-            {
-                CloseWindow(context);
-            }
-        }
-        g_Flipped = 1;
-        */
+        Vulkan::EndFrame();
     }
 
     void SetSwapInterval(HContext /*context*/, uint32_t /*swap_interval*/)

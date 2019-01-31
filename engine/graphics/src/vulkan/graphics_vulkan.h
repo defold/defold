@@ -77,7 +77,7 @@ namespace dmGraphics
         void*                       m_WindowResizeCallbackUserData;
         WindowCloseCallback         m_WindowCloseCallback;
         void*                       m_WindowCloseCallbackUserData;
-        WindowCloseCallback         m_WindowFocusCallback;
+        WindowFocusCallback         m_WindowFocusCallback;
         void*                       m_WindowFocusCallbackUserData;
         TextureFilter               m_DefaultTextureMinFilter;
         TextureFilter               m_DefaultTextureMagFilter;

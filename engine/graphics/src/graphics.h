@@ -419,6 +419,9 @@ namespace dmGraphics
      */
     void Finalize();
 
+    // JG: Figure this out!
+    void BeginFrame(HContext context);
+
     /**
      * Get the window refresh rate
      * @params context Graphics context handle

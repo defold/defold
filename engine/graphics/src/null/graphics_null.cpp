@@ -115,6 +115,11 @@ namespace dmGraphics
         return WINDOW_RESULT_OK;
     }
 
+    void BeginFrame(HContext context)
+    {
+
+    }
+
     uint32_t GetWindowRefreshRate(HContext context)
     {
         assert(context);
