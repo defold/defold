@@ -25,8 +25,7 @@ EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 IOS_SDK_VERSION="12.1"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
-# Need 5.1 as minimum for fat/universal binaries (armv7 + arm64) to work
-MIN_IOS_SDK_VERSION="6.0"
+MIN_IOS_SDK_VERSION="8.0"
 
 OSX_SDK_VERSION="10.13"
 MIN_OSX_SDK_VERSION="10.7"
