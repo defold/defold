@@ -50,11 +50,11 @@ function init(self)
 
     -- default is stretch projection. copy from builtins and change for different projection
     -- or send a message to the render script to change projection:
-    -- msg.post("@render:", "use_stretch_projection", { near = 1, far = -1 })
-    -- msg.post("@render:", "use_fixed_projection", { near = 1, far = -1, zoom = 2 })
-    -- msg.post("@render:", "use_fixed_fit_projection", { near = 1, far = -1 })
-    self.near = 1
-    self.far = -1
+    -- msg.post("@render:", "use_stretch_projection", { near = -1, far = 1 })
+    -- msg.post("@render:", "use_fixed_projection", { near = -1, far = 1, zoom = 2 })
+    -- msg.post("@render:", "use_fixed_fit_projection", { near = -1, far = 1 })
+    self.near = -1
+    self.far = 1
     self.projection_fn = stretch_projection
 end
 
@@ -99,17 +99,17 @@ function on_message(self, message_id, message)
     elseif message_id == hash("use_camera_projection") then
         self.projection_fn = nil
     elseif message_id == hash("use_stretch_projection") then
-        self.near = message.near or 1
-        self.far = message.far or -1
+        self.near = message.near or -1
+        self.far = message.far or 1
         self.projection_fn = stretch_projection
     elseif message_id == hash("use_fixed_projection") then
-        self.near = message.near or 1
-        self.far = message.far or -1
+        self.near = message.near or -1
+        self.far = message.far or 1
         self.zoom = message.zoom or 1
         self.projection_fn = fixed_projection
     elseif message_id == hash("use_fixed_fit_projection") then
-        self.near = message.near or 1
-        self.far = message.far or -1
+        self.near = message.near or -1
+        self.far = message.far or 1
         self.projection_fn = fixed_fit_projection
     end
 end
