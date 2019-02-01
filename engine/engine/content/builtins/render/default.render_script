@@ -27,11 +27,7 @@ local function stretch_projection(near, far)
 end
 
 local function get_projection(self)
-    if self.projection_fn then
-        return self.projection_fn(self.near, self.far, self.zoom)
-    else
-        return self.projection or vmath.matrix4()
-    end
+    return self.projection_fn(self.near, self.far, self.zoom)
 end
 
 function init(self)
@@ -97,7 +93,7 @@ function on_message(self, message_id, message)
         self.view = message.view
         self.projection = message.projection
     elseif message_id == hash("use_camera_projection") then
-        self.projection_fn = nil
+        self.projection_fn = function() return self.projection or vmath.matrix4() end
     elseif message_id == hash("use_stretch_projection") then
         self.near = message.near or -1
         self.far = message.far or 1
