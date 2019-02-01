@@ -10,6 +10,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/profile.h>
 
 #include <graphics/glfw/glfw_native.h>
 
@@ -96,6 +97,19 @@ namespace dmGraphics
             VkFence     m_SubmitFence;
         };
 
+        struct GPUMemory
+        {
+            VkDeviceMemory m_DeviceMemory;
+            size_t         m_MemorySize;
+        };
+
+        struct Texture
+        {
+            VkImage     m_Image;
+            VkImageView m_View;
+            GPUMemory   m_GPUBuffer;
+        };
+
         struct Context
         {
             uint8_t                        m_CurrentFrameImageIx;
@@ -109,8 +123,10 @@ namespace dmGraphics
             VkSwapchainKHR                 m_SwapChain;
             VkFormat                       m_SwapChainImageFormat;
             VkExtent2D                     m_SwapChainImageExtent;
-            RenderPass                     m_MainRenderPass;
             VkDescriptorPool               m_DescriptorPool;
+
+            RenderPass                     m_MainRenderPass;
+            Texture                        m_MainDepthBuffer;
 
             VkCommandPool                  m_MainCommandPool;
             VkSurfaceKHR                   m_Surface;
@@ -797,7 +813,7 @@ namespace dmGraphics
                 attachment_depth.finalLayout    = depthStencilAttachment->m_Layout;
 
                 vk_attachment_depth_ref.attachment = numColorAttachments;
-                vk_attachment_depth_ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                vk_attachment_depth_ref.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             }
 
             VkSubpassDependency sub_pass_dependency;
@@ -853,34 +869,6 @@ namespace dmGraphics
             g_vk_context.m_MainRenderPass = CreateRenderPass(attachments,1,&attachments[1]);
         }
 
-        void CreateMainFrameBuffers()
-        {
-            // We need to create a framebuffer per swap chain image
-            // so that they can be used in different states in the rendering pipeline
-            g_vk_context.m_MainFramebuffers.SetCapacity(g_vk_context.m_SwapChainImages.Size());
-            g_vk_context.m_MainFramebuffers.SetSize(g_vk_context.m_SwapChainImages.Size());
-
-            for (uint8_t i=0; i < g_vk_context.m_MainFramebuffers.Size(); i++)
-            {
-                VkImageView& image_view = g_vk_context.m_SwapChainImageViews[i];
-
-                VkFramebufferCreateInfo framebuffer_create_info;
-                VK_ZERO_MEMORY(&framebuffer_create_info,sizeof(framebuffer_create_info));
-
-                framebuffer_create_info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-                framebuffer_create_info.renderPass      = g_vk_context.m_MainRenderPass.m_Handle;
-                framebuffer_create_info.attachmentCount = 1;
-                framebuffer_create_info.pAttachments    = &image_view;
-                framebuffer_create_info.width           = g_vk_context.m_SwapChainImageExtent.width;
-                framebuffer_create_info.height          = g_vk_context.m_SwapChainImageExtent.height;
-                framebuffer_create_info.layers          = 1;
-
-                VkFramebuffer* framebuffer_ptr = &g_vk_context.m_MainFramebuffers[i];
-
-                VK_CHECK(vkCreateFramebuffer(g_vk_context.m_LogicalDevice, &framebuffer_create_info, 0, framebuffer_ptr));
-            }
-        }
-
         void CreateCommandBuffer(VkCommandBuffer* commandBuffersOut, uint8_t numBuffersToCreate, VkCommandPool commandPool)
         {
             VkCommandBufferAllocateInfo buffers_allocate_info;
@@ -892,6 +880,339 @@ namespace dmGraphics
             buffers_allocate_info.commandBufferCount = (uint32_t) numBuffersToCreate;
 
             VK_CHECK(vkAllocateCommandBuffers(g_vk_context.m_LogicalDevice, &buffers_allocate_info, commandBuffersOut));
+        }
+
+        /*
+        void renderer_vk_transition_image_layout(vk_context_t* vk, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout) {
+            VkCommandBuffer command_buffer = vk_renderer_begin_single_time_command_buffer(vk);
+
+            VkImageMemoryBarrier barrier;
+            ZERO_MEMORY(&barrier, sizeof(barrier));
+
+            barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barrier.oldLayout                       = old_layout;
+            barrier.newLayout                       = new_layout;
+            barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+            barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+            barrier.image                           = image;
+            barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            barrier.subresourceRange.baseMipLevel   = 0;
+            barrier.subresourceRange.levelCount     = 1;
+            barrier.subresourceRange.baseArrayLayer = 0;
+            barrier.subresourceRange.layerCount     = 1;
+
+            if (new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+            {
+                barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+
+                if (renderer_vk_has_stencil(format))
+                {
+                    barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+                }
+            }
+
+            VkPipelineStageFlags source_stage = VK_IMAGE_LAYOUT_UNDEFINED;
+            VkPipelineStageFlags destination_stage = VK_IMAGE_LAYOUT_UNDEFINED;
+
+            if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+            {
+                barrier.srcAccessMask = 0;
+                barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+                source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+                destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            }
+            else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+            {
+                barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+                barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+                source_stage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
+                destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            }
+            else if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+            {
+                barrier.srcAccessMask = 0;
+                barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+                source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+                destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+            }
+            else
+            {
+                LOG_ERROR("Invalid argument for pipeline barrier");
+            }
+
+            vkCmdPipelineBarrier(
+                command_buffer,
+                source_stage, 
+                destination_stage,
+                0,
+                0, 0,
+                0, 0,
+                1, &barrier
+            );
+
+            vk_renderer_end_single_time_command_buffer(vk, command_buffer);
+        }
+        */
+
+        int32_t FindMemoryTypeIndex(uint32_t typeFilter, VkMemoryPropertyFlags propertyFlag)
+        {
+            #define HAS_FLAG(v,flag) ((v & flag) == flag)
+
+            VkPhysicalDeviceMemoryProperties vk_memory_props;
+            vkGetPhysicalDeviceMemoryProperties(g_vk_context.m_PhysicalDevice, &vk_memory_props);
+
+            for (uint32_t i = 0; i < vk_memory_props.memoryTypeCount; i++)
+            {
+                if ((typeFilter & (1 << i)) && HAS_FLAG(vk_memory_props.memoryTypes[i].propertyFlags,propertyFlag))
+                {
+                    return i;
+                }
+            }
+
+            #undef HAS_FLAG
+
+            return -1;
+        }
+
+        void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
+        {
+            VkCommandBuffer vk_command_buffer;
+            CreateCommandBuffer(&vk_command_buffer, 1, g_vk_context.m_MainCommandPool);
+
+            VkCommandBufferBeginInfo vk_command_buffer_begin_info;
+            VK_ZERO_MEMORY(&vk_command_buffer_begin_info, sizeof(VkCommandBufferBeginInfo));
+
+            vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+            VK_CHECK(vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info));
+
+            VkImageMemoryBarrier vk_memory_barrier;
+            VK_ZERO_MEMORY(&vk_memory_barrier, sizeof(vk_memory_barrier));
+
+            vk_memory_barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            vk_memory_barrier.oldLayout                       = oldLayout;
+            vk_memory_barrier.newLayout                       = newLayout;
+            vk_memory_barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+            vk_memory_barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+            vk_memory_barrier.image                           = image;
+            vk_memory_barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            vk_memory_barrier.subresourceRange.baseMipLevel   = 0;
+            vk_memory_barrier.subresourceRange.levelCount     = 1;
+            vk_memory_barrier.subresourceRange.baseArrayLayer = 0;
+            vk_memory_barrier.subresourceRange.layerCount     = 1;
+
+            if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+            {
+                vk_memory_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+
+                // Check if requested image transition is stencil
+                if (format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT)
+                {
+                    vk_memory_barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+                }
+            }
+
+            VkPipelineStageFlags vk_source_stage      = VK_IMAGE_LAYOUT_UNDEFINED;
+            VkPipelineStageFlags vk_destination_stage = VK_IMAGE_LAYOUT_UNDEFINED;
+
+            // NOTE: Not sure how this works to be honest.
+            if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+            {
+                vk_memory_barrier.srcAccessMask = 0;
+                vk_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+                vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+                vk_destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            }
+            else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+            {
+                vk_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+                vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+                vk_source_stage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
+                vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            }
+            else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+            {
+                vk_memory_barrier.srcAccessMask = 0;
+                vk_memory_barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+                vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+                vk_destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+            }
+            else
+            {
+                assert(0 && "Invalid arguments passed to TransitionImageLayout");
+            }
+
+            vkCmdPipelineBarrier(
+                vk_command_buffer,
+                vk_source_stage, 
+                vk_destination_stage,
+                0,
+                0, 0,
+                0, 0,
+                1, &vk_memory_barrier
+            );
+
+            VK_CHECK(vkEndCommandBuffer(vk_command_buffer));
+
+            VkSubmitInfo vk_submit_info;
+            VK_ZERO_MEMORY(&vk_submit_info, sizeof(VkSubmitInfo));
+
+            vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            vk_submit_info.commandBufferCount = 1;
+            vk_submit_info.pCommandBuffers    = &vk_command_buffer;
+
+            vkQueueSubmit(g_vk_context.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE);
+            vkQueueWaitIdle(g_vk_context.m_GraphicsQueue);
+
+            vkFreeCommandBuffers(g_vk_context.m_LogicalDevice, g_vk_context.m_MainCommandPool, 1, &vk_command_buffer);
+        }
+
+        bool CreateImage2D(unsigned int imageWidth, unsigned int imageHeight,
+            VkFormat imageFormat, VkImageTiling imageTiling,
+            VkImageUsageFlags imageUsage, VkMemoryPropertyFlags memoryProperties,
+            VkImage* imagePtr, GPUMemory* memoryPtr) 
+        {
+            assert(memoryPtr->m_MemorySize == 0);
+
+            VkImageFormatProperties vk_format_properties;
+
+            VK_CHECK(vkGetPhysicalDeviceImageFormatProperties(
+                g_vk_context.m_PhysicalDevice, imageFormat, VK_IMAGE_TYPE_2D,
+                imageTiling, imageUsage, 0, &vk_format_properties));
+
+            VkImageCreateInfo vk_image_create_info;
+            VK_ZERO_MEMORY(&vk_image_create_info,sizeof(vk_image_create_info));
+
+            vk_image_create_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+            vk_image_create_info.imageType     = VK_IMAGE_TYPE_2D;
+            vk_image_create_info.extent.width  = imageWidth;
+            vk_image_create_info.extent.height = imageHeight;
+            vk_image_create_info.extent.depth  = 1;
+            vk_image_create_info.mipLevels     = 1; // TODO
+            vk_image_create_info.arrayLayers   = 1;
+            vk_image_create_info.format        = imageFormat;
+            vk_image_create_info.tiling        = imageTiling;
+            vk_image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            vk_image_create_info.usage         = imageUsage;
+            vk_image_create_info.samples       = VK_SAMPLE_COUNT_1_BIT;
+            vk_image_create_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
+            vk_image_create_info.flags         = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+
+            if (vkCreateImage(g_vk_context.m_LogicalDevice, &vk_image_create_info, 0, imagePtr) != VK_SUCCESS)
+            {
+                return false;
+            }
+
+            VkMemoryRequirements vk_memory_req;
+            vkGetImageMemoryRequirements(g_vk_context.m_LogicalDevice, *imagePtr, &vk_memory_req);
+
+            VkMemoryAllocateInfo vk_memory_alloc_info;
+            VK_ZERO_MEMORY(&vk_memory_alloc_info,sizeof(vk_memory_alloc_info));
+
+            vk_memory_alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            vk_memory_alloc_info.allocationSize  = vk_memory_req.size;
+            vk_memory_alloc_info.memoryTypeIndex = 0;
+
+            int32_t memory_type_index = FindMemoryTypeIndex(vk_memory_req.memoryTypeBits, memoryProperties);
+
+            if (memory_type_index < 0)
+            {
+                return false;
+            }
+
+            vk_memory_alloc_info.memoryTypeIndex = memory_type_index;
+
+            if (vkAllocateMemory(g_vk_context.m_LogicalDevice, &vk_memory_alloc_info, 0, &memoryPtr->m_DeviceMemory) != VK_SUCCESS)
+            {
+                return false;
+            }
+
+            vkBindImageMemory(g_vk_context.m_LogicalDevice, *imagePtr, memoryPtr->m_DeviceMemory, 0);
+
+            memoryPtr->m_MemorySize = vk_memory_req.size;
+
+            return true;
+        }
+
+        Texture CreateDepthTexture(uint32_t width, uint32_t height, VkFormat format)
+        {
+            Texture depth_texture;
+            VK_ZERO_MEMORY(&depth_texture,sizeof(depth_texture));
+
+            if(!CreateImage2D(width, height, format, 
+                VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                &depth_texture.m_Image, &depth_texture.m_GPUBuffer))
+            {
+                dmLogError("Failed to create depth texture");
+                return depth_texture;
+            }
+
+            // create image view
+            VkImageViewCreateInfo vk_view_create_info;
+            VK_ZERO_MEMORY(&vk_view_create_info, sizeof(vk_view_create_info));
+
+            vk_view_create_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            vk_view_create_info.image                           = depth_texture.m_Image;
+            vk_view_create_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+            vk_view_create_info.format                          = format;
+            vk_view_create_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT;
+            vk_view_create_info.subresourceRange.baseMipLevel   = 0;
+            vk_view_create_info.subresourceRange.levelCount     = 1;
+            vk_view_create_info.subresourceRange.baseArrayLayer = 0;
+            vk_view_create_info.subresourceRange.layerCount     = 1;
+
+            VK_CHECK(vkCreateImageView(g_vk_context.m_LogicalDevice, &vk_view_create_info, 0, &depth_texture.m_View));
+
+            TransitionImageLayout(depth_texture.m_Image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+            return depth_texture;
+        }
+
+        void CreateMainDepthBuffer()
+        {
+            g_vk_context.m_MainDepthBuffer = CreateDepthTexture(
+                g_vk_context.m_SwapChainImageExtent.width,
+                g_vk_context.m_SwapChainImageExtent.height,
+                GetSuitableDepthFormat());
+        }
+
+        void CreateMainFrameBuffers()
+        {
+            // We need to create a framebuffer per swap chain image
+            // so that they can be used in different states in the rendering pipeline
+            g_vk_context.m_MainFramebuffers.SetCapacity(g_vk_context.m_SwapChainImages.Size());
+            g_vk_context.m_MainFramebuffers.SetSize(g_vk_context.m_SwapChainImages.Size());
+
+            for (uint8_t i=0; i < g_vk_context.m_MainFramebuffers.Size(); i++)
+            {
+            	// NOTE: All swap chain images can share the same depth buffer
+                VkImageView& vk_image_view_color     = g_vk_context.m_SwapChainImageViews[i];
+                VkImageView& vk_image_view_depth     = g_vk_context.m_MainDepthBuffer.m_View;
+                VkImageView  vk_image_attachments[2] = { vk_image_view_color, vk_image_view_depth };
+
+                VkFramebufferCreateInfo framebuffer_create_info;
+                VK_ZERO_MEMORY(&framebuffer_create_info,sizeof(framebuffer_create_info));
+
+                framebuffer_create_info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+                framebuffer_create_info.renderPass      = g_vk_context.m_MainRenderPass.m_Handle;
+                framebuffer_create_info.attachmentCount = sizeof(vk_image_attachments);
+                framebuffer_create_info.pAttachments    = vk_image_attachments;
+                framebuffer_create_info.width           = g_vk_context.m_SwapChainImageExtent.width;
+                framebuffer_create_info.height          = g_vk_context.m_SwapChainImageExtent.height;
+                framebuffer_create_info.layers          = 1;
+
+                VkFramebuffer* framebuffer_ptr = &g_vk_context.m_MainFramebuffers[i];
+
+                VK_CHECK(vkCreateFramebuffer(g_vk_context.m_LogicalDevice, &framebuffer_create_info, 0, framebuffer_ptr));
+            }
         }
 
         void CreateMainCommandPool()
@@ -1081,8 +1402,9 @@ namespace dmGraphics
             }
 
             CreateMainRenderPass();
-            CreateMainFrameBuffers();
             CreateMainCommandPool();
+            CreateMainDepthBuffer();
+            CreateMainFrameBuffers();
             CreateMainCommandBuffer();
             CreateMainDescriptorPool();
             CreateMainFrameResources();
@@ -1090,24 +1412,77 @@ namespace dmGraphics
             return true;
         }
 
+        void Clear(float r, float g, float b, float a, float d, float s)
+        {
+        	VkClearRect vk_clear_rect;
+        	vk_clear_rect.rect.offset.x      = 0;
+			vk_clear_rect.rect.offset.y      = 0;
+			vk_clear_rect.rect.extent.width  = g_vk_context.m_SwapChainImageExtent.width;
+			vk_clear_rect.rect.extent.height = g_vk_context.m_SwapChainImageExtent.height;
+			vk_clear_rect.baseArrayLayer     = 0;
+			vk_clear_rect.layerCount         = 1;
+
+			VkClearAttachment vk_clear_attachments[2];
+			VK_ZERO_MEMORY(vk_clear_attachments,sizeof(vk_clear_attachments));
+
+			vk_clear_attachments[0].colorAttachment             = 0;
+			vk_clear_attachments[0].aspectMask                  = VK_IMAGE_ASPECT_COLOR_BIT;
+			vk_clear_attachments[0].clearValue.color.float32[0] = r;
+			vk_clear_attachments[0].clearValue.color.float32[1] = g;
+			vk_clear_attachments[0].clearValue.color.float32[2] = b;
+			vk_clear_attachments[0].clearValue.color.float32[3] = a;
+
+			vk_clear_attachments[1].colorAttachment                 = 0;
+			vk_clear_attachments[1].aspectMask                      = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+			vk_clear_attachments[1].clearValue.depthStencil.stencil = s;
+			vk_clear_attachments[1].clearValue.depthStencil.depth   = d;
+
+			// NOTE: This should clear the currently boud framebuffer and not the
+			//       framebuffers used for the swap chain!
+        	vkCmdClearAttachments(
+        		g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx],
+			    1, vk_clear_attachments, 1, &vk_clear_rect);
+        }
+
         void BeginFrame()
         {
+        	uint32_t* vk_frame_image_ptr = (uint32_t*) &g_vk_context.m_CurrentFrameImageIx;
+        	uint32_t  vk_frame_image     = 0;
+
             vkAcquireNextImageKHR(g_vk_context.m_LogicalDevice, g_vk_context.m_SwapChain, UINT64_MAX, 
-                g_vk_context.m_FrameResource[g_vk_context.m_CurrentFrameInFlight].m_ImageAvailable, VK_NULL_HANDLE, (uint32_t*) &g_vk_context.m_CurrentFrameImageIx);
+                g_vk_context.m_FrameResource[g_vk_context.m_CurrentFrameInFlight].m_ImageAvailable, VK_NULL_HANDLE, vk_frame_image_ptr);
 
-            VkCommandBufferBeginInfo command_buffer_begin_info;
+            vk_frame_image = *vk_frame_image_ptr;
 
-            command_buffer_begin_info.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-            command_buffer_begin_info.flags            = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-            command_buffer_begin_info.pInheritanceInfo = 0;
-            command_buffer_begin_info.pNext            = 0;
+            VkCommandBufferBeginInfo vk_command_buffer_begin_info;
 
-            VK_CHECK(vkBeginCommandBuffer(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx], &command_buffer_begin_info));
+            vk_command_buffer_begin_info.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            vk_command_buffer_begin_info.flags            = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+            vk_command_buffer_begin_info.pInheritanceInfo = 0;
+            vk_command_buffer_begin_info.pNext            = 0;
+
+            VK_CHECK(vkBeginCommandBuffer(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx], &vk_command_buffer_begin_info));
+
+            VkRenderPassBeginInfo vk_render_pass_begin_info;
+		    vk_render_pass_begin_info.sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		    vk_render_pass_begin_info.renderPass  = g_vk_context.m_MainRenderPass.m_Handle;
+		    vk_render_pass_begin_info.framebuffer = g_vk_context.m_MainFramebuffers[vk_frame_image];
+		    vk_render_pass_begin_info.pNext       = 0;
+
+		    vk_render_pass_begin_info.renderArea.offset.x = 0;
+		    vk_render_pass_begin_info.renderArea.offset.y = 0;
+		    vk_render_pass_begin_info.renderArea.extent   = g_vk_context.m_SwapChainImageExtent;
+		    vk_render_pass_begin_info.clearValueCount     = 0;
+		    vk_render_pass_begin_info.pClearValues        = 0;
+
+		    vkCmdBeginRenderPass(g_vk_context.m_MainCommandBuffers[vk_frame_image], &vk_render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
         }
 
         void EndFrame()
         {
             FrameResource& current_frame_resource = g_vk_context.m_FrameResource[g_vk_context.m_CurrentFrameInFlight];
+
+            vkCmdEndRenderPass(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx]);
 
             VK_CHECK(vkEndCommandBuffer(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx]))
 
@@ -1258,8 +1633,8 @@ namespace dmGraphics
         context->m_WindowCloseCallback = params->m_CloseCallback;
         context->m_WindowCloseCallbackUserData = params->m_CloseCallbackUserData;
 
-        //context->m_WindowFocusCallback          = params->m_FocusCallback;
-        //context->m_WindowFocusCallbackUserData  = params->m_FocusCallbackUserData;
+        context->m_WindowFocusCallback          = params->m_FocusCallback;
+        context->m_WindowFocusCallbackUserData  = params->m_FocusCallbackUserData;
 
         context->m_Width = params->m_Width;
         context->m_Height = params->m_Height;
@@ -1396,29 +1771,15 @@ namespace dmGraphics
 
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
-        assert(context);
-        if (flags & dmGraphics::BUFFER_TYPE_COLOR_BIT)
-        {
-            uint32_t colour = (red << 24) | (green << 16) | (blue << 8) | alpha;
-            uint32_t* buffer = (uint32_t*)context->m_CurrentFrameBuffer->m_ColorBuffer;
-            uint32_t count = context->m_CurrentFrameBuffer->m_ColorBufferSize / sizeof(uint32_t);
-            for (uint32_t i = 0; i < count; ++i)
-                buffer[i] = colour;
-        }
-        if (flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT)
-        {
-            float* buffer = (float*)context->m_CurrentFrameBuffer->m_DepthBuffer;
-            uint32_t count = context->m_CurrentFrameBuffer->m_DepthBufferSize / sizeof(uint32_t);
-            for (uint32_t i = 0; i < count; ++i)
-                buffer[i] = depth;
-        }
-        if (flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT)
-        {
-            uint32_t* buffer = (uint32_t*)context->m_CurrentFrameBuffer->m_StencilBuffer;
-            uint32_t count = context->m_CurrentFrameBuffer->m_StencilBufferSize / sizeof(uint32_t);
-            for (uint32_t i = 0; i < count; ++i)
-                buffer[i] = stencil;
-        }
+    	assert(context);
+    	DM_PROFILE(Graphics, "Clear");
+    	
+        float r = ((float)red)/255.0f;
+        float g = ((float)green)/255.0f;
+        float b = ((float)blue)/255.0f;
+        float a = ((float)alpha)/255.0f;
+        
+        Vulkan::Clear(r,g,b,a,depth,stencil);
     }
 
     void Flip(HContext context)
