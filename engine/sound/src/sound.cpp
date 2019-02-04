@@ -1253,7 +1253,7 @@ namespace dmSound
 
     bool IsMusicPlaying()
     {
-        return PlatformIsMusicPlaying();
+        return PlatformIsMusicPlaying(g_SoundSystem->m_IsDeviceStarted);
     }
 
     bool IsPhoneCallActive()
