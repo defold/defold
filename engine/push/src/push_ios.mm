@@ -423,7 +423,7 @@ int Push_Register(lua_State* L)
  * :    [type:object] The current object
  *
  * `payload`
- * :    [type:function] the push payload
+ * :    [type:table] the push payload
  *
  * `origin`
  * :    [type:constant] push.ORIGIN_LOCAL or push.ORIGIN_REMOTE

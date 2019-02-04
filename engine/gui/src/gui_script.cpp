@@ -4281,7 +4281,7 @@ namespace dmGui
 
     /*# Stops a particle fx
      *
-     * Stops the paricle fx for a gui node
+     * Stops the particle fx for a gui node
      *
      * @name gui.stop_particlefx
      * @param node [type:node] node to stop particle fx for
