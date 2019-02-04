@@ -20,11 +20,13 @@ MAKEFILE=Makefile
 CURL="curl -L -O"
 
 function download() {
+    # echo "DOWNLOAD NOOP"
     mkdir -p ../download
     [ ! -f ../download/$FILE_URL ] && $CURL $BASE_URL/$FILE_URL && mv $FILE_URL ../download
 }
 
 function cmi_make() {
+    echo "standard make"
     set -e
     make -f $MAKEFILE -j8
     make install
@@ -32,6 +34,7 @@ function cmi_make() {
 }
 
 function cmi_unpack() {
+    # echo "UNPACK NOOP"
     tar xfz ../../download/$FILE_URL --strip-components=1
 }
 
@@ -48,6 +51,7 @@ function cmi_configure() {
 }
 
 function cmi_patch() {
+    # echo "PATCH NOOP"
     set -e
     [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch --binary -p1 < ../patch_$VERSION
     set +e
@@ -61,8 +65,11 @@ function cmi_do() {
     pushd tmp  >/dev/null
     cmi_unpack
     cmi_patch
+    echo "##### conf...."
     cmi_configure $1 $2
+    echo "##### done! make...."
     cmi_make
+    echo "##### done!"
     popd >/dev/null
 }
 
@@ -80,10 +87,12 @@ function cmi_package_common() {
 function cmi_package_platform() {
     local TGZ="$PRODUCT-$VERSION-$1.tar.gz"
     pushd $PREFIX  >/dev/null
-    if [ -z ${TAR_INCLUDES+x} ]; then
-        tar cfvz $TGZ lib bin
-    else
+    if [ ${TAR_SKIP_BIN} -eq "1" ]; then
+        tar cfvz $TGZ lib
+    elif [ ${TAR_INCLUDES} -eq "1" ]; then
         tar cfvz $TGZ lib bin include
+    else
+        tar cfvz $TGZ lib bin
     fi
     popd >/dev/null
 
@@ -93,6 +102,7 @@ function cmi_package_platform() {
 }
 
 function cmi_cleanup() {
+    # echo "SHOULD CLEANUP BUT DOES NOPT!"
     rm -rf tmp
     rm -rf $PREFIX
 }
@@ -104,6 +114,7 @@ function cmi_cross() {
         # TODO: Use another target, e.g. i386-freebsd as for as3-web?
         cmi_do $1
     else
+        echo "##### cmi_cross"
         cmi_do $1 "--host=$2"
     fi
 

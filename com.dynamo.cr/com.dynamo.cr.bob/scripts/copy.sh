@@ -60,7 +60,7 @@ mkdir -p tmp
 tar xf ../../packages/luajit-2.0.5-win32.tar.gz -C tmp
 tar xf ../../packages/luajit-2.0.5-x86_64-win32.tar.gz -C tmp
 tar xf ../../packages/luajit-2.0.5-x86_64-linux.tar.gz -C tmp
-tar xf ../../packages/luajit-2.0.5-x86_64-darwin.tar.gz -C tmp
+tar xf ../../packages/luajit-2.1.0-beta3-x86_64-darwin.tar.gz -C tmp
 
 cp -v tmp/bin/x86_64-linux/luajit libexec/x86_64-linux/luajit
 cp -v tmp/bin/x86_64-darwin/luajit libexec/x86_64-darwin/luajit
