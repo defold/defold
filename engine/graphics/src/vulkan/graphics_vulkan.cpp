@@ -94,7 +94,7 @@ namespace dmGraphics
         {
             VkSemaphore m_ImageAvailable;
             VkSemaphore m_RenderFinished;
-            VkFence     m_SubmitFence;
+            // VkFence     m_SubmitFence;
         };
 
         struct GPUMemory
@@ -109,6 +109,23 @@ namespace dmGraphics
             VkImageView m_View;
             GPUMemory   m_GPUBuffer;
         };
+
+        struct GeometryBuffer
+        {
+            GeometryBuffer(const VkBufferUsageFlags usage)
+            : m_Usage(usage)
+            , m_Handle(0) {
+                m_GPUBuffer.m_DeviceMemory = 0;
+                m_GPUBuffer.m_MemorySize   = 0;
+            }
+
+            const VkBufferUsageFlags m_Usage;
+            VkBuffer                 m_Handle;
+            GPUMemory                m_GPUBuffer;
+        };
+
+        typedef GeometryBuffer VertexBuffer;
+        typedef GeometryBuffer IndexBuffer;
 
         struct Context
         {
@@ -882,81 +899,6 @@ namespace dmGraphics
             VK_CHECK(vkAllocateCommandBuffers(g_vk_context.m_LogicalDevice, &buffers_allocate_info, commandBuffersOut));
         }
 
-        /*
-        void renderer_vk_transition_image_layout(vk_context_t* vk, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout) {
-            VkCommandBuffer command_buffer = vk_renderer_begin_single_time_command_buffer(vk);
-
-            VkImageMemoryBarrier barrier;
-            ZERO_MEMORY(&barrier, sizeof(barrier));
-
-            barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-            barrier.oldLayout                       = old_layout;
-            barrier.newLayout                       = new_layout;
-            barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-            barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-            barrier.image                           = image;
-            barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-            barrier.subresourceRange.baseMipLevel   = 0;
-            barrier.subresourceRange.levelCount     = 1;
-            barrier.subresourceRange.baseArrayLayer = 0;
-            barrier.subresourceRange.layerCount     = 1;
-
-            if (new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-            {
-                barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-
-                if (renderer_vk_has_stencil(format))
-                {
-                    barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
-                }
-            }
-
-            VkPipelineStageFlags source_stage = VK_IMAGE_LAYOUT_UNDEFINED;
-            VkPipelineStageFlags destination_stage = VK_IMAGE_LAYOUT_UNDEFINED;
-
-            if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-            {
-                barrier.srcAccessMask = 0;
-                barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-                source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-                destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            }
-            else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-            {
-                barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-                barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-                source_stage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
-                destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-            }
-            else if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-            {
-                barrier.srcAccessMask = 0;
-                barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-                source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-                destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-            }
-            else
-            {
-                LOG_ERROR("Invalid argument for pipeline barrier");
-            }
-
-            vkCmdPipelineBarrier(
-                command_buffer,
-                source_stage, 
-                destination_stage,
-                0,
-                0, 0,
-                0, 0,
-                1, &barrier
-            );
-
-            vk_renderer_end_single_time_command_buffer(vk, command_buffer);
-        }
-        */
-
         int32_t FindMemoryTypeIndex(uint32_t typeFilter, VkMemoryPropertyFlags propertyFlag)
         {
             #define HAS_FLAG(v,flag) ((v & flag) == flag)
@@ -1051,7 +993,7 @@ namespace dmGraphics
 
             vkCmdPipelineBarrier(
                 vk_command_buffer,
-                vk_source_stage, 
+                vk_source_stage,
                 vk_destination_stage,
                 0,
                 0, 0,
@@ -1077,7 +1019,7 @@ namespace dmGraphics
         bool CreateImage2D(unsigned int imageWidth, unsigned int imageHeight,
             VkFormat imageFormat, VkImageTiling imageTiling,
             VkImageUsageFlags imageUsage, VkMemoryPropertyFlags memoryProperties,
-            VkImage* imagePtr, GPUMemory* memoryPtr) 
+            VkImage* imagePtr, GPUMemory* memoryPtr)
         {
             assert(memoryPtr->m_MemorySize == 0);
 
@@ -1146,8 +1088,8 @@ namespace dmGraphics
             Texture depth_texture;
             VK_ZERO_MEMORY(&depth_texture,sizeof(depth_texture));
 
-            if(!CreateImage2D(width, height, format, 
-                VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 
+            if(!CreateImage2D(width, height, format,
+                VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                 &depth_texture.m_Image, &depth_texture.m_GPUBuffer))
             {
@@ -1359,6 +1301,121 @@ namespace dmGraphics
             }
         }
 
+        bool CreateGPUBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
+            VkMemoryPropertyFlags properties, VkBuffer* bufferObject, GPUMemory* bufferMemory)
+        {
+            assert(size);
+
+            VkBufferCreateInfo vk_create_buffer_info;
+            VK_ZERO_MEMORY(&vk_create_buffer_info,sizeof(vk_create_buffer_info));
+
+            vk_create_buffer_info.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+            vk_create_buffer_info.size        = size;
+            vk_create_buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            vk_create_buffer_info.usage       = usage;
+
+            if (vkCreateBuffer(g_vk_context.m_LogicalDevice, &vk_create_buffer_info, 0, bufferObject) != VK_SUCCESS)
+            {
+                return false;
+            }
+
+            VkMemoryRequirements vk_buffer_memory_req;
+            vkGetBufferMemoryRequirements(g_vk_context.m_LogicalDevice, *bufferObject, &vk_buffer_memory_req);
+
+            VkMemoryAllocateInfo vk_memory_allocate_info;
+            VK_ZERO_MEMORY(&vk_memory_allocate_info, sizeof(VkMemoryAllocateInfo));
+
+            vk_memory_allocate_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            vk_memory_allocate_info.allocationSize  = vk_buffer_memory_req.size;
+            vk_memory_allocate_info.memoryTypeIndex = 0;
+
+            int memory_type_index = FindMemoryTypeIndex(vk_buffer_memory_req.memoryTypeBits, properties);
+
+            if (memory_type_index < 0)
+            {
+                return false;
+            }
+
+            vk_memory_allocate_info.memoryTypeIndex = memory_type_index;
+
+            if (vkAllocateMemory(g_vk_context.m_LogicalDevice, &vk_memory_allocate_info, 0, &bufferMemory->m_DeviceMemory) != VK_SUCCESS)
+            {
+                return false;
+            }
+
+            vkBindBufferMemory(g_vk_context.m_LogicalDevice, *bufferObject, bufferMemory->m_DeviceMemory, 0);
+
+            return true;
+        }
+
+        void UploadBufferData(GeometryBuffer* buffer, const void* data, size_t dataSize, size_t dataOffset)
+        {
+            assert(buffer);
+            assert(dataSize);
+
+            // TODO: Updating data to exisiting buffer is not supported yet..
+            assert(buffer->m_GPUBuffer.m_MemorySize == 0 || buffer->m_GPUBuffer.m_MemorySize == dataSize);
+
+            if (buffer->m_Handle == NULL)
+            {
+                CreateGPUBuffer(dataSize, buffer->m_Usage,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    &buffer->m_Handle, &buffer->m_GPUBuffer);
+            }
+
+            if (!data)
+            {
+                return;
+            }
+
+            void* mapped_data_ptr = 0x0;
+            vkMapMemory(g_vk_context.m_LogicalDevice,
+                buffer->m_GPUBuffer.m_DeviceMemory, dataOffset, dataSize, 0, &mapped_data_ptr);
+
+            memcpy(mapped_data_ptr, data, dataSize);
+
+            vkUnmapMemory(g_vk_context.m_LogicalDevice, buffer->m_GPUBuffer.m_DeviceMemory);
+        }
+
+        VertexBuffer* CreateVertexBuffer(const void* data, size_t dataSize)
+        {
+            VertexBuffer* new_buffer = new VertexBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+
+            if (dataSize)
+            {
+                UploadBufferData((GeometryBuffer*) new_buffer, data, dataSize, 0);
+            }
+
+            return new_buffer;
+        }
+
+        void DeleteVertexBuffer(VertexBuffer* vxb)
+        {
+            assert(vxb);
+            vkDestroyBuffer(g_vk_context.m_LogicalDevice, vxb->m_Handle, 0);
+            vkFreeMemory(g_vk_context.m_LogicalDevice, vxb->m_GPUBuffer.m_DeviceMemory, 0);
+
+            delete vxb;
+        }
+
+        IndexBuffer* CreateIndexBuffer(const void* data, size_t dataSize)
+        {
+            IndexBuffer* new_buffer = new IndexBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+
+            UploadBufferData((GeometryBuffer*) new_buffer, data, dataSize, 0);
+
+            return new_buffer;
+        }
+
+        void DeleteIndexBuffer(IndexBuffer* ixb)
+        {
+            assert(ixb);
+            vkDestroyBuffer(g_vk_context.m_LogicalDevice, ixb->m_Handle, 0);
+            vkFreeMemory(g_vk_context.m_LogicalDevice, ixb->m_GPUBuffer.m_DeviceMemory, 0);
+
+            delete ixb;
+        }
+
         bool OpenWindow(WindowParams* params)
         {
             if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, GLFW_WINDOW))
@@ -1437,7 +1494,7 @@ namespace dmGraphics
 			vk_clear_attachments[1].clearValue.depthStencil.stencil = s;
 			vk_clear_attachments[1].clearValue.depthStencil.depth   = d;
 
-			// NOTE: This should clear the currently boud framebuffer and not the
+			// NOTE: This should clear the currently bound framebuffer and not the
 			//       framebuffers used for the swap chain!
         	vkCmdClearAttachments(
         		g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx],
@@ -1449,7 +1506,7 @@ namespace dmGraphics
         	uint32_t* vk_frame_image_ptr = (uint32_t*) &g_vk_context.m_CurrentFrameImageIx;
         	uint32_t  vk_frame_image     = 0;
 
-            vkAcquireNextImageKHR(g_vk_context.m_LogicalDevice, g_vk_context.m_SwapChain, UINT64_MAX, 
+            vkAcquireNextImageKHR(g_vk_context.m_LogicalDevice, g_vk_context.m_SwapChain, UINT64_MAX,
                 g_vk_context.m_FrameResource[g_vk_context.m_CurrentFrameInFlight].m_ImageAvailable, VK_NULL_HANDLE, vk_frame_image_ptr);
 
             vk_frame_image = *vk_frame_image_ptr;
@@ -1513,7 +1570,7 @@ namespace dmGraphics
 
             VK_CHECK(vkQueuePresentKHR(g_vk_context.m_PresentQueue, &vk_present_info));
 
-            // NOTE: This should probably be removed when we have better frame syncing.. 
+            // NOTE: This should probably be removed when we have better frame syncing..
             VK_CHECK(vkQueueWaitIdle(g_vk_context.m_PresentQueue));
 
             g_vk_context.m_CurrentFrameInFlight = (g_vk_context.m_CurrentFrameInFlight + 1) % g_vk_max_frames_in_flight;
@@ -1642,14 +1699,6 @@ namespace dmGraphics
         context->m_WindowHeight = params->m_Height;
         context->m_Dpi = 0;
         context->m_WindowOpened = 1;
-        uint32_t buffer_size = 4 * context->m_WindowWidth * context->m_WindowHeight;
-        context->m_MainFrameBuffer.m_ColorBuffer = new char[buffer_size];
-        context->m_MainFrameBuffer.m_DepthBuffer = new char[buffer_size];
-        context->m_MainFrameBuffer.m_StencilBuffer = new char[buffer_size];
-        context->m_MainFrameBuffer.m_ColorBufferSize = buffer_size;
-        context->m_MainFrameBuffer.m_DepthBufferSize = buffer_size;
-        context->m_MainFrameBuffer.m_StencilBufferSize = buffer_size;
-        context->m_CurrentFrameBuffer = &context->m_MainFrameBuffer;
         context->m_Program = 0x0;
 
         if (params->m_PrintDeviceInfo)
@@ -1671,10 +1720,6 @@ namespace dmGraphics
         assert(context);
         if (context->m_WindowOpened)
         {
-            FrameBuffer& main = context->m_MainFrameBuffer;
-            delete [] (char*)main.m_ColorBuffer;
-            delete [] (char*)main.m_DepthBuffer;
-            delete [] (char*)main.m_StencilBuffer;
             context->m_WindowOpened = 0;
             context->m_Width = 0;
             context->m_Height = 0;
@@ -1743,21 +1788,10 @@ namespace dmGraphics
         assert(context);
         if (context->m_WindowOpened)
         {
-            FrameBuffer& main = context->m_MainFrameBuffer;
-            delete [] (char*)main.m_ColorBuffer;
-            delete [] (char*)main.m_DepthBuffer;
-            delete [] (char*)main.m_StencilBuffer;
             context->m_Width = width;
             context->m_Height = height;
             context->m_WindowWidth = width;
             context->m_WindowHeight = height;
-            uint32_t buffer_size = 4 * width * height;
-            main.m_ColorBuffer = new char[buffer_size];
-            main.m_ColorBufferSize = buffer_size;
-            main.m_DepthBuffer = new char[buffer_size];
-            main.m_DepthBufferSize = buffer_size;
-            main.m_StencilBuffer = new char[buffer_size];
-            main.m_StencilBufferSize = buffer_size;
             if (context->m_WindowResizeCallback)
                 context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, width, height);
         }
@@ -1773,12 +1807,12 @@ namespace dmGraphics
     {
     	assert(context);
     	DM_PROFILE(Graphics, "Clear");
-    	
+
         float r = ((float)red)/255.0f;
         float g = ((float)green)/255.0f;
         float b = ((float)blue)/255.0f;
         float a = ((float)alpha)/255.0f;
-        
+
         Vulkan::Clear(r,g,b,a,depth,stencil);
     }
 
@@ -1814,56 +1848,40 @@ namespace dmGraphics
 
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        VertexBuffer* vb = new VertexBuffer();
-        vb->m_Buffer = new char[size];
-        vb->m_Copy = 0x0;
-        vb->m_Size = size;
-        if (size > 0 && data != 0x0)
-            memcpy(vb->m_Buffer, data, size);
-        return (uintptr_t)vb;
+        return (HVertexBuffer) Vulkan::CreateVertexBuffer(data, size);
     }
 
     void DeleteVertexBuffer(HVertexBuffer buffer)
     {
-        VertexBuffer* vb = (VertexBuffer*)buffer;
-        assert(vb->m_Copy == 0x0);
-        delete [] vb->m_Buffer;
-        delete vb;
+        Vulkan::DeleteVertexBuffer((Vulkan::VertexBuffer*) buffer);
     }
 
     void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        VertexBuffer* vb = (VertexBuffer*)buffer;
-        assert(vb->m_Copy == 0x0);
-        delete [] vb->m_Buffer;
-        vb->m_Buffer = new char[size];
-        vb->m_Size = size;
-        if (data != 0x0)
-            memcpy(vb->m_Buffer, data, size);
+        // Note: This is what the OpenGL renderer does since it's not permitted, but is it really the indended behaviour?
+        //       The debug rendering does some kind of flushing of the vertexbuffer with a null pointer and
+        //       a zero size, but on OpenGL that amounts to doing nothing..
+        if (size == 0)
+        {
+            return;
+        }
+
+        Vulkan::UploadBufferData((Vulkan::VertexBuffer*) buffer, data, size, 0);
     }
 
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        VertexBuffer* vb = (VertexBuffer*)buffer;
-        if (offset + size <= vb->m_Size && data != 0x0)
-            memcpy(&(vb->m_Buffer)[offset], data, size);
+        Vulkan::UploadBufferData((Vulkan::VertexBuffer*) buffer, data, size, offset);
     }
 
     void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
     {
-        VertexBuffer* vb = (VertexBuffer*)buffer;
-        vb->m_Copy = new char[vb->m_Size];
-        memcpy(vb->m_Copy, vb->m_Buffer, vb->m_Size);
-        return vb->m_Copy;
+        assert(0 && "Not supported");
     }
 
     bool UnmapVertexBuffer(HVertexBuffer buffer)
     {
-        VertexBuffer* vb = (VertexBuffer*)buffer;
-        memcpy(vb->m_Buffer, vb->m_Copy, vb->m_Size);
-        delete [] vb->m_Copy;
-        vb->m_Copy = 0x0;
-        return true;
+        assert(0 && "Not supported");
     }
 
     uint32_t GetMaxElementsVertices(HContext context)
@@ -1873,55 +1891,32 @@ namespace dmGraphics
 
     HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        IndexBuffer* ib = new IndexBuffer();
-        ib->m_Buffer = new char[size];
-        ib->m_Copy = 0x0;
-        ib->m_Size = size;
-        memcpy(ib->m_Buffer, data, size);
-        return (uintptr_t)ib;
+        return (HIndexBuffer) Vulkan::CreateIndexBuffer(data, size);
     }
 
     void DeleteIndexBuffer(HIndexBuffer buffer)
     {
-        IndexBuffer* ib = (IndexBuffer*)buffer;
-        assert(ib->m_Copy == 0x0);
-        delete [] ib->m_Buffer;
-        delete ib;
+        Vulkan::DeleteIndexBuffer((Vulkan::IndexBuffer*) buffer);
     }
 
     void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        IndexBuffer* ib = (IndexBuffer*)buffer;
-        assert(ib->m_Copy == 0x0);
-        delete [] ib->m_Buffer;
-        ib->m_Buffer = new char[size];
-        ib->m_Size = size;
-        if (data != 0x0)
-            memcpy(ib->m_Buffer, data, size);
+        Vulkan::UploadBufferData((Vulkan::IndexBuffer*) buffer, data, size, 0);
     }
 
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        IndexBuffer* ib = (IndexBuffer*)buffer;
-        if (offset + size <= ib->m_Size && data != 0x0)
-            memcpy(&(ib->m_Buffer)[offset], data, size);
+        Vulkan::UploadBufferData((Vulkan::IndexBuffer*) buffer, data, size, offset);
     }
 
     void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
     {
-        IndexBuffer* ib = (IndexBuffer*)buffer;
-        ib->m_Copy = new char[ib->m_Size];
-        memcpy(ib->m_Copy, ib->m_Buffer, ib->m_Size);
-        return ib->m_Copy;
+        assert(0 && "Not supported");
     }
 
     bool UnmapIndexBuffer(HIndexBuffer buffer)
     {
-        IndexBuffer* ib = (IndexBuffer*)buffer;
-        memcpy(ib->m_Buffer, ib->m_Copy, ib->m_Size);
-        delete [] ib->m_Copy;
-        ib->m_Copy = 0x0;
-        return true;
+        assert(0 && "Not supported");
     }
 
     uint32_t GetMaxElementsIndices(HContext context)
@@ -1929,21 +1924,62 @@ namespace dmGraphics
         return 65536;
     }
 
+    static uint32_t GetTypeSize(Type type)
+    {
+        uint32_t size = 0;
+        switch (type)
+        {
+            case TYPE_BYTE:
+            case TYPE_UNSIGNED_BYTE:
+                size = 1;
+                break;
+
+            case TYPE_SHORT:
+            case TYPE_UNSIGNED_SHORT:
+                size = 2;
+                break;
+
+            case TYPE_INT:
+            case TYPE_UNSIGNED_INT:
+            case TYPE_FLOAT:
+                size = 4;
+                break;
+
+            default:
+                assert(0);
+                break;
+        }
+        return size;
+    }
+
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
     {
-        return NewVertexDeclaration(context, element, count);
+        VertexDeclaration* vd = (VertexDeclaration*) NewVertexDeclaration(context, element, count);
+        vd->m_Stride = stride;
+        return vd;
     }
 
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
     {
         VertexDeclaration* vd = new VertexDeclaration();
-        memset(vd, 0, sizeof(*vd));
-        vd->m_Count = count;
+        VK_ZERO_MEMORY(vd, sizeof(VertexDeclaration));
+
+        assert(element);
+        assert(count <= MAX_VERTEX_STREAM_COUNT);
+
+        vd->m_StreamCount = count;
+
         for (uint32_t i = 0; i < count; ++i)
         {
-            assert(vd->m_Elements[element[i].m_Stream].m_Size == 0);
-            vd->m_Elements[element[i].m_Stream] = element[i];
+            vd->m_Streams[i].m_Name         = element[i].m_Name;
+            vd->m_Streams[i].m_LogicalIndex = i;
+            vd->m_Streams[i].m_Size         = element[i].m_Size;
+            vd->m_Streams[i].m_Type         = element[i].m_Type;
+            vd->m_Streams[i].m_Offset       = vd->m_Stride;
+
+            vd->m_Stride += element[i].m_Size * GetTypeSize(element[i].m_Type);
         }
+
         return vd;
     }
 
@@ -1952,50 +1988,9 @@ namespace dmGraphics
         delete vertex_declaration;
     }
 
-    static void EnableVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
-    {
-        assert(context);
-        assert(vertex_buffer);
-        VertexStream& s = context->m_VertexStreams[stream];
-        assert(s.m_Source == 0x0);
-        assert(s.m_Buffer == 0x0);
-        s.m_Source = vertex_buffer;
-        s.m_Size = size * TYPE_SIZE[type - dmGraphics::TYPE_BYTE];
-        s.m_Stride = stride;
-    }
-
-    static void DisableVertexStream(HContext context, uint16_t stream)
-    {
-        assert(context);
-        VertexStream& s = context->m_VertexStreams[stream];
-        s.m_Size = 0;
-        if (s.m_Buffer != 0x0)
-        {
-            delete [] (char*)s.m_Buffer;
-            s.m_Buffer = 0x0;
-        }
-        s.m_Source = 0x0;
-    }
-
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
     {
-        assert(context);
-        assert(vertex_declaration);
-        assert(vertex_buffer);
-        VertexBuffer* vb = (VertexBuffer*)vertex_buffer;
-        uint16_t stride = 0;
-        for (uint32_t i = 0; i < vertex_declaration->m_Count; ++i)
-            stride += vertex_declaration->m_Elements[i].m_Size * TYPE_SIZE[vertex_declaration->m_Elements[i].m_Type - dmGraphics::TYPE_BYTE];
-        uint32_t offset = 0;
-        for (uint16_t i = 0; i < vertex_declaration->m_Count; ++i)
-        {
-            VertexElement& ve = vertex_declaration->m_Elements[i];
-            if (ve.m_Size > 0)
-            {
-                EnableVertexStream(context, i, ve.m_Size, ve.m_Type, stride, &vb->m_Buffer[offset]);
-                offset += ve.m_Size * TYPE_SIZE[ve.m_Type - dmGraphics::TYPE_BYTE];
-            }
-        }
+
     }
 
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
@@ -2005,88 +2000,17 @@ namespace dmGraphics
 
     void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
     {
-        assert(context);
-        assert(vertex_declaration);
-        for (uint32_t i = 0; i < vertex_declaration->m_Count; ++i)
-            if (vertex_declaration->m_Elements[i].m_Size > 0)
-                DisableVertexStream(context, i);
-    }
 
-    static uint32_t GetIndex(Type type, HIndexBuffer ib, uint32_t index)
-    {
-        const void* index_buffer = ((IndexBuffer*) ib)->m_Buffer;
-        uint32_t result = ~0;
-        switch (type)
-        {
-            case dmGraphics::TYPE_BYTE:
-                result = ((char*)index_buffer)[index];
-                break;
-            case dmGraphics::TYPE_UNSIGNED_BYTE:
-                result = ((unsigned char*)index_buffer)[index];
-                break;
-            case dmGraphics::TYPE_SHORT:
-                result = ((short*)index_buffer)[index];
-                break;
-            case dmGraphics::TYPE_UNSIGNED_SHORT:
-                result = ((unsigned short*)index_buffer)[index];
-                break;
-            case dmGraphics::TYPE_INT:
-                result = ((int*)index_buffer)[index];
-                break;
-            case dmGraphics::TYPE_UNSIGNED_INT:
-                result = ((unsigned int*)index_buffer)[index];
-                break;
-            case dmGraphics::TYPE_FLOAT:
-                result = ((float*)index_buffer)[index];
-                break;
-            default:
-                assert(0);
-                break;
-        }
-        return result;
     }
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
-        assert(context);
-        assert(index_buffer);
-        for (uint32_t i = 0; i < MAX_VERTEX_STREAM_COUNT; ++i)
-        {
-            VertexStream& vs = context->m_VertexStreams[i];
-            if (vs.m_Size > 0)
-            {
-                vs.m_Buffer = new char[vs.m_Size * count];
-            }
-        }
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            uint32_t index = GetIndex(type, index_buffer, i + first);
-            for (uint32_t j = 0; j < MAX_VERTEX_STREAM_COUNT; ++j)
-            {
-                VertexStream& vs = context->m_VertexStreams[j];
-                if (vs.m_Size > 0)
-                    memcpy(&((char*)vs.m_Buffer)[i * vs.m_Size], &((char*)vs.m_Source)[index * vs.m_Stride], vs.m_Size);
-            }
-        }
 
-        if (g_Flipped)
-        {
-            g_Flipped = 0;
-            g_DrawCount = 0;
-        }
-        g_DrawCount++;
     }
 
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {
-        assert(context);
 
-        if (g_Flipped)
-        {
-            g_Flipped = 0;
-            g_DrawCount = 0;
-        }
-        g_DrawCount++;
     }
 
     uint64_t GetDrawCount()
