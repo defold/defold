@@ -92,8 +92,8 @@ copy arm64-darwin/dmengine arm64-darwin/dmengine
 copy arm64-darwin/dmengine_release arm64-darwin/dmengine_release
 copy armv7-android/libdmengine.so armv7-android/libdmengine.so
 copy armv7-android/libdmengine_release.so armv7-android/libdmengine_release.so
-copy arm64-android/libdmengine.so arm64-android/libdmengine.so
-copy arm64-android/libdmengine_release.so arm64-android/libdmengine_release.so
+copy arm64-android/libdmengine.so arm64-android/libdmengine.so # TODO only valid once arm64-android CI target is present --jbnn
+copy arm64-android/libdmengine_release.so arm64-android/libdmengine_release.so # TODO only valid once arm64-android CI target is present --jbnn
 copy js-web/dmengine.js js-web/dmengine.js
 copy js-web/defold_sound.swf js-web/defold_sound.swf
 #copy js-web/dmengine.js.mem js-web/dmengine.js.mem
