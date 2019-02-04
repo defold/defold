@@ -363,12 +363,14 @@ public class AndroidBundler implements IBundler {
             filenameArmv7 = FilenameUtils.normalize(filenameArmv7, true);
             zipOut.putNextEntry(new ZipEntry(filenameArmv7));
             File fileArmv7 = new File(strippedpathArmv7);
+            fileArmv7.deleteOnExit();
             FileUtils.copyFile(fileArmv7, zipOut);
             // arm64-v8a
             String filenameArm64 = FilenameUtils.concat("lib/arm64-v8a", "lib" + exeName + ".so");
             filenameArm64 = FilenameUtils.normalize(filenameArm64, true);
             zipOut.putNextEntry(new ZipEntry(filenameArm64));
             File fileArm64 = new File(strippedpathArm64);
+            fileArm64.deleteOnExit();
             FileUtils.copyFile(fileArm64, zipOut);
 
             logger.log(Level.INFO, "Android Armv7 binary: " + getFileDescription(fileArmv7));

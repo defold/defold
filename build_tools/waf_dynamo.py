@@ -1536,7 +1536,7 @@ def detect(conf):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
         arch = 'x86_64'
 
-        bin='%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_64_GCC_VERSION, build_platform, arch)
+        bin='%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, build_platform, arch)
         conf.env['CC'] = '%s/arm-linux-androideabi-gcc' % (bin)
         conf.env['CXX'] = '%s/arm-linux-androideabi-g++' % (bin)
         conf.env['LINK_CXX'] = '%s/arm-linux-androideabi-g++' % (bin)

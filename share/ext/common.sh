@@ -258,7 +258,7 @@ function cmi() {
             local stl_lib="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_64_GCC_VERSION}/libs/arm64-v8a"
             local stl_arch="${stl_lib}/include"
 
-            export CFLAGS="${CFLAGS} ${sysroot} -fpic -ffunction-sections -funwind-tables -D__ARM_ARCH_5__ -D__ARM_ARCH_5T__ -D__ARM_ARCH_5E__ -D__ARM_ARCH_5TE__  -Wno-psabi -march=armv8-a -Os -fomit-frame-pointer -fno-strict-aliasing -finline-limit=64 -DANDROID -Wa,--noexecstack"
+            export CFLAGS="${CFLAGS} ${sysroot} -fpic -ffunction-sections -funwind-tables -D__aarch64__  -Wno-psabi -march=armv8-a -Os -fomit-frame-pointer -fno-strict-aliasing -finline-limit=64 -DANDROID -Wa,--noexecstack"
             export CPPFLAGS=${CFLAGS}
             export CXXFLAGS="${CXXFLAGS} -I${stl} -I${stl_arch} ${CFLAGS}"
             export LDFLAGS="${sysroot} -Wl,--no-undefined -Wl,-z,noexecstack -L${stl_lib} -lgnustl_static -lsupc++"
