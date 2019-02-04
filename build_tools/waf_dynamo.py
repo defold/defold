@@ -1191,13 +1191,6 @@ def linux_link_flags(self):
     if re.match('.*?linux', platform):
         self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm', '-ldl'])
 
-@feature('cprogram', 'cxxprogram')
-@before('apply_core')
-def osx_64_luajit(self):
-    # This is needed for 64 bit LuaJIT on OSX (See http://luajit.org/install.html "Embedding LuaJIT")
-    if self.env['PLATFORM'] == 'x86_64-darwin':
-        self.env.append_value('LINKFLAGS', ['-pagezero_size', '10000', '-image_base', '100000000'])
-
 @feature('swf')
 @after('apply_link')
 def as3_link_flags_emit(self):
@@ -1575,20 +1568,28 @@ def detect(conf):
     use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
     if build_util.get_target_os() == 'web':
         use_vanilla = True
-    if build_util.get_target_platform() == 'x86_64-linux':
+    ## TODO verify luajit in x86_64-linux --jbnn
+    # if build_util.get_target_platform() == 'x86_64-linux':
         # TODO: LuaJIT is currently broken on x86_64-linux
-        use_vanilla = True
-    if build_util.get_target_platform() == 'arm64-darwin':
-        # TODO: LuaJIT is currently not supported on arm64
-        # Note: There is some support in the head branch for LuaJit 2.1
-        use_vanilla = True
+        # use_vanilla = True
 
+    conf.env['LUA_BYTECODE_ENABLE_32'] = 'no'
+    conf.env['LUA_BYTECODE_ENABLE_64'] = 'no'
     if use_vanilla:
         conf.env['STATICLIB_LUA'] = 'lua'
         conf.env['LUA_BYTECODE_ENABLE'] = 'no'
     else:
         conf.env['STATICLIB_LUA'] = 'luajit-5.1'
         conf.env['LUA_BYTECODE_ENABLE'] = 'yes'
+        if build_util.get_target_platform() == 'x86_64-linux' or build_util.get_target_platform() == 'x86_64-win32' or build_util.get_target_platform() == 'x86_64-darwin' or build_util.get_target_platform() == 'arm64-android' or build_util.get_target_platform() == 'arm64-darwin':
+            conf.env['LUA_BYTECODE_ENABLE_64'] = 'yes'
+        else:
+            conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
+
+    print("build_util.get_target_platform(): " + build_util.get_target_platform())
+    print("conf.env['LUA_BYTECODE_ENABLE']: " + conf.env['LUA_BYTECODE_ENABLE'])
+    print("conf.env['LUA_BYTECODE_ENABLE_32']: " + conf.env['LUA_BYTECODE_ENABLE_32'])
+    print("conf.env['LUA_BYTECODE_ENABLE_64']: " + conf.env['LUA_BYTECODE_ENABLE_64'])
 
 def configure(conf):
     detect(conf)

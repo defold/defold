@@ -1,0 +1,2953 @@
+diff -u -r -w LuaJIT-2.1.0-beta3/Makefile LuaJIT-2.1.0-beta3b/Makefile
+--- LuaJIT-2.1.0-beta3/Makefile	2017-05-01 21:05:00.000000000 +0200
++++ LuaJIT-2.1.0-beta3b/Makefile	2019-02-04 14:39:18.000000000 +0100
+@@ -44,7 +44,7 @@
+ INSTALL_MAN= $(INSTALL_SHARE)/man/man1
+ INSTALL_PKGCONFIG= $(INSTALL_LIB)/pkgconfig
+ 
+-INSTALL_TNAME= luajit-$(VERSION)
++INSTALL_TNAME= luajit-$(VERSION)-$(DEFOLD_ARCH)
+ INSTALL_TSYMNAME= luajit
+ INSTALL_ANAME= libluajit-$(ABIVER).a
+ INSTALL_SOSHORT1= libluajit-$(ABIVER).so
+@@ -60,7 +60,7 @@
+ INSTALL_SHORT1= $(INSTALL_LIB)/$(INSTALL_SOSHORT1)
+ INSTALL_SHORT2= $(INSTALL_LIB)/$(INSTALL_SOSHORT2)
+ INSTALL_T= $(INSTALL_BIN)/$(INSTALL_TNAME)
+-INSTALL_TSYM= $(INSTALL_BIN)/$(INSTALL_TSYMNAME)
++INSTALL_TSYM= $(INSTALL_BIN)/$(INSTALL_TSYMNAME)-$(DEFOLD_ARCH)
+ INSTALL_PC= $(INSTALL_PKGCONFIG)/$(INSTALL_PCNAME)
+ 
+ INSTALL_DIRS= $(INSTALL_BIN) $(INSTALL_LIB) $(INSTALL_INC) $(INSTALL_MAN) \
+@@ -109,12 +109,14 @@
+ INSTALL_DEP= src/luajit
+ 
+ default all $(INSTALL_DEP):
+-	@echo "==== Building LuaJIT $(VERSION) ===="
++	@echo "==== Building LuaJIT $(VERSION) with TARGET_SYS: '$(TARGET_SYS)' on host '$(HOST_SYS)' ===="
+ 	$(MAKE) -C src
++
+ 	@echo "==== Successfully built LuaJIT $(VERSION) ===="
+ 
+ install: $(INSTALL_DEP)
+ 	@echo "==== Installing LuaJIT $(VERSION) to $(PREFIX) ===="
++	@echo "INSTALL_DIRS: $(INSTALL_DIRS)"
+ 	$(MKDIR) $(INSTALL_DIRS)
+ 	cd src && $(INSTALL_X) $(FILE_T) $(INSTALL_T)
+ 	cd src && test -f $(FILE_A) && $(INSTALL_F) $(FILE_A) $(INSTALL_STATIC) || :
+@@ -130,9 +132,15 @@
+ 	  $(RM) $(FILE_PC).tmp
+ 	cd src && $(INSTALL_F) $(FILES_INC) $(INSTALL_INC)
+ 	cd src/jit && $(INSTALL_F) $(FILES_JITLIB) $(INSTALL_JITLIB)
++	$(SYMLINK) $(INSTALL_TNAME) $(INSTALL_TSYM)
+ 	@echo "==== Successfully installed LuaJIT $(VERSION) to $(PREFIX) ===="
++	@echo "SKIP_BIN_INSTALL: ${SKIP_BIN_INSTALL}" # If we should install (output) anything in the /bin/ dir.
++	@echo "INSTALL_BIN: ${INSTALL_BIN}" # -> /Users/johanbeck-noren/Documents/code/defold/share/ext/luajit/tmp/build/bin/x86_64-darwin
++	@echo "INSTALL_TNAME: ${INSTALL_TNAME}" # -> luajit-2.1.0-beta3
++	@echo "INSTALL_TSYMNAME: ${INSTALL_TSYMNAME}" # -> luajit
++	@echo "INSTALL_TSYM: ${INSTALL_TSYM}" # -> /Users/johanbeck-noren/Documents/code/defold/share/ext/luajit/tmp/build/bin/x86_64-darwin/luajit
+ 	@echo ""
+-	@echo "Note: the development releases deliberately do NOT install a symlink for luajit"
++	@echo "Note: the development releases deliberately DOES NOW! install a symlink for luajit"
+ 	@echo "You can do this now by running this command (with sudo):"
+ 	@echo ""
+ 	@echo "  $(SYMLINK) $(INSTALL_TNAME) $(INSTALL_TSYM)"
+Binary files LuaJIT-2.1.0-beta3/src/.DS_Store and LuaJIT-2.1.0-beta3b/src/.DS_Store differ
+diff -u -r -w LuaJIT-2.1.0-beta3/src/Makefile LuaJIT-2.1.0-beta3b/src/Makefile
+--- LuaJIT-2.1.0-beta3/src/Makefile	2017-05-01 21:05:00.000000000 +0200
++++ LuaJIT-2.1.0-beta3b/src/Makefile	2019-02-04 14:24:33.000000000 +0100
+@@ -273,6 +273,8 @@
+ endif
+ endif
+ 
++# @echo "target arch: ${TARGET_LJARCH}"
++
+ ifneq (,$(findstring LJ_TARGET_PS3 1,$(TARGET_TESTARCH)))
+   TARGET_SYS= PS3
+   TARGET_ARCH+= -D__CELLOS_LV2__
+@@ -303,6 +305,7 @@
+ ##############################################################################
+ 
+ TARGET_SYS?= $(HOST_SYS)
++# @echo "TARGET_SYS: ${TARGET_SYS}"
+ ifeq (Windows,$(TARGET_SYS))
+   TARGET_STRIP+= --strip-unneeded
+   TARGET_XSHLDFLAGS= -shared
+Only in LuaJIT-2.1.0-beta3b/src/host: buildvm
+Only in LuaJIT-2.1.0-beta3b/src/host: buildvm.o
+Only in LuaJIT-2.1.0-beta3b/src/host: buildvm_arch.h
+Only in LuaJIT-2.1.0-beta3b/src/host: buildvm_asm.o
+Only in LuaJIT-2.1.0-beta3b/src/host: buildvm_fold.o
+Only in LuaJIT-2.1.0-beta3b/src/host: buildvm_lib.o
+Only in LuaJIT-2.1.0-beta3b/src/host: buildvm_peobj.o
+Only in LuaJIT-2.1.0-beta3b/src/host: minilua
+Only in LuaJIT-2.1.0-beta3b/src/host: minilua.o
+diff -u -r -w LuaJIT-2.1.0-beta3/src/jit/bcsave.lua LuaJIT-2.1.0-beta3b/src/jit/bcsave.lua
+--- LuaJIT-2.1.0-beta3/src/jit/bcsave.lua	2017-05-01 21:05:00.000000000 +0200
++++ LuaJIT-2.1.0-beta3b/src/jit/bcsave.lua	2019-01-25 11:51:55.000000000 +0100
+@@ -25,6 +25,7 @@
+   -l        Only list bytecode.
+   -s        Strip debug info (default).
+   -g        Keep debug info.
++  -f        Set file name passed to loadfile
+   -n name   Set module name (default: auto-detect from input name).
+   -t type   Set output file type (default: auto-detect from output name).
+   -a arch   Override architecture for object files (default: native).
+@@ -45,10 +46,13 @@
+   os.exit(1)
+ end
+ 
+-local function readfile(input)
++local function readfile(input, filename)
+   if type(input) == "function" then return input end
+   if input == "-" then input = nil end
+-  return check(loadfile(input))
++  local f = assert(io.open(input, "r"))
++  local src = f:read("*all")    
++  f:close()
++  return check(loadstring(src, filename))
+ end
+ 
+ local function savefile(name, mode)
+@@ -575,8 +579,8 @@
+ 
+ ------------------------------------------------------------------------------
+ 
+-local function bclist(input, output)
+-  local f = readfile(input)
++local function bcsave(ctx, input, output, filename)
++  local f = readfile(input, filename)
+   require("jit.bc").dump(f, savefile(output, "w"), true)
+ end
+ 
+@@ -604,6 +608,7 @@
+   local arg = {...}
+   local n = 1
+   local list = false
++  local filename = nil
+   local ctx = {
+     strip = true, arch = jit.arch, os = string.lower(jit.os),
+     type = false, modname = false,
+@@ -634,6 +639,8 @@
+ 	    ctx.arch = checkarg(table.remove(arg, n), map_arch, "architecture")
+ 	  elseif opt == "o" then
+ 	    ctx.os = checkarg(table.remove(arg, n), map_os, "OS name")
++    elseif opt == "f" then
++      filename = table.remove(arg, n)
+ 	  else
+ 	    usage()
+ 	  end
+@@ -645,10 +652,10 @@
+   end
+   if list then
+     if #arg == 0 or #arg > 2 then usage() end
+-    bclist(arg[1], arg[2] or "-")
++    bclist(arg[1], arg[2] or "-", filename or arg[1])
+   else
+     if #arg ~= 2 then usage() end
+-    bcsave(ctx, arg[1], arg[2])
++    bcsave(ctx, arg[1], arg[2], filename or arg[1])
+   end
+ end
+ 
+Only in LuaJIT-2.1.0-beta3b/src/jit: vmdef.lua
+Only in LuaJIT-2.1.0-beta3b/src: lib_aux.o
+Only in LuaJIT-2.1.0-beta3b/src: lib_base.o
+Only in LuaJIT-2.1.0-beta3b/src: lib_bit.o
+Only in LuaJIT-2.1.0-beta3b/src: lib_debug.o
+Only in LuaJIT-2.1.0-beta3b/src: lib_ffi.o
+Only in LuaJIT-2.1.0-beta3b/src: lib_init.o
+Only in LuaJIT-2.1.0-beta3b/src: lib_io.o
+Only in LuaJIT-2.1.0-beta3b/src: lib_jit.o
+Only in LuaJIT-2.1.0-beta3b/src: lib_math.o
+Only in LuaJIT-2.1.0-beta3b/src: lib_os.o
+Only in LuaJIT-2.1.0-beta3b/src: lib_package.o
+Only in LuaJIT-2.1.0-beta3b/src: lib_string.o
+Only in LuaJIT-2.1.0-beta3b/src: lib_table.o
+Only in LuaJIT-2.1.0-beta3b/src: libluajit.a
+diff -u -r -w LuaJIT-2.1.0-beta3/src/lj_alloc.c LuaJIT-2.1.0-beta3b/src/lj_alloc.c
+--- LuaJIT-2.1.0-beta3/src/lj_alloc.c	2017-05-01 21:05:00.000000000 +0200
++++ LuaJIT-2.1.0-beta3b/src/lj_alloc.c	2019-01-25 11:51:55.000000000 +0100
+@@ -35,7 +35,7 @@
+ #ifndef LUAJIT_USE_SYSMALLOC
+ 
+ #define MAX_SIZE_T		(~(size_t)0)
+-#define MALLOC_ALIGNMENT	((size_t)8U)
++#define MALLOC_ALIGNMENT  ((size_t)16U)
+ 
+ #define DEFAULT_GRANULARITY	((size_t)128U * (size_t)1024U)
+ #define DEFAULT_TRIM_THRESHOLD	((size_t)2U * (size_t)1024U * (size_t)1024U)
+Only in LuaJIT-2.1.0-beta3b/src: lj_alloc.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_api.o
+diff -u -r -w LuaJIT-2.1.0-beta3/src/lj_arch.h LuaJIT-2.1.0-beta3b/src/lj_arch.h
+--- LuaJIT-2.1.0-beta3/src/lj_arch.h	2017-05-01 21:05:00.000000000 +0200
++++ LuaJIT-2.1.0-beta3b/src/lj_arch.h	2019-02-04 14:41:28.000000000 +0100
+@@ -8,6 +8,8 @@
+ 
+ #include "lua.h"
+ 
++#include <stdio.h>
++
+ /* Target endianess. */
+ #define LUAJIT_LE	0
+ #define LUAJIT_BE	1
+@@ -91,6 +93,7 @@
+ #elif LUAJIT_OS == LUAJIT_OS_LINUX
+ #define LJ_OS_NAME	"Linux"
+ #elif LUAJIT_OS == LUAJIT_OS_OSX
++// #error "Was OS OSX"
+ #define LJ_OS_NAME	"OSX"
+ #elif LUAJIT_OS == LUAJIT_OS_BSD
+ #define LJ_OS_NAME	"BSD"
+@@ -107,6 +110,13 @@
+ #define LJ_TARGET_POSIX		(LUAJIT_OS > LUAJIT_OS_WINDOWS)
+ #define LJ_TARGET_DLOPEN	LJ_TARGET_POSIX
+ 
++// DEBUG --jbnn
++// #if defined (LJ_TARGET_IOS)
++// #undef LJ_TARGET_IOS
++// #define LJ_TARGET_IOS 0
++// // #error "Moron thinks we are targeting an iphone"
++// #endif
++
+ #ifdef __CELLOS_LV2__
+ #define LJ_TARGET_PS3		1
+ #define LJ_TARGET_CONSOLE	1
+@@ -270,6 +280,7 @@
+ #elif LJ_ARCH_BITS == 64
+ #define LJ_ARCH_PPC64		1
+ #define LJ_TARGET_GC64		1
++#error
+ #define LJ_ARCH_NOJIT		1	/* NYI */
+ #endif
+ 
+@@ -338,6 +349,7 @@
+ #define LJ_TARGET_MIPS32	1
+ #else
+ #if LJ_ABI_SOFTFP || !LJ_ARCH_HASFPU
++#error
+ #define LJ_ARCH_NOJIT		1	/* NYI */
+ #endif
+ #define LJ_ARCH_BITS		64
+@@ -459,6 +471,8 @@
+ /* Ditto for the consoles. Complain to Sony or MS, not me. */
+ #ifndef LUAJIT_ENABLE_JIT
+ #define LJ_OS_NOJIT		1
++// // jbnn
++// #error
+ #endif
+ #endif
+ 
+@@ -466,6 +480,7 @@
+ #if LJ_TARGET_GC64
+ #define LJ_GC64			1
+ #else
++    // #error
+ #define LJ_GC64			0
+ #endif
+ 
+@@ -478,6 +493,14 @@
+ 
+ /* Disable or enable the JIT compiler. */
+ #if defined(LUAJIT_DISABLE_JIT) || defined(LJ_ARCH_NOJIT) || defined(LJ_OS_NOJIT)
++    // jbnn
++    // #if defined(LUAJIT_DISABLE_JIT)
++    // #error
++    // #elif defined(LJ_ARCH_NOJIT)
++    // #error
++    // #elif defined(LJ_OS_NOJIT)
++    // // #error
++    // #endif
+ #define LJ_HASJIT		0
+ #else
+ #define LJ_HASJIT		1
+Only in LuaJIT-2.1.0-beta3b/src: lj_asm.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_bc.o
+diff -u -r -w LuaJIT-2.1.0-beta3/src/lj_bcdef.h LuaJIT-2.1.0-beta3b/src/lj_bcdef.h
+--- LuaJIT-2.1.0-beta3/src/lj_bcdef.h	2017-05-01 21:05:00.000000000 +0200
++++ LuaJIT-2.1.0-beta3b/src/lj_bcdef.h	2019-02-04 15:11:45.000000000 +0100
+@@ -2,160 +2,159 @@
+ 
+ LJ_DATADEF const uint16_t lj_bc_ofs[] = {
+ 0,
+-72,
+-144,
+-216,
+-288,
+-427,
+-569,
+-632,
+-695,
+-764,
+-833,
+-886,
+-938,
+-989,
+-1040,
+-1081,
+-1122,
+-1148,
+-1180,
+-1240,
+-1314,
+-1368,
+-1422,
+-1476,
+-1530,
+-1589,
+-1643,
+-1697,
+-1751,
+-1805,
+-1841,
+-1908,
+-1975,
+-2042,
+-2109,
+-2158,
+-2230,
+-2306,
+-2342,
+-2378,
+-2408,
+-2437,
+-2462,
+-2505,
+-2541,
+-2628,
+-2710,
+-2748,
+-2782,
+-2833,
+-2897,
+-3006,
+-3099,
+-3117,
+-3135,
+-3283,
+-3407,
+-3506,
+-3679,
+-3908,
+-4032,
+-4174,
+-4220,
+-4262,
+-4266,
+-4414,
+-4482,
+-4647,
+-4838,
+-4926,
+-4930,
+-5066,
+-5158,
+-5263,
+-5360,
+-5465,
+-5485,
+-5555,
+-5622,
+-5642,
+-5686,
+-5725,
+-5745,
+-5763,
+-5810,
+-5835,
+-5855,
+-5918,
+-5972,
+-5972,
+-6097,
+-6098,
+-6177,
+-7841,
+-7908,
+-8419,
+-8522,
+-8579,
+-8710,
+-7974,
+-8136,
+-8228,
+-8280,
+-8311,
+-8768,
+-8809,
+-9417,
+-8864,
+-9167,
+-9469,
+-9596,
+-9620,
+-9647,
+-9711,
+-9744,
+-9778,
+-9809,
+-9840,
+-9873,
+-9914,
+-9957,
+-9990,
+-10030,
+-10070,
+-10245,
+-10393,
+-10110,
+-10110,
+-9678,
+-10149,
+-10549,
+-10492,
+-10196,
+-10603,
+-10662,
+-11596,
+-11994,
+-11941,
+-12063,
+-12142,
+-12224,
+-12306,
+-12388,
+-11650,
+-11747,
+-11844,
+-10721,
+-10752,
+-10799,
+-10921,
+-11090,
+-11217,
+-11327,
+-11442,
+-11557
++92,
++184,
++276,
++368,
++518,
++671,
++751,
++831,
++909,
++987,
++1047,
++1106,
++1162,
++1218,
++1267,
++1316,
++1351,
++1388,
++1415,
++1465,
++1522,
++1613,
++1672,
++1731,
++1790,
++1849,
++1913,
++1972,
++2031,
++2090,
++2149,
++2189,
++2265,
++2341,
++2417,
++2493,
++2550,
++2641,
++2725,
++2768,
++2811,
++2842,
++2872,
++2902,
++2953,
++3001,
++3113,
++3217,
++3267,
++3317,
++3376,
++3461,
++3583,
++3689,
++3717,
++3745,
++3910,
++4056,
++4161,
++4226,
++4421,
++4673,
++4808,
++4970,
++5065,
++5129,
++5190,
++5193,
++5383,
++5468,
++5625,
++5834,
++5948,
++5951,
++6101,
++6208,
++6329,
++6444,
++6567,
++6587,
++6662,
++6733,
++6753,
++6797,
++6835,
++6855,
++6874,
++6924,
++6951,
++6971,
++7039,
++7097,
++7097,
++7232,
++7233,
++7343,
++9488,
++9563,
++10185,
++10315,
++10413,
++10573,
++9634,
++9818,
++9943,
++10016,
++10058,
++10671,
++10735,
++11496,
++10789,
++11176,
++11544,
++11707,
++11735,
++11589,
++11812,
++11858,
++11904,
++11950,
++11996,
++12042,
++12088,
++12134,
++12180,
++12226,
++12272,
++12590,
++12666,
++11766,
++12387,
++12318,
++12456,
++12525,
++12730,
++12798,
++13567,
++14003,
++13946,
++14075,
++14163,
++14254,
++14345,
++14436,
++13625,
++13732,
++13839,
++12866,
++12930,
++13064,
++13243,
++13351,
++13459
+ };
+ 
+ LJ_DATADEF const uint16_t lj_bc_mode[] = {
+@@ -216,11 +215,6 @@
+ BCMODE_FF,
+ BCMODE_FF,
+ BCMODE_FF,
+-BCMODE_FF,
+-BCMODE_FF,
+-BCMODE_FF,
+-BCMODE_FF,
+-BCMODE_FF,
+ BCMODE_FF
+ };
+ 
+diff -u -r -w LuaJIT-2.1.0-beta3/src/lj_bcread.c LuaJIT-2.1.0-beta3b/src/lj_bcread.c
+--- LuaJIT-2.1.0-beta3/src/lj_bcread.c	2017-05-01 21:05:00.000000000 +0200
++++ LuaJIT-2.1.0-beta3b/src/lj_bcread.c	2019-02-04 15:11:06.000000000 +0100
+@@ -6,6 +6,8 @@
+ #define lj_bcread_c
+ #define LUA_CORE
+ 
++#include <stdio.h>
++
+ #include "lj_obj.h"
+ #include "lj_gc.h"
+ #include "lj_err.h"
+@@ -391,12 +393,26 @@
+   bcread_want(ls, 3+5+5);
+   if (bcread_byte(ls) != BCDUMP_HEAD2 ||
+       bcread_byte(ls) != BCDUMP_HEAD3 ||
+-      bcread_byte(ls) != BCDUMP_VERSION) return 0;
++      bcread_byte(ls) != BCDUMP_VERSION) 
++  {
++    printf("###### 0\n");
++    return 0;
++  }
+   bcread_flags(ls) = flags = bcread_uleb128(ls);
+-  if ((flags & ~(BCDUMP_F_KNOWN)) != 0) return 0;
+-  if ((flags & BCDUMP_F_FR2) != LJ_FR2*BCDUMP_F_FR2) return 0;
++  if ((flags & ~(BCDUMP_F_KNOWN)) != 0) 
++  {
++    printf("###### 1\n");
++    return 0;
++  }
++  if ((flags & BCDUMP_F_FR2) != LJ_FR2*BCDUMP_F_FR2)
++  {
++    printf("###### 2.667, (flags & BCDUMP_F_FR2): %u, LJ_FR2*BCDUMP_F_FR2: %u, flags: %u, BCDUMP_F_FR2: %u, LJ_FR2: %u, BCDUMP_F_FR2: %u, LJ_GC64: %u\n", (flags & BCDUMP_F_FR2), LJ_FR2*BCDUMP_F_FR2, flags, BCDUMP_F_FR2, LJ_FR2, BCDUMP_F_FR2, LJ_GC64);
++    // printf("###### 2.56, flags: %u, BCDUMP_F_FR2: %u, LJ_FR2: %u, BCDUMP_F_FR2: %u, LJ_GC64: %u\n", flags, BCDUMP_F_FR2, LJ_FR2, BCDUMP_F_FR2, LJ_GC64);
++    return 0;
++  }
+   if ((flags & BCDUMP_F_FFI)) {
+ #if LJ_HASFFI
++    printf("###### 2.5 LJ_HASFFI\n");
+     lua_State *L = ls->L;
+     if (!ctype_ctsG(G(L))) {
+       ptrdiff_t oldtop = savestack(L, L->top);
+@@ -404,6 +420,7 @@
+       L->top = restorestack(L, oldtop);
+     }
+ #else
++    printf("###### 3\n");
+     return 0;
+ #endif
+   }
+@@ -414,6 +431,7 @@
+     bcread_need(ls, len);
+     ls->chunkname = lj_str_new(ls->L, (const char *)bcread_mem(ls, len), len);
+   }
++  printf("######################## bcread_header was OK!, flags: %u, BCDUMP_F_FR2: %u, LJ_FR2: %u, BCDUMP_F_FR2: %u, LJ_GC64: %u\n", flags, BCDUMP_F_FR2, LJ_FR2, BCDUMP_F_FR2, LJ_GC64);
+   return 1;  /* Ok. */
+ }
+ 
+@@ -452,6 +470,7 @@
+     bcread_error(ls, LJ_ERR_BCBAD);
+   /* Pop off last prototype. */
+   L->top--;
++  printf("###################### lj_bcread was OK indeed!\n");
+   return protoV(L->top);
+ }
+ 
+Only in LuaJIT-2.1.0-beta3b/src: lj_bcread.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_bcwrite.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_buf.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_carith.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_ccall.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_ccallback.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_cconv.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_cdata.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_char.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_clib.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_cparse.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_crecord.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_ctype.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_debug.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_dispatch.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_err.o
+diff -u -r -w LuaJIT-2.1.0-beta3/src/lj_ffdef.h LuaJIT-2.1.0-beta3b/src/lj_ffdef.h
+--- LuaJIT-2.1.0-beta3/src/lj_ffdef.h	2017-05-01 21:05:00.000000000 +0200
++++ LuaJIT-2.1.0-beta3b/src/lj_ffdef.h	2019-02-04 15:11:45.000000000 +0100
+@@ -30,6 +30,7 @@
+ FFDEF(print)
+ FFDEF(coroutine_status)
+ FFDEF(coroutine_running)
++FFDEF(coroutine_isyieldable)
+ FFDEF(coroutine_create)
+ FFDEF(coroutine_yield)
+ FFDEF(coroutine_resume)
+@@ -52,8 +53,6 @@
+ FFDEF(math_tanh)
+ FFDEF(math_frexp)
+ FFDEF(math_modf)
+-FFDEF(math_deg)
+-FFDEF(math_rad)
+ FFDEF(math_log)
+ FFDEF(math_atan2)
+ FFDEF(math_pow)
+@@ -75,7 +74,6 @@
+ FFDEF(bit_bor)
+ FFDEF(bit_bxor)
+ FFDEF(bit_tohex)
+-FFDEF(string_len)
+ FFDEF(string_byte)
+ FFDEF(string_char)
+ FFDEF(string_sub)
+@@ -90,14 +88,12 @@
+ FFDEF(string_gmatch)
+ FFDEF(string_gsub)
+ FFDEF(string_format)
+-FFDEF(table_foreachi)
+-FFDEF(table_foreach)
+-FFDEF(table_getn)
+ FFDEF(table_maxn)
+ FFDEF(table_insert)
+-FFDEF(table_remove)
+ FFDEF(table_concat)
+ FFDEF(table_sort)
++FFDEF(table_new)
++FFDEF(table_clear)
+ FFDEF(io_method_close)
+ FFDEF(io_method_read)
+ FFDEF(io_method_write)
+@@ -162,6 +158,9 @@
+ FFDEF(jit_util_traceexitstub)
+ FFDEF(jit_util_ircalladdr)
+ FFDEF(jit_opt_start)
++FFDEF(jit_profile_start)
++FFDEF(jit_profile_stop)
++FFDEF(jit_profile_dumpstack)
+ FFDEF(ffi_meta___index)
+ FFDEF(ffi_meta___newindex)
+ FFDEF(ffi_meta___eq)
+@@ -189,6 +188,7 @@
+ FFDEF(ffi_new)
+ FFDEF(ffi_cast)
+ FFDEF(ffi_typeof)
++FFDEF(ffi_typeinfo)
+ FFDEF(ffi_istype)
+ FFDEF(ffi_sizeof)
+ FFDEF(ffi_alignof)
+@@ -205,6 +205,6 @@
+ #undef FFDEF
+ 
+ #ifndef FF_NUM_ASMFUNC
+-#define FF_NUM_ASMFUNC 62
++#define FF_NUM_ASMFUNC 57
+ #endif
+ 
+Only in LuaJIT-2.1.0-beta3b/src: lj_ffrecord.o
+diff -u -r -w LuaJIT-2.1.0-beta3/src/lj_folddef.h LuaJIT-2.1.0-beta3b/src/lj_folddef.h
+--- LuaJIT-2.1.0-beta3/src/lj_folddef.h	2017-05-01 21:05:00.000000000 +0200
++++ LuaJIT-2.1.0-beta3b/src/lj_folddef.h	2019-02-04 15:11:50.000000000 +0100
+@@ -2,6 +2,7 @@
+ 
+ static const FoldFunc fold_func[] = {
+   fold_kfold_numarith,
++  fold_kfold_numabsneg,
+   fold_kfold_ldexp,
+   fold_kfold_fpmath,
+   fold_kfold_numpow,
+@@ -24,6 +25,12 @@
+   fold_kfold_strref,
+   fold_kfold_strref_snew,
+   fold_kfold_strcmp,
++  fold_bufput_append,
++  fold_bufput_kgc,
++  fold_bufstr_kfold_cse,
++  fold_bufput_kfold_op,
++  fold_bufput_kfold_rep,
++  fold_bufput_kfold_fmt,
+   fold_kfold_add_kgc,
+   fold_kfold_add_kptr,
+   fold_kfold_add_kright,
+@@ -94,6 +101,8 @@
+   fold_simplify_shift2_ki,
+   fold_simplify_shiftk_andk,
+   fold_simplify_andk_shiftk,
++  fold_simplify_andor_k,
++  fold_simplify_andor_k64,
+   fold_reassoc_intarith_k,
+   fold_reassoc_intarith_k64,
+   fold_reassoc_dup,
+@@ -127,6 +136,7 @@
+   fold_fload_tab_ah,
+   fold_fload_str_len_kgc,
+   fold_fload_str_len_snew,
++  fold_fload_str_len_tostr,
+   fold_fload_cdata_typeid_kgc,
+   fold_fload_cdata_int64_kgc,
+   fold_fload_cdata_typeid_cnew,
+@@ -138,6 +148,7 @@
+   lj_opt_fwd_xload,
+   fold_barrier_tab,
+   fold_barrier_tnew_tdup,
++  fold_prof,
+   lj_opt_dse_ahstore,
+   lj_opt_dse_ustore,
+   lj_opt_dse_fstore,
+@@ -145,50 +156,54 @@
+   lj_ir_emit
+ };
+ 
+-static const uint32_t fold_hash[916] = {
++static const uint32_t fold_hash[950] = {
++0x5654a7ff,
++0x0d58741d,
++0x25b45ed4,
++0x5c45fc17,
++0x0e487417,
+ 0xffffffff,
+ 0xffffffff,
+-0x5b4c8016,
+-0x0d4e7016,
+ 0xffffffff,
+-0x1000701c,
++0x4b6ffc17,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x29110c1a,
++0x848bfc06,
+ 0xffffffff,
+ 0xffffffff,
+-0x5b488016,
+-0x0d4a7016,
+ 0xffffffff,
++0x7307ffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x7b87fc07,
+ 0xffffffff,
+ 0xffffffff,
++0x3111fc1b,
++0x5f4bfc21,
++0x1bc18c13,
+ 0xffffffff,
+ 0xffffffff,
+-0x0d467016,
+ 0xffffffff,
+-0x5a4c73ff,
++0x8c8bfc00,
+ 0xffffffff,
++0x4ab4aa6e,
++0x139c6817,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x5153fc29,
+ 0xffffffff,
++0x4ab4a66e,
+ 0xffffffff,
+ 0xffffffff,
+-0x5d408016,
++0x06485c17,
++0x7bc1fc1e,
+ 0xffffffff,
+-0x594873ff,
+-0x8187440f,
++0x1dc18c0f,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x8287fc0f,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+@@ -197,370 +212,346 @@
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x6715ffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x2a11fc1a,
++0x6744881d,
+ 0xffffffff,
+-0x1daa5a70,
+ 0xffffffff,
+ 0xffffffff,
+-0x0a0bfc16,
+-0x5c408c16,
+-0x6911ffff,
+-0x8db7ffff,
++0x1dc18c0b,
+ 0xffffffff,
++0x6544841d,
++0x0510701c,
++0x40b569d3,
+ 0xffffffff,
+-0x1caa59d4,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x4e5477ff,
+ 0xffffffff,
+ 0xffffffff,
+-0x6a0dffff,
+-0x2b68d002,
++0x0064701c,
++0x917bffff,
++0x48b4ae95,
+ 0xffffffff,
+-0x3cab5695,
++0x0a145c17,
+ 0xffffffff,
+-0x41aaa675,
++0x98a5ffff,
++0x47b5feb3,
++0x48b4aa95,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x27ae5800,
+ 0xffffffff,
+-0x6a09ffff,
++0x0c44741d,
++0x06685c17,
++0x48b4a695,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x535bfc17,
+ 0xffffffff,
+-0x7f865c0f,
+ 0xffffffff,
+ 0xffffffff,
++0x3d56bc2f,
+ 0xffffffff,
+-0x6a05ffff,
+-0x42abffff,
+-0x5e44881c,
+-0x5d50a016,
+-0x066c5816,
+-0x00646c1b,
+-0x75753bff,
+-0x1951fc18,
+-0x6264c81b,
+-0x1850641c,
+ 0xffffffff,
+-0x6a01ffff,
+-0x87a7ffff,
+-0x4953fc1c,
+-0x8da80000,
+-0x4f52a3ff,
+-0x00606c1b,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x5d428416,
+-0x88a53800,
+ 0xffffffff,
+ 0xffffffff,
++0x31106018,
++0x4e545fff,
++0x0506701c,
+ 0xffffffff,
+-0x05645816,
++0x3b57fc1c,
+ 0xffffffff,
+-0x005c6c1b,
+-0x20aa71d6,
+ 0xffffffff,
++0x7547ffff,
++0x29b4726e,
++0x604a77ff,
++0x6b66cc1c,
+ 0xffffffff,
++0x7171ffff,
+ 0xffffffff,
+-0x1399fc16,
+ 0xffffffff,
++0x0a0a5c17,
+ 0xffffffff,
++0x979bffff,
++0x24b45e72,
++0x3110741d,
+ 0xffffffff,
+ 0xffffffff,
++0x8c8bfc10,
++0x98c5ffff,
+ 0xffffffff,
+-0x157f33ff,
++0x065e5c17,
+ 0xffffffff,
+ 0xffffffff,
+-0x584dfc20,
+ 0xffffffff,
++0x6a4a9417,
+ 0xffffffff,
+ 0xffffffff,
+-0x8d9bffff,
++0x5e51fc17,
+ 0xffffffff,
+-0x055c5816,
+ 0xffffffff,
+-0x00546c1b,
+ 0xffffffff,
+ 0xffffffff,
+-0x5849fc20,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x8c97ffff,
+-0x5543fc1c,
+-0x05585816,
+ 0xffffffff,
+-0x00506c1b,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x604a5fff,
+ 0xffffffff,
++0x7213ffff,
++0x25b45eb4,
+ 0xffffffff,
+ 0xffffffff,
+-0x8a93ffff,
+-0x26ae6c00,
+-0x05545816,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x624a8417,
++0x28b47695,
+ 0xffffffff,
++0x7467ffff,
+ 0xffffffff,
+-0x76753c17,
+-0x41aaa695,
+ 0xffffffff,
+-0x898fffff,
++0x0a005c17,
++0x848bfc08,
++0x8c91ffff,
+ 0xffffffff,
+-0x05505816,
++0x1106741d,
++0x036a73ff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x858867ff,
+ 0xffffffff,
++0x06545c17,
+ 0xffffffff,
+ 0xffffffff,
++0x5257fc1d,
++0x0d5a741d,
+ 0xffffffff,
+-0x848bffff,
+ 0xffffffff,
+-0x054c5816,
+-0x79873c06,
+-0x47525bff,
++0x5d47fc17,
++0x0e4a7417,
+ 0xffffffff,
+-0x3f695401,
++0x8c8bfc04,
+ 0xffffffff,
++0x4c71fc17,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x8387ffff,
+ 0xffffffff,
+-0x05485816,
+ 0xffffffff,
+-0x5a4e5bff,
+ 0xffffffff,
+ 0xffffffff,
+-0x6264c816,
+-0x43aaa26e,
+ 0xffffffff,
++0x7309ffff,
++0x8c8bfc11,
+ 0xffffffff,
+ 0xffffffff,
++0x466b6800,
+ 0xffffffff,
+-0x05445816,
++0x3113fc1b,
++0x5f4dfc21,
++0x466b6802,
++0x3753fc2f,
+ 0xffffffff,
+-0x5a4a5bff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x3455fc1b,
+-0x0c5a701c,
+-0x6366cbff,
+-0x0e3c7000,
+ 0xffffffff,
+-0x05405816,
+ 0xffffffff,
+-0x59465bff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x41aaa276,
+-0x0c56701c,
+ 0xffffffff,
++0x91b1ffff,
+ 0xffffffff,
+ 0xffffffff,
++0x064a5c17,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x21aa7275,
+-0x0b52701c,
+-0x61489016,
+-0x6465fc33,
+-0x8d77ffff,
+ 0xffffffff,
+-0x7b87fc05,
++0x48b4ae75,
+ 0xffffffff,
+ 0xffffffff,
+-0x2a126bff,
+-0x385a6fff,
+ 0xffffffff,
+-0x446dfc16,
++0x67468c1d,
+ 0xffffffff,
+-0x7473ffff,
++0x48b4aa75,
++0x848bfc09,
+ 0xffffffff,
++0x6656ac17,
++0x8a8b4c0e,
++0x878b7000,
++0x48b4a675,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x8a8b480e,
++0x0512701c,
++0x2fba6000,
++0x1cc18c16,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x7d873000,
++0x7153ffff,
+ 0xffffffff,
+-0x5c409016,
+-0x686fffff,
+-0x8187440d,
+ 0xffffffff,
+ 0xffffffff,
+-0x3554b81b,
+-0x8287fc0d,
++0x0066701c,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x686bffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x8d9ffc00,
+-0x737a5fff,
+-0x41aaaa75,
+ 0xffffffff,
+ 0xffffffff,
+-0x5e40801c,
+-0x0b42701c,
+-0x6b67ffff,
+ 0xffffffff,
++0x5b43fc1d,
++0x0c46741d,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x78866800,
++0x8c8bfc01,
+ 0xffffffff,
+ 0xffffffff,
++0x3e5dfc17,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x3d58bc2f,
++0x6d69fc33,
+ 0xffffffff,
+ 0xffffffff,
++0x1dc18c0e,
+ 0xffffffff,
+ 0xffffffff,
+-0x2b68d000,
+ 0xffffffff,
++0x31126018,
++0x0508701c,
+ 0xffffffff,
+-0x6d133017,
+ 0xffffffff,
++0x3b59fc1c,
++0x6b68d01c,
+ 0xffffffff,
+-0x4c59fc16,
+ 0xffffffff,
++0x614c77ff,
+ 0xffffffff,
+-0x110bfc1c,
+-0x3aab566e,
+ 0xffffffff,
+-0x5052a7ff,
++0x24b45e70,
++0x7f774416,
+ 0xffffffff,
++0x98a3fc00,
++0x0a0c5c17,
++0x1dc18c0a,
+ 0xffffffff,
+ 0xffffffff,
+-0x6515fc28,
+-0x4a55fc16,
+-0x7f865c0d,
+-0x88a53c00,
+-0x41aaa296,
++0x3112741d,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x6a4c9817,
++0x28b47675,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x684287ff,
+ 0xffffffff,
+-0x4451fc16,
+ 0xffffffff,
+-0x60448bff,
+-0x21aa7295,
+ 0xffffffff,
+-0x3cab5676,
+-0x04106c1b,
++0x4b53fc17,
+ 0xffffffff,
+-0x78873807,
++0x868b3800,
+ 0xffffffff,
+ 0xffffffff,
+-0x574dfc16,
+ 0xffffffff,
+-0x4e53ffff,
+ 0xffffffff,
+-0x09145816,
+ 0xffffffff,
+-0x040c6c1b,
+-0x8287fc00,
+-0x5e50a01c,
+-0x6467fc32,
+ 0xffffffff,
+-0x5749fc16,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x2a105816,
+-0x2e3e7c00,
+-0x04086c1b,
+-0x7083fc00,
++0x614c5fff,
++0x6752a41d,
++0x7015ffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x5645fc16,
+ 0xffffffff,
+-0x22aa6e6e,
+-0x5e42841c,
+-0x614e9c16,
+-0x090c5816,
+-0x04046c1b,
+-0x1eaa5ab3,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x5441fc16,
+-0x41aaaa95,
+ 0xffffffff,
+-0x5352a028,
+-0x09085816,
+-0x17505c16,
+-0x04006c1b,
++0x0052701c,
++0x7469ffff,
+ 0xffffffff,
+ 0xffffffff,
++0x0a025c17,
+ 0xffffffff,
++0x9493ffff,
++0x898a600f,
++0x1108741d,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x6b43ffff,
+ 0xffffffff,
+-0x09045816,
++0x15806017,
++0x06565c17,
++0x015e7045,
+ 0xffffffff,
+-0x43aaa2ae,
+ 0xffffffff,
++0x63429417,
++0x0d5c741d,
+ 0xffffffff,
++0x5e49fc17,
++0x0e4c7417,
+ 0xffffffff,
+-0x083e5800,
+-0x7c865c00,
++0x63429017,
++0x24b45e71,
++0x353e7c00,
++0x3011141b,
+ 0xffffffff,
+-0x76753c15,
+-0x3051fc2e,
+-0x09005816,
+ 0xffffffff,
+ 0xffffffff,
++0x149dfc17,
+ 0xffffffff,
+-0x3aab568e,
+ 0xffffffff,
+-0x43aaa66e,
+ 0xffffffff,
+-0x1daa5a71,
++0x730bffff,
++0x64428817,
+ 0xffffffff,
++0x0f3e7400,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x66428417,
++0x5f4ffc21,
++0x3a55fc2f,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x2a12701c,
+-0x5f66cfff,
++0x8b8b4c10,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+@@ -568,501 +559,555 @@
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x3cab5696,
++0x064c5c17,
+ 0xffffffff,
+-0x100e701c,
+-0x41aaa676,
++0x6f15fc17,
+ 0xffffffff,
++0x0c52741d,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x3954bc1c,
+ 0xffffffff,
++0x8f8c6bff,
++0x42b56ace,
+ 0xffffffff,
+-0x2a125c17,
+-0x3654b82e,
+-0x100a701c,
+ 0xffffffff,
+ 0xffffffff,
++0x083e5c00,
+ 0xffffffff,
++0x3360c045,
++0x1bc18c14,
+ 0xffffffff,
++0x7301ffff,
++0x1f52681d,
++0x326ad400,
++0x3460bc45,
++0x326ad402,
++0x932bffff,
+ 0xffffffff,
++0x1f52641d,
+ 0xffffffff,
+ 0xffffffff,
++0x5555ffff,
+ 0xffffffff,
++0x7785fc00,
++0x1e52601d,
++0x0068701c,
++0x7f77441c,
+ 0xffffffff,
++0x91affc00,
+ 0xffffffff,
+-0x1006701c,
+ 0xffffffff,
+-0x1951fc19,
++0x98a9ffff,
++0x828b4408,
+ 0xffffffff,
++0x06425c17,
++0x466b6801,
++0x0b0bfc17,
++0x5c45fc1d,
++0x808b4008,
++0x076c5c17,
+ 0xffffffff,
+ 0xffffffff,
+-0x23aa6e8e,
+ 0xffffffff,
+-0x5b4e8016,
+ 0xffffffff,
+-0x1eaa5ad3,
+-0x1002701c,
++0x7f774418,
+ 0xffffffff,
++0x5a54a429,
++0x1dc18c0c,
+ 0xffffffff,
+ 0xffffffff,
++0x8b8b4c11,
+ 0xffffffff,
+-0x29130c1a,
+ 0xffffffff,
+ 0xffffffff,
+-0x0d4c7016,
+ 0xffffffff,
+-0x475273ff,
++0x22b45dd3,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x050a701c,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x5b468016,
+-0x0d487016,
+-0x5a4e73ff,
+ 0xffffffff,
++0x614e77ff,
++0x44b569ae,
+ 0xffffffff,
++0x45b7681c,
++0x7d75ffff,
+ 0xffffffff,
+ 0xffffffff,
++0x0a0e5c17,
+ 0xffffffff,
+-0x5d54a816,
++0x6a4e9c17,
++0x989fffff,
++0x1bc18c15,
+ 0xffffffff,
+ 0xffffffff,
++0x68448bff,
+ 0xffffffff,
+ 0xffffffff,
+-0x5a4a73ff,
+-0x6615fc16,
+-0x3bab56ae,
+ 0xffffffff,
+ 0xffffffff,
++0x6d67fc34,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x4d55fc17,
++0x43b56a96,
+ 0xffffffff,
+ 0xffffffff,
+-0x594673ff,
+ 0xffffffff,
+-0x61468c16,
+-0x8d17ffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x2a13fc1a,
+ 0xffffffff,
+ 0xffffffff,
++0x838b4409,
+ 0xffffffff,
++0x614e5fff,
++0x0500701c,
++0x9817ffff,
+ 0xffffffff,
++0x818b4009,
+ 0xffffffff,
+ 0xffffffff,
+-0x6913ffff,
+-0x40abfeb3,
+-0x8db9ffff,
+-0x41aaa696,
+ 0xffffffff,
+ 0xffffffff,
++0x624e8417,
+ 0xffffffff,
++0x0054701c,
+ 0xffffffff,
++0x1dc18c0d,
+ 0xffffffff,
++0x0a045c17,
+ 0xffffffff,
++0x9495ffff,
+ 0xffffffff,
+-0x6a0fffff,
+-0x8db5ffff,
++0x110a741d,
+ 0xffffffff,
+ 0xffffffff,
++0x98bfffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x7a873c07,
++0x01607045,
++0x41b56a8e,
+ 0xffffffff,
+ 0xffffffff,
++0x2053fc1a,
++0x35408000,
++0x5e4bfc17,
++0x1bc18c09,
++0x0e4e7417,
+ 0xffffffff,
+-0x6a0bffff,
+-0x3f695402,
+ 0xffffffff,
+ 0xffffffff,
++0x3013141b,
+ 0xffffffff,
++0x25b45ed3,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x24aa6eae,
+ 0xffffffff,
+ 0xffffffff,
+-0x6a07ffff,
++0x730dffff,
++0x66448817,
+ 0xffffffff,
++0x10407400,
+ 0xffffffff,
+-0x066e5816,
++0x42b56aae,
+ 0xffffffff,
+-0x00666c1b,
++0x64448417,
++0x5f51fc21,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x31106fff,
+ 0xffffffff,
+-0x6a03ffff,
++0x8d8bffff,
+ 0xffffffff,
+-0x4b55fc1c,
+-0x066a5816,
++0x1100741d,
+ 0xffffffff,
+-0x00626c1b,
+ 0xffffffff,
++0x49b5ffff,
+ 0xffffffff,
+ 0xffffffff,
++0x064e5c17,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x0c54741d,
++0x2db873ff,
+ 0xffffffff,
+-0x4851fc1c,
+-0x05665816,
+-0x18506016,
+-0x005e6c1b,
+-0x12986416,
+ 0xffffffff,
+ 0xffffffff,
++0x3c56bc1c,
++0x888a600e,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x8da1ffff,
+ 0xffffffff,
+-0x3bab56ce,
+ 0xffffffff,
+-0x43aaa6ae,
++0x09405c00,
+ 0xffffffff,
+ 0xffffffff,
+-0x584ffc20,
+-0x7b87fc06,
+ 0xffffffff,
+-0x5f4287ff,
+-0x8d9dffff,
+ 0xffffffff,
++0x7303ffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x00566c1b,
+ 0xffffffff,
+ 0xffffffff,
+-0x584bfc20,
+-0x5253fc28,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x5645fc1c,
+ 0xffffffff,
+-0x40abfed3,
+-0x00526c1b,
+-0x8187440e,
+ 0xffffffff,
+-0x5847fc20,
+-0x8287fc0e,
++0x7157ffff,
++0x6c66d3ff,
++0x98b20000,
++0x7987fc00,
++0x2eb85fff,
+ 0xffffffff,
++0x6866cfff,
+ 0xffffffff,
+-0x8b95ffff,
+-0x2e3c7800,
+-0x5441fc1c,
+ 0xffffffff,
+ 0xffffffff,
++0x19abffff,
+ 0xffffffff,
+-0x17505c1c,
+ 0xffffffff,
++0x06445c17,
+ 0xffffffff,
+-0x41aaaa76,
+ 0xffffffff,
+-0x614c9816,
+-0x8991ffff,
+-0x1daa5a6f,
+-0x05525816,
+-0x4d585bff,
++0x5d47fc1d,
+ 0xffffffff,
+-0x8087400c,
++0x076e5c17,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x1baa59d3,
+-0x828dffff,
+-0x25aa6ece,
+-0x054e5816,
+-0x76753c1b,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x2b68d001,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x8689ffff,
+ 0xffffffff,
+-0x054a5816,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x02647017,
++0x858a6000,
+ 0xffffffff,
++0x5855fc2a,
+ 0xffffffff,
++0x545a5fff,
++0x050c701c,
+ 0xffffffff,
++0x27b475d6,
++0x43b56a76,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x43aca01b,
+-0x05465816,
+-0x7f865c0e,
+-0x5a4c5bff,
+-0x39ab55d3,
+-0x01626c16,
+-0x02686fff,
+-0x3457fc1b,
++0x615077ff,
+ 0xffffffff,
+ 0xffffffff,
+-0x0f3e7000,
+-0x3dab55ae,
+-0x05425816,
+-0x1951fc17,
+-0x59485bff,
++0x6a50a017,
++0x8477ffff,
+ 0xffffffff,
+ 0xffffffff,
++0x31105c17,
++0x69468fff,
++0x98a1ffff,
++0x326ad401,
+ 0xffffffff,
+-0x3153fc1b,
+-0x0c58701c,
+-0x5f64cbff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x035a6c16,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x0b54701c,
+ 0xffffffff,
+-0x8779ffff,
+-0x1faa71d5,
+ 0xffffffff,
+ 0xffffffff,
+-0x2d5eb81b,
+-0x72b5fc08,
++0x8c8bfc0f,
++0x5157fc17,
++0x6756ac1d,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x0b50701c,
+-0x456ffc16,
+-0x7b75ffff,
+ 0xffffffff,
++0x6b66cc17,
+ 0xffffffff,
+-0x147e5c16,
+ 0xffffffff,
++0x41b56a6e,
+ 0xffffffff,
+-0x2a106bff,
++0x7c7a63ff,
++0x61505fff,
++0x0502701c,
+ 0xffffffff,
+-0x1eaa5ab4,
+-0x446bfc16,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x41aaaa96,
+ 0xffffffff,
+-0x3556b81b,
+-0x87a5fc00,
++0x7443ffff,
+ 0xffffffff,
++0x62508417,
+ 0xffffffff,
++0x0056701c,
++0x25b45eb3,
++0x716dffff,
+ 0xffffffff,
++0x0a065c17,
+ 0xffffffff,
++0x9597ffff,
+ 0xffffffff,
+-0x4e6dffff,
++0x110c741d,
+ 0xffffffff,
++0x92af4400,
++0x98c1ffff,
++0x2053fc18,
+ 0xffffffff,
++0x065a5c17,
++0x848bfc07,
++0x92af4000,
+ 0xffffffff,
+-0x3252b81b,
+ 0xffffffff,
+-0x5e54a81c,
+ 0xffffffff,
+ 0xffffffff,
+-0x0b44701c,
+-0x28b05c00,
++0x5e4dfc17,
++0x0e507417,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x3652bfff,
++0x76113818,
+ 0xffffffff,
+ 0xffffffff,
+-0x73785fff,
++0x66468c17,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x0b40701c,
+ 0xffffffff,
+-0x6b65ffff,
++0x730fffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x1daa5a72,
++0x43b56a95,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x6266cc1b,
++0x898a6010,
+ 0xffffffff,
+-0x375bfc16,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x3f695400,
+ 0xffffffff,
++0x31126fff,
+ 0xffffffff,
++0x908dffff,
+ 0xffffffff,
+-0x6d113017,
+-0x3ead541b,
++0x1102741d,
+ 0xffffffff,
+-0x5d448816,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x06505c17,
+ 0xffffffff,
+-0x18506416,
+ 0xffffffff,
++0x4f53fc1d,
++0x0c56741d,
++0x4ab6a81c,
+ 0xffffffff,
+-0x16b37400,
++0x5b43fc17,
+ 0xffffffff,
+-0x4653fc16,
++0x3c58bc1c,
+ 0xffffffff,
++0x4ab6a41c,
++0x4b6dfc17,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x04126c1b,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x48b4ae96,
++0x7305ffff,
++0x2cb472ce,
++0x2053fc19,
+ 0xffffffff,
+-0x574ffc16,
+ 0xffffffff,
+-0x6855ffff,
++0x48b4aa96,
+ 0xffffffff,
++0x5f49fc21,
++0x6e15fc29,
+ 0xffffffff,
++0x6868d3ff,
++0x48b4a696,
++0x7a89fc00,
+ 0xffffffff,
+-0x040e6c1b,
+-0x41aaa275,
+ 0xffffffff,
+ 0xffffffff,
++0x6c68cfff,
++0x3f5c73ff,
+ 0xffffffff,
+-0x574bfc16,
+-0x6f826400,
+-0x6851ffff,
+-0x1eaa5ad4,
+-0x2a125816,
+ 0xffffffff,
+-0x040a6c1b,
+-0x7185fc00,
++0x1aadffff,
+ 0xffffffff,
+ 0xffffffff,
++0x06465c17,
+ 0xffffffff,
+-0x5747fc16,
+-0x7b87fc04,
+ 0xffffffff,
+ 0xffffffff,
+-0x090e5816,
+ 0xffffffff,
+-0x04066c1b,
+-0x6e81fc00,
+-0x1aac6c1b,
+-0x1850601c,
+-0x2e5cbbff,
+-0x5543fc16,
++0x07705c17,
+ 0xffffffff,
+ 0xffffffff,
++0x898a6011,
+ 0xffffffff,
+-0x090a5816,
+ 0xffffffff,
+-0x04026c1b,
+ 0xffffffff,
+ 0xffffffff,
+-0x8087440c,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0x6c45ffff,
+-0x8287fc0c,
+-0x09065816,
+ 0xffffffff,
+ 0xffffffff,
++0x6542881d,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x6742841d,
++0x050e701c,
+ 0xffffffff,
+-0x6b41ffff,
+-0x3353fc2e,
+-0x09025816,
+ 0xffffffff,
+ 0xffffffff,
++0x6652a417,
+ 0xffffffff,
+ 0xffffffff,
+-0x2f50bbff,
+-0x073c5800,
+-0x6266cc16,
+-0x5f4083ff,
+ 0xffffffff,
+ 0xffffffff,
+-0x43aca41b,
+ 0xffffffff,
++0x0062701c,
++0x9879ffff,
+ 0xffffffff,
+ 0xffffffff,
++0x31125c17,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x24b45e6f,
++0x4ab4aaae,
++0x21b6701c,
+ 0xffffffff,
++0x0c42741d,
++0x06665c17,
+ 0xffffffff,
++0x4ab4a6ae,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x6b68d017,
++0x23b45dd4,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x355ebfff,
+ 0xffffffff,
+-0x2a10701c,
+-0x6364cfff,
++0x045c7017,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x7c7c63ff,
+ 0xffffffff,
++0x0504701c,
+ 0xffffffff,
+-0x7e865c0c,
++0x47b5fed3,
++0x3855fc1c,
+ 0xffffffff,
+ 0xffffffff,
+-0x3656b82e,
+-0x41aaa295,
+-0x100c701c,
+-0x614a9416,
++0x7445ffff,
++0x604877ff,
+ 0xffffffff,
+ 0xffffffff,
++0x0058701c,
++0x556fffff,
++0x18ab5056,
+ 0xffffffff,
++0x0a085c17,
++0x5955fc29,
++0x9699ffff,
++0x120bfc1d,
++0x110e741d,
++0x26b475d5,
++0x43b56a75,
++0x98c3ffff,
+ 0xffffffff,
+-0x2c5ebc1b,
+ 0xffffffff,
+-0x2a105c17,
+ 0xffffffff,
+-0x1008701c,
+-0x3cab5675,
+ 0xffffffff,
+ 0xffffffff,
+-0x77873806,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
++0x5e4ffc17,
+ 0xffffffff,
+ 0xffffffff,
+-0x1004701c,
++0x6a489017,
++0x2ab4728e,
++0x16813bff,
++0x76133818,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+ 0xffffffff,
+-0xffffffff
++0x60485fff,
++0xffffffff,
++0x7211ffff,
++0xffffffff,
++0x8c8bfc0e,
++0xffffffff,
++0x17bd8c00,
++0x1f526817,
++0xffffffff,
++0x62488417,
++0xffffffff,
++0xffffffff,
++0xffffffff,
++0x1f526417,
++0xffffffff,
++0xffffffff,
++0x48b4ae76,
++0x8e8fffff,
++0x2bb472ae,
++0x1104741d,
++0x1e526017,
++0xffffffff,
++0x48b4aa76,
++0x5754abff,
++0xffffffff,
++0x06525c17,
++0x7e7743ff,
++0x8b8b4c0f,
++0x5055fc1d,
++0x48b4a676
+ };
+ 
+-#define fold_hashkey(k)	(lj_rol(lj_rol((k),17)-(k),16)%915)
++#define fold_hashkey(k)	(lj_rol(lj_rol((k),30)-(k),25)%949)
+ 
+Only in LuaJIT-2.1.0-beta3b/src: lj_func.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_gc.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_gdbjit.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_ir.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_lex.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_lib.o
+diff -u -r -w LuaJIT-2.1.0-beta3/src/lj_libdef.h LuaJIT-2.1.0-beta3b/src/lj_libdef.h
+--- LuaJIT-2.1.0-beta3/src/lj_libdef.h	2017-05-01 21:05:00.000000000 +0200
++++ LuaJIT-2.1.0-beta3b/src/lj_libdef.h	2019-02-04 15:11:57.000000000 +0100
+@@ -40,13 +40,12 @@
+ 97,98,108,101,7,103,101,116,102,101,110,118,7,115,101,116,102,101,110,118,70,
+ 114,97,119,103,101,116,6,114,97,119,115,101,116,8,114,97,119,101,113,117,97,
+ 108,6,117,110,112,97,99,107,6,115,101,108,101,99,116,72,116,111,110,117,109,
+-98,101,114,195,110,105,108,197,102,97,108,115,101,196,116,114,117,101,72,116,
+-111,115,116,114,105,110,103,5,101,114,114,111,114,69,112,99,97,108,108,134,
+-120,112,99,97,108,108,8,108,111,97,100,102,105,108,101,4,108,111,97,100,10,
+-108,111,97,100,115,116,114,105,110,103,6,100,111,102,105,108,101,6,103,99,105,
+-110,102,111,14,99,111,108,108,101,99,116,103,97,114,98,97,103,101,252,2,8,110,
+-101,119,112,114,111,120,121,200,116,111,115,116,114,105,110,103,5,112,114,105,
+-110,116,252,3,200,95,86,69,82,83,73,79,78,250,255
++98,101,114,72,116,111,115,116,114,105,110,103,5,101,114,114,111,114,69,112,
++99,97,108,108,134,120,112,99,97,108,108,8,108,111,97,100,102,105,108,101,4,
++108,111,97,100,10,108,111,97,100,115,116,114,105,110,103,6,100,111,102,105,
++108,101,6,103,99,105,110,102,111,14,99,111,108,108,101,99,116,103,97,114,98,
++97,103,101,252,2,8,110,101,119,112,114,111,120,121,200,116,111,115,116,114,
++105,110,103,5,112,114,105,110,116,252,3,200,95,86,69,82,83,73,79,78,250,255
+ };
+ #endif
+ 
+@@ -55,15 +54,16 @@
+ static const lua_CFunction lj_lib_cf_coroutine[] = {
+   lj_cf_coroutine_status,
+   lj_cf_coroutine_running,
++  lj_cf_coroutine_isyieldable,
+   lj_cf_coroutine_create,
+   lj_ffh_coroutine_yield,
+   lj_ffh_coroutine_resume,
+   lj_cf_coroutine_wrap
+ };
+ static const uint8_t lj_lib_init_coroutine[] = {
+-30,13,6,6,115,116,97,116,117,115,7,114,117,110,110,105,110,103,6,99,114,101,
+-97,116,101,69,121,105,101,108,100,70,114,101,115,117,109,101,254,4,119,114,
+-97,112,255
++30,13,7,6,115,116,97,116,117,115,7,114,117,110,110,105,110,103,11,105,115,121,
++105,101,108,100,97,98,108,101,6,99,114,101,97,116,101,69,121,105,101,108,100,
++70,114,101,115,117,109,101,254,4,119,114,97,112,255
+ };
+ #endif
+ 
+@@ -80,12 +80,13 @@
+   lj_cf_math_randomseed
+ };
+ static const uint8_t lj_lib_init_math[] = {
+-37,16,30,67,97,98,115,133,102,108,111,111,114,132,99,101,105,108,68,115,113,
++38,16,30,67,97,98,115,133,102,108,111,111,114,132,99,101,105,108,68,115,113,
+ 114,116,133,108,111,103,49,48,131,101,120,112,131,115,105,110,131,99,111,115,
+ 131,116,97,110,132,97,115,105,110,132,97,99,111,115,132,97,116,97,110,132,115,
+ 105,110,104,132,99,111,115,104,132,116,97,110,104,133,102,114,101,120,112,132,
+-109,111,100,102,251,248,193,99,26,220,165,76,64,131,100,101,103,251,57,157,
+-82,162,70,223,145,63,131,114,97,100,67,108,111,103,69,97,116,97,110,50,131,
++109,111,100,102,67,108,111,103,249,3,100,101,103,0,1,2,0,0,1,2,24,1,0,0,76,
++1,2,0,241,135,158,166,3,220,203,178,130,4,249,3,114,97,100,0,1,2,0,0,1,2,24,
++1,0,0,76,1,2,0,243,244,148,165,20,198,190,199,252,3,69,97,116,97,110,50,131,
+ 112,111,119,132,102,109,111,100,69,108,100,101,120,112,67,109,105,110,131,109,
+ 97,120,251,24,45,68,84,251,33,9,64,194,112,105,250,251,0,0,0,0,0,0,240,127,
+ 196,104,117,103,101,250,252,2,6,114,97,110,100,111,109,252,2,10,114,97,110,
+@@ -97,26 +98,27 @@
+ #undef LJLIB_MODULE_bit
+ static const lua_CFunction lj_lib_cf_bit[] = {
+   lj_ffh_bit_tobit,
++  lj_ffh_bit_bnot,
++  lj_ffh_bit_bswap,
+   lj_ffh_bit_lshift,
+   lj_ffh_bit_band,
+   lj_cf_bit_tohex
+ };
+ static const uint8_t lj_lib_init_bit[] = {
+-65,42,12,69,116,111,98,105,116,132,98,110,111,116,133,98,115,119,97,112,70,
+-108,115,104,105,102,116,134,114,115,104,105,102,116,135,97,114,115,104,105,
+-102,116,131,114,111,108,131,114,111,114,68,98,97,110,100,131,98,111,114,132,
+-98,120,111,114,5,116,111,104,101,120,255
++64,40,12,69,116,111,98,105,116,68,98,110,111,116,69,98,115,119,97,112,70,108,
++115,104,105,102,116,134,114,115,104,105,102,116,135,97,114,115,104,105,102,
++116,131,114,111,108,131,114,111,114,68,98,97,110,100,131,98,111,114,132,98,
++120,111,114,5,116,111,104,101,120,255
+ };
+ #endif
+ 
+ #ifdef LJLIB_MODULE_string
+ #undef LJLIB_MODULE_string
+ static const lua_CFunction lj_lib_cf_string[] = {
+-  lj_ffh_string_len,
+   lj_ffh_string_byte,
+   lj_ffh_string_char,
+   lj_ffh_string_sub,
+-  lj_ffh_string_rep,
++  lj_cf_string_rep,
+   lj_ffh_string_reverse,
+   lj_cf_string_dump,
+   lj_cf_string_find,
+@@ -126,29 +128,41 @@
+   lj_cf_string_format
+ };
+ static const uint8_t lj_lib_init_string[] = {
+-77,53,14,67,108,101,110,68,98,121,116,101,68,99,104,97,114,67,115,117,98,67,
+-114,101,112,71,114,101,118,101,114,115,101,133,108,111,119,101,114,133,117,
+-112,112,101,114,4,100,117,109,112,4,102,105,110,100,5,109,97,116,99,104,254,
+-6,103,109,97,116,99,104,4,103,115,117,98,6,102,111,114,109,97,116,255
++76,51,14,249,3,108,101,110,0,1,2,0,0,0,3,16,0,5,0,21,1,0,0,76,1,2,0,68,98,121,
++116,101,68,99,104,97,114,67,115,117,98,3,114,101,112,71,114,101,118,101,114,
++115,101,133,108,111,119,101,114,133,117,112,112,101,114,4,100,117,109,112,4,
++102,105,110,100,5,109,97,116,99,104,254,6,103,109,97,116,99,104,4,103,115,117,
++98,6,102,111,114,109,97,116,255
+ };
+ #endif
+ 
+ #ifdef LJLIB_MODULE_table
+ #undef LJLIB_MODULE_table
+ static const lua_CFunction lj_lib_cf_table[] = {
+-  lj_cf_table_foreachi,
+-  lj_cf_table_foreach,
+-  lj_ffh_table_getn,
+   lj_cf_table_maxn,
+   lj_cf_table_insert,
+-  lj_cf_table_remove,
+   lj_cf_table_concat,
+   lj_cf_table_sort
+ };
+ static const uint8_t lj_lib_init_table[] = {
+-92,61,8,8,102,111,114,101,97,99,104,105,7,102,111,114,101,97,99,104,68,103,
+-101,116,110,4,109,97,120,110,6,105,110,115,101,114,116,6,114,101,109,111,118,
+-101,6,99,111,110,99,97,116,4,115,111,114,116,255
++90,57,9,249,8,102,111,114,101,97,99,104,105,0,2,10,0,0,0,15,16,0,12,0,16,1,
++9,0,41,2,1,0,21,3,0,0,41,4,1,0,77,2,8,128,18,6,1,0,18,8,5,0,59,9,5,0,66,6,3,
++2,10,6,0,0,88,7,1,128,76,6,2,0,79,2,248,127,75,0,1,0,249,7,102,111,114,101,
++97,99,104,0,2,11,0,0,0,16,16,0,12,0,16,1,9,0,43,2,0,0,18,3,0,0,41,4,0,0,88,
++5,7,128,18,7,1,0,18,9,5,0,18,10,6,0,66,7,3,2,10,7,0,0,88,8,1,128,76,7,2,0,70,
++5,3,3,82,5,247,127,75,0,1,0,249,4,103,101,116,110,0,1,2,0,0,0,3,16,0,12,0,21,
++1,0,0,76,1,2,0,4,109,97,120,110,6,105,110,115,101,114,116,249,6,114,101,109,
++111,118,101,0,2,10,0,0,2,30,16,0,12,0,21,2,0,0,11,1,0,0,88,3,7,128,8,2,0,0,
++88,3,23,128,59,3,2,0,43,4,0,0,64,4,2,0,76,3,2,0,88,3,18,128,17,1,15,0,41,3,
++1,0,3,3,1,0,88,3,14,128,3,1,2,0,88,3,12,128,59,3,1,0,22,4,1,1,18,5,2,0,41,6,
++1,0,77,4,4,128,23,8,1,7,59,9,7,0,64,9,8,0,79,4,252,127,43,4,0,0,64,4,2,0,76,
++3,2,0,75,0,1,0,0,2,249,4,109,111,118,101,0,5,12,0,0,0,35,16,0,12,0,17,1,15,
++0,17,2,15,0,17,3,15,0,11,4,0,0,88,5,1,128,18,4,0,0,16,4,12,0,3,1,2,0,88,5,24,
++128,33,5,1,3,0,2,3,0,88,6,4,128,2,3,1,0,88,6,2,128,4,4,0,0,88,6,9,128,18,6,
++1,0,18,7,2,0,41,8,1,0,77,6,4,128,32,10,5,9,59,11,9,0,64,11,10,4,79,6,252,127,
++88,6,8,128,18,6,2,0,18,7,1,0,41,8,255,255,77,6,4,128,32,10,5,9,59,11,9,0,64,
++11,10,4,79,6,252,127,76,4,2,0,6,99,111,110,99,97,116,4,115,111,114,116,254,
++254,255
+ };
+ #endif
+ 
+@@ -166,7 +180,7 @@
+   lj_cf_io_method___tostring
+ };
+ static const uint8_t lj_lib_init_io_method[] = {
+-100,62,10,5,99,108,111,115,101,4,114,101,97,100,5,119,114,105,116,101,5,102,
++96,57,10,5,99,108,111,115,101,4,114,101,97,100,5,119,114,105,116,101,5,102,
+ 108,117,115,104,4,115,101,101,107,7,115,101,116,118,98,117,102,5,108,105,110,
+ 101,115,4,95,95,103,99,10,95,95,116,111,115,116,114,105,110,103,252,1,199,95,
+ 95,105,110,100,101,120,250,255
+@@ -189,7 +203,7 @@
+   lj_cf_io_type
+ };
+ static const uint8_t lj_lib_init_io[] = {
+-109,62,12,252,2,192,250,4,111,112,101,110,5,112,111,112,101,110,7,116,109,112,
++105,57,12,252,2,192,250,4,111,112,101,110,5,112,111,112,101,110,7,116,109,112,
+ 102,105,108,101,5,99,108,111,115,101,4,114,101,97,100,5,119,114,105,116,101,
+ 5,102,108,117,115,104,5,105,110,112,117,116,6,111,117,116,112,117,116,5,108,
+ 105,110,101,115,4,116,121,112,101,255
+@@ -212,7 +226,7 @@
+   lj_cf_os_setlocale
+ };
+ static const uint8_t lj_lib_init_os[] = {
+-120,62,11,7,101,120,101,99,117,116,101,6,114,101,109,111,118,101,6,114,101,
++116,57,11,7,101,120,101,99,117,116,101,6,114,101,109,111,118,101,6,114,101,
+ 110,97,109,101,7,116,109,112,110,97,109,101,6,103,101,116,101,110,118,4,101,
+ 120,105,116,5,99,108,111,99,107,4,100,97,116,101,4,116,105,109,101,8,100,105,
+ 102,102,116,105,109,101,9,115,101,116,108,111,99,97,108,101,255
+@@ -240,7 +254,7 @@
+   lj_cf_debug_traceback
+ };
+ static const uint8_t lj_lib_init_debug[] = {
+-131,62,16,11,103,101,116,114,101,103,105,115,116,114,121,12,103,101,116,109,
++127,57,16,11,103,101,116,114,101,103,105,115,116,114,121,12,103,101,116,109,
+ 101,116,97,116,97,98,108,101,12,115,101,116,109,101,116,97,116,97,98,108,101,
+ 7,103,101,116,102,101,110,118,7,115,101,116,102,101,110,118,7,103,101,116,105,
+ 110,102,111,8,103,101,116,108,111,99,97,108,8,115,101,116,108,111,99,97,108,
+@@ -261,7 +275,7 @@
+   lj_cf_jit_attach
+ };
+ static const uint8_t lj_lib_init_jit[] = {
+-147,62,9,2,111,110,3,111,102,102,5,102,108,117,115,104,6,115,116,97,116,117,
++143,57,9,2,111,110,3,111,102,102,5,102,108,117,115,104,6,115,116,97,116,117,
+ 115,6,97,116,116,97,99,104,252,5,194,111,115,250,252,4,196,97,114,99,104,250,
+ 252,3,203,118,101,114,115,105,111,110,95,110,117,109,250,252,2,199,118,101,
+ 114,115,105,111,110,250,255
+@@ -284,7 +298,7 @@
+   lj_cf_jit_util_ircalladdr
+ };
+ static const uint8_t lj_lib_init_jit_util[] = {
+-152,62,11,8,102,117,110,99,105,110,102,111,6,102,117,110,99,98,99,5,102,117,
++148,57,11,8,102,117,110,99,105,110,102,111,6,102,117,110,99,98,99,5,102,117,
+ 110,99,107,10,102,117,110,99,117,118,110,97,109,101,9,116,114,97,99,101,105,
+ 110,102,111,7,116,114,97,99,101,105,114,6,116,114,97,99,101,107,9,116,114,97,
+ 99,101,115,110,97,112,7,116,114,97,99,101,109,99,13,116,114,97,99,101,101,120,
+@@ -298,7 +312,20 @@
+   lj_cf_jit_opt_start
+ };
+ static const uint8_t lj_lib_init_jit_opt[] = {
+-163,62,1,5,115,116,97,114,116,255
++159,57,1,5,115,116,97,114,116,255
++};
++#endif
++
++#ifdef LJLIB_MODULE_jit_profile
++#undef LJLIB_MODULE_jit_profile
++static const lua_CFunction lj_lib_cf_jit_profile[] = {
++  lj_cf_jit_profile_start,
++  lj_cf_jit_profile_stop,
++  lj_cf_jit_profile_dumpstack
++};
++static const uint8_t lj_lib_init_jit_profile[] = {
++160,57,3,5,115,116,97,114,116,4,115,116,111,112,9,100,117,109,112,115,116,97,
++99,107,255
+ };
+ #endif
+ 
+@@ -325,7 +352,7 @@
+   lj_cf_ffi_meta___ipairs
+ };
+ static const uint8_t lj_lib_init_ffi_meta[] = {
+-164,62,19,7,95,95,105,110,100,101,120,10,95,95,110,101,119,105,110,100,101,
++163,57,19,7,95,95,105,110,100,101,120,10,95,95,110,101,119,105,110,100,101,
+ 120,4,95,95,101,113,5,95,95,108,101,110,4,95,95,108,116,4,95,95,108,101,8,95,
+ 95,99,111,110,99,97,116,6,95,95,99,97,108,108,5,95,95,97,100,100,5,95,95,115,
+ 117,98,5,95,95,109,117,108,5,95,95,100,105,118,5,95,95,109,111,100,5,95,95,
+@@ -343,7 +370,7 @@
+   lj_cf_ffi_clib___gc
+ };
+ static const uint8_t lj_lib_init_ffi_clib[] = {
+-182,62,3,7,95,95,105,110,100,101,120,10,95,95,110,101,119,105,110,100,101,120,
++181,57,3,7,95,95,105,110,100,101,120,10,95,95,110,101,119,105,110,100,101,120,
+ 4,95,95,103,99,255
+ };
+ #endif
+@@ -355,7 +382,7 @@
+   lj_cf_ffi_callback_set
+ };
+ static const uint8_t lj_lib_init_ffi_callback[] = {
+-185,62,3,4,102,114,101,101,3,115,101,116,252,1,199,95,95,105,110,100,101,120,
++184,57,3,4,102,114,101,101,3,115,101,116,252,1,199,95,95,105,110,100,101,120,
+ 250,255
+ };
+ #endif
+@@ -367,6 +394,7 @@
+   lj_cf_ffi_new,
+   lj_cf_ffi_cast,
+   lj_cf_ffi_typeof,
++  lj_cf_ffi_typeinfo,
+   lj_cf_ffi_istype,
+   lj_cf_ffi_sizeof,
+   lj_cf_ffi_alignof,
+@@ -381,13 +409,13 @@
+   lj_cf_ffi_load
+ };
+ static const uint8_t lj_lib_init_ffi[] = {
+-187,62,22,4,99,100,101,102,3,110,101,119,4,99,97,115,116,6,116,121,112,101,
+-111,102,6,105,115,116,121,112,101,6,115,105,122,101,111,102,7,97,108,105,103,
+-110,111,102,8,111,102,102,115,101,116,111,102,5,101,114,114,110,111,6,115,116,
+-114,105,110,103,4,99,111,112,121,4,102,105,108,108,3,97,98,105,252,8,192,250,
+-8,109,101,116,97,116,121,112,101,252,7,192,250,2,103,99,252,5,192,250,4,108,
+-111,97,100,252,4,193,67,250,252,3,194,111,115,250,252,2,196,97,114,99,104,250,
+-255
++186,57,23,4,99,100,101,102,3,110,101,119,4,99,97,115,116,6,116,121,112,101,
++111,102,8,116,121,112,101,105,110,102,111,6,105,115,116,121,112,101,6,115,105,
++122,101,111,102,7,97,108,105,103,110,111,102,8,111,102,102,115,101,116,111,
++102,5,101,114,114,110,111,6,115,116,114,105,110,103,4,99,111,112,121,4,102,
++105,108,108,3,97,98,105,252,8,192,250,8,109,101,116,97,116,121,112,101,252,
++7,192,250,2,103,99,252,5,192,250,4,108,111,97,100,252,4,193,67,250,252,3,194,
++111,115,250,252,2,196,97,114,99,104,250,255
+ };
+ #endif
+ 
+Only in LuaJIT-2.1.0-beta3b/src: lj_load.o
+diff -u -r -w LuaJIT-2.1.0-beta3/src/lj_mcode.c LuaJIT-2.1.0-beta3b/src/lj_mcode.c
+--- LuaJIT-2.1.0-beta3/src/lj_mcode.c	2017-05-01 21:05:00.000000000 +0200
++++ LuaJIT-2.1.0-beta3b/src/lj_mcode.c	2019-02-04 13:15:18.000000000 +0100
+@@ -210,6 +210,8 @@
+ #define mcode_validptr(p)	((p) && (uintptr_t)(p) < 0xffff0000)
+ #endif
+ 
++#include <stdio.h>
++
+ #ifdef LJ_TARGET_JUMPRANGE
+ 
+ /* Get memory within relative jump distance of our code in 64 bit mode. */
+Only in LuaJIT-2.1.0-beta3b/src: lj_mcode.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_meta.o
+diff -u -r -w LuaJIT-2.1.0-beta3/src/lj_obj.h LuaJIT-2.1.0-beta3b/src/lj_obj.h
+--- LuaJIT-2.1.0-beta3/src/lj_obj.h	2017-05-01 21:05:00.000000000 +0200
++++ LuaJIT-2.1.0-beta3b/src/lj_obj.h	2019-02-04 15:07:39.000000000 +0100
+@@ -304,15 +304,25 @@
+ 
+ /* -- Userdata object ----------------------------------------------------- */
+ 
++#if defined(__GNUC__)
++#define DM_ALIGNED(a) __attribute__ ((aligned (a)))
++#elif defined(_MSC_VER)
++#define DM_ALIGNED(a) __declspec(align(a))
++#else
++#error "Unsupported compiler"
++#endif
++
+ /* Userdata object. Payload follows. */
+-typedef struct GCudata {
++typedef struct DM_ALIGNED(16) GCudata {
+   GCHeader;
+   uint8_t udtype;	/* Userdata type. */
+   uint8_t unused2;
+   GCRef env;		/* Should be at same offset in GCfunc. */
+   MSize len;		/* Size of payload. */
+   GCRef metatable;	/* Must be at same offset in GCtab. */
+-  uint32_t align1;	/* To force 8 byte alignment of the payload. */
++  uint32_t align0; /* To force 16 byte alignment of the payload. */
++  uint64_t align1; /* ^ */ 
++  // struct align_16_byte_hack dummy;
+ } GCudata;
+ 
+ /* Userdata types. */
+Only in LuaJIT-2.1.0-beta3b/src: lj_obj.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_opt_dce.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_opt_fold.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_opt_loop.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_opt_mem.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_opt_narrow.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_opt_sink.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_opt_split.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_parse.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_profile.o
+diff -u -r -w LuaJIT-2.1.0-beta3/src/lj_recdef.h LuaJIT-2.1.0-beta3b/src/lj_recdef.h
+--- LuaJIT-2.1.0-beta3/src/lj_recdef.h	2017-05-01 21:05:00.000000000 +0200
++++ LuaJIT-2.1.0-beta3b/src/lj_recdef.h	2019-02-04 15:11:52.000000000 +0100
+@@ -6,23 +6,23 @@
+ 0x0200,
+ 0x0300,
+ 0,
+-0,
+-0x0400,
++0x0400+(0),
+ 0x0500,
++0x0400+(1),
+ 0x0600,
+ 0x0700,
+-0,
+-0,
+ 0x0800,
++0,
+ 0x0900,
+ 0x0a00,
+-0,
+ 0x0b00,
++0,
+ 0x0c00,
+ 0x0d00,
+-0,
+ 0x0e00,
++0,
+ 0x0f00,
++0x1000,
+ 0,
+ 0,
+ 0,
+@@ -38,24 +38,23 @@
+ 0,
+ 0,
+ 0,
+-0x1000,
+-0x1100+(IRFPM_FLOOR),
+-0x1100+(IRFPM_CEIL),
+-0x1200+(IRFPM_SQRT),
+-0x1200+(IRFPM_LOG10),
+-0x1200+(IRFPM_EXP),
+-0x1200+(IRFPM_SIN),
+-0x1200+(IRFPM_COS),
+-0x1200+(IRFPM_TAN),
+-0x1300+(FF_math_asin),
+-0x1300+(FF_math_acos),
+-0x1300+(FF_math_atan),
+-0x1400+(IRCALL_sinh),
+-0x1400+(IRCALL_cosh),
+-0x1400+(IRCALL_tanh),
+ 0,
+-0x1500,
+-0x1600,
++0x1100,
++0x1200+(IRFPM_FLOOR),
++0x1200+(IRFPM_CEIL),
++0x1300+(IRFPM_SQRT),
++0x1300+(IRFPM_LOG10),
++0x1300+(IRFPM_EXP),
++0x1300+(IRFPM_SIN),
++0x1300+(IRFPM_COS),
++0x1300+(IRFPM_TAN),
++0x1400+(FF_math_asin),
++0x1400+(FF_math_acos),
++0x1400+(FF_math_atan),
++0x1500+(IRCALL_sinh),
++0x1500+(IRCALL_cosh),
++0x1500+(IRCALL_tanh),
++0,
+ 0x1600,
+ 0x1700,
+ 0x1800,
+@@ -66,45 +65,44 @@
+ 0x1b00+(IR_MAX),
+ 0x1c00,
+ 0,
+-0x1d00+(IR_TOBIT),
+-0x1d00+(IR_BNOT),
+-0x1d00+(IR_BSWAP),
+-0x1e00+(IR_BSHL),
+-0x1e00+(IR_BSHR),
+-0x1e00+(IR_BSAR),
+-0x1e00+(IR_BROL),
+-0x1e00+(IR_BROR),
+-0x1f00+(IR_BAND),
+-0x1f00+(IR_BOR),
+-0x1f00+(IR_BXOR),
+-0,
+-0x2000,
+-0x2100+(0),
+-0,
+-0x2100+(1),
+-0,
+-0,
+-0,
+-0,
+-0,
+-0,
+-0,
++0x1d00,
++0x1e00+(IR_BNOT),
++0x1e00+(IR_BSWAP),
++0x1f00+(IR_BSHL),
++0x1f00+(IR_BSHR),
++0x1f00+(IR_BSAR),
++0x1f00+(IR_BROL),
++0x1f00+(IR_BROR),
++0x2000+(IR_BAND),
++0x2000+(IR_BOR),
++0x2000+(IR_BXOR),
++0x2100,
++0x2200+(0),
++0x2300,
++0x2200+(1),
++0x2400,
++0x2500+(IRCALL_lj_buf_putstr_reverse),
++0x2500+(IRCALL_lj_buf_putstr_lower),
++0x2500+(IRCALL_lj_buf_putstr_upper),
+ 0,
++0x2600,
+ 0,
+ 0,
+ 0,
+ 0,
++0x2700,
+ 0,
+-0x2200,
++0x2800,
++0x2900,
+ 0,
+-0x2300,
+-0x2400,
++0x2a00,
++0x2b00,
+ 0,
+ 0,
++0x2c00+(0),
++0x2d00+(0),
+ 0,
+ 0,
+-0x2500+(0),
+-0x2600+(0),
+ 0,
+ 0,
+ 0,
+@@ -113,10 +111,10 @@
+ 0,
+ 0,
+ 0,
++0x2c00+(GCROOT_IO_OUTPUT),
++0x2d00+(GCROOT_IO_OUTPUT),
+ 0,
+ 0,
+-0x2500+(GCROOT_IO_OUTPUT),
+-0x2600+(GCROOT_IO_OUTPUT),
+ 0,
+ 0,
+ 0,
+@@ -131,6 +129,7 @@
+ 0,
+ 0,
+ 0,
++0x2e00,
+ 0,
+ 0,
+ 0,
+@@ -165,44 +164,45 @@
+ 0,
+ 0,
+ 0,
+-0x2700+(0),
+-0x2700+(1),
+-0x2800+(MM_eq),
+-0x2800+(MM_len),
+-0x2800+(MM_lt),
+-0x2800+(MM_le),
+-0x2800+(MM_concat),
+-0x2900,
+-0x2800+(MM_add),
+-0x2800+(MM_sub),
+-0x2800+(MM_mul),
+-0x2800+(MM_div),
+-0x2800+(MM_mod),
+-0x2800+(MM_pow),
+-0x2800+(MM_unm),
++0x2f00+(0),
++0x2f00+(1),
++0x3000+(MM_eq),
++0x3000+(MM_len),
++0x3000+(MM_lt),
++0x3000+(MM_le),
++0x3000+(MM_concat),
++0x3100,
++0x3000+(MM_add),
++0x3000+(MM_sub),
++0x3000+(MM_mul),
++0x3000+(MM_div),
++0x3000+(MM_mod),
++0x3000+(MM_pow),
++0x3000+(MM_unm),
+ 0,
+ 0,
+ 0,
+-0x2a00+(1),
+-0x2a00+(0),
++0x3200+(1),
++0x3200+(0),
+ 0,
+ 0,
+ 0,
+ 0,
+-0x2b00,
+-0x2b00,
+-0x2c00,
+-0x2d00,
+-0x2e00+(FF_ffi_sizeof),
+-0x2e00+(FF_ffi_alignof),
+-0x2e00+(FF_ffi_offsetof),
+-0x2f00,
+-0x3000,
+-0x3100,
+-0x3200,
+ 0x3300,
++0x3300,
++0x3400,
++0,
++0x3500,
++0x3600+(FF_ffi_sizeof),
++0x3600+(FF_ffi_alignof),
++0x3600+(FF_ffi_offsetof),
++0x3700,
++0x3800,
++0x3900,
++0x3a00,
++0x3b00,
+ 0,
+-0x3400
++0x3c00
+ };
+ 
+ static const RecordFunc recff_func[] = {
+@@ -210,10 +210,11 @@
+ recff_c,
+ recff_assert,
+ recff_type,
++recff_xpairs,
+ recff_ipairs_aux,
+-recff_ipairs,
+ recff_getmetatable,
+ recff_setmetatable,
++recff_getfenv,
+ recff_rawget,
+ recff_rawset,
+ recff_rawequal,
+@@ -228,23 +229,30 @@
+ recff_math_atrig,
+ recff_math_htrig,
+ recff_math_modf,
+-recff_math_degrad,
+ recff_math_log,
+ recff_math_atan2,
+ recff_math_pow,
+ recff_math_ldexp,
+ recff_math_minmax,
+ recff_math_random,
++recff_bit_tobit,
+ recff_bit_unary,
+ recff_bit_shift,
+ recff_bit_nary,
+-recff_string_len,
++recff_bit_tohex,
+ recff_string_range,
+-recff_table_getn,
++recff_string_char,
++recff_string_rep,
++recff_string_op,
++recff_string_find,
++recff_string_format,
+ recff_table_insert,
+-recff_table_remove,
++recff_table_concat,
++recff_table_new,
++recff_table_clear,
+ recff_io_write,
+ recff_io_flush,
++recff_debug_getmetatable,
+ recff_cdata_index,
+ recff_cdata_arith,
+ recff_cdata_call,
+Only in LuaJIT-2.1.0-beta3b/src: lj_record.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_snap.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_state.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_str.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_strfmt.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_strfmt_num.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_strscan.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_tab.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_trace.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_udata.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_vm.S
+Only in LuaJIT-2.1.0-beta3b/src: lj_vm.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_vmevent.o
+Only in LuaJIT-2.1.0-beta3b/src: lj_vmmath.o
+Only in LuaJIT-2.1.0-beta3b/src: luajit
+Only in LuaJIT-2.1.0-beta3b/src: luajit.o
+diff -u -r -w LuaJIT-2.1.0-beta3/src/msvcbuild.bat LuaJIT-2.1.0-beta3b/src/msvcbuild.bat
+--- LuaJIT-2.1.0-beta3/src/msvcbuild.bat	2017-05-01 21:05:00.000000000 +0200
++++ LuaJIT-2.1.0-beta3b/src/msvcbuild.bat	2019-01-25 11:51:55.000000000 +0100
+@@ -11,7 +11,65 @@
+ @rem
+ @rem Then cd to this directory and run this script.
+ 
+-@if not defined INCLUDE goto :FAIL
+++@if not defined INCLUDE goto FAIL
+++
+++@rem These lines will be installation-dependent.
+++@set VSINSTALLDIR=C:\Program Files (x86)\Microsoft Visual Studio 14.0\
+++@set WindowsKits=C:\Program Files (x86)\Windows Kits\
+++@set WindowsSdkDir=%WindowsKits%8.1\
+++@set WindowsLibPath=%WindowsSdkDir%\References\CommonConfiguration\Neutral
+++@set WindowsSDKLibVersion=winv6.3\
+++@set UCRTVersion=10.0.10240.0
+++@set FrameworkDir=C:\WINDOWS\Microsoft.NET\Framework\
+++@set FrameworkVersion=v4.0.30319
+++@set Framework35Version=v3.5
+++
+++@set WindowsSDK_ExecutablePath_x64=C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\x64\
+++@set WindowsSDK_ExecutablePath_x86=C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\
+++
+++@rem The following should be largely installation-independent.
+++@set VCINSTALLDIR=%VSINSTALLDIR%VC\
+++@set DevEnvDir=%VSINSTALLDIR%Common7\IDE\
+++
+++@set FrameworkDIR32=%FrameworkDir%
+++@set FrameworkVersion32=%FrameworkVersion%
+++
+++@set c_VSINSTALLDIR=%VSINSTALLDIR%
+++@set c_WindowsSdkDir=%WindowsSdkDir%
+++@set c_FrameworkDir=%FrameworkDir%
+++
+++@set PATH=%c_WindowsSdkDir%bin;%PATH%
+++@set PATH=%c_WindowsSdkDir%bin/NETFX 4.0 Tools;%PATH%
+++@set PATH=%c_VSINSTALLDIR%VC/VCPackages;%PATH%
+++@set PATH=%c_FrameworkDir%%Framework35Version%;%PATH%
+++@set PATH=%c_FrameworkDir%%FrameworkVersion%;%PATH%
+++@set PATH=%c_VSINSTALLDIR%Common7/Tools;%PATH%
+++@set PATH=%c_VSINSTALLDIR%VC/BIN;%PATH%
+++@set PATH=%c_VSINSTALLDIR%Common7/IDE/;%PATH%
+++
+++
+++@if "%3"=="win32" goto SETUP_VC_32
+++@if "%3"=="x86_64-win32" goto SETUP_VC_64
+++
+++:SETUP_VC_32
+++@echo Using visual studio setup 32 bit ("x86")
+++@set INCLUDE=%VCINSTALLDIR%\INCLUDE;%VCINSTALLDIR%\ATLMFC\INCLUDE;%WindowsKits%\10\include\10.0.10240.0\ucrt;%WindowsKits%\NETFXSDK\4.6.1\include\um;%WindowsSdkDir%\include\\shared;%WindowsSdkDir%\include\\um;%WindowsSdkDir%\include\\winrt;
+++@set LIB=%VCINSTALLDIR%\LIB;%VCINSTALLDIR%\ATLMFC\LIB;%WindowsKits%\10\lib\10.0.10240.0\ucrt\x86;%WindowsKits%\NETFXSDK\4.6.1\lib\um\x86;%WindowsSdkDir%\lib\winv6.3\um\x86;
+++@set LIBPATH=C:\WINDOWS\Microsoft.NET\Framework\v4.0.30319;%VCINSTALLDIR%\LIB;%VCINSTALLDIR%\ATLMFC\LIB;%WindowsSdkDir%\References\CommonConfiguration\Neutral;\Microsoft.VCLibs\14.0\References\CommonConfiguration\neutral;
+++@set PATH=%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\TestWindow;C:\Program Files (x86)\MSBuild\14.0\bin;%VSINSTALLDIR%\Common7\IDE\;%VCINSTALLDIR%\BIN;%VSINSTALLDIR%\Common7\Tools;C:\WINDOWS\Microsoft.NET\Framework\v4.0.30319;%VCINSTALLDIR%\VCPackages;
+++goto SETUP_VC_DONE
+++
+++:SETUP_VC_64
+++@echo Using visual studio setup 64 bit ("amd64")
+++@set INCLUDE=%VCINSTALLDIR%INCLUDE;%WindowsSdkDir%include;%WindowsKits%\10\include\10.0.10240.0\ucrt;%WindowsKits%\NETFXSDK\4.6.1\include\um;%WindowsSdkDir%\include\shared;%WindowsSdkDir%\include\um;%WindowsSdkDir%\include\\winrt;
+++@set LIB=%VCINSTALLDIR%\LIB\amd64;%VCINSTALLDIR%\ATLMFC\LIB\amd64;%WindowsKits%\10\lib\10.0.10240.0\ucrt\x64;%WindowsKits%\NETFXSDK\4.6.1\lib\um\x64;%WindowsSdkDir%\lib\winv6.3\um\x64;
+++@set LIBPATH=C:\WINDOWS\Microsoft.NET\Framework64\v4.0.30319;%VCINSTALLDIR%\LIB\amd64;%VCINSTALLDIR%\ATLMFC\LIB\amd64;%WindowsSdkDir%\References\CommonConfiguration\Neutral;\Microsoft.VCLibs\14.0\References\CommonConfiguration\neutral;
+++@set PATH=%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\TestWindow;C:\Program Files (x86)\MSBuild\14.0\bin\amd64;%VSINSTALLDIR%\VC\BIN\amd64;C:\WINDOWS\Microsoft.NET\Framework64\v4.0.30319;%VSINSTALLDIR%\VC\VCPackages;%VSINSTALLDIR%\Common7\IDE;%VSINSTALLDIR%\Common7\Tools;%WindowsSdkDir%\bin\x64;%WindowsSdkDir%\bin\x86;C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\x64\
+++goto SETUP_VC_DONE
+++:SETUP_VC_DONE
+++
+++
+++echo %PATH%
+ 
+ @setlocal
+ @set LJCOMPILE=cl /nologo /c /O2 /W3 /D_CRT_SECURE_NO_DEPRECATE /D_CRT_STDIO_INLINE=__declspec(dllexport)__inline
+@@ -22,20 +80,20 @@
+ @set DASM=%DASMDIR%\dynasm.lua
+ @set DASC=vm_x86.dasc
+ @set LJDLLNAME=lua51.dll
+-@set LJLIBNAME=lua51.lib
++@set LJLIBNAME=libluajit-5.1.lib
+ @set ALL_LIB=lib_base.c lib_math.c lib_bit.c lib_string.c lib_table.c lib_io.c lib_os.c lib_package.c lib_debug.c lib_jit.c lib_ffi.c
+ 
+ %LJCOMPILE% host\minilua.c
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ %LJLINK% /out:minilua.exe minilua.obj
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ if exist minilua.exe.manifest^
+   %LJMT% -manifest minilua.exe.manifest -outputresource:minilua.exe
+ 
+ @set DASMFLAGS=-D WIN -D JIT -D FFI -D P64
+ @set LJARCH=x64
+ @minilua
+-@if errorlevel 8 goto :X64
++@if errorlevel 8 goto X64
+ @set DASMFLAGS=-D WIN -D JIT -D FFI
+ @set LJARCH=x86
+ @set LJCOMPILE=%LJCOMPILE% /arch:SSE2
+@@ -46,61 +104,61 @@
+ @set LJCOMPILE=%LJCOMPILE% /DLUAJIT_ENABLE_GC64
+ :NOGC64
+ minilua %DASM% -LN %DASMFLAGS% -o host\buildvm_arch.h %DASC%
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ 
+ %LJCOMPILE% /I "." /I %DASMDIR% host\buildvm*.c
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ %LJLINK% /out:buildvm.exe buildvm*.obj
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ if exist buildvm.exe.manifest^
+   %LJMT% -manifest buildvm.exe.manifest -outputresource:buildvm.exe
+ 
+ buildvm -m peobj -o lj_vm.obj
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ buildvm -m bcdef -o lj_bcdef.h %ALL_LIB%
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ buildvm -m ffdef -o lj_ffdef.h %ALL_LIB%
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ buildvm -m libdef -o lj_libdef.h %ALL_LIB%
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ buildvm -m recdef -o lj_recdef.h %ALL_LIB%
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ buildvm -m vmdef -o jit\vmdef.lua %ALL_LIB%
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ buildvm -m folddef -o lj_folddef.h lj_opt_fold.c
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ 
+-@if "%1" neq "debug" goto :NODEBUG
++@if "%1" neq "debug" goto NODEBUG
+ @shift
+ @set LJCOMPILE=%LJCOMPILE% /Zi
+ @set LJLINK=%LJLINK% /debug /opt:ref /opt:icf /incremental:no
+ :NODEBUG
+-@if "%1"=="amalg" goto :AMALGDLL
+-@if "%1"=="static" goto :STATIC
+-%LJCOMPILE% /MD /DLUA_BUILD_AS_DLL lj_*.c lib_*.c
+-@if errorlevel 1 goto :BAD
++@if "%1"=="amalg" goto AMALGDLL
++@if "%1"=="static" goto STATIC
++%LJCOMPILE% /MT /DLUA_BUILD_AS_DLL lj_*.c lib_*.c
++@if errorlevel 1 goto BAD
+ %LJLINK% /DLL /out:%LJDLLNAME% lj_*.obj lib_*.obj
+-@if errorlevel 1 goto :BAD
+-@goto :MTDLL
++@if errorlevel 1 goto BAD
++@goto MTDLL
+ :STATIC
+ %LJCOMPILE% lj_*.c lib_*.c
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ %LJLIB% /OUT:%LJLIBNAME% lj_*.obj lib_*.obj
+-@if errorlevel 1 goto :BAD
+-@goto :MTDLL
++@if errorlevel 1 goto BAD
++@goto MTDLL
+ :AMALGDLL
+-%LJCOMPILE% /MD /DLUA_BUILD_AS_DLL ljamalg.c
+-@if errorlevel 1 goto :BAD
++%LJCOMPILE% /MT /DLUA_BUILD_AS_DLL ljamalg.c
++@if errorlevel 1 goto BAD
+ %LJLINK% /DLL /out:%LJDLLNAME% ljamalg.obj lj_vm.obj
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ :MTDLL
+ if exist %LJDLLNAME%.manifest^
+   %LJMT% -manifest %LJDLLNAME%.manifest -outputresource:%LJDLLNAME%;2
+ 
+ %LJCOMPILE% luajit.c
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ %LJLINK% /out:luajit.exe luajit.obj %LJLIBNAME%
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ if exist luajit.exe.manifest^
+   %LJMT% -manifest luajit.exe.manifest -outputresource:luajit.exe
+ 
+@@ -110,13 +168,13 @@
+ @echo.
+ @echo === Successfully built LuaJIT for Windows/%LJARCH% ===
+ 
+-@goto :END
++@goto END
+ :BAD
+ @echo.
+ @echo *******************************************************
+ @echo *** Build FAILED -- Please check the error messages ***
+-@echo *******************************************************
+-@goto :END
++@echo *******************************************************
++@goto END
+ :FAIL
+ @echo You must open a "Visual Studio .NET Command Prompt" to run this script
+ :END

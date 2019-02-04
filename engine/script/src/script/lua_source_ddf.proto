@@ -15,4 +15,5 @@ message LuaSource
     required string filename                            = 2;
 
     optional bytes bytecode                             = 3;
+    optional bytes bytecode_64                          = 4;
 }
