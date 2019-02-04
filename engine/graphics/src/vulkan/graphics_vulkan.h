@@ -74,7 +74,8 @@ namespace dmGraphics
         Vectormath::Aos::Vector4    m_ProgramRegisters[MAX_REGISTER_COUNT];
         HTexture                    m_Textures[MAX_TEXTURE_COUNT];
         FrameBuffer*                m_CurrentFrameBuffer;
-        void*                       m_Program;
+        void*                       m_CurrentProgram;
+        void*                       m_CurrentVertexBuffer;
         WindowResizeCallback        m_WindowResizeCallback;
         void*                       m_WindowResizeCallbackUserData;
         WindowCloseCallback         m_WindowCloseCallback;

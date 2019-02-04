@@ -23,7 +23,6 @@
 
 using namespace Vectormath::Aos;
 
-uint64_t g_DrawCount = 0;
 uint64_t g_Flipped = 0;
 
 // Used only for tests
@@ -1699,7 +1698,10 @@ namespace dmGraphics
         context->m_WindowHeight = params->m_Height;
         context->m_Dpi = 0;
         context->m_WindowOpened = 1;
-        context->m_Program = 0x0;
+
+        // Draw state
+        context->m_CurrentProgram = 0x0;
+        context->m_CurrentVertexBuffer = 0x0;
 
         if (params->m_PrintDeviceInfo)
         {
@@ -2013,11 +2015,6 @@ namespace dmGraphics
 
     }
 
-    uint64_t GetDrawCount()
-    {
-        return g_DrawCount;
-    }
-
     struct VertexProgram
     {
         char* m_Data;
@@ -2151,13 +2148,18 @@ namespace dmGraphics
     void EnableProgram(HContext context, HProgram program)
     {
         assert(context);
-        context->m_Program = (void*)program;
+        context->m_CurrentProgram = (void*)program;
+
+        /*
+        Vulkan::Pipeline* pipeline = Vulkan::GetPipeline()
+        Vulkan::BindPipeline(pipeline);
+        */
     }
 
     void DisableProgram(HContext context)
     {
         assert(context);
-        context->m_Program = 0x0;
+        context->m_CurrentProgram = 0x0;
     }
 
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
@@ -2206,21 +2208,21 @@ namespace dmGraphics
     const Vector4& GetConstantV4Ptr(HContext context, int base_register)
     {
         assert(context);
-        assert(context->m_Program != 0x0);
+        assert(context->m_CurrentProgram != 0x0);
         return context->m_ProgramRegisters[base_register];
     }
 
     void SetConstantV4(HContext context, const Vector4* data, int base_register)
     {
         assert(context);
-        assert(context->m_Program != 0x0);
+        assert(context->m_CurrentProgram != 0x0);
         memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4));
     }
 
     void SetConstantM4(HContext context, const Vector4* data, int base_register)
     {
         assert(context);
-        assert(context->m_Program != 0x0);
+        assert(context->m_CurrentProgram != 0x0);
         memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * 4);
     }
 
