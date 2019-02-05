@@ -117,8 +117,9 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    bool PlatformIsMusicPlaying()
+    bool PlatformIsMusicPlaying(bool is_device_started)
     {
+        (void)is_device_started;
         UInt32 other_playing;
         UInt32 size = sizeof(other_playing);
         AudioSessionGetProperty(kAudioSessionProperty_OtherAudioIsPlaying, &size, &other_playing);
