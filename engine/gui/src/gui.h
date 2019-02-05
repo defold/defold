@@ -321,6 +321,14 @@ namespace dmGui
         NODE_TYPE_PARTICLEFX = 5,
     };
 
+    enum NodeTextureType
+    {
+        NODE_TEXTURE_TYPE_NONE,
+        NODE_TEXTURE_TYPE_TEXTURE,
+        NODE_TEXTURE_TYPE_TEXTURE_SET,
+        NODE_TEXTURE_TYPE_DYNAMIC
+    };
+
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
     // Don't forget to change gui_ddf.proto if you change here
     enum XAnchor
@@ -936,7 +944,7 @@ namespace dmGui
     void SetNodeTextTracking(HScene scene, HNode node, float tracking);
     float GetNodeTextTracking(HScene scene, HNode node);
 
-    void* GetNodeTexture(HScene scene, HNode node);
+    void* GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut);
     dmhash_t GetNodeTextureId(HScene scene, HNode node);
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);

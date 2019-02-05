@@ -132,6 +132,7 @@ namespace dmGui
         uint64_t    m_TextureHash;
         void*       m_Texture;
         void*       m_TextureSet;
+        NodeTextureType m_TextureType;
 
         TextureSetAnimDesc m_TextureSetAnimDesc;
         uint64_t    m_FlipbookAnimHash;

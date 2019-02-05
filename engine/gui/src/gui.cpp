@@ -472,6 +472,15 @@ namespace dmGui
             {
                 nodes[i].m_Node.m_Texture = texture;
                 nodes[i].m_Node.m_TextureSet = textureset;
+
+                if (textureset)
+                {
+                    nodes[i].m_Node.m_TextureType = NODE_TEXTURE_TYPE_TEXTURE_SET;
+                }
+                else
+                {
+                    nodes[i].m_Node.m_TextureType = NODE_TEXTURE_TYPE_TEXTURE;
+                }
             }
         }
         return RESULT_OK;
@@ -494,6 +503,7 @@ namespace dmGui
                     CancelNodeFlipbookAnim(scene, GetNodeHandle(&nodes[i]));
                 }
                 node.m_Texture = 0;
+                node.m_TextureType = NODE_TEXTURE_TYPE_NONE;
             }
         }
     }
@@ -512,6 +522,7 @@ namespace dmGui
                 CancelNodeFlipbookAnim(scene, GetNodeHandle(&nodes[i]));
             }
             node.m_Texture = 0;
+            node.m_TextureType = NODE_TEXTURE_TYPE_NONE;
         }
     }
 
@@ -1003,6 +1014,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 Node& node = nodes[j].m_Node;
                 if (DynamicTexture* texture = scene->m_DynamicTextures.Get(node.m_TextureHash)) {
                     node.m_Texture = texture->m_Handle;
+                    node.m_TextureType = NODE_TEXTURE_TYPE_DYNAMIC;
                 }
             }
         }
@@ -1020,6 +1032,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 Node& node = nodes[j].m_Node;
                 if (node.m_TextureHash == texture_hash) {
                     node.m_Texture = 0;
+                    node.m_TextureType = NODE_TEXTURE_TYPE_NONE;
                     // Do not break here. Texture may be used multiple times.
                 }
             }
@@ -2097,6 +2110,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         node->m_Node.m_TextureHash = 0;
         node->m_Node.m_Texture = 0;
         node->m_Node.m_TextureSet = 0;
+        node->m_Node.m_TextureType = NODE_TEXTURE_TYPE_NONE;
         node->m_Node.m_TextureSetAnimDesc.Init();
         node->m_Node.m_FlipbookAnimHash = 0;
         node->m_Node.m_FlipbookAnimPosition = 0.0f;
@@ -2596,16 +2610,17 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return n->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].getY();
     }
 
-    void* GetNodeTexture(HScene scene, HNode node)
+    void* GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut)
     {
         InternalNode* n = GetNode(scene, node);
-        return n->m_Node.m_Texture;
-    }
+        *textureTypeOut = n->m_Node.m_TextureType;
 
-    void* GetNodeTextureSet(HScene scene, HNode node)
-    {
-        InternalNode* n = GetNode(scene, node);
-        return n->m_Node.m_TextureSet;
+        if (n->m_Node.m_TextureType == NODE_TEXTURE_TYPE_TEXTURE_SET)
+        {
+            return n->m_Node.m_TextureSet;
+        }
+
+        return n->m_Node.m_Texture;
     }
 
     dmhash_t GetNodeTextureId(HScene scene, HNode node)
@@ -2629,6 +2644,16 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             n->m_Node.m_TextureHash = texture_id;
             n->m_Node.m_Texture = texture_info->m_Texture;
             n->m_Node.m_TextureSet = texture_info->m_TextureSet;
+
+            if (texture_info->m_TextureSet)
+            {
+                n->m_Node.m_TextureType = NODE_TEXTURE_TYPE_TEXTURE_SET;
+            }
+            else
+            {
+                n->m_Node.m_TextureType = NODE_TEXTURE_TYPE_TEXTURE;
+            }
+
             if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (n->m_Node.m_NodeType != NODE_TYPE_SPINE) && (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX) && (texture_info->m_Texture))
             {
                 n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture_info->m_OriginalWidth;
@@ -2639,6 +2664,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             n->m_Node.m_TextureHash = texture_id;
             n->m_Node.m_Texture = texture->m_Handle;
             n->m_Node.m_TextureSet = 0x0;
+            n->m_Node.m_TextureType = NODE_TEXTURE_TYPE_DYNAMIC;
             if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (n->m_Node.m_NodeType != NODE_TYPE_SPINE) && (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX))
             {
                 n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture->m_Width;
@@ -2648,6 +2674,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
         n->m_Node.m_Texture = 0;
         n->m_Node.m_TextureSet = 0;
+        n->m_Node.m_TextureType = NODE_TEXTURE_TYPE_NONE;
         return RESULT_RESOURCE_NOT_FOUND;
     }
 
@@ -2771,6 +2798,15 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         // Set spine texture and textureset
         n->m_Node.m_Texture = rig_data.m_Texture;
         n->m_Node.m_TextureSet = rig_data.m_TextureSet;
+
+        if (rig_data.m_TextureSet)
+        {
+            n->m_Node.m_TextureType = NODE_TEXTURE_TYPE_TEXTURE_SET;
+        }
+        else
+        {
+            n->m_Node.m_TextureType = NODE_TEXTURE_TYPE_TEXTURE;
+        }
 
         // Create bone child nodes
         if (generate_bones) {

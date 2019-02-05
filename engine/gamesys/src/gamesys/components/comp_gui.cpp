@@ -738,6 +738,22 @@ namespace dmGameSystem
         ApplyStencilClipping(gui_context, state, params.m_StencilTestParams);
     }
 
+    static dmGraphics::HTexture GetNodeTexture(dmGui::HScene scene, dmGui::HNode node)
+    {
+        dmGui::NodeTextureType texture_type;
+        void* result = dmGui::GetNodeTexture(scene, node, &texture_type);
+
+        if (texture_type == dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET)
+        {
+            TextureSetResource* texture_set_res = (TextureSetResource*) result;
+            assert(texture_set_res);
+
+            return texture_set_res->m_Texture;
+        }
+
+        return (dmGraphics::HTexture) result;
+    }
+
     void RenderTextNodes(dmGui::HScene scene,
                          const dmGui::RenderEntry* entries,
                          const Matrix4* node_transforms,
@@ -979,9 +995,9 @@ namespace dmGameSystem
         ApplyStencilClipping(gui_context, stencil_scopes[0], ro);
 
         // Set default texture
-        void* texture = dmGui::GetNodeTexture(scene, first_node);
+        dmGraphics::HTexture texture = dmGameSystem::GetNodeTexture(scene, first_node);
         if (texture) {
-            ro.m_Textures[0] = (dmGraphics::HTexture) texture;
+            ro.m_Textures[0] = texture;
         } else {
             ro.m_Textures[0] = gui_world->m_WhiteTexture;
         }
@@ -1050,9 +1066,9 @@ namespace dmGameSystem
         ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
 
         // Set default texture
-        void* texture = dmGui::GetNodeTexture(scene, first_node);
+        dmGraphics::HTexture texture = dmGameSystem::GetNodeTexture(scene, first_node);
         if (texture)
-            ro.m_Textures[0] = (dmGraphics::HTexture) texture;
+            ro.m_Textures[0] = texture;
         else
             ro.m_Textures[0] = gui_world->m_WhiteTexture;
 
@@ -1271,9 +1287,9 @@ namespace dmGameSystem
         ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
 
         // Set default texture
-        void* texture = dmGui::GetNodeTexture(scene, first_node);
+        dmGraphics::HTexture texture = dmGameSystem::GetNodeTexture(scene, first_node);
         if (texture)
-            ro.m_Textures[0] = (dmGraphics::HTexture) texture;
+            ro.m_Textures[0] = texture;
         else
             ro.m_Textures[0] = gui_world->m_WhiteTexture;
 
@@ -1452,7 +1468,7 @@ namespace dmGameSystem
         dmGui::HNode first_node = entries[0].m_Node;
         dmGui::BlendMode prev_blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         dmGui::NodeType prev_node_type = dmGui::GetNodeType(scene, first_node);
-        void* prev_texture = dmGui::GetNodeTexture(scene, first_node);
+        dmGraphics::HTexture prev_texture = dmGameSystem::GetNodeTexture(scene, first_node);
         void* prev_font = dmGui::GetNodeFont(scene, first_node);
         const dmGui::StencilScope* prev_stencil_scope = stencil_scopes[0];
         uint32_t prev_emitter_batch_key = 0;
@@ -1475,7 +1491,7 @@ namespace dmGameSystem
 
             dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, node);
             dmGui::NodeType node_type = dmGui::GetNodeType(scene, node);
-            void* texture = dmGui::GetNodeTexture(scene, node);
+            dmGraphics::HTexture texture = dmGameSystem::GetNodeTexture(scene, node);
             void* font = dmGui::GetNodeFont(scene, node);
             const dmGui::StencilScope* stencil_scope = stencil_scopes[i];
             uint32_t emitter_batch_key = 0;

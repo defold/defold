@@ -61,7 +61,8 @@ void MyRenderNodes(dmGui::HScene scene,
                 break;
         }
 
-        if (dmGui::GetNodeTexture(scene, node))
+        dmGui::NodeTextureType texture_type;
+        if (dmGui::GetNodeTexture(scene, node, &texture_type))
         {
             glEnable(GL_TEXTURE_2D);
             glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
