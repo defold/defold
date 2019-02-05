@@ -179,5 +179,18 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
                 }
             });
         }
+
+        // Always display the upgrade guide
+        Display.getDefault().asyncExec(new Runnable() {
+            @Override
+            public void run() {
+                IHandlerService handlerService = (IHandlerService) PlatformUI.getWorkbench().getService(IHandlerService.class);
+                try {
+                    handlerService.executeCommand("com.dynamo.cr.editor.commands.openUpgrade", null);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
     }
 }
