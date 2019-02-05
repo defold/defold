@@ -412,7 +412,7 @@
                                              [(.x p) (.y p) (.z p) (.x uv) (.y uv)])))]
                    {:positions (flatten (partition 3 5 vertices))
                     :texcoord0 (flatten (partition 2 5 (drop 3 vertices)))
-                    :indices [0 1 2 2 1 3]
+                    :position-indices [0 1 2 2 1 3]
                     :weights (take 16 (cycle [1 0 0 0]))
                     :bone-indices (take 16 (cycle [(:bone-index slot-data) 0 0 0]))
                     :mesh-color (hex->color (get attachment "color" "ffffffff"))})
@@ -458,7 +458,7 @@
                                                (.apply uv-trans uv)
                                                [(.x uv) (.y uv)]))
                                            (partition 2 uvs))
-                        :indices (get attachment "triangles")
+                        :position-indices (get attachment "triangles")
                         :weights bone-weights
                         :bone-indices bone-indices
                         :mesh-color (hex->color (get attachment "color" "ffffffff"))})
@@ -473,7 +473,7 @@
                                                (.apply uv-trans uv)
                                                [(.x uv) (.y uv)]))
                                            (partition 2 uvs))
-                        :indices (get attachment "triangles")
+                        :position-indices (get attachment "triangles")
                         :weights (take weight-count (cycle [1 0 0 0]))
                         :bone-indices (take weight-count (cycle [(:bone-index slot-data) 0 0 0]))
                         :mesh-color (hex->color (get attachment "color" "ffffffff"))})))
@@ -750,11 +750,11 @@
 
 (defn- mesh->verts [mesh]
   (let [verts (mapv concat (partition 3 (:positions mesh)) (partition 2 (:texcoord0 mesh)) (repeat (:color mesh)))]
-    (map (partial get verts) (:indices mesh))))
+    (map (partial get verts) (:position-indices mesh))))
 
 (defn gen-vb [renderables]
   (let [meshes (mapcat renderable->meshes renderables)
-        vcount (reduce + 0 (map (comp count :indices) meshes))]
+        vcount (reduce + 0 (map (comp count :position-indices) meshes))]
     (when (> vcount 0)
       (let [vb (render/->vtx-pos-tex-col vcount)
             verts (mapcat mesh->verts meshes)]

@@ -648,7 +648,7 @@ namespace dmResource
      * @param factory Factory handle
      * @return Mutex pointer
     */
-    dmMutex::Mutex GetLoadMutex(const dmResource::HFactory factory);
+    dmMutex::HMutex GetLoadMutex(const dmResource::HFactory factory);
 
     /**
      * Releases the builtins manifest

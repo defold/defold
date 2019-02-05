@@ -24,6 +24,8 @@ namespace dmGameSystem
             }
         }
 
+        tile_grid->m_TileGrid = tile_grid_ddf;
+
         dmResource::Result r = dmResource::Get(factory, tile_grid_ddf->m_TileSet, (void**)&tile_grid->m_TextureSet);
         if (r != dmResource::RESULT_OK)
         {
@@ -34,10 +36,15 @@ namespace dmGameSystem
         {
             return r;
         }
+        if(dmRender::GetMaterialVertexSpace(tile_grid->m_Material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
+        {
+            dmLogError("Failed to create Tile Grid component. This component only supports materials with the Vertex Space property set to 'vertex-space-world'");
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
+
         // Add-alpha is deprecated because of premultiplied alpha and replaced by Add
         if (tile_grid_ddf->m_BlendMode == dmGameSystemDDF::TileGrid::BLEND_MODE_ADD_ALPHA)
             tile_grid_ddf->m_BlendMode = dmGameSystemDDF::TileGrid::BLEND_MODE_ADD;
-        tile_grid->m_TileGrid = tile_grid_ddf;
         TextureSetResource* texture_set = tile_grid->m_TextureSet;
 
         // find boundaries
