@@ -117,7 +117,7 @@ struct IAC
 
     IACInvocation        m_StoredInvocation;
 
-    dmMutex::Mutex       m_Mutex;
+    dmMutex::HMutex      m_Mutex;
     dmArray<Command>     m_CmdQueue;
 } g_IAC;
 
