@@ -23,8 +23,8 @@ PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.1.0-beta3 tremo
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_DARWIN="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 vpx-1.7.0 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
-PACKAGES_WIN32="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 apkc-0.1.0 bullet-2.77".split()
-PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
+PACKAGES_WIN32="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 apkc-0.1.0 bullet-2.77".split()
+PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
 PACKAGES_LINUX="PVRTexLib-4.18.0 webp-0.5.0 openal-1.1 apkc-0.1.0 bullet-2.77".split()
 PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 google-play-services-4.0.30 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
@@ -878,7 +878,8 @@ class Configuration(object):
                 luajit_exe = format_exes('luajit-32', plf[1])[0]
                 luajit_exe_64 = format_exes('luajit-64', plf[1])[0]
                 self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe)))
-                self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe_64)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe_64)))
+                if plf[0] != 'win32': # no luajit 64bit binary for 32 bit platforms
+                    self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe_64)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe_64)))
         win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal', 'PVRTexLib', 'msvcr120'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
         osx_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['x86_64-darwin', 'x86_64-darwin']]])
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['x86_64-linux', 'x86_64-linux']]])
