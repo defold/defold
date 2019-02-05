@@ -20,6 +20,7 @@
   :editor.resource-node/register-ddf-resource-type :only-indent
   :editor.ui/event-handler :only-indent
   :editor.ui/invalidation-listener :only-indent
+  :editor.ui/on-action! :only-indent
   :editor.ui/with-controls :only-indent
   :editor.ui/with-progress :only-indent
   :editor.ui.bindings/-if :only-indent

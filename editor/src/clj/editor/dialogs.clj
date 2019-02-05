@@ -4,7 +4,6 @@
             [editor.ui :as ui]
             [editor.ui.bindings :as b]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
-            [editor.updater :as updater]
             [editor.util :as util]
             [editor.handler :as handler]
             [editor.core :as core]
@@ -14,8 +13,7 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.defold-project :as project]
-            [editor.github :as github]
-            [service.log :as log])
+            [editor.github :as github])
   (:import [java.io File]
            [java.util List Collection]
            [java.nio.file Path Paths]
@@ -166,50 +164,39 @@
      (ui/show-and-wait! stage)
      @result)))
 
-(defn- download-and-install-update! [updater ^ProgressBar progress-bar ^Button cancel cancelled-atom]
-  (future
-    (updater/download-and-install!
-      updater
-      :progress-callback (fn [progress cancelable]
-                           (.setProgress progress-bar (double progress))
-                           (.setDisable cancel (not cancelable)))
-      :cancelled-atom cancelled-atom)))
+(defn make-download-update-or-restart-dialog [^Stage owner]
+  (let [root ^Parent (ui/load-fxml "update-or-restart-alert.fxml")
+        stage (ui/make-dialog-stage owner)
+        scene (Scene. root)
+        result-atom (atom nil)
+        make-action-fn (fn action! [result]
+                         (fn [_]
+                           (reset! result-atom result)
+                           (ui/close! stage)))]
+    (ui/title! stage "Update Available")
+    (ui/with-controls root [^Button cancel ^Button restart ^Button download]
+      (ui/on-action! cancel (make-action-fn :cancel))
+      (ui/on-action! restart (make-action-fn :restart))
+      (ui/on-action! download (make-action-fn :download)))
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+    @result-atom))
 
-(defn make-pending-update-dialog [^Stage owner updater]
+(defn make-download-update-dialog [^Stage owner]
   (let [root ^Parent (ui/load-fxml "update-alert.fxml")
         stage (ui/make-dialog-stage owner)
         scene (Scene. root)
-        state-atom (atom {:status :waiting})]
+        result-atom (atom false)]
     (ui/title! stage "Update Available")
-    (ui/with-controls root [^Button ok ^Button cancel ^ProgressBar progress-bar]
-      (ui/on-action!
-        ok
-        (fn on-ok! [_]
-          (let [cancelled-atom (atom false)
-                success? (download-and-install-update! updater progress-bar cancel cancelled-atom)]
-            (.setDisable ok true)
-            (.setVisible progress-bar true)
-            (reset! state-atom {:status :downloading
-                                :cancelled-atom cancelled-atom})
-            (future
-              (try
-                (when @success?
-                  (reset! state-atom {:status :completed})
-                  (ui/run-later
-                    (.close stage)))
-                (catch Exception e
-                  (log/info :message "Exception installing update"
-                            :exception e)))))))
-      (ui/on-action!
-        cancel
-        (fn on-cancel! [_]
-          (let [{:keys [status cancelled-atom]} @state-atom]
-            (when (= :downloading status)
-              (reset! cancelled-atom true))
-            (.close stage)))))
+    (ui/with-controls root [^Button ok ^Button cancel]
+      (ui/on-action! ok (fn on-ok! [_]
+                          (reset! result-atom true)
+                          (ui/close! stage)))
+      (ui/on-action! cancel (fn on-cancel! [_]
+                              (ui/close! stage))))
     (.setScene stage scene)
     (ui/show-and-wait! stage)
-    (= :completed (:status @state-atom))))
+    @result-atom))
 
 (handler/defhandler ::report-error :dialog
   (run [sentry-id-promise]
