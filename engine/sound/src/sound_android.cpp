@@ -86,7 +86,7 @@ namespace dmSound
         JNIEnv* environment = ::Attach();
 
         g_SoundManager.m_IsPhoneCallActive       = false; // It will get updated by the call to the construct
-        
+
         jclass      jni_class_NativeActivity     = environment->FindClass("android/app/NativeActivity");
         jmethodID   jni_method_getClassLoader    = environment->GetMethodID(jni_class_NativeActivity, "getClassLoader", "()Ljava/lang/ClassLoader;");
         jobject     jni_object_getClassLoader    = environment->CallObjectMethod(g_AndroidApp->activity->clazz, jni_method_getClassLoader);
@@ -111,8 +111,10 @@ namespace dmSound
         return (::CheckException(environment) && ::Detach(environment)) ? RESULT_OK : RESULT_FINI_ERROR;
     }
 
-    bool PlatformIsMusicPlaying()
+    bool PlatformIsMusicPlaying(bool is_device_started)
     {
+        if (is_device_started)
+            return false;
         return ::CallZ(g_SoundManager.m_IsMusicPlaying, false);
     }
 
