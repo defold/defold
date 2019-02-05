@@ -13,13 +13,29 @@ char** files;
 - (void)application:(NSApplication *)sender openFiles:(NSArray<NSString *> *)filenames {
   size_t names_count = [filenames count];
   files = (char**)malloc(names_count + 1);
+  NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
+  NSFileManager* fm = [NSFileManager defaultManager];
+  NSString* cwd = [fm currentDirectoryPath];
+  int _fileIndex = 0;
+  int* fileIndex = &_fileIndex;
   [filenames enumerateObjectsUsingBlock:^(NSString* str, NSUInteger idx, BOOL *stop) {
-      const char *filename = [str cStringUsingEncoding:NSUTF8StringEncoding];
-      size_t len = strlen(filename) + 1;
-      files[idx] = (char*)malloc(len);
-      memcpy(files[idx], filename, len);
-      files[idx + 1] = NULL;
+      if(![str isAbsolutePath]) {
+        str = [str stringByExpandingTildeInPath];
+        if(![str isAbsolutePath]) {
+          NSArray* pathComponents = [NSArray arrayWithObjects: cwd, str, nil];
+          str = [NSString pathWithComponents: pathComponents];
+        }
+      }
+      if([fm fileExistsAtPath: str]) {
+        const char *filename = [str cStringUsingEncoding:NSUTF8StringEncoding];
+        size_t len = strlen(filename) + 1;
+        files[*fileIndex] = (char*)malloc(len);
+        memcpy(files[*fileIndex], filename, len);
+        ++(*fileIndex);
+      }
+      files[*fileIndex] = NULL;
     }];
+  [pool drain];
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
