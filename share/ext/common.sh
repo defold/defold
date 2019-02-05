@@ -145,7 +145,7 @@ function cmi_setup_vs2015_env() {
 
     # These lines will be installation-dependent.
     export VSINSTALLDIR='C:\Program Files (x86)\Microsoft Visual Studio 14.0\'
-    export WindowsSdkDir='C:\Program Files\Microsoft SDKs\Windows\v7.0A\'
+    export WindowsSdkDir='C:\Program Files (x86)\Windows Kits\8.0'
     export FrameworkDir='C:\WINDOWS\Microsoft.NET\Framework\'
     export FrameworkVersion=v4.0.30319
     export Framework35Version=v3.5
