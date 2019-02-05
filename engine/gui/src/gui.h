@@ -559,7 +559,7 @@ namespace dmGui
      * @param original_height Original Height of the texture
      * @return Outcome of the operation
      */
-    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset, uint32_t original_width, uint32_t original_height);
+    Result AddTexture(HScene scene, const char* texture_name, void* texture, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height);
 
     /**
      * Removes a texture with the specified name from the scene.

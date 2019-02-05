@@ -401,8 +401,23 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < scene_resource->m_GuiTextureSets.Size(); ++i)
         {
             const char* name = scene_desc->m_Textures[i].m_Name;
+
+            void* texture_source;
             dmGraphics::HTexture texture = scene_resource->m_GuiTextureSets[i].m_Texture;
-            dmGui::Result r = dmGui::AddTexture(scene, name, (void*) texture, (void*) scene_resource->m_GuiTextureSets[i].m_TextureSet, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
+            dmGui::NodeTextureType texture_source_type;
+
+            if (scene_resource->m_GuiTextureSets[i].m_TextureSet)
+            {
+                texture_source_type = dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET;
+                texture_source      = (void*)scene_resource->m_GuiTextureSets[i].m_TextureSet;
+            }
+            else
+            {
+                texture_source_type = dmGui::NODE_TEXTURE_TYPE_TEXTURE;
+                texture_source      = (void*)texture;
+            }
+
+            dmGui::Result r = dmGui::AddTexture(scene, name, texture_source, texture_source_type, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add texture '%s' to scene (%d)", name,  r);
                 return false;
