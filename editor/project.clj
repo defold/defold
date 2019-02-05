@@ -132,6 +132,8 @@
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.log.dir="
+                                                    ;; TODO vlaaad remove temporary code
+                                                    "-Ddefold.channel=alpha"
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"
                                                     ;"-XX:+UnlockCommercialFeatures"

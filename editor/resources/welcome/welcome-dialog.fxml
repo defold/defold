@@ -18,11 +18,15 @@
                 </ImageView>
             </VBox>
             <VBox id="pane-buttons-container" VBox.vgrow="ALWAYS" />
-            <Hyperlink id="update-link" text="Update Available" maxWidth="1000" alignment="CENTER" visible="false" focusTraversable="false">
+            <StackPane>
+                <ProgressBar id="update-progress-bar" styleClass="really-small-progress-bar" visible="false" />
+                <VBox id="update-progress-vbox" alignment="CENTER">
+                    <Hyperlink id="update-link" text="Update Available" alignment="CENTER" visible="false" focusTraversable="false" />
+                </VBox>
                 <VBox.margin>
-                    <Insets bottom="28" />
+                    <Insets bottom="28" left="19" right="19" />
                 </VBox.margin>
-            </Hyperlink>
+            </StackPane>
             <Button id="sign-out-button" text="Sign Out" styleClass="df-button, dim" maxWidth="1000" minHeight="30" focusTraversable="false">
                 <VBox.margin>
                     <Insets bottom="24" left="19" right="19" />
@@ -36,7 +40,7 @@
         <VBox alignment="CENTER" maxWidth="-Infinity">
             <VBox alignment="CENTER">
                 <Label id="progress-header" text="Downloading Project" />
-                <ProgressBar id="progress-bar" maxWidth="1.7976931348623157E308" styleClass="really-small-progress-bar"/>
+                <ProgressBar id="progress-bar" maxWidth="1.7976931348623157E308" styleClass="really-small-progress-bar" />
                 <Button id="progress-cancel-button" styleClass="df-button" text="Cancel Download" focusTraversable="false" />
             </VBox>
         </VBox>

@@ -99,20 +99,23 @@
   (app-view/remove-invalid-tabs! tab-panes open-views)
   (changes-view/refresh! changes-view render-progress!))
 
-(defn- init-pending-update-indicator! [^Stage stage ^Label label project changes-view updater]
-  (.setOnMouseClicked label
-                      (ui/event-handler event
-                        (when (dialogs/make-pending-update-dialog stage updater)
-                          (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
-                                render-save-progress! (app-view/make-render-task-progress :save-all)]
-                            (ui/disable-ui!)
-                            (disk/async-save! render-reload-progress! render-save-progress! project nil ; Use nil for changes-view to skip refresh.
-                                              (fn [successful?]
-                                                (if successful?
-                                                  (updater/restart!)
-                                                  (do (ui/enable-ui!)
-                                                      (changes-view/refresh! changes-view render-reload-progress!)))))))))
-  (ui.updater/install-check-timer! stage label updater))
+(defn- init-pending-update-indicator! [^Stage stage link project changes-view updater]
+  (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
+        render-save-progress! (app-view/make-render-task-progress :save-all)
+        render-download-progress! (app-view/make-render-task-progress :download-update)
+        on-restart! (fn on-restart! []
+                      (ui/disable-ui!)
+                      (disk/async-save!
+                        render-reload-progress!
+                        render-save-progress!
+                        project
+                        nil ; Use nil for changes-view to skip refresh.
+                        (fn [successful?]
+                          (if successful?
+                            (updater/restart!)
+                            (do (ui/enable-ui!)
+                                (changes-view/refresh! changes-view render-reload-progress!))))))]
+    (ui.updater/init! stage link updater on-restart! render-download-progress!)))
 
 (defn- show-tracked-internal-files-warning! []
   (dialogs/make-alert-dialog (str "It looks like internal files such as downloaded dependencies or build output were placed under source control.\n"
@@ -175,8 +178,8 @@
       (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
 
       (when updater
-        (let [update-available-label (.lookup root "#status-pane #update-available-label")]
-          (init-pending-update-indicator! stage update-available-label project changes-view updater)))
+        (let [update-link (.lookup root "#update-link")]
+          (init-pending-update-indicator! stage update-link project changes-view updater)))
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
       (let [collapse-menu-bar? (and (util/is-mac-os?)

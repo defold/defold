@@ -11,7 +11,8 @@
       xmlns="http://javafx.com/javafx/8"
       xmlns:fx="http://javafx.com/fxml/1">
     <children>
-        <Label id="message" text="A newer version of Defold is available!" />
+        <Label id="message"
+               text="A newer version of Defold is available! Also, another update is downloaded." />
         <HBox spacing="12.0">
             <children>
                 <Button id="cancel"
@@ -19,11 +20,14 @@
                         mnemonicParsing="false"
                         text="Not Now"
                         cancelButton="true" />
-                <Button id="ok"
+                <Button id="restart"
                         minWidth="80.0"
                         mnemonicParsing="false"
-                        text="Download"
-                        defaultButton="true" />
+                        text="Restart to Update" />
+                <Button id="download"
+                        minWidth="80.0"
+                        mnemonicParsing="false"
+                        text="Download" />
             </children>
         </HBox>
     </children>
