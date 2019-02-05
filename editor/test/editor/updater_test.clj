@@ -70,62 +70,67 @@
          (.stop server#)))))
 
 (defn make-updater [channel sha1]
-  (#'updater/make-updater channel sha1 test-platform (io/file ".")))
+  (#'updater/make-updater channel sha1 sha1 test-platform (io/file ".")))
 
 (deftest no-update-on-client-when-no-update-on-server
   (with-server "test" "1"
     (let [updater (make-updater "test" "1")]
       (#'updater/check! updater)
-      (is (false? (updater/has-update? updater)))
+      (is (false? (updater/can-download-update? updater)))
       (#'updater/check! updater)
-      (is (false? (updater/has-update? updater))))))
+      (is (false? (updater/can-download-update? updater))))))
 
 (deftest has-update-on-client-when-has-update-on-server
   (with-server "test" "2"
     (let [updater (make-updater "test" "1")]
       (#'updater/check! updater)
-      (is (true? (updater/has-update? updater))))))
+      (is (true? (updater/can-download-update? updater))))))
 
 (deftest no-update-on-client-when-server-has-update-on-different-channel
   (with-server "alpha" "2"
     (let [updater (make-updater "beta" "1")]
       (#'updater/check! updater)
-      (is (false? (updater/has-update? updater))))))
+      (is (false? (updater/can-download-update? updater))))))
 
-(deftest can-download-and-install-update
+(deftest can-download-and-extract-update
   (with-server "test" "2"
     (let [updater (make-updater "test" "1")
-          update-dir (io/file "target/test-update")]
+          update-sha1-file (io/file "update.sha1")
+          update-dir (io/file "update/target/test-update")]
       (fs/delete-directory! update-dir)
+      (fs/delete! update-sha1-file)
       (#'updater/check! updater)
-      (updater/download-and-install! updater)
+      @(updater/download-and-extract! updater)
       (is (.exists update-dir))
-      (is (= #{"extracted-file.txt"} (list-files update-dir))))))
+      (is (.exists update-sha1-file))
+      (is (= #{"extracted-file.txt"} (list-files update-dir)))
+      (fs/delete-directory! update-dir)
+      (fs/delete! update-sha1-file))))
 
 (deftest throws-if-zip-is-missing-on-server
   (with-server "test" "2"
-    (let [updater (#'updater/make-updater "test" "1" "other-platform" (io/file "."))]
+    (let [updater (#'updater/make-updater "test" "1" "1" "other-platform" (io/file "."))]
       (#'updater/check! updater)
-      (is (true? (updater/has-update? updater)))
-      (is (thrown? Exception (updater/download-and-install! updater))))))
+      (is (true? (updater/can-download-update? updater)))
+      (is (false? @(updater/download-and-extract! updater))))))
 
 (deftest client-has-update-after-check-when-update-appears-on-server
   (let [updater (make-updater "test" "1")]
     (with-server "test" "1"
       (#'updater/check! updater)
-      (is (false? (updater/has-update? updater))))
+      (is (false? (updater/can-download-update? updater))))
     (with-server "test" "2"
       (#'updater/check! updater)
-      (is (true? (updater/has-update? updater))))))
+      (is (true? (updater/can-download-update? updater))))))
 
-(deftest no-new-update-is-reported-after-installing
+(deftest no-new-update-is-reported-after-extracting
   (let [updater (make-updater "test" "1")]
     (with-server "test" "2"
       (#'updater/check! updater)
-      (is (true? (updater/has-update? updater)))
-      (updater/download-and-install! updater)
+      (is (true? (updater/can-download-update? updater)))
+      @(updater/download-and-extract! updater)
       (#'updater/check! updater)
-      (is (false? (updater/has-update? updater))))))
+      (is (false? (updater/can-download-update? updater))))))
 
 (deftest update-timer-performs-checks-automatically
   (let [updater (make-updater "test" "1")
@@ -133,10 +138,10 @@
     (try
       (with-server "test" "1"
         (Thread/sleep 100)
-        (is (false? (updater/has-update? updater))))
+        (is (false? (updater/can-download-update? updater))))
       (with-server "test" "2"
         (Thread/sleep 100)
-        (is (true? (updater/has-update? updater))))
+        (is (true? (updater/can-download-update? updater))))
       (finally
         (.cancel timer)
         (.purge timer)))))

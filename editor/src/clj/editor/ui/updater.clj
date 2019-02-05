@@ -1,26 +1,42 @@
 (ns editor.ui.updater
-  (:require [editor.updater :as updater]
-            [editor.ui :as ui])
-  (:import [javafx.stage Stage WindowEvent]
-           [javafx.animation AnimationTimer]))
+  (:require [editor.ui :as ui]
+            [editor.updater :as updater]
+            [editor.dialogs :as dialogs])
+  (:import [javafx.stage Stage WindowEvent]))
 
-(defn- update-visibility! [node updater]
-  (let [has-update? (updater/has-update? updater)]
-    (ui/visible! node has-update?)
-    has-update?))
+(defn- make-link-fn [link]
+  (fn [updater]
+    (ui/run-later
+      (let [can-install? (updater/can-install-update? updater)
+            can-download? (updater/can-download-update? updater)]
+        (ui/visible! link (or can-install? can-download?))
+        (cond
+          can-install? (ui/text! link "Restart to Update")
+          can-download? (ui/text! link "Update Available"))))))
 
-(defn- make-tick-fn [node updater]
-  (fn [^AnimationTimer timer _]
-    (when (update-visibility! node updater)
-      (.stop timer))))
+(defn init! [^Stage stage link updater on-restart! render-progress!]
+  (let [link-fn (make-link-fn link)]
+    (ui/on-action! link
+      (fn [_]
+        (let [can-install? (updater/can-install-update? updater)
+              can-download? (updater/can-download-update? updater)]
+          (cond
+            (and can-install? can-download?)
+            (case (dialogs/make-download-update-or-restart-dialog stage)
+              :cancel nil
+              :download (updater/download-and-extract! updater)
+              :restart (on-restart!))
 
-(defn install-check-timer! [^Stage stage node updater]
-  (when-not (update-visibility! node updater)
-    (let [timer (ui/->timer 1 "has-update-check" (make-tick-fn node updater))]
-      (doto stage
-        (.addEventHandler WindowEvent/WINDOW_SHOWN
-                          (ui/event-handler event
-                            (ui/timer-start! timer)))
-        (.addEventHandler WindowEvent/WINDOW_HIDING
-                          (ui/event-handler event
-                            (ui/timer-stop! timer)))))))
+            can-download?
+            (when (dialogs/make-download-update-dialog stage)
+              (updater/download-and-extract! updater))
+
+            can-install?
+            (on-restart!)))))
+    (updater/add-progress-watch updater render-progress!)
+    (updater/add-state-watch updater link-fn)
+    (.addEventHandler stage
+                      WindowEvent/WINDOW_HIDING
+                      (ui/event-handler event
+                        (updater/remove-progress-watch updater render-progress!)
+                        (updater/remove-state-watch updater link-fn)))))

@@ -12,6 +12,7 @@
             [editor.git :as git]
             [editor.login :as login]
             [editor.prefs :as prefs]
+            [editor.progress :as progress]
             [editor.settings-core :as settings-core]
             [editor.system :as system]
             [editor.ui :as ui]
@@ -582,12 +583,14 @@
 ;; Automatic updates
 ;; -----------------------------------------------------------------------------
 
-(defn- init-pending-update-indicator! [stage update-link updater]
-  (ui.updater/install-check-timer! stage update-link updater)
-  (ui/on-action! update-link
-                 (fn [_]
-                   (when (dialogs/make-pending-update-dialog stage updater)
-                     (updater/restart!)))))
+(defn- init-pending-update-indicator! [stage update-link progress-bar progress-vbox updater]
+  (let [render-progress! (progress/throttle-render-progress
+                           (fn [progress]
+                             (ui/run-later
+                               (ui/visible! progress-vbox (progress/done? progress))
+                               (ui/visible! progress-bar (not (progress/done? progress)))
+                               (ui/render-progress-bar! progress progress-bar))))]
+    (ui.updater/init! stage update-link updater updater/restart! render-progress!)))
 
 ;; -----------------------------------------------------------------------------
 ;; Welcome dialog
@@ -728,7 +731,6 @@
          left-pane (.lookup root "#left-pane")
          pane-buttons-container (.lookup left-pane "#pane-buttons-container")
          sign-out-button (.lookup left-pane "#sign-out-button")
-         update-link (.lookup left-pane "#update-link")
          pane-buttons-toggle-group (ToggleGroup.)
          template-category-buttons-toggle-group (ToggleGroup.)
          new-project-pane-button (make-pane-button "NEW PROJECT" (make-new-project-pane new-project-location-directory download-template! welcome-settings template-category-buttons-toggle-group))
@@ -755,7 +757,11 @@
 
      ;; Install pending update check.
      (when (some? updater)
-       (init-pending-update-indicator! stage update-link updater))
+       (init-pending-update-indicator! stage
+                                       (.lookup left-pane "#update-link")
+                                       (.lookup left-pane "#update-progress-bar")
+                                       (.lookup left-pane "#update-progress-vbox")
+                                       updater))
 
      ;; Add the pane buttons to the left panel and configure them to toggle between the panes.
      (doseq [^RadioButton pane-button pane-buttons]
