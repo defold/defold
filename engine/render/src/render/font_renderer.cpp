@@ -288,6 +288,7 @@ namespace dmRender
                 return;
         };
 
+        font_map->m_CacheCursor = 0;
         font_map->m_Cache = (Glyph**)malloc(sizeof(Glyph*) * cell_count);
         memset(font_map->m_Cache, 0, sizeof(Glyph*) * cell_count);
 
@@ -853,8 +854,8 @@ namespace dmRender
         float cache_cell_height_ratio = 0.0;
 
         if (font_map->m_Texture) {
-            float cache_width  = (float) dmGraphics::GetOriginalTextureWidth(font_map->m_Texture);
-            float cache_height = (float) dmGraphics::GetOriginalTextureHeight(font_map->m_Texture);
+            float cache_width  = (float) dmGraphics::GetTextureWidth(font_map->m_Texture);
+            float cache_height = (float) dmGraphics::GetTextureHeight(font_map->m_Texture);
 
             im_recip /= cache_width;
             ih_recip /= cache_height;
