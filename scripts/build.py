@@ -545,7 +545,7 @@ class Configuration(object):
         return self.host != self.target_platform
 
     def is_desktop_target(self):
-        return self.target_platform in ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32']
+        return self.target_platform in ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32']
 
     # package the native SDK, return the path to the zip file
     def _package_platform_sdk(self, platform):
@@ -679,7 +679,7 @@ class Configuration(object):
         lib_dir = self.target_platform
 
         # upload editor 2.0 launcher
-        if self.target_platform in ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32']:
+        if self.target_platform in ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32']:
             launcher_name = format_exes("launcher", self.target_platform)[0]
             launcherbin = join(bin_dir, launcher_name)
             self.upload_file(launcherbin, '%s/%s' % (full_archive_path, launcher_name))
@@ -779,7 +779,13 @@ class Configuration(object):
         self.exec_env_command(args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
 
     def build_bob_light(self):
-        self._log('Building bob')
+        self._log('Building bob light')
+
+        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        sha1 = self._git_sha1()
+        if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
+            self.exec_env_shell_command("./scripts/copy.sh", cwd = cwd)
+
         self.exec_env_shell_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'))
 
@@ -863,8 +869,7 @@ class Configuration(object):
             txts = []
             txts = missing.setdefault(plf, txts)
             txts = txts.append(txt)
-        # TODO Haxx to deal with the incorrect usage of x86-darwin in editor1
-        for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32'], ['x86_64-linux', 'x86_64-linux'], ['darwin', 'x86-darwin'], ['x86_64-darwin', 'x86-darwin']]:
+        for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32'], ['x86_64-linux', 'x86_64-linux'], ['x86_64-darwin', 'x86_64-darwin']]:
             luajit_path = join(cwd, '../../packages/luajit-2.0.5-%s.tar.gz' % (plf[0]))
             if not os.path.exists(luajit_path):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
@@ -873,12 +878,10 @@ class Configuration(object):
                 luajit_exe = format_exes('luajit', plf[1])[0]
                 self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe)))
         win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal', 'PVRTexLib', 'msvcr120'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
-        osx_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['darwin', 'darwin'], ['x86_64-darwin', 'x86_64-darwin']]])
-        linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['linux', 'x86-linux'], ['x86_64-linux', 'x86_64-linux']]])
+        osx_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['x86_64-darwin', 'x86_64-darwin']]])
+        linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['x86_64-linux', 'x86_64-linux']]])
         js_files = {'bin/js-web/defold_sound.swf': 'libexec/js-web/defold_sound.swf'}
-        # TODO Haxx to deal with the incorrect usage of x86-darwin in editor1
-        haxx_host = self.host2 if self.host2 != 'x86_64-darwin' else 'x86-darwin'
-        android_files = {'ext/bin/%s/%s' % (self.host2, apkc_name): 'libexec/%s/%s' % (haxx_host, apkc_name),
+        android_files = {'ext/bin/%s/%s' % (self.host2, apkc_name): 'libexec/%s/%s' % (self.host2, apkc_name),
                          'share/java/classes.dex': 'lib/classes.dex',
                          'ext/share/java/android.jar': 'lib/android.jar'}
         # This dict is being built up and will eventually be used for copying in the end
@@ -886,7 +889,7 @@ class Configuration(object):
         #   - pairs of src-file -> dst-file
         artefacts = {'generic': {'share/java/dlib.jar': 'lib/dlib.jar',
                                  'share/builtins.zip': 'lib/builtins.zip',
-                                 'lib/%s/%s' % (self.host, texc_name): 'lib/%s/%s' % (self.host, texc_name)},
+                                 'lib/%s/%s' % (self.host2, texc_name): 'lib/%s/%s' % (self.host2, texc_name)},
                      'android-bundling': android_files,
                      'win32-bundling': win32_files,
                      'js-bundling': js_files,
@@ -901,7 +904,6 @@ class Configuration(object):
                            'osx-bundling': [['x86_64-darwin', 'x86_64-darwin']],
                            'linux-bundling': [['x86_64-linux', 'x86_64-linux']]}.iteritems():
             # plfs is pairs of src-platform -> dst-platform
-            # The haxx above makes sure that x86_64-darwin is noted as x86-darwin for dst-platform (because of Ed1 reasons)
             for plf in plfs:
                 exes = format_exes('dmengine', plf[1]) + format_exes('dmengine_release', plf[1])
                 artefacts[type].update(dict([['bin/%s/%s' % (plf[0], exe), 'libexec/%s/%s' % (plf[1], exe)] for exe in exes]))
@@ -1279,7 +1281,7 @@ instructions.configure=\
         </div>
 
         <script id="templ-releases" type="text/html">
-            <h2>Editor</h2>
+            <h2>Editor {{editor.version}}</h2>
             {{#editor.stable}}
                 <p>
                     <a href="{{url}}" class="btn btn-primary" style="width: 20em;" role="button">Download for {{name}}</a>
@@ -1404,9 +1406,21 @@ instructions.configure=\
             if response[0] != 'y':
                 return
 
-        model['editor'] = {'stable': [ dict(name='Mac OSX', url='/%s/Defold-macosx.cocoa.x86_64.dmg' % self.channel),
-                                       dict(name='Windows', url='/%s/Defold-win32.win32.x86.zip' % self.channel),
-                                       dict(name='Linux', url='/%s/Defold-linux.gtk.x86_64.zip' % self.channel)] }
+        # Pick editor URLs from the current SHA1 build.
+        model['editor'] = {'stable': [ dict(name='macOS 10.7+', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-darwin.dmg' % release_sha1),
+                                       dict(name='Windows 64bit', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-win32.zip' % release_sha1),
+                                       dict(name='Windows 32bit', url='https://d.defold.com/editor2/%s/editor2/Defold-x86-win32.zip' % release_sha1),
+                                       dict(name='Ubuntu 16.04+ 64bit', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-linux.zip' % release_sha1)] }
+
+        # We handle the stable channel seperately, since we want it to point
+        # to the editor-dev release (which uses the latest stable engine).
+        if self.channel == "stable":
+            model['editor'] = {'stable': [ dict(name='macOS 10.7+', url='https://www.defold.com/download/editor2/Defold-x86_64-darwin.dmg'),
+                                           dict(name='Windows 64bit', url='https://www.defold.com/download/editor2/Defold-x86_64-win32.zip'),
+                                           dict(name='Windows 32bit', url='https://www.defold.com/download/editor2/Defold-x86-win32.zip'),
+                                           dict(name='Ubuntu 16.04+ 64bit', url='https://www.defold.com/download/editor2/Defold-x86_64-linux.zip')] }
+
+        model['editor']['version'] = self.version
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html

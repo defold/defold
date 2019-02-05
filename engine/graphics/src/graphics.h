@@ -103,6 +103,13 @@ namespace dmGraphics
         TYPE_SAMPLER_CUBE   = DMGRAPHICS_TYPE_SAMPLER_CUBE,
     };
 
+    // Index buffer format
+    enum IndexBufferFormat
+    {
+        INDEXBUFFER_FORMAT_16 = 0,
+        INDEXBUFFER_FORMAT_32 = 1,
+    };
+
     // Texture format
     enum TextureFormat
     {
@@ -555,6 +562,7 @@ namespace dmGraphics
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
     void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);
     bool UnmapIndexBuffer(HIndexBuffer buffer);
+    bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format);
     uint32_t GetMaxElementsIndices(HContext context);
 
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count);

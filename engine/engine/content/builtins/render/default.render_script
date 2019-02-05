@@ -73,9 +73,6 @@ function update(self)
     render.draw(self.gui_pred)
     render.draw(self.text_pred)
     render.disable_state(render.STATE_STENCIL_TEST)
-
-    render.set_depth_mask(false)
-    render.draw_debug2d()
 end
 
 function on_message(self, message_id, message)

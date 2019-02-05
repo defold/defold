@@ -699,7 +699,7 @@ TEST_F(dmRenderScriptTest, TestLuaDraw_StringPredicate)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
-    ASSERT_EQ(3u, commands.Size());
+    ASSERT_EQ(2u, commands.Size());
 
     dmRender::Command* command = &commands[0];
     ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW, command->m_Type);
@@ -707,9 +707,6 @@ TEST_F(dmRenderScriptTest, TestLuaDraw_StringPredicate)
 
     command = &commands[1];
     ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW_DEBUG3D, command->m_Type);
-
-    command = &commands[2];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW_DEBUG2D, command->m_Type);
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
@@ -732,7 +729,7 @@ TEST_F(dmRenderScriptTest, TestLuaDraw_HashPredicate)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
-    ASSERT_EQ(3u, commands.Size());
+    ASSERT_EQ(2u, commands.Size());
 
     dmRender::Command* command = &commands[0];
     ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW, command->m_Type);
@@ -740,9 +737,6 @@ TEST_F(dmRenderScriptTest, TestLuaDraw_HashPredicate)
 
     command = &commands[1];
     ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW_DEBUG3D, command->m_Type);
-
-    command = &commands[2];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW_DEBUG2D, command->m_Type);
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
