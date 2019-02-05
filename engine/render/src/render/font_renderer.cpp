@@ -288,7 +288,6 @@ namespace dmRender
                 return;
         };
 
-        font_map->m_CacheCursor = 0;
         font_map->m_Cache = (Glyph**)malloc(sizeof(Glyph*) * cell_count);
         memset(font_map->m_Cache, 0, sizeof(Glyph*) * cell_count);
 
