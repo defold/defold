@@ -281,3 +281,24 @@
        (* (+ (* 3 t2) (* -4 t) 1) t0)
        (* (+ (* -6 t2) (* 6 t)) y1)
        (* (+ (* 3 t2) (* -2 t)) t1))))
+
+(defn derive-render-transforms
+  ([^Matrix4d world ^Matrix4d view ^Matrix4d projection]
+   (let [texture (doto (Matrix4d.) (.setIdentity))]
+     (derive-render-transforms world view projection texture)))
+  ;; Matrix multiplication A * B = C is c.mul(a, b) in vecmath. In-place A := A * B is a.mul(b).
+  ;; The matrix naming is in the order the transforms will be applied to the vertices. For instance
+  ;; view-proj is "Proj * View", and view-proj.transform(v) is (Proj * (View * V))
+  ([^Matrix4d world ^Matrix4d view ^Matrix4d projection ^Matrix4d texture]
+   (let [view-proj (doto (Matrix4d. projection) (.mul view))
+         world-view (doto (Matrix4d. view) (.mul world))
+         world-view-proj (doto (Matrix4d. view-proj) (.mul world))
+         normal (doto (affine-inverse world-view) (.transpose))]
+     {:world world
+      :view view
+      :projection projection
+      :texture texture
+      :normal normal
+      :view-proj view-proj
+      :world-view world-view
+      :world-view-proj (doto (Matrix4d. view-proj) (.mul world))})))
