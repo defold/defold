@@ -835,6 +835,56 @@ TEST_F(dmGuiTest, Layouts)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
+TEST_F(dmGuiTest, NodeTextureType)
+{
+    int t1, t2;
+    void* raw_tex;
+    dmGui::Result r;
+    dmGui::NodeTextureType node_texture_type;
+    uint64_t fb_id;
+
+    // Test NODE_TEXTURE_TYPE_TEXTURE_SET: Create and get type
+    r = dmGui::AddTexture(m_Scene, "t1", (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(0,0,0), dmGui::NODE_TYPE_BOX);
+    ASSERT_NE((dmGui::HNode) 0, node);
+
+    r = dmGui::SetNodeTexture(m_Scene, node, "t1");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    raw_tex = dmGui::GetNodeTexture(m_Scene, node, &node_texture_type);
+    ASSERT_EQ(raw_tex, &t1);
+    ASSERT_EQ(node_texture_type, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET);
+
+    // Test NODE_TEXTURE_TYPE_TEXTURE_SET: Playing flipbook animation
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0x0);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
+    ASSERT_EQ(dmHashString64("ta1"), fb_id);
+
+    // Test NODE_TEXTURE_TYPE_TEXTURE: Create and get type
+    r = dmGui::AddTexture(m_Scene, "t2", (void*) &t2, dmGui::NODE_TEXTURE_TYPE_TEXTURE, 1, 1);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    r = dmGui::SetNodeTexture(m_Scene, node, "t2");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    raw_tex = dmGui::GetNodeTexture(m_Scene, node, &node_texture_type);
+    ASSERT_EQ(raw_tex, &t2);
+    ASSERT_EQ(node_texture_type, dmGui::NODE_TEXTURE_TYPE_TEXTURE);
+
+    // Test NODE_TEXTURE_TYPE_TEXTURE: Playing flipbook animation should not work!
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta2", 0x0);
+    ASSERT_EQ(r, dmGui::RESULT_INVAL_ERROR);
+    ASSERT_EQ(dmGui::GetNodeFlipbookAnimId(m_Scene, node), 0);
+
+    // Test NODE_TEXTURE_TYPE_NONE: Removing known texture should reset node texture types
+    dmGui::RemoveTexture(m_Scene, "t2");
+    dmGui::GetNodeTexture(m_Scene, node, &node_texture_type);
+    ASSERT_EQ(node_texture_type, dmGui::NODE_TEXTURE_TYPE_NONE);
+}
 
 TEST_F(dmGuiTest, SizeMode)
 {
@@ -917,7 +967,7 @@ TEST_F(dmGuiTest, FlipbookAnim)
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
     ASSERT_EQ(0, fb_id);
 
-    r = dmGui::AddTexture(m_Scene, "t2", (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE, 1, 1);
+    r = dmGui::AddTexture(m_Scene, "t2", (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     r = dmGui::SetNodeTexture(m_Scene, node, "t2");
@@ -1181,7 +1231,7 @@ TEST_F(dmGuiTest, DynamicTextureFlip)
 
 TEST_F(dmGuiTest, ScriptFlipbookAnim)
 {
-    int t1, ts1;
+    int t1;
     dmGui::Result r;
 
     r = dmGui::AddTexture(m_Scene, "t1", (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
@@ -1225,7 +1275,7 @@ TEST_F(dmGuiTest, ScriptFlipbookAnim)
 
 TEST_F(dmGuiTest, ScriptTextureFontLayer)
 {
-    int t, ts;
+    int t;
     int f;
 
     dmGui::AddTexture(m_Scene, "t", (void*) &t, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);

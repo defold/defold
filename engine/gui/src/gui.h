@@ -321,14 +321,6 @@ namespace dmGui
         NODE_TYPE_PARTICLEFX = 5,
     };
 
-    enum NodeTextureType
-    {
-        NODE_TEXTURE_TYPE_NONE,
-        NODE_TEXTURE_TYPE_TEXTURE,
-        NODE_TEXTURE_TYPE_TEXTURE_SET,
-        NODE_TEXTURE_TYPE_DYNAMIC
-    };
-
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
     // Don't forget to change gui_ddf.proto if you change here
     enum XAnchor
@@ -385,6 +377,15 @@ namespace dmGui
     {
         PIEBOUNDS_RECTANGLE = 0,
         PIEBOUNDS_ELLIPSE   = 1,
+    };
+
+    // This enum denotes what kind of texture type the m_Texture pointer is referencing.
+    enum NodeTextureType
+    {
+        NODE_TEXTURE_TYPE_NONE,
+        NODE_TEXTURE_TYPE_TEXTURE,
+        NODE_TEXTURE_TYPE_TEXTURE_SET,
+        NODE_TEXTURE_TYPE_DYNAMIC
     };
 
     /**

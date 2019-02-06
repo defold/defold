@@ -483,7 +483,7 @@ TEST_F(dmGuiScriptTest, TestSizeMode)
     dmGui::Result result;
 
     int t1;
-    result = dmGui::AddTexture(scene, "t1", (void*) &t1, dmGui::NODE_TEXTURE_TYPE_NONE, 1, 1);
+    result = dmGui::AddTexture(scene, "t1", (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(result, dmGui::RESULT_OK);
 
     const char* src =
