@@ -49,7 +49,6 @@ function luajit_configure() {
 		arm64-android)
 			TAR_SKIP_BIN=1
 			XFLAGS="-DLUAJIT_ENABLE_GC64 -DLUAJIT_NUMMODE=2 -DLUAJIT_ENABLE_JIT"
-			# XCFLAGS+="-DLUAJIT_ENABLE_GC64 -DLUAJIT_NUMMODE=2 -DLUAJIT_ENABLE_JIT"
 			CROSS="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/aarch64-linux-android-${ANDROID_64_GCC_VERSION}/prebuilt/${platform}-x86_64/bin/aarch64-linux-android-"
 			export HOST_CC="gcc -m64"
 			export HOST_CFLAGS="$XFLAGS -m64 -I."
@@ -59,10 +58,6 @@ function luajit_configure() {
 		x86_64-linux)
 			XFLAGS="-DLUAJIT_ENABLE_GC64 -DLUAJIT_NUMMODE=2 -DLUAJIT_ENABLE_JIT"
 			return
-			# export HOST_CC="gcc -m64"
-			# export HOST_CFLAGS="$XFLAGS -m64 -I."
-			# export HOST_ALDFLAGS="-m64"
-			# export TARGET_FLAGS="$CFLAGS"
 			;;
 		*)
 			return
@@ -79,29 +74,17 @@ function luajit_configure() {
 	# Host need to generate same pointer size as target, though.
 	# Which means we do -m32 for that.
 
-	# Flags set both for host & target compilation
-	# XFLAGS="-DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT"
-	# XFLAGS="-DLUAJIT_NUMMODE=2"
-	# XFLAGS=
-
-
 	# These will be used for the cross compiling
 	export TARGET_TCFLAGS="$CFLAGS $XFLAGS"
 	export TARGET_CFLAGS="$CFLAGS $XFLAGS"
-	# export TARGET_LDFLAGS="$CFLAGS"
-	# export TARGET_AR="$AR rcus"
-	# export TARGET_AR="ar"
+	export TARGET_LDFLAGS="$CFLAGS"
+	export TARGET_AR="$AR rcus"
 	export TARGET_LD="$CC $CFLAGS"
 
 	# These are used for host compiling
-	# export HOST_CC="gcc -m64"
 	export HOST_LD=true
-	# export HOST_CFLAGS="$XFLAGS -m64 -I."
 	export HOST_XCFLAGS=""
-	# export HOST_ALDFLAGS="-m64"
 	export HOST_LDFLAGS="${BUILD_LDFLAGS}"
-
-	# make CC="gcc" HOST_CC="gcc -m64" CROSS=$NDKP TARGET_FLAGS="$NDKF $NDKARCH" TARGET_SYS=Android clean
 
 	# Disable
 	export TARGET_STRIP=true
@@ -121,87 +104,16 @@ export CONF_TARGET=$1
 case $1 in
 	armv7-darwin)
 		echo "############# armv7-darwin"
-		# export XCFLAGS+="-DLUAJIT_ENABLE_GC64"
-		# export XCFLAGS+="-DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT"
-		# export LUAJIT_TARGET="LUAJIT_ARCH_ARM"
-		# export TARGET_LJARCH="arm"
 		export TARGET_SYS=iOS
-		# function cmi_make() {
-		# 	# export HOST_CC+=" -m32"
-		# 	# export HOST_CC="clang -arch i386"
-		# 	# export CROSS=armeabi-v7a
-		# 	# export TARGET_CFLAGS+=" -arch armv7 -m32"
-		# 	# export LUAJIT_TARGET="LJ_TARGET_ARM"
-		# 	echo "XCFLAGS: ${XCFLAGS}"
-		# 	echo "###### armv7-darwin cmi_make!"
-		# 	echo "HOST_CC: ${HOST_CC}"
-		# 	echo "CROSS: ${CROSS}"
-		# 	which "${HOST_CC}"
-		# 	pwd
-		#     set -e
-		#     make -f $MAKEFILE -j8
-		#     make install
-		#     set +e
-		# }
 		;;
 	arm64-darwin)
-		# export XCFLAGS+="-DLUAJIT_ENABLE_GC64"
 		export TARGET_SYS=iOS
-		# function cmi_make() {
-		# 	echo "###### arm64-darwin cmi_make!"
-		# 	echo "HOST_CC: ${HOST_CC}"
-		# 	echo "CROSS: ${CROSS}"
-		# 	# which "${HOST_CC}"
-		# 	# pwd
-		#     set -e
-		#     make -f $MAKEFILE -j8
-		#     make install
-		#     set +e
-		# }
 		;;
 	armv7-android)
 		export TARGET_SYS=Linux
-		# XFLAGS+="-DLUAJIT_DISABLE_JIT"
-		# function cmi_make() {
-		# 	# export HOST_CC="gcc -m32"
-		# 	# export HOST_CFLAGS="$XFLAGS -m32 -I."
-		# 	# export HOST_ALDFLAGS="-m32"
-		# 	# # export TARGET_CC="-arch armv7"
-		# 	echo "###### armv7-android cmi_make!"
-		# 	echo "HOST_CC: ${HOST_CC}"
-		# 	echo "XFLAGS: ${XFLAGS}"
-		# 	echo "CROSS: ${CROSS}"
-		# 	# which "${HOST_CC}"
-		# 	# pwd
-		#     set -e
-		#     make clean
-		#     make -f $MAKEFILE -j8
-		#     make install
-		#     set +e
-		# }
 		;;
 	arm64-android)
-		echo "############# arm64-android"
-		# export HOST_CC="gcc -m64"
-		# export CROSS=""
-		# export CXXFLAGS="-DLJ_ABI_SOFTFP=0 -DLJ_ARCH_HASFPU=1 -DLUAJIT_ENABLE_GC64=1"
 		export TARGET_SYS=Android
-		# function cmi_make() {
-		# 	# XFLAGS="-DLUAJIT_NUMMODE=2 -DLUAJIT_ENABLE_JIT"
-		# 	# export XCFLAGS+="-DLUAJIT_ENABLE_GC64"
-		# 	echo "###### arm64-android cmi_make!"
-		# 	echo "HOST_CC: ${HOST_CC}"
-		# 	echo "XFLAGS: ${XFLAGS}"
-		# 	echo "XCFLAGS: ${XCFLAGS}"
-		# 	echo "CROSS: ${CROSS}"
-		#     set -e
-		#     make clean
-		#     echo "#### MAKE!"
-		#     make -f $MAKEFILE -j8
-		#     echo "#### INSTALL!"
-		#     make install
-		#     set +e
-		# }
 		;;
 	x86_64-linux)
 		export TARGET_SYS=Linux
@@ -209,10 +121,6 @@ case $1 in
 					TAR_SKIP_BIN=0
 					echo "Building x86_64-linux with LUAJIT_ENABLE_GC64=0"
 					export DEFOLD_ARCH="32"
-					# CROSS=
-					# export TARGET_AR="$AR rcus"
-					echo "TARGET_SYS: ${TARGET_SYS}"
-					echo "TARGET_AR: ${TARGET_AR}"
 					echo "HOST_CC: ${HOST_CC}"
 					echo "XFLAGS: ${XFLAGS}"
 					echo "CROSS: ${CROSS}"
@@ -241,7 +149,6 @@ case $1 in
 					echo "Building x86_64-darwin with LUAJIT_ENABLE_GC64=0"
 					export DEFOLD_ARCH="32"
 					echo "HOST_CC: ${HOST_CC}"
-					# echo "CC: ${CC}"
 					echo "XFLAGS: ${XFLAGS}"
 					echo "CROSS: ${CROSS}"
 					echo "DEFOLD_ARCH: ${DEFOLD_ARCH}"
@@ -253,7 +160,6 @@ case $1 in
                     echo "Building x86_64-darwin with LUAJIT_ENABLE_GC64=1"
                     export XCFLAGS+="-DLUAJIT_ENABLE_GC64"
                     export DEFOLD_ARCH="64"
-                    # echo "CC: ${CC}"
 					echo "XFLAGS: ${XFLAGS}"
 					echo "XCFLAGS: ${XCFLAGS}"
 					echo "DEFOLD_ARCH: ${DEFOLD_ARCH}"
