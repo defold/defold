@@ -126,24 +126,28 @@ def rmtree(path):
     if os.path.exists(path):
         shutil.rmtree(path, onerror=remove_readonly_retry)
 
-def create_dmg(dmg_dir, bundle_dir, dmg_file):
+def mac_certificate():
     # This certificate must be installed on the computer performing the operation
     certificate = 'Developer ID Application: Midasplayer Technology AB (ATT58V7T33)'
+    if exec_command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(certificate) >= 0:
+        return certificate
+    else:
+        return None
 
-    certificate_found = exec_command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(certificate) >= 0
-
-    if not certificate_found:
-        print("Warning: Codesigning certificate not found, DMG will not be signed")
-
-    # sign files in bundle
-    if certificate_found:
+def sign_files(bundle_dir):
+    certificate = mac_certificate()
+    if certificate == None:
+        print("Watning: Codesigning certificate not found, files will not be signed")
+    else:
         exec_command(['codesign', '--deep', '-s', certificate, bundle_dir])
 
-    # create dmg
+def create_dmg(dmg_dir, dmg_file):
     exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
 
-    # sign dmg
-    if certificate_found:
+    certificate = mac_certificate()
+    if certificate == None:
+        print("Warning: Codesigning certificate not found, DMG will not be signed")
+    else:
         exec_command(['codesign', '-s', certificate, dmg_file])
 
 def launcher_path(options, platform, exe_suffix):
@@ -242,12 +246,11 @@ def bundle(platform, jar_file, options):
         shutil.move(p, '%s/jre' % packages_dir)
 
     if is_mac:
+        sign_files(bundle_dir)
         ziptree(bundle_dir, 'target/editor/Defold-%s.zip' % platform, dmg_dir)
+        create_dmg(dmg_dir, 'target/editor/Defold-%s.dmg' % platform)
     else:
         ziptree(bundle_dir, 'target/editor/Defold-%s.zip' % platform, 'tmp')
-
-    if is_mac:
-        create_dmg(dmg_dir, bundle_dir, 'target/editor/Defold-%s.dmg' % platform)
 
 def check_reflections():
     reflection_prefix = 'Reflection warning, ' # final space important
@@ -336,6 +339,7 @@ if __name__ == '__main__':
         init_command += [options.engine_sha1]
 
     exec_command(init_command)
+    # TODO vlaaad uncomment
     # check_reflections()
 
     if options.skip_tests:

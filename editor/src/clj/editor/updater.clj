@@ -2,15 +2,16 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as string]
+            [editor.process :as process]
             [editor.progress :as progress]
             [editor.system :as system]
             [service.log :as log]
             [util.net :as net])
   (:import [java.nio.file.attribute FileAttribute]
-           [java.nio.file Files]
+           [java.nio.file CopyOption Files StandardCopyOption]
            [java.io File IOException]
-           [org.apache.commons.io FileUtils FilenameUtils]
-           [org.apache.commons.compress.archivers.zip ZipFile ZipArchiveEntry]
+           [org.apache.commons.io FilenameUtils FileUtils]
+           [org.apache.commons.compress.archivers.zip ZipArchiveEntry ZipFile]
            [com.defold.editor Platform]
            [java.util Timer TimerTask]))
 
@@ -24,10 +25,11 @@
   ;; TODO vlaaad remove temporary code
   "http://localhost:8000/update-v2.json")
 
-(defn- make-updater [channel editor-sha1 downloaded-sha1 platform install-dir]
+(defn- make-updater [channel editor-sha1 downloaded-sha1 platform install-dir launcher-path]
   {:channel channel
    :platform platform
    :install-dir install-dir
+   :launcher-path launcher-path
    :editor-sha1 editor-sha1
    :state-atom (atom {:downloaded-sha1 downloaded-sha1
                       :server-sha1 editor-sha1})})
@@ -73,8 +75,9 @@
 
 (defn can-download-update? [updater]
   (let [{:keys [state-atom editor-sha1]} updater
-        {:keys [downloaded-sha1 server-sha1 current-download]} @state-atom]
+        {:keys [downloaded-sha1 server-sha1 current-download installed-sha1]} @state-atom]
     (cond
+      (some? installed-sha1) (not= installed-sha1 server-sha1)
       (some? current-download) (not= (:sha1 current-download) server-sha1)
       (some? downloaded-sha1) (not= downloaded-sha1 server-sha1)
       :else (not= editor-sha1 server-sha1))))
@@ -183,8 +186,9 @@
 (defn install!
   "Installs previously downloaded update"
   [updater]
+  {:pre [(can-install-update? updater)]}
   (let [{:keys [install-dir state-atom editor-sha1]} updater
-        {:keys [current-download]} @state-atom
+        {:keys [current-download downloaded-sha1]} @state-atom
         update-dir (io/file install-dir "update")
         update-sha1-file (io/file install-dir "update.sha1")]
     (when (some? current-download)
@@ -201,20 +205,27 @@
         ;; on windows. renaming it works as a workaround
         (.renameTo target-file
                    (io/file (format "%s-%s.backup" target-file editor-sha1))))
-      (io/copy source-file target-file))
+      (Files/move (.toPath source-file)
+                  (.toPath target-file)
+                  (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING])))
     (FileUtils/deleteQuietly update-sha1-file)
     (FileUtils/deleteQuietly update-dir)
+    (swap! state-atom (fn [state]
+                        (-> state
+                            (dissoc :downloaded-sha1)
+                            (assoc :installed-sha1 downloaded-sha1))))
     (log/info :message "Update installed")))
 
 (defn install-if-can! [updater]
   (when (can-install-update? updater)
     (install! updater)))
 
-(defn restart! []
-  (log/info :message "Restarting editor")
-  ;; TODO vlaaad SHOULD BE OTHER PROC
-  ;; magic exit code that restarts editor
-  (System/exit 17))
+(defn restart! [updater]
+  (let [{:keys [launcher-path install-dir]} updater]
+    (log/info :message "Restarting editor")
+    (install-if-can! updater)
+    (process/start! launcher-path *command-line-args* {:directory install-dir})
+    (javafx.application.Platform/exit)))
 
 (defn delete-backup-files!
   "Delete files left from previous update"
@@ -266,6 +277,10 @@
         install-dir (.getAbsoluteFile (if system/mac?
                                         (io/file resources-path "../../")
                                         (io/file resources-path)))
+        launcher-path (or (system/defold-launcherpath)
+                          (if (= "win32" (.getOs (Platform/getHostPlatform)))
+                            "./Defold.exe"
+                            "./Defold"))
         update-sha1-file (io/file install-dir "update.sha1")
         downloaded-sha1 (when (.exists update-sha1-file)
                           (slurp update-sha1-file))
@@ -276,5 +291,5 @@
       (do
         (log/info :message "Automatic updates disabled" :channel channel :sha1 sha1)
         nil)
-      (doto (make-updater channel sha1 downloaded-sha1 platform install-dir)
+      (doto (make-updater channel sha1 downloaded-sha1 platform install-dir launcher-path)
         (start-timer! initial-update-delay update-delay)))))

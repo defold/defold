@@ -112,7 +112,7 @@
                         nil ; Use nil for changes-view to skip refresh.
                         (fn [successful?]
                           (if successful?
-                            (updater/restart!)
+                            (updater/restart! updater)
                             (do (ui/enable-ui!)
                                 (changes-view/refresh! changes-view render-reload-progress!))))))]
     (ui.updater/init! stage link updater on-restart! render-download-progress!)))
