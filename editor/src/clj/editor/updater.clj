@@ -216,14 +216,9 @@
                             (assoc :installed-sha1 downloaded-sha1))))
     (log/info :message "Update installed")))
 
-(defn install-if-can! [updater]
-  (when (can-install-update? updater)
-    (install! updater)))
-
 (defn restart! [updater]
   (let [{:keys [launcher-path install-dir]} updater]
     (log/info :message "Restarting editor")
-    (install-if-can! updater)
     (process/start! launcher-path *command-line-args* {:directory install-dir})
     (javafx.application.Platform/exit)))
 

@@ -19,7 +19,7 @@
            [java.nio.file Path Paths]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control CheckBox Button Label ListView TextArea TextField Hyperlink ProgressBar]
+           [javafx.scene.control CheckBox Button Label ListView TextArea TextField Hyperlink]
            [javafx.scene.input KeyCode]
            [javafx.scene.layout HBox VBox Region]
            [javafx.scene.text Text TextFlow]
@@ -163,6 +163,22 @@
      (.setScene stage scene)
      (ui/show-and-wait! stage)
      @result)))
+
+(defn make-update-failed-dialog [^Stage owner]
+  (let [root ^Parent (ui/load-fxml "update-failed-alert.fxml")
+        stage (ui/make-dialog-stage owner)
+        scene (Scene. root)]
+    (ui/title! stage "Update failed")
+    (ui/with-controls root [^Button dismiss ^Button open-site]
+      (ui/on-action! dismiss
+        (fn [_]
+          (ui/close! stage)))
+      (ui/on-action! open-site
+        (fn [_]
+          (ui/open-url "https://www.defold.com/")
+          (ui/close! stage))))
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)))
 
 (defn make-download-update-or-restart-dialog [^Stage owner]
   (let [root ^Parent (ui/load-fxml "update-or-restart-alert.fxml")

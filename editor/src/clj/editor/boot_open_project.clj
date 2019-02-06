@@ -103,19 +103,19 @@
   (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
         render-save-progress! (app-view/make-render-task-progress :save-all)
         render-download-progress! (app-view/make-render-task-progress :download-update)
-        on-restart! (fn on-restart! []
-                      (ui/disable-ui!)
-                      (disk/async-save!
-                        render-reload-progress!
-                        render-save-progress!
-                        project
-                        nil ; Use nil for changes-view to skip refresh.
-                        (fn [successful?]
-                          (if successful?
-                            (updater/restart! updater)
-                            (do (ui/enable-ui!)
-                                (changes-view/refresh! changes-view render-reload-progress!))))))]
-    (ui.updater/init! stage link updater on-restart! render-download-progress!)))
+        install-and-restart! (fn install-and-restart! []
+                               (ui/disable-ui!)
+                               (disk/async-save!
+                                 render-reload-progress!
+                                 render-save-progress!
+                                 project
+                                 nil ; Use nil for changes-view to skip refresh.
+                                 (fn [successful?]
+                                   (if successful?
+                                     (ui.updater/install-and-restart! stage updater)
+                                     (do (ui/enable-ui!)
+                                         (changes-view/refresh! changes-view render-reload-progress!))))))]
+    (ui.updater/init! stage link updater install-and-restart! render-download-progress!)))
 
 (defn- show-tracked-internal-files-warning! []
   (dialogs/make-alert-dialog (str "It looks like internal files such as downloaded dependencies or build output were placed under source control.\n"
