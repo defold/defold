@@ -1689,7 +1689,7 @@ namespace dmGameSystem
         out_data->m_MeshSet = rig_res->m_MeshSetRes->m_MeshSet;
         out_data->m_AnimationSet = rig_res->m_AnimationSetRes->m_AnimationSet;
         out_data->m_Texture = rig_res->m_TextureSet->m_Texture;
-        out_data->m_TextureSet = rig_res->m_TextureSet->m_TextureSet;
+        out_data->m_TextureSet = rig_res->m_TextureSet;
         out_data->m_PoseIdxToInfluence = &rig_res->m_PoseIdxToInfluence;
         out_data->m_TrackIdxToPose     = &rig_res->m_TrackIdxToPose;
 
