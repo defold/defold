@@ -8,7 +8,7 @@
             [service.log :as log]
             [util.net :as net])
   (:import [java.nio.file.attribute FileAttribute]
-           [java.nio.file CopyOption Files StandardCopyOption]
+           [java.nio.file Files]
            [java.io File IOException]
            [org.apache.commons.io FilenameUtils FileUtils]
            [org.apache.commons.compress.archivers.zip ZipArchiveEntry ZipFile]
@@ -21,9 +21,7 @@
   (format "https://d.defold.com/editor2/%s/editor2/Defold-%s.zip" sha1 platform))
 
 (defn- update-url [channel]
-  (format "https://d.defold.com/editor2/channels/%s/update-v2.json" channel)
-  ;; TODO vlaaad remove temporary code
-  "http://localhost:8000/update-v2.json")
+  (format "https://d.defold.com/editor2/channels/%s/update-v2.json" channel))
 
 (defn- make-updater [channel editor-sha1 downloaded-sha1 platform install-dir launcher-path]
   {:channel channel
@@ -205,9 +203,7 @@
         ;; on windows. renaming it works as a workaround
         (.renameTo target-file
                    (io/file (format "%s-%s.backup" target-file editor-sha1))))
-      (Files/move (.toPath source-file)
-                  (.toPath target-file)
-                  (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING])))
+      (io/copy source-file target-file))
     (FileUtils/deleteQuietly update-sha1-file)
     (FileUtils/deleteQuietly update-dir)
     (swap! state-atom (fn [state]
