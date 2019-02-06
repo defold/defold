@@ -70,7 +70,13 @@
          (.stop server#)))))
 
 (defn make-updater [channel sha1]
-  (#'updater/make-updater channel sha1 sha1 test-platform (io/file ".")))
+  (#'updater/make-updater
+    channel
+    sha1
+    sha1
+    test-platform
+    (io/file ".")
+    (io/file "no-launcher")))
 
 (deftest no-update-on-client-when-no-update-on-server
   (with-server "test" "1"
@@ -109,7 +115,13 @@
 
 (deftest throws-if-zip-is-missing-on-server
   (with-server "test" "2"
-    (let [updater (#'updater/make-updater "test" "1" "1" "other-platform" (io/file "."))]
+    (let [updater (#'updater/make-updater
+                    "test"
+                    "1"
+                    "1"
+                    "other-platform"
+                    (io/file ".")
+                    (io/file "no-launcher"))]
       (#'updater/check! updater)
       (is (true? (updater/can-download-update? updater)))
       (is (false? @(updater/download-and-extract! updater))))))
