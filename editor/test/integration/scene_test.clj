@@ -266,9 +266,8 @@
 
 (defn- produce-render-data [scene selection aux-renderables camera]
   (let [scene-render-data (scene/produce-scene-render-data {:scene scene :selection selection :hidden-renderable-args [] :hidden-node-outline-key-paths [] :camera camera})
-        aux-render-data (scene/produce-aux-render-data {:aux-renderables aux-renderables :hidden-renderable-tags []})
-        render-data (scene/produce-render-data {:scene-render-data scene-render-data :aux-render-data aux-render-data})]
-    render-data))
+        aux-render-data (scene/produce-aux-render-data {:aux-renderables aux-renderables :hidden-renderable-tags []})]
+    (scene/merge-render-datas aux-render-data scene-render-data {})))
 
 (deftest produce-render-data-test
   (let [passes [pass/transparent pass/selection pass/outline]

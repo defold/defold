@@ -143,9 +143,9 @@
   (uniform vec4 id)
   (defn void main []
     (setq vec4 color (texture2D DIFFUSE_TEXTURE var_texcoord0))
-    (if (> color.a 0.0)
+    (if (> color.a 0.05)
       (setq gl_FragColor id)
-      (setq gl_FragColor (vec4 0.0 0.0 0.0 0.0)))))
+      (discard))))
 
 (def tile-map-id-shader (shader/make-shader ::tile-map-id-shader tile-map-id-vertex-shader tile-map-id-fragment-shader {"view_proj" :view-proj "world" :world "id" :id}))
 

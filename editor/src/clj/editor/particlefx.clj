@@ -2,42 +2,42 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
-            [editor.graph-util :as gu]
-            [editor.math :as math]
-            [editor.protobuf :as protobuf]
-            [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
-            [editor.workspace :as workspace]
+            [editor.camera :as camera]
+            [editor.core :as core]
             [editor.defold-project :as project]
+            [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
+            [editor.graph-util :as gu]
+            [editor.handler :as handler]
             [editor.material :as material]
-            [editor.scene :as scene]
-            [editor.scene-cache :as scene-cache]
-            [editor.scene-tools :as scene-tools]
-            [editor.scene-picking :as scene-picking]
+            [editor.math :as math]
             [editor.outline :as outline]
-            [editor.geom :as geom]
-            [editor.gl.pass :as pass]
             [editor.particle-lib :as plib]
             [editor.properties :as props]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.scene :as scene]
+            [editor.scene-cache :as scene-cache]
+            [editor.scene-picking :as scene-picking]
+            [editor.scene-tools :as scene-tools]
+            [editor.types :as types]
             [editor.validation :as validation]
-            [editor.camera :as camera]
-            [editor.handler :as handler]
-            [editor.core :as core]
-            [editor.types :as types])
-  (:import [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Vector4f Vector3d Vector4d]
-           [com.dynamo.particle.proto Particle$ParticleFX Particle$Emitter Particle$PlayMode Particle$EmitterType
+            [editor.workspace :as workspace])
+  (:import [com.dynamo.particle.proto Particle$ParticleFX Particle$Emitter Particle$PlayMode Particle$EmitterType
             Particle$EmitterKey Particle$ParticleKey Particle$ModifierKey
             Particle$EmissionSpace Particle$BlendMode Particle$ParticleOrientation Particle$ModifierType Particle$SizeMode]
-           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [editor.gl.shader ShaderLifecycle]
-           [java.nio ByteBuffer]
            [com.google.protobuf ByteString]
-           [editor.properties CurveSpread Curve]))
+           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
+           [editor.gl.shader ShaderLifecycle]
+           [editor.properties CurveSpread Curve]
+           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+           [java.nio ByteBuffer]
+           [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Vector4f Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -110,7 +110,6 @@
 
 (shader/defshader line-id-vertex-shader
   (attribute vec4 position)
-  (attribute vec4 color)
   (defn void main []
     (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
 

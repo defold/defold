@@ -789,7 +789,6 @@
 (shader/defshader spine-id-vertex-shader
   (attribute vec4 position)
   (attribute vec2 texcoord0)
-  (attribute vec4 color)
   (varying vec2 var_texcoord0)
   (defn void main []
     (setq gl_Position (* gl_ModelViewProjectionMatrix position))
@@ -801,9 +800,9 @@
   (uniform vec4 id)
   (defn void main []
     (setq vec4 color (texture2D texture var_texcoord0.xy))
-    (if (> color.a 0.0)
+    (if (> color.a 0.05)
       (setq gl_FragColor id)
-      (setq gl_FragColor (vec4 0.0 0.0 0.0 0.0)))))
+      (discard))))
 
 (def spine-id-shader (shader/make-shader ::id-shader spine-id-vertex-shader spine-id-fragment-shader {"id" :id}))
 
