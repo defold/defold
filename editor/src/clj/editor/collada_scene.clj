@@ -174,14 +174,16 @@
             textures (:textures user-data)
             vertex-space (:vertex-space user-data)
             render-args (if (= vertex-space :vertex-space-world)
-                          render-args
-                          (let [world-view (doto (Matrix4d. ^Matrix4d (:view render-args)) (.mul ^Matrix4d (:world-transform renderable)))
-                                world-view-proj (doto (Matrix4d. ^Matrix4d (:projection render-args)) (.mul ^Matrix4d world-view))
-                                normal (doto (math/affine-inverse world-view) (.transpose))]
-                            (assoc render-args
-                              :world-view-proj world-view-proj
-                              :world-view world-view
-                              :normal normal)))]
+                          (merge render-args
+                                 (math/derive-render-transforms (doto (Matrix4d.) (.setIdentity)) ; already applied the world transform to vertices
+                                                                (:view render-args)
+                                                                (:projection render-args)
+                                                                (:texture render-args)))
+                          (merge render-args
+                                 (math/derive-render-transforms (:world-transform renderable)
+                                                                (:view render-args)
+                                                                (:projection render-args)
+                                                                (:texture render-args))))]
         (gl/with-gl-bindings gl render-args [shader]
           (doseq [[name t] textures]
             (gl/bind gl t render-args)
@@ -226,7 +228,7 @@
                 (gl/bind gl t render-args)
                 (shader/set-uniform shader gl name (- (:unit t) GL/GL_TEXTURE0)))
               (doseq [mesh meshes]
-                (let [vb (request-vb! gl node-id mesh world-transform scratch)
+                (let [vb (request-vb! gl node-id mesh world-transform :vertex-space-world scratch)
                       vertex-binding (vtx/use-with [node-id ::mesh-selection] vb shader)]
                   (gl/with-gl-bindings gl render-args [vertex-binding]
                     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb)))))

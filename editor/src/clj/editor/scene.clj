@@ -219,14 +219,12 @@
 (defn generic-render-args [viewport camera]
   (let [view (c/camera-view-matrix camera)
         proj (c/camera-projection-matrix camera)
-        view-proj (doto (Matrix4d. proj) (.mul view))
         world (doto (Matrix4d.) (.setIdentity))
-        world-view (doto (Matrix4d. view) (.mul world))
-        world-view-proj (doto (Matrix4d. view-proj) (.mul world))
         texture (doto (Matrix4d.) (.setIdentity))
-        normal (doto (math/affine-inverse world-view) (.transpose))]
-    {:camera camera :viewport viewport :view view :projection proj :view-proj view-proj :world world
-     :world-view world-view :texture texture :normal normal :world-view-proj world-view-proj}))
+        transforms (math/derive-render-transforms world view proj texture)]
+    (assoc transforms
+           :camera camera
+           :viewport viewport)))
 
 (defn- assoc-updatable-states
   [renderables updatable-states]
@@ -236,13 +234,15 @@
             renderable))
         renderables))
 
+(def render-passes (atom pass/render-passes))
+
 (defn render! [render-args ^GLContext context updatable-states]
   (let [^GL2 gl (.getGL context)
         {:keys [viewport camera renderables]} render-args]
     (gl/gl-clear gl 0.0 0.0 0.0 1)
     (.glColor4f gl 1.0 1.0 1.0 1.0)
     (gl-viewport gl viewport)
-    (doseq [pass pass/render-passes
+    (doseq [pass @render-passes
             :let [render-args (assoc render-args :pass pass)
                   pass-renderables (-> (get renderables pass)
                                        (assoc-updatable-states updatable-states))]]
@@ -1042,6 +1042,16 @@
       (let [gl-pane (make-gl-pane! view-id opts)]
         (ui/fill-control gl-pane)
         (.add (.getChildren scene-view-pane) 0 gl-pane)))
+    (when (system/defold-dev?)
+      (.setOnKeyPressed scene-view-pane (ui/event-handler event
+                                                          (let [key-event ^KeyEvent event]
+                                                            (when (and (.isShortcutDown key-event)
+                                                                       (= "t" (.getText key-event)))
+                                                              (reset! render-passes
+                                                                      (if (= @render-passes pass/render-passes)
+                                                                        pass/selection-passes
+                                                                        pass/render-passes))
+                                                              (g/clear-system-cache!))))))
     scene-view-pane))
 
 (defn- make-scene-view [scene-graph ^Parent parent opts]
