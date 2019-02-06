@@ -80,23 +80,30 @@
 
 (g/defnk get-armv7-engine [project prefs]
   (g/with-auto-evaluation-context evaluation-context
-    (try {:armv7 (engine/get-engine project evaluation-context prefs "armv7-darwin")}
+    (try {:armv7-descriptor (engine/get-engine project evaluation-context prefs "armv7-darwin")}
          (catch Exception e
            {:err e :message "Failed to get armv7 engine."}))))
 
 (g/defnk get-arm64-engine [project prefs]
   (g/with-auto-evaluation-context evaluation-context
-    (try {:arm64 (engine/get-engine project evaluation-context prefs "arm64-darwin")}
+    (try {:arm64-descriptor (engine/get-engine project evaluation-context prefs "arm64-darwin")}
          (catch Exception e
            {:err e :message "Failed to get arm64 engine."}))))
 
-(g/defnk lipo-ios-engine [^File armv7 ^File arm64]
+(g/defnk lipo-ios-engine [armv7-descriptor arm64-descriptor]
   (let [lipo (format "%s/%s/bin/lipo" (system/defold-unpack-path) (.getPair (Platform/getJavaPlatform)))
+        armv7-dir (fs/create-temp-directory!)
+        arm64-dir (fs/create-temp-directory!)
+        armv7-engine (io/file armv7-dir "armv7-dmengine")
+        arm64-engine (io/file arm64-dir "arm64-dmengine")
         engine (fs/create-temp-file! "dmengine" "")]
-    (try (sh lipo "-create" (.getAbsolutePath armv7) (.getAbsolutePath arm64) "-output" (.getAbsolutePath engine))
-         {:engine engine}
-         (catch Exception e
-           {:err e :message "Failed to lipo engine binary."}))))
+    (try
+      (engine/install-dmengine-to! armv7-engine armv7-descriptor)
+      (engine/install-dmengine-to! arm64-engine arm64-descriptor)
+      (sh lipo "-create" (.getAbsolutePath armv7-engine) (.getAbsolutePath arm64-engine) "-output" (.getAbsolutePath engine))
+      {:engine engine}
+      (catch Exception e
+        {:err e :message "Failed to lipo engine binary."}))))
 
 (g/defnk assemble-ios-app [^File engine ^File info-plist ^File package-dir ^File app-dir ^File profile]
   (try
