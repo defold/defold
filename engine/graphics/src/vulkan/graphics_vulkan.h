@@ -34,11 +34,11 @@ namespace dmGraphics
         {
             const char* m_Name;
             uint16_t    m_LogicalIndex;
-            // int16_t     m_PhysicalIndex;
+            uint16_t    m_DescriptorIndex;
             uint16_t    m_Size;
             uint16_t    m_Offset;
             Type        m_Type;
-            // bool        m_Normalize;
+            // bool        m_Normalize; // Not sure how to deal in VK
         };
 
         Stream      m_Streams[MAX_VERTEX_STREAM_COUNT];
@@ -76,6 +76,8 @@ namespace dmGraphics
         FrameBuffer*                m_CurrentFrameBuffer;
         void*                       m_CurrentProgram;
         void*                       m_CurrentVertexBuffer;
+        void*                       m_CurrentIndexBuffer;
+        void*                       m_CurrentVertexDeclaration;
         WindowResizeCallback        m_WindowResizeCallback;
         void*                       m_WindowResizeCallbackUserData;
         WindowCloseCallback         m_WindowCloseCallback;

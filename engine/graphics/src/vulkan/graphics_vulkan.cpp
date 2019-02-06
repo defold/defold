@@ -131,6 +131,18 @@ namespace dmGraphics
         struct ShaderProgram
         {
             VkShaderModule m_Handle;
+            uint64_t       m_Hash;
+        };
+
+        struct Program
+        {
+            Program(const ShaderProgram* vertexProgram, const ShaderProgram* fragmentProgram)
+            : m_VertexProgram(vertexProgram)
+            , m_FragmentProgram(fragmentProgram) {}
+
+            const ShaderProgram*            m_VertexProgram;
+            const ShaderProgram*            m_FragmentProgram;
+            VkPipelineShaderStageCreateInfo m_ShaderStages[2];
         };
 
         struct Pipeline
@@ -164,13 +176,14 @@ namespace dmGraphics
             Texture                        m_MainDepthBuffer;
             FrameResource                  m_FrameResources[g_vk_max_frames_in_flight];
 
-            dmArray<VkCommandBuffer>       m_MainCommandBuffers;
-            dmArray<VkFramebuffer>         m_MainFramebuffers;
-            dmArray<VkImage>               m_SwapChainImages;
-            dmArray<VkImageView>           m_SwapChainImageViews;
-            dmArray<VkExtensionProperties> m_Extensions;
+            dmArray<VkCommandBuffer>                   m_MainCommandBuffers;
+            dmArray<VkFramebuffer>                     m_MainFramebuffers;
+            dmArray<VkImage>                           m_SwapChainImages;
+            dmArray<VkImageView>                       m_SwapChainImageViews;
+            dmArray<VkExtensionProperties>             m_Extensions;
+            dmArray<VkVertexInputAttributeDescription> m_VertexStreamDescriptors;
 
-            dmHashTable64<VkPipeline>      m_PipelineCache;
+            dmHashTable64<Pipeline>      m_PipelineCache;
         } g_vk_context;
 
         // This functions is invoked by the vulkan layer whenever
@@ -1030,18 +1043,63 @@ namespace dmGraphics
             vkFreeCommandBuffers(g_vk_context.m_LogicalDevice, g_vk_context.m_MainCommandPool, 1, &vk_command_buffer);
         }
 
-        VkPipeline CreatePipeline()
+        Pipeline CreatePipeline()
         {
+            Pipeline new_pipeline;
 
+            VkVertexInputBindingDescription vk_vx_input_description;
+            VK_ZERO_MEMORY(&vk_vx_input_description, sizeof(vk_vx_input_description));
+
+            VkPipelineVertexInputStateCreateInfo vk_vertex_input_info;
+            VK_ZERO_MEMORY(&vk_vertex_input_info,sizeof(vk_vertex_input_info));
+
+            /*
+            vk_vertex_input_info.sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+            vk_vertex_input_info.vertexBindingDescriptionCount   = 1;
+            vk_vertex_input_info.pVertexBindingDescriptions      = &vk_vx_input_description;
+            vk_vertex_input_info.vertexAttributeDescriptionCount = (uint32_t) dynamic_array_size(&vxb->vertex_vk_desc_list);
+            vk_vertex_input_info.pVertexAttributeDescriptions    = (const VkVertexInputAttributeDescription *) &dynamic_array_first(&vxb->vertex_vk_desc_list);
+
+            VkPipelineInputAssemblyStateCreateInfo vk_input_assembly;
+            VK_ZERO_MEMORY(&vk_input_assembly,sizeof(vk_input_assembly));
+
+            vk_input_assembly.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+            vk_input_assembly.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            vk_input_assembly.primitiveRestartEnable = VK_FALSE;
+
+            VkRect2D vk_scissor;
+            VK_ZERO_MEMORY(&vk_scissor, sizeof(vk_scissor));
+
+            vk_scissor.offset.x = 0;
+            vk_scissor.offset.y = 0;
+            vk_scissor.extent   = vk->swap_chain_extent;
+
+            VkPipelineViewportStateCreateInfo vk_viewport_state;
+            VK_ZERO_MEMORY(&vk_viewport_state,sizeof(VkPipelineViewportStateCreateInfo));
+            */
+
+            return new_pipeline;
         }
 
-        Pipeline GetPipeline(void* program, void* vertexBuffer)
+        Pipeline* GetPipeline(Program* program, VertexBuffer* vertexBuffer, HVertexDeclaration* vertexDeclaration)
         {
-            Pipeline pipeline_handle;
+            HashState64 pipeline_hash_state;
+            dmHashInit64(&pipeline_hash_state, false);
+            dmHashUpdateBuffer64(&pipeline_hash_state, &program->m_VertexProgram->m_Hash, sizeof(program->m_VertexProgram->m_Hash));
+            dmHashUpdateBuffer64(&pipeline_hash_state, &program->m_FragmentProgram->m_Hash, sizeof(program->m_FragmentProgram->m_Hash));
+            uint64_t pipeline_hash = dmHashFinal64(&pipeline_hash_state);
 
-            // VkPipeline* cached_pipeline = g_vk_context.m_PipelineCache.Get();
+            Pipeline* cached_pipeline = g_vk_context.m_PipelineCache.Get(pipeline_hash);
 
-            return pipeline_handle;
+            if (!cached_pipeline)
+            {
+                g_vk_context.m_PipelineCache.Put(pipeline_hash, CreatePipeline());
+                cached_pipeline = g_vk_context.m_PipelineCache.Get(pipeline_hash);
+
+                dmLogInfo("Create new VK Pipeline with hash %llu", pipeline_hash);
+            }
+
+            return cached_pipeline;
         }
 
         bool CreateImage2D(unsigned int imageWidth, unsigned int imageHeight,
@@ -1253,6 +1311,12 @@ namespace dmGraphics
             // Populate the extension list with available API extensions (and print them)
             SetInstanceExtensionList();
 
+            // Just set some default value to hold stream descriptors..
+            g_vk_context.m_VertexStreamDescriptors.SetCapacity(4);
+
+            // No idea about these numbers!
+            g_vk_context.m_PipelineCache.SetCapacity(32,64);
+
             if (g_enable_validation_layers && GetValidationSupport())
             {
                 dmLogInfo("Required validation layers are supported");
@@ -1418,7 +1482,67 @@ namespace dmGraphics
 
             VK_CHECK(vkCreateShaderModule( g_vk_context.m_LogicalDevice, &vk_create_info_shader, 0, &program->m_Handle));
 
+            HashState64 shader_hash_state;
+            dmHashInit64(&shader_hash_state, false);
+            dmHashUpdateBuffer64(&shader_hash_state, source, sourceSize);
+            program->m_Hash = dmHashFinal64(&shader_hash_state);
+
             return program;
+        }
+
+        void LinkProgram(Program* program)
+        {
+            assert(program);
+
+            VkPipelineShaderStageCreateInfo vk_vertex_shader_create_info;
+            VK_ZERO_MEMORY(&vk_vertex_shader_create_info,sizeof(vk_vertex_shader_create_info));
+
+            vk_vertex_shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            vk_vertex_shader_create_info.stage  = VK_SHADER_STAGE_VERTEX_BIT;
+            vk_vertex_shader_create_info.module = program->m_VertexProgram->m_Handle;
+            vk_vertex_shader_create_info.pName  = "main";
+
+            VkPipelineShaderStageCreateInfo vk_fragment_shader_create_info;
+            VK_ZERO_MEMORY(&vk_fragment_shader_create_info,sizeof(VkPipelineShaderStageCreateInfo));
+
+            vk_fragment_shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            vk_fragment_shader_create_info.stage  = VK_SHADER_STAGE_FRAGMENT_BIT;
+            vk_fragment_shader_create_info.module = program->m_VertexProgram->m_Handle;
+            vk_fragment_shader_create_info.pName  = "main";
+
+            program->m_ShaderStages[0] = vk_vertex_shader_create_info;
+            program->m_ShaderStages[1] = vk_fragment_shader_create_info;
+        }
+
+        uint16_t GetVertexStreamDescriptorIndex(uint32_t binding, VkFormat format, uint32_t offset)
+        {
+            int32_t index = -1;
+
+            for (uint32_t i=0; i < g_vk_context.m_VertexStreamDescriptors.Size(); i++)
+            {
+                VkVertexInputAttributeDescription& desc = g_vk_context.m_VertexStreamDescriptors[i];
+
+                if (desc.binding == binding && desc.format == format && desc.offset == offset)
+                {
+                    index = i;
+                }
+            }
+
+            if (index -1)
+            {
+                VkVertexInputAttributeDescription vk_desc;
+                vk_desc.location = 0;
+                vk_desc.binding  = binding;
+                vk_desc.format   = format;
+                vk_desc.offset   = offset;
+
+                index = g_vk_context.m_VertexStreamDescriptors.Size();
+
+                g_vk_context.m_VertexStreamDescriptors.SetCapacity(g_vk_context.m_VertexStreamDescriptors.Capacity() * 2);
+                g_vk_context.m_VertexStreamDescriptors.Push(vk_desc);
+            }
+
+            return (uint16_t) index;
         }
 
         VertexBuffer* CreateVertexBuffer(const void* data, size_t dataSize)
@@ -1460,10 +1584,26 @@ namespace dmGraphics
             delete ixb;
         }
 
-        void BindPipeline(Pipeline pipeline)
+        void BindPipeline(Pipeline* pipeline)
         {
-            // NOP
+
         }
+
+        void BindVertexBuffer(VertexBuffer* vertexBuffer)
+        {
+
+        }
+
+        void BindIndexBuffer(IndexBuffer* indexBuffer)
+        {
+
+        }
+
+        void DrawIndexed()
+        {}
+
+        void Draw()
+        {}
 
         bool OpenWindow(WindowParams* params)
         {
@@ -1734,23 +1874,22 @@ namespace dmGraphics
         glfwSetWindowFocusCallback(OnWindowFocus);
         glfwSwapInterval(1);
 
-        context->m_WindowResizeCallback = params->m_ResizeCallback;
+        context->m_WindowResizeCallback         = params->m_ResizeCallback;
         context->m_WindowResizeCallbackUserData = params->m_ResizeCallbackUserData;
-        context->m_WindowCloseCallback = params->m_CloseCallback;
-        context->m_WindowCloseCallbackUserData = params->m_CloseCallbackUserData;
-
+        context->m_WindowCloseCallback          = params->m_CloseCallback;
+        context->m_WindowCloseCallbackUserData  = params->m_CloseCallbackUserData;
         context->m_WindowFocusCallback          = params->m_FocusCallback;
         context->m_WindowFocusCallbackUserData  = params->m_FocusCallbackUserData;
 
-        context->m_Width = params->m_Width;
-        context->m_Height = params->m_Height;
-        context->m_WindowWidth = params->m_Width;
+        context->m_Width        = params->m_Width;
+        context->m_Height       = params->m_Height;
+        context->m_WindowWidth  = params->m_Width;
         context->m_WindowHeight = params->m_Height;
-        context->m_Dpi = 0;
+        context->m_Dpi          = 0;
         context->m_WindowOpened = 1;
 
         // Draw state
-        context->m_CurrentProgram = 0x0;
+        context->m_CurrentProgram      = 0x0;
         context->m_CurrentVertexBuffer = 0x0;
 
         if (params->m_PrintDeviceInfo)
@@ -1976,7 +2115,7 @@ namespace dmGraphics
         return 65536;
     }
 
-    static uint32_t GetTypeSize(Type type)
+    static inline uint32_t GetTypeSize(Type type)
     {
         uint32_t size = 0;
         switch (type)
@@ -2004,6 +2143,35 @@ namespace dmGraphics
         return size;
     }
 
+    static inline VkFormat GetVulkanFormatFromType(Type type)
+    {
+        VkFormat vk_format = VK_FORMAT_UNDEFINED;
+
+        switch(type)
+        {
+            case(TYPE_BYTE):
+            case(TYPE_SHORT):
+            case(TYPE_INT):
+                vk_format = VK_FORMAT_R8_SINT;
+                break;
+            case(TYPE_UNSIGNED_BYTE):
+            case(TYPE_UNSIGNED_SHORT):
+            case(TYPE_UNSIGNED_INT):
+                vk_format = VK_FORMAT_R8_UINT;
+                break;
+            case(TYPE_FLOAT_MAT4):
+            case(TYPE_FLOAT):
+                vk_format = VK_FORMAT_R32_SFLOAT;
+                break;
+            case(TYPE_FLOAT_VEC4):
+                vk_format = VK_FORMAT_R32G32B32A32_SFLOAT;
+                break;
+            default:break;
+        }
+
+        return vk_format;
+    }
+
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
     {
         VertexDeclaration* vd = (VertexDeclaration*) NewVertexDeclaration(context, element, count);
@@ -2028,8 +2196,13 @@ namespace dmGraphics
             vd->m_Streams[i].m_Size         = element[i].m_Size;
             vd->m_Streams[i].m_Type         = element[i].m_Type;
             vd->m_Streams[i].m_Offset       = vd->m_Stride;
-
             vd->m_Stride += element[i].m_Size * GetTypeSize(element[i].m_Type);
+
+            vd->m_Streams[i].m_DescriptorIndex = Vulkan::GetVertexStreamDescriptorIndex(
+                vd->m_Streams[i].m_LogicalIndex,
+                GetVulkanFormatFromType(vd->m_Streams[i].m_Type),
+                vd->m_Streams[i].m_Offset
+            );
         }
 
         return vd;
@@ -2042,7 +2215,8 @@ namespace dmGraphics
 
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
     {
-        context->m_CurrentVertexBuffer = (void*) vertex_declaration;
+        context->m_CurrentVertexBuffer = (void*) vertex_buffer;
+        context->m_CurrentVertexDeclaration = (void*) vertex_declaration;
     }
 
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
@@ -2055,14 +2229,35 @@ namespace dmGraphics
 
     }
 
+    static inline void DrawSetup(HContext context)
+    {
+        Vulkan::Pipeline* pipeline = Vulkan::GetPipeline(
+            (Vulkan::Program*) context->m_CurrentProgram,
+            (Vulkan::VertexBuffer*) context->m_CurrentVertexBuffer,
+            (HVertexDeclaration*) context->m_CurrentVertexDeclaration);
+
+        Vulkan::BindPipeline(pipeline);
+
+        Vulkan::BindVertexBuffer((Vulkan::VertexBuffer*) context->m_CurrentVertexBuffer);
+
+        if (context->m_CurrentIndexBuffer)
+        {
+            Vulkan::BindIndexBuffer((Vulkan::IndexBuffer*) context->m_CurrentIndexBuffer);
+        }
+    }
+
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
-
+        context->m_CurrentIndexBuffer = (void*) index_buffer;
+        DrawSetup(context);
+        Vulkan::DrawIndexed();
     }
 
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {
-
+        context->m_CurrentIndexBuffer = 0;
+        DrawSetup(context);
+        Vulkan::Draw();
     }
 
     struct VertexProgram
@@ -2125,18 +2320,20 @@ namespace dmGraphics
 
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
-        VertexProgram* vertex = 0x0;
-        FragmentProgram* fragment = 0x0;
-        if (vertex_program != INVALID_VERTEX_PROGRAM_HANDLE)
-            vertex = (VertexProgram*) vertex_program;
-        if (fragment_program != INVALID_FRAGMENT_PROGRAM_HANDLE)
-            fragment = (FragmentProgram*) fragment_program;
-        return (HProgram) new Program(vertex, fragment);
+        assert(vertex_program);
+        assert(fragment_program);
+
+        Vulkan::Program* new_program = new Vulkan::Program(
+            (const Vulkan::ShaderProgram*) vertex_program,
+            (const Vulkan::ShaderProgram*) fragment_program);
+        Vulkan::LinkProgram(new_program);
+
+        return (HProgram) new_program;
     }
 
     void DeleteProgram(HContext context, HProgram program)
     {
-        delete (Program*) program;
+        assert(0 && "Todo!");
     }
 
     HVertexProgram NewVertexProgram(HContext context, const void* program, uint32_t program_size)
@@ -2193,9 +2390,6 @@ namespace dmGraphics
     {
         assert(context);
         context->m_CurrentProgram = (void*)program;
-
-        Vulkan::Pipeline pipeline = Vulkan::GetPipeline(context->m_CurrentProgram, context->m_CurrentVertexBuffer);
-        Vulkan::BindPipeline(pipeline);
     }
 
     void DisableProgram(HContext context)
@@ -2214,21 +2408,25 @@ namespace dmGraphics
 
     uint32_t GetUniformCount(HProgram prog)
     {
-        return ((Program*)prog)->m_Uniforms.Size();
+        return 0;
     }
 
     void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
+        *type = TYPE_FLOAT_VEC4;
+        /*
         Program* program = (Program*)prog;
         assert(index < program->m_Uniforms.Size());
         Uniform& uniform = program->m_Uniforms[index];
         *buffer = '\0';
         dmStrlCat(buffer, uniform.m_Name, buffer_size);
         *type = uniform.m_Type;
+        */
     }
 
     int32_t GetUniformLocation(HProgram prog, const char* name)
     {
+        /*
         Program* program = (Program*)prog;
         uint32_t count = program->m_Uniforms.Size();
         for (uint32_t i = 0; i < count; ++i)
@@ -2239,6 +2437,7 @@ namespace dmGraphics
                 return (int32_t)uniform.m_Index;
             }
         }
+        */
         return -1;
     }
 
