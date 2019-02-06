@@ -129,8 +129,6 @@
       (updater/delete-backup-files! updater))
     (analytics/start! analytics-url analytics-send-interval invalidate-analytics-uid?)
     (Shutdown/addShutdownAction analytics/shutdown!)
-    (when (some? updater)
-      (Shutdown/addShutdownAction #(updater/install-if-can! updater)))
     (try
       (if-let [game-project-path (get-in opts [:arguments 0])]
         (open-project-with-progress-dialog namespace-loader prefs game-project-path dashboard-client updater false)
