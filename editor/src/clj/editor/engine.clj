@@ -177,6 +177,16 @@
         unpack-dir (io/file project-directory "build" (:extender-platform engine-descriptor))]
     (io/file unpack-dir (format "dmengine%s" suffix))))
 
+(defn install-dmengine-to! ^File [^File target-dmengine {:keys [^File dmengine ^File engine-archive extender-platform] :as engine-descriptor}]
+  (assert (or dmengine engine-archive))
+  (cond
+    (some? dmengine)
+    (fs/copy-file! dmengine target-dmengine)
+
+    (some? engine-archive)
+    (unpack-dmengine! engine-archive (.getName target-dmengine) target-dmengine))
+  target-dmengine)
+
 (defn install-engine! ^File [^File project-directory {:keys [^File dmengine ^File engine-archive extender-platform] :as engine-descriptor}]
   (assert (or dmengine engine-archive))
   (cond
