@@ -248,19 +248,17 @@
        (finally
          (.glPopMatrix gl#)))))
 
+(defn matrix->floats [^Matrix4d mat]
+  (float-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
+                (.m01 mat) (.m11 mat) (.m21 mat) (.m31 mat)
+                (.m02 mat) (.m12 mat) (.m22 mat) (.m32 mat)
+                (.m03 mat) (.m13 mat) (.m23 mat) (.m33 mat)]))
+
 (defn gl-load-matrix-4d [^GL2 gl ^Matrix4d mat]
-  (let [fbuf (float-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
-                           (.m01 mat) (.m11 mat) (.m21 mat) (.m31 mat)
-                           (.m02 mat) (.m12 mat) (.m22 mat) (.m32 mat)
-                           (.m03 mat) (.m13 mat) (.m23 mat) (.m33 mat)])]
-    (.glLoadMatrixf gl fbuf 0)))
+  (.glLoadMatrixf gl (matrix->floats mat) 0))
 
 (defn gl-mult-matrix-4d [^GL2 gl ^Matrix4d mat]
-  (let [fbuf (float-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
-                           (.m01 mat) (.m11 mat) (.m21 mat) (.m31 mat)
-                           (.m02 mat) (.m12 mat) (.m22 mat) (.m32 mat)
-                           (.m03 mat) (.m13 mat) (.m23 mat) (.m33 mat)])]
-    (.glMultMatrixf gl fbuf 0)))
+  (.glMultMatrixf gl (matrix->floats mat) 0))
 
 (defmacro color
   ([r g b]        `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0)]))

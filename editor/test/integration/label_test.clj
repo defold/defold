@@ -49,7 +49,7 @@
 (defn- get-render-calls-by-pass
   [scene camera selection key-fn]
   (let [scene-render-data (scene/produce-scene-render-data {:scene scene :selection selection :hidden-renderable-args [] :hidden-node-outline-key-paths [] :camera camera})
-        render-data (scene/produce-render-data {:scene-render-data scene-render-data :aux-render-data {}})
+        render-data scene-render-data
         renderables (:renderables render-data)
         old-render-lines label/render-lines
         old-render-tris label/render-tris]

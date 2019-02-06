@@ -206,28 +206,20 @@
         (assoc scene :renderable {:render-fn render-tris
                                   :tags #{:text}
                                   :batch-key {:blend-mode blend-mode :gpu-texture gpu-texture :material-shader material-shader}
+                                  :select-batch-key _node-id
                                   :user-data {:material-shader material-shader
                                               :blend-mode blend-mode
                                               :gpu-texture gpu-texture
                                               :line-data lines
                                               :text-data text-data}
-                                  :passes [pass/transparent]}
+                                  :passes [pass/transparent pass/selection]}
                :children [{:node-id _node-id
                            :aabb aabb
                            :renderable {:render-fn render-lines
                                         :tags #{:text :outline}
                                         :batch-key ::outline
                                         :user-data {:line-data lines}
-                                        :passes [pass/outline]}}
-                          {:node-id _node-id
-                           :aabb aabb
-                           :renderable {:render-fn render-tris
-                                        :tags #{:text}
-                                        :select-batch-key _node-id
-                                        :user-data {:gpu-texture gpu-texture
-                                                    :line-data lines
-                                                    :text-data text-data}
-                                        :passes [pass/selection]}}]))
+                                        :passes [pass/outline]}}]))
       scene)))
 
 (defn- build-label [resource dep-resources user-data]

@@ -242,6 +242,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
                    (= "switch" sfx)      (shader-walk-switch x)
                    (= "break" sfx)       (shader-stmt x)
                    (= "continue" sfx)    (shader-stmt x)
+                   (= "discard" sfx)     (shader-stmt x)                   
                    (= "uniform" sfx)     (shader-stmt x)
                    (= "varying" sfx)     (shader-stmt x)
                    (= "attribute" sfx)   (shader-stmt x)
@@ -324,7 +325,8 @@ This must be submitted to the driver for compilation before you can use it. See
       (bbuf->string msg))))
 
 (defn- delete-program [^GL2 gl program]
-  (.glDeleteProgram gl program))
+  (when-not (zero? program)
+    (.glDeleteProgram gl program)))
 
 (defn- attach-shaders [^GL2 gl program shaders]
   (doseq [shader shaders]
@@ -354,7 +356,7 @@ This must be submitted to the driver for compilation before you can use it. See
 
 (defn delete-shader
   [^GL2 gl shader]
-  (when (not= 0 shader)
+  (when-not (zero? shader)
     (.glDeleteShader gl shader)))
 
 (defn make-shader*
@@ -389,7 +391,7 @@ This must be submitted to the driver for compilation before you can use it. See
   (bind [_this gl render-args]
     (let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
       (.glUseProgram ^GL2 gl program)
-      (when-not (= program 0)
+      (when-not (zero? program)
         (doseq [[name val] uniforms
                 :let [val (if (keyword? val)
                             (get render-args val)
@@ -406,13 +408,13 @@ This must be submitted to the driver for compilation before you can use it. See
   ShaderVariables
   (get-attrib-location [this gl name]
     (when-let [[program _] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
-      (if (= program 0)
+      (if (zero? program)
         -1
         (gl/gl-get-attrib-location ^GL2 gl program name))))
 
   (set-uniform [this gl name val]
     (when-let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
-      (when (and (not= program 0) (= program (gl/gl-current-program gl)))
+      (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
         (let [loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]
           (try
             (set-uniform-at-index gl program loc val)
@@ -468,7 +470,9 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
       (let [fs (make-fragment-shader gl frags)]
         (try
           (let [program (make-program gl vs fs)
-                uniform-locs (into {} (map (fn [[name val]] [name (.glGetUniformLocation ^GL2 gl program name)]) uniforms))]
+                uniform-locs (into {}
+                                   (map (fn [[uniform-name _]] [uniform-name (.glGetUniformLocation ^GL2 gl program uniform-name)]))
+                                   uniforms)]
             [program uniform-locs])
           (finally
             (delete-shader gl fs)))) ; flag shaders for deletion: they will be deleted immediately, or when we delete the program to which they are attached
@@ -480,7 +484,7 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
   (try
     (make-shader-program gl data)
     (catch Exception _
-      [0 []])))
+      [0 {}])))
 
 (defn- destroy-shader-programs [^GL2 gl programs _]
   (doseq [[program _] programs]
