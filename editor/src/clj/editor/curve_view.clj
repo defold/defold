@@ -494,8 +494,10 @@
   (input picking-rect Rect)
   (input sub-selection g/Any)
 
-  (output all-renderables g/Any :cached (g/fnk [renderables curve-renderables cp-renderables tool-renderables]
-                                          (reduce (partial merge-with into) renderables (into [curve-renderables cp-renderables] tool-renderables))))
+  (output all-renderables g/Any :cached (g/fnk [aux-render-data curve-renderables cp-renderables tool-renderables]
+                                          (reduce (partial merge-with into)
+                                                  (:renderables aux-render-data)
+                                                  (into [curve-renderables cp-renderables] tool-renderables))))
   (output curves g/Any :cached produce-curves)
   (output visible-curves g/Any :cached (g/fnk [curves hidden-curves] (remove #(contains? hidden-curves (:property %)) curves)))
   (output curve-renderables g/Any :cached produce-curve-renderables)
@@ -600,7 +602,7 @@
       view-id))
   ([app-view graph ^Parent parent ^ListView list ^AnchorPane view opts reloading?]
     (let [[node-id] (g/tx-nodes-added
-                      (g/transact (g/make-nodes graph [view-id    [CurveView :list list :hidden-curves #{} :frame-version (atom 0)]
+                      (g/transact (g/make-nodes graph [view-id    [CurveView :list list :hidden-curves #{}]
                                                        controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                        selection  [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                        background background/Background

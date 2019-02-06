@@ -145,9 +145,9 @@
   (uniform vec4 id)
   (defn void main []
     (setq vec4 color (texture2D DIFFUSE_TEXTURE var_texcoord0))
-    (if (> color.a 0.0)
+    (if (> color.a 0.05)
       (setq gl_FragColor id)
-      (setq gl_FragColor (vec4 0.0 0.0 0.0 0.0)))))
+      (discard))))
 
 (def id-shader (shader/make-shader ::sprite-id-shader sprite-id-vertex-shader sprite-id-fragment-shader {"view_proj" :view-proj "id" :id}))
 
@@ -196,7 +196,7 @@
                                     :shader material-shader
                                     :animation animation
                                     :blend-mode blend-mode}
-                        :passes [pass/transparent]})
+                        :passes [pass/transparent pass/selection]})
 
     (and (:width animation) (:height animation))
     (assoc :children [{:node-id _node-id
@@ -206,15 +206,7 @@
                                     :tags #{:sprite :outline}
                                     :select-batch-key _node-id
                                     :user-data {:animation animation}
-                                    :passes [pass/outline]}}
-                      {:node-id _node-id
-                       :aabb aabb
-                       :renderable {:render-fn render-sprites
-                                    :select-batch-key _node-id
-                                    :tags #{:sprite}
-                                    :user-data {:gpu-texture gpu-texture
-                                                :animation animation}
-                                    :passes [pass/selection]}}])
+                                    :passes [pass/outline]}}])
 
     (< 1 (count (:frames animation)))
     (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" animation))))

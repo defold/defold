@@ -18,12 +18,12 @@
    [editor.protobuf :as protobuf]
    [editor.resource :as resource]
    [editor.resource-node :as resource-node]
+   [editor.scene :as scene]
+   [editor.scene-picking :as scene-picking]
+   [editor.scene-tools :as scene-tools]
    [editor.types :as types]
    [editor.validation :as validation]
-   [editor.workspace :as workspace]
-   [editor.scene :as scene]
-   [editor.scene-tools :as scene-tools]
-   [editor.scene-picking :as scene-picking])
+   [editor.workspace :as workspace])
   (:import
    [com.dynamo.physics.proto Physics$CollisionObjectDesc
     Physics$CollisionObjectType
@@ -118,7 +118,6 @@
 (shader/defshader shape-id-vertex-shader
   (uniform mat4 view_proj)
   (attribute vec4 position)
-  (attribute vec4 color)
   (defn void main []
     (setq gl_Position (* view_proj (vec4 position.xyz 1.0)))))
 

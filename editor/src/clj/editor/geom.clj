@@ -42,9 +42,9 @@
   ([r1 :- Rect r2 :- Rect & rs :- [Rect]]
    (reduce intersect (intersect r1 r2) rs)))
 
-(defn empty? [^Rect r]
-  (or (= (.width r) 0)
-      (= (.height r) 0)))
+(defn rect-empty? [^Rect r]
+  (or (zero? (.width r))
+      (zero? (.height r))))
 
 (defn intersect? [^Rect r ^Rect r2]
   (let [no-intersection (or (< (+ (.x r) (.width r)) (.x r2))
@@ -343,14 +343,10 @@
         xs [(.x mn) (.x mx)]
         ys [(.y mn) (.y mx)]
         zs [(.z mn) (.z mx)]]
-    [(Point3d. (xs 0) (ys 0) (zs 0))
-     (Point3d. (xs 0) (ys 0) (zs 1))
-     (Point3d. (xs 0) (ys 1) (zs 0))
-     (Point3d. (xs 0) (ys 1) (zs 1))
-     (Point3d. (xs 1) (ys 0) (zs 0))
-     (Point3d. (xs 1) (ys 0) (zs 1))
-     (Point3d. (xs 1) (ys 1) (zs 0))
-     (Point3d. (xs 1) (ys 1) (zs 1))]))
+    (for [x [0 1]
+          y [0 1]
+          z [0 1]]
+      (Point3d. (xs x) (ys y) (zs z)))))
 
 ; -------------------------------------
 ; Primitive shapes as vertex arrays
