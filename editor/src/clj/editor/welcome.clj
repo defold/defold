@@ -589,8 +589,9 @@
                              (ui/run-later
                                (ui/visible! progress-vbox (progress/done? progress))
                                (ui/visible! progress-bar (not (progress/done? progress)))
-                               (ui/render-progress-bar! progress progress-bar))))]
-    (ui.updater/init! stage update-link updater #(updater/restart! updater) render-progress!)))
+                               (ui/render-progress-bar! progress progress-bar))))
+        install-and-restart! #(ui.updater/install-and-restart! stage updater)]
+    (ui.updater/init! stage update-link updater install-and-restart! render-progress!)))
 
 ;; -----------------------------------------------------------------------------
 ;; Welcome dialog
