@@ -53,7 +53,7 @@ namespace dmConnectionPool
         dmArray<Connection> m_Connections;
         uint16_t            m_NextVersion;
         dmAxTls::SSL_CTX*   m_SSLContext;
-        dmMutex::Mutex      m_Mutex;
+        dmMutex::HMutex     m_Mutex;
 
         uint16_t            m_AllowNewConnections:1;
 

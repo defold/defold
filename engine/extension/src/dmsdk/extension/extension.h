@@ -366,7 +366,7 @@ namespace dmExtension
  * Set if the platform is Windows [icon:windows] (on both x86 and x86_64)
  *
  * @macro
- * @name DM_PLATFORM_WIN32
+ * @name DM_PLATFORM_WINDOWS
  *
  */
 
