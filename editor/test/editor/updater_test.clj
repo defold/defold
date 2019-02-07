@@ -1,16 +1,15 @@
 (ns editor.updater-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [clojure.data.json :as json]
+            [clojure.test :refer :all]
             [editor.fs :as fs]
             [editor.updater :as updater]
             [ring.adapter.jetty :as jetty]
             [ring.util.response :as response])
-  (:import [org.slf4j LoggerFactory]
-           [ch.qos.logback.classic Level]
-           [ch.qos.logback.classic Logger]
+  (:import [ch.qos.logback.classic Level Logger]
            [java.io File]
-           [java.util Timer]))
+           [java.util Timer]
+           [org.slf4j LoggerFactory]))
 
 (set! *warn-on-reflection* true)
 
