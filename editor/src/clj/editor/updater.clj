@@ -236,15 +236,17 @@
     (javafx.application.Platform/exit)))
 
 (defn delete-backup-files!
-  "Delete files left from previous update"
+  "Delete files left from previous update, has effect only on windows since only
+  windows creates backup files"
   [updater]
-  (let [{:keys [^File install-dir]} updater
-        backup-files (FileUtils/listFiles
-                       install-dir
-                       ^"[Ljava.lang.String;" (into-array ["backup"])
-                       true)]
-    (doseq [^File file backup-files]
-      (.delete file))))
+  (when (= "win32" (.getOs (Platform/getHostPlatform)))
+    (let [{:keys [^File install-dir]} updater
+          backup-files (FileUtils/listFiles
+                         install-dir
+                         ^"[Ljava.lang.String;" (into-array ["backup"])
+                         true)]
+      (doseq [^File file backup-files]
+        (.delete file)))))
 
 (defn- check! [updater]
   (let [{:keys [channel state-atom]} updater
@@ -281,14 +283,17 @@
   []
   (let [channel (system/defold-channel)
         sha1 (system/defold-editor-sha1)
-        resources-path (or (system/defold-resourcespath) "")
-        install-dir (.getAbsoluteFile (if system/mac?
-                                        (io/file resources-path "../../")
-                                        (io/file resources-path)))
+        install-dir (.getAbsoluteFile
+                      (if-let [path (system/defold-resourcespath)]
+                        (case (.getOs (Platform/getHostPlatform))
+                          "darwin" (io/file path "../../")
+                          ("linux" "win32") (io/file path))
+                        (io/file "")))
         launcher-path (or (system/defold-launcherpath)
-                          (if (= "win32" (.getOs (Platform/getHostPlatform)))
-                            "./Defold.exe"
-                            "./Defold"))
+                          (case (.getOs (Platform/getHostPlatform))
+                            "win32" "./Defold.exe"
+                            "linux" "./Defold"
+                            "darwin" "./Contents/MacOS/Defold"))
         update-sha1-file (io/file install-dir "update.sha1")
         downloaded-sha1 (when (.exists update-sha1-file)
                           (slurp update-sha1-file))
