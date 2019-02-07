@@ -397,6 +397,11 @@ namespace dmGraphics
         return true;
     }
 
+    bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
+    {
+        return true;
+    }
+
     uint32_t GetMaxElementsIndices(HContext context)
     {
         return 65536;

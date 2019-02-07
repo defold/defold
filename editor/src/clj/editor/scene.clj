@@ -233,10 +233,11 @@
         view-proj (doto (Matrix4d. proj) (.mul view))
         world (doto (Matrix4d.) (.setIdentity))
         world-view (doto (Matrix4d. view) (.mul world))
+        world-view-proj (doto (Matrix4d. view-proj) (.mul world))
         texture (doto (Matrix4d.) (.setIdentity))
         normal (doto (math/affine-inverse world-view) (.transpose))]
     {:camera camera :viewport viewport :view view :projection proj :view-proj view-proj :world world
-     :world-view world-view :texture texture :normal normal}))
+     :world-view world-view :texture texture :normal normal :world-view-proj world-view-proj}))
 
 (defn- assoc-updatable-states
   [renderables updatable-states]
