@@ -12,8 +12,8 @@ from Queue import Queue
 from ConfigParser import ConfigParser
 
 """
-Build utility for installing external packages, building engine, editor and cr
-Run build.py --help for help
+    Build utility for installing external packages, building engine, editor and cr
+    Run build.py --help for help
 """
 
 PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
@@ -22,11 +22,10 @@ PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.0.5 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_DARWIN="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-1.7.0 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
-PACKAGES_WIN32="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 apkc-0.1.0 bullet-2.77".split()
-PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
-PACKAGES_LINUX="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 apkc-0.1.0 bullet-2.77".split()
-PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0".split()
+PACKAGES_WIN32="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
+PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
+PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 google-play-services-4.0.30 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0 bullet-2.77".split()
 
@@ -273,7 +272,7 @@ class Configuration(object):
         self._log('Extracting %s to %s' % (file, path))
         version = sys.version_info
         # Avoid a bug in python 2.7 (fixed in 2.7.2) related to not being able to remove symlinks: http://bugs.python.org/issue10761
-        if self.host == 'linux' and version[0] == 2 and version[1] == 7 and version[2] < 2:
+        if self.host == 'x86_64-linux' and version[0] == 2 and version[1] == 7 and version[2] < 2:
             self.exec_env_command(['tar', 'xfz', file], cwd = path)
         else:
             tf = TarFile.open(file, 'r:gz')
@@ -310,7 +309,6 @@ class Configuration(object):
     def install_go(self):
         urls = {
             'x86_64-darwin': 'https://storage.googleapis.com/golang/go1.7.1.darwin-amd64.tar.gz',
-            'linux'        : 'https://storage.googleapis.com/golang/go1.7.1.linux-386.tar.gz',
             'x86_64-linux' : 'https://storage.googleapis.com/golang/go1.7.1.linux-amd64.tar.gz',
             'win32'        : 'https://storage.googleapis.com/golang/go1.7.1.windows-386.zip',
             'x86_64-win32' : 'https://storage.googleapis.com/golang/go1.7.1.windows-amd64.zip'
@@ -345,7 +343,6 @@ class Configuration(object):
         platform_packages = {
             'win32':          PACKAGES_WIN32,
             'x86_64-win32':   PACKAGES_WIN32_64,
-            'linux':          PACKAGES_LINUX,
             'x86_64-linux':   PACKAGES_LINUX_64,
             'darwin':         PACKAGES_DARWIN,
             'x86_64-darwin':  PACKAGES_DARWIN_64,
@@ -1971,7 +1968,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web', 'wasm-web'],
+                      choices = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web', 'wasm-web'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',

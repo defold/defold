@@ -5,6 +5,8 @@
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include <dmsdk/graphics/graphics.h>
+#include <ddf/ddf.h>
+#include <graphics/graphics_ddf.h>
 
 #if defined(__AVM2__)
 #include "flash/graphics_flash_defines.h"
@@ -584,6 +586,8 @@ namespace dmGraphics
     bool ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size);
     void DeleteVertexProgram(HVertexProgram prog);
     void DeleteFragmentProgram(HFragmentProgram prog);
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context);
+    void* GetShaderProgramData(HContext context, dmGraphics::ShaderDesc* ddf, uint32_t& data_len);
 
     void EnableProgram(HContext context, HProgram program);
     void DisableProgram(HContext context);

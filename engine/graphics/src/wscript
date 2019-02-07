@@ -2,42 +2,44 @@
 
 import os, sys
 from waf_dynamo import dmsdk_add_files
+import Options
 
 def set_options(opt):
     pass
 
 def build(bld):
     if bld.env.PLATFORM != 'as3-web':
-        obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
-                               includes = ['. opengl'],
+        obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
+                               includes = ['. opengl', '../proto'],
                                proto_gen_py = True,
                                protoc_includes = '../proto',
+                               uselib = 'DDF DLIB',
                                target = 'graphics')
 
-        obj.find_sources_in_dirs('. opengl ../proto')
+        obj.find_sources_in_dirs('. opengl ../proto/graphics')
         if 'web' in bld.env.PLATFORM:
              obj.source.append('opengl/async/job_queue_sync.cpp');
         else:
              obj.source.append('opengl/async/job_queue_threaded.cpp');
 
     else:
-        obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
-                               includes = ['. flash'],
+        obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
+                               includes = ['. flash', '../proto'],
                                proto_gen_py = True,
                                protoc_includes = '../proto',
+                               uselib = 'DDF DLIB',
                                target = 'graphics')
 
-        obj.find_sources_in_dirs('. flash ../proto')
+        obj.find_sources_in_dirs('. flash ../proto/graphics')
 
-    obj = bld.new_task_gen(features = 'cxx cstaticlib',
-                           includes = ['. null'],
+    obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
+                           includes = ['. null', '../proto'],
                            proto_gen_py = True,
                            protoc_includes = '../proto',
+                           uselib = 'DDF DLIB',
                            target = 'graphics_null')
 
-    obj.find_sources_in_dirs('. null ../proto')
-
-    bld.add_subdirs('test')
+    obj.find_sources_in_dirs('. null ../proto/graphics')
 
     bld.install_files('${PREFIX}/include/graphics/', 'graphics.h')
     bld.install_files('${PREFIX}/include/graphics/', 'graphics_util.h')
@@ -45,12 +47,17 @@ def build(bld):
     bld.install_files('${PREFIX}/include/graphics/opengl/win32', 'opengl/win32/glext.h')
     bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/graphics_opengl_defines.h')
 
+    bld.install_files('${PREFIX}/share/proto', '../proto/graphics/graphics_ddf.proto')
+
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     bld.install_files('${PREFIX}/bin', 'texc.py')
     bld.install_files('${PREFIX}/lib/python', 'dds.py')
     bld.install_files('${PREFIX}/lib/python', 'pvrtc.py')
     bld.install_files('${PREFIX}/lib/python', 'waf_graphics.py')
+
+    if not Options.options.skip_build_tests:
+        bld.add_subdirs('test')
 
 def configure(conf):
     pass
