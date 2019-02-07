@@ -1,0 +1,6 @@
+name: "valid"
+mesh: "/mesh/valid.dae"
+material: "/material/local_vertexspace.material"
+textures: "/texture/valid_png.png"
+animations: "mesh/valid.dae"
+default_animation: "valid"

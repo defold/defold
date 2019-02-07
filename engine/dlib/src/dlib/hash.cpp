@@ -24,7 +24,7 @@ struct ReverseHashContainer
     static const size_t m_HashStatesCapacity = 512;
     static const size_t m_HashStatesCapacityIncrement = 256;
 
-    dmMutex::Mutex                  m_Mutex;
+    dmMutex::HMutex                 m_Mutex;
     bool                            m_Enabled;
     dmHashTable32<ReverseHashEntry> m_HashTable32Entries;
     dmHashTable64<ReverseHashEntry> m_HashTable64Entries;

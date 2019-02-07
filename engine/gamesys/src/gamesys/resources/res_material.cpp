@@ -107,6 +107,7 @@ namespace dmGameSystem
             dmRender::AddMaterialTag(material, dmHashString64(ddf->m_Tags[i]));
         }
 
+        dmRender::SetMaterialVertexSpace(material, ddf->m_VertexSpace);
         dmRenderDDF::MaterialDesc::Constant* fragment_constant = ddf->m_FragmentConstants.m_Data;
         dmRenderDDF::MaterialDesc::Constant* vertex_constant = ddf->m_VertexConstants.m_Data;
 

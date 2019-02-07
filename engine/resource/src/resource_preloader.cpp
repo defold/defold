@@ -104,7 +104,7 @@ namespace dmResource
 
     struct ResourcePreloader
     {
-        dmMutex::Mutex m_Mutex;
+        dmMutex::HMutex m_Mutex;
         PreloadRequest m_Request[MAX_PRELOADER_REQUESTS];
 
         // list of free nodes
