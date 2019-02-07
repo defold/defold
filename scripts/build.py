@@ -30,6 +30,9 @@ PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 google-play-services-4.0.30 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0 bullet-2.77".split()
 
+CDN_PACKAGES_URL="https://s3-eu-west-1.amazonaws.com/defold-packages"
+CDN_UPLOAD_URL="s3://d.defold.com/archive"
+
 PACKAGES_EMSCRIPTEN_SDK="emsdk-1.38.12"
 PACKAGES_IOS_SDK="iPhoneOS11.2.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.13.sdk"
@@ -37,8 +40,7 @@ PACKAGES_XCODE_TOOLCHAIN="XcodeToolchain9.2"
 PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-14-0"
 PACKAGES_WIN32_SDK_8="WindowsKits-8.1"
 PACKAGES_WIN32_SDK_10="WindowsKits-10.0"
-DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
-NODE_MODULE_XHR2_URL = "%s/xhr2-0.1.0-common.tar.gz" % (DEFOLD_PACKAGES_URL)
+PACKAGES_NODE_MODULE_XHR2="xhr2-0.1.0-common"
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
 EMSCRIPTEN_VERSION_STR = "1.38.12"
 EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
@@ -181,6 +183,7 @@ class Configuration(object):
                  disable_ccache = False,
                  no_colors = False,
                  archive_path = None,
+                 package_path = None,
                  set_version = None,
                  eclipse = False,
                  branch = None,
@@ -216,6 +219,7 @@ class Configuration(object):
         self.disable_ccache = disable_ccache
         self.no_colors = no_colors
         self.archive_path = archive_path
+        self.package_path = package_path
         self.set_version = set_version
         self.eclipse = eclipse
         self.branch = branch
@@ -409,7 +413,8 @@ class Configuration(object):
 
         node_modules_dir = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR)
         self._mkdirs(node_modules_dir)
-        xhr2_tarball = self._download(NODE_MODULE_XHR2_URL)
+        url = '%s/%s.tar.gz' % (self.package_path, PACKAGES_NODE_MODULE_XHR2)
+        xhr2_tarball = self._download(url)
         self._extract_tgz(xhr2_tarball, node_modules_dir)
 
         def download_sdk(url, targetfolder, tmpname=None): # tmpname is the top folder name inside the archive, which you wish to rename
@@ -426,7 +431,7 @@ class Configuration(object):
             # macOS SDK
             tgtfolder = join(self.ext, 'SDKs', PACKAGES_MACOS_SDK)
             if not os.path.exists(tgtfolder):
-                url = '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_MACOS_SDK)
+                url = '%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK)
                 dlpath = self._download(url)
                 tmpfolder = join(self.ext, 'SDKs')
                 self._extract_tgz(dlpath, tmpfolder)
@@ -435,7 +440,7 @@ class Configuration(object):
             # Xcode toolchain
             tgtfolder = join(self.ext, 'SDKs', PACKAGES_XCODE_TOOLCHAIN)
             if not os.path.exists(tgtfolder):
-                url = '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_XCODE_TOOLCHAIN)
+                url = '%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN)
                 dlpath = self._download(url)
                 self._extract_tgz(dlpath, join(self.ext, 'SDKs'))
 
@@ -443,7 +448,7 @@ class Configuration(object):
             # iOS SDK
             tgtfolder = join(self.ext, 'SDKs', PACKAGES_IOS_SDK)
             if not os.path.exists(tgtfolder):
-                url = '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_IOS_SDK)
+                url = '%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SDK)
                 dlpath = self._download(url)
                 tmpfolder = join(self.ext, 'SDKs')
                 self._extract_tgz(dlpath, tmpfolder)
@@ -451,10 +456,10 @@ class Configuration(object):
 
         if 'win32' in target_platform and not ('win32' in self.host):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
-            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )
-            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
+            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )
+            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
             targetfolder = join(win32_sdk_folder, 'MicrosoftVisualStudio14.0') # let's avoid spaces in the paths
-            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_TOOLCHAIN), targetfolder, 'Microsoft Visual Studio 14.0' )
+            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_TOOLCHAIN), targetfolder, 'Microsoft Visual Studio 14.0' )
 
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
@@ -468,7 +473,7 @@ class Configuration(object):
         return path
 
     def install_ems(self):
-        url = '%s/%s-%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_EMSCRIPTEN_SDK, self.host)
+        url = '%s/%s-%s.tar.gz' % (self.package_path, PACKAGES_EMSCRIPTEN_SDK, self.host)
         dlpath = self._download(url)
         if dlpath is None:
             print("Error. Could not download %s" % url)
@@ -2004,10 +2009,15 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'No color output. Default is color output')
 
-    default_archive_path = 's3://d.defold.com/archive'
+    default_archive_path = CDN_UPLOAD_URL
     parser.add_option('--archive-path', dest='archive_path',
                       default = default_archive_path,
-                      help = 'Archive build. Set ssh-path, host:path, to archive build to. Default is %s' % default_archive_path    )
+                      help = 'Archive build. Set ssh-path, host:path, to archive build to. Default is %s' % default_archive_path)
+
+    default_package_path = CDN_PACKAGES_URL
+    parser.add_option('--package-path', dest='package_path',
+                      default = default_package_path,
+                      help = 'The CDN where the SDK packages are located. Default is %s' % default_package_path)
 
     parser.add_option('--set-version', dest='set_version',
                       default = None,
@@ -2055,6 +2065,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       disable_ccache = options.disable_ccache,
                       no_colors = options.no_colors,
                       archive_path = options.archive_path,
+                      package_path = options.package_path,
                       set_version = options.set_version,
                       eclipse = options.eclipse,
                       branch = options.branch,
