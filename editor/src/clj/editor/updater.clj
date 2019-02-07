@@ -7,13 +7,13 @@
             [editor.system :as system]
             [service.log :as log]
             [util.net :as net])
-  (:import [java.nio.file.attribute FileAttribute]
-           [java.nio.file Files]
+  (:import [com.defold.editor Platform]
            [java.io File IOException]
-           [org.apache.commons.io FilenameUtils FileUtils]
+           [java.nio.file Files CopyOption StandardCopyOption]
+           [java.nio.file.attribute FileAttribute]
+           [java.util Timer TimerTask]
            [org.apache.commons.compress.archivers.zip ZipArchiveEntry ZipFile]
-           [com.defold.editor Platform]
-           [java.util Timer TimerTask]))
+           [org.apache.commons.io FilenameUtils FileUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -181,6 +181,27 @@
           (swap! state-atom dissoc :current-download)
           false)))))
 
+(defn- move-file! [^File source-file ^File target-file]
+  (Files/move (.toPath source-file)
+              (.toPath target-file)
+              (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING])))
+
+(defn- install-unix-file! [^File source-file ^File target-file]
+  (when (.exists target-file)
+    (.delete target-file))
+  (move-file! source-file target-file))
+
+(defn- install-windows-file! [^File source-file ^File target-file editor-sha1]
+  (if (and (.exists target-file)
+           (not (.delete target-file)))
+    ;; delete may fail if we are trying to replace running file
+    ;; renaming it works as a workaround
+    (do
+      (.renameTo target-file
+                 (io/file (format "%s-%s.backup" target-file editor-sha1)))
+      (io/copy source-file target-file))
+    (move-file! source-file target-file)))
+
 (defn install!
   "Installs previously downloaded update"
   [updater]
@@ -197,13 +218,9 @@
             :let [relative-path (.relativize (.toPath update-dir) (.toPath source-file))
                   target-file (io/file install-dir (.toFile relative-path))]]
       (io/make-parents target-file)
-      (when (and (.exists target-file)
-                 (not (.delete target-file)))
-        ;; delete may fail if we are trying to replace running launcher file
-        ;; on windows. renaming it works as a workaround
-        (.renameTo target-file
-                   (io/file (format "%s-%s.backup" target-file editor-sha1))))
-      (io/copy source-file target-file))
+      (case (.getOs (Platform/getHostPlatform))
+        ("linux" "darwin") (install-unix-file! source-file target-file)
+        "win32" (install-windows-file! source-file target-file editor-sha1)))
     (FileUtils/deleteQuietly update-sha1-file)
     (FileUtils/deleteQuietly update-dir)
     (swap! state-atom (fn [state]
