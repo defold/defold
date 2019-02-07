@@ -1361,6 +1361,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context)
+    {
+        return ShaderDesc::LANGUAGE_GLSL;
+    }
+
     void EnableProgram(HContext context, HProgram program)
     {
         (void) context;
