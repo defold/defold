@@ -1,5 +1,16 @@
+#include "profile.h"
+
 #include <algorithm>
 #include <string.h>
+
+#if defined(_WIN32)
+#include "safe_windows.h"
+#elif  defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#else
+#include <sys/time.h>
+#endif
+
 #include "dlib.h"
 
 #include "hashtable.h"
@@ -10,7 +21,6 @@
 #include "time.h"
 #include "thread.h"
 #include "array.h"
-#include "profile.h"
 
 namespace dmProfile
 {
@@ -697,6 +707,41 @@ namespace dmProfile
         {
             call_back(context, &profile->m_CountersData[i]);
         }
+    }
+
+    void ProfileScope::StartScope(Scope* scope, const char* name)
+    {
+        uint64_t start;
+#if defined(_WIN32)
+        QueryPerformanceCounter((LARGE_INTEGER *)&start);
+#elif defined(__EMSCRIPTEN__)
+        start = (uint64_t)(emscripten_get_now() * 1000.0);
+#else
+        timeval tv;
+        gettimeofday(&tv, 0);
+        start = tv.tv_sec * 1000000 + tv.tv_usec;
+#endif
+        Sample*s = AllocateSample();
+        s->m_Name = name;
+        s->m_Scope = scope;
+        s->m_Start = (uint32_t)(start - g_BeginTime);
+        m_Sample = s;
+    }
+
+    void ProfileScope::EndScope()
+    {
+        uint64_t end;
+#if defined(_WIN32)
+        QueryPerformanceCounter((LARGE_INTEGER *) &end);
+#elif defined(__EMSCRIPTEN__)
+        end = (uint64_t)(emscripten_get_now() * 1000.0);
+#else
+        timeval tv;
+        gettimeofday(&tv, 0);
+        end = tv.tv_sec * 1000000 + tv.tv_usec;
+#endif
+        ANALYZE_USE_POINTER(m_Sample);
+        m_Sample->m_Elapsed = (uint32_t)(end - g_BeginTime) - m_Sample->m_Start;
     }
 }
 
