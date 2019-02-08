@@ -137,7 +137,7 @@ def mac_certificate():
 def sign_files(bundle_dir):
     certificate = mac_certificate()
     if certificate == None:
-        print("Watning: Codesigning certificate not found, files will not be signed")
+        print("Warning: Codesigning certificate not found, files will not be signed")
     else:
         exec_command(['codesign', '--deep', '-s', certificate, bundle_dir])
 
