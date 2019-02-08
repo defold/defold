@@ -1094,10 +1094,15 @@ If you do not specifically require different script states, consider changing th
 
 (defn select
   ([app-view node-ids]
-   (select app-view (g/node-value app-view :active-resource-node) node-ids))
+   (select app-view ::use-active-resource-node node-ids))
   ([app-view resource-node node-ids]
-   (let [selection-node (g/node-value app-view :selection-node)]
-     (selection/select selection-node resource-node node-ids))))
+   (g/with-auto-evaluation-context evaluation-context
+     (let [basis (:basis evaluation-context)
+           selection-node (g/node-value app-view :selection-node evaluation-context)
+           resource-node' (case resource-node
+                            ::use-active-resource-node (g/node-value app-view :active-resource-node evaluation-context)
+                            resource-node)]
+       (selection/select basis selection-node resource-node' node-ids)))))
 
 (defn select!
   ([app-view node-ids]
@@ -1113,13 +1118,15 @@ If you do not specifically require different script states, consider changing th
   ([app-view sub-selection]
    (sub-select! app-view sub-selection (gensym)))
   ([app-view sub-selection op-seq]
-   (let [selection-node (g/node-value app-view :selection-node)
-         active-resource-node (g/node-value app-view :active-resource-node)]
-     (g/transact
-       (concat
-         (g/operation-sequence op-seq)
-         (g/operation-label "Select")
-         (project/sub-select selection-node active-resource-node sub-selection))))))
+   (g/with-auto-evaluation-context evaluation-context
+     (let [basis (:basis evaluation-context)
+           selection-node (g/node-value app-view :selection-node evaluation-context)
+           active-resource-node (g/node-value app-view :active-resource-node evaluation-context)]
+       (g/transact
+         (concat
+           (g/operation-sequence op-seq)
+           (g/operation-label "Select")
+           (selection/sub-select basis selection-node active-resource-node sub-selection)))))))
 
 (defn- make-title
   ([] "Defold Editor 2.0")

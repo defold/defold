@@ -491,7 +491,7 @@
               transaction-steps (flatten
                                   (doall
                                     (for [handle-resource-node-changes resource-node-listeners
-                                          :let tx-data (handle-resource-node-changes new-resource-nodes-by-old)]
+                                          :let [tx-data (handle-resource-node-changes new-resource-nodes-by-old)]]
                                       tx-data)))]
           (when (seq transaction-steps)
             (g/transact

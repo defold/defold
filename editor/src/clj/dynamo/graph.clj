@@ -247,24 +247,27 @@
        (in/register-value-type '~fqs ~key)
        (def ~symb (in/register-value-type ~key (in/make-value-type '~symb ~key ~@body))))))
 
+(def TNodeID (s/named s/Int "node-id"))
+(def TProperties
+  {:properties {s/Keyword {:node-id TNodeID
+                           (s/optional-key :validation-problems) s/Any
+                           :value s/Any ; Can be property value or ErrorValue
+                           :type s/Any
+                           s/Keyword s/Any}}
+   (s/optional-key :node-id) TNodeID
+   (s/optional-key :display-order) [(s/conditional vector? [(s/one String "category") s/Keyword] keyword? s/Keyword)]})
+
 (deftype Any        s/Any)
 (deftype Bool       s/Bool)
 (deftype Str        String)
 (deftype Int        s/Int)
 (deftype Num        s/Num)
-(deftype NodeID     s/Int)
+(deftype NodeID     TNodeID)
 (deftype Keyword    s/Keyword)
 (deftype KeywordMap {s/Keyword s/Any})
-(deftype IdPair     [(s/one s/Str "id") (s/one s/Int "node-id")])
+(deftype IdPair     [(s/one s/Str "id") (s/one TNodeID "node-id")])
 (deftype Dict       {s/Str s/Int})
-(deftype Properties
-    {:properties {s/Keyword {:node-id                              s/Int
-                             (s/optional-key :validation-problems) s/Any
-                             :value                                s/Any ; Can be property value or ErrorValue
-                             :type                                 s/Any
-                             s/Keyword                             s/Any}}
-     (s/optional-key :node-id) s/Int
-     (s/optional-key :display-order) [(s/conditional vector? [(s/one String "category") s/Keyword] keyword? s/Keyword)]})
+(deftype Properties TProperties)
 (deftype Err ErrorValue)
 
 ;; ---------------------------------------------------------------------------
