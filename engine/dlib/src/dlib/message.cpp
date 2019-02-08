@@ -342,6 +342,8 @@ namespace dmMessage
         new_message->m_DestroyCallback = destroy_callback;
         memcpy(&new_message->m_Data[0], message_data, message_data_size);
 
+        bool is_first_message = !s->m_Header;
+
         if (!s->m_Header)
         {
             s->m_Header = new_message;
@@ -353,7 +355,10 @@ namespace dmMessage
             s->m_Tail = new_message;
         }
 
-        dmConditionVariable::Signal(s->m_Condition);
+        if (is_first_message)
+        {
+            dmConditionVariable::Signal(s->m_Condition);
+        }
         dmMutex::Unlock(s->m_Mutex);
         return RESULT_OK;
     }
