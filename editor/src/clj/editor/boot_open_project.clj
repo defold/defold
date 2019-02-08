@@ -19,6 +19,7 @@
             [editor.graph-view :as graph-view]
             [editor.hot-reload :as hot-reload]
             [editor.login :as login]
+            [editor.markdown-view :as markdown-view]
             [editor.html-view :as html-view]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
@@ -72,7 +73,8 @@
         (code-view/register-view-types workspace)
         (scene/register-view-types workspace)
         (form-view/register-view-types workspace)
-        (html-view/register-view-types workspace)))
+        (html-view/register-view-types workspace)
+        (markdown-view/register-view-types workspace)))
     (resource-types/register-resource-types! workspace)
     (workspace/resource-sync! workspace)
     workspace))
