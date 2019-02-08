@@ -73,7 +73,7 @@ struct Facebook
     int m_RefCount;
     int m_DisableFaceBookEvents;
 
-    dmMutex::Mutex m_Mutex;
+    dmMutex::HMutex m_Mutex;
     dmArray<Command> m_CmdQueue;
 };
 

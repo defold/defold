@@ -1,0 +1,17 @@
+emitters {
+    mode: PLAY_MODE_ONCE
+    duration: 0.2
+    space: EMISSION_SPACE_WORLD
+    position { x: 0 y: 0 z: 0 }
+    rotation {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    }
+    tile_source: "/tile/valid.tileset"
+    animation: ""
+    material: "/material/local_vertexspace.material"
+    max_particle_count: 8
+    type: EMITTER_TYPE_CONE
+}
