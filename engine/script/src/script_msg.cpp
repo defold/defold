@@ -500,15 +500,6 @@ namespace dmScript
             message_id = CheckHash(L, 2);
         }
 
-        if (!dmMessage::IsSocketValid(receiver.m_Socket))
-        {
-            char receiver_buffer[64];
-            url_tostring(&receiver, receiver_buffer, 64);
-            char sender_buffer[64];
-            url_tostring(&sender, sender_buffer, 64);
-            return luaL_error(L, "Could not send message '%s' from '%s' to '%s'.", dmHashReverseSafe64(message_id), sender_buffer, receiver_buffer);
-        }
-
         DM_ALIGNED(16) char data[MAX_MESSAGE_DATA_SIZE];
         uint32_t data_size = 0;
 
@@ -552,7 +543,15 @@ namespace dmScript
         assert(top == lua_gettop(L));
 
         dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t) desc, data, data_size, 0);
-        if (result != dmMessage::RESULT_OK)
+        if (result == dmMessage::RESULT_SOCKET_NOT_FOUND)
+        {
+            char receiver_buffer[64];
+            url_tostring(&receiver, receiver_buffer, 64);
+            char sender_buffer[64];
+            url_tostring(&sender, sender_buffer, 64);
+            return luaL_error(L, "Could not send message '%s' from '%s' to '%s'.", dmHashReverseSafe64(message_id), sender_buffer, receiver_buffer);
+        }
+        else if (result != dmMessage::RESULT_OK)
         {
             return luaL_error(L, "Could not send message to %s.", dmMessage::GetSocketName(receiver.m_Socket));
         }
