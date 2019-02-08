@@ -403,8 +403,8 @@ namespace dmGameObject
         // TODO: We should probably not store user-data sparse.
         // A lot of loops just to find user-data such as the code below
         assert(instance != 0x0);
-        const dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
-        uint32_t n = components.Size();
+        const Prototype::Component* components = instance->m_Prototype->m_Components;
+        uint32_t n = instance->m_Prototype->m_ComponentCount;
         uint32_t component_instance_data = 0;
         for (uint32_t i = 0; i < n; ++i)
         {
