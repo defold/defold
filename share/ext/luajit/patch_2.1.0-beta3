@@ -604,7 +604,7 @@ diff -u -r -w LuaJIT-2.1.0-beta3/src/lj_bcdef.h LuaJIT-2.1.0-beta3b/src/lj_bcdef
  
 diff -u -r -w LuaJIT-2.1.0-beta3/src/lj_bcread.c LuaJIT-2.1.0-beta3b/src/lj_bcread.c
 --- LuaJIT-2.1.0-beta3/src/lj_bcread.c	2017-05-01 21:05:00.000000000 +0200
-+++ LuaJIT-2.1.0-beta3b/src/lj_bcread.c	2019-02-04 15:11:06.000000000 +0100
++++ LuaJIT-2.1.0-beta3b/src/lj_bcread.c	2019-02-07 14:56:52.000000000 +0100
 @@ -6,6 +6,8 @@
  #define lj_bcread_c
  #define LUA_CORE
@@ -614,14 +614,13 @@ diff -u -r -w LuaJIT-2.1.0-beta3/src/lj_bcread.c LuaJIT-2.1.0-beta3b/src/lj_bcre
  #include "lj_obj.h"
  #include "lj_gc.h"
  #include "lj_err.h"
-@@ -391,12 +393,26 @@
+@@ -391,10 +393,19 @@
    bcread_want(ls, 3+5+5);
    if (bcread_byte(ls) != BCDUMP_HEAD2 ||
        bcread_byte(ls) != BCDUMP_HEAD3 ||
 -      bcread_byte(ls) != BCDUMP_VERSION) return 0;
 +      bcread_byte(ls) != BCDUMP_VERSION) 
 +  {
-+    printf("###### 0\n");
 +    return 0;
 +  }
    bcread_flags(ls) = flags = bcread_uleb128(ls);
@@ -629,45 +628,15 @@ diff -u -r -w LuaJIT-2.1.0-beta3/src/lj_bcread.c LuaJIT-2.1.0-beta3b/src/lj_bcre
 -  if ((flags & BCDUMP_F_FR2) != LJ_FR2*BCDUMP_F_FR2) return 0;
 +  if ((flags & ~(BCDUMP_F_KNOWN)) != 0) 
 +  {
-+    printf("###### 1\n");
 +    return 0;
 +  }
 +  if ((flags & BCDUMP_F_FR2) != LJ_FR2*BCDUMP_F_FR2)
 +  {
-+    printf("###### 2.667, (flags & BCDUMP_F_FR2): %u, LJ_FR2*BCDUMP_F_FR2: %u, flags: %u, BCDUMP_F_FR2: %u, LJ_FR2: %u, BCDUMP_F_FR2: %u, LJ_GC64: %u\n", (flags & BCDUMP_F_FR2), LJ_FR2*BCDUMP_F_FR2, flags, BCDUMP_F_FR2, LJ_FR2, BCDUMP_F_FR2, LJ_GC64);
-+    // printf("###### 2.56, flags: %u, BCDUMP_F_FR2: %u, LJ_FR2: %u, BCDUMP_F_FR2: %u, LJ_GC64: %u\n", flags, BCDUMP_F_FR2, LJ_FR2, BCDUMP_F_FR2, LJ_GC64);
 +    return 0;
 +  }
    if ((flags & BCDUMP_F_FFI)) {
  #if LJ_HASFFI
-+    printf("###### 2.5 LJ_HASFFI\n");
      lua_State *L = ls->L;
-     if (!ctype_ctsG(G(L))) {
-       ptrdiff_t oldtop = savestack(L, L->top);
-@@ -404,6 +420,7 @@
-       L->top = restorestack(L, oldtop);
-     }
- #else
-+    printf("###### 3\n");
-     return 0;
- #endif
-   }
-@@ -414,6 +431,7 @@
-     bcread_need(ls, len);
-     ls->chunkname = lj_str_new(ls->L, (const char *)bcread_mem(ls, len), len);
-   }
-+  printf("######################## bcread_header was OK!, flags: %u, BCDUMP_F_FR2: %u, LJ_FR2: %u, BCDUMP_F_FR2: %u, LJ_GC64: %u\n", flags, BCDUMP_F_FR2, LJ_FR2, BCDUMP_F_FR2, LJ_GC64);
-   return 1;  /* Ok. */
- }
- 
-@@ -452,6 +470,7 @@
-     bcread_error(ls, LJ_ERR_BCBAD);
-   /* Pop off last prototype. */
-   L->top--;
-+  printf("###################### lj_bcread was OK indeed!\n");
-   return protoV(L->top);
- }
- 
 Only in LuaJIT-2.1.0-beta3b/src: lj_bcread.o
 Only in LuaJIT-2.1.0-beta3b/src: lj_bcwrite.o
 Only in LuaJIT-2.1.0-beta3b/src: lj_buf.o
@@ -2764,7 +2733,7 @@ Only in LuaJIT-2.1.0-beta3b/src: luajit
 Only in LuaJIT-2.1.0-beta3b/src: luajit.o
 diff -u -r -w LuaJIT-2.1.0-beta3/src/msvcbuild.bat LuaJIT-2.1.0-beta3b/src/msvcbuild.bat
 --- LuaJIT-2.1.0-beta3/src/msvcbuild.bat	2017-05-01 21:05:00.000000000 +0200
-+++ LuaJIT-2.1.0-beta3b/src/msvcbuild.bat	2019-02-05 09:51:12.000000000 +0100
++++ LuaJIT-2.1.0-beta3b/src/msvcbuild.bat	2019-02-07 14:57:23.000000000 +0100
 @@ -11,7 +11,65 @@
  @rem
  @rem Then cd to this directory and run this script.

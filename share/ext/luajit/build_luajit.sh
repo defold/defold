@@ -56,7 +56,7 @@ function luajit_configure() {
 			export TARGET_FLAGS="$CFLAGS"
 			;;
 		x86_64-linux)
-			XFLAGS="-DLUAJIT_ENABLE_GC64 -DLUAJIT_NUMMODE=2 -DLUAJIT_ENABLE_JIT"
+			XFLAGS="-DLUAJIT_ENABLE_GC64 -DLUAJIT_NUMMODE=2 -DLUAJIT_ENABLE_JIT" # TODO jbnn prolly dont need this, taken care of below (test it)
 			return
 			;;
 		*)
@@ -103,14 +103,13 @@ export CONF_TARGET=$1
 
 case $1 in
 	armv7-darwin)
-		echo "############# armv7-darwin"
 		export TARGET_SYS=iOS
 		;;
 	arm64-darwin)
 		export TARGET_SYS=iOS
 		;;
 	armv7-android)
-		export TARGET_SYS=Linux
+		export TARGET_SYS=Android
 		;;
 	arm64-android)
 		export TARGET_SYS=Android
