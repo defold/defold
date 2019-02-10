@@ -789,14 +789,11 @@ TEST_P(dmHttpClientTest, PathWithSpaces)
     ASSERT_STREQ(message, m_Content.c_str());
 }
 
+const char* params_http_client_test[] = {"http://localhost:" NAME_SOCKET, "https://localhost:" NAME_SOCKET_SSL};
+INSTANTIATE_TEST_CASE_P(dmHttpClientTest, dmHttpClientTest, jc_test_values_in(params_http_client_test));
 
-INSTANTIATE_TEST_CASE_P(dmHttpClientTest,
-                        dmHttpClientTest,
-                        jc_test_values("http://localhost:" NAME_SOCKET, "https://localhost:" NAME_SOCKET_SSL));
-
-INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL,
-                        dmHttpClientTestSSL,
-                        jc_test_values("https://localhost:" NAME_SOCKET_SSL_TEST));
+const char* params_http_client_test_ssl[] = {"https://localhost:" NAME_SOCKET_SSL_TEST};
+INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL, dmHttpClientTestSSL, jc_test_values_in(params_http_client_test_ssl));
 
 
 class dmHttpClientTestCache : public dmHttpClientTest
@@ -996,9 +993,8 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
-INSTANTIATE_TEST_CASE_P(dmHttpClientTestCache,
-                        dmHttpClientTestCache,
-                        jc_test_values("http://localhost:" NAME_SOCKET));
+const char* params_http_client_cache[] = {"http://localhost:" NAME_SOCKET};
+INSTANTIATE_TEST_CASE_P(dmHttpClientTestCache, dmHttpClientTestCache, jc_test_values_in(params_http_client_cache));
 
 #endif // #ifndef _WIN32
 

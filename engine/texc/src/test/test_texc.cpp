@@ -2,6 +2,7 @@
 #include <jc/test.h>
 #include <dlib/image.h>
 #include <dlib/webp.h>
+#include <string.h> // memcmp
 
 #include "../texc.h"
 

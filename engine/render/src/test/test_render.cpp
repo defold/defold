@@ -7,6 +7,7 @@
 #include <dlib/math.h>
 
 #include <script/script.h>
+#include <algorithm> // std::stable_sort
 
 #include "render/render.h"
 #include "render/render_private.h"

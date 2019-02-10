@@ -108,7 +108,7 @@ int ReadSerializedTable(lua_State* L, uint8_t* source, uint32_t source_length, T
     {
         lua_pushnumber(L, i * key_stride);
         lua_gettable(L, -2);
-        EXPECT_EQ(LUA_TNUMBER, lua_type(L, -1));
+        ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
         if  (LUA_TNUMBER != lua_type(L, -1))
         {
             printf("Invalid key on row %d\n", i);
@@ -116,7 +116,7 @@ int ReadSerializedTable(lua_State* L, uint8_t* source, uint32_t source_length, T
         double value_read = lua_tonumber(L, -1);
         double value_expected = fn(2.0 * M_PI * (double)i / (double)0xffff);
         double diff = fabs(value_read - value_expected);
-        EXPECT_GT(epsilon, diff);
+        ASSERT_GT(epsilon, diff);
         lua_pop(L, 1);
 
         if (epsilon < diff)

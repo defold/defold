@@ -848,7 +848,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimation)
                 char currentScale[64];
                 DM_SNPRINTF(animatedScale, sizeof(animatedScale), "(%f,%f,%f)", postScaleDiagonal[0], postScaleDiagonal[1], postScaleDiagonal[2]);
                 DM_SNPRINTF(currentScale, sizeof(currentScale), "(%f,%f,%f)", currentDiagonal[0], currentDiagonal[1], currentDiagonal[2]);
-                EXPECT_STREQ(animatedScale, currentScale);
+                ASSERT_STREQ(animatedScale, currentScale);
             }
             ++ticks;
         }
@@ -916,7 +916,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationComponent)
                 char currentScale[64];
                 ::DM_SNPRINTF(animatedScale, sizeof(animatedScale), "(%f,%f,%f)", postScaleDiagonal[0], postScaleDiagonal[1], postScaleDiagonal[2]);
                 ::DM_SNPRINTF(currentScale, sizeof(currentScale), "(%f,%f,%f)", currentDiagonal[0], currentDiagonal[1], currentDiagonal[2]);
-                EXPECT_STREQ(animatedScale, currentScale);
+                ASSERT_STREQ(animatedScale, currentScale);
             }
             ++ticks;
         }

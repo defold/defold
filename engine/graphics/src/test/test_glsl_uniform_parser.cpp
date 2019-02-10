@@ -1,3 +1,4 @@
+#include <string.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc/test.h>
 

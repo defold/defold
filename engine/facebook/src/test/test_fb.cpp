@@ -646,7 +646,7 @@ TEST_F(FBTest, JoinCStringArray_LargerBuffer)
     array[0] = e1;
 
     dmFacebook::JoinCStringArray((const char**) array, sizeof(array) / sizeof(array[0]), buffer, sizeof(buffer) / sizeof(buffer[0]), ",");
-    ASSERT_STRCASEEQ("one", buffer);
+    ASSERT_STREQ("one", buffer);
 }
 
 TEST_F(FBTest, JoinCStringArray_SmallerBuffer)
@@ -663,7 +663,7 @@ TEST_F(FBTest, JoinCStringArray_SmallerBuffer)
     array[2] = e3;
 
     dmFacebook::JoinCStringArray((const char**) array, sizeof(array) / sizeof(array[0]), buffer, sizeof(buffer) / sizeof(buffer[0]), ",");
-    ASSERT_STRCASEEQ("one,t", buffer);
+    ASSERT_STREQ("one,t", buffer);
 }
 
 TEST_F(FBTest, JoinCStringArray_SingleElement)
@@ -675,7 +675,7 @@ TEST_F(FBTest, JoinCStringArray_SingleElement)
     array[0] = e1;
 
     dmFacebook::JoinCStringArray((const char**) array, sizeof(array) / sizeof(array[0]), buffer, sizeof(buffer) / sizeof(buffer[0]), ",");
-    ASSERT_STRCASEEQ("one", buffer);
+    ASSERT_STREQ("one", buffer);
 }
 
 TEST_F(FBTest, JoinCStringArray_MultipleElement)
@@ -692,7 +692,7 @@ TEST_F(FBTest, JoinCStringArray_MultipleElement)
     array[2] = e3;
 
     dmFacebook::JoinCStringArray((const char**) array, sizeof(array) / sizeof(array[0]), buffer, sizeof(buffer) / sizeof(buffer[0]), ",");
-    ASSERT_STRCASEEQ("one,two,three", buffer);
+    ASSERT_STREQ("one,two,three", buffer);
 }
 
 TEST_F(FBTest, luaTableToCArray_NullBuffer)
@@ -720,7 +720,7 @@ TEST_F(FBTest, luaTableToCArray_SmallerBuffer)
     uint32_t result = dmFacebook::luaTableToCArray(L, 1, buffer, sizeof(buffer) / sizeof(buffer[0]));
 
     ASSERT_EQ(1, result);
-    ASSERT_STRCASEEQ("one", buffer[0]);
+    ASSERT_STREQ("one", buffer[0]);
 
     for (unsigned int i = 0; i < result; ++i)
     {
@@ -749,7 +749,7 @@ TEST_F(FBTest, luaTableToCArray_SingleElement)
     uint32_t result = dmFacebook::luaTableToCArray(L, 1, buffer, sizeof(buffer) / sizeof(buffer[0]));
 
     ASSERT_EQ(1, result);
-    ASSERT_STRCASEEQ("one", buffer[0]);
+    ASSERT_STREQ("one", buffer[0]);
 
     for (unsigned int i = 0; i < result; ++i)
     {
@@ -774,9 +774,9 @@ TEST_F(FBTest, luaTableToCArray_MultipleElement)
     uint32_t result = dmFacebook::luaTableToCArray(L, 1, buffer, sizeof(buffer) / sizeof(buffer[0]));
 
     ASSERT_EQ(3, result);
-    ASSERT_STRCASEEQ("one", buffer[0]);
-    ASSERT_STRCASEEQ("two", buffer[1]);
-    ASSERT_STRCASEEQ("three", buffer[2]);
+    ASSERT_STREQ("one", buffer[0]);
+    ASSERT_STREQ("two", buffer[1]);
+    ASSERT_STREQ("three", buffer[2]);
 
     for (unsigned int i = 0; i < result; ++i)
     {

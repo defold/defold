@@ -1,6 +1,5 @@
 #pragma once
 
-#define JC_TEST_IMPLEMENTATION
 #include <jc/test.h>
 
 #include <resource/resource.h>

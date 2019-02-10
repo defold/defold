@@ -1374,7 +1374,5 @@ int main(int argc, char **argv)
     dmDDF::RegisterAllTypes();
 
     jc_test_init(&argc, argv);
-
-    int ret = JC_TEST_RUN_ALL();
-    return ret;
+    return JC_TEST_RUN_ALL();
 }

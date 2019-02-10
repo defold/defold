@@ -228,9 +228,6 @@ def default_flags(self):
             if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-m32'])
             if "osx" == build_util.get_target_os():
-                # tr1/tuple isn't available on clang/darwin and gtest 1.5.0 assumes that
-                # see corresponding flag in build_gtest.sh
-                self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
                 # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
                 # Force libstdc++ for now
                 self.env.append_value(f, ['-stdlib=libstdc++'])
@@ -248,7 +245,6 @@ def default_flags(self):
 
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             self.env.append_value(f, ['-g', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
@@ -313,7 +309,7 @@ def default_flags(self):
         # For fully optimized builds add -O4 and -emit-llvm to C*FLAGS and -O4 to LINKFLAGS
         # NOTE: We can't disable exceptions as exceptions are used in the flash SDK...
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall'])
         self.env.append_value('LINKFLAGS', ['-g'])
     else: # *-win32
         for f in ['CCFLAGS', 'CXXFLAGS']:
@@ -372,10 +368,8 @@ def asan_cxxflags(self):
 @feature('cprogram', 'cxxprogram')
 @after('apply_link')
 def apply_unit_test(self):
-    # Do not execute unit-tests tasks (compile and link)
-    # when --skip-build-tests is set
-    if hasattr(self, 'uselib') and str(self.uselib).find("GTEST") != -1:
-        if getattr(Options.options, 'skip_build_tests', False):
+    # Do not execute unit-tests tasks (compile and link) when --skip-build-tests is set
+    if 'test' in self.features and getattr(Options.options, 'skip_build_tests', False):
             for t in self.tasks:
                 t.hasrun = True
 
@@ -1151,13 +1145,13 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
 
     return ret
 
-def run_gtests(valgrind = False, configfile = None):
+def run_tests(valgrind = False, configfile = None):
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
         return
 
-# TODO: Add something similar to this
-# http://code.google.com/p/v8/source/browse/trunk/tools/run-valgrind.py
-# to find leaks and set error code
+    # TODO: Add something similar to this
+    # http://code.google.com/p/v8/source/browse/trunk/tools/run-valgrind.py
+    # to find leaks and set error code
 
     if not Build.bld.env['VALGRIND']:
         valgrind = False
@@ -1170,7 +1164,7 @@ def run_gtests(valgrind = False, configfile = None):
         return
 
     for t in Build.bld.all_task_gen:
-        if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
+        if 'test' in str(t.features) and t.name.startswith('test_') and ('cprogram' in t.features or 'cxxprogram' in t.features):
             output = t.path
             cmd = "%s %s" % (os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target), configfile)
             if 'web' in Build.bld.env.PLATFORM:
@@ -1611,7 +1605,7 @@ def set_options(opt):
     opt.add_option('--eclipse', action='store_true', default=False, dest='eclipse', help='print eclipse friendly command-line')
     opt.add_option('--platform', default='', dest='platform', help='target platform, eg armv7-darwin')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip running unit tests')
-    opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')
+    opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')    
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
     opt.add_option('--skip-apidocs', action='store_true', default=False, dest='skip_apidocs', help='skip extraction and generation of API docs.')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')

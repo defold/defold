@@ -1139,7 +1139,7 @@ TEST_F(ParticleTest, EvaluateEmitterProperty)
 
     // t = 0.25, size = 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+    ASSERT_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.375, size > 0
     dmParticle::Update(m_Context, dt, 0x0);
@@ -1147,7 +1147,7 @@ TEST_F(ParticleTest, EvaluateEmitterProperty)
 
     // t = 0.5, size = 1
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(1.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+    ASSERT_EQ(1.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.625, size > 0
     dmParticle::Update(m_Context, dt, 0x0);
@@ -1155,7 +1155,7 @@ TEST_F(ParticleTest, EvaluateEmitterProperty)
 
     // t = 0.75, size = 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+    ASSERT_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.875, size < 0
     dmParticle::Update(m_Context, dt, 0x0);
@@ -1222,7 +1222,7 @@ TEST_F(ParticleTest, EvaluateParticleProperty)
 
     // t = 0.25, size = 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+    ASSERT_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.375, size > 0
     dmParticle::Update(m_Context, dt, 0x0);
@@ -1230,7 +1230,7 @@ TEST_F(ParticleTest, EvaluateParticleProperty)
 
     // t = 0.5, size = 1
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(1.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+    ASSERT_EQ(1.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.625, size > 0
     dmParticle::Update(m_Context, dt, 0x0);
@@ -1238,7 +1238,7 @@ TEST_F(ParticleTest, EvaluateParticleProperty)
 
     // t = 0.75, size = 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+    ASSERT_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.875, size < 0
     // Updating with a full dt here will make the emitter reach its duration
@@ -1663,8 +1663,6 @@ TEST_F(ParticleTest, AccelerationWorld)
 TEST_F(ParticleTest, AccelerationScaledEmitter)
 {
     float dt = 1.0f;
-
-    float scale = 2.0f;
 
     ASSERT_TRUE(LoadPrototype("mod_acc_em.particlefxc", &m_Prototype));
     Vector3 delta[2];
