@@ -119,8 +119,13 @@ public class Splash {
         stage.setScene(scene);
 
         TextFlow startupTipFlow = (TextFlow) scene.lookup("#startup-tip");
-        startupTipFlow.visibleProperty().bind(errorShowing.not());
-        startupTipFlow.getChildren().setAll(stringToTextFlowNodes(randomElement(readTips())));
+        try {
+            startupTipFlow.getChildren().setAll(stringToTextFlowNodes(randomElement(readTips())));
+            startupTipFlow.visibleProperty().bind(errorShowing.not());
+        } catch (Exception e) {
+            startupTipFlow.setVisible(false);
+            e.printStackTrace();
+        }
 
         Label launchErrorLabel = (Label) scene.lookup("#launch-error");
         launchErrorLabel.textProperty().bind(launchError);
