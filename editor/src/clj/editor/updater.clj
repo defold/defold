@@ -21,9 +21,7 @@
   (format "https://d.defold.com/editor2/%s/editor2/Defold-%s.zip" sha1 (.getPair platform)))
 
 (defn- update-url [channel]
-  (format "https://d.defold.com/editor2/channels/%s/update-v2.json" channel)
-  ;; TODO vlaaad
-  "http://localhost:8000/update-v2.json")
+  (format "https://d.defold.com/editor2/channels/%s/update-v2.json" channel))
 
 (defn- make-updater [channel editor-sha1 downloaded-sha1 platform install-dir launcher-path]
   {:channel channel
