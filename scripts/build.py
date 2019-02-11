@@ -445,19 +445,19 @@ class Configuration(object):
         target_platform = self.target_platform
         if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin'):
             # macOS SDK
-            download_sdk('%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
-            download_sdk('%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
+            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
+            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
 
         if target_platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # iOS SDK
-            download_sdk('%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_IOS_SDK), join(sdkfolder, PACKAGES_IOS_SDK))
-            download_sdk('%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
+            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SDK), join(sdkfolder, PACKAGES_IOS_SDK))
+            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
 
         if 'win32' in target_platform and not ('win32' in self.host):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
-            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )
-            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
-            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0') )
+            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )
+            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
+            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0') )
 
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
