@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox prefWidth="500.0" spacing="12.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8.0.172-ea" xmlns:fx="http://javafx.com/fxml/1">
+    <children>
+        <Label text="Unfortunately, updates are no longer provided for this platform. Supported platforms are 64-bit Linux, MacOS and Windows." wrapText="true" />
+        <HBox>
+            <children>
+                <Button id="close" cancelButton="true" defaultButton="true" minWidth="80" text="Close" />
+            </children>
+        </HBox>
+    </children>
+    <padding>
+        <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />
+    </padding>
+</VBox>
