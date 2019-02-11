@@ -9,19 +9,16 @@
 (g/deftype SubSelectionsByResourceNodeID {TResourceNodeID [(s/named TSubSelection "sub-selection-entry")]})
 
 (g/defnode SelectionNode
-  (property all-selections NodeIDsByResourceNodeID
-            (set (fn [evaluation-context self _old-value new-value]
-                   (let [basis (:basis evaluation-context)]
-                     (concat
-                       (g/disconnect-sources basis self :all-selected-node-ids)
-                       (g/disconnect-sources basis self :all-selected-node-properties)
-                       (sequence (comp (mapcat val)
-                                       (distinct)
-                                       (mapcat (fn [selected-node-id]
-                                                 (concat
-                                                   (g/connect selected-node-id :_node-id self :all-selected-node-ids)
-                                                   (g/connect selected-node-id :_properties self :all-selected-node-properties)))))
-                                 new-value))))))
+  ;; NOTE: These are for internal use only. The truth should be obtained from
+  ;; the selected-node-ids-by-resource-node and sub-selections-by-resource-node
+  ;; outputs, since these can contain stale node ids. This is also the reason
+  ;; why we establish connections in the set-all-selections function instead of
+  ;; from a property setter function - the property setter will only be called
+  ;; in case the value differs. If this test is performed on a stale value, the
+  ;; connections will not be updated in some cases. Notably, this can happen if
+  ;; you delete a node and then undo. The deleted node would not be selected as
+  ;; it was re-introduced by the undo.
+  (property all-selections NodeIDsByResourceNodeID)
   (property all-sub-selections SubSelectionsByResourceNodeID)
 
   (input all-selected-node-ids g/NodeID :array)
@@ -62,37 +59,47 @@
 (defn make-selection-node! [graph-id]
   (g/make-node! graph-id SelectionNode))
 
-(defn- update-selection-in-resource [old-selection-by-resource-node resource-node new-selection basis]
-  (let [node-exists? (partial g/node-by-id basis)
-        valid-entry? (comp node-exists? key)]
-    (into {}
-          (filter valid-entry?)
-          (assoc old-selection-by-resource-node resource-node new-selection))))
+(defn- update-selection-in-resource [old-selection-by-resource-node resource-node new-selection]
+  (assoc old-selection-by-resource-node resource-node new-selection))
+
+(defn- set-all-selections [basis selection-node selected-node-ids-by-resource-node]
+  (concat
+    (g/set-property selection-node :all-selections selected-node-ids-by-resource-node)
+    (g/disconnect-sources basis selection-node :all-selected-node-ids)
+    (g/disconnect-sources basis selection-node :all-selected-node-properties)
+    (sequence (comp (mapcat val)
+                    (distinct)
+                    (mapcat (fn [selected-node-id]
+                              (concat
+                                (g/connect selected-node-id :_node-id selection-node :all-selected-node-ids)
+                                (g/connect selected-node-id :_properties selection-node :all-selected-node-properties)))))
+              selected-node-ids-by-resource-node)))
 
 (defn select
   ([selection-node resource-node node-ids]
-   (select (g/now) selection-node resource-node node-ids))
-  ([basis selection-node resource-node node-ids]
+   (g/with-auto-evaluation-context evaluation-context
+     (select evaluation-context selection-node resource-node node-ids)))
+  ([evaluation-context selection-node resource-node node-ids]
    (assert (every? some? node-ids) "Attempting to select nil values")
-   (let [selected-node-ids (if (empty? node-ids)
-                             [resource-node]
-                             (into []
-                                   (distinct)
-                                   node-ids))]
-     (g/update-property selection-node :all-selections update-selection-in-resource resource-node selected-node-ids basis))))
+   (let [basis (:basis evaluation-context)
+         new-selected-node-ids (if (seq node-ids)
+                                 (into [] (distinct) node-ids)
+                                 [resource-node])
+         old-all-selections (g/node-value selection-node :selected-node-ids-by-resource-node evaluation-context)
+         new-all-selections (update-selection-in-resource old-all-selections resource-node new-selected-node-ids)]
+     (when (not= old-all-selections new-all-selections)
+       (set-all-selections basis selection-node new-all-selections)))))
 
-(defn sub-select
-  ([selection-node resource-node sub-selection]
-   (sub-select (g/now) selection-node resource-node sub-selection))
-  ([basis selection-node resource-node sub-selection]
-   (g/update-property selection-node :all-sub-selections update-selection-in-resource resource-node sub-selection basis)))
+(defn sub-select [selection-node resource-node sub-selection]
+  (g/update-property selection-node :all-sub-selections update-selection-in-resource resource-node sub-selection))
 
 (defn remap-selection
   ([selection-node new-resource-nodes-by-old]
    (g/with-auto-evaluation-context evaluation-context
      (remap-selection evaluation-context selection-node new-resource-nodes-by-old)))
   ([evaluation-context selection-node new-resource-nodes-by-old]
-   (let [all-selections (into {}
+   (let [basis (:basis evaluation-context)
+         all-selections (into {}
                               (keep (fn [[old-resource-node :as entry]]
                                       (when-some [new-resource-node (new-resource-nodes-by-old old-resource-node)]
                                         ;; The resource still exists.
@@ -104,7 +111,7 @@
                                         (if (not= old-resource-node new-resource-node)
                                           [new-resource-node [new-resource-node]]
                                           entry))))
-                              (g/node-value selection-node :all-selections evaluation-context))
+                              (g/node-value selection-node :selected-node-ids-by-resource-node evaluation-context))
          all-sub-selections (into {}
                                   (keep (fn [[old-resource-node :as entry]]
                                           ;; Discard sub-selection for replaced
@@ -113,7 +120,7 @@
                                           ;; drastically.
                                           (when (= old-resource-node (new-resource-nodes-by-old old-resource-node))
                                             entry)))
-                                  (g/node-value selection-node :all-sub-selections evaluation-context))]
+                                  (g/node-value selection-node :sub-selections-by-resource-node evaluation-context))]
      (concat
-       (g/set-property selection-node :all-selections all-selections)
+       (set-all-selections basis selection-node all-selections)
        (g/set-property selection-node :all-sub-selections all-sub-selections)))))

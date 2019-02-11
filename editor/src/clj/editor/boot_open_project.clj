@@ -355,5 +355,5 @@
       (load-stage workspace project prefs dashboard-client updater newly-created?)
       (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
         (show-missing-dependencies-alert! missing-dependencies)))
-    (g/reset-undo! *project-graph*)
+    (g/reset-undo! *project-graph* "Open Project")
     (log/info :message "project loaded")))

@@ -118,9 +118,10 @@
 
 (defn set-history-context-fn!
   "Set the function that will be called to obtain context for written history
-  entries. The context value returned by the function will be associated with
-  the written history entry, and later given to the context predicate function
-  you provide in calls g/undo! and its ilk."
+  entries. The function should take an evaluation-context as its sole argument.
+  The context value returned by the function will be associated with the written
+  history entry, and later given to the context predicate function you provide
+  in calls g/undo! and its ilk."
   [history-context-fn]
   (assert (ifn? history-context-fn))
   (reset! history-context-fn-atom history-context-fn))
@@ -144,10 +145,10 @@
   (let [basis (is/basis @*the-system*)
         id-generators (is/id-generators @*the-system*)
         override-id-generator (is/override-id-generator @*the-system*)
-        tx-result (it/transact* (it/new-transaction-context basis id-generators override-id-generator) txs)]
+        tx-result (it/transact* (it/new-transaction-context basis id-generators override-id-generator) txs)
+        history-context-fn @history-context-fn-atom]
     (when (= :ok (:status tx-result))
-      (let [history-context-fn @history-context-fn-atom]
-        (swap! *the-system* is/merge-graphs history-context-fn txs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result))))
+      (swap! *the-system* is/merge-graphs history-context-fn txs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
     tx-result))
 
 ;; ---------------------------------------------------------------------------
@@ -1360,11 +1361,11 @@
 (defn reset-undo!
   "Given a `graph-id`, clears all undo history for the graph.
   Warning: Does not invalidate outputs."
-  [graph-id]
+  [graph-id history-label]
   (swap! *the-system*
          (fn [system]
            (let [graph (is/graph system graph-id)
-                 cleared-history (history/make-history graph)]
+                 cleared-history (history/make-history graph history-label)]
              (assoc-in system [:history graph-id] cleared-history)))))
 
 (defn cancel!

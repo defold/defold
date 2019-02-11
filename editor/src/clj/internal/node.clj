@@ -1125,12 +1125,14 @@
   `(pull-first-input-value ~input ~self-name ~ctx-name))
 
 (defn pull-input-values
-  [input node evaluation-context]
-  (let [basis (:basis evaluation-context)]
-    (mapv (fn [[upstream-id output-label]]
-            (let [upstream-node (gt/node-by-id-at basis upstream-id)]
-              (gt/produce-value upstream-node output-label evaluation-context)))
-          (gt/sources basis (gt/node-id node) input))))
+  [input node {:keys [basis] :as evaluation-context}]
+  (into []
+        (comp (keep (fn [[upstream-id output-label]]
+                      (when-some [upstream-node (gt/node-by-id-at basis upstream-id)]
+                        [upstream-node output-label])))
+              (map (fn [[upstream-node output-label]]
+                     (gt/produce-value upstream-node output-label evaluation-context))))
+        (gt/sources basis (gt/node-id node) input)))
 
 (defn pull-input-values-with-substitute
   [input sub node evaluation-context]

@@ -137,7 +137,7 @@
           (is (g/has-undo? pgraph-id))
           (is (g/has-redo? pgraph-id))
 
-          (g/reset-undo! pgraph-id)
+          (g/reset-undo! pgraph-id "Reload From Disk")
 
           (is (not (g/has-undo? pgraph-id)))
           (is (not (g/has-redo? pgraph-id))))))))

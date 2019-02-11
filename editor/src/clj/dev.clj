@@ -6,6 +6,7 @@
             [editor.outline-view :as outline-view]
             [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
+            [editor.ui :as ui]
             [internal.graph :as ig]
             [internal.history :as history]
             [internal.system :as is]
@@ -30,10 +31,10 @@
 (def project-graph (comp g/node-id->graph-id project))
 
 (defn app-view []
-  (ffirst (g/targets-of (project) :_node-id)))
+  (some-> (ui/main-root) ui/context :env :app-view))
 
 (defn active-resource []
-  (->> (g/node-value (project) :selected-node-ids-by-resource-node)
+  (->> (g/node-value (app-view) :selected-node-ids-by-resource-node)
        (keep (fn [[resource-node _selected-nodes]]
                (let [targets (g/targets-of resource-node :node-outline)]
                  (when (some (fn [[_target-node target-label]]
@@ -46,7 +47,7 @@
           (g/node-value :active-view)))
 
 (defn selection []
-  (->> (g/node-value (project) :selected-node-ids-by-resource-node)
+  (->> (g/node-value (app-view) :selected-node-ids-by-resource-node)
        (keep (fn [[resource-node selected-nodes]]
                (let [targets (g/targets-of resource-node :node-outline)]
                  (when (some (fn [[_target-node target-label]]
@@ -137,12 +138,23 @@
 
 (def history (comp deref history-ref))
 
+(defn- significant-history-context [history-context]
+  (not-empty
+    (into {}
+          (filter (comp some? val))
+          history-context)))
+
 (defn history-log []
-  (mapv (juxt :undo-group :label)
+  (mapv (fn [history-entry]
+          (-> history-entry
+              (select-keys [:label :undo-group :context-before :context-after])
+              (update :context-before significant-history-context)
+              (update :context-after significant-history-context)))
         (history)))
 
 (defn update-history! [update-fn]
-  (is/update-history! (system) (project-graph) update-fn))
+  (is/update-history! (system) (project-graph) update-fn)
+  nil)
 
 (defn revert-history! []
   (update-history! (fn [history basis]

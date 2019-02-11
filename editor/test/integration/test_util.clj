@@ -118,13 +118,13 @@
    (let [proj-graph (g/make-graph! :history true :volatility 1)
          project (project/make-project proj-graph workspace)
          project (project/load-project project)]
-     (g/reset-undo! proj-graph)
+     (g/reset-undo! proj-graph "Open Project")
      project))
   ([workspace resources]
    (let [proj-graph (g/make-graph! :history true :volatility 1)
          project (project/make-project proj-graph workspace)
          project (project/load-project project resources)]
-     (g/reset-undo! proj-graph)
+     (g/reset-undo! proj-graph "Open Project")
      project)))
 
 (defn project-node-resources [project]

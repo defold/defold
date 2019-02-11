@@ -102,7 +102,7 @@
      (g/transact (g/connect go-node :node-outline outline-id :outline))
 
      (let [original-outline (remove-fns (g/node-value outline-id :outline))]
-       (g/reset-undo! proj-graph)
+       (g/reset-undo! proj-graph "Open Project")
 
        ;; delete the component
        (g/transact

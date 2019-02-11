@@ -1005,6 +1005,11 @@
 (defn- arc-source-label [^Arc arc]
   (.source-label arc))
 
+(defn- valid-arc-from-graph? [basis graph-id ^Arc arc]
+  (let [source-node-id (.source-id arc)]
+    (and (= graph-id (gt/node-id->graph-id source-node-id))
+         (some? (gt/node-by-id-at basis source-node-id)))))
+
 (defn hydrate-after-undo [basis graph-state]
   ;; NOTE: This was originally written in a simpler way. This longer-form
   ;; implementation is optimized in order to solve performance issues in graphs
@@ -1013,8 +1018,8 @@
         graphs (:graphs basis)
         other-graphs (dissoc graphs graph-id)
         old-sarcs (get graph-state :sarcs)
-        arc-from-graph? #(= graph-id (gt/node-id->graph-id (arc-source-id %)))
         arc-to-graph? #(= graph-id (gt/node-id->graph-id (.target-id ^Arc %)))
+        valid-arc-from-graph? (partial valid-arc-from-graph? basis graph-id)
 
         ;; Create a sarcs-like map structure containing just the Arcs that
         ;; connect nodes in our graph to nodes in other graphs. Use the tarcs
@@ -1026,7 +1031,7 @@
                                              (comp (mapcat :tarcs)
                                                    (mapcat val)
                                                    (mapcat val)
-                                                   (filter arc-from-graph?))
+                                                   (filter valid-arc-from-graph?))
                                              (vals other-graphs))))
 
         ;; Remove any sarcs that previously connected nodes in our graph to

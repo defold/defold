@@ -55,7 +55,9 @@
         update-results (update-fn history basis)]
     (if (nil? update-results)
       system
-      (let [updated-basis (:basis update-results)
+      (let [context-before (:context-before update-results)
+            context-after (:context-after update-results)
+            updated-basis (:basis update-results)
             updated-history (:history update-results)
             updated-outputs (:outputs-to-refresh update-results)
             updated-graph (-> updated-basis :graphs (get graph-id))]
@@ -112,7 +114,7 @@
   (let [graph-id (next-available-graph-id system)]
     (-> system
         (attach-graph* graph-id graph)
-        (assoc-in [:history graph-id] (history/make-history graph)))))
+        (assoc-in [:history graph-id] (history/make-history graph "Genesis")))))
 
 (defn detach-graph
   [system graph]
@@ -135,40 +137,56 @@
 
 (defn merge-graphs
   [system history-context-fn tx-data post-tx-graphs significantly-modified-graphs outputs-modified nodes-deleted]
-  (let [outputs-modified-by-graph-id (util/group-into #{} (comp gt/node-id->graph-id first) outputs-modified)
-        history-by-graph-id (into {}
-                                  (keep (fn [graph-id]
-                                          (when (contains? significantly-modified-graphs graph-id)
-                                            (when-some [history (graph-history system graph-id)]
-                                              [graph-id history]))))
-                                  (keys outputs-modified-by-graph-id))
-        history-context (when (seq history-by-graph-id)
-                          (history-context-fn))
-        post-system (reduce (fn [system [graph-id graph]]
-                              (let [start-tx (:tx-id graph -1)
-                                    sidereal-tx (graph-time system graph-id)]
-                                (if (< start-tx sidereal-tx)
-                                  ;; graph was modified concurrently by a different transaction.
-                                  (throw (ex-info "Concurrent modification of graph"
-                                                  {:_graph-id graph-id :start-tx start-tx :sidereal-tx sidereal-tx}))
-                                  (let [graph-after (update graph :tx-id util/safe-inc)
-                                        system-after (assoc-in system [:graphs graph-id] graph-after)
-                                        history-before (history-by-graph-id graph-id)]
-                                    (if (nil? history-before)
-                                      system-after
-                                      (let [outputs-modified (outputs-modified-by-graph-id graph-id)
-                                            history-after (history/write-history history-before history-context graph-after outputs-modified tx-data)]
-                                        (assoc-in system-after [:history graph-id] history-after)))))))
-                            system
-                            post-tx-graphs)]
-    (-> post-system
-        (update :cache c/cache-invalidate outputs-modified)
-        (update :invalidate-counters bump-invalidate-counters outputs-modified)
-        (update :user-data (fn [user-data]
-                             (reduce (fn [user-data [graph-id deleted-node-ids]]
-                                       (update user-data graph-id (partial apply dissoc) deleted-node-ids))
-                                     user-data
-                                     (group-by gt/node-id->graph-id (keys nodes-deleted))))))))
+  (let [outputs-modified-by-graph-id (util/group-into {} #{}
+                                                      (comp gt/node-id->graph-id first)
+                                                      outputs-modified)
+        graphs-after-by-graph-id (into {}
+                                       (map (fn [[graph-id graph]]
+                                              (let [start-tx (:tx-id graph -1)
+                                                    sidereal-tx (graph-time system graph-id)]
+                                                (if (< start-tx sidereal-tx)
+                                                  ;; Graph was modified concurrently by a different transaction.
+                                                  (throw (ex-info "Concurrent modification of graph"
+                                                                  {:_graph-id graph-id :start-tx start-tx :sidereal-tx sidereal-tx}))
+                                                  [graph-id (update graph :tx-id util/safe-inc)]))))
+                                       post-tx-graphs)
+        history-updates (sequence
+                          (keep (fn [[graph-id graph-after]]
+                                  (when (and (contains? significantly-modified-graphs graph-id)
+                                             (some? (graph-history system graph-id)))
+                                    (let [outputs-modified (outputs-modified-by-graph-id graph-id)]
+                                      [graph-id graph-after outputs-modified]))))
+                          graphs-after-by-graph-id)
+        history-context-before (when (seq history-updates)
+                                 (let [evaluation-context (default-evaluation-context system)]
+                                   (history-context-fn evaluation-context)))
+        post-system (-> system
+                        (update :graphs merge graphs-after-by-graph-id)
+                        (update :cache c/cache-invalidate outputs-modified)
+                        (update :invalidate-counters bump-invalidate-counters outputs-modified)
+                        (update :user-data (fn [user-data]
+                                             (reduce (fn [user-data [graph-id deleted-node-ids]]
+                                                       (update user-data graph-id (partial apply dissoc) deleted-node-ids))
+                                                     user-data
+                                                     (group-by gt/node-id->graph-id (keys nodes-deleted))))))]
+    (if (empty? history-updates)
+      post-system
+      (let [evaluation-context (default-evaluation-context post-system)
+            history-context-after (history-context-fn evaluation-context)]
+        (-> post-system
+            (update-cache-from-evaluation-context evaluation-context)
+            (update :history (fn [history-by-graph-id]
+                               (reduce (fn [history-by-graph-id [graph-id graph-after outputs-modified]]
+                                         (update history-by-graph-id
+                                                 graph-id
+                                                 history/write-history
+                                                 history-context-before
+                                                 history-context-after
+                                                 graph-after
+                                                 outputs-modified
+                                                 tx-data))
+                                       history-by-graph-id
+                                       history-updates))))))))
 
 (defn basis-graphs-identical? [basis1 basis2]
   (let [graph-ids (keys (:graphs basis1))]

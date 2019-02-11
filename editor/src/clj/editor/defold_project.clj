@@ -8,7 +8,6 @@
             [editor.core :as core]
             [editor.error-reporting :as error-reporting]
             [editor.gl :as gl]
-            [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.library :as library]
             [editor.progress :as progress]
@@ -350,14 +349,6 @@
       {:error build-targets}
       (pipeline/build! build-targets build-dir old-artifact-map (progress/nest-render-progress render-progress! (progress/make "" 10 5) 5)))))
 
-(handler/defhandler :undo :global
-  (enabled? [project-graph history-context-pred] (g/can-undo? project-graph history-context-pred))
-  (run [project-graph history-context-pred] (g/undo! project-graph history-context-pred)))
-
-(handler/defhandler :redo :global
-  (enabled? [project-graph history-context-pred] (g/can-redo? project-graph history-context-pred))
-  (run [project-graph history-context-pred] (g/redo! project-graph history-context-pred)))
-
 (def ^:private bundle-targets
   (into []
         (concat (when (util/is-mac-os?) [[:ios "iOS Application..."]]) ; macOS is required to sign iOS ipa.
@@ -499,7 +490,7 @@
 
       ;; invalidating outputs is the only change that does not reset the undo history
       (when (some seq (vals (dissoc plan :invalidate-outputs)))
-        (g/reset-undo! (graph project))))))
+        (g/reset-undo! (graph project) "Reload From Disk")))))
 
 (defn- handle-resource-changes [project changes render-progress!]
   (-> (resource-update/resource-change-plan (g/node-value project :nodes-by-resource-path) changes)
