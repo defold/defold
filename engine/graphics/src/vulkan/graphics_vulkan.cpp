@@ -1685,11 +1685,12 @@ namespace dmGraphics
 
                 if (desc.binding == binding && desc.format == format && desc.offset == offset)
                 {
-                    index = i;
+                    index = (int32_t) i;
+                    break;
                 }
             }
 
-            if (index -1)
+            if (index == -1)
             {
                 VkVertexInputAttributeDescription vk_desc;
                 vk_desc.location = 0;
