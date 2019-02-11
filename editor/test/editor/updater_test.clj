@@ -7,10 +7,10 @@
             [ring.adapter.jetty :as jetty]
             [ring.util.response :as response])
   (:import [ch.qos.logback.classic Level Logger]
+           [com.defold.editor Platform]
            [java.io File]
            [java.util Timer]
-           [org.slf4j LoggerFactory]
-           [com.defold.editor Platform]))
+           [org.slf4j LoggerFactory]))
 
 (set! *warn-on-reflection* true)
 
