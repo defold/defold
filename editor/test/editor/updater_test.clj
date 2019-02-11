@@ -9,15 +9,13 @@
   (:import [ch.qos.logback.classic Level Logger]
            [java.io File]
            [java.util Timer]
-           [org.slf4j LoggerFactory]))
+           [org.slf4j LoggerFactory]
+           [com.defold.editor Platform]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:private test-port
   23232)
-
-(def ^:private test-platform
-  "test")
 
 (defn- error-log-level-fixture [f]
   (let [root-logger ^Logger (LoggerFactory/getLogger Logger/ROOT_LOGGER_NAME)
@@ -28,9 +26,9 @@
 
 (defn- test-urls-fixture [f]
   (with-redefs [updater/download-url
-                (fn [sha1 platform]
+                (fn [sha1 ^Platform platform]
                   (format "http://localhost:%s/editor2/%s/editor2/Defold-%s.zip"
-                          test-port sha1 platform))
+                          test-port sha1 (.getPair platform)))
 
                 updater/update-url
                 (fn [channel]
@@ -46,7 +44,7 @@
   {(format "/editor2/channels/%s/update-v2.json" channel)
    (response/response (json/write-str {:sha1 sha1}))
 
-   (format "/editor2/%s/editor2/Defold-%s.zip" sha1 test-platform)
+   (format "/editor2/%s/editor2/Defold-%s.zip" sha1 (.getPair (Platform/getHostPlatform)))
    (response/resource-response "test-update.zip")})
 
 (defn- make-resource-handler [channel sha1]
@@ -73,7 +71,7 @@
     channel
     sha1
     sha1
-    test-platform
+    (Platform/getHostPlatform)
     (io/file ".")
     (io/file "no-launcher")))
 
@@ -118,7 +116,7 @@
                     "test"
                     "1"
                     "1"
-                    "other-platform"
+                    Platform/JsWeb
                     (io/file ".")
                     (io/file "no-launcher"))]
       (#'updater/check! updater)

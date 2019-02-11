@@ -17,11 +17,13 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- download-url [sha1 platform]
-  (format "https://d.defold.com/editor2/%s/editor2/Defold-%s.zip" sha1 platform))
+(defn- download-url [sha1 ^Platform platform]
+  (format "https://d.defold.com/editor2/%s/editor2/Defold-%s.zip" sha1 (.getPair platform)))
 
 (defn- update-url [channel]
-  (format "https://d.defold.com/editor2/channels/%s/update-v2.json" channel))
+  (format "https://d.defold.com/editor2/channels/%s/update-v2.json" channel)
+  ;; TODO vlaaad
+  "http://localhost:8000/update-v2.json")
 
 (defn- make-updater [channel editor-sha1 downloaded-sha1 platform install-dir launcher-path]
   {:channel channel
@@ -202,11 +204,17 @@
       (io/copy source-file target-file))
     (move-file! source-file target-file)))
 
+(defn- install-file! [updater source-file target-file]
+  (let [{:keys [^Platform platform editor-sha1]} updater]
+    (case (.getOs platform)
+      ("linux" "darwin") (install-unix-file! source-file target-file)
+      "win32" (install-windows-file! source-file target-file editor-sha1))))
+
 (defn install!
   "Installs previously downloaded update"
   [updater]
   {:pre [(can-install-update? updater)]}
-  (let [{:keys [install-dir state-atom editor-sha1]} updater
+  (let [{:keys [install-dir state-atom editor-sha1 ^Platform platform]} updater
         {:keys [current-download downloaded-sha1]} @state-atom
         update-dir (io/file install-dir "update")
         update-sha1-file (io/file install-dir "update.sha1")]
@@ -218,9 +226,7 @@
             :let [relative-path (.relativize (.toPath update-dir) (.toPath source-file))
                   target-file (io/file install-dir (.toFile relative-path))]]
       (io/make-parents target-file)
-      (case (.getOs (Platform/getHostPlatform))
-        ("linux" "darwin") (install-unix-file! source-file target-file)
-        "win32" (install-windows-file! source-file target-file editor-sha1)))
+      (install-file! updater source-file target-file))
     (FileUtils/deleteQuietly update-sha1-file)
     (FileUtils/deleteQuietly update-dir)
     (swap! state-atom (fn [state]
@@ -239,7 +245,7 @@
   "Delete files left from previous update, has effect only on windows since only
   windows creates backup files"
   [updater]
-  (when (= "win32" (.getOs (Platform/getHostPlatform)))
+  (when (= "win32" (.getOs ^Platform (:platform updater)))
     (let [{:keys [^File install-dir]} updater
           backup-files (FileUtils/listFiles
                          install-dir
@@ -283,14 +289,16 @@
   []
   (let [channel (system/defold-channel)
         sha1 (system/defold-editor-sha1)
+        platform (Platform/getHostPlatform)
+        os (.getOs platform)
         install-dir (.getAbsoluteFile
                       (if-let [path (system/defold-resourcespath)]
-                        (case (.getOs (Platform/getHostPlatform))
+                        (case os
                           "darwin" (io/file path "../../")
                           ("linux" "win32") (io/file path))
                         (io/file "")))
         launcher-path (or (system/defold-launcherpath)
-                          (case (.getOs (Platform/getHostPlatform))
+                          (case os
                             "win32" "./Defold.exe"
                             "linux" "./Defold"
                             "darwin" "./Contents/MacOS/Defold"))
@@ -298,8 +306,7 @@
         downloaded-sha1 (when (.exists update-sha1-file)
                           (slurp update-sha1-file))
         initial-update-delay 1000
-        update-delay 60000
-        platform (.getPair (Platform/getHostPlatform))]
+        update-delay 60000]
     (if (or (string/blank? channel) (string/blank? sha1))
       (do
         (log/info :message "Automatic updates disabled" :channel channel :sha1 sha1)
