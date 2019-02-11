@@ -132,8 +132,6 @@
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.log.dir="
-                                                    ;; TODO vlaaad
-                                                    "-Ddefold.channel=asd"
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"
                                                     ;"-XX:+UnlockCommercialFeatures"

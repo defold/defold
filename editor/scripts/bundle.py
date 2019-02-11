@@ -339,8 +339,7 @@ if __name__ == '__main__':
         init_command += [options.engine_sha1]
 
     exec_command(init_command)
-    # TODO vlaaad
-    # check_reflections()
+    check_reflections()
 
     if options.skip_tests:
         print 'Skipping tests'
