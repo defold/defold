@@ -174,6 +174,29 @@ namespace dmGameSystem
         return 0;
     }
 
+    static void SetupEmptyTileGrid(CollisionWorld* world, CollisionComponent* component)
+    {
+        CollisionObjectResource* resource = component->m_Resource;
+        if (resource->m_TileGrid)
+        {
+            TileGridResource* tile_grid_resource = resource->m_TileGridResource;
+            dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
+            uint32_t shape_count = shapes.Size();
+            dmPhysics::HullFlags flags;
+
+            for (uint32_t i = 0; i < shape_count; ++i)
+            {
+                for (uint32_t y = 0; y < tile_grid_resource->m_RowCount; ++y)
+                {
+                    for (uint32_t x = 0; x < tile_grid_resource->m_ColumnCount; ++x)
+                    {
+                        dmPhysics::SetGridShapeHull(component->m_Object2D, i, y, x, 0xffffffff, flags);
+                    }
+                }
+            }
+        }
+    }
+
     static void SetupTileGrid(CollisionWorld* world, CollisionComponent* component) {
         CollisionObjectResource* resource = component->m_Resource;
         if (resource->m_TileGrid)
@@ -183,21 +206,12 @@ namespace dmGameSystem
             dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
             uint32_t shape_count = shapes.Size();
             dmPhysics::HullFlags flags;
+
             for (uint32_t i = 0; i < shape_count; ++i)
             {
                 dmGameSystemDDF::TileLayer* layer = &tile_grid->m_Layers[i];
                 TextureSetResource* texture_set_resource = tile_grid_resource->m_TextureSet;
                 dmGameSystemDDF::TextureSet* tile_set = texture_set_resource->m_TextureSet;
-                
-                // Set all tiles as empty.
-                // Empty tile is encoded as 0xffffffff, see comp_tilegrid.cpp.
-                for (uint32_t y = 0; y < tile_grid_resource->m_RowCount; ++y)
-                {
-                    for (uint32_t x = 0; x < tile_grid_resource->m_ColumnCount; ++x)
-                    {
-                        dmPhysics::SetGridShapeHull(component->m_Object2D, i, y, x, 0xffffffff, flags);
-                    }
-                }
 
                 // Set non-empty tiles
                 uint32_t cell_count = layer->m_Cell.m_Count;
@@ -295,6 +309,9 @@ namespace dmGameSystem
                 if (component->m_Object2D != 0x0)
                     dmPhysics::DeleteCollisionObject2D(physics_world, component->m_Object2D);
                 component->m_Object2D = collision_object;
+
+                SetupEmptyTileGrid(world,component);
+
                 if (enabled) {
                     SetupTileGrid(world, component);
                 }
@@ -781,6 +798,7 @@ namespace dmGameSystem
                     dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
                     c->m_Object2D = dmPhysics::NewCollisionObject2D(world->m_World2D, data, &shapes.Front(), shapes.Size());
 
+                    SetupEmptyTileGrid(world, c);
                     SetupTileGrid(world, c);
                     tile_grid_res->m_Dirty = 0;
                 }
