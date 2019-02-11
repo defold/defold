@@ -48,6 +48,9 @@
               :download (updater/download-and-extract! updater)
               :restart (install-and-restart!))
 
+            (and can-download? (not (updater/platform-supported? updater)))
+            (dialogs/make-platform-no-longer-supported-dialog stage)
+
             can-download?
             (when (dialogs/make-download-update-dialog stage)
               (updater/download-and-extract! updater))
