@@ -198,6 +198,17 @@
     (ui/show-and-wait! stage)
     @result-atom))
 
+(defn make-platform-no-longer-supported-dialog [^Stage owner]
+  (let [root ^Parent (ui/load-fxml "platform-no-longer-supported-alert.fxml")
+        stage (ui/make-dialog-stage owner)
+        scene (Scene. root)]
+    (ui/title! stage "Update Available")
+    (ui/with-controls root [^Button close]
+      (ui/on-action! close (fn on-close! [_]
+                             (ui/close! stage))))
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)))
+
 (defn make-download-update-dialog [^Stage owner]
   (let [root ^Parent (ui/load-fxml "update-alert.fxml")
         stage (ui/make-dialog-stage owner)

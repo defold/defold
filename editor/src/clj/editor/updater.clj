@@ -83,6 +83,12 @@
 (defn can-install-update? [updater]
   (some? (:downloaded-sha1 @(:state-atom updater))))
 
+(defn platform-supported? [updater]
+  (contains? #{Platform/X86_64Linux
+               Platform/X86_64Darwin
+               Platform/X86_64Win32}
+             (:platform updater)))
+
 (defn- ^File create-temp-zip-file []
   (.toFile (Files/createTempFile "defold-update" ".zip" (into-array FileAttribute []))))
 
