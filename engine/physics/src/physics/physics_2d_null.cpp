@@ -74,7 +74,7 @@ namespace dmPhysics
          return 0;
      }
 
-    void ClearGridShapeHulls2D(HCollisionObject2D collision_object)
+    void ClearGridShapeHulls(HCollisionObject2D collision_object)
     {
     }
 
