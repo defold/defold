@@ -322,6 +322,7 @@ namespace dmRender
     {
         DM_STATIC_ASSERT(sizeof(GlyphVertex) % 16 == 0, Invalid_Struct_Size);
         DM_STATIC_ASSERT( MAX_FONT_RENDER_CONSTANTS == MAX_TEXT_RENDER_CONSTANTS, Constant_Arrays_Must_Have_Same_Size );
+        DM_STATIC_ASSERT( MAX_FONT_RENDER_CONSTANTS == dmRender::RenderObject::MAX_CONSTANT_COUNT, Constant_Count_Must_Be_Equal );
 
         TextContext& text_context = render_context->m_TextContext;
 
@@ -852,8 +853,8 @@ namespace dmRender
         float cache_cell_height_ratio = 0.0;
 
         if (font_map->m_Texture) {
-            float cache_width  = (float) dmGraphics::GetOriginalTextureWidth(font_map->m_Texture);
-            float cache_height = (float) dmGraphics::GetOriginalTextureHeight(font_map->m_Texture);
+            float cache_width  = (float) dmGraphics::GetTextureWidth(font_map->m_Texture);
+            float cache_height = (float) dmGraphics::GetTextureHeight(font_map->m_Texture);
 
             im_recip /= cache_width;
             ih_recip /= cache_height;
