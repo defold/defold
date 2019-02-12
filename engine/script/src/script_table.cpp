@@ -4,6 +4,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/static_assert.h>
 #include "script.h"
+#include "script_private.h"
 
 extern "C"
 {
@@ -228,7 +229,7 @@ namespace dmScript
         {
             char log_str[PUSH_TABLE_LOGGER_STR_SIZE];
             PushTableLogPrint(logger, log_str);
-            luaL_error(L, "Reading outside of buffer at element #%d (string): wanted to read: %d   bytes left: %d\n{%s}", count, total_size, (uint32_t)(buffer_end - buffer), log_str);
+            luaL_error(L, "Reading outside of buffer at element #%d (string): wanted to read: %d bytes left: %d [BufStart: %p, BufSize: %lu]\n'%s'", count, total_size, (int)(buffer_end - buffer), logger.m_BufferStart, logger.m_BufferSize, log_str);
         }
 
         lua_pushstring(L, buffer);
@@ -245,8 +246,8 @@ namespace dmScript
         {
             char log_str[PUSH_TABLE_LOGGER_STR_SIZE];
             PushTableLogPrint(logger, log_str);
-            char str[256];
-            DM_SNPRINTF(str, sizeof(str), "Reading outside of buffer at element #%d (string) [value_len=%lu]: wanted to read: %d   bytes left: %d\n{%s}", count, value_len, total_size, (uint32_t)(buffer_end - buffer), log_str);
+            char str[512];
+            DM_SNPRINTF(str, sizeof(str), "Reading outside of buffer at element #%d (string) [value_len=%lu]: wanted to read: %d bytes left: %d [BufStart: %p, BufSize: %lu]\n'%s'", count, value_len, total_size, (uint32_t)(buffer_end - buffer), logger.m_BufferStart, logger.m_BufferSize, log_str);
             luaL_error(L, "%s", str);
         }
 
@@ -615,7 +616,9 @@ namespace dmScript
     if (BUFFER > BUFFER_END) { \
         char log_str[PUSH_TABLE_LOGGER_STR_SIZE]; \
         PushTableLogPrint(LOGGER, log_str); \
-        return luaL_error(L, "Reading outside of buffer after %s element #%d (depth: #%d) [Cursor: %p, End: %p, Bytes OOB: %d].\n{%s}", ELEMTYPE, COUNT, DEPTH, BUFFER, BUFFER_END, (uint32_t)(BUFFER_END - BUFFER), log_str); \
+        char str[512]; \
+        DM_SNPRINTF(str, sizeof(str), "Reading outside of buffer after %s element #%d (depth: #%d) [BufStart: %p, Cursor: %p, End: %p, BufSize: %lu, Bytes OOB: %d].\n'%s'", ELEMTYPE, COUNT, DEPTH, LOGGER.m_BufferStart, BUFFER, BUFFER_END, LOGGER.m_BufferSize, (int)(BUFFER_END - BUFFER), log_str); \
+        return luaL_error(L, "%s", str); \
     }
 
     int DoPushTable(lua_State*L, PushTableLogger& logger, const TableHeader& header, const char* original_buffer, const char* buffer, uint32_t buffer_size, uint32_t depth)
@@ -630,12 +633,14 @@ namespace dmScript
         uint32_t count = *(uint16_t_1_align *)buffer;
         buffer += 2;
 
-        PushTableLogFormat(logger, "T[%d|", count);
+        PushTableLogFormat(logger, "{%d|", count);
 
         if (buffer > buffer_end) {
             char log_str[PUSH_TABLE_LOGGER_STR_SIZE];
             PushTableLogPrint(logger, log_str);
-            return luaL_error(L, "Reading outside of buffer at before element [Cursor: %p, End: %p, Bytes OOB: %u].\n{%s}", buffer, buffer_end, (uint32_t)(buffer_end - buffer), log_str);
+            char str[512]; \
+            DM_SNPRINTF(str, sizeof(str), "Reading outside of buffer at before element [BufStart: %p, Cursor: %p, End: %p, BufSize: %lu, Bytes OOB: %d].\n'%s'", logger.m_BufferStart, buffer, buffer_end, logger.m_BufferSize, (int)(buffer_end - buffer), log_str); \
+            return luaL_error(L, "%s", str);
         }
 
         lua_newtable(L);
@@ -810,7 +815,7 @@ namespace dmScript
 
         assert(top + 1 == lua_gettop(L));
 
-        PushTableLogString(logger, "]");
+        PushTableLogString(logger, "}");
         return buffer - buffer_start;
     }
 
@@ -833,6 +838,8 @@ namespace dmScript
         {
             buffer_size -= sizeof(TableHeader);
             PushTableLogger logger;
+            logger.m_BufferStart = buffer;
+            logger.m_BufferSize = buffer_size;
             DoPushTable(L, logger, header, original_buffer, buffer, buffer_size, 0);
         }
         else

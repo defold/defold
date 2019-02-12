@@ -2,6 +2,7 @@
 #include <dlib/dstrings.h>
 #include <gtest/gtest.h>
 #include "../script.h"
+#include "../script_private.h"
 
 
 class PushTableLoggerTest : public ::testing::Test
@@ -12,7 +13,7 @@ protected:
         m_Result[PUSH_TABLE_LOGGER_CAPACITY] = '\0';
     }
 
-    char m_Result[PUSH_TABLE_LOGGER_CAPACITY + 1];
+    char m_Result[PUSH_TABLE_LOGGER_STR_SIZE];
     dmScript::PushTableLogger m_Logger;
 
 };
@@ -35,27 +36,41 @@ TEST_F(PushTableLoggerTest, AddCharAndPrint)
     PushTableLogChar(m_Logger, 'A');
     PushTableLogPrint(m_Logger, m_Result);
     ASSERT_STREQ("A", m_Result);
+    ASSERT_EQ(1, m_Logger.m_Size);
 
     PushTableLogChar(m_Logger, 'B');
     PushTableLogPrint(m_Logger, m_Result);
     ASSERT_STREQ("AB", m_Result);
+    ASSERT_EQ(2, m_Logger.m_Size);
 
-    const char tmp[] = "CDEFGHIJKLMNOPQRSTUVWXYZ";
+    const char tmp[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     int i = 0;
 
-    for (; i < 14; i++)
+    // Fill until 1 char left of capacity
+    // "AB" + 1 empty char = 3
+    for (; i < PUSH_TABLE_LOGGER_CAPACITY-3; i++)
     {
-        PushTableLogChar(m_Logger, tmp[i]);
+        PushTableLogChar(m_Logger, tmp[i%sizeof(tmp)]);
     }
     PushTableLogPrint(m_Logger, m_Result);
-    ASSERT_STREQ("ABCDEFGHIJKLMNOP", m_Result);
+    ASSERT_EQ(PUSH_TABLE_LOGGER_CAPACITY-1, m_Logger.m_Size);
+    ASSERT_EQ(0x0, m_Result[PUSH_TABLE_LOGGER_CAPACITY-1]);
 
-    for (; i < 24; i++)
-    {
-        PushTableLogChar(m_Logger, tmp[i]);
-    }
+    // Add one more char (fills capacity)
+    char first_char = m_Result[0];
+    PushTableLogChar(m_Logger, '+');
     PushTableLogPrint(m_Logger, m_Result);
-    ASSERT_STREQ("KLMNOPQRSTUVWXYZ", m_Result);
+    ASSERT_EQ(PUSH_TABLE_LOGGER_CAPACITY, m_Logger.m_Size);
+    ASSERT_EQ('+', m_Result[PUSH_TABLE_LOGGER_CAPACITY-1]);
+    ASSERT_EQ(first_char, m_Result[0]);
+
+    // Add one more char, will throw out first char (replaced with second in line).
+    char second_char = m_Result[1];
+    PushTableLogChar(m_Logger, '-');
+    PushTableLogPrint(m_Logger, m_Result);
+    ASSERT_EQ(PUSH_TABLE_LOGGER_CAPACITY, m_Logger.m_Size);
+    ASSERT_EQ('-', m_Result[PUSH_TABLE_LOGGER_CAPACITY-1]);
+    ASSERT_EQ(second_char, m_Result[0]);
 }
 
 TEST_F(PushTableLoggerTest, AddStringAndPrint)
@@ -70,10 +85,6 @@ TEST_F(PushTableLoggerTest, AddStringAndPrint)
     PushTableLogString(m_Logger, "BCDE");
     PushTableLogPrint(m_Logger, m_Result);
     ASSERT_STREQ("ABCDE", m_Result);
-
-    PushTableLogString(m_Logger, "FGHIJKLMNOPQRSTUVWXYZ");
-    PushTableLogPrint(m_Logger, m_Result);
-    ASSERT_STREQ("KLMNOPQRSTUVWXYZ", m_Result);
 }
 
 TEST_F(PushTableLoggerTest, FormatAndPrint)
@@ -85,17 +96,15 @@ TEST_F(PushTableLoggerTest, FormatAndPrint)
     PushTableLogPrint(m_Logger, m_Result);
     ASSERT_STREQ("A", m_Result);
 
-    PushTableLogFormat(m_Logger, "B%dC", 1234567890);
-    PushTableLogPrint(m_Logger, m_Result);
-    ASSERT_STREQ("AB1234567890C", m_Result);
+    char t_fmt1[] = "B%dC";
+    int t_data1 = 1234567890;
+    char t_str1[128];
+    DM_SNPRINTF(t_str1, sizeof(t_str1), t_fmt1, t_data1);
 
-    PushTableLogFormat(m_Logger, "D%dE", 1234567890);
+    PushTableLogFormat(m_Logger, t_fmt1, t_data1);
     PushTableLogPrint(m_Logger, m_Result);
-    ASSERT_STREQ("890CD1234567890E", m_Result);
-
-    PushTableLogFormat(m_Logger, "F[%d](%d)G", 1234567890, 987654321);
-    PushTableLogPrint(m_Logger, m_Result);
-    ASSERT_STREQ("890](987654321)G", m_Result);
+    ASSERT_EQ('A', m_Result[0]); // 'A' should still be first char
+    ASSERT_STREQ(t_str1, m_Result+1); // Formated string should be the rest of the string.
 }
 
 static const char g_GuardStr[] = "GUARD";
