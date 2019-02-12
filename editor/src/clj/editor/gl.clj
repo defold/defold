@@ -314,7 +314,7 @@
 (def nearest-mipmap-linear  GL2/GL_NEAREST_MIPMAP_LINEAR)
 (def linear-mipmap-linear   GL2/GL_LINEAR_MIPMAP_LINEAR)
 
-(defn ^"[I" viewport-array [viewport]
+(defn viewport-array ^"[I" [viewport]
   (int-array [(:left viewport)
               (:top viewport)
               (:right viewport)
