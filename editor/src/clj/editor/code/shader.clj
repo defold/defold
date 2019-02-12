@@ -3,8 +3,11 @@
             [dynamo.graph :as g]
             [editor.code.resource :as r]
             [editor.gl.shader :as shader]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.workspace :as workspace]))
+            [editor.workspace :as workspace])
+  (:import (com.dynamo.graphics.proto Graphics$ShaderDesc)
+           (com.google.protobuf ByteString)))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -70,8 +73,13 @@
                       lines)))
 
 (defn- build-shader [resource _dep-resources user-data]
-  (let [{:keys [resource-ext lines]} user-data]
-    {:resource resource :content (.getBytes (make-full-source resource-ext lines) "UTF-8")}))
+  (let [{:keys [resource-ext lines]} user-data
+        full-source (make-full-source resource-ext lines)
+        shader-desc {:shaders [{:language :language-glsl
+                                :source (ByteString/copyFrom (.getBytes full-source "UTF-8"))}]}
+        content (protobuf/map->bytes Graphics$ShaderDesc shader-desc)]
+    {:resource resource
+     :content content}))
 
 (g/defnk produce-build-targets [_node-id resource lines]
   [{:node-id _node-id

@@ -34,7 +34,7 @@ namespace dmLoadQueue
     struct Queue
     {
         dmResource::HFactory m_Factory;
-        dmMutex::Mutex m_Mutex;
+        dmMutex::HMutex m_Mutex;
         dmThread::Thread m_Thread;
         Request m_Request[QUEUE_SLOTS];
         uint32_t m_Front, m_Back, m_Loaded;
