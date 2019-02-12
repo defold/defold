@@ -123,7 +123,7 @@ public class ResourceUnpacker {
 
         Path supportPath = Editor.getSupportPath();
         String sha1 = System.getProperty(DEFOLD_EDITOR_SHA1_KEY);
-        if (supportPath != null && sha1 != null) {
+        if (sha1 != null) {
             return ensureDirectory(supportPath.resolve(Paths.get("unpack", sha1)), false);
         }
 

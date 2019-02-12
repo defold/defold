@@ -140,37 +140,35 @@
   ([text]
    (make-confirm-dialog text {}))
   ([text options]
-   (let [root     ^Region (ui/load-fxml "confirm.fxml")
-         stage    (if-let [owner-window (:owner-window options)]
-                    (ui/make-dialog-stage owner-window)
-                    (ui/make-dialog-stage))
-         scene    (Scene. root)
-         result   (atom false)]
+   (let [root ^Region (ui/load-fxml "confirm.fxml")
+         stage (if-let [owner-window (:owner-window options)]
+                 (ui/make-dialog-stage owner-window)
+                 (ui/make-dialog-stage))
+         scene (Scene. root)
+         result-atom (atom false)]
      (ui/with-controls root [^Label message ^Button ok ^Button cancel]
        (ui/text! message text)
        (ui/text! ok (get options :ok-label "OK"))
-       (.setDefaultButton ok true)
        (ui/text! cancel (get options :cancel-label "Cancel"))
-       (.setCancelButton cancel true)
        (ui/on-action! ok (fn [_]
-                           (reset! result true)
-                           (.close stage)))
+                           (reset! result-atom true)
+                           (ui/close! stage)))
        (ui/on-action! cancel (fn [_]
-                               (.close stage))))
+                               (ui/close! stage))))
      (when-let [pref-width (:pref-width options)]
        (.setPrefWidth root pref-width))
      (ui/title! stage (get options :title "Please Confirm"))
      (.setScene stage scene)
      (ui/show-and-wait! stage)
-     @result)))
+     @result-atom)))
 
 (defn make-update-failed-dialog [^Stage owner]
   (let [root ^Parent (ui/load-fxml "update-failed-alert.fxml")
         stage (ui/make-dialog-stage owner)
         scene (Scene. root)]
     (ui/title! stage "Update failed")
-    (ui/with-controls root [^Button dismiss ^Button open-site]
-      (ui/on-action! dismiss
+    (ui/with-controls root [^Button quit ^Button open-site]
+      (ui/on-action! quit
         (fn [_]
           (ui/close! stage)))
       (ui/on-action! open-site

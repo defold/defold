@@ -33,10 +33,10 @@
 (defn init! [^Stage stage link updater install-and-restart! render-progress!]
   (let [link-fn (make-link-fn link)]
     (ui/on-closing! stage
-                    (fn [_]
-                      (when (updater/can-install-update? updater)
-                        (install! stage updater))
-                      true))
+      (fn [_]
+        (when (updater/can-install-update? updater)
+          (install! stage updater))
+        true))
     (ui/on-action! link
       (fn [_]
         (let [can-install? (updater/can-install-update? updater)
@@ -56,7 +56,9 @@
               (updater/download-and-extract! updater))
 
             can-install?
-            (install-and-restart!)))))
+            (when (dialogs/make-confirm-dialog "Install update and restart?"
+                                               {:owner-window stage})
+              (install-and-restart!))))))
     (updater/add-progress-watch updater render-progress!)
     (updater/add-state-watch updater link-fn)
     (.addEventHandler stage

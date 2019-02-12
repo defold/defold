@@ -202,7 +202,7 @@
   "Downloads a template project zip file. Returns the file or nil if cancelled."
   ^File [url progress-callback cancelled-atom]
   (let [file ^File (fs/create-temp-file! "template-project" ".zip")]
-    (net/download! url file :chunk-size 1024 :progress-callback progress-callback :cancelled-atom cancelled-atom)
+    (net/download! url file :chunk-size 1024 :progress-callback progress-callback :cancelled-derefable cancelled-atom)
     (if @cancelled-atom
       (do
         (fs/delete-file! file)
@@ -758,11 +758,12 @@
 
      ;; Install pending update check.
      (when (some? updater)
-       (init-pending-update-indicator! stage
-                                       (.lookup left-pane "#update-link")
-                                       (.lookup left-pane "#update-progress-bar")
-                                       (.lookup left-pane "#update-progress-vbox")
-                                       updater))
+       (ui/with-controls left-pane [update-link update-progress-bar update-progress-vbox]
+         (init-pending-update-indicator! stage
+                                         update-link
+                                         update-progress-bar
+                                         update-progress-vbox
+                                         updater)))
 
      ;; Add the pane buttons to the left panel and configure them to toggle between the panes.
      (doseq [^RadioButton pane-button pane-buttons]

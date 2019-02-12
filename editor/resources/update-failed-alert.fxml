@@ -12,10 +12,10 @@
     <children>
         <Label text="An error occurred during update installation, you probably should perform a fresh install"
                wrapText="true" />
-        <HBox spacing="12">
+        <HBox spacing="12" alignment="CENTER_RIGHT">
             <children>
-                <Button id="dismiss"
-                        text="Dismiss"
+                <Button id="quit"
+                        text="Quit"
                         minWidth="80"
                         cancelButton="true" />
                 <Button id="open-site"
