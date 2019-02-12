@@ -813,6 +813,10 @@ TEST_F(LuaTableTest, CorruptedTables)
     lua_pushnumber(L, 5);
     lua_settable(L, -3);
 
+    // Make sure we write to the buffer so that Valgrind doesn't complain
+    // at the lua_pushlstring below.
+    memset(m_Buf, 0, sizeof(m_Buf));
+
     uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
