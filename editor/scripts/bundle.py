@@ -5,11 +5,7 @@ import os.path as path
 import stat
 import glob
 import sys
-import json
-import tempfile
-import urllib
 import optparse
-import urlparse
 import re
 import shutil
 import subprocess
@@ -225,12 +221,8 @@ def bundle(platform, jar_file, options):
     with open('%s/config' % resources_dir, 'wb') as f:
         config.write(f)
 
-    with open('target/editor/update/config', 'wb') as f:
-        config.write(f)
-
-    shutil.copy('target/editor/update/%s' % jar_file, '%s/%s' % (packages_dir, jar_file))
+    shutil.copy(jar_file, '%s/defold-%s.jar' % (packages_dir, options.editor_sha1))
     shutil.copy(launcher, '%s/Defold%s' % (exe_dir, exe_suffix))
-    shutil.copy(launcher, 'target/editor/launcher-%s%s' % (platform, exe_suffix))
     if not 'win32' in platform:
         exec_command(['chmod', '+x', '%s/Defold%s' % (exe_dir, exe_suffix)])
 
@@ -348,18 +340,9 @@ if __name__ == '__main__':
 
     exec_command(['bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
 
-    jar_file = 'defold-%s.jar' % options.editor_sha1
+    jar_file = 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar'
 
-    mkdirs('target/editor/update')
-    shutil.copy('target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', 'target/editor/update/%s' % jar_file)
+    mkdirs('target/editor')
 
     for platform in options.target_platform:
         bundle(platform, jar_file, options)
-
-    package_info = {'version' : options.version,
-                    'sha1' : options.editor_sha1,
-                    'packages': [{'url': jar_file,
-                                  'platform': '*',
-                                  'action': 'copy'}]}
-    with open('target/editor/update/manifest.json', 'w') as f:
-        f.write(json.dumps(package_info, indent=4))
