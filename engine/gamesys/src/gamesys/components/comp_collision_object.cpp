@@ -176,24 +176,9 @@ namespace dmGameSystem
 
     static void SetupEmptyTileGrid(CollisionWorld* world, CollisionComponent* component)
     {
-        CollisionObjectResource* resource = component->m_Resource;
-        if (resource->m_TileGrid)
+        if (component->m_Resource->m_TileGrid)
         {
-            TileGridResource* tile_grid_resource = resource->m_TileGridResource;
-            dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
-            uint32_t shape_count = shapes.Size();
-            dmPhysics::HullFlags flags;
-
-            for (uint32_t i = 0; i < shape_count; ++i)
-            {
-                for (uint32_t y = 0; y < tile_grid_resource->m_RowCount; ++y)
-                {
-                    for (uint32_t x = 0; x < tile_grid_resource->m_ColumnCount; ++x)
-                    {
-                        dmPhysics::SetGridShapeHull(component->m_Object2D, i, y, x, 0xffffffff, flags);
-                    }
-                }
-            }
+            dmPhysics::ClearGridShapeHulls(component->m_Object2D);
         }
     }
 
@@ -207,11 +192,12 @@ namespace dmGameSystem
             uint32_t shape_count = shapes.Size();
             dmPhysics::HullFlags flags;
 
+            TextureSetResource* texture_set_resource = tile_grid_resource->m_TextureSet;
+            dmGameSystemDDF::TextureSet* tile_set = texture_set_resource->m_TextureSet;
+
             for (uint32_t i = 0; i < shape_count; ++i)
             {
                 dmGameSystemDDF::TileLayer* layer = &tile_grid->m_Layers[i];
-                TextureSetResource* texture_set_resource = tile_grid_resource->m_TextureSet;
-                dmGameSystemDDF::TextureSet* tile_set = texture_set_resource->m_TextureSet;
 
                 // Set non-empty tiles
                 uint32_t cell_count = layer->m_Cell.m_Count;
