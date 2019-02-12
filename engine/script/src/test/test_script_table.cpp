@@ -781,6 +781,57 @@ TEST_F(LuaTableTest, MixedKeys)
     lua_pop(L, 1);
 }
 
+int static ParseTruncatedTable(lua_State* L)
+{
+    size_t buffer_len = 0;
+    const char* buffer = lua_tolstring(L, -2, &buffer_len);
+    int buffer_size = luaL_checknumber(L, -1);
+    dmScript::PushTable(L, buffer, buffer_size);
+    return 0;
+}
+
+TEST_F(LuaTableTest, CorruptedTables)
+{
+    int top = lua_gettop(L);
+
+    // Create table
+    lua_newtable(L);
+
+    lua_pushnumber(L, 1);
+    lua_pushnumber(L, 2);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "key1");
+    lua_pushnumber(L, 3);
+    lua_settable(L, -3);
+
+    lua_pushnumber(L, 2);
+    lua_pushnumber(L, 4);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "key2");
+    lua_pushnumber(L, 5);
+    lua_settable(L, -3);
+
+    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    (void) buffer_used;
+    lua_pop(L, 1);
+
+    for (uint32_t i = buffer_used-1; i > 0; --i)
+    {
+        lua_pushcfunction(L, ParseTruncatedTable);
+        lua_pushlstring(L, m_Buf, sizeof(m_Buf));
+        lua_pushnumber(L, i);
+        int res = lua_pcall(L, 2, 0, 0x0);
+        ASSERT_EQ(LUA_ERRRUN, res);
+
+        printf("Err: %s\n", lua_tostring(L, -1));
+        lua_pop(L, 1);
+    }
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 static void RandomString(char* s, int max_len)
 {
     int n = rand() % max_len + 1;
