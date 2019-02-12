@@ -811,6 +811,8 @@ namespace dmScript
                     break;
             }
             lua_settable(L, -3);
+
+            CHECK_PUSHTABLE_OOB("loop end", logger, buffer, buffer_end, count, depth);
         }
 
         assert(top + 1 == lua_gettop(L));
