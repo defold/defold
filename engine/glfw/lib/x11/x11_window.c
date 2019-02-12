@@ -1949,6 +1949,11 @@ GLFWAPI GLXContext glfwGetX11GLXContext()
     return _glfwWin.context;
 }
 
+GLFWAPI Display* glfwGetX11Display()
+{
+    return _glfwLibrary.display;
+}
+
 //========================================================================
 // Query auxillary context
 //========================================================================

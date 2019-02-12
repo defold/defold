@@ -16,7 +16,7 @@ namespace glfwWrapper
 
     // Taken from GLFW3 source
     VkResult glfwCreateWindowSurface(VkInstance instance,
-                                     GLWFWindow* window,
+                                     GLFWWindow* window,
                                      const VkAllocationCallbacks* allocator,
                                      VkSurfaceKHR* surface)
     {

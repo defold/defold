@@ -1,29 +1,26 @@
 #ifndef GRAPHICS_VULKAN_PLATFORM_H
 #define GRAPHICS_VULKAN_PLATFORM_H
 
-#ifndef __MACH__
-	#error "MacOS only supported platform for now.."
-#endif
+#if defined(__MACH__)
+    #if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
+    	#include <Carbon/Carbon.h>
+    #endif
 
-#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
-	#include <Carbon/Carbon.h>
-#endif
+    #if defined(__OBJC__)
+    	#import <Carbon/Carbon.h>
+    #endif
 
-#if defined(__OBJC__)
-	#import <Carbon/Carbon.h>
+    #if defined(__OBJC__)
+    	#import <Cocoa/Cocoa.h>
+    #else
+    	#include <objc/objc.h>
+    #endif
 #endif
-
-#if defined(__OBJC__)
-	#import <Cocoa/Cocoa.h>
-#else
-	#include <objc/objc.h>
-#endif
-
-#include <vulkan/vulkan.h>
 
 namespace glfwWrapper
 {
-    struct GLWFWindow
+    #ifdef __MACH__
+    struct GLFWWindow
     {
     	struct
     	{
@@ -32,8 +29,17 @@ namespace glfwWrapper
 	    	id object;
     	} ns;
     };
+    #endif
 
-    VkResult glfwCreateWindowSurface(VkInstance instance, GLWFWindow* window, const VkAllocationCallbacks* allocator, VkSurfaceKHR* surface);
+    #ifdef __linux__
+    struct GLFWWindow
+    {
+        void* handle;
+        void* display;
+    };
+    #endif
+
+    VkResult glfwCreateWindowSurface(VkInstance instance, GLFWWindow* window, const VkAllocationCallbacks* allocator, VkSurfaceKHR* surface);
 }
 
 #endif

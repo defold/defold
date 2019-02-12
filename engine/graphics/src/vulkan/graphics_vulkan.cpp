@@ -2,9 +2,14 @@
 #include <assert.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
-// TODO: hack!
-#define VK_USE_PLATFORM_MACOS_MVK
+#ifdef __MACH__
+    #define VK_USE_PLATFORM_MACOS_MVK
+#elif __linux__
+    #define VK_USE_PLATFORM_XCB_KHR
+#endif
+
 #include <vulkan/vulkan.h>
+#include "graphics_vulkan_platform.h"
 
 #include <dlib/hashtable.h>
 #include <dlib/array.h>
@@ -19,8 +24,6 @@
 #include "../graphics_native.h"
 #include "graphics_vulkan.h"
 #include "../null/glsl_uniform_parser.h"
-
-#include "graphics_vulkan_platform.h"
 
 using namespace Vectormath::Aos;
 
@@ -200,7 +203,6 @@ namespace dmGraphics
             void* pUserData)
         {
             dmLogInfo("Validation Layer: %s", pCallbackData->pMessage);
-
             return VK_FALSE;
         }
 
@@ -302,6 +304,11 @@ namespace dmGraphics
 
             extensionListOut.SetCapacity(extension_count);
 
+            if (vkEnumerateInstanceExtensionProperties(NULL, &extension_count, vk_extension_list) != VK_SUCCESS)
+            {
+                return false;
+            }
+
             for (uint32_t i = 0; i < extension_count; i++)
             {
                 if (strcmp(VK_KHR_SURFACE_EXTENSION_NAME, vk_extension_list[i].extensionName) == 0)
@@ -309,13 +316,17 @@ namespace dmGraphics
                     extensionListOut.Push(VK_KHR_SURFACE_EXTENSION_NAME);
                 }
 
-        // need similar ifdefs for other platforms here..
-        #if defined(__MACH__)
+            #if defined(__MACH__)
                 if (strcmp(VK_MVK_MACOS_SURFACE_EXTENSION_NAME, vk_extension_list[i].extensionName) == 0)
                 {
                     extensionListOut.Push(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
                 }
-        #endif
+            #elif (__linux__)
+                if (strcmp(VK_KHR_XCB_SURFACE_EXTENSION_NAME, vk_extension_list[i].extensionName) == 0)
+                {
+                    extensionListOut.Push(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+                }
+            #endif
 
                 if (strcmp(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, vk_extension_list[i].extensionName) == 0)
                 {
@@ -1250,7 +1261,7 @@ namespace dmGraphics
                 g_vk_context.m_PipelineCache.Put(pipeline_hash, CreatePipeline(program, vertexBuffer, vertexDeclaration));
                 cached_pipeline = g_vk_context.m_PipelineCache.Get(pipeline_hash);
 
-                dmLogInfo("Create new VK Pipeline with hash %llu", pipeline_hash);
+                dmLogInfo("Create new VK Pipeline with hash %llu", (unsigned long long) pipeline_hash);
             }
 
             return cached_pipeline;
@@ -1523,11 +1534,14 @@ namespace dmGraphics
 
                 if (func_ptr)
                 {
-                    func_ptr(g_vk_context.m_Instance, &debug_callback_create_info, 0, &g_vk_context.m_DebugCallback);
+                    if(func_ptr(g_vk_context.m_Instance, &debug_callback_create_info, 0, &g_vk_context.m_DebugCallback) != VK_SUCCESS)
+                    {
+                        dmLogError("Unable to create validation layer callback: vkCreateDebugUtilsMessengerEXT failed");
+                    }
                 }
                 else
                 {
-                    dmLogError("Unable to create validation layer callback");
+                    dmLogError("Unable to create validation layer callback: could not find 'vkCreateDebugUtilsMessengerEXT'");
                 }
             }
 
@@ -1794,11 +1808,19 @@ namespace dmGraphics
             {
                 return false;
             }
+            
+            glfwWrapper::GLFWWindow wnd;
 
-            glfwWrapper::GLWFWindow wnd;
-
+            #ifdef __MACH__
             wnd.ns.view   = glfwGetOSXNSView();
             wnd.ns.object = glfwGetOSXNSWindow();
+            #endif
+
+            #ifdef __linux__
+            Window glfwWindow = glfwGetX11Window();
+            wnd.handle  = (void*) &glfwWindow;
+            wnd.display = (void*) glfwGetX11Display();
+            #endif
 
             if (glfwWrapper::glfwCreateWindowSurface(g_vk_context.m_Instance, &wnd, 0, &g_vk_context.m_Surface) != VK_SUCCESS)
             {
@@ -2216,7 +2238,7 @@ namespace dmGraphics
     NATIVE_HANDLE_IMPL(jobject, AndroidActivity);
     NATIVE_HANDLE_IMPL(android_app*, AndroidApp);
     NATIVE_HANDLE_IMPL(Window, X11Window);
-    NATIVE_HANDLE_IMPL(GLXContext, X11GLXContext);
+    NATIVE_HANDLE_IMPL(Display*, X11Display);
 
     #undef NATIVE_HANDLE_IMPL
 

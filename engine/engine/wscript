@@ -78,7 +78,7 @@ namespace dmEngineVersion
     elif operating_sys == 'android':
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
     elif operating_sys == "linux":
-        conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
+        conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU', 'vulkan', 'X11-xcb']
     elif operating_sys == "win":
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib'])
     elif 'web' in operating_sys:

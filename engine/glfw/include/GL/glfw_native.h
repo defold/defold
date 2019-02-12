@@ -41,6 +41,7 @@ extern "C" {
 #else
     typedef void* Window;
     typedef void* GLXContext;
+    typedef void* Display;
 #endif
 
 #if defined(__EMSCRIPTEN__)
@@ -78,6 +79,7 @@ GLFWAPI android_app* glfwGetAndroidApp(void);
 
 GLFWAPI Window glfwGetX11Window(void);
 GLFWAPI GLXContext glfwGetX11GLXContext(void);
+GLFWAPI Display* glfwGetX11Display(void);
 
 #ifdef __cplusplus
 }

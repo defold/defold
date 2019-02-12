@@ -40,6 +40,9 @@ def build(bld):
     if re.match('arm.*?darwin', bld.env.PLATFORM):
         obj.source += ['vulkan/graphics_vulkan_osx.mm']
 
+    if bld.env.PLATFORM == 'x86_64-linux':
+        obj.source += ['vulkan/graphics_vulkan_linux.cpp']
+
     obj.source.append('null/glsl_uniform_parser.cpp');
 
     obj = bld.new_task_gen(features = 'cxx cstaticlib',
