@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -94,9 +95,10 @@ public class Splash {
                 .getContextClassLoader()
                 .getResourceAsStream("tips.txt");
         List<String> tips = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(tipsResource))) {
+        InputStreamReader reader = new InputStreamReader(tipsResource, Charset.forName("UTF-8"));
+        try (BufferedReader bufferedReader = new BufferedReader(reader)) {
             String line;
-            while ((line = reader.readLine()) != null) {
+            while ((line = bufferedReader.readLine()) != null) {
                 if (line.startsWith("#") || line.isEmpty())
                     continue;
                 tips.add(line);
