@@ -41,6 +41,11 @@ namespace dmProfileRender
 
     using namespace Vectormath::Aos;
 
+    static const Vector4 PROFILER_BG_COLOR = Vector4(0.1f, 0.1f, 0.1f, 0.6f);
+    static const Vector4 TITLE_FACE_COLOR = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+    static const Vector4 TITLE_SHADOW_COLOR = Vector4(0.0f, 0.0f, 0.0f, 1.0f);
+    static const Vector4 SAMPLES_BG_COLOR = Vector4(0.15f, 0.15f, 0.15f, 0.2f);
+
     typedef uint32_t TIndex;
     typedef uint32_t TNameHash;
 
@@ -1144,11 +1149,6 @@ namespace dmProfileRender
     {
         dmRender::Square2d(render_context, a.p.x, a.p.y, a.p.x + a.s.w, a.p.y + a.s.h, col);
     }
-
-    static const Vector4 PROFILER_BG_COLOR = Vector4(0.1f, 0.1f, 0.1f, 0.6f);
-    static const Vector4 TITLE_FACE_COLOR = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-    static const Vector4 TITLE_SHADOW_COLOR = Vector4(0.0f, 0.0f, 0.0f, 1.0f);
-    static const Vector4 SAMPLES_BG_COLOR = Vector4(0.15f, 0.15f, 0.15f, 0.2f);
 
     static void Draw(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map, const Size display_size, DisplayMode display_mode)
     {
