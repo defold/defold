@@ -98,8 +98,8 @@
 (deftest can-download-and-extract-update
   (with-server "test" "2"
     (let [updater (make-updater "test" "1")
-          update-sha1-file (io/file "update.sha1")
-          update-dir (io/file "update/target/test-update")]
+          ^File update-sha1-file @#'updater/update-sha1-file
+          ^File update-dir @#'updater/update-dir]
       (fs/delete-directory! update-dir)
       (fs/delete! update-sha1-file)
       (#'updater/check! updater)

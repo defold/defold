@@ -9,7 +9,7 @@
 <VBox prefWidth="500.0" spacing="12.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8.0.172-ea" xmlns:fx="http://javafx.com/fxml/1">
     <children>
         <Label text="Unfortunately, updates are no longer provided for this platform. Supported platforms are 64-bit Linux, MacOS and Windows." wrapText="true" />
-        <HBox>
+        <HBox alignment="CENTER_RIGHT">
             <children>
                 <Button id="close" cancelButton="true" defaultButton="true" minWidth="80" text="Close" />
             </children>

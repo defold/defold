@@ -23,3 +23,4 @@ To move an object along its rotated axis, select Local Space from the Edit menu.
 # Inspirational quotes
 
 Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away.\n— Antoine de Saint-Exupéry
+Not all those who wander are lost.\n— J. R. R. Tolkien

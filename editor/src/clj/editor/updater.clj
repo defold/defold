@@ -7,7 +7,7 @@
             [editor.system :as system]
             [service.log :as log]
             [util.net :as net])
-  (:import [com.defold.editor Platform]
+  (:import [com.defold.editor Editor Platform]
            [java.io File IOException]
            [java.nio.file Files CopyOption StandardCopyOption]
            [java.nio.file.attribute FileAttribute]
@@ -22,6 +22,15 @@
 
 (defn- update-url [channel]
   (format "https://d.defold.com/editor2/channels/%s/update-v2.json" channel))
+
+(def ^:private ^File support-dir
+  (.getAbsoluteFile (.toFile (Editor/getSupportPath))))
+
+(def ^:private ^File update-dir
+  (io/file support-dir "update"))
+
+(def ^:private ^File update-sha1-file
+  (io/file support-dir "update.sha1"))
 
 (defn- make-updater [channel editor-sha1 downloaded-sha1 platform install-dir launcher-path]
   {:channel channel
@@ -74,11 +83,11 @@
 (defn can-download-update? [updater]
   (let [{:keys [state-atom editor-sha1]} updater
         {:keys [downloaded-sha1 server-sha1 current-download installed-sha1]} @state-atom]
-    (cond
-      (some? installed-sha1) (not= installed-sha1 server-sha1)
-      (some? current-download) (not= (:sha1 current-download) server-sha1)
-      (some? downloaded-sha1) (not= downloaded-sha1 server-sha1)
-      :else (not= editor-sha1 server-sha1))))
+    (not= server-sha1
+          (or installed-sha1
+              (:sha1 current-download)
+              downloaded-sha1
+              editor-sha1))))
 
 (defn can-install-update? [updater]
   (some? (:downloaded-sha1 @(:state-atom updater))))
@@ -89,7 +98,7 @@
                Platform/X86_64Win32}
              (:platform updater)))
 
-(defn- ^File create-temp-zip-file []
+(defn- create-temp-zip-file ^File []
   (.toFile (Files/createTempFile "defold-update" ".zip" (into-array FileAttribute []))))
 
 (defn- download! [url ^File zip-file track-download-progress! cancelled-atom]
@@ -99,7 +108,7 @@
                                       (track-download-progress!
                                         (progress/make "Downloading update" total current)))
                  :chunk-size (* 1024 1024)
-                 :cancelled-atom cancelled-atom))
+                 :cancelled-derefable cancelled-atom))
 
 (def ^:private execute-permission-flag
   "9 bits in 3 triples: [rwx][rwx][rwx]
@@ -111,10 +120,8 @@
   (not (zero? (bit-and unix-mode execute-permission-flag))))
 
 (defn- extract! [updater ^File zip-file server-sha1 track-extract-progress! cancelled-atom]
-  (let [{:keys [state-atom install-dir]} updater
-        {:keys [downloaded-sha1]} @state-atom
-        update-dir (io/file install-dir "update")
-        update-sha1-file (io/file install-dir "update.sha1")]
+  (let [{:keys [state-atom]} updater
+        {:keys [downloaded-sha1]} @state-atom]
     (when (some? downloaded-sha1)
       (log/info :message "Removing previously downloaded update")
       (swap! state-atom dissoc :downloaded-sha1)
@@ -154,7 +161,7 @@
 
 (defn download-and-extract!
   "Asynchronously downloads newest zip distribution to temporary directory,
-  extracts it to `{install-dir}/update` and creates `{install-dir}/update.sha1`
+  extracts it to `{support-dir}/update` and creates `{support-dir}/update.sha1`
   file containing downloaded update's sha1
 
   Returns future that eventually will contain boolean indicating the success of
@@ -171,10 +178,10 @@
         track-download-progress! (progress/nest-render-progress track-progress! (progress/make "" 2 0))
         track-extract-progress! (progress/nest-render-progress track-progress! (progress/make "" 2 1))]
     (when (some? current-download)
-      (reset! (:cancelled-atom current-download) true))
+      (reset! (:cancelled-derefable current-download) true))
     (swap! state-atom assoc :current-download {:sha1 server-sha1
                                                :progress (progress/make "" 2 0)
-                                               :cancelled-atom cancelled-atom})
+                                               :cancelled-derefable cancelled-atom})
     (future
       (try
         (download! url zip-file track-download-progress! cancelled-atom)
@@ -204,7 +211,7 @@
     ;; renaming it works as a workaround
     (do
       (.renameTo target-file
-                 (io/file (format "%s-%s.backup" target-file editor-sha1)))
+                 (io/file (format "%s-%s.defbackup" target-file editor-sha1)))
       (io/copy source-file target-file))
     (move-file! source-file target-file)))
 
@@ -218,12 +225,10 @@
   "Installs previously downloaded update"
   [updater]
   {:pre [(can-install-update? updater)]}
-  (let [{:keys [install-dir state-atom editor-sha1 ^Platform platform]} updater
-        {:keys [current-download downloaded-sha1]} @state-atom
-        update-dir (io/file install-dir "update")
-        update-sha1-file (io/file install-dir "update.sha1")]
+  (let [{:keys [install-dir state-atom]} updater
+        {:keys [current-download downloaded-sha1]} @state-atom]
     (when (some? current-download)
-      (reset! (:cancelled-atom current-download) true)
+      (reset! (:cancelled-derefable current-download) true)
       (swap! state-atom dissoc :current-download))
     (log/info :message "Installing update")
     (doseq [^File source-file (FileUtils/listFiles update-dir nil true)
@@ -253,7 +258,7 @@
     (let [{:keys [^File install-dir]} updater
           backup-files (FileUtils/listFiles
                          install-dir
-                         ^"[Ljava.lang.String;" (into-array ["backup"])
+                         ^"[Ljava.lang.String;" (into-array ["defbackup"])
                          true)]
       (doseq [^File file backup-files]
         (.delete file)))))
@@ -306,7 +311,6 @@
                             "win32" "./Defold.exe"
                             "linux" "./Defold"
                             "darwin" "./Contents/MacOS/Defold"))
-        update-sha1-file (io/file install-dir "update.sha1")
         downloaded-sha1 (when (.exists update-sha1-file)
                           (slurp update-sha1-file))
         initial-update-delay 1000
