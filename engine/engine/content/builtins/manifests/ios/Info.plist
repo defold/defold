@@ -63,25 +63,25 @@
         <key>DTCompiler</key>
         <string>com.apple.compilers.llvm.clang.1_0</string>
         <key>DTPlatformBuild</key>
-        <string>11B508</string>
+        <string>16B91</string>
         <key>DTPlatformName</key>
         <string>iphoneos</string>
         <key>DTPlatformVersion</key>
-        <string>7.0</string>
+        <string>12.1</string>
         <key>DTSDKBuild</key>
-        <string>11B508</string>
+        <string>16B91</string>
         <key>DTSDKName</key>
-        <string>iphoneos7.0</string>
+        <string>iphoneos12.1</string>
         <key>DTXcode</key>
-        <string>0501</string>
+        <string>1010</string>
         <key>DTXcodeBuild</key>
-        <string>5A2053</string>
+        <string>10B61</string>
         <key>UIFileSharingEnabled</key>
         <{{project.write_log}}/>
         <key>LSRequiresIPhoneOS</key>
         <true/>
         <key>MinimumOSVersion</key>
-        <string>6.0.0</string>
+        <string>8.0</string>
         <key>UIDeviceFamily</key>
         <array>
                 <integer>1</integer>
