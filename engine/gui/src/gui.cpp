@@ -1252,9 +1252,17 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                         RenderEntry entry;
                         entry.m_Node = node;
                         entry.m_RenderKey = clipping_key;
+                        if (render_entries.Full())
+                        {
+                            render_entries.OffsetCapacity(16U);
+                        }
                         render_entries.Push(entry);
                         if (n->m_Node.m_ClippingVisible) {
                             entry.m_RenderKey = render_key;
+                            if (render_entries.Full())
+                            {
+                                render_entries.OffsetCapacity(16U);
+                            }
                             render_entries.Push(entry);
                         }
                         if (!root_clipper) {
@@ -1304,6 +1312,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     RenderEntry entry;
                     entry.m_Node = node;
                     entry.m_RenderKey = CalcRenderKey(scope, layer, order++);
+                    if (render_entries.Full())
+                    {
+                        render_entries.OffsetCapacity(16U);
+                    }
                     render_entries.Push(entry);
                 }
 
