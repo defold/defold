@@ -146,10 +146,10 @@
         timer ^Timer (#'updater/start-timer! updater 10 10)]
     (try
       (with-server "test" "1"
-        (Thread/sleep 100)
+        (Thread/sleep 1000)
         (is (false? (updater/can-download-update? updater))))
       (with-server "test" "2"
-        (Thread/sleep 100)
+        (Thread/sleep 1000)
         (is (true? (updater/can-download-update? updater))))
       (finally
         (.cancel timer)
