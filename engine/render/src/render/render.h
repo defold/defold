@@ -143,13 +143,13 @@ namespace dmRender
 
         dmScript::HContext              m_ScriptContext;
         HFontMap                        m_SystemFontMap;
-        void*                           m_VertexProgramData;
-        void*                           m_FragmentProgramData;
+        void*                           m_VertexShaderDesc;
+        void*                           m_FragmentShaderDesc;
         uint32_t                        m_MaxRenderTypes;
         uint32_t                        m_MaxInstances;
         uint32_t                        m_MaxRenderTargets;
-        uint32_t                        m_VertexProgramDataSize;
-        uint32_t                        m_FragmentProgramDataSize;
+        uint32_t                        m_VertexShaderDescSize;
+        uint32_t                        m_FragmentShaderDescSize;
         uint32_t                        m_MaxCharacters;
         uint32_t                        m_CommandBufferSize;
         /// Max debug vertex count
@@ -329,6 +329,8 @@ namespace dmRender
     int32_t                         GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
     void                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
+    dmRenderDDF::MaterialDesc::VertexSpace GetMaterialVertexSpace(HMaterial material);
+    void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);
 
     uint64_t                        GetMaterialUserData1(HMaterial material);
     void                            SetMaterialUserData1(HMaterial material, uint64_t user_data);
