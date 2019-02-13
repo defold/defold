@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.handler :as handler]
+            [editor.jfx :as jfx]
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -11,7 +12,9 @@
            [java.util Collection]
            [javafx.collections ObservableList]
            [javafx.scene.control TabPane TreeItem TreeView]
-           [javafx.scene.input Clipboard ClipboardContent]))
+           [javafx.scene.input Clipboard ClipboardContent]
+           [javafx.scene.layout Pane HBox]
+           [javafx.scene.text Text]))
 
 (set! *warn-on-reflection* true)
 
@@ -60,6 +63,7 @@
 
 (defn- error-item [evaluation-context root-cause]
   (let [message (:message (first root-cause))
+        severity (:severity (first root-cause))
         errors (drop-while (comp (fn [node-id]
                                    (or (nil? node-id)
                                        (missing-resource-node? evaluation-context node-id)))
@@ -74,7 +78,7 @@
     (cond-> {:parent parent
              :node-id origin-node-id
              :message (:message error)
-             :severity (:severity error)}
+             :severity (or (:severity error) severity)}
             line (assoc :line line))))
 
 (defn- push-causes [queue error path]
@@ -124,7 +128,7 @@
                  {:type :resource
                   :value resource
                   :children errors}
-                 {:type :default
+                 {:type :unknown-parent
                   :children errors})))))
 
 (defn build-resource-tree [root-error]
@@ -141,6 +145,12 @@
      :icon (workspace/resource-icon resource)
      :style (resource/style-classes resource)}))
 
+(defmethod make-tree-cell :unknown-parent
+  [tree-item]
+  {:text "NO RESOURCE"
+   :icon "icons/32/Icons_29-AT-Unknown.png"
+   :style #{"severity-info"}})
+
 (defmethod make-tree-cell :default
   [error-item]
   (let [line (:line error-item)
@@ -155,17 +165,19 @@
                 :info #{"severity-info"}
                 :warning #{"severity-warning"}
                 #{"severity-error"})]
-    {:text message
-     :icon icon
+    {:graphic (let [image (jfx/get-image-view icon 16)
+                    text (Text. message)]
+                (HBox. (ui/node-array [image text])))
      :style style}))
 
 (defn- error-selection
   [node-id resource]
-  (if (g/node-instance? outline/OutlineNode node-id)
-    [node-id]
-    (let [project (project/get-project node-id)]
-      (when-some [resource-node (project/get-resource-node project resource)]
-        [(g/node-value resource-node :_node-id)]))))
+  (when node-id
+    (if (g/node-instance? outline/OutlineNode node-id)
+      [node-id]
+      (let [project (project/get-project node-id)]
+        (when-some [resource-node (project/get-resource-node project resource)]
+          [(g/node-value resource-node :_node-id)])))))
 
 (defn- open-error [open-resource-fn selection]
   (when-some [error-item (first selection)]
