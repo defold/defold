@@ -12,11 +12,13 @@
             [editor.git :as git]
             [editor.login :as login]
             [editor.prefs :as prefs]
+            [editor.progress :as progress]
             [editor.settings-core :as settings-core]
             [editor.system :as system]
             [editor.ui :as ui]
             [editor.ui.bindings :as b]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
+            [editor.ui.updater :as ui.updater]
             [editor.updater :as updater]
             [schema.core :as s]
             [util.net :as net]
@@ -28,7 +30,6 @@
            (javax.net.ssl SSLException)
            (java.time Instant)
            (java.util.zip ZipInputStream)
-           (javafx.animation AnimationTimer)
            (javafx.beans.property SimpleObjectProperty StringProperty)
            (javafx.event Event)
            (javafx.scene Node Parent Scene)
@@ -38,7 +39,6 @@
            (javafx.scene.layout HBox Priority Region StackPane VBox)
            (javafx.scene.shape Rectangle)
            (javafx.scene.text Text TextFlow)
-           (javafx.stage Stage WindowEvent)
            (org.apache.commons.io FilenameUtils)))
 
 (set! *warn-on-reflection* true)
@@ -202,10 +202,7 @@
   "Downloads a template project zip file. Returns the file or nil if cancelled."
   ^File [url progress-callback cancelled-atom]
   (let [file ^File (fs/create-temp-file! "template-project" ".zip")]
-    (with-open [output (FileOutputStream. file)]
-      ;; The long timeout suggests we need some progress reporting even before d/l starts.
-      (let [timeout 2000]
-        (net/download! url output :connect-timeout timeout :read-timeout timeout :chunk-size 1024 :progress-callback progress-callback :cancelled-atom cancelled-atom)))
+    (net/download! url file :chunk-size 1024 :progress-callback progress-callback :cancelled-derefable cancelled-atom)
     (if @cancelled-atom
       (do
         (fs/delete-file! file)
@@ -586,31 +583,15 @@
 ;; Automatic updates
 ;; -----------------------------------------------------------------------------
 
-(defn- install-pending-update-check-timer! [^Stage stage update-link update-context]
-  (let [update-visibility! (fn []
-                             (let [update (updater/pending-update update-context)
-                                   update-exists? (and (some? update)
-                                                       (not= update (system/defold-editor-sha1)))]
-                               (ui/visible! update-link update-exists?)
-                               update-exists?))]
-    ;; Start checking for updates. On the Welcome screen we stop polling once we
-    ;; found an update. If we find an update immediately, we don't even need to
-    ;; install the polling timer.
-    (when-not (update-visibility!)
-      (let [tick-fn (fn [^AnimationTimer timer _]
-                      (when (update-visibility!)
-                        (.stop timer)))
-            timer (ui/->timer 0.1 "pending-update-check" tick-fn)]
-        (.addEventHandler stage WindowEvent/WINDOW_SHOWN (ui/event-handler event (ui/timer-start! timer)))
-        (.addEventHandler stage WindowEvent/WINDOW_HIDING (ui/event-handler event (ui/timer-stop! timer)))))))
-
-(defn- init-pending-update-indicator! [stage update-link update-context]
-  (install-pending-update-check-timer! stage update-link update-context)
-  (ui/on-action! update-link
-                 (fn [_]
-                   (when (dialogs/make-pending-update-dialog stage)
-                     (when (updater/install-pending-update! update-context (io/file (system/defold-resourcespath)))
-                       (updater/restart!))))))
+(defn- init-pending-update-indicator! [stage update-link progress-bar progress-vbox updater]
+  (let [render-progress! (progress/throttle-render-progress
+                           (fn [progress]
+                             (ui/run-later
+                               (ui/visible! progress-vbox (progress/done? progress))
+                               (ui/visible! progress-bar (not (progress/done? progress)))
+                               (ui/render-progress-bar! progress progress-bar))))
+        install-and-restart! #(ui.updater/install-and-restart! stage updater)]
+    (ui.updater/init! stage update-link updater install-and-restart! render-progress!)))
 
 ;; -----------------------------------------------------------------------------
 ;; Welcome dialog
@@ -649,9 +630,9 @@
     (.setVisible progress-overlay false)))
 
 (defn show-welcome-dialog!
-  ([prefs dashboard-client update-context open-project-fn]
-   (show-welcome-dialog! prefs dashboard-client update-context open-project-fn nil))
-  ([prefs dashboard-client update-context open-project-fn opts]
+  ([prefs dashboard-client updater open-project-fn]
+   (show-welcome-dialog! prefs dashboard-client updater open-project-fn nil))
+  ([prefs dashboard-client updater open-project-fn opts]
    (let [[welcome-settings
           welcome-settings-load-error] (try
                                          [(load-welcome-settings "welcome/welcome.edn") nil]
@@ -751,7 +732,6 @@
          left-pane (.lookup root "#left-pane")
          pane-buttons-container (.lookup left-pane "#pane-buttons-container")
          sign-out-button (.lookup left-pane "#sign-out-button")
-         update-link (.lookup left-pane "#update-link")
          pane-buttons-toggle-group (ToggleGroup.)
          template-category-buttons-toggle-group (ToggleGroup.)
          new-project-pane-button (make-pane-button "NEW PROJECT" (make-new-project-pane new-project-location-directory download-template! welcome-settings template-category-buttons-toggle-group))
@@ -777,8 +757,13 @@
      (ui/on-closed! stage (fn [_] (login/abort-incomplete-sign-in! dashboard-client)))
 
      ;; Install pending update check.
-     (when (some? update-context)
-       (init-pending-update-indicator! stage update-link update-context))
+     (when (some? updater)
+       (ui/with-controls left-pane [update-link update-progress-bar update-progress-vbox]
+         (init-pending-update-indicator! stage
+                                         update-link
+                                         update-progress-bar
+                                         update-progress-vbox
+                                         updater)))
 
      ;; Add the pane buttons to the left panel and configure them to toggle between the panes.
      (doseq [^RadioButton pane-button pane-buttons]
@@ -813,7 +798,7 @@
                                   (when (and (.isShortcutDown key-event)
                                              (= "r" (.getText key-event)))
                                     (ui/close! stage)
-                                    (show-welcome-dialog! prefs dashboard-client update-context open-project-fn
+                                    (show-welcome-dialog! prefs dashboard-client updater open-project-fn
                                                           {:x (.getX stage)
                                                            :y (.getY stage)
                                                            :pane-index (first (keep-indexed (fn [pane-index pane-button]
