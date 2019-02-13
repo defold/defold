@@ -141,12 +141,15 @@
 
 (def custom-engine-pref-key "dev-custom-engine")
 
+(defn current-platform []
+  (.getPair (Platform/getJavaPlatform)))
+
 (defn- dev-custom-engine
   [prefs platform]
   (when (system/defold-dev?)
     (when-some [custom-engine (prefs/get-prefs prefs custom-engine-pref-key nil)]
       (when-not (str/blank? custom-engine)
-        (assert (= platform (.getPair (Platform/getHostPlatform))) "Can't use custom engine for platform different than host")
+        (assert (= platform (current-platform)) "Can't use custom engine for platform other than current")
         (let [engine (io/file custom-engine)]
           (assert (.exists engine))
           {:id {:type :dev :path (.getCanonicalPath engine)} :dmengine engine :platform platform})))))
@@ -163,9 +166,6 @@
         (let [build-server (native-extensions/get-build-server-url prefs)]
           (native-extensions/get-engine-archive project evaluation-context platform build-server))
         (bundled-engine platform))))
-
-(defn current-platform []
-  (.getPair (Platform/getHostPlatform)))
 
 (defn- unpack-dmengine!
   [^File engine-archive entry-name ^File engine-file]

@@ -98,11 +98,12 @@
       (engine/copy-engine-executable! armv7-engine "armv7-darwin" armv7-descriptor)
       (engine/copy-engine-executable! arm64-engine "arm64-darwin" arm64-descriptor)
       (sh lipo "-create" (.getAbsolutePath armv7-engine) (.getAbsolutePath arm64-engine) "-output" (.getAbsolutePath engine))
-      (fs/delete-file! armv7-engine)
-      (fs/delete-file! arm64-engine)
       {:engine engine}
       (catch Exception e
-        {:err e :message "Failed to lipo engine binary."}))))
+        {:err e :message "Failed to lipo engine binary."})
+      (finally
+        (fs/delete-file! armv7-engine {:fail :silently})
+        (fs/delete-file! arm64-engine {:fail :silently})))))
 
 (g/defnk assemble-ios-app [^File engine ^File info-plist ^File package-dir ^File app-dir ^File profile]
   (try
