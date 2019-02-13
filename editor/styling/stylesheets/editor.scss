@@ -105,13 +105,6 @@ Links:
   -fx-spacing: 10px;
 }
 
-.link-label {
-  -fx-text-fill: $defold-light-blue;
-  &:hover {
-    -fx-underline: true;
-  }
-}
-
 /* Status bar */
 #status-label {
   -fx-text-fill: $grey;
