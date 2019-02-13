@@ -24,7 +24,7 @@ namespace dmProfileRender
     static const int SCOPES_TIME_WIDTH = 6 * CHAR_WIDTH;
     static const int SCOPES_COUNT_WIDTH = 3 * CHAR_WIDTH;
 
-    static const int SAMPLE_FRAMES_NAME_LENGTH = 32;
+    static const int SAMPLE_FRAMES_NAME_LENGTH = 40;
     static const int SAMPLE_FRAMES_NAME_WIDTH = SAMPLE_FRAMES_NAME_LENGTH * CHAR_WIDTH;
     static const int SAMPLE_FRAMES_TIME_WIDTH = 6 * CHAR_WIDTH;
     static const int SAMPLE_FRAMES_COUNT_WIDTH = 3 * CHAR_WIDTH;
@@ -119,7 +119,7 @@ namespace dmProfileRender
 
     // The raw data of a frame, length of arrays are omitted since we use this block
     // either by building a ProfileSnapshot where we have the lengths explicitly or
-    // we use it is in RenderProfile which has the length of the arrays implicitly
+    // we use it in RenderProfile which has the length of the arrays implicitly
     // via hash tables for name-hash -> item
     struct ProfileFrame
     {
@@ -128,12 +128,12 @@ namespace dmProfileRender
                      SampleSum* sample_sums,
                      Counter* counters,
                      Sample* samples)
-        : m_Scopes(scopes)
-        , m_SampleSums(sample_sums)
-        , m_Counters(counters)
-        , m_Samples(samples)
-        , m_FrameTime(0.f)
-        , m_MaxFrameTime(0.f)
+            : m_Scopes(scopes)
+            , m_SampleSums(sample_sums)
+            , m_Counters(counters)
+            , m_Samples(samples)
+            , m_FrameTime(0.f)
+            , m_MaxFrameTime(0.f)
         {
         }
         
@@ -278,18 +278,27 @@ namespace dmProfileRender
         return s;
     }
 
-    static ProfileSnapshot* MakeProfileSnapshot(uint64_t frame_tick, const ProfileFrame* frame, TIndex scope_count, TIndex sample_sum_count, TIndex counter_count, TIndex sample_count)
+    static ProfileSnapshot* MakeProfileSnapshot(uint64_t frame_tick, const ProfileFrame* frame, TIndex scope_count, TIndex* scope_indexes, TIndex sample_sum_count, TIndex* sample_sum_indexes, TIndex counter_count, TIndex* counter_indexes, TIndex sample_count)
     {
         void* mem = malloc(ProfileSnapshotSize(scope_count, sample_sum_count, counter_count, sample_count));
         ProfileSnapshot* snapshot = CreateProfileSnapshot(mem, frame_tick, scope_count, sample_sum_count, counter_count, sample_count);
-        memcpy(snapshot->m_Frame.m_Scopes, frame->m_Scopes, sizeof(Scope) * scope_count);
-        memcpy(snapshot->m_Frame.m_SampleSums, frame->m_SampleSums, sizeof(SampleSum) * sample_sum_count);
-        memcpy(snapshot->m_Frame.m_Counters, frame->m_Counters, sizeof(Counter) * counter_count);
+        for (TIndex i = 0; i < scope_count; ++i)
+        {
+            snapshot->m_Frame.m_Scopes[i] = frame->m_Scopes[scope_indexes[i]];
+        }
+        for (TIndex i = 0; i < sample_sum_count; ++i)
+        {
+            snapshot->m_Frame.m_SampleSums[i] = frame->m_SampleSums[sample_sum_indexes[i]];
+        }
+        for (TIndex i = 0; i < counter_count; ++i)
+        {
+            snapshot->m_Frame.m_Counters[i] = frame->m_Counters[counter_indexes[i]];
+        }
         memcpy(snapshot->m_Frame.m_Samples, frame->m_Samples, sizeof(Sample) * sample_count);
         snapshot->m_Frame.m_FrameTime = frame->m_FrameTime;
         snapshot->m_Frame.m_WaitTime = frame->m_WaitTime;
         snapshot->m_Frame.m_MaxFrameTime = frame->m_MaxFrameTime;
-        
+
         return snapshot;
     }
 
@@ -346,11 +355,18 @@ namespace dmProfileRender
         CounterStats* m_CounterStats;
         TIndex* m_ScopeSortOrder;
         TIndex* m_SampleSumSortOrder;
+        TIndex* m_CounterSortOrder;
+        TIndex* m_FreeScopes;
+        TIndex* m_FreeSampleSums;
+        TIndex* m_FreeCounters;
 
         uint64_t m_NowTick;
 
         TIndex m_SampleCount;
 
+        TIndex m_FreeScopeCount;
+        TIndex m_FreeSampleSumCount;
+        TIndex m_FreeCounterCount;
         const TIndex m_MaxScopeCount;
         const TIndex m_MaxSampleSumCount;
         const TIndex m_MaxCounterCount;
@@ -369,27 +385,39 @@ namespace dmProfileRender
 
     private:
         RenderProfile(
-                      float fps,
-                      uint32_t ticks_per_second,
-                      uint32_t lifetime_in_seconds,
-                      uint32_t sort_intervall_in_seconds,
-                      TIndex max_scope_count,
-                      TIndex max_sample_sum_count,
-                      TIndex max_counter_count,
-                      TIndex max_sample_count,
-                      TIndex max_name_count,
-                      void* scope_lookup_data,
-                      void* sample_sum_lookup_data,
-                      void* counter_lookup_data,
-                      const char** name_lookup_data,
-                      ScopeStats* scope_stats,
-                      SampleSumStats* sample_sum_stats,
-                      CounterStats* counter_stats,
-                      TIndex* scope_sort_order,
-                      TIndex* sample_sum_sort_order,
-                      ProfileFrame* build_frame);
+            float fps,
+            uint32_t ticks_per_second,
+            uint32_t lifetime_in_seconds,
+            uint32_t sort_intervall_in_seconds,
+            TIndex max_scope_count,
+            TIndex max_sample_sum_count,
+            TIndex max_counter_count,
+            TIndex max_sample_count,
+            TIndex max_name_count,
+            void* scope_lookup_data,
+            void* sample_sum_lookup_data,
+            void* counter_lookup_data,
+            void* name_lookup_data,
+            ScopeStats* scope_stats,
+            SampleSumStats* sample_sum_stats,
+            CounterStats* counter_stats,
+            TIndex* scope_sort_order,
+            TIndex* sample_sum_sort_order,
+            TIndex* counter_sort_order_data,
+            TIndex* scope_free_index_data,
+            TIndex* sample_sum_free_index_data,
+            TIndex* counter_free_index_data,
+            ProfileFrame* build_frame);
         ~RenderProfile();
     };
+
+    static void ResetFreeIndexes(TIndex* free_index_buffer, uint32_t count)
+    {
+        for(uint32_t i = 0; i < count; ++i)
+        {
+            free_index_buffer[i] = count - i - 1;
+        }
+    }
 
     static void FlushRecording(RenderProfile* render_profile, uint32_t capacity)
     {
@@ -415,11 +443,12 @@ namespace dmProfileRender
         {
             return 0x0;
         }
-        TIndex new_index = render_profile->m_ScopeLookup.Size();
-        if (new_index == render_profile->m_MaxScopeCount)
+        if (render_profile->m_FreeScopeCount == 0)
         {
             return 0x0;
         }
+        uint32_t scope_count = render_profile->m_ScopeLookup.Size();
+        TIndex new_index = render_profile->m_FreeScopes[--render_profile->m_FreeScopeCount];
         render_profile->m_ScopeLookup.Put(name_hash, new_index);
         Scope* scope = &frame->m_Scopes[new_index];
         scope->m_NameHash = name_hash;
@@ -430,8 +459,7 @@ namespace dmProfileRender
         scope_stats->m_FilteredElapsed = 0u;
         scope_stats->m_LastSeenTick = render_profile->m_NowTick - render_profile->m_LifeTime;
 
-        render_profile->m_ScopeSortOrder[new_index] = new_index;
-
+        render_profile->m_ScopeSortOrder[scope_count] = new_index;
         return scope;
     }
 
@@ -447,45 +475,19 @@ namespace dmProfileRender
         scope->m_Count += count;
     }
 
-    static void RemoveSortIndex(TIndex* sort_order, uint32_t count, TIndex remove_index)
-    {
-        const TIndex* const end_ptr = &sort_order[count];
-        TIndex* read_ptr = sort_order;
-        TIndex* write_ptr = read_ptr;
-        while (read_ptr != end_ptr)
-        {
-            TIndex i = *read_ptr++;
-            if (i < remove_index)
-            {
-                *write_ptr++ = i;
-            }
-            else if (i > remove_index)
-            {
-                *write_ptr++ = (i - 1);
-            }
-        }
-    }
-
     static void FreeScope(RenderProfile* render_profile, TIndex index)
     {
         ProfileFrame* frame = render_profile->m_BuildFrame;
-        Scope* scope = &frame->m_Scopes[index];
-        ScopeStats* stats = &render_profile->m_ScopeStats[index];
+        TIndex scope_index = render_profile->m_ScopeSortOrder[index];
+        Scope* scope = &frame->m_Scopes[scope_index];
         render_profile->m_ScopeLookup.Erase(scope->m_NameHash);
         uint32_t new_count = render_profile->m_ScopeLookup.Size();
+        render_profile->m_FreeScopes[render_profile->m_FreeScopeCount++] = scope_index;
         if (index != new_count)
         {
-            Scope* source = &frame->m_Scopes[new_count];
-            TIndex* source_index_ptr = render_profile->m_ScopeLookup.Get(source->m_NameHash);
-            assert(source_index_ptr != 0x0);
-            
-            ScopeStats* source_stats = &render_profile->m_ScopeStats[new_count];
-            *scope = *source;
-            *stats = *source_stats;
-            
-            *source_index_ptr = index;
+            // A SwapErase would be simpler but would mess with the established sort order (causing jumping entries in the profile UI)
+            memmove(&render_profile->m_ScopeSortOrder[index], &render_profile->m_ScopeSortOrder[index + 1], sizeof(TIndex) * (new_count - index));
         }
-        RemoveSortIndex(render_profile->m_ScopeSortOrder, new_count, index);
     }
 
     static SampleSum* GetOrCreateSampleSum(RenderProfile* render_profile, TNameHash sample_name_hash, TNameHash scope_name_hash)
@@ -501,11 +503,12 @@ namespace dmProfileRender
         {
             return 0x0;
         }
-        TIndex new_index = render_profile->m_SampleSumLookup.Size();
-        if (new_index == render_profile->m_MaxSampleSumCount)
+        if (render_profile->m_FreeSampleSumCount == 0)
         {
             return 0x0;
         }
+        uint32_t sample_sum_count = render_profile->m_SampleSumLookup.Size();
+        TIndex new_index = render_profile->m_FreeSampleSums[--render_profile->m_FreeSampleSumCount];
         render_profile->m_SampleSumLookup.Put(sample_sum_hash, new_index);
         SampleSum* sample_sum = &frame->m_SampleSums[new_index];
         sample_sum->m_SampleNameHash = sample_name_hash;
@@ -518,7 +521,7 @@ namespace dmProfileRender
         sample_sum_stats->m_FilteredElapsed = 0u;
         sample_sum_stats->m_LastSeenTick = render_profile->m_NowTick - render_profile->m_LifeTime;
         
-        render_profile->m_SampleSumSortOrder[new_index] = new_index;
+        render_profile->m_SampleSumSortOrder[sample_sum_count] = new_index;
 
         return sample_sum;
     }
@@ -566,25 +569,17 @@ namespace dmProfileRender
     static void FreeSampleSum(RenderProfile* render_profile, TIndex index)
     {
         ProfileFrame* frame = render_profile->m_BuildFrame;
-        SampleSum* sample_sum = &frame->m_SampleSums[index];
-        SampleSumStats* sample_sum_stats = &render_profile->m_SampleSumStats[index];
+        TIndex sample_sum_index = render_profile->m_SampleSumSortOrder[index];
+        SampleSum* sample_sum = &frame->m_SampleSums[sample_sum_index];
         TNameHash sample_sum_hash = GetSampleSumHash(sample_sum->m_ScopeNameHash, sample_sum->m_SampleNameHash);
         render_profile->m_SampleSumLookup.Erase(sample_sum_hash);
         uint32_t new_count = render_profile->m_SampleSumLookup.Size();
+        render_profile->m_FreeSampleSums[render_profile->m_FreeSampleSumCount++] = sample_sum_index;
         if (index != new_count)
         {
-            SampleSum* source = &frame->m_SampleSums[new_count];
-            TNameHash source_sample_sum_hash = GetSampleSumHash(source->m_ScopeNameHash, source->m_SampleNameHash);
-            TIndex* source_index_ptr = render_profile->m_SampleSumLookup.Get(source_sample_sum_hash);
-            assert(source_index_ptr != 0x0);
-
-            SampleSumStats* source_stats = &render_profile->m_SampleSumStats[new_count];
-            *sample_sum = *source;
-            *sample_sum_stats = *source_stats;
-
-            *source_index_ptr = index;
+            // A SwapErase would be simpler but would mess with the established sort order (causing jumping entries in the profile UI)
+            memmove(&render_profile->m_SampleSumSortOrder[index], &render_profile->m_SampleSumSortOrder[index + 1], sizeof(TIndex) * (new_count - index));
         }
-        RemoveSortIndex(render_profile->m_SampleSumSortOrder, new_count, index);
     }
 
     static Counter* GetOrCreateCounter(RenderProfile* render_profile, TNameHash name_hash)
@@ -599,11 +594,12 @@ namespace dmProfileRender
         {
             return 0x0;
         }
-        TIndex new_index = render_profile->m_CounterLookup.Size();
-        if (new_index == render_profile->m_MaxCounterCount)
+        if (render_profile->m_FreeCounterCount == 0)
         {
             return 0x0;
         }
+        uint32_t counter_count = render_profile->m_CounterLookup.Size();
+        TIndex new_index = render_profile->m_FreeCounters[--render_profile->m_FreeCounterCount];
         render_profile->m_CounterLookup.Put(name_hash, new_index);
         Counter* counter = &frame->m_Counters[new_index];
         counter->m_NameHash = name_hash;
@@ -611,6 +607,8 @@ namespace dmProfileRender
         
         CounterStats* counter_stats = &render_profile->m_CounterStats[new_index];
         counter_stats->m_LastSeenTick = render_profile->m_NowTick - render_profile->m_LifeTime;
+
+        render_profile->m_CounterSortOrder[counter_count] = new_index;
         return counter;
     }
 
@@ -628,21 +626,15 @@ namespace dmProfileRender
     static void FreeCounter(RenderProfile* render_profile, TIndex index)
     {
         ProfileFrame* frame = render_profile->m_BuildFrame;
-        Counter* counter = &frame->m_Counters[index];
-        CounterStats* counter_stats = &render_profile->m_CounterStats[index];
+        TIndex counter_index = render_profile->m_CounterSortOrder[index];
+        Counter* counter = &frame->m_Counters[counter_index];
         render_profile->m_CounterLookup.Erase(counter->m_NameHash);
         uint32_t new_count = render_profile->m_CounterLookup.Size();
+        render_profile->m_FreeCounters[render_profile->m_FreeCounterCount++] = counter_index;
         if (index != new_count)
         {
-            Counter* source = &frame->m_Counters[new_count];
-            TIndex* source_index_ptr = render_profile->m_CounterLookup.Get(source->m_NameHash);
-            assert(source_index_ptr != 0x0);
-
-            CounterStats* source_stats = &render_profile->m_CounterStats[new_count];
-            *counter = *source;
-            *counter_stats = *source_stats;
-
-            *source_index_ptr = index;
+            // A SwapErase would be simpler but would mess with the established sort order (causing jumping entries in the profile UI)
+            memmove(&render_profile->m_CounterSortOrder[index], &render_profile->m_CounterSortOrder[index + 1], sizeof(TIndex) * (new_count - index));
         }
     }
 
@@ -711,6 +703,12 @@ namespace dmProfileRender
         ProfileFrame* frame = render_profile->m_BuildFrame;
         if (render_profile->m_ActiveFrame != frame)
         {
+            ResetFreeIndexes(render_profile->m_FreeScopes, render_profile->m_MaxScopeCount);
+            ResetFreeIndexes(render_profile->m_FreeSampleSums, render_profile->m_MaxSampleSumCount);
+            ResetFreeIndexes(render_profile->m_FreeCounters, render_profile->m_MaxCounterCount);
+            render_profile->m_FreeScopeCount = render_profile->m_MaxScopeCount;
+            render_profile->m_FreeSampleSumCount = render_profile->m_MaxSampleSumCount;
+            render_profile->m_FreeCounterCount = render_profile->m_MaxCounterCount;
             render_profile->m_ScopeLookup.Clear();
             render_profile->m_SampleSumLookup.Clear();
             render_profile->m_CounterLookup.Clear();
@@ -721,24 +719,25 @@ namespace dmProfileRender
             uint32_t scope_count = render_profile->m_ScopeLookup.Size();
             for (uint32_t i = 0; i < scope_count; ++i)
             {
-                Scope* scope = &frame->m_Scopes[i];
+                TIndex scope_index = render_profile->m_ScopeSortOrder[i];
+                Scope* scope = &frame->m_Scopes[scope_index];
                 scope->m_Elapsed = 0u;
                 scope->m_Count = 0u;
-                render_profile->m_ScopeSortOrder[i] = i;
             }
             uint32_t sample_sum_count = render_profile->m_SampleSumLookup.Size();
             for (uint32_t i = 0; i < sample_sum_count; ++i)
             {
-                SampleSum* sample_sum = &frame->m_SampleSums[i];
+                TIndex sample_sum_index = render_profile->m_SampleSumSortOrder[i];
+                SampleSum* sample_sum = &frame->m_SampleSums[sample_sum_index];
                 sample_sum->m_LastSampleIndex = render_profile->m_MaxSampleCount;
                 sample_sum->m_Elapsed = 0u;
                 sample_sum->m_Count = 0u;
-                render_profile->m_SampleSumSortOrder[i] = i;
             }
             uint32_t counter_count = render_profile->m_CounterLookup.Size();
             for (uint32_t i = 0; i < counter_count; ++i)
             {
-                Counter* counter = &frame->m_Counters[i];
+                TIndex counter_index = render_profile->m_CounterSortOrder[i];
+                Counter* counter = &frame->m_Counters[counter_index];
                 counter->m_Count = 0u;
             }
         }
@@ -817,8 +816,9 @@ namespace dmProfileRender
 
         for (uint32_t i = 0; i < scope_count; ++i)
         {
-            Scope* scope = &frame->m_Scopes[i];
-            ScopeStats* scope_stats = &render_profile->m_ScopeStats[i];
+            TIndex scope_index = render_profile->m_ScopeSortOrder[i];
+            Scope* scope = &frame->m_Scopes[scope_index];
+            ScopeStats* scope_stats = &render_profile->m_ScopeStats[scope_index];
 
             scope_stats->m_FilteredElapsed = (scope_stats->m_FilteredElapsed * 127 + scope->m_Elapsed) / 128u;
 
@@ -836,8 +836,9 @@ namespace dmProfileRender
 
         for (uint32_t i = 0; i < sample_sum_count; ++i)
         {
-            SampleSum* sample_sum = &frame->m_SampleSums[i];
-            SampleSumStats* sample_sum_stats = &render_profile->m_SampleSumStats[i];
+            TIndex sample_sum_index = render_profile->m_SampleSumSortOrder[i];
+            SampleSum* sample_sum = &frame->m_SampleSums[sample_sum_index];
+            SampleSumStats* sample_sum_stats = &render_profile->m_SampleSumStats[sample_sum_index];
 
             sample_sum_stats->m_FilteredElapsed = (sample_sum_stats->m_FilteredElapsed * 127 + sample_sum->m_Elapsed) / 128u;
 
@@ -855,13 +856,14 @@ namespace dmProfileRender
 
         for (uint32_t i = 0; i < counter_count; ++i)
         {
-            Counter* counter = &frame->m_Counters[i];
+            TIndex counter_index = render_profile->m_CounterSortOrder[i];
+            Counter* counter = &frame->m_Counters[counter_index];
 
             if (counter->m_Count == 0)
             {
                 continue;
             }
-            CounterStats* counter_stats = &render_profile->m_CounterStats[i];
+            CounterStats* counter_stats = &render_profile->m_CounterStats[counter_index];
 
             counter_stats->m_LastSeenTick = now_tick;
         }
@@ -870,7 +872,8 @@ namespace dmProfileRender
             uint32_t i = 0;
             while (i < scope_count)
             {
-                ScopeStats* scope_stats = &render_profile->m_ScopeStats[i];
+                TIndex scope_index = render_profile->m_ScopeSortOrder[i];
+                ScopeStats* scope_stats = &render_profile->m_ScopeStats[scope_index];
 
                 bool purge = (scope_stats->m_LastSeenTick + life_time) <= now_tick;
 
@@ -890,10 +893,11 @@ namespace dmProfileRender
             uint32_t i = 0;
             while (i < sample_sum_count)
             {
-                SampleSum* sample_sum = &frame->m_SampleSums[i];
+                TIndex sample_sum_index = render_profile->m_SampleSumSortOrder[i];
+                SampleSum* sample_sum = &frame->m_SampleSums[sample_sum_index];
                 TIndex* scope_index_ptr = render_profile->m_ScopeLookup.Get(sample_sum->m_ScopeNameHash);
 
-                SampleSumStats* sample_sum_stats = &render_profile->m_SampleSumStats[i];
+                SampleSumStats* sample_sum_stats = &render_profile->m_SampleSumStats[sample_sum_index];
                 bool purge = scope_index_ptr == 0x0 || (sample_sum_stats->m_LastSeenTick + life_time) <= now_tick;
 
                 if (purge)
@@ -912,7 +916,8 @@ namespace dmProfileRender
             uint32_t i = 0;
             while (i < counter_count)
             {
-                CounterStats* counter_stats = &render_profile->m_CounterStats[i];
+                TIndex counter_index = render_profile->m_CounterSortOrder[i];
+                CounterStats* counter_stats = &render_profile->m_CounterStats[counter_index];
 
                 bool purge = (counter_stats->m_LastSeenTick + life_time) <= now_tick;
 
@@ -957,6 +962,23 @@ namespace dmProfileRender
         }
     };
 
+    struct CounterSortPred
+    {
+        CounterSortPred(RenderProfile* render_profile)
+        : m_RenderProfile(render_profile)
+        {}
+        const RenderProfile* m_RenderProfile;
+        bool operator ()(TIndex a_index, TIndex b_index) const
+        {
+            const ProfileFrame* frame = m_RenderProfile->m_ActiveFrame;
+            const Counter& counter_a = m_RenderProfile->m_ActiveFrame->m_Counters[a_index];
+            const char *const * counter_a_name = m_RenderProfile->m_NameLookupTable.Get(counter_a.m_NameHash);
+            const Counter& counter_b = m_RenderProfile->m_ActiveFrame->m_Counters[b_index];
+            const char *const * counter_b_name = m_RenderProfile->m_NameLookupTable.Get(counter_b.m_NameHash);
+            return dmStrCaseCmp(*counter_a_name, *counter_b_name) < 0;
+        }
+    };
+
     static void SortStructure(RenderProfile* render_profile)
     {
         {
@@ -966,6 +988,10 @@ namespace dmProfileRender
         {
             uint32_t sample_sum_count = render_profile->m_SampleSumLookup.Size();
             std::stable_sort(&render_profile->m_SampleSumSortOrder[0], &render_profile->m_SampleSumSortOrder[sample_sum_count], SampleSumSortPred(render_profile));
+        }
+        {
+            uint32_t counter_count = render_profile->m_CounterLookup.Size();
+            std::sort(&render_profile->m_CounterSortOrder[0], &render_profile->m_CounterSortOrder[counter_count], CounterSortPred(render_profile));
         }
     }
 
@@ -991,6 +1017,13 @@ namespace dmProfileRender
             return;
         }
 
+        ResetFreeIndexes(render_profile->m_FreeScopes, render_profile->m_MaxScopeCount);
+        ResetFreeIndexes(render_profile->m_FreeSampleSums, render_profile->m_MaxSampleSumCount);
+        ResetFreeIndexes(render_profile->m_FreeCounters, render_profile->m_MaxCounterCount);
+        render_profile->m_FreeScopeCount = render_profile->m_MaxScopeCount;
+        render_profile->m_FreeSampleSumCount = render_profile->m_MaxSampleSumCount;
+        render_profile->m_FreeCounterCount = render_profile->m_MaxCounterCount;
+
         render_profile->m_ScopeLookup.Clear();
         for (TIndex i = 0; i < snapshot->m_ScopeCount; ++i)
         {
@@ -1013,15 +1046,19 @@ namespace dmProfileRender
             sample_stats->m_LastSeenTick = render_profile->m_NowTick;
             sample_stats->m_FilteredElapsed = sample_sum->m_Elapsed;
         }
+        render_profile->m_FreeSampleSumCount -= snapshot->m_SampleSumCount;
 
         render_profile->m_CounterLookup.Clear();
         for (TIndex i = 0; i < snapshot->m_CounterCount; ++i)
         {
             Counter* counter = &snapshot->m_Frame.m_Counters[i];
             render_profile->m_CounterLookup.Put(counter->m_NameHash, i);
+            render_profile->m_CounterSortOrder[i] = i;
             CounterStats* counter_stats = &render_profile->m_CounterStats[i];
             counter_stats->m_LastSeenTick = render_profile->m_NowTick;
         }
+        render_profile->m_FreeCounterCount -= snapshot->m_CounterCount;
+
         render_profile->m_SampleCount = snapshot->m_SampleCount;
         render_profile->m_PlaybackFrame = recorded_frame_index;
 
@@ -1301,8 +1338,9 @@ namespace dmProfileRender
 
             HslToRgb2( 4/ 16.0f, 1.0f, 0.65f, col);
             params.m_FaceColor = Vector4(col[0], col[1], col[2], 1.0f);
-            for (TIndex index = 0; index < counter_count; ++index)
+            for (TIndex sort_index = 0; sort_index < counter_count; ++sort_index)
             {
+                TIndex index = render_profile->m_CounterSortOrder[sort_index];
                 Counter* counter = &frame->m_Counters[index];
 
                 y -= LINE_SPACING;
@@ -1381,9 +1419,14 @@ namespace dmProfileRender
 
                 params.m_Text = buffer;
 
-                Scope* scope = &frame->m_Scopes[*render_profile->m_ScopeLookup.Get(sample_sum->m_ScopeNameHash)];
-                const char* scope_name = *render_profile->m_NameLookupTable.Get(scope->m_NameHash);
-                const char* sample_name = *render_profile->m_NameLookupTable.Get(sample_sum->m_SampleNameHash);
+                TIndex* scope_index_ptr = render_profile->m_ScopeLookup.Get(sample_sum->m_ScopeNameHash);
+                assert(scope_index_ptr);
+                Scope* scope = &frame->m_Scopes[*scope_index_ptr];
+                const char** scope_name_hash_ptr = render_profile->m_NameLookupTable.Get(scope->m_NameHash);
+                assert(scope_name_hash_ptr);
+                const char* scope_name = *scope_name_hash_ptr;
+                const char** sample_name_hash_ptr = render_profile->m_NameLookupTable.Get(sample_sum->m_SampleNameHash);
+                const char* sample_name = *sample_name_hash_ptr;
                 DM_SNPRINTF(buffer, SAMPLE_FRAMES_NAME_LENGTH, "%s.%s", scope_name, sample_name);
                 params.m_WorldTransform.setElem(3, 0, name_x);
                 dmRender::DrawText(render_context, font_map, 0, batch_key, params);
@@ -1417,56 +1460,71 @@ namespace dmProfileRender
     }
 
     RenderProfile::RenderProfile(
-                                 float fps,
-                                 uint32_t ticks_per_second,
-                                 uint32_t lifetime_in_seconds,
-                                 uint32_t sort_intervall_in_seconds,
-                                 TIndex max_scope_count,
-                                 TIndex max_sample_sum_count,
-                                 TIndex max_counter_count,
-                                 TIndex max_sample_count,
-                                 TIndex max_name_count,
-                                 void* scope_lookup_data,
-                                 void* sample_sum_lookup_data,
-                                 void* counter_lookup_data,
-                                 const char** name_lookup_data,
-                                 ScopeStats* scope_stats,
-                                 SampleSumStats* sample_sum_stats,
-                                 CounterStats* counter_stats,
-                                 TIndex* scope_sort_order,
-                                 TIndex* sample_sum_sort_order,
-                                 ProfileFrame* build_frame)
-    : m_FPS(fps)
-    , m_TicksPerSecond(ticks_per_second)
-    , m_LifeTime((uint32_t)(lifetime_in_seconds * ticks_per_second))
-    , m_SortInterval((uint32_t)(sort_intervall_in_seconds * ticks_per_second))
-    , m_BuildFrame(build_frame)
-    , m_ActiveFrame(m_BuildFrame)
-    , m_Mode(PROFILER_MODE_RUN)
-    , m_ViewMode(PROFILER_VIEW_MODE_FULL)
-    , m_ScopeLookup(scope_lookup_data, (max_scope_count * 2) / 3, max_scope_count * 2)
-    , m_SampleSumLookup(sample_sum_lookup_data, (max_sample_sum_count * 2) / 3, max_sample_sum_count * 2)
-    , m_CounterLookup(counter_lookup_data, (max_counter_count * 2) / 3, max_counter_count * 2)
-    , m_NameLookupTable(name_lookup_data, (max_name_count * 2) / 3, max_name_count * 2)
-    , m_ScopeStats(scope_stats)
-    , m_SampleSumStats(sample_sum_stats)
-    , m_CounterStats(counter_stats)
-    , m_ScopeSortOrder(scope_sort_order)
-    , m_SampleSumSortOrder(sample_sum_sort_order)
-    , m_NowTick(0u)
-    , m_MaxScopeCount(max_scope_count)
-    , m_MaxSampleSumCount(max_sample_sum_count)
-    , m_MaxCounterCount(max_counter_count)
-    , m_MaxSampleCount(max_sample_count)
-    , m_PlaybackFrame(-1)
-    , m_IncludeFrameWait(1)
-    , m_ScopeOverflow(0)
-    , m_SampleSumOverflow(0)
-    , m_CounterOverflow(0)
-    , m_SampleOverflow(0)
-    , m_OutOfScopes(0)
-    , m_OutOfSamples(0)
-    {}
+            float fps,
+            uint32_t ticks_per_second,
+            uint32_t lifetime_in_seconds,
+            uint32_t sort_intervall_in_seconds,
+            TIndex max_scope_count,
+            TIndex max_sample_sum_count,
+            TIndex max_counter_count,
+            TIndex max_sample_count,
+            TIndex max_name_count,
+            void* scope_lookup_data,
+            void* sample_sum_lookup_data,
+            void* counter_lookup_data,
+            void* name_lookup_data,
+            ScopeStats* scope_stats,
+            SampleSumStats* sample_sum_stats,
+            CounterStats* counter_stats,
+            TIndex* scope_sort_order,
+            TIndex* sample_sum_sort_order,
+            TIndex* counter_sort_order_data,
+            TIndex* scope_free_index_data,
+            TIndex* sample_sum_free_index_data,
+            TIndex* counter_free_index_data,
+            ProfileFrame* build_frame)
+        : m_FPS(fps)
+        , m_TicksPerSecond(ticks_per_second)
+        , m_LifeTime((uint32_t)(lifetime_in_seconds * ticks_per_second))
+        , m_SortInterval((uint32_t)(sort_intervall_in_seconds * ticks_per_second))
+        , m_BuildFrame(build_frame)
+        , m_ActiveFrame(m_BuildFrame)
+        , m_Mode(PROFILER_MODE_RUN)
+        , m_ViewMode(PROFILER_VIEW_MODE_FULL)
+        , m_ScopeLookup(scope_lookup_data, (max_scope_count * 2) / 3, max_scope_count * 2)
+        , m_SampleSumLookup(sample_sum_lookup_data, (max_sample_sum_count * 2) / 3, max_sample_sum_count * 2)
+        , m_CounterLookup(counter_lookup_data, (max_counter_count * 2) / 3, max_counter_count * 2)
+        , m_NameLookupTable(name_lookup_data, (max_name_count * 2) / 3, max_name_count * 2)
+        , m_ScopeStats(scope_stats)
+        , m_SampleSumStats(sample_sum_stats)
+        , m_CounterStats(counter_stats)
+        , m_ScopeSortOrder(scope_sort_order)
+        , m_SampleSumSortOrder(sample_sum_sort_order)
+        , m_CounterSortOrder(counter_sort_order_data)
+        , m_FreeScopes(scope_free_index_data)
+        , m_FreeSampleSums(sample_sum_free_index_data)
+        , m_FreeCounters(counter_free_index_data)
+        , m_NowTick(0u)
+        , m_FreeScopeCount(max_scope_count)
+        , m_FreeSampleSumCount(max_sample_sum_count)
+        , m_FreeCounterCount(max_counter_count)
+        , m_MaxScopeCount(max_scope_count)
+        , m_MaxSampleSumCount(max_sample_sum_count)
+        , m_MaxCounterCount(max_counter_count)
+        , m_MaxSampleCount(max_sample_count)
+        , m_PlaybackFrame(-1)
+        , m_IncludeFrameWait(1)
+        , m_ScopeOverflow(0)
+        , m_SampleSumOverflow(0)
+        , m_CounterOverflow(0)
+        , m_SampleOverflow(0)
+        , m_OutOfScopes(0)
+        , m_OutOfSamples(0)
+    {
+        ResetFreeIndexes(m_FreeScopes, m_MaxScopeCount);
+        ResetFreeIndexes(m_FreeSampleSums, m_MaxSampleSumCount);
+        ResetFreeIndexes(m_FreeCounters, m_FreeCounterCount);
+    }
 
     RenderProfile::~RenderProfile()
     {
@@ -1487,12 +1545,16 @@ namespace dmProfileRender
         const size_t scope_lookup_data_size = HASHTABLE_BUFFER_SIZE(TIndexLookupTable::Entry, (max_scope_count * 2) / 3, max_scope_count * 2);
         const size_t sample_sum_lookup_data_size = HASHTABLE_BUFFER_SIZE(TIndexLookupTable::Entry, (max_sample_sum_count * 2) / 3, max_sample_sum_count * 2);
         const size_t counter_lookup_data_size = HASHTABLE_BUFFER_SIZE(TIndexLookupTable::Entry, (max_counter_count * 2) / 3, max_counter_count * 2);
-        const size_t name_lookup_data_size = HASHTABLE_BUFFER_SIZE(const char*, (max_name_count * 2) / 3, max_name_count * 2);
+        const size_t name_lookup_data_size = HASHTABLE_BUFFER_SIZE(TNameLookupTable::Entry, (max_name_count * 2) / 3, max_name_count * 2);
         const size_t scope_stats_size = sizeof(ScopeStats) * max_scope_count;
         const size_t sample_sum_stats_size = sizeof(SampleSumStats) * max_sample_sum_count;
         const size_t counter_stats_size = sizeof(CounterStats) * max_counter_count;
         const size_t scope_sort_order_size = sizeof(TIndex) * max_scope_count;
         const size_t sample_sum_sort_order_size = sizeof(TIndex) * max_sample_sum_count;
+        const size_t counter_sort_order_size = sizeof(TIndex) * max_counter_count;
+        const size_t scope_free_index_size = sizeof(TIndex) * max_scope_count;
+        const size_t sample_sum_free_index_size = sizeof(TIndex) * max_sample_sum_count;
+        const size_t counters_free_index_size = sizeof(TIndex) * max_counter_count;
 
         size_t size = sizeof(RenderProfile) +
         scope_lookup_data_size +
@@ -1504,6 +1566,10 @@ namespace dmProfileRender
         counter_stats_size +
         scope_sort_order_size +
         sample_sum_sort_order_size +
+        counter_sort_order_size +
+        scope_free_index_size +
+        sample_sum_free_index_size +
+        counters_free_index_size +
         ProfileFrameSize(max_scope_count, max_sample_sum_count, max_counter_count, max_sample_count);
 
         uint8_t* mem = (uint8_t*)malloc(size);
@@ -1521,7 +1587,7 @@ namespace dmProfileRender
         void* counter_lookup_data = p;
         p += counter_lookup_data_size;
 
-        const char** name_lookup_data = (const char**)p;
+        void* name_lookup_data = p;
         p += name_lookup_data_size;
 
         ScopeStats* scope_stats_data = (ScopeStats*)p;
@@ -1538,6 +1604,18 @@ namespace dmProfileRender
 
         TIndex* sample_sum_sort_order_data = (TIndex*)p;
         p += sample_sum_sort_order_size;
+
+        TIndex* counter_sort_order_data = (TIndex*)p;
+        p += counter_sort_order_size;
+
+        TIndex* scope_free_index_data = (TIndex*)p;
+        p += scope_free_index_size;
+
+        TIndex* sample_sum_free_index_data = (TIndex*)p;
+        p += sample_sum_free_index_size;
+
+        TIndex* counter_free_index_data = (TIndex*)p;
+        p += counters_free_index_size;
 
         ProfileFrame* frame = CreateProfileFrame(p, max_scope_count, max_sample_sum_count, max_counter_count, max_sample_count);
 
@@ -1560,6 +1638,10 @@ namespace dmProfileRender
                                        counter_stats_data,
                                        scope_sort_order_data,
                                        sample_sum_sort_order_data,
+                                       counter_sort_order_data,
+                                       scope_free_index_data,
+                                       sample_sum_free_index_data,
+                                       counter_free_index_data,
                                        frame);
     }
 
@@ -1586,7 +1668,7 @@ namespace dmProfileRender
                                                     MAX_SCOPE_COUNT,
                                                     MAX_SAMPLE_SUM_COUNT,
                                                     MAX_COUNTER_COUNT,
-                                                    MAX_SAMPLE_COUNT); // Just shy of 230 Kb
+                                                    MAX_SAMPLE_COUNT); // About 232 Kb
 
         return profile;
     }
@@ -1615,8 +1697,11 @@ namespace dmProfileRender
                                                                 render_profile->m_NowTick,
                                                                 render_profile->m_BuildFrame,
                                                                 render_profile->m_ScopeLookup.Size(),
+                                                                render_profile->m_ScopeSortOrder,
                                                                 render_profile->m_SampleSumLookup.Size(),
+                                                                render_profile->m_SampleSumSortOrder,
                                                                 render_profile->m_CounterLookup.Size(),
+                                                                render_profile->m_CounterSortOrder,
                                                                 render_profile->m_SampleCount);
                 
                 FlushRecording(render_profile, 1);
@@ -1636,8 +1721,11 @@ namespace dmProfileRender
                                                             render_profile->m_NowTick,
                                                             render_profile->m_BuildFrame,
                                                             render_profile->m_ScopeLookup.Size(),
+                                                            render_profile->m_ScopeSortOrder,
                                                             render_profile->m_SampleSumLookup.Size(),
+                                                            render_profile->m_SampleSumSortOrder,
                                                             render_profile->m_CounterLookup.Size(),
+                                                            render_profile->m_CounterSortOrder,
                                                             render_profile->m_SampleCount);
             if (render_profile->m_RecordBuffer.Remaining() == 0)
             {
