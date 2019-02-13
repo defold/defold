@@ -392,10 +392,6 @@
   (not-empty (map (partial error-info-provider->cause project evaluation-context)
                   (map parsed-compilation-entry->ErrorInfoProvider (distinct (parse-compilation-log log project ext-manifest-file))))))
 
-(defn- try-get-multiple-compile-exception-error-causes [project evaluation-context ^MultipleCompileException exception]
-  (not-empty (mapv (partial error-info-provider->cause project evaluation-context)
-                   (.issues exception))))
-
 (defn- generic-extension-error-causes [project evaluation-context log]
   ;; This is a catch-all that simply dumps the entire log output into the Build
   ;; Errors view in case we've failed to parse more meaningful errors from it.
