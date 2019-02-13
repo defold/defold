@@ -8,10 +8,8 @@
             [dynamo.graph :as g])
   (:import [clojure.lang IExceptionInfo]
            [com.dynamo.bob CompileExceptionError LibraryException MultipleCompileException MultipleCompileException$Info Task TaskResult]
-           [com.dynamo.bob.bundle BundleHelper BundleHelper$ResourceInfo]
+           [com.dynamo.bob.bundle BundleHelper$ResourceInfo]
            [com.dynamo.bob.fs IResource]
-           [java.util ArrayList]
-           [java.io File StringReader BufferedReader]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -259,7 +257,7 @@
 
 (defn- next-compilation-line
   "Helper function for applying actions in the loop of `parse-compilation-log`."
-  [{:keys [lines current acc included-from?] :as state} line & actions]
+  [{:keys [lines current acc] :as state} line & actions]
   (let [next-state (merge state {:current line
                                  :lines (next lines)
                                  :included-from? false})]
@@ -379,10 +377,10 @@
   ErrorInfoProvider."
   [error]
   (reify ErrorInfoProvider
-    (error-message [this] (:message error))
-    (error-path [this] (:file error))
-    (error-line [this] (:line error))
-    (error-severity [this]
+    (error-message [_] (:message error))
+    (error-path [_] (:file error))
+    (error-line [_] (:line error))
+    (error-severity [_]
       (case (:type error)
         :warning :warning
         :error :fatal
