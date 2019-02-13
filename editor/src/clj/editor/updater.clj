@@ -99,7 +99,10 @@
              (:platform updater)))
 
 (defn- create-temp-zip-file ^File []
-  (.toFile (Files/createTempFile "defold-update" ".zip" (into-array FileAttribute []))))
+  (let [empty-attrs (into-array FileAttribute [])
+        file (.toFile (Files/createTempFile "defold-update" ".zip" empty-attrs))]
+    (.deleteOnExit file)
+    file))
 
 (defn- download! [url ^File zip-file track-download-progress! cancelled-atom]
   (log/info :message "Downloading update" :url url :file (.getAbsolutePath zip-file))
