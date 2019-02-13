@@ -5,13 +5,14 @@
 <?import javafx.scene.layout.*?>
 
 <VBox prefHeight="50.0"
-      prefWidth="500.0"
+      prefWidth="600.0"
       spacing="12.0"
       stylesheets="@editor.css"
       xmlns="http://javafx.com/javafx/8"
       xmlns:fx="http://javafx.com/fxml/1">
     <children>
-        <Label id="message" text="A newer version of Defold is available!" />
+        <Label id="message"
+               text="Downloaded update is ready to be installed, but there is an even newer version available." />
         <HBox spacing="12.0" alignment="CENTER_RIGHT">
             <children>
                 <Button id="cancel"
@@ -19,11 +20,14 @@
                         mnemonicParsing="false"
                         text="Not Now"
                         cancelButton="true" />
-                <Button id="ok"
+                <Button id="restart"
                         minWidth="80.0"
                         mnemonicParsing="false"
-                        text="Download"
-                        defaultButton="true" />
+                        text="Install Downloaded Update and Restart" />
+                <Button id="download"
+                        minWidth="80.0"
+                        mnemonicParsing="false"
+                        text="Download Newer Update" />
             </children>
         </HBox>
     </children>
