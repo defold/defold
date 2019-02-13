@@ -13,9 +13,28 @@ def build(bld):
     test_physics_2d = bld.new_task_gen(features = 'cxx cprogram test',
                                     source = 'test_physics_2d.cpp',
                                     uselib = 'DLIB GTEST PLATFORM_THREAD BULLET',
-                                    uselib_local = 'physics Box2D',
+                                    uselib_local = 'physics_2d Box2D',
                                     includes = ['../../../src', '../../../src/box2d'],
                                     target = 'test_physics_2d')
 
     test_physics_2d.install_path = None
+
+
+    null_test = bld.new_task_gen(features = 'cxx cprogram',
+                                    source = 'test_physics.cpp',
+                                    uselib = 'DLIB GTEST PLATFORM_THREAD',
+                                    uselib_local = 'physics_null',
+                                    includes = ['../../../src', '../../../src/box2d'],
+                                    target = 'test_physics_null')
+
+    null_test.install_path = None
+
+    null_test = bld.new_task_gen(features = 'cxx cprogram',
+                                    source = 'test_physics_2d.cpp',
+                                    uselib = 'DLIB GTEST PLATFORM_THREAD',
+                                    uselib_local = 'physics_null',
+                                    includes = ['../../../src', '../../../src/box2d'],
+                                    target = 'test_physics_2d_null')
+
+    null_test.install_path = None
 
