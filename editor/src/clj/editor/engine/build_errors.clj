@@ -184,7 +184,7 @@
   "Returns a pair [name match] for the first regex match in
   `compilation-line-patterns` where name is the keyword naming the pattern and
   match is the output from re-matches. Returns nil if no pattern matches."
-  [^String line]
+  [line]
   (some (fn [[name pattern]]
           (when-let [match (re-matches pattern line)]
             [name match]))
