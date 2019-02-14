@@ -249,7 +249,7 @@
 (defn- conj-compilation-entry
   "Conjoin current to acc (accumulator) if current is not empty and is not of
   type :unknown."
-  [current acc]
+  [acc current]
   (if (and (not-empty current)
            (not= :unknown (:type current)))
     (conj acc current)
@@ -270,7 +270,7 @@
          :included-from (assoc state :included-from? true)
          :replace-file (assoc state :current (merge (:current state) (select-keys line [:file :line])))
          :replace-type (assoc state :current (assoc (:current state) :type (:type line)))
-         :conj-entry (assoc state :acc (conj-compilation-entry current acc))))
+         :conj-entry (assoc state :acc (conj-compilation-entry acc current))))
      next-state
      actions)))
 
@@ -315,7 +315,7 @@
       (if-not lines
         (if (= :included-from (:type current))
           (conj (pop acc) (merge-compilation-messages (last acc) current))
-          (conj-compilation-entry current acc))
+          (conj-compilation-entry acc current))
         (let [line (parse-compilation-line (first lines) ext-manifest-file)
               project-resource? (contains? nodes-by-resource-path (:file line))
               ;; Make sure we point to a project file always. For errors that
