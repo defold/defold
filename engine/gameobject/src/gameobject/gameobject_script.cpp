@@ -153,7 +153,6 @@ namespace dmGameObject
     : m_Instances()
     , m_ScriptWorld(0x0)
     {
-        // TODO: How to configure? It should correspond to collection instance count
         m_Instances.SetCapacity(max_instance_count);
     }
 
