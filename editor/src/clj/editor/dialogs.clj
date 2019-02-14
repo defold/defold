@@ -20,8 +20,7 @@
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
            [javafx.scene.control CheckBox Button Label ListView TextArea TextField Hyperlink]
-           [javafx.scene.input KeyCode KeyEvent]
-           [javafx.scene.input KeyEvent]
+           [javafx.scene.input KeyCode]
            [javafx.scene.layout HBox VBox Region]
            [javafx.scene.text Text TextFlow]
            [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]
@@ -142,45 +141,88 @@
   ([text]
    (make-confirm-dialog text {}))
   ([text options]
-   (let [root     ^Region (ui/load-fxml "confirm.fxml")
-         stage    (if-let [owner-window (:owner-window options)]
-                    (ui/make-dialog-stage owner-window)
-                    (ui/make-dialog-stage))
-         scene    (Scene. root)
-         result   (atom false)]
+   (let [root ^Region (ui/load-fxml "confirm.fxml")
+         stage (if-let [owner-window (:owner-window options)]
+                 (ui/make-dialog-stage owner-window)
+                 (ui/make-dialog-stage))
+         scene (Scene. root)
+         result-atom (atom false)]
      (ui/with-controls root [^Label message ^Button ok ^Button cancel]
        (ui/text! message text)
        (ui/text! ok (get options :ok-label "OK"))
-       (.setDefaultButton ok true)
        (ui/text! cancel (get options :cancel-label "Cancel"))
-       (.setCancelButton cancel true)
        (ui/on-action! ok (fn [_]
-                           (reset! result true)
-                           (.close stage)))
+                           (reset! result-atom true)
+                           (ui/close! stage)))
        (ui/on-action! cancel (fn [_]
-                               (.close stage))))
+                               (ui/close! stage))))
      (when-let [pref-width (:pref-width options)]
        (.setPrefWidth root pref-width))
      (ui/title! stage (get options :title "Please Confirm"))
      (.setScene stage scene)
      (ui/show-and-wait! stage)
-     @result)))
+     @result-atom)))
 
-(defn make-pending-update-dialog
-  [^Stage owner]
+(defn make-update-failed-dialog [^Stage owner]
+  (let [root ^Parent (ui/load-fxml "update-failed-alert.fxml")
+        stage (ui/make-dialog-stage owner)
+        scene (Scene. root)]
+    (ui/title! stage "Update failed")
+    (ui/with-controls root [^Button quit ^Button open-site]
+      (ui/on-action! quit
+        (fn [_]
+          (ui/close! stage)))
+      (ui/on-action! open-site
+        (fn [_]
+          (ui/open-url "https://www.defold.com/")
+          (ui/close! stage))))
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)))
+
+(defn make-download-update-or-restart-dialog [^Stage owner]
+  (let [root ^Parent (ui/load-fxml "update-or-restart-alert.fxml")
+        stage (ui/make-dialog-stage owner)
+        scene (Scene. root)
+        result-atom (atom nil)
+        make-action-fn (fn action! [result]
+                         (fn [_]
+                           (reset! result-atom result)
+                           (ui/close! stage)))]
+    (ui/title! stage "Update Available")
+    (ui/with-controls root [^Button cancel ^Button restart ^Button download]
+      (ui/on-action! cancel (make-action-fn :cancel))
+      (ui/on-action! restart (make-action-fn :restart))
+      (ui/on-action! download (make-action-fn :download)))
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+    @result-atom))
+
+(defn make-platform-no-longer-supported-dialog [^Stage owner]
+  (let [root ^Parent (ui/load-fxml "platform-no-longer-supported-alert.fxml")
+        stage (ui/make-dialog-stage owner)
+        scene (Scene. root)]
+    (ui/title! stage "Update Available")
+    (ui/with-controls root [^Button close]
+      (ui/on-action! close (fn on-close! [_]
+                             (ui/close! stage))))
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)))
+
+(defn make-download-update-dialog [^Stage owner]
   (let [root ^Parent (ui/load-fxml "update-alert.fxml")
         stage (ui/make-dialog-stage owner)
         scene (Scene. root)
-        result (atom false)]
+        result-atom (atom false)]
     (ui/title! stage "Update Available")
     (ui/with-controls root [^Button ok ^Button cancel]
-      (.setDefaultButton ok true)
-      (ui/on-action! ok (fn on-ok! [_] (reset! result true) (.close stage)))
-      (.setCancelButton cancel true)
-      (ui/on-action! cancel (fn on-cancel! [_] (.close stage))))
+      (ui/on-action! ok (fn on-ok! [_]
+                          (reset! result-atom true)
+                          (ui/close! stage)))
+      (ui/on-action! cancel (fn on-cancel! [_]
+                              (ui/close! stage))))
     (.setScene stage scene)
     (ui/show-and-wait! stage)
-    @result))
+    @result-atom))
 
 (handler/defhandler ::report-error :dialog
   (run [sentry-id-promise]

@@ -14,6 +14,21 @@
   -fx-padding: 0 0 33px 0;
 }
 
+#startup-tip > .text {
+  -fx-fill: #8f9296;
+  -fx-padding: 0;
+}
+
+#startup-tip > .hyperlink {
+  -fx-text-fill: #5BC0FF;
+  -fx-border-width: 0;
+  -fx-padding: 0;
+}
+
+#startup-tip > .hyperlink:hover {
+  -fx-text-fill: #89d2ff;
+}
+
 /* See modena.css for progress bar styling */
 .progress-bar {
   -fx-background-color: transparent;

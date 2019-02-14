@@ -178,6 +178,14 @@ static int Push_Schedule(lua_State* L)
     const char* payload = 0;
     if (top > 3) {
         payload = luaL_checkstring(L, 4);
+
+        // Verify that the payload is valid and can be delivered later on.
+        char payload_err[128];
+        if (!dmPush::VerifyPayload(L, payload, payload_err, sizeof(payload_err))) {
+            lua_pushnil(L);
+            lua_pushstring(L, payload_err);
+            return 2;
+        }
     }
 
     // param: notification_settings
@@ -644,6 +652,7 @@ void HandlePushMessageResult(const Command* cmd, bool local)
 
         dmScript::PCall(L, 4, 0);
     } else {
+        lua_pop(L, 2);
         dmLogError("Failed to parse push response (%d)", r);
     }
     dmJson::Free(&doc);
