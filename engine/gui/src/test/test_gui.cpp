@@ -120,11 +120,11 @@ static void CreateTestSkin(dmRigDDF::MeshSet* mesh_set, int mesh_entry_index, dm
     mesh.m_MeshColor[10]              = color.getZ();
     mesh.m_MeshColor[11]              = color.getW();
 
-    mesh.m_Indices.m_Data         = new uint32_t[vert_count];
-    mesh.m_Indices.m_Count        = vert_count;
-    mesh.m_Indices.m_Data[0]      = 0;
-    mesh.m_Indices.m_Data[1]      = 1;
-    mesh.m_Indices.m_Data[2]      = 2;
+    mesh.m_PositionIndices.m_Data     = new uint32_t[vert_count];
+    mesh.m_PositionIndices.m_Count    = vert_count;
+    mesh.m_PositionIndices.m_Data[0]  = 0;
+    mesh.m_PositionIndices.m_Data[1]  = 1;
+    mesh.m_PositionIndices.m_Data[2]  = 2;
     mesh.m_BoneIndices.m_Data     = new uint32_t[vert_count*4];
     mesh.m_BoneIndices.m_Count    = vert_count*4;
     mesh.m_BoneIndices.m_Data[0]  = 0;
@@ -608,11 +608,11 @@ private:
             if (mesh.m_Normals.m_Count > 0)          { delete [] mesh.m_Normals.m_Data; }
             if (mesh.m_BoneIndices.m_Count > 0)      { delete [] mesh.m_BoneIndices.m_Data; }
             if (mesh.m_Weights.m_Count > 0)          { delete [] mesh.m_Weights.m_Data; }
-            if (mesh.m_Indices.m_Count > 0)          { delete [] mesh.m_Indices.m_Data; }
             if (mesh.m_MeshColor.m_Count > 0)            { delete [] mesh.m_MeshColor.m_Data; }
             if (mesh.m_Texcoord0Indices.m_Count > 0) { delete [] mesh.m_Texcoord0Indices.m_Data; }
             if (mesh.m_Texcoord0.m_Count > 0)        { delete [] mesh.m_Texcoord0.m_Data; }
             if (mesh.m_Positions.m_Count > 0)        { delete [] mesh.m_Positions.m_Data; }
+            if (mesh.m_PositionIndices.m_Count > 0)  { delete [] mesh.m_PositionIndices.m_Data; }
         }
         delete [] m_MeshSet->m_MeshAttachments.m_Data;
 
@@ -628,7 +628,6 @@ private:
                 if (mesh_slot.m_SlotColor.m_Count > 0) { delete [] mesh_slot.m_SlotColor.m_Data; }
             }
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data;
-
         }
         delete [] m_MeshSet->m_MeshEntries.m_Data;
 
@@ -5190,11 +5189,11 @@ static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
             if (mesh.m_Normals.m_Count > 0)          { delete [] mesh.m_Normals.m_Data; }
             if (mesh.m_BoneIndices.m_Count > 0)      { delete [] mesh.m_BoneIndices.m_Data; }
             if (mesh.m_Weights.m_Count > 0)          { delete [] mesh.m_Weights.m_Data; }
-            if (mesh.m_Indices.m_Count > 0)          { delete [] mesh.m_Indices.m_Data; }
             if (mesh.m_MeshColor.m_Count > 0)            { delete [] mesh.m_MeshColor.m_Data; }
             if (mesh.m_Texcoord0Indices.m_Count > 0) { delete [] mesh.m_Texcoord0Indices.m_Data; }
             if (mesh.m_Texcoord0.m_Count > 0)        { delete [] mesh.m_Texcoord0.m_Data; }
             if (mesh.m_Positions.m_Count > 0)        { delete [] mesh.m_Positions.m_Data; }
+            if (mesh.m_PositionIndices.m_Count > 0)  { delete [] mesh.m_PositionIndices.m_Data; }
         }
         delete [] dummy_data->m_MeshSet->m_MeshAttachments.m_Data;
 
@@ -5209,7 +5208,6 @@ static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
                 if (mesh_slot.m_SlotColor.m_Count > 0) { delete [] mesh_slot.m_SlotColor.m_Data; }
             }
             delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data;
-
         }
         delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data;
     }

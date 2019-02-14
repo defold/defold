@@ -163,7 +163,7 @@ namespace dmScript
     void RegisterScriptExtension(HContext context, HScriptExtension script_extension);
 
     /**
-     * Updates the extensions initalized in this script context.
+     * Updates the script extensions initalized in this script context.
      * @param context script contetx
      */
     void Update(HContext context);
@@ -629,6 +629,8 @@ namespace dmScript
      */
     lua_State* GetLuaState(HContext context);
 
+    dmConfigFile::HConfig GetConfigFile(HContext context);
+
     /**
      * Add (load) module
      * @param context script context
@@ -769,6 +771,25 @@ namespace dmScript
      * The function takes care of setting up and restoring the current instance.
      */
     bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context);
+
+    /** Information about a function, in which file and at what line it is defined
+     * Use with GetLuaFunctionRefInfo
+     */
+    struct LuaFunctionInfo
+    {
+        const char* m_FileName;
+        const char* m_OptionalName;
+        int m_LineNumber;
+    };
+
+    /**
+     * Get information about where a Lua function is defined
+     * @param L lua state
+     * @param stack_index which index on the stack that contains the lua function ref
+     * @param out_function_info pointer to the function information that is filled out
+     * @return true on success, out_function_info is only touched if the function succeeds
+     */
+    bool GetLuaFunctionRefInfo(lua_State* L, int stack_index, LuaFunctionInfo* out_function_info);
 
     /**
      * Get an integer value at a specific key in a table.

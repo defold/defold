@@ -551,8 +551,9 @@
     (testing "uses shader and texture params from assigned material "
       (with-prop [node-id material-prop (workspace/resolve-workspace-resource workspace "/materials/test_samplers.material")]
         (let [scene-data (g/node-value node-id :scene)]
-          (is (= (get-in scene-data shader-path)
-                 (g/node-value material-node :shader)))
+          ;; Additional uniforms might be introduced during rendering.
+          (is (= (dissoc (get-in scene-data shader-path) :uniforms)
+                 (dissoc (g/node-value material-node :shader) :uniforms)))
           (is (= (get-in scene-data (conj gpu-texture-path :params))
-                   (material/sampler->tex-params  (first (g/node-value material-node :samplers))))))))))
+                   (material/sampler->tex-params (first (g/node-value material-node :samplers))))))))))
 

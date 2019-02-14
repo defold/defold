@@ -35,8 +35,7 @@
 
 (defn as-int-buffer ^IntBuffer [^ByteBuffer b] (.asIntBuffer b))
 
-(defn ^ByteBuffer copy-buffer
-  [^ByteBuffer b]
+(defn copy-buffer ^ByteBuffer [^ByteBuffer b]
   (let [sz      (.capacity b)
         clone   (if (.isDirect b) (ByteBuffer/allocateDirect sz) (ByteBuffer/allocate sz))
         ro-copy (.asReadOnlyBuffer b)]

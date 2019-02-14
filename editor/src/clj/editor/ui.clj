@@ -113,20 +113,19 @@
 (defn set-main-stage [main-stage]
   (reset! *main-stage* main-stage))
 
-(defn ^Stage main-stage []
+(defn main-stage ^Stage []
   @*main-stage*)
 
-(defn ^Scene main-scene []
+(defn main-scene ^Scene []
   (.. (main-stage) (getScene)))
 
-(defn ^Node main-root []
+(defn main-root ^Node []
   (.. (main-scene) (getRoot)))
 
-(defn- ^MenuBar main-menu-id []
+(defn- main-menu-id ^MenuBar []
   (:menu-id (user-data (main-root) ::menubar)))
 
-(defn node-with-id
-  ^Node [id nodes]
+(defn node-with-id ^Node [id nodes]
   (some (fn [^Node node]
           (when (= id (.getId node))
             node))
@@ -1147,8 +1146,8 @@
 (defn- make-menu-items [^Scene scene menu command-contexts command->shortcut]
   (keep (fn [item] (make-menu-item scene item command-contexts command->shortcut)) menu))
 
-(defn- ^ContextMenu make-context-menu [menu-items]
-  (let [^ContextMenu context-menu (ContextMenu.)]
+(defn- make-context-menu ^ContextMenu [menu-items]
+  (let [context-menu (ContextMenu.)]
     (.addAll (.getItems context-menu) (to-array menu-items))
     context-menu))
 
