@@ -240,6 +240,11 @@
   (or (validation/prop-error :fatal node-id :path validation/prop-nil? resource "Path")
       (validation/prop-error :fatal node-id :path validation/prop-resource-not-exists? resource "Path")))
 
+(defn- substitute-error [val-or-error substitute]
+  (if-not (g/error? val-or-error)
+    val-or-error
+    substitute))
+
 (g/defnode ReferencedGOInstanceNode
   (inherits GameObjectInstanceNode)
 
@@ -271,9 +276,9 @@
                              (g/override go-node {:traverse? or-go-traverse?}
                                          (fn [evaluation-context id-mapping]
                                            (let [or-node (get id-mapping go-node)
-                                                 component-ids (g/node-value go-node :component-ids evaluation-context)
+                                                 component-ids (substitute-error (g/node-value go-node :component-ids evaluation-context) {})
                                                  id-mapping (fn [id]
-                                                              (-> id
+                                                              (some-> id
                                                                 component-ids
                                                                 (g/node-value :source-id evaluation-context)
                                                                 id-mapping))]
@@ -292,7 +297,8 @@
                                                  (g/connect self from or-node to))
                                                (for [[id p] component-overrides
                                                      [key [type value]] p
-                                                     :let [comp-id (id-mapping id)]]
+                                                     :let [comp-id (id-mapping id)]
+                                                     :when (some? comp-id)]
                                                  (let [refd-component (component-ids id)
                                                        refd-component-props (:properties (g/node-value refd-component :_properties evaluation-context))
                                                        original-type (get-in refd-component-props [key :type])
@@ -506,11 +512,11 @@
                (when-some [{connect-tx-data :tx-data coll-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
                  (concat
                    connect-tx-data
-                   (g/override coll-node {:tranverse? or-coll-traverse?}
+                   (g/override coll-node {:traverse? or-coll-traverse?}
                                (fn [evaluation-context id-mapping]
-                                 (let [go-inst-ids (g/node-value coll-node :go-inst-ids evaluation-context)
+                                 (let [go-inst-ids (substitute-error (g/node-value coll-node :go-inst-ids evaluation-context) {})
                                        component-overrides (for [{:keys [id properties]} (:overrides new-value)
-                                                                 :let [comp-ids (-> id
+                                                                 :let [comp-ids (some-> id
                                                                                   go-inst-ids
                                                                                   (g/node-value :source-id evaluation-context)
                                                                                   (g/node-value :component-ids evaluation-context))]
@@ -702,8 +708,10 @@
   (run [selection workspace project app-view]
        (if-let [coll-node (selection->collection selection)]
          (let [ext           "collection"
-               resource-type (workspace/get-resource-type workspace ext)]
-           (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext ext :title "Select Collection File"}))]
+               resource-type (workspace/get-resource-type workspace ext)
+               coll-node-path (resource/proj-path (g/node-value coll-node :resource))
+               accept (fn [x] (not= (resource/proj-path x) coll-node-path))]
+           (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext ext :title "Select Collection File" :accept-fn accept}))]
              (let [base (resource/base-name resource)
                    id (gen-instance-id coll-node base)
                    op-seq (gensym)

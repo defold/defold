@@ -74,6 +74,18 @@ public class BundleHelperTest {
     }
 
     @Test
+    public void testProjectNameToBinaryName() {
+        assertEquals("dmengine", BundleHelper.projectNameToBinaryName(""));
+        assertEquals("dmengine", BundleHelper.projectNameToBinaryName(" "));
+        assertEquals("dmengine", BundleHelper.projectNameToBinaryName("åäö"));
+        assertEquals("dmengine", BundleHelper.projectNameToBinaryName("Лорем ипсум"));
+        assertEquals("test_project", BundleHelper.projectNameToBinaryName("test_projectЛорем ипсум"));
+        assertEquals("test_project", BundleHelper.projectNameToBinaryName("test_project"));
+        assertEquals("testproject", BundleHelper.projectNameToBinaryName("test project"));
+        assertEquals("testproject", BundleHelper.projectNameToBinaryName("test\nproject"));
+    }
+
+    @Test
     public void testErrorLog() throws IOException {
 
         {
@@ -132,6 +144,8 @@ public class BundleHelperTest {
 
             assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 17, "error", "unknown type name 'ubar'\nubar g_foo = 0;"));
             assertEquals(true, checkIssue(issues, null, 1, "error", "Undefined symbols for architecture arm64:\n  \"__Z6Foobarv\", referenced from:\n      __ZL22AppInitializeExtensionPN11dmExtension9AppParamsE in lib44391c30-91a4-4faf-aef6-2dbc429af9ed.a(main.cpp_0.o)"));
+            assertEquals(true, checkIssue(issues, null, 1, "error", "Invalid Defold SDK: 'b2ef3a19802728e76adf84d51d02e11d636791a3'"));
+            assertEquals(true, checkIssue(issues, null, 1, "error", "Missing library 'engine'"));
         }
 
         {

@@ -184,6 +184,9 @@ TEST_F(FactoryTest, FactoryProperties)
     lua_pushliteral(L, "quat");
     dmScript::PushQuat(L, Quat(18, 19, 20, 21));
     lua_rawset(L, -3);
+    lua_pushliteral(L, "bool");
+    lua_pushboolean(L, 1);
+    lua_rawset(L, -3);
     char buffer[256];
     uint32_t buffer_size = dmScript::CheckTable(L, buffer, 256, -1);
     lua_pop(L, 1);

@@ -79,7 +79,17 @@ namespace dmRender
         {
             dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type);
             int32_t location = dmGraphics::GetUniformLocation(m->m_Program, buffer);
-            assert(location != -1);
+
+            // DEF-2971-hotfix
+            // Previously this check was an assert. In Emscripten 1.38.3 they made changes
+            // to how uniforms are collected and reported back from WebGL. Simply speaking
+            // in previous Emscripten versions you would get "valid" locations for uniforms
+            // that wasn't used, but after the upgrade these unused uniforms will return -1
+            // as location instead. The fix here is to avoid asserting on such values, but
+            // not saving them in the m_Constants and m_NameHashToLocation structs.
+            if (location == -1) {
+                continue;
+            }
             dmhash_t name_hash = dmHashString64(buffer);
 
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
@@ -187,6 +197,14 @@ namespace dmRender
                 {
                     {
                         Matrix4 world_view = render_context->m_View * ro->m_WorldTransform;
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view, location);
+                    }
+                    break;
+                }
+                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ:
+                {
+                    {
+                        Matrix4 world_view = render_context->m_ViewProj * ro->m_WorldTransform;
                         dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view, location);
                     }
                     break;
@@ -380,6 +398,16 @@ namespace dmRender
     uint32_t GetMaterialTagMask(HMaterial material)
     {
         return material->m_TagMask;
+    }
+
+    void SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space)
+    {
+        material->m_VertexSpace = vertex_space;
+    }
+
+    dmRenderDDF::MaterialDesc::VertexSpace GetMaterialVertexSpace(HMaterial material)
+    {
+        return material->m_VertexSpace;
     }
 
     static uint32_t ConvertTagToBitfield(dmhash_t tag)

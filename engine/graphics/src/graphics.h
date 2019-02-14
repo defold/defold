@@ -5,6 +5,8 @@
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include <dmsdk/graphics/graphics.h>
+#include <ddf/ddf.h>
+#include <graphics/graphics_ddf.h>
 
 #if defined(__AVM2__)
 #include "flash/graphics_flash_defines.h"
@@ -101,6 +103,13 @@ namespace dmGraphics
         TYPE_FLOAT_MAT4     = DMGRAPHICS_TYPE_FLOAT_MAT4,
         TYPE_SAMPLER_2D     = DMGRAPHICS_TYPE_SAMPLER_2D,
         TYPE_SAMPLER_CUBE   = DMGRAPHICS_TYPE_SAMPLER_CUBE,
+    };
+
+    // Index buffer format
+    enum IndexBufferFormat
+    {
+        INDEXBUFFER_FORMAT_16 = 0,
+        INDEXBUFFER_FORMAT_32 = 1,
     };
 
     // Texture format
@@ -420,6 +429,13 @@ namespace dmGraphics
     void Finalize();
 
     /**
+     * Get the window refresh rate
+     * @params context Graphics context handle
+     * @return The window refresh rate, 0 if refresh rate ciuld not be read.
+     */
+    uint32_t GetWindowRefreshRate(HContext context);
+
+    /**
      * Open a window
      * @param context Graphics context handle
      * @param params Window parameters
@@ -548,6 +564,7 @@ namespace dmGraphics
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
     void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);
     bool UnmapIndexBuffer(HIndexBuffer buffer);
+    bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format);
     uint32_t GetMaxElementsIndices(HContext context);
 
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count);
@@ -569,6 +586,8 @@ namespace dmGraphics
     bool ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size);
     void DeleteVertexProgram(HVertexProgram prog);
     void DeleteFragmentProgram(HFragmentProgram prog);
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context);
+    void* GetShaderProgramData(HContext context, dmGraphics::ShaderDesc* ddf, uint32_t& data_len);
 
     void EnableProgram(HContext context, HProgram program);
     void DisableProgram(HContext context);
@@ -599,8 +618,7 @@ namespace dmGraphics
 
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT]);
     void DeleteRenderTarget(HRenderTarget render_target);
-    void EnableRenderTarget(HContext context, HRenderTarget render_target);
-    void DisableRenderTarget(HContext context, HRenderTarget render_target);
+    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
     HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type);
     void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);

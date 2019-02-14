@@ -283,7 +283,6 @@ namespace dmResourceArchive
             ++filename_count;
         }
 
-        uint32_t entry_count = 0, entry_offset = 0, hash_len = 0, hash_offset = 0, hash_total_size = 0, entries_total_size = 0;
         FILE* f_index = fopen(index_file_path, "rb");
         FILE* f_data = 0;
         FILE* f_lu_data = 0;
@@ -317,14 +316,13 @@ namespace dmResourceArchive
             return RESULT_VERSION_MISMATCH;
         }
 
-        entry_count = JAVA_TO_C(ai->m_EntryDataCount);
-        entry_offset = JAVA_TO_C(ai->m_EntryDataOffset);
-        hash_len = JAVA_TO_C(ai->m_HashLength);
-        hash_offset = JAVA_TO_C(ai->m_HashOffset);
+        uint32_t entry_count = JAVA_TO_C(ai->m_EntryDataCount);
+        uint32_t entry_offset = JAVA_TO_C(ai->m_EntryDataOffset);
+        uint32_t hash_offset = JAVA_TO_C(ai->m_HashOffset);
 
         fseek(f_index, hash_offset, SEEK_SET);
         aic->m_Hashes = new uint8_t[entry_count * DMRESOURCE_MAX_HASH];
-        hash_total_size = entry_count * DMRESOURCE_MAX_HASH;
+        uint32_t hash_total_size = entry_count * DMRESOURCE_MAX_HASH;
         if (fread(aic->m_Hashes, 1, hash_total_size, f_index) != hash_total_size)
         {
             CleanupResources(f_index, f_data, f_lu_data, aic);
@@ -333,7 +331,7 @@ namespace dmResourceArchive
 
         fseek(f_index, entry_offset, SEEK_SET);
         aic->m_Entries = new EntryData[entry_count];
-        entries_total_size = entry_count * sizeof(EntryData);
+        uint32_t entries_total_size = entry_count * sizeof(EntryData);
         if (fread(aic->m_Entries, 1, entries_total_size, f_index) != entries_total_size)
         {
             CleanupResources(f_index, f_data, f_lu_data, aic);
@@ -585,8 +583,8 @@ namespace dmResourceArchive
         {
             /// --- WRITE RESOURCE START
             // Write buf to resource file before creating EntryData instance
-            uint32_t bytes_written;
-            uint32_t offs;
+            uint32_t bytes_written = 0;
+            uint32_t offs = 0;
             Result write_res = WriteResourceToArchive(archive_container, (uint8_t*)resource->m_Data, resource->m_Count, bytes_written, offs);
             if (write_res != RESULT_OK)
             {
@@ -656,7 +654,12 @@ namespace dmResourceArchive
         char lu_index_path[DMPATH_MAX_PATH];
         char lu_index_tmp_path[DMPATH_MAX_PATH];
 
-        dmSys::GetApplicationSupportPath(proj_id, app_support_path, DMPATH_MAX_PATH);
+        dmSys::Result support_path_result = dmSys::GetApplicationSupportPath(proj_id, app_support_path, DMPATH_MAX_PATH);
+        if (support_path_result != dmSys::RESULT_OK)
+        {
+            dmLogError("Failed get application support path for \"%s\", result = %i", proj_id, support_path_result);
+            return RESULT_NOT_FOUND;
+        }
         dmPath::Concat(app_support_path, "liveupdate.arci", lu_index_path, DMPATH_MAX_PATH);
         CreateFilesIfNotExists(archive_container, lu_index_path);
 

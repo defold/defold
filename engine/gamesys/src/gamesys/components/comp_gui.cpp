@@ -401,8 +401,23 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < scene_resource->m_GuiTextureSets.Size(); ++i)
         {
             const char* name = scene_desc->m_Textures[i].m_Name;
+
+            void* texture_source;
             dmGraphics::HTexture texture = scene_resource->m_GuiTextureSets[i].m_Texture;
-            dmGui::Result r = dmGui::AddTexture(scene, name, (void*) texture, (void*) scene_resource->m_GuiTextureSets[i].m_TextureSet, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
+            dmGui::NodeTextureType texture_source_type;
+
+            if (scene_resource->m_GuiTextureSets[i].m_TextureSet)
+            {
+                texture_source_type = dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET;
+                texture_source      = (void*)scene_resource->m_GuiTextureSets[i].m_TextureSet;
+            }
+            else
+            {
+                texture_source_type = dmGui::NODE_TEXTURE_TYPE_TEXTURE;
+                texture_source      = (void*)texture;
+            }
+
+            dmGui::Result r = dmGui::AddTexture(scene, name, texture_source, texture_source_type, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add texture '%s' to scene (%d)", name,  r);
                 return false;
@@ -738,6 +753,22 @@ namespace dmGameSystem
         ApplyStencilClipping(gui_context, state, params.m_StencilTestParams);
     }
 
+    static dmGraphics::HTexture GetNodeTexture(dmGui::HScene scene, dmGui::HNode node)
+    {
+        dmGui::NodeTextureType texture_type;
+        void* result = dmGui::GetNodeTexture(scene, node, &texture_type);
+
+        if (texture_type == dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET)
+        {
+            TextureSetResource* texture_set_res = (TextureSetResource*) result;
+            assert(texture_set_res);
+
+            return texture_set_res->m_Texture;
+        }
+
+        return (dmGraphics::HTexture) result;
+    }
+
     void RenderTextNodes(dmGui::HScene scene,
                          const dmGui::RenderEntry* entries,
                          const Matrix4* node_transforms,
@@ -868,9 +899,11 @@ namespace dmGameSystem
             vertex_count += dmParticle::GetEmitterVertexCount(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex);
 
             dmTransform::Transform transform = dmTransform::ToTransform(node_transforms[i]);
+            // Particlefx nodes have uniformly scaled x/y values from adjust mode, we use x here but y would be fine too.
+            float scale = transform.GetScalePtr()[0];
             dmParticle::SetPosition(gui_world->m_ParticleContext, emitter_render_data->m_Instance, Point3(transform.GetTranslation()));
             dmParticle::SetRotation(gui_world->m_ParticleContext, emitter_render_data->m_Instance, transform.GetRotation());
-            dmParticle::SetScale(gui_world->m_ParticleContext, emitter_render_data->m_Instance, transform.GetUniformScale());
+            dmParticle::SetScale(gui_world->m_ParticleContext, emitter_render_data->m_Instance, scale);
         }
 
         vertex_count = dmMath::Min(vertex_count, vb_max_size / (uint32_t)sizeof(ParticleGuiVertex));
@@ -977,9 +1010,9 @@ namespace dmGameSystem
         ApplyStencilClipping(gui_context, stencil_scopes[0], ro);
 
         // Set default texture
-        void* texture = dmGui::GetNodeTexture(scene, first_node);
+        dmGraphics::HTexture texture = dmGameSystem::GetNodeTexture(scene, first_node);
         if (texture) {
-            ro.m_Textures[0] = (dmGraphics::HTexture) texture;
+            ro.m_Textures[0] = texture;
         } else {
             ro.m_Textures[0] = gui_world->m_WhiteTexture;
         }
@@ -1048,9 +1081,9 @@ namespace dmGameSystem
         ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
 
         // Set default texture
-        void* texture = dmGui::GetNodeTexture(scene, first_node);
+        dmGraphics::HTexture texture = dmGameSystem::GetNodeTexture(scene, first_node);
         if (texture)
-            ro.m_Textures[0] = (dmGraphics::HTexture) texture;
+            ro.m_Textures[0] = texture;
         else
             ro.m_Textures[0] = gui_world->m_WhiteTexture;
 
@@ -1269,9 +1302,9 @@ namespace dmGameSystem
         ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
 
         // Set default texture
-        void* texture = dmGui::GetNodeTexture(scene, first_node);
+        dmGraphics::HTexture texture = dmGameSystem::GetNodeTexture(scene, first_node);
         if (texture)
-            ro.m_Textures[0] = (dmGraphics::HTexture) texture;
+            ro.m_Textures[0] = texture;
         else
             ro.m_Textures[0] = gui_world->m_WhiteTexture;
 
@@ -1450,7 +1483,7 @@ namespace dmGameSystem
         dmGui::HNode first_node = entries[0].m_Node;
         dmGui::BlendMode prev_blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         dmGui::NodeType prev_node_type = dmGui::GetNodeType(scene, first_node);
-        void* prev_texture = dmGui::GetNodeTexture(scene, first_node);
+        dmGraphics::HTexture prev_texture = dmGameSystem::GetNodeTexture(scene, first_node);
         void* prev_font = dmGui::GetNodeFont(scene, first_node);
         const dmGui::StencilScope* prev_stencil_scope = stencil_scopes[0];
         uint32_t prev_emitter_batch_key = 0;
@@ -1473,7 +1506,7 @@ namespace dmGameSystem
 
             dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, node);
             dmGui::NodeType node_type = dmGui::GetNodeType(scene, node);
-            void* texture = dmGui::GetNodeTexture(scene, node);
+            dmGraphics::HTexture texture = dmGameSystem::GetNodeTexture(scene, node);
             void* font = dmGui::GetNodeFont(scene, node);
             const dmGui::StencilScope* stencil_scope = stencil_scopes[i];
             uint32_t emitter_batch_key = 0;
@@ -1656,7 +1689,7 @@ namespace dmGameSystem
         out_data->m_MeshSet = rig_res->m_MeshSetRes->m_MeshSet;
         out_data->m_AnimationSet = rig_res->m_AnimationSetRes->m_AnimationSet;
         out_data->m_Texture = rig_res->m_TextureSet->m_Texture;
-        out_data->m_TextureSet = rig_res->m_TextureSet->m_TextureSet;
+        out_data->m_TextureSet = rig_res->m_TextureSet;
         out_data->m_PoseIdxToInfluence = &rig_res->m_PoseIdxToInfluence;
         out_data->m_TrackIdxToPose     = &rig_res->m_TrackIdxToPose;
 

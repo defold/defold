@@ -662,16 +662,19 @@
                         [(c 0 3) (c 0 11)]
                         "\n")))))
 
-(defn- append-distinct-lines [lines regions new-lines]
-  (data/append-distinct-lines lines regions new-lines))
+(defn- append-distinct-lines
+  ([lines regions new-lines]
+   (append-distinct-lines lines regions new-lines (constantly nil)))
+  ([lines regions new-lines sub-regions-fn]
+   (data/append-distinct-lines lines regions new-lines sub-regions-fn)))
 
 (defn- repeat-region [row line repeat-count]
   (assoc (cr [row 0] [row (count line)])
     :type :repeat
     :count repeat-count))
 
-(defn- other-region [row line]
-  (assoc (cr [row 0] [row (count line)])
+(defn- other-region [row col text]
+  (assoc (cr [row col] [row (+ col (count text))])
     :type :other))
 
 (deftest append-distinct-lines-test
@@ -680,9 +683,16 @@
             :regions []}
            (append-distinct-lines ["a"] [] ["b"]))))
 
+  (testing "Invalidates first row when appending to empty document"
+    (is (= {:lines ["first"]
+            :regions []
+            :invalidated-row 0}
+           (append-distinct-lines [""] [] ["first"]))))
+
   (testing "Creates repeat region instead of appending duplicate lines"
     (is (= {:lines ["a"]
-            :regions []}
+            :regions []
+            :invalidated-row 0}
            (append-distinct-lines [""] [] ["a"])))
     (is (= {:lines ["a"]
             :regions [(repeat-region 0 "a" 2)]}
@@ -696,22 +706,59 @@
             :regions [(repeat-region 1 "boo" 3)]}
            (append-distinct-lines ["a" "boo"] [(repeat-region 1 "boo" 2)] ["boo"]))))
 
+  (testing "Creates new repeat region if previous repeat region didn't match"
+    (is (= {:lines ["one" "two"]
+            :regions [(repeat-region 0 "one" 2)
+                      (repeat-region 1 "two" 2)]}
+           (append-distinct-lines ["one" "two"]
+                                  [(repeat-region 0 "one" 2)]
+                                  ["two"]))))
+
   (testing "Other regions present"
     (is (= {:lines ["a" "boo"]
             :regions [(repeat-region 1 "boo" 3)
-                      (other-region 1 "boo")]}
+                      (other-region 1 0 "boo")]}
            (append-distinct-lines ["a" "boo"]
                                   [(repeat-region 1 "boo" 2)
-                                   (other-region 1 "boo")]
+                                   (other-region 1 0 "boo")]
                                   ["boo"])))
 
-    (is (= {:lines ["a" "boo"]
-            :regions [(repeat-region 1 "boo" 3)
-                      (other-region 1 "boo")]}
-           (append-distinct-lines ["a" "boo"]
-                                  [(repeat-region 1 "boo" 2)
-                                   (other-region 1 "boo")]
-                                  ["boo"])))))
+    (is (= {:lines ["a" "first second"]
+            :regions [(repeat-region 1 "first second" 2)
+                      (other-region 1 6 "second")]}
+           (append-distinct-lines ["a" "first second"]
+                                  [(other-region 1 6 "second")]
+                                  ["first second"]))))
+
+  (testing "Sub-regions function"
+    (is (= {:lines ["a" "first second"]
+            :regions [(other-region 0 0 "a")
+                      (other-region 1 0 "first")
+                      (other-region 1 6 "second")]}
+           (append-distinct-lines ["a"]
+                                  [(other-region 0 0 "a")]
+                                  ["first second"]
+                                  (fn [row line]
+                                    (is (= 1 row))
+                                    (is (= "first second" line))
+                                    [(other-region row 0 "first")
+                                     (other-region row 6 "second")]))))
+
+    (is (= {:lines ["a" "first second"]
+            :regions [(other-region 0 0 "a")
+                      (other-region 1 0 "first")
+                      (repeat-region 1 "first second" 2)
+                      (other-region 1 6 "second")]}
+           (append-distinct-lines ["a" "first second"]
+                                  [(other-region 0 0 "a")
+                                   (other-region 1 0 "first")
+                                   (other-region 1 6 "second")]
+                                  ["first second"]
+                                  (fn [row line]
+                                    (is (= 1 row))
+                                    (is (= "first second" line))
+                                    [(other-region 1 0 "first")
+                                     (other-region 1 6 "second")]))))))
 
 (deftest delete-test
   (let [backspace (fn [lines cursor-ranges] (data/delete lines cursor-ranges nil (layout-info lines) data/delete-character-before-cursor))

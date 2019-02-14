@@ -16,7 +16,7 @@ namespace dmScript
      * Timers allow you to set a delay and a callback to be called when the timer completes.
      *
      * The timers created with this API are updated with the collection timer where they
-     * are created. If you pause or speed up the collection (using `set_time_step`) it will 
+     * are created. If you pause or speed up the collection (using `set_time_step`) it will
      * also affect the new timer.
      *
      * @document
@@ -32,7 +32,7 @@ namespace dmScript
         This is to keep the array sweep fast and handle cases where multiple short lived timers are
         created followed by one long-lived timer. If we did not re-shuffle and keep holes we would keep
         scanning the array to the end where the only live timer exists skipping all the holes.
-        How much of an issue this is is guesswork at this point.
+        How much of an issue this is guesswork at this point.
 
         The timer identity is an index into an indirection layer combined with a generation counter,
         this makes it possible to reuse the index for the indirection layer without risk of using
@@ -133,7 +133,7 @@ namespace dmScript
     static void EraseTimer(HTimerWorld timer_world, uint32_t timer_index)
     {
         assert(timer_world != 0x0);
- 
+
         Timer& movedTimer = timer_world->m_Timers.EraseSwap(timer_index);
 
         if (timer_index < timer_world->m_Timers.Size())
@@ -188,45 +188,48 @@ namespace dmScript
 
         for (uint32_t i = 0; i < size; ++i)
         {
-            Timer& timer = timer_world->m_Timers[i];
-            if (timer.m_IsAlive == 0)
+            Timer* timer = &timer_world->m_Timers[i];
+            if (timer->m_IsAlive == 0)
             {
                 continue;
             }
 
-            timer.m_Remaining -= dt;
-            if (timer.m_Remaining > 0.0f)
+            timer->m_Remaining -= dt;
+            if (timer->m_Remaining > 0.0f)
             {
                 continue;
             }
 
-            float elapsed_time = timer.m_Delay - timer.m_Remaining;
+            float elapsed_time = timer->m_Delay - timer->m_Remaining;
 
-            TimerEventType eventType = timer.m_Repeat == 0 ? TIMER_EVENT_TRIGGER_WILL_DIE : TIMER_EVENT_TRIGGER_WILL_REPEAT;
+            TimerEventType eventType = timer->m_Repeat == 0 ? TIMER_EVENT_TRIGGER_WILL_DIE : TIMER_EVENT_TRIGGER_WILL_REPEAT;
 
-            timer.m_Callback(timer_world, eventType, timer.m_Handle, elapsed_time, timer.m_Owner, timer.m_UserData);
+            timer->m_Callback(timer_world, eventType, timer->m_Handle, elapsed_time, timer->m_Owner, timer->m_UserData);
 
-            if (timer.m_IsAlive == 0)
+            // The array might have been reallocated here! So grab the pointer again...
+            timer = &timer_world->m_Timers[i];
+
+            if (timer->m_IsAlive == 0)
             {
                 continue;
             }
 
-            if (timer.m_Repeat == 0)
+            if (timer->m_Repeat == 0)
             {
-                timer.m_IsAlive = 0;
+                timer->m_IsAlive = 0;
                 continue;
             }
 
-            if (timer.m_Delay == 0.0f)
+            if (timer->m_Delay == 0.0f)
             {
-                timer.m_Remaining = 0.0f;
+                timer->m_Remaining = 0.0f;
                 continue;
             }
 
-            float wrapped_count = ((-timer.m_Remaining) / timer.m_Delay) + 1.f;
-            float offset_to_next_trigger  = floor(wrapped_count) * timer.m_Delay;
-            timer.m_Remaining += offset_to_next_trigger;
-            assert(timer.m_Remaining >= 0.f);
+            float wrapped_count = ((-timer->m_Remaining) / timer->m_Delay) + 1.f;
+            float offset_to_next_trigger  = floor(wrapped_count) * timer->m_Delay;
+            timer->m_Remaining += offset_to_next_trigger;
+            assert(timer->m_Remaining >= 0.f);
         }
 
         timer_world->m_InUpdate = 0;
@@ -250,7 +253,7 @@ namespace dmScript
 
         if (size != original_size)
         {
-            ++timer_world->m_Version;            
+            ++timer_world->m_Version;
         }
     }
 
@@ -337,7 +340,7 @@ namespace dmScript
             {
                 timer.m_IsAlive = 0;
                 ++cancelled_count;
-            }                
+            }
 
             if (timer_world->m_InUpdate == 0)
             {
@@ -457,7 +460,7 @@ namespace dmScript
 
         uintptr_t owner = dmScript::GetInstanceId(L);
         HTimerWorld timer_world = GetTimerWorld(script_world);
-        KillTimers(timer_world, owner);        
+        KillTimers(timer_world, owner);
 
         lua_pushstring(L, TIMER_WORLD_VALUE_KEY);
         lua_pushnil(L);
@@ -523,7 +526,7 @@ namespace dmScript
      * script update functions.
      *
      * If you want a timer that triggers on each frame, set delay to 0.0f and repeat to true.
-     * 
+     *
      * Timers created within a script will automatically die when the script is deleted.
      *
      * @name timer.delay
@@ -563,7 +566,7 @@ namespace dmScript
             lua_pushnumber(L, dmScript::INVALID_TIMER_HANDLE);
             return 1;
         }
-    
+
         uintptr_t owner = dmScript::GetInstanceId(L);
 
         LuaCallbackInfo* user_data = dmScript::CreateCallback(L, 3);
@@ -579,7 +582,7 @@ namespace dmScript
      *
      * You may cancel a timer from inside a timer callback.
      * Cancelling a timer that is already executed or cancelled is safe.
-     * 
+     *
      * @name timer.cancel
      * @param handle the timer handle returned by timer.delay()
      * @return true if the timer was active, false if the timer is already cancelled / complete
@@ -612,7 +615,7 @@ namespace dmScript
     {
         lua_State* L = context->m_LuaState;
         DM_LUA_STACK_CHECK(L, 0);
- 
+
         luaL_register(L, "timer", TIMER_COMP_FUNCTIONS);
 
         #define SETCONSTANT(name) \

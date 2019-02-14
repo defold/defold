@@ -1,0 +1,172 @@
+package dmGraphics;
+
+import "ddf/ddf_extensions.proto";
+
+option java_package = "com.dynamo.graphics.proto";
+option java_outer_classname = "Graphics";
+
+message Cubemap
+{
+    required string right       = 1 [(resource)=true];
+    required string left        = 2 [(resource)=true];
+    required string top         = 3 [(resource)=true];
+    required string bottom      = 4 [(resource)=true];
+    required string front       = 5 [(resource)=true];
+    required string back        = 6 [(resource)=true];
+}
+
+message TextureImage
+{
+    enum Type
+    {
+        // Corresponds to GL_TEXTURE_2D
+        TYPE_2D      = 1;
+        // Corresponds to GL_TEXTURE_CUBE_MAP
+        TYPE_CUBEMAP = 2;
+    }
+
+    enum CompressionType
+    {
+        // Compression by format (RAW (none), PVRTC, ETC, DXT)
+        COMPRESSION_TYPE_DEFAULT = 0;
+        // WebP encoded
+        COMPRESSION_TYPE_WEBP = 1;
+        // WebP lossy encoded
+        COMPRESSION_TYPE_WEBP_LOSSY = 2;
+    }
+
+    enum CompressionFlags
+    {
+        // RGB to be cleared when A is zero
+        COMPRESSION_FLAG_ALPHA_CLEAN = 1;
+    }
+
+    enum TextureFormat
+    {
+        TEXTURE_FORMAT_LUMINANCE         = 0;
+        TEXTURE_FORMAT_RGB               = 1;
+        TEXTURE_FORMAT_RGBA              = 2;
+        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1  = 3;
+        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1  = 4;
+        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1 = 5;
+        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 = 6;
+        TEXTURE_FORMAT_RGB_ETC1          = 7;
+
+        TEXTURE_FORMAT_RGB_16BPP          = 8;
+        TEXTURE_FORMAT_RGBA_16BPP         = 9;
+
+        TEXTURE_FORMAT_LUMINANCE_ALPHA    = 10;
+
+        /*
+
+        PVRTexLib that is used in texc can't compress to DXT other than
+        on Windows at the moment. There is functionality in the engine to
+        handle DXT textures, but until we can generate them on all platforms
+        through Bob, this will be commented out.
+
+        JIRA issue: DEF-994
+
+        TEXTURE_FORMAT_RGB_DXT1          = 8;
+        TEXTURE_FORMAT_RGBA_DXT1         = 9;
+        TEXTURE_FORMAT_RGBA_DXT3         = 10;
+        TEXTURE_FORMAT_RGBA_DXT5         = 11;
+        */
+    }
+
+    message Image
+    {
+        required uint32 width           = 1;
+        required uint32 height          = 2;
+        required uint32 original_width  = 3;
+        required uint32 original_height = 4;
+        required TextureFormat format   = 5;
+        repeated uint32 mip_map_offset  = 6;
+        repeated uint32 mip_map_size    = 7;    // always uncompressed (native) size
+        required bytes data             = 8;
+        optional CompressionType compression_type = 9 [default = COMPRESSION_TYPE_DEFAULT];
+        optional uint64 compression_flags = 10;
+        repeated uint32 mip_map_size_compressed  = 11;
+    }
+
+    repeated Image alternatives = 1;
+    required Type type          = 2;
+    // When count > 1 count mipmaps are laid out contiguously in memory and
+    // the mip_map_offset should reflect that, e.g. times 6 for cubemaps
+    required uint32 count       = 3;
+}
+
+// We encapsulate the texture format in its own message due
+// to we cant have repeated enums.
+message TextureFormatAlternative
+{
+
+    enum CompressionLevel {
+        FAST    = 0;
+        NORMAL  = 1;
+        HIGH    = 2;
+        BEST    = 3;
+    }
+
+    required TextureImage.TextureFormat format  = 1;
+    required CompressionLevel compression_level = 2;
+    optional TextureImage.CompressionType compression_type = 3 [default = COMPRESSION_TYPE_DEFAULT];
+}
+
+message PathSettings
+{
+    required string path    = 1;
+    required string profile = 2;
+}
+
+message PlatformProfile
+{
+    enum OS
+    {
+        OS_ID_GENERIC = 0;
+        OS_ID_WINDOWS = 1;
+        OS_ID_OSX     = 2;
+        OS_ID_LINUX   = 3;
+        OS_ID_IOS     = 4;
+        OS_ID_ANDROID = 5;
+        OS_ID_WEB     = 6;
+    }
+
+    required OS os                              = 1;
+    repeated TextureFormatAlternative formats   = 2;
+    required bool mipmaps                       = 3;
+    optional uint32 max_texture_size            = 4;
+    optional bool premultiply_alpha             = 5 [default = true];
+}
+
+message TextureProfile
+{
+    required string name = 1;
+    repeated PlatformProfile platforms = 2;
+}
+
+message TextureProfiles
+{
+
+    repeated PathSettings path_settings         = 1;
+    repeated TextureProfile profiles            = 2;
+}
+
+
+message ShaderDesc
+{
+    enum Language
+    {
+        LANGUAGE_GLSL   = 1;
+        LANGUAGE_SPIRV  = 2;
+        LANGUAGE_MSL    = 3;
+    }
+
+    message Shader
+    {
+        required Language language  = 1;
+        optional bytes source       = 2;
+        optional bytes binary       = 3;
+    }
+
+    repeated Shader shaders	= 1;
+}

@@ -198,7 +198,12 @@ static void RunListener(NSDictionary *userdata, bool local, bool wasActivated)
             NSString* json = (NSString*)[userdata objectForKey:@"payload"];
             dmJson::Result r = dmJson::Parse([json UTF8String], &doc);
             if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-                dmScript::JsonToLua(L, &doc, 0);
+                char err_str[128];
+                if (dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str)) < 0) {
+                    lua_pop(L, lua_gettop(L) - top);
+                    dmLogError("Error running push listener: %s", err_str);
+                    return;
+                }
             } else {
                 dmLogError("Failed to parse local push response (%d)", r);
             }
@@ -418,7 +423,7 @@ int Push_Register(lua_State* L)
  * :    [type:object] The current object
  *
  * `payload`
- * :    [type:function] the push payload
+ * :    [type:table] the push payload
  *
  * `origin`
  * :    [type:constant] push.ORIGIN_LOCAL or push.ORIGIN_REMOTE
@@ -568,7 +573,16 @@ int Push_Schedule(lua_State* L)
     NSMutableDictionary* userdata = [NSMutableDictionary dictionaryWithCapacity:2];
     userdata[@"id"] = [NSNumber numberWithInt:g_Push.m_ScheduledID];
     if (top > 3) {
-        userdata[@"payload"] = [NSString stringWithUTF8String:luaL_checkstring(L, 4)];
+        const char* payload = luaL_checkstring(L, 4);
+        userdata[@"payload"] = [NSString stringWithUTF8String:payload];
+
+        // Verify that the payload is valid and can be delivered later on.
+        char payload_err[128];
+        if (!dmPush::VerifyPayload(L, payload, payload_err, sizeof(payload_err))) {
+            lua_pushnil(L);
+            lua_pushstring(L, payload_err);
+            return 2;
+        }
     } else {
         userdata[@"payload"] = nil;
     }
@@ -806,14 +820,6 @@ static const luaL_reg Push_methods[] =
  * @name push.ORIGIN_REMOTE
  * @variable
  */
-
-
-/*# remote push origin
- *
- * @name push.ORIGIN_REMOTE
- * @variable
- */
-
 
 /*# lowest notification priority [icon:android]
  *

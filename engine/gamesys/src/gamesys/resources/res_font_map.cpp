@@ -49,6 +49,7 @@ namespace dmGameSystem
         params.m_SdfOffset = ddf->m_SdfOffset;
         params.m_SdfSpread = ddf->m_SdfSpread;
         params.m_SdfOutline = ddf->m_SdfOutline;
+        params.m_SdfShadow = ddf->m_SdfShadow;
         params.m_OutlineAlpha = ddf->m_OutlineAlpha;
         params.m_ShadowAlpha = ddf->m_ShadowAlpha;
         params.m_Alpha = ddf->m_Alpha;
@@ -60,9 +61,11 @@ namespace dmGameSystem
 
         params.m_CacheCellWidth = ddf->m_CacheCellWidth;
         params.m_CacheCellHeight = ddf->m_CacheCellHeight;
+        params.m_CacheCellMaxAscent = ddf->m_CacheCellMaxAscent;
         params.m_CacheCellPadding = ddf->m_GlyphPadding;
 
         params.m_ImageFormat = ddf->m_ImageFormat;
+        params.m_LayerMask = ddf->m_LayerMask;
 
         // Copy and unpack glyphdata
         params.m_GlyphData = malloc(ddf->m_GlyphData.m_Count);

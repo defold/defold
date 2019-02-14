@@ -156,8 +156,11 @@ public class SignHandler extends AbstractHandler {
             try {
                 final String variant = Bob.VARIANT_DEBUG;  // We always sign the debug non-stripped executable
 
-                exeArmv7 = new File(Bob.getDefaultDmenginePath(Platform.Armv7Darwin, variant));
-                exeArm64 = new File(Bob.getDefaultDmenginePath(Platform.Arm64Darwin, variant));
+                Map<String, String> appmanifestOptions = new HashMap<>();
+                appmanifestOptions.put("baseVariant", variant);
+
+                exeArmv7 = new File(Bob.getDefaultDmenginePaths(Platform.Armv7Darwin, variant).get(0));
+                exeArm64 = new File(Bob.getDefaultDmenginePaths(Platform.Arm64Darwin, variant).get(0));
 
                 final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
                 String nativeExtServerURI = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
@@ -177,14 +180,14 @@ public class SignHandler extends AbstractHandler {
                 // Get or build engine binary
                 boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(tmpProject);
                 if (buildRemoteEngine) {
-                    tmpProject.buildEngine(new ProgressDelegate(monitor), platforms, variant);
+                    tmpProject.buildEngine(new ProgressDelegate(monitor), platforms, appmanifestOptions);
                 }
 
                 // Get engine executables
                 // armv7 exe
                 {
                     Platform targetPlatform = Platform.Armv7Darwin;
-                    File extenderExe = new File(FilenameUtils.concat(buildDirectory, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+                    File extenderExe = new File(FilenameUtils.concat(buildDirectory, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine").get(0))));
                     if (extenderExe.exists()) {
                         exeArmv7 = extenderExe;
                     }
@@ -193,7 +196,7 @@ public class SignHandler extends AbstractHandler {
                 // arm64 exe
                 {
                     Platform targetPlatform = Platform.Arm64Darwin;
-                    File extenderExe = new File(FilenameUtils.concat(buildDirectory, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+                    File extenderExe = new File(FilenameUtils.concat(buildDirectory, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine").get(0))));
                     if (extenderExe.exists()) {
                         exeArm64 = extenderExe;
                     }

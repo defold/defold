@@ -15,9 +15,6 @@ namespace dmMessage
 {
     // Alignment of allocations
     const uint32_t DM_MESSAGE_ALIGNMENT = 16U;
-    // Page size must be a multiple of ALIGNMENT.
-    // This simplifies the allocation scheme
-    const uint32_t DM_MESSAGE_PAGE_SIZE = 4096U;
 
     struct MemoryPage
     {
@@ -102,8 +99,8 @@ namespace dmMessage
         Message*        m_Header;
         Message*        m_Tail;
         const char*     m_Name;
-        dmMutex::Mutex  m_Mutex;
-        dmConditionVariable::ConditionVariable m_Condition;
+        dmMutex::HMutex m_Mutex;
+        dmConditionVariable::HConditionVariable m_Condition;
         MemoryAllocator m_Allocator;
     };
 
@@ -112,7 +109,7 @@ namespace dmMessage
     struct MessageContext
     {
         dmHashTable64<MessageSocket> m_Sockets;
-        dmMutex::Mutex  m_Mutex;
+        dmMutex::HMutex  m_Mutex;
     };
 
     MessageContext* g_MessageContext = 0;
@@ -192,7 +189,7 @@ namespace dmMessage
         MessageSocket* s = g_MessageContext->m_Sockets.Get(socket);
         if (s != 0x0)
         {
-            dmMutex::Mutex mutex = s->m_Mutex;
+            dmMutex::HMutex mutex = s->m_Mutex;
             dmMutex::Lock(mutex);
 
             Message *message_object = s->m_Header;
@@ -303,12 +300,10 @@ namespace dmMessage
         memset((void*)&url, 0, sizeof(URL));
     }
 
-    uint32_t g_MessagesHash = dmHashString32("Messages");
-
     Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data, uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback)
     {
         DM_PROFILE(Message, "Post")
-        DM_COUNTER_HASH("Messages", g_MessagesHash, 1)
+        DM_COUNTER("Messages", 1)
 
         if (receiver == 0x0)
         {
@@ -373,10 +368,11 @@ namespace dmMessage
             dmMutex::Unlock(g_MessageContext->m_Mutex);
             return 0;
         }
-        DM_PROFILE(Message, dmProfile::Internalize(s->m_Name));
 
         dmMutex::Lock(s->m_Mutex);
         dmMutex::Unlock(g_MessageContext->m_Mutex);
+
+        DM_PROFILE_FMT(Message, "Dispatch %s", s->m_Name);
 
         MemoryAllocator* allocator = &s->m_Allocator;
 

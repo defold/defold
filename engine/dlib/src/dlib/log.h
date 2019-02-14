@@ -2,6 +2,7 @@
 #define DM_LOG_H
 
 #include <dmsdk/dlib/log.h>
+#include <dlib/message.h>
 
 /**
  * @file
@@ -19,6 +20,19 @@
  * No other messages with semantic meaning is sent.
  */
 
+struct dmLogMessage
+{
+    enum Type
+    {
+        MESSAGE = 0,
+        SHUTDOWN = 1,
+    };
+
+    uint8_t m_Type;
+    char    m_Message[0];
+};
+
+const uint32_t DM_LOG_MAX_STRING_SIZE = dmMessage::DM_MESSAGE_MAX_DATA_SIZE - sizeof(dmLogMessage);
 struct dmLogParams
 {
     dmLogParams()
@@ -59,6 +73,21 @@ void dmLogSetlevel(dmLogSeverity severity);
  * @param path log path
  */
 void dmSetLogFile(const char* path);
+
+/**
+ * Callback declaration for dmSetCustomLogCallback
+ */
+typedef void (*dmCustomLogCallback)(void* user_data, const char* s);
+
+/**
+ * Sets a custom callback for log output, if this function is set output
+ * will only be sent to this callback.
+ * Useful for testing purposes to validate logging output from a test
+ * Calling dmSetCustomLogCallback with (0x0, 0x0) will restore normal operation
+ * @param callback the callback to call with output, once per logging call
+ * @param user_data user data pointer that is provided as context in the callback
+ */
+void dmSetCustomLogCallback(dmCustomLogCallback callback, void* user_data);
 
 /**
  * iOS specific print function that wraps NSLog to be able to

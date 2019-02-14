@@ -158,6 +158,11 @@ namespace dmGameSystem
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, FACTORY_EXT, &user_data, &receiver, 0);
         FactoryComponent* component = (FactoryComponent*) user_data;
 
+        if (component->m_Loading) {
+            dmLogError("Trying to load factory prototype resource when already loading.");
+            return luaL_error(L, "Error loading factory resources");
+        }
+
         lua_pushvalue(L, 2);
         component->m_PreloaderCallbackRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
         dmScript::GetInstance(L);
@@ -171,6 +176,11 @@ namespace dmGameSystem
             dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderCallbackRef);
             dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderSelfRef);
             dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderURLRef);
+
+            component->m_PreloaderCallbackRef = LUA_NOREF;
+            component->m_PreloaderSelfRef = LUA_NOREF;
+            component->m_PreloaderURLRef = LUA_NOREF;
+
             return luaL_error(L, "Error loading factory resources");
         }
 
@@ -193,7 +203,7 @@ namespace dmGameSystem
      * @name factory.create
      * @param url [type:string|hash|url] the factory that should create a game object.
      * @param [position] [type:vector3] the position of the new game object, the position of the game object calling `factory.create()` is used by default, or if the value is `nil`.
-     * @param [rotation] [type:quaternion] the rotation of the new game object, the rotation of the game object calling `factory.create()` is is used by default, or if the value is `nil`.
+     * @param [rotation] [type:quaternion] the rotation of the new game object, the rotation of the game object calling `factory.create()` is used by default, or if the value is `nil`.
      * @param [properties] [type:table] the properties defined in a script attached to the new game object.
      * @param [scale] [type:number|vector3] the scale of the new game object (must be greater than 0), the scale of the game object containing the factory is used by default, or if the value is `nil`
      * @return id [type:hash] the global id of the spawned game object

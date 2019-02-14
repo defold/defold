@@ -180,6 +180,12 @@ TEST_F(EngineTest, DEF_3456)
     ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
 }
 
+TEST_F(EngineTest, DEF_3575)
+{
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/def-3575/def-3575.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
+}
+
 TEST_F(EngineTest, SpineAnim)
 {
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/spine_anim/spine.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
@@ -194,8 +200,17 @@ TEST_F(EngineTest, SpineIK)
 
 TEST_F(EngineTest, MemCpuProfiler)
 {
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/profiler/profiler.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
-    ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
+    #ifndef SANITIZE_ADDRESS
+        // DEF-3677
+        // DE 20181217
+        // When ASAN is enabled the amount of memory used (resident_size) actually increases after
+        // the test collection is loaded. This is likley caused by the OS shuffling memory around
+        // when ASAN is enabled since it add some overhead. Workaround is to disable this test.
+        // Tried adding a big OGG file to the test data set but still the same result. The difference
+        // between amount of allocated memory is over 20Mb less than before loading when ASAN is enabled.
+        const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/profiler/profiler.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
+        ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
+    #endif
 }
 
 // Verify that project.dependencies config entry is stripped during build.
@@ -280,6 +295,20 @@ DrawCountParams draw_count_params[] =
 };
 INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, ::testing::ValuesIn(draw_count_params));
 
+// Test that we can reload a full collection containing a spine scene
+// while the first gameobject has been already been deleted (marked for
+// deletion through a `go.delete()` call, invalidating any "delayed delete"
+// list entries).
+TEST_F(EngineTest, DEF_3652)
+{
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/def-3652/def-3652.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
+    HttpTestContext ctx;
+    ctx.m_Script = "/def-3652/post_reload_collection.py";
+
+    ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, PreRunHttpPort, 0, &ctx));
+    dmThread::Join(ctx.m_Thread);
+    ASSERT_EQ(0, g_PostExitResult);
+}
 
 int main(int argc, char **argv)
 {

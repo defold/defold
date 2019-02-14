@@ -247,29 +247,48 @@ namespace dmGui
 
     static int NodeProxy_tostring (lua_State *L)
     {
-        int top = lua_gettop(L);
-        (void) top;
-        InternalNode* n = LuaCheckNode(L, 1, 0);
-        Vector4 pos = n->m_Node.m_Properties[PROPERTY_POSITION];
-        switch (n->m_Node.m_NodeType)
+        DM_LUA_STACK_CHECK(L,1);
+
+        NodeProxy* np = NodeProxy_Check(L, 1);
+
+        if (np->m_Scene == GetScene(L))
         {
-            case NODE_TYPE_BOX:
-                lua_pushfstring(L, "box@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
-                break;
-            case NODE_TYPE_TEXT:
-                lua_pushfstring(L, "%s@(%f, %f, %f)", n->m_Node.m_Text, pos.getX(), pos.getY(), pos.getZ());
-                break;
-            case NODE_TYPE_SPINE:
-                lua_pushfstring(L, "spine@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
-                break;
-            case NODE_TYPE_PARTICLEFX:
-                lua_pushfstring(L, "particlefx@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
-                break;
-            default:
-                lua_pushfstring(L, "unknown@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
-                break;
+            InternalNode* n = 0;
+
+            if (IsValidNode(np->m_Scene, np->m_Node))
+            {
+                n = GetNode(np->m_Scene, np->m_Node);
+            }
+            else
+            {
+                luaL_error(L, "Deleted node");
+            }
+
+            Vector4 pos = n->m_Node.m_Properties[PROPERTY_POSITION];
+            switch (n->m_Node.m_NodeType)
+            {
+                case NODE_TYPE_BOX:
+                    lua_pushfstring(L, "box@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
+                    break;
+                case NODE_TYPE_TEXT:
+                    lua_pushfstring(L, "%s@(%f, %f, %f)", n->m_Node.m_Text, pos.getX(), pos.getY(), pos.getZ());
+                    break;
+                case NODE_TYPE_SPINE:
+                    lua_pushfstring(L, "spine@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
+                    break;
+                case NODE_TYPE_PARTICLEFX:
+                    lua_pushfstring(L, "particlefx@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
+                    break;
+                default:
+                    lua_pushfstring(L, "unknown@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
+                    break;
+            }
         }
-        assert(top + 1 == lua_gettop(L));
+        else
+        {
+            lua_pushstring(L,"<foreign scene node>");
+        }
+
         return 1;
     }
 
@@ -301,6 +320,14 @@ namespace dmGui
         }
 
         if (!LuaIsNode(L, 2))
+        {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+
+        NodeProxy* np1 = NodeProxy_Check(L, 1);
+        NodeProxy* np2 = NodeProxy_Check(L, 2);
+        if (np1->m_Scene != np2->m_Scene)
         {
             lua_pushboolean(L, 0);
             return 1;
@@ -579,7 +606,7 @@ namespace dmGui
         HScene m_Scene;
         int m_NodeRef;
     };
-    
+
     static void LuaCallbackCustomArgsCB(lua_State* L, void* user_args)
     {
         LuaAnimationCompleteArgs* args = (LuaAnimationCompleteArgs*)user_args;
@@ -896,7 +923,7 @@ namespace dmGui
      * @param to [type:vector3|vector4] target property value
      * @param easing [type:constant|vector] easing to use during animation.
      *      Either specify one of the `gui.EASING_*` constants or provide a
-     *      [type:vector] with a custom curve.
+     *      [type:vector] with a custom curve. See the <a href="/manuals/animation#_easing">animation guide</a> for more information.
      * @param duration [type:number] duration of the animation in seconds.
      * @param [delay] [type:number] delay before the animation starts in seconds.
      * @param [complete_function] [type:function(self, node)] function to call when the
@@ -4108,7 +4135,11 @@ namespace dmGui
             return DM_LUA_ERROR("Out of nodes (max %d)", scene->m_Nodes.Capacity());
         }
 
-        dmGui::SetNodeParticlefx(scene, node, particlefx);
+        dmGui::Result r = dmGui::SetNodeParticlefx(scene, node, particlefx);
+        if (r == RESULT_RESOURCE_NOT_FOUND) {
+            char name[128];
+            return DM_LUA_ERROR("No particlefx resource '%s' found.", dmScript::GetStringFromHashOrString(L, 2, name, sizeof(name)));
+        }
         LuaPushNode(L, scene, node);
         return 1;
     }
@@ -4250,7 +4281,7 @@ namespace dmGui
 
     /*# Stops a particle fx
      *
-     * Stops the paricle fx for a gui node
+     * Stops the particle fx for a gui node
      *
      * @name gui.stop_particlefx
      * @param node [type:node] node to stop particle fx for

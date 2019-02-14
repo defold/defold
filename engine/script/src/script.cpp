@@ -4,7 +4,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/pprint.h>
-#include <extension/extension.h>
+#include <dlib/profile.h>
 
 #include "script_private.h"
 #include "script_hash.h"
@@ -21,6 +21,7 @@
 #include "script_luasocket.h"
 #include "script_bitop.h"
 #include "script_timer.h"
+#include "script_extensions.h"
 
 extern "C"
 {
@@ -39,7 +40,6 @@ namespace dmScript
      */
 
     const char* INSTANCE_NAME = "__dm_script_instance__";
-    const int MAX_PPRINT_TABLE_CALL_DEPTH = 32;
 
     const char* META_TABLE_RESOLVE_PATH             = "__resolve_path";
     const char* META_TABLE_GET_URL                  = "__get_url";
@@ -59,10 +59,9 @@ namespace dmScript
         context->m_ScriptExtensions.SetCapacity(8);
         context->m_ConfigFile = config_file;
         context->m_ResourceFactory = factory;
-        context->m_EnableExtensions = enable_extensions;
-        memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
         context->m_LuaState = lua_open();
         context->m_ContextTableRef = LUA_NOREF;
+        context->m_EnableExtensions = enable_extensions;
         return context;
     }
 
@@ -145,7 +144,6 @@ namespace dmScript
         InitializeModule(L);
         InitializeImage(L);
         InitializeJson(L);
-        InitializeHttp(L, context->m_ConfigFile);
         InitializeZlib(L);
         InitializeHtml5(L);
         InitializeLuasocket(L);
@@ -181,34 +179,18 @@ namespace dmScript
         lua_newtable(L);
         context->m_ContextTableRef = Ref(L, LUA_REGISTRYINDEX);
 
+        InitializeHttp(context);
         InitializeTimer(context);
+        if (context->m_EnableExtensions)
+        {
+            InitializeExtensions(context);
+        }
 
         for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
         {
             if ((*l)->Initialize != 0x0)
             {
                 (*l)->Initialize(context);
-            }
-        }
-
-#define BIT_INDEX(b) ((b) / sizeof(uint32_t))
-#define BIT_OFFSET(b) ((b) % sizeof(uint32_t))
-
-        if (context->m_EnableExtensions) {
-            const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
-            uint32_t i = 0;
-            while (ed) {
-                dmExtension::Params p;
-                p.m_ConfigFile = context->m_ConfigFile;
-                p.m_L = L;
-                dmExtension::Result r = ed->Initialize(&p);
-                if (r == dmExtension::RESULT_OK) {
-                    context->m_InitializedExtensions[BIT_INDEX(i)] |= 1 << BIT_OFFSET(i);
-                } else {
-                    dmLogError("Failed to initialize extension: %s", ed->m_Name);
-                }
-                ++i;
-                ed = ed->m_Next;
             }
         }
 
@@ -233,33 +215,11 @@ namespace dmScript
                 (*l)->Update(context);
             }
         }
-
-        if (context->m_EnableExtensions) {
-            const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
-            uint32_t i = 0;
-            while (ed) {
-                if (ed->Update)
-                {
-                    dmExtension::Params p;
-                    p.m_ConfigFile = context->m_ConfigFile;
-                    p.m_L = context->m_LuaState;
-                    if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
-                        dmExtension::Result r = ed->Update(&p);
-                        if (r != dmExtension::RESULT_OK) {
-                            dmLogError("Failed to update extension: %s", ed->m_Name);
-                        }
-                    }
-                }
-                ++i;
-                ed = ed->m_Next;
-            }
-        }
     }
 
     void Finalize(HContext context)
     {
         lua_State* L = context->m_LuaState;
-        FinalizeHttp(L);
 
         for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
         {
@@ -269,31 +229,6 @@ namespace dmScript
             }
         }
 
-        if (context->m_EnableExtensions) {
-            const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
-            uint32_t i = 0;
-            while (ed) {
-                if (ed->Finalize)
-                {
-                    dmExtension::Params p;
-                    p.m_ConfigFile = context->m_ConfigFile;
-                    p.m_L = L;
-                    if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
-                        dmExtension::Result r = ed->Finalize(&p);
-                        if (r != dmExtension::RESULT_OK) {
-                            dmLogError("Failed to finalize extension: %s", ed->m_Name);
-                        }
-                    }
-                }
-                ++i;
-                ed = ed->m_Next;
-            }
-        }
-        if (context) {
-            // context might be NULL in tests. Should probably be forbidden though
-            memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
-        }
-
         lua_getglobal(L, RANDOM_SEED);
         uint32_t* seed = (uint32_t*) lua_touserdata(L, -1);
         free(seed);
@@ -301,8 +236,6 @@ namespace dmScript
 
         Unref(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
     }
-#undef BIT_INDEX
-#undef BIT_OFFSET
 
     lua_State* GetLuaState(HContext context) {
         if (context != 0x0) {
@@ -311,11 +244,20 @@ namespace dmScript
         return 0x0;
     }
 
+    dmConfigFile::HConfig GetConfigFile(HContext context)
+    {
+        if (context != 0x0)
+        {
+            return context->m_ConfigFile;
+        }
+        return 0x0;
+    }
+
     int LuaPrint(lua_State* L)
     {
         int n = lua_gettop(L);
         lua_getglobal(L, "tostring");
-        char buffer[2048];
+        char buffer[DM_LOG_MAX_STRING_SIZE];
         buffer[0] = 0;
         for (int i = 1; i <= n; ++i)
         {
@@ -337,57 +279,127 @@ namespace dmScript
         return 0;
     }
 
-    static int DoLuaPPrintTable(lua_State*L, int index, dmPPrint::Printer* printer, int call_depth) {
-        int top = lua_gettop(L);
+    static const char* PushValueAsString(lua_State* L, int index)
+    {
+        lua_pushvalue(L, index);
+        // [-1] value
+        lua_getglobal(L, "tostring");
+        // [-2] value
+        // [-1] tostring()
+        lua_insert(L, -2);
+        // [-2] tostring()
+        // [-1] value
+        lua_call(L, 1, 1);
+        // [-1] result
+        const char* result = lua_tostring(L, -1);
+        if (result == 0x0)
+        {
+            lua_pop(L, 1);
+        }
+        return result;
+    }
+
+    static int DoLuaPPrintTable(lua_State* L, int index, dmPPrint::Printer* printer, dmHashTable<uintptr_t, bool>& printed_tables) {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        const void* table_data = (const void*)lua_topointer(L, index);
+
+        if (printed_tables.Get((uintptr_t)table_data) != 0x0)
+        {
+            printer->Printf("{ ... } --[[%p]]", table_data);
+            return 0;
+        }
+
+        if (printed_tables.Capacity() == printed_tables.Size())
+        {
+            uint32_t new_capacity = printed_tables.Capacity() + 10;
+            printed_tables.SetCapacity((new_capacity * 2) / 3, new_capacity * 2);
+        }
+        printed_tables.Put((uintptr_t)table_data, true);
 
         lua_pushvalue(L, index);
         lua_pushnil(L);
+        // [-2] table
+        // [-1] key
 
-        printer->Printf("{\n");
-        printer->Indent(2);
-
-        while (lua_next(L, -2) != 0) {
-            int value_type = lua_type(L, -1);
-
-            lua_pushvalue(L, -2);
-            const char *s1;
-            const char *s2;
-            lua_getglobal(L, "tostring");
-            lua_pushvalue(L, -2);
-            lua_call(L, 1, 1);
-            s1 = lua_tostring(L, -1);
-            if (s1 == 0x0)
-                return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
+        if(lua_next(L, -2) == 0)
+        {
+            // [-1] table
+            printer->Printf("{ } --[[%p]]", table_data);
             lua_pop(L, 1);
-
-            lua_getglobal(L, "tostring");
-            lua_pushvalue(L, -3);
-            lua_call(L, 1, 1);
-            s2 = lua_tostring(L, -1);
-            if (s2 == 0x0)
-                return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
-            lua_pop(L, 1);
-
-            if (value_type == LUA_TTABLE) {
-                if (MAX_PPRINT_TABLE_CALL_DEPTH > ++call_depth) {
-                    printer->Printf("%s = ", s1);
-                    DoLuaPPrintTable(L, -2, printer, call_depth);
-                } else {
-                    printer->Printf("%s...\n", s1);
-                    printer->Printf("Printing truncated. Circular refs?\n");
-                }
-            } else {
-                printer->Printf("%s = %s,\n", s1, s2);
-            }
-
-            lua_pop(L, 2);
+            return 0;
         }
 
+        // [-3] table
+        // [-2] key
+        // [-1] value
+        printer->Printf("{ --[[%p]]", table_data);
+        printer->Indent(2);
+
+        bool is_first = true;
+        do
+        {
+            printer->Printf("%s\n", is_first ? "" : ",");
+            int value_type = lua_type(L, -1);
+
+            const char* key_string = PushValueAsString(L, -2);
+            if (key_string == 0x0)
+            {
+                return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
+            }
+            // [-4] table
+            // [-3] key
+            // [-2] value
+            // [-1] key name
+
+            printer->Printf("%s = ", key_string);
+            lua_pop(L, 1);
+            // [-3] table
+            // [-2] key
+            // [-1] value
+
+            if (value_type == LUA_TTABLE)
+            {
+                DoLuaPPrintTable(L, -1, printer, printed_tables);
+            }
+            else if (value_type == LUA_TSTRING)
+            {
+                printer->Printf("\"%s\"", lua_tostring(L, -1));
+            }
+            else
+            {
+                const char* value_string = PushValueAsString(L, -1);
+                if (value_string == 0x0)
+                {
+                    return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
+                }
+                // [-4] table
+                // [-3] key
+                // [-2] value
+                // [-1] value name
+
+                printer->Printf("%s", value_string);
+                lua_pop(L, 1);
+                // [-3] table
+                // [-2] key
+                // [-1] value
+            }
+
+            lua_pop(L, 1);
+            // [-2] table
+            // [-1] key
+            is_first = false;
+        } while (lua_next(L, -2) != 0);
+
+        // [-1] table
+
         printer->Indent(-2);
-        printer->Printf("}\n");
+        printer->Printf("\n");
+        printer->Printf("}");
+
+        printed_tables.Erase((uintptr_t)table_data);
 
         lua_pop(L, 1);
-        assert(top == lua_gettop(L));
         return 0;
     }
 
@@ -427,26 +439,37 @@ namespace dmScript
      */
     int LuaPPrint(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0);
         int n = lua_gettop(L);
 
-        char buf[2048];
+        char buf[DM_LOG_MAX_STRING_SIZE];
         dmPPrint::Printer printer(buf, sizeof(buf));
-        if (lua_type(L, 1) == LUA_TTABLE) {
-            printer.Printf("\n");
-            DoLuaPPrintTable(L, 1, &printer, 0);
-        } else {
-            lua_getglobal(L, "tostring");
-            lua_pushvalue(L, 1);
-            lua_call(L, 1, 1);
-            const char* s = lua_tostring(L, -1);
-            if (s == 0x0)
-                return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
-            printer.Printf("%s", s);
-            lua_pop(L, 1);
+        dmHashTable<uintptr_t, bool> printed_tables;
+        for (int s = 1; s <= n; ++s)
+        {
+            printed_tables.Clear();
+            if (lua_type(L, s) == LUA_TTABLE)
+            {
+                if (s == 1)
+                {
+                    printer.Printf("\n");
+                }
+                DoLuaPPrintTable(L, s, &printer, printed_tables);
+                printer.Printf("%s", (n > s) ? ",\n" : "");
+            }
+            else
+            {
+                const char* value_str = PushValueAsString(L, s);
+                if (value_str == 0x0)
+                {
+                    return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
+                }
+                printer.Printf("%s%s", value_str, (n > s) ? ",\n" : "");
+                lua_pop(L, 1);
+            }
         }
 
         dmLogUserDebug("%s", buf);
-        assert(n == lua_gettop(L));
         return 0;
     }
 
@@ -1046,6 +1069,7 @@ namespace dmScript
         int result = lua_pcall(L, nargs, nresult, err_index);
         lua_remove(L, err_index);
         if (result == LUA_ERRMEM) {
+            lua_pop(L, 1);  // Pop BacktraceErrorHandler since it will not be called on OOM
             dmLogError("Lua memory allocation error.");
         } else if (result != 0) {
             // extract the individual fields for printing and passing
@@ -1368,7 +1392,34 @@ namespace dmScript
         int user_args_end = lua_gettop(L);
 
         int number_of_arguments = 1 + user_args_end - user_args_start; // instance + number of arguments that the user pushed
-        int ret = PCall(L, number_of_arguments, 0);
+
+        const char* function_name = "on_timer";
+        const char* function_source = "?";
+        char function_line_number_buffer[16];
+        if (dmProfile::g_IsInitialized)
+        {
+            dmScript::LuaFunctionInfo fi;
+            if (dmScript::GetLuaFunctionRefInfo(L, -(number_of_arguments + 1), &fi))
+            {
+                function_source = fi.m_FileName;
+                if (fi.m_OptionalName)
+                {
+                    function_name = fi.m_OptionalName;
+                }
+                else
+                {
+                    DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
+                    function_name = function_line_number_buffer;
+                }
+            }
+        }
+
+
+        int ret;
+        {
+            DM_PROFILE_FMT(Script, "%s@%s", function_name, function_source);
+            ret = PCall(L, number_of_arguments, 0);
+        }
 
         if (ret != 0) {
             // [-2] old instance
@@ -1386,6 +1437,20 @@ namespace dmScript
 
         SetInstance(L);
         return true;
+    }
+
+    bool GetLuaFunctionRefInfo(lua_State* L, int stack_index, LuaFunctionInfo* out_function_info)
+    {
+        lua_Debug ar;
+        lua_pushvalue(L, stack_index);
+        if (lua_getinfo(L, ">Sn", &ar))
+        {
+            out_function_info->m_FileName = &ar.source[1];  // Skip source prefix character
+            out_function_info->m_LineNumber = ar.linedefined;
+            out_function_info->m_OptionalName = ar.name;
+            return true;
+        }
+        return false;
     }
 
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value)

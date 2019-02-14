@@ -5,7 +5,10 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -51,6 +54,47 @@ public class BundlerTest {
     private String outputDir;
     private String contentRootUnused;
     private Platform platform;
+
+    // Used to check if the built and bundled test projects all contain the correct engine binaries.
+    private void verifyEngineBinaries() throws IOException
+    {
+        String projectName = "Unnamed";
+        File outputDirFile = new File(outputDir, projectName);
+        assertTrue(outputDirFile.exists());
+        switch (platform)
+        {
+            case X86Win32:
+            case X86_64Win32:
+            {
+                File outputBinary = new File(outputDirFile, projectName + ".exe");
+                assertTrue(outputBinary.exists());
+            }
+            break;
+            case Armv7Android:
+            {
+                File outputApk = new File(outputDirFile, projectName + ".apk");
+                assertTrue(outputApk.exists());
+                FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), null);
+                Path enginePath = apkZip.getPath("lib/armeabi-v7a/lib" + projectName + ".so");
+                assertTrue(Files.isReadable(enginePath));
+                Path classesDexPath = apkZip.getPath("classes.dex");
+                assertTrue(Files.isReadable(classesDexPath));
+            }
+            break;
+            case JsWeb:
+            {
+                File asmjsFile = new File(outputDirFile, projectName + "_asmjs.js");
+                assertTrue(asmjsFile.exists());
+                File wasmjsFile = new File(outputDirFile, projectName + "_wasm.js");
+                assertTrue(wasmjsFile.exists());
+                File wasmFile = new File(outputDirFile, projectName + ".wasm");
+                assertTrue(wasmFile.exists());
+            }
+            break;
+            default:
+                throw new IOException("Verifying engine binaries not implemented for platform: " + platform.toString());
+        }
+    }
 
     @Parameters
     public static Collection<Platform[]> data() {
@@ -104,6 +148,8 @@ public class BundlerTest {
         for (TaskResult taskResult : result) {
             assertTrue(taskResult.toString(), taskResult.isOk());
         }
+
+        verifyEngineBinaries();
     }
 
     @SuppressWarnings("unused")
@@ -159,6 +205,7 @@ public class BundlerTest {
         createFile(contentRoot, "builtins/manifests/osx/Info.plist", "");
         createFile(contentRoot, "builtins/manifests/ios/Info.plist", "");
         createFile(contentRoot, "builtins/manifests/android/AndroidManifest.xml", "<?xml version=\"1.0\" encoding=\"utf-8\"?><manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\"><application android:label=\"Minimal Android Application\"><activity android:name=\".MainActivity\" android:label=\"Hello World\"><intent-filter><action android:name=\"android.intent.action.MAIN\" /><category android:name=\"android.intent.category.DEFAULT\" /><category android:name=\"android.intent.category.LAUNCHER\" /></intent-filter></activity></application></manifest>");
+        createFile(contentRoot, "builtins/manifests/web/engine_template.html", "{{{DEFOLD_DEV_HEAD}}} {{{DEFOLD_DEV_INLINE}}} {{DEFOLD_APP_TITLE}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_ARCHIVE_LOCATION_PREFIX}} {{#HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_ENGINE_ARGUMENTS}} {{/HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_SPLASH_IMAGE}} {{DEFOLD_HEAP_SIZE}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_HAS_FACEBOOK_APP_ID}}");
 
         return count;
     }

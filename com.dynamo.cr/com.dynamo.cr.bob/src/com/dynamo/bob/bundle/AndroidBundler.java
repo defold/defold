@@ -68,7 +68,7 @@ public class AndroidBundler implements IBundler {
         final boolean strip_executable = project.hasOption("strip-executable");
 
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
-        String exeName = title.replace(' ', '_');
+        String exeName = BundleHelper.projectNameToBinaryName(title);
 
         String certificate = project.option("certificate", "");
         String key = project.option("private-key", "");
@@ -80,9 +80,9 @@ public class AndroidBundler implements IBundler {
         ArrayList<File> classesDex = new ArrayList<File>();
         classesDex.add(new File(Bob.getPath("lib/classes.dex")));
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        File bundleExe = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
-        if (bundleExe == null) {
-            bundleExe = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
+        List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+        if (bundleExes == null) {
+            bundleExes = Bob.getDefaultDmengineFiles(targetPlatform, variant);
         }
         else {
             classesDex = new ArrayList<File>();
@@ -98,6 +98,10 @@ public class AndroidBundler implements IBundler {
                 classesDex.add(f);
             }
         }
+        if (bundleExes.size() > 1) {
+            throw new IOException("Invalid number of binaries for Android when bundling: " + bundleExes.size());
+        }
+        File bundleExe = bundleExes.get(0);
 
         File appDir = new File(bundleDir, title);
         File resDir = new File(appDir, "res");
@@ -126,7 +130,7 @@ public class AndroidBundler implements IBundler {
         File ap1 = new File(appDir, title + ".ap1");
 
         Map<String, String> aaptEnv = new HashMap<String, String>();
-        if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
+        if (Platform.getHostPlatform() == Platform.X86_64Linux) {
             aaptEnv.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
         }
 
@@ -335,7 +339,8 @@ public class AndroidBundler implements IBundler {
                 // Some files need to be STORED instead of DEFLATED to
                 // get "correct" memory mapping at runtime.
                 int zipMethod = ZipEntry.DEFLATED;
-                if (Arrays.asList("assets/game.projectc", "assets/game.arci", "assets/game.arcd", "assets/game.dmanifest", "assets/game.public.der").contains(inE.getName())) {
+                boolean isAsset = inE.getName().startsWith("assets");
+                if (isAsset) {
                     // Set up uncompresed file, unfortunately need to calculate crc32 and other data for this to work.
                     // https://blogs.oracle.com/CoreJavaTechTips/entry/creating_zip_and_jar_files
                     crc = new CRC32();

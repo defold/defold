@@ -1,5 +1,6 @@
 package com.dynamo.bob.bundle;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -7,6 +8,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
@@ -218,8 +220,8 @@ public class IOSBundler implements IBundler {
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         final boolean strip_executable = project.hasOption("strip-executable");
 
-        File exeArmv7 = null;
-        File exeArm64 = null;
+        List<File> binsArmv7 = null;
+        List<File> binsArm64 = null;
 
         // If a custom engine was built we need to copy it
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
@@ -227,32 +229,41 @@ public class IOSBundler implements IBundler {
         // armv7 exe
         {
             Platform targetPlatform = Platform.Armv7Darwin;
-            exeArmv7 = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
-            if (exeArmv7 == null) {
-                exeArmv7 = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
+            binsArmv7 = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+            if (binsArmv7 == null) {
+                binsArmv7 = Bob.getDefaultDmengineFiles(targetPlatform, variant);
             }
             else {
                 logger.log(Level.INFO, "Using extender exe for Armv7");
             }
         }
+        if (binsArmv7.size() > 1) {
+            throw new IOException("Invalid number of binaries for (armv7) iOS when bundling: " + binsArmv7.size());
+        }
+        File exeArmv7 = binsArmv7.get(0);
 
         // arm64 exe
         {
             Platform targetPlatform = Platform.Arm64Darwin;
-            exeArm64 = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
-            if (exeArm64 == null) {
-                exeArm64 = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
+            binsArm64 = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+            if (binsArm64 == null) {
+                binsArm64 = Bob.getDefaultDmengineFiles(targetPlatform, variant);
             }
             else {
                 logger.log(Level.INFO, "Using extender exe for Arm64");
             }
         }
+        if (binsArm64.size() > 1) {
+            throw new IOException("Invalid number of binaries for (arm64) iOS when bundling: " + binsArm64.size());
+        }
+        File exeArm64 = binsArm64.get(0);
 
         logger.log(Level.INFO, "Armv7 exe: " + getFileDescription(exeArmv7));
         logger.log(Level.INFO, "Arm64 exe: " + getFileDescription(exeArm64));
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
+        String exeName = BundleHelper.projectNameToBinaryName(title);
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         File appDir = new File(bundleDir, title + ".app");
@@ -353,6 +364,7 @@ public class IOSBundler implements IBundler {
         }
 
         Map<String, Object> properties = new HashMap<String, Object>();
+        properties.put("exe-name", exeName);
         properties.put("url-schemes", urlSchemes);
         properties.put("application-queries-schemes", applicationQueriesSchemes);
 
@@ -413,7 +425,7 @@ public class IOSBundler implements IBundler {
         }
 
         // Copy Executable
-        File destExecutable = new File(appDir, title);
+        File destExecutable = new File(appDir, exeName);
         FileUtils.copyFile(new File(exe), destExecutable);
         destExecutable.setExecutable(true);
         logger.log(Level.INFO, "Bundle binary: " + getFileDescription(destExecutable));
@@ -429,16 +441,43 @@ public class IOSBundler implements IBundler {
             }
 
             File entitlementOut = File.createTempFile("entitlement", ".xcent");
+            String customEntitlementsProperty = projectProperties.getStringValue("ios", "entitlements");
 
             try {
+                XMLPropertyListConfiguration customEntitlements = new XMLPropertyListConfiguration();
                 XMLPropertyListConfiguration decodedProvision = new XMLPropertyListConfiguration();
+
                 decodedProvision.load(textProvisionFile);
                 XMLPropertyListConfiguration entitlements = new XMLPropertyListConfiguration();
                 entitlements.append(decodedProvision.configurationAt("Entitlements"));
+
+                if (customEntitlementsProperty != null && customEntitlementsProperty.length() > 0) {
+                    IResource customEntitlementsResource = project.getResource(customEntitlementsProperty);
+                    if (customEntitlementsResource.exists()) {
+                        InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
+                        customEntitlements.load(is);
+
+                        Iterator<String> keys = customEntitlements.getKeys();
+                        while (keys.hasNext()) {
+                            String key = keys.next();
+
+                            if (entitlements.getProperty(key) == null) {
+                                logger.log(Level.SEVERE, "No such key found in provisions profile entitlements '" + key + "'.");
+                                throw new IOException("Invalid custom iOS entitlements key '" + key + "'.");
+                            }
+                            entitlements.clearProperty(key);
+                        }
+                        entitlements.append(customEntitlements);
+                    }
+                }
+
                 entitlementOut.deleteOnExit();
                 entitlements.save(entitlementOut);
             } catch (ConfigurationException e) {
                 logger.log(Level.SEVERE, "Error reading provisioning profile '" + provisioningProfile + "'. Make sure this is a valid provisioning profile file." );
+                throw new RuntimeException(e);
+            } catch (IOException e) {
+                logger.log(Level.SEVERE, "Error merging custom entitlements '" + customEntitlementsProperty +"' with entitlements in provisioning profile. Make sure that custom entitlements has corresponding wildcard entries in the provisioning profile.");
                 throw new RuntimeException(e);
             }
 

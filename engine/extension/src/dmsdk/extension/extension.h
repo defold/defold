@@ -168,6 +168,7 @@ namespace dmExtension
      * Registers an activity result callback. Multiple listeners are allowed.
      *
      * @note [icon:android] Only available on Android
+     * @name RegisterAndroidOnActivityResultListener
      * @param [type:OnActivityResult] listener
      */
     void RegisterAndroidOnActivityResultListener(OnActivityResult listener);
@@ -177,6 +178,7 @@ namespace dmExtension
      * Unregisters an activity result callback
      *
      * @note [icon:android] Only available on Android
+     * @name UnregisterAndroidOnActivityResultListener
      * @param [type:OnActivityResult] listener
      */
     void UnregisterAndroidOnActivityResultListener(OnActivityResult listener);
@@ -364,7 +366,7 @@ namespace dmExtension
  * Set if the platform is Windows [icon:windows] (on both x86 and x86_64)
  *
  * @macro
- * @name DM_PLATFORM_WIN32
+ * @name DM_PLATFORM_WINDOWS
  *
  */
 

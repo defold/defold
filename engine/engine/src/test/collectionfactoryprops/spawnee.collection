@@ -1,0 +1,19 @@
+name: "spawnee"
+instances {
+  id: "gob"
+  prototype: "/collectionfactoryprops/gob.go"
+  component_properties {
+    id: "gob"
+    properties {
+      id: "anim"
+      value: "rabbitv3_wolverine"
+      type: PROPERTY_TYPE_HASH
+    }
+  }
+}
+scale_along_z: 0
+embedded_instances {
+  id: "root"
+  children: "gob"
+  data: ""
+}

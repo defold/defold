@@ -23,8 +23,12 @@ ordinary paths."
 
 (def build-dir "/build/default/")
 
-(defn project-path ^File [workspace]
-  (io/as-file (g/node-value workspace :root)))
+(defn project-path
+  (^File [workspace]
+   (g/with-auto-evaluation-context evaluation-context
+     (project-path workspace evaluation-context)))
+  (^File [workspace evaluation-context]
+   (io/as-file (g/node-value workspace :root evaluation-context))))
 
 (defn build-path [workspace]
   (io/file (project-path workspace) "build/default/"))
@@ -358,8 +362,8 @@ ordinary paths."
 (defn etags [workspace]
   (g/user-data workspace ::etags))
 
-(defn etag [workspace path]
-  (get (etags workspace) path))
+(defn etag [workspace proj-path]
+  (get (etags workspace) proj-path))
 
 (defn etags! [workspace etags]
   (g/user-data! workspace ::etags etags))

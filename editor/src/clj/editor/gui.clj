@@ -173,9 +173,9 @@
                             (if-let [geom-data (seq (:geom-data user-data))]
                               (let [[r g b a] (premul (:color user-data))]
                                 (loop [vb vb
-                                       [[x y z :as v] & vs] (geom/transf-p world-transform geom-data)
+                                       [[x y z :as vtx] & vs] (geom/transf-p world-transform geom-data)
                                        [[u v :as uv] & uvs] (:uv-data user-data)]
-                                  (if v
+                                  (if vtx
                                     (recur (uv-color-vtx-put! vb x y z u v r g b a) vs uvs)
                                     vb)))
                               vb))
@@ -277,9 +277,6 @@
     (cond-> (geom/chain segments (partial geom/rotate [0 0 angle]) ps)
       corners? (cornify max-angle)
       cut-off? (into (geom/rotate [0 0 max-angle] ps)))))
-
-(defn- pairs [v]
-  (filter (fn [[v0 v1]] (> (Math/abs (double (- v1 v0))) 0)) (partition 2 1 v)))
 
 (defn- v3->v4 [v3 default]
   (conj (or v3 default) 1.0))
@@ -673,12 +670,24 @@
   (when (references-gui-resource? evaluation-context node-id :layer old-name)
     (g/set-property node-id :layer new-name)))
 
+(defn- validate-particlefx-adjust-mode [node-id adjust-mode]
+  (validation/prop-error :warning
+                         node-id
+                         :adjust-mode
+                         (fn [adjust-mode]
+                           (when (= adjust-mode :adjust-mode-stretch)
+                             "Adjust mode \"Stretch\" not supported for particlefx nodes."))
+                         adjust-mode))
+
 (g/defnode VisualNode
   (inherits GuiNode)
 
   (property blend-mode g/Keyword (default :blend-mode-alpha)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$BlendMode))))
   (property adjust-mode g/Keyword (default :adjust-mode-fit)
+            (dynamic error (g/fnk [_node-id adjust-mode type]
+                                  (when (= type :type-particlefx)
+                                    (validate-particlefx-adjust-mode _node-id adjust-mode))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$AdjustMode))))
   (property pivot g/Keyword (default :pivot-center)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$Pivot))))
@@ -795,10 +804,73 @@
 
 ;; Box nodes
 
+(def ^:private box-triangles-vertex-order [0 1 3 3 1 2])
+
+(defn box->triangle-vertices [box]
+  ;; box vertices are in order BL TL TR BR
+  ;;
+  ;; turns:
+  ;; 1---2
+  ;; |   |
+  ;; 0---3
+  ;;
+  ;; into:
+  ;; 1     1-2
+  ;; |\  +  \|
+  ;; 0-3     3
+  ;;
+  ;; normal uv box vertices are in order BL TL TR BR
+  ;;
+  ;; turns:
+  ;; 1---2
+  ;; |   |
+  ;; 0---3
+  ;;
+  ;; into:
+  ;; 1     1-2
+  ;; |\  +  \|
+  ;; 0-3     3
+  ;;
+  ;; _rotated_ uv box vertices are in order TL TR BR BL
+  ;;
+  ;; turns:
+  ;;
+  ;; 0---1
+  ;; |   |
+  ;; 3---2
+  ;;
+  ;; into:
+  ;; 0-1     1
+  ;; |/  +  /|
+  ;; 3     3-2
+  (map box box-triangles-vertex-order))
+
+(defn- box-corner-coords->vertices2 [[x0 y0 x1 y1]]
+  [[x0 y0] [x0 y1] [x1 y1] [x1 y0]])
+
+(defn- rotated-box-corner-coords->vertices2 [[x0 y0 x1 y1]]
+  [[x0 y0] [x1 y0] [x1 y1] [x0 y1]])
+
+(defn- box-corner-coords->vertices3 [[x0 y0 x1 y1]]
+  [[x0 y0 0.0] [x0 y1 0.0] [x1 y1 0.0] [x1 y0 0.0]])
+
+(defn- ranges->box-corner-coords [x-ranges y-ranges]
+  (for [[x0 x1] x-ranges
+        [y0 y1] y-ranges]
+    [x0 y0 x1 y1]))
+
+(defn- ranges->rotated-box-corner-coords [x-ranges y-ranges]
+  (for [[y0 y1] y-ranges
+        [x0 x1] x-ranges]
+    [x0 y0 x1 y1]))
+
+(defn- steps->ranges [v]
+  (partition 2 1 v))
+
 (g/defnode BoxNode
   (inherits ShapeNode)
 
-  (property slice9 types/Vec4 (default [0 0 0 0]))
+  (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0]))
 
   (display-order (into base-display-order
                        [:size-mode :texture :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
@@ -806,35 +878,140 @@
 
   ;; Overloaded outputs
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
-                 (let [[w h _] size
-                       offset (pivot-offset pivot size)
-                       order [0 1 3 3 1 2]
-                       x-vals (pairs [0 (get slice9 0) (- w (get slice9 2)) w])
-                       y-vals (pairs [0 (get slice9 3) (- h (get slice9 1)) h])
-                       corners (for [[x0 x1] x-vals
-                                     [y0 y1] y-vals]
-                                 (geom/transl offset [[x0 y0 0] [x0 y1 0] [x1 y1 0] [x1 y0 0]]))
-                       vs (vec (mapcat #(map (partial nth %) order) corners))
-                       tex anim-data
-                       tex-w (:width tex 1)
-                       tex-h (:height tex 1)
-                       u-vals (pairs [0 (/ (get slice9 0) tex-w) (- 1 (/ (get slice9 2) tex-w)) 1])
-                       v-vals (pairs [1 (- 1 (/ (get slice9 3) tex-h)) (/ (get slice9 1) tex-h) 0])
-                       uv-trans (get-in tex [:uv-transforms 0])
-                       uvs (for [[u0 u1] u-vals
-                                 [v0 v1] v-vals]
-                             (geom/uv-trans uv-trans [[u0 v0] [u0 v1] [u1 v1] [u1 v0]]))
-                       uvs (vec (mapcat #(map (partial nth %) order) uvs))
-                       lines (vec (mapcat #(interleave % (drop 1 (cycle %))) corners))
-                       user-data {:geom-data vs
-                                  :line-data lines
-                                  :uv-data uvs
-                                  :color color+alpha
-                                  :renderable-tags #{:gui-shape}}]
-                   (cond-> user-data
-                     (not= :clipping-mode-none clipping-mode)
-                     (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible}))))))
+          (g/fnk [id pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
+            (let [texture-width (:width anim-data 1)
+                  texture-height (:height anim-data 1)
+                  ;; Sample tex-coords if anim from tile source:
+                  ;;
+                  ;;  no flip:  [[0.0 0.140625] [0.0 1.0] [0.5566406 1.0] [0.5566406 0.140625]]   TL BL BR TR     T-B-B-T L-L-R-R
+                  ;;   flip-h:  [[0.5566406 0.140625] [0.5566406 1.0] [0.0 1.0] [0.0 0.140625]]   "TR BR BL TL"   T-B-B-T R-R-L-L
+                  ;;   flip-v:  [[0.0 1.0] [0.0 0.140625] [0.5566406 0.140625] [0.5566406 1.0]]   "BL TL TR BR"   B-T-T-B L-L-R-R
+                  ;; flip-h+v:  [[0.5566406 1.0] [0.5566406 0.140625] [0.0 0.140625] [0.0 1.0]]   "BR TR TL BL"   B-T-T-B R-R-L-L
+                  ;;
+                  ;; Sample tex-coords from rotated (90 CW) image in atlas:
+                  ;;           [[0.0 1.0] [0.8691406 1.0] [0.8691406 0.375] [0.0 0.375]]          TL TR BR BL
+                  ;;
+                  ;; See texture_set_ddf.proto for further info on tex-coords format. Looks like minV/maxV have been swapped?
+                  tex-coords (get-in anim-data [:frames 0 :tex-coords])
+                  ;; In comp_gui.cpp RenderBoxNodes we determine whether the texture is rotated like this:
+                  uv-rotated? (and tex-coords
+                                   (not= (get-in tex-coords [0 0])
+                                         (get-in tex-coords [1 0]))
+                                   (not= (get-in tex-coords [1 1])
+                                         (get-in tex-coords [2 1])))
+                  [u0 v0] (get tex-coords 0 [0.0 0.0])
+                  [u1 v1] (get tex-coords 2 [1.0 1.0])
+                  u-delta (- u1 u0)
+                  v-delta (- v1 v0)
+                  uv-boxes (if-not uv-rotated?
+                             ;;    ^
+                             ;;    |
+                             ;;
+                             ;;   v1   ___________
+                             ;;       |           |
+                             ;;       |           |
+                             ;;   v1- |   -   X   |
+                             ;;       |           |
+                             ;;       | *       * |
+                             ;;       |  *     *  |
+                             ;;   v0+ |    ***    |
+                             ;;       |           |
+                             ;;   v0   -----------
+                             ;;       u0 u0+ u1- u1 -->
+                             ;;
+                             ;; uv-box vertex order is:
+                             ;;
+                             ;; 1---2
+                             ;; |   |
+                             ;; |   |
+                             ;; 0---3
+                             ;;
+                             ;; Slice 9 uv-box order:
+                             ;;
+                             ;;  ___________
+                             ;; |   |   |   |
+                             ;; | 3 | 6 | 9 |
+                             ;; |---|---|---|
+                             ;; | 2 | 5 | 8 |
+                             ;; |---|---|---|
+                             ;; | 1 | 4 | 7 |
+                             ;; |   |   |   |
+                             ;;  -----------
+                             (let [u-steps [u0
+                                            (+ u0 (* u-delta (/ (get slice9 0) texture-width)))
+                                            (- u1 (* u-delta (/ (get slice9 2) texture-width)))
+                                            u1]
+                                   v-steps [v0
+                                            (+ v0 (* v-delta (/ (get slice9 3) texture-height)))
+                                            (- v1 (* v-delta (/ (get slice9 1) texture-height)))
+                                            v1]
+                                   uv-box-coords (ranges->box-corner-coords (steps->ranges u-steps) (steps->ranges v-steps))]
+                               (map box-corner-coords->vertices2 uv-box-coords))
+                             ;;   ^
+                             ;;   |
+                             ;;
+                             ;;  v0   __________________
+                             ;;      |                  |
+                             ;;  v0+ |     *            |
+                             ;;      |    *       -     |
+                             ;;      |   *              |
+                             ;;      |    *       X     |
+                             ;;  v1- |     *            |
+                             ;;      |                  |
+                             ;;  v1   ------------------
+                             ;;      u0  u0+      u1-  u1 -->
+                             ;;
+                             ;;  uv-box vertex order (handled by rotated-box-corner-coords->vertices2) is:
+                             ;;
+                             ;;  0---1
+                             ;;  |   |
+                             ;;  |   |
+                             ;;  3---2
+                             ;;
+                             ;; Slice 9 uv-box order (ranges->rotated-box-corner-coords):
+                             ;;
+                             ;;  ___________
+                             ;; |   |   |   |
+                             ;; | 1 | 2 | 3 |
+                             ;; |---|---|---|
+                             ;; | 4 | 5 | 6 |
+                             ;; |---|---|---|
+                             ;; | 7 | 8 | 9 |
+                             ;; |   |   |   |
+                             ;;  -----------
+                             (let [u-steps [u0
+                                            (+ u0 (* u-delta (/ (get slice9 3) texture-height)))
+                                            (- u1 (* u-delta (/ (get slice9 1) texture-height)))
+                                            u1]
+                                   v-steps [v0
+                                            (+ v0 (* v-delta (/ (get slice9 0) texture-width)))
+                                            (- v1 (* v-delta (/ (get slice9 2) texture-width)))
+                                            v1]
+                                   uv-box-coords (ranges->rotated-box-corner-coords (steps->ranges u-steps) (steps->ranges v-steps))]
+                               (map rotated-box-corner-coords->vertices2 uv-box-coords)))
+                  [box-width box-height _] size
+                  x-steps [0.0 (get slice9 0) (- box-width (get slice9 2)) box-width]
+                  y-steps [0.0 (get slice9 3) (- box-height (get slice9 1)) box-height]
+                  xy-box-coords (ranges->box-corner-coords (steps->ranges x-steps) (steps->ranges y-steps))
+                  non-empty-xy-box-coords+uv-boxes (into []
+                                                         (filter (fn [[[x0 y0 x1 y1] uv-box]]
+                                                                   (and (not= x0 x1) (not= y0 y1))))
+                                                         (map vector xy-box-coords uv-boxes))
+                  non-empty-xy-boxes (mapv (comp (partial geom/transl (pivot-offset pivot size))
+                                                 box-corner-coords->vertices3
+                                                 first)
+                                           non-empty-xy-box-coords+uv-boxes)
+                  user-data {:geom-data (into [] (mapcat box->triangle-vertices) non-empty-xy-boxes)
+                             :line-data (into [] (mapcat (fn [box-vertices] (interleave box-vertices (drop 1 (cycle box-vertices))))) non-empty-xy-boxes)
+                             :uv-data (into [] (comp
+                                                 (map second)
+                                                 (mapcat box->triangle-vertices))
+                                            non-empty-xy-box-coords+uv-boxes)
+                             :color color+alpha
+                             :renderable-tags #{:gui-shape}}]
+              (cond-> user-data
+                (not= :clipping-mode-none clipping-mode)
+                (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible}))))))
 
 ;; Pie nodes
 
@@ -1436,7 +1613,7 @@
                                                       :label name
                                                       :icon texture-icon
                                                       :outline-error? (g/error-fatal? build-errors)}
-                                                     (resource/openable-resource? texture-resource) (assoc :link texture-resource :outline-reference? false))))
+                                                     (resource/openable-resource? texture-resource) (assoc :link texture-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name texture-resource]
                          {:name name
                           :texture (resource/resource->proj-path texture-resource)}))
@@ -1482,7 +1659,7 @@
                                                               :label name
                                                               :icon font-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
-                                                             (resource/openable-resource? font-resource) (assoc :link font-resource :outline-reference? false))))
+                                                             (resource/openable-resource? font-resource) (assoc :link font-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name font-resource]
                               {:name name
                                :font (resource/resource->proj-path font-resource)}))
@@ -1583,7 +1760,7 @@
                                                                    :label name
                                                                    :icon spine/spine-scene-icon
                                                                    :outline-error? (g/error-fatal? build-errors)}
-                                                                  (resource/openable-resource? spine-scene-resource) (assoc :link spine-scene-resource :outline-reference? false))))
+                                                                  (resource/openable-resource? spine-scene-resource) (assoc :link spine-scene-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name spine-scene]
                               {:name name
                                :spine-scene (resource/resource->proj-path spine-scene)}))
@@ -1626,7 +1803,7 @@
                                                               :label name
                                                               :icon particlefx/particle-fx-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
-                                                             (resource/openable-resource? particlefx-resource) (assoc :link particlefx-resource :outline-reference? false))))
+                                                             (resource/openable-resource? particlefx-resource) (assoc :link particlefx-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name particlefx]
                               {:name name
                                :particlefx (resource/resource->proj-path particlefx)}))

@@ -77,14 +77,14 @@
   (let [proj-settings (project/settings project)]
     (get proj-settings ["project" "title"] "Unnamed")))
 
-(defn- run-commands! [project ^Project bob-project commands render-progress!]
+(defn- run-commands! [project evaluation-context ^Project bob-project commands render-progress!]
   (try
     (let [result (ui/with-progress [render-progress! render-progress!]
                    (.build bob-project (->progress render-progress!) (into-array String commands)))
           failed-tasks (filter (fn [^TaskResult r] (not (.isOk r))) result)]
       (if (empty? failed-tasks)
         nil
-        {:error {:causes (engine-build-errors/failed-tasks-error-causes project failed-tasks)}}))
+        {:error {:causes (engine-build-errors/failed-tasks-error-causes project evaluation-context failed-tasks)}}))
     (catch Exception e
       {:exception e})))
 
@@ -93,7 +93,7 @@
 (defn build-in-progress? []
   @build-in-progress-atom)
 
-(defn bob-build! [project bob-commands bob-args render-progress!]
+(defn bob-build! [project evaluation-context bob-commands bob-args render-progress!]
   (assert (vector? bob-commands))
   (assert (every? string? bob-commands))
   (assert (map? bob-args))
@@ -102,11 +102,11 @@
   (reset! build-in-progress-atom true)
   (try
     (if (and (some #(= "build" %) bob-commands)
-             (native-extensions/has-extensions? project)
+             (native-extensions/has-extensions? project evaluation-context)
              (not (native-extensions/supported-platform? (get bob-args "platform"))))
-      {:error {:causes (engine-build-errors/unsupported-platform-error-causes project)}}
-      (let [ws (project/workspace project)
-            proj-path (str (workspace/project-path ws))
+      {:error {:causes (engine-build-errors/unsupported-platform-error-causes project evaluation-context)}}
+      (let [ws (project/workspace project evaluation-context)
+            proj-path (str (workspace/project-path ws evaluation-context))
             bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
         (doseq [[key val] bob-args]
           (.setOption bob-project key val))
@@ -122,7 +122,7 @@
         (.mount bob-project (->graph-resource-scanner ws))
         (.findSources bob-project proj-path skip-dirs)
         (ui/with-progress [render-progress! render-progress!]
-          (run-commands! project bob-project bob-commands render-progress!))))
+          (run-commands! project evaluation-context bob-project bob-commands render-progress!))))
     (catch Throwable error
       {:exception error})
     (finally
@@ -211,6 +211,7 @@
         compress-archive? (get proj-settings ["project" "compress_archive"])
         [email auth] (login/credentials prefs)]
     (cond-> {"platform" "js-web"
+             "variant" "debug"
              "archive" "true"
              "bundle-output" (str output-path)
              "build-server" build-server-url
@@ -237,7 +238,11 @@
       {:code 302
        :headers {"Location" (str html5-url-prefix "/index.html")}}
 
-      (let [served-file (try-resolve-html5-file project url)]
+      (let [served-file   (try-resolve-html5-file project url)
+            extra-headers (when (clojure.string/ends-with?
+                                  (clojure.string/lower-case url)
+                                  ".wasm")
+                                {"Content-Type" "application/wasm"})]
         (cond
           ;; The requested URL is a directory or located outside build-html5-output-path.
           (or (nil? served-file) (.isDirectory served-file))
@@ -246,7 +251,7 @@
 
           (.exists served-file)
           {:code 200
-           :response-headers {"Content-Length" (str (.length served-file))}
+           :headers (merge {"Content-Length" (str (.length served-file))} extra-headers)
            :body served-file}
 
           :else

@@ -115,6 +115,11 @@ namespace dmGameSystem
         if (fr != dmResource::RESULT_OK) {
             return fr;
         }
+        if(dmRender::GetMaterialVertexSpace(resource->m_Material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
+        {
+            dmLogError("Failed to create Gui component. This component only supports materials with the Vertex Space property set to 'vertex-space-world'");
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
 
         if (resource->m_SceneDesc->m_Script != 0x0 && *resource->m_SceneDesc->m_Script != '\0')
         {
@@ -255,6 +260,16 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < scene_desc->m_Textures.m_Count; ++i)
         {
             dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_Textures[i].m_Texture);
+        }
+
+        for (uint32_t i = 0; i < scene_desc->m_SpineScenes.m_Count; ++i)
+        {
+            dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_SpineScenes[i].m_SpineScene);
+        }
+
+        for (uint32_t i = 0; i < scene_desc->m_Particlefxs.m_Count; ++i)
+        {
+            dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_Particlefxs[i].m_Particlefx);
         }
 
         *params.m_PreloadData = scene_desc;

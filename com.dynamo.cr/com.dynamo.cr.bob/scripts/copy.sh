@@ -14,6 +14,7 @@ mkdir -p libexec/armv7-darwin
 mkdir -p libexec/arm64-darwin
 mkdir -p libexec/armv7-android
 mkdir -p libexec/js-web
+mkdir -p libexec/wasm-web
 
 SHA1=`git log --pretty=%H -n1`
 
@@ -23,6 +24,16 @@ cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/apkc libexec/x86_64-linux/apkc
 cp -v $DYNAMO_HOME/ext/bin/win32/apkc.exe libexec/x86-win32/apkc.exe
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/apkc.exe libexec/x86_64-win32/apkc.exe
 
+# SPIRV toolchain
+cp -v $DYNAMO_HOME/ext/bin/x86_64-darwin/glslc libexec/x86_64-darwin/glslc
+cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/glslc libexec/x86_64-linux/glslc
+cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/glslc.exe libexec/x86_64-win32/glslc.exe
+cp -v $DYNAMO_HOME/ext/bin/win32/glslc.exe libexec/x86-win32/glslc.exe
+
+cp -v $DYNAMO_HOME/ext/bin/x86_64-darwin/spirv-cross libexec/x86_64-darwin/spirv-cross
+cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/spirv-cross libexec/x86_64-linux/spirv-cross
+cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe libexec/x86_64-win32/spirv-cross.exe
+cp -v $DYNAMO_HOME/ext/bin/win32/spirv-cross.exe libexec/x86-win32/spirv-cross.exe
 
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/builtins.zip lib/builtins.zip
 
@@ -42,7 +53,7 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/texc_shared.dll lib/x86_6
 cp -v $DYNAMO_HOME/ext/lib/win32/PVRTexLib.dll lib/x86-win32/PVRTexLib.dll
 cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/PVRTexLib.dll lib/x86_64-win32/PVRTexLib.dll
 cp -v $DYNAMO_HOME/ext/lib/x86_64-linux/libPVRTexLib.so lib/x86_64-linux/libPVRTexLib.so
-cp -v $DYNAMO_HOME/ext/lib/x86_64-darwin/libPVRTexLib.dylib lib/x86_64-linux/libPVRTexLib.dylib
+cp -v $DYNAMO_HOME/ext/lib/x86_64-darwin/libPVRTexLib.dylib lib/x86_64-darwin/libPVRTexLib.dylib
 
 # Win32 32
 cp -v $DYNAMO_HOME/ext/lib/win32/OpenAL32.dll lib/x86-win32/OpenAL32.dll
@@ -58,9 +69,7 @@ rm -rf tmp
 mkdir -p tmp
 tar xf ../../packages/luajit-2.0.5-win32.tar.gz -C tmp
 tar xf ../../packages/luajit-2.0.5-x86_64-win32.tar.gz -C tmp
-tar xf ../../packages/luajit-2.0.5-linux.tar.gz -C tmp
 tar xf ../../packages/luajit-2.0.5-x86_64-linux.tar.gz -C tmp
-tar xf ../../packages/luajit-2.0.5-darwin.tar.gz -C tmp
 tar xf ../../packages/luajit-2.0.5-x86_64-darwin.tar.gz -C tmp
 
 cp -v tmp/bin/x86_64-linux/luajit libexec/x86_64-linux/luajit
@@ -96,3 +105,7 @@ copy js-web/defold_sound.swf js-web/defold_sound.swf
 #copy js-web/dmengine.js.mem js-web/dmengine.js.mem
 copy js-web/dmengine_release.js js-web/dmengine_release.js
 #copy js-web/dmengine_release.js.mem js-web/dmengine_release.js.mem
+copy wasm-web/dmengine.js wasm-web/dmengine.js
+copy wasm-web/dmengine.wasm wasm-web/dmengine.wasm
+copy wasm-web/dmengine_release.js wasm-web/dmengine_release.js
+copy wasm-web/dmengine_release.wasm wasm-web/dmengine_release.wasm

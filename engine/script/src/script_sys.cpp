@@ -219,7 +219,7 @@ union SaveLoadBuffer
         dmSys::Result r = dmSys::GetApplicationSupportPath(application_id, app_support_path, sizeof(app_support_path));
         if (r != dmSys::RESULT_OK)
         {
-            luaL_error(L, "Unable to locate application support path (%d)", r);
+            luaL_error(L, "Unable to locate application support path for \"%s\": (%d)", application_id, r);
         }
 
         const char* filename = luaL_checkstring(L, 2);
@@ -358,7 +358,7 @@ union SaveLoadBuffer
      *
      * In order for the engine to include custom resources in the build process, you need
      * to specify them in the "custom_resources" key in your "game.project" settings file.
-     * You can specify single resource files or directories. If a directory is is included
+     * You can specify single resource files or directories. If a directory is included
      * in the resource list, all files and directories in that directory is recursively
      * included:
      *

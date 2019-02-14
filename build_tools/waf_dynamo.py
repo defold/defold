@@ -22,16 +22,17 @@ ANDROID_MIN_API_LEVEL='9'
 ANDROID_GCC_VERSION='4.8'
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
-DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault.xctoolchain')
-IOS_SDK_VERSION="11.2"
+IOS_SDK_VERSION="12.1"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
-# Need 5.1 as minimum for fat/universal binaries (armv7 + arm64) to work
-MIN_IOS_SDK_VERSION="6.0"
+MIN_IOS_SDK_VERSION="8.0"
 
 OSX_SDK_VERSION="10.13"
 MIN_OSX_SDK_VERSION="10.7"
 
+XCODE_VERSION="10.1"
+
+DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault%s.xctoolchain' % XCODE_VERSION)
 
 # TODO: HACK
 FLASCC_ROOT=os.path.join(HOME, 'local', 'FlasCC1.0', 'sdk')
@@ -180,13 +181,18 @@ def dmsdk_add_files(bld, target, source):
 # I don't know if this is entirely correct
 @before('apply_core')
 def default_flags(self):
+    global MIN_IOS_SDK_VERSION
     build_util = create_build_utility(self.env)
 
     opt_level = Options.options.opt_level
-    if opt_level == "2" and 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
+    if opt_level == "2" and 'web' == build_util.get_target_os():
         opt_level = "3" # emscripten highest opt level
     elif opt_level == "0" and 'win' in build_util.get_target_os():
         opt_level = "d" # how to disable optimizations in windows
+
+    # For nicer better output (i.e. in CI logs), and still get some performance, let's default to -O1
+    if Options.options.with_asan and opt_level != '0':
+        opt_level = 1
 
     FLAG_ST = '/%s' if 'win' == build_util.get_target_os() else '-%s'
 
@@ -200,7 +206,7 @@ def default_flags(self):
         self.env.append_value(f, flags)
 
     if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
-        self.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
+        self.env.append_value('LINKFLAGS', ['-weak_framework', 'Foundation'])
         if 'ios' == build_util.get_target_os():
             self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'AdSupport', '-framework', 'SystemConfiguration', '-framework', 'CoreTelephony'])
         else:
@@ -212,9 +218,6 @@ def default_flags(self):
 
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
-
-            if Options.options.with_asan and "osx" == build_util.get_target_os():
-                self.env.append_value(f, ['-fsanitize=address', '-fno-omit-frame-pointer', '-DSANITIZE_ADDRESS'])
 
             # Without using '-ffloat-store', on 32bit Linux, there are floating point precison errors in
             # some tests after we switched to -02 optimisations. We should refine these tests so that they
@@ -229,8 +232,6 @@ def default_flags(self):
                 # tr1/tuple isn't available on clang/darwin and gtest 1.5.0 assumes that
                 # see corresponding flag in build_gtest.sh
                 self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
-                # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-                # Force libstdc++ for now
                 self.env.append_value(f, ['-stdlib=libstdc++'])
                 self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
                 self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION)])
@@ -238,19 +239,19 @@ def default_flags(self):
         if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
             self.env.append_value('LINKFLAGS', ['-m32'])
         if 'osx' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon','-flto'])
-        if Options.options.with_asan:
-            self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer'])
+            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION,'-lSystem','-framework', 'Carbon','-flto'])
+
     elif 'ios' == build_util.get_target_os() and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture()):
+        if Options.options.with_asan:
+            MIN_IOS_SDK_VERSION="8.0" # embedded dylibs/frameworks are only supported on iOS 8.0 and later
+
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
-            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-            # Force libstdc++ for now
-            self.env.append_value(f, ['-g', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
-                                        '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION,
+            self.env.append_value(f, ['-g', '-stdlib=libc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
+                                        '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-stdlib=libc++',
                                         '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)])
-        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-fobjc-link-runtime', '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
 
     elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
 
@@ -285,14 +286,24 @@ def default_flags(self):
                 '--sysroot=%s' % sysroot,
                 '-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text',
                 '-L%s' % stl_lib])
-    elif 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
+    elif 'web' == build_util.get_target_os():
+
+        # Default to asmjs output
+        wasm_enabled = 0
+        legacy_vm_support = 1
+        binaryen_method = "asmjs"
+        if 'wasm' == build_util.get_target_architecture():
+            wasm_enabled = 1
+            legacy_vm_support = 0
+            binaryen_method = "native-wasm"
+
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-fno-exceptions', '-fno-rtti', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS',
-                                      '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]',
+                                      '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]',
                                       '-I%s/system/lib/libcxxabi/include' % EMSCRIPTEN_ROOT]) # gtest uses cxxabi.h and for some reason, emscripten doesn't find it (https://github.com/kripken/emscripten/issues/3484)
 
         # NOTE: Disabled lto for when upgrading to 1.35.23, see https://github.com/kripken/emscripten/issues/3616
-        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]'])
+        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]'])
 
     elif 'as3' == build_util.get_target_architecture() and 'web' == build_util.get_target_os():
         # NOTE: -g set on both C*FLAGS and LINKFLAGS
@@ -321,6 +332,7 @@ def default_flags(self):
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('sdk','include'))
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('include'))
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('include', build_util.get_target_platform()))
+    self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include', build_util.get_target_platform()))
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
 
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
@@ -335,6 +347,23 @@ def android_link_flags(self):
             # NOTE: This is a hack We change cprogram -> cshlib
             # but it's probably to late. It works for the name though (libX.so and not X)
             self.link_task.env.append_value('LINKFLAGS', ['-shared'])
+
+@feature('skip_asan')
+@before('apply_core')
+def asan_skip(self):
+    self.skip_asan = True
+
+@feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
+@before('apply_core')
+@after('skip_asan')
+def asan_cxxflags(self):
+    if getattr(self, 'skip_asan', False):
+        return
+    build_util = create_build_utility(self.env)
+    if Options.options.with_asan and build_util.get_target_os() in ('osx','ios'):
+        self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
+        self.env.append_value('CCFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
+        self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
 
 @taskgen
 @feature('cprogram', 'cxxprogram')
@@ -753,15 +782,6 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
             </intent-filter>
         </receiver>
 
-        <service android:name="com.defold.adtruth.InstallReceiver"/>
-        <receiver
-            android:name="com.defold.adtruth.InstallReceiver"
-            android:exported="true">
-          <intent-filter>
-            <action android:name="com.android.vending.INSTALL_REFERRER" />
-          </intent-filter>
-        </receiver>
-
         %(extra_activities)s
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
@@ -1142,7 +1162,7 @@ def run_gtests(valgrind = False, configfile = None):
     if not getattr(Options.options, 'with_valgrind', False):
         valgrind = False
 
-    if Build.bld.env.PLATFORM == 'js-web' and not Build.bld.env['NODEJS']:
+    if 'web' in Build.bld.env.PLATFORM and not Build.bld.env['NODEJS']:
         Logs.info('Not running tests. node.js not found')
         return
 
@@ -1150,7 +1170,7 @@ def run_gtests(valgrind = False, configfile = None):
         if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
             output = t.path
             cmd = "%s %s" % (os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target), configfile)
-            if Build.bld.env.PLATFORM == 'js-web':
+            if 'web' in Build.bld.env.PLATFORM:
                 cmd = '%s %s' % (Build.bld.env['NODEJS'], cmd)
             if valgrind:
                 dynamo_home = os.getenv('DYNAMO_HOME')
@@ -1193,7 +1213,7 @@ def as3_link_flags_pattern(self):
 @after('apply_obj_vars')
 def js_web_link_flags(self):
     platform = self.env['PLATFORM']
-    if platform == 'js-web':
+    if 'web' in platform:
         pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre.js")
         self.link_task.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
 
@@ -1203,7 +1223,7 @@ def js_web_link_flags(self):
 def test_flags(self):
 # When building tests for the web, we disable emission of emscripten js.mem init files,
 # as the assumption when these are loaded is that the cwd will contain these items.
-    if self.env['PLATFORM'] == 'js-web':
+    if 'web' in self.env['PLATFORM']:
         for f in ['CCFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
             self.env.append_value(f, ['--memory-init-file', '0'])
 
@@ -1211,14 +1231,14 @@ def test_flags(self):
 @after('apply_obj_vars')
 def js_web_web_link_flags(self):
     platform = self.env['PLATFORM']
-    if platform == 'js-web':
+    if 'web' in platform:
         lib_dirs = None
         if 'JS_LIB_PATHS' in self.env:
             lib_dirs = self.env['JS_LIB_PATHS']
         else:
             lib_dirs = {}
         libs = getattr(self, 'web_libs', ["library_glfw.js", "library_sys.js", "library_script.js", "library_facebook.js", "library_facebook_iap.js", "library_sound.js"])
-        jsLibHome = os.path.join(self.env['DYNAMO_HOME'], 'lib', 'js-web', 'js')
+        jsLibHome = os.path.join(self.env['DYNAMO_HOME'], 'lib', platform, 'js')
         for lib in libs:
             js = ''
             if lib in lib_dirs:
@@ -1226,6 +1246,34 @@ def js_web_web_link_flags(self):
             else:
                 js = os.path.join(jsLibHome, lib)
             self.link_task.env.append_value('LINKFLAGS', ['--js-library', js])
+
+Task.simple_task_type('dSYM', '${DSYMUTIL} -o ${TGT} ${SRC}',
+                      color='YELLOW',
+                      after='cxx_link',
+                      shell=True)
+
+Task.simple_task_type('DSYMZIP', '${ZIP} -r ${TGT} ${SRC}',
+                      color='BROWN',
+                      after='dSYM') # Not sure how I could ensure this task running after the dSYM task /MAWE
+
+@feature('extract_symbols')
+@after('cprogram')
+def extract_symbols(self):
+    platform = self.env['PLATFORM']
+    if not 'darwin' in platform:
+        return
+
+    engine = self.path.find_or_declare(self.target)
+    dsym = engine.change_ext('.dSYM')
+    dsymtask = self.create_task('dSYM')
+    dsymtask.set_inputs(engine)
+    dsymtask.set_outputs(dsym)
+
+    archive = engine.change_ext('.dSYM.zip')
+    ziptask = self.create_task('DSYMZIP')
+    ziptask.set_inputs(dsymtask.outputs[0])
+    ziptask.set_outputs(archive)
+    ziptask.install_path = self.install_path
 
 def create_clang_wrapper(conf, exe):
     clang_wrapper_path = os.path.join(conf.env['DYNAMO_HOME'], 'bin', '%s-wrapper.sh' % exe)
@@ -1350,6 +1398,16 @@ def detect(conf):
     if not platform:
         platform = build_platform
 
+    if platform == "win32":
+        bob_build_platform = "x86-win32"
+    elif platform == "linux":
+        bob_build_platform = "x86-linux"
+    elif platform == "darwin":
+        bob_build_platform = "x86-darwin"
+    else:
+        bob_build_platform = platform
+
+    conf.env['BOB_BUILD_PLATFORM'] = bob_build_platform
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = build_platform
 
@@ -1385,6 +1443,10 @@ def detect(conf):
 
         conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = search_path)
 
+    if  build_util.get_target_os() in ('osx', 'ios'):
+        conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True) # or possibly llvm-dsymutil
+        conf.find_program('zip', var='ZIP', mandatory = True)
+
     if 'osx' == build_util.get_target_os():
         # Force gcc without llvm on darwin.
         # We got strange bugs with http cache with gcc-llvm...
@@ -1398,7 +1460,7 @@ def detect(conf):
         conf.env['RANLIB']  = '%s/usr/bin/ranlib' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['LD']      = '%s/usr/bin/ld' % (DARWIN_TOOLCHAIN_ROOT)
 
-    if 'ios' == build_util.get_target_os() and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture()):
+    elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7','arm64'):
         # Wrap clang in a bash-script due to a bug in clang related to cwd
         # waf change directory from ROOT to ROOT/build when building.
         # clang "thinks" however that cwd is ROOT instead of ROOT/build
@@ -1451,7 +1513,7 @@ def detect(conf):
     remove_flag(conf.env['shlib_CXXFLAGS'], '-current_version', 1)
 
     # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
-    if 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
+    if 'web' == build_util.get_target_os() and ('js' == build_util.get_target_architecture() or 'wasm' == build_util.get_target_architecture()):
         bin = os.environ.get('EMSCRIPTEN')
         if None == bin:
             conf.fatal('EMSCRIPTEN environment variable does not exist')

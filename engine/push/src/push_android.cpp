@@ -178,6 +178,14 @@ static int Push_Schedule(lua_State* L)
     const char* payload = 0;
     if (top > 3) {
         payload = luaL_checkstring(L, 4);
+
+        // Verify that the payload is valid and can be delivered later on.
+        char payload_err[128];
+        if (!dmPush::VerifyPayload(L, payload, payload_err, sizeof(payload_err))) {
+            lua_pushnil(L);
+            lua_pushstring(L, payload_err);
+            return 2;
+        }
     }
 
     // param: notification_settings
@@ -626,7 +634,13 @@ void HandlePushMessageResult(const Command* cmd, bool local)
     dmJson::Document doc;
     dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
     if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-        dmScript::JsonToLua(L, &doc, 0);
+        char err_str[128];
+        if (dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str)) < 0) {
+            lua_pop(L, lua_gettop(L) - top); // Need to leave function and self references.
+            dmLogError("Failed converting push result JSON to Lua; %s", err_str);
+            assert(top == lua_gettop(L));
+            return;
+        }
 
         if (local) {
             lua_pushnumber(L, DM_PUSH_EXTENSION_ORIGIN_LOCAL);
@@ -638,6 +652,7 @@ void HandlePushMessageResult(const Command* cmd, bool local)
 
         dmScript::PCall(L, 4, 0);
     } else {
+        lua_pop(L, 2);
         dmLogError("Failed to parse push response (%d)", r);
     }
     dmJson::Free(&doc);
