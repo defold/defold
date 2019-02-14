@@ -19,7 +19,9 @@ def build(bld):
 
     test_physics_2d.install_path = None
 
-
+    # Note that these null tests won't actually work since the tests aren't written that way.
+    # The test is instead that the executables link properly (so that we don't miss any unresolved symbols)
+    # We do this by removing the 'test' feature which excludes it from the test run
     null_test = bld.new_task_gen(features = 'cxx cprogram',
                                     source = 'test_physics.cpp',
                                     uselib = 'DLIB GTEST PLATFORM_THREAD BULLET',
