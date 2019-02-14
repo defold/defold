@@ -291,6 +291,7 @@ static void LogFrameBufferError(GLenum status)
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
+        m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_16;
     }
 
     HContext NewContext(const ContextParams& params)
@@ -695,6 +696,20 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CLEAR_GL_ERROR
 #endif
 
+        if (IsExtensionSupported("GL_OES_compressed_ETC1_RGB8_texture", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+        }
+
+#if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
+        if ((IsExtensionSupported("GL_OES_element_index_uint", extensions)))
+        {
+            context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
+        }
+#else
+        context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
+#endif
+
         JobQueueInitialize();
         if(JobQueueIsAsync())
         {
@@ -963,6 +978,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
+    bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
+    {
+        return (context->m_IndexBufferFormatSupport & (1 << format)) != 0;
+    }
+
     uint32_t GetMaxElementIndices(HContext context)
     {
         return context->m_MaxElementIndices;
@@ -1140,14 +1160,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
-    uint32_t g_DrawCallsHash = dmHashString32("DrawCalls");
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context);
         assert(index_buffer);
         DM_PROFILE(Graphics, "DrawElements");
-        DM_COUNTER_HASH("DrawCalls", g_DrawCallsHash, 1);
+        DM_COUNTER("DrawCalls", 1);
 
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
         CHECK_GL_ERROR
@@ -1160,7 +1179,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         assert(context);
         DM_PROFILE(Graphics, "Draw");
-        DM_COUNTER_HASH("DrawCalls", g_DrawCallsHash, 1);
+        DM_COUNTER("DrawCalls", 1);
         glDrawArrays(prim_type, first, count);
         CHECK_GL_ERROR
     }

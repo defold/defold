@@ -397,10 +397,12 @@
    :build (ref progress/done)
    :resource-sync (ref progress/done)
    :save-all (ref progress/done)
-   :fetch-libraries (ref progress/done)})
+   :fetch-libraries (ref progress/done)
+   :download-update (ref progress/done)})
 
 (def ^:private app-task-ui-priority
-  [:save-all :resource-sync :fetch-libraries :build :main])
+  "Task priority in descending order (from highest to lowest)"
+  [:save-all :resource-sync :fetch-libraries :build :download-update :main])
 
 (def ^:private render-task-progress-ui-inflight (ref false))
 
@@ -411,9 +413,10 @@
       (ref-set task-progress-snapshot
                (into {} (map (juxt first (comp deref second))) app-task-progress)))
     (let [status-bar (.. (ui/main-stage) (getScene) (getRoot) (lookup "#status-bar"))
-          [key progress] (first (filter (comp (complement progress/done?) second)
-                                        (map (juxt identity @task-progress-snapshot)
-                                             app-task-ui-priority)))
+          [key progress] (->> app-task-ui-priority
+                              (map (juxt identity @task-progress-snapshot))
+                              (filter (comp (complement progress/done?) second))
+                              first)
           show-progress-hbox? (boolean (and (not= key :main)
                                             progress
                                             (not (progress/done? progress))))]
@@ -423,8 +426,8 @@
           status-label)
 
         ;; The bottom right of the status bar can show either the progress-hbox
-        ;; or the update-available-label, or both. The progress-hbox will cover
-        ;; the update-available-label if both are visible.
+        ;; or the update-link, or both. The progress-hbox will cover
+        ;; the update-link if both are visible.
         (if-not show-progress-hbox?
           (ui/visible! progress-hbox false)
           (do
@@ -902,7 +905,7 @@ If you do not specifically require different script states, consider changing th
   (run [] (ui/open-url (github/search-issues-link))))
 
 (handler/defhandler :show-logs :global
-  (run [] (ui/open-file (.toFile (Editor/getLogDirectory)))))
+  (run [] (ui/open-file (.getAbsoluteFile (.toFile (Editor/getLogDirectory))))))
 
 (handler/defhandler :about :global
   (run [] (make-about-dialog)))
