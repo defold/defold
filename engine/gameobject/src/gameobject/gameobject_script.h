@@ -70,7 +70,7 @@ namespace dmGameObject
     {
         CompScriptWorld(uint32_t max_instance_count);
 
-        dmArray<ScriptInstance*> m_Instancess;
+        dmArray<ScriptInstance*> m_Instances;
         dmScript::HScriptWorld m_ScriptWorld;
     };
 
