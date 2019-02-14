@@ -164,10 +164,10 @@
         style (case (:severity error-item)
                 :info #{"severity-info"}
                 :warning #{"severity-warning"}
-                #{"severity-error"})]
-    {:graphic (let [image (jfx/get-image-view icon 16)
-                    text (Text. message)]
-                (HBox. (ui/node-array [image text])))
+                #{"severity-error"})
+        image (jfx/get-image-view icon 16)
+        text (Text. message)]
+    {:graphic (HBox. (ui/node-array [image text]))
      :style style}))
 
 (defn- error-selection
