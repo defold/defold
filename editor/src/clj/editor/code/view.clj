@@ -17,29 +17,29 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s])
-  (:import (com.defold.control ListView)
-           (com.sun.javafx.font FontResource FontStrike PGFont)
-           (com.sun.javafx.geom.transform BaseTransform)
-           (com.sun.javafx.perf PerformanceTracker)
-           (com.sun.javafx.tk Toolkit)
-           (com.sun.javafx.util Utils)
-           (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect)
-           (java.util Collection)
-           (java.util.regex Pattern)
-           (javafx.beans.binding ObjectBinding)
-           (javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty)
-           (javafx.beans.value ChangeListener)
-           (javafx.geometry HPos Point2D VPos)
-           (javafx.scene Node Parent Scene)
-           (javafx.scene.canvas Canvas GraphicsContext)
-           (javafx.scene.control Button CheckBox PopupControl Tab TextField)
-           (javafx.scene.input Clipboard DataFormat KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent)
-           (javafx.scene.layout ColumnConstraints GridPane Pane Priority)
-           (javafx.scene.paint Color LinearGradient Paint)
-           (javafx.scene.shape Rectangle)
-           (javafx.scene.text Font FontSmoothingType TextAlignment)
-           (javafx.stage Stage)
-           (com.sun.javafx.scene.text FontHelper)))
+  (:import [com.defold.control ListView]
+           [com.sun.javafx.font FontResource FontStrike PGFont]
+           [com.sun.javafx.geom.transform BaseTransform]
+           [com.sun.javafx.perf PerformanceTracker]
+           [com.sun.javafx.scene.text FontHelper]
+           [com.sun.javafx.tk Toolkit]
+           [com.sun.javafx.util Utils]
+           [editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect]
+           [java.util Collection]
+           [java.util.regex Pattern]
+           [javafx.beans.binding ObjectBinding]
+           [javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty]
+           [javafx.beans.value ChangeListener]
+           [javafx.geometry HPos Point2D VPos]
+           [javafx.scene Node Parent Scene]
+           [javafx.scene.canvas Canvas GraphicsContext]
+           [javafx.scene.control Button CheckBox PopupControl Tab TextField]
+           [javafx.scene.input Clipboard DataFormat KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent]
+           [javafx.scene.layout ColumnConstraints GridPane Pane Priority]
+           [javafx.scene.paint Color LinearGradient Paint]
+           [javafx.scene.shape Rectangle]
+           [javafx.scene.text Font FontSmoothingType TextAlignment]
+           [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
