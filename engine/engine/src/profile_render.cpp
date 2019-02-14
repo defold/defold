@@ -236,10 +236,10 @@ namespace dmProfileRender
         const size_t samples_size = sizeof(Sample) * sample_count;
 
         size_t size = sizeof(ProfileSnapshot) +
-        scopes_size +
-        sample_sums_size +
-        counters_size +
-        samples_size;
+            scopes_size +
+            sample_sums_size +
+            counters_size +
+            samples_size;
 
         return size;
     }
@@ -278,7 +278,15 @@ namespace dmProfileRender
         return s;
     }
 
-    static ProfileSnapshot* MakeProfileSnapshot(uint64_t frame_tick, const ProfileFrame* frame, TIndex scope_count, TIndex* scope_indexes, TIndex sample_sum_count, TIndex* sample_sum_indexes, TIndex counter_count, TIndex* counter_indexes, TIndex sample_count)
+    static ProfileSnapshot* MakeProfileSnapshot(uint64_t frame_tick,
+                                                const ProfileFrame* frame,
+                                                TIndex scope_count,
+                                                const TIndex* scope_indexes,
+                                                TIndex sample_sum_count,
+                                                const TIndex* sample_sum_indexes,
+                                                TIndex counter_count,
+                                                const TIndex* counter_indexes,
+                                                TIndex sample_count)
     {
         void* mem = malloc(ProfileSnapshotSize(scope_count, sample_sum_count, counter_count, sample_count));
         ProfileSnapshot* snapshot = CreateProfileSnapshot(mem, frame_tick, scope_count, sample_sum_count, counter_count, sample_count);
@@ -304,6 +312,7 @@ namespace dmProfileRender
 
     // Stats from each data type is kept in separate data containers so they
     // can be easily stripped from the frame when storing them in the recording buffer
+    // using the ProfileSnapshot structure
     struct ScopeStats
     {
         uint64_t m_LastSeenTick;
@@ -321,6 +330,8 @@ namespace dmProfileRender
         uint64_t m_LastSeenTick;
     };
 
+    // The RenderProfile contains the current "live" frame and
+    // stats used to sort/purge sample items
     struct RenderProfile {
         static RenderProfile* New(
                                   float fps,
@@ -981,18 +992,14 @@ namespace dmProfileRender
 
     static void SortStructure(RenderProfile* render_profile)
     {
-        {
-            uint32_t scope_count = render_profile->m_ScopeLookup.Size();
-            std::stable_sort(&render_profile->m_ScopeSortOrder[0], &render_profile->m_ScopeSortOrder[scope_count], ScopeSortPred(render_profile));
-        }
-        {
-            uint32_t sample_sum_count = render_profile->m_SampleSumLookup.Size();
-            std::stable_sort(&render_profile->m_SampleSumSortOrder[0], &render_profile->m_SampleSumSortOrder[sample_sum_count], SampleSumSortPred(render_profile));
-        }
-        {
-            uint32_t counter_count = render_profile->m_CounterLookup.Size();
-            std::sort(&render_profile->m_CounterSortOrder[0], &render_profile->m_CounterSortOrder[counter_count], CounterSortPred(render_profile));
-        }
+        uint32_t scope_count = render_profile->m_ScopeLookup.Size();
+        std::stable_sort(&render_profile->m_ScopeSortOrder[0], &render_profile->m_ScopeSortOrder[scope_count], ScopeSortPred(render_profile));
+
+        uint32_t sample_sum_count = render_profile->m_SampleSumLookup.Size();
+        std::stable_sort(&render_profile->m_SampleSumSortOrder[0], &render_profile->m_SampleSumSortOrder[sample_sum_count], SampleSumSortPred(render_profile));
+
+        uint32_t counter_count = render_profile->m_CounterLookup.Size();
+        std::sort(&render_profile->m_CounterSortOrder[0], &render_profile->m_CounterSortOrder[counter_count], CounterSortPred(render_profile));
     }
 
     static void GotoRecordedFrame(HRenderProfile render_profile, int recorded_frame_index)
