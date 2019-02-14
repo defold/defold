@@ -175,8 +175,8 @@
               (.indexOf unix-path "build/")
               idx)]
     (if-not (= -1 idx)
-      (.substring path (+ idx (count "upload")))
-      (if (.startsWith unix-path "/")
+      (subs path (+ idx (count "upload")))
+      (if (string/starts-with? unix-path "/")
         unix-path
         (str "/" unix-path)))))
 
