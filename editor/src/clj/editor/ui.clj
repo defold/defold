@@ -18,7 +18,9 @@
    [com.defold.control LongField]
    [com.defold.control ListCell]
    [com.defold.control TreeCell]
+   [com.sun.javafx.application PlatformImpl]
    [com.sun.javafx.event DirectEvent]
+   [com.sun.javafx.scene KeyboardShortcutsHandler SceneEventDispatcher]
    [java.awt Desktop Desktop$Action]
    [java.io File IOException]
    [java.net URI]
@@ -40,9 +42,7 @@
    [javafx.scene.shape SVGPath]
    [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
    [javafx.stage Stage Modality Window PopupWindow StageStyle]
-   [javafx.util Callback Duration StringConverter]
-   [com.sun.javafx.scene KeyboardShortcutsHandler SceneEventDispatcher]
-   [com.sun.javafx.application PlatformImpl]))
+   [javafx.util Callback Duration StringConverter]))
 
 (set! *warn-on-reflection* true)
 

@@ -25,8 +25,8 @@
            [javafx.scene.layout GridPane HBox VBox Priority ColumnConstraints]
            [javafx.scene.control Control Cell ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane Label TextField ComboBox CheckBox Button ContextMenu MenuItem SelectionMode ContentDisplay TableColumnBase]
            [com.defold.control ListView ListCell ListCellSkinWithBehavior TableCell TableCellBehavior TableCellSkinWithBehavior]
-           [com.sun.javafx.scene.control.behavior ListCellBehavior]
-           [com.sun.javafx.scene.control TableColumnBaseHelper]))
+           [com.sun.javafx.scene.control TableColumnBaseHelper]
+           [com.sun.javafx.scene.control.behavior ListCellBehavior]))
 
 ;; A note about the cell-factory controls (:list, :table, :2panel):
 ;; When clicking on another cell in the edited table, the edit is cancelled and

@@ -5,8 +5,8 @@
   (:import [java.io BufferedWriter File]
            [java.nio.file Files]
            [java.nio.file.attribute FileAttribute]
-           [org.apache.commons.io FileUtils]
-           [javafx.application Platform]))
+           [javafx.application Platform]
+           [org.apache.commons.io FileUtils]))
 
 (set! *warn-on-reflection* true)
 

@@ -14,7 +14,8 @@
             [editor.resource-node :as resource-node]
             [editor.defold-project :as project]
             [editor.github :as github])
-  (:import [java.io File]
+  (:import [clojure.lang Named]
+           [java.io File]
            [java.util List Collection]
            [java.nio.file Path Paths]
            [javafx.geometry Pos]
@@ -23,8 +24,7 @@
            [javafx.scene.input KeyCode]
            [javafx.scene.layout HBox VBox Region]
            [javafx.scene.text Text TextFlow]
-           [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]
-           [clojure.lang Named]))
+           [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]))
 
 (set! *warn-on-reflection* true)
 

@@ -2,14 +2,12 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
-            [editor.curve-view :as curve-view]
-            [editor.defold-project :as project]
-            [editor.scene :as scene]
             [editor.camera :as camera]
-            [editor.types :as types]
+            [editor.curve-view :as curve-view]
             [editor.handler :as handler]
-            [integration.test-util :as test-util]
-            [editor.scene-selection :as selection])
+            [editor.scene-selection :as selection]
+            [editor.types :as types]
+            [integration.test-util :as test-util])
   (:import [javax.vecmath Point3d]
            [editor.curve_view SubSelectionProvider]))
 
