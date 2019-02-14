@@ -273,10 +273,8 @@ public class BundleHelper {
         Map<String, Object> properties = new HashMap<>();
         properties.put("exe-name", exeName);
 
-        // Copy icons (or resize default builtin icon png).
-        // This means that the app will always have icons
-        // from now on.
-        copyAndroidIcons(resOutput);
+        // We copy and resize the default icon in builtins if no other icons are set.
+        // This means that the app will always have icons from now on.
         properties.put("has-icons?", true);
 
         // Copy push notification icons
