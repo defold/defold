@@ -68,9 +68,9 @@ namespace dmGameObject
 
     struct CompScriptWorld
     {
-        CompScriptWorld();
+        CompScriptWorld(uint32_t max_instance_count);
 
-        dmArray<ScriptInstance*> m_Instances;
+        dmArray<ScriptInstance*> m_Instancess;
         dmScript::HScriptWorld m_ScriptWorld;
     };
 

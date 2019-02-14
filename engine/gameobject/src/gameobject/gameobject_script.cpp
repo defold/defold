@@ -149,12 +149,12 @@ namespace dmGameObject
 
     HRegister g_Register = 0;
 
-    CompScriptWorld::CompScriptWorld()
+    CompScriptWorld::CompScriptWorld(uint32_t max_instance_count)
     : m_Instances()
     , m_ScriptWorld(0x0)
     {
         // TODO: How to configure? It should correspond to collection instance count
-        m_Instances.SetCapacity(1024);
+        m_Instances.SetCapacity(max_instance_count);
     }
 
     static Script* GetScript(lua_State *L)
