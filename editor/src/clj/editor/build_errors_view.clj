@@ -78,7 +78,7 @@
     (cond-> {:parent parent
              :node-id origin-node-id
              :message (:message error)
-             :severity (or (:severity error) severity)}
+             :severity (:severity error severity)}
             line (assoc :line line))))
 
 (defn- push-causes [queue error path]
