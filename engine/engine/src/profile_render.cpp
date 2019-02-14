@@ -1231,7 +1231,7 @@ namespace dmProfileRender
             case PROFILER_MODE_RUN:
                 break;
             case PROFILER_MODE_PAUSE:
-                if (render_profile->m_PlaybackFrame < 0)
+                if (render_profile->m_PlaybackFrame < 0 || render_profile->m_PlaybackFrame == (int32_t)render_profile->m_RecordBuffer.Size())
                 {
                     DM_SNPRINTF(&buffer[l], sizeof(buffer) - l, " (Paused)");
                 }
@@ -1735,8 +1735,11 @@ namespace dmProfileRender
             render_profile->m_PlaybackFrame = (int32_t)render_profile->m_RecordBuffer.Size();
         }
 
-        PurgeStructure(render_profile);
-        SortStructure(render_profile);
+        if (render_profile->m_ViewMode != PROFILER_VIEW_MODE_MINIMIZED)
+        {
+            PurgeStructure(render_profile);
+            SortStructure(render_profile);
+        }
     }
 
     void SetMode(HRenderProfile render_profile, ProfilerMode mode)
@@ -1744,6 +1747,10 @@ namespace dmProfileRender
         if ((render_profile->m_Mode != PROFILER_MODE_RECORD) && (mode == PROFILER_MODE_RECORD))
         {
             FlushRecording(render_profile, (uint32_t)render_profile->m_FPS);
+        }
+        if ((render_profile->m_Mode == PROFILER_MODE_PAUSE) && (mode == PROFILER_MODE_RUN))
+        {
+            render_profile->m_PlaybackFrame = (int32_t)render_profile->m_RecordBuffer.Size();
         }
         render_profile->m_Mode = mode;
     }
