@@ -22,7 +22,7 @@ namespace dmGameObject
     {
         if (params.m_World != 0x0)
         {
-            CompScriptWorld* w = new CompScriptWorld(params.m_MaxInstances > 0 ? params.m_MaxInstances : 1024);
+            CompScriptWorld* w = new CompScriptWorld(params.m_MaxInstances);
             w->m_ScriptWorld = dmScript::NewScriptWorld((dmScript::HContext)params.m_Context);
             *params.m_World = w;
 
