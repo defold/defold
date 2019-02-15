@@ -1,6 +1,7 @@
 #include "graphics.h"
 #include <string.h>
 #include <assert.h>
+#include <dlib/log.h>
 
 namespace dmGraphics
 {
@@ -86,10 +87,19 @@ namespace dmGraphics
         for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
         {
             ShaderDesc::Shader* shader = &shader_desc->m_Shaders.m_Data[i];
+
             if(shader->m_Language == language)
             {
-                data_len = shader->m_Source.m_Count;
-                return shader->m_Source.m_Data;
+                if (shader->m_Source.m_Count && shader->m_Source.m_Data)
+                {
+                    data_len = shader->m_Source.m_Count;
+                    return shader->m_Source.m_Data;
+                }
+                else if (shader->m_Binary.m_Count && shader->m_Binary.m_Data)
+                {
+                    data_len = shader->m_Binary.m_Count;
+                    return shader->m_Binary.m_Data;
+                }
             }
         }
         data_len = 0;
