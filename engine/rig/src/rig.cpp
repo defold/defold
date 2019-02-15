@@ -1006,7 +1006,6 @@ namespace dmRig
         }
 
         uint32_t vertex_count = 0;
-
         int32_t slot_count = instance->m_MeshSet->m_SlotCount;
         for (int32_t slot_index = 0; slot_index < slot_count; slot_index++)
         {
@@ -1020,7 +1019,7 @@ namespace dmRig
                 uint32_t mesh_attachment_index = mesh_slot_pose->m_MeshSlot->m_MeshAttachments[active_attachment];
                 if (mesh_attachment_index != INVALID_ATTACHMENT_INDEX) {
                     const Mesh* mesh_attachment = &instance->m_MeshSet->m_MeshAttachments[mesh_attachment_index];
-                    vertex_count += mesh_attachment->m_Indices.m_Count;
+                    vertex_count += mesh_attachment->m_PositionIndices.m_Count;
                 }
             }
         }
@@ -1032,7 +1031,7 @@ namespace dmRig
     {
         const float* normals_in = mesh->m_Normals.m_Data;
         const uint32_t* normal_indices = mesh->m_NormalsIndices.m_Data;
-        uint32_t index_count = mesh->m_Indices.m_Count;
+        uint32_t index_count = mesh->m_PositionIndices.m_Count;
         Vector4 v;
 
         if (!mesh->m_BoneIndices.m_Count || pose_matrices.Size() == 0)
@@ -1054,7 +1053,7 @@ namespace dmRig
 
         const uint32_t* indices = mesh->m_BoneIndices.m_Data;
         const float* weights = mesh->m_Weights.m_Data;
-        const uint32_t* vertex_indices = mesh->m_Indices.m_Data;
+        const uint32_t* vertex_indices = mesh->m_PositionIndices.m_Data;
         for (uint32_t ii = 0; ii < index_count; ++ii)
         {
             const uint32_t ni = normal_indices[ii]*3;
@@ -1227,9 +1226,9 @@ namespace dmRig
     // This is a temporary fix until we have better support for custom vertex formats.
     static RigModelVertex* WriteVertexData(const dmRigDDF::Mesh* mesh, const float* positions, const float* normals, RigModelVertex* out_write_ptr)
     {
-        uint32_t indices_count = mesh->m_Indices.m_Count;
-        const uint32_t* indices = mesh->m_Indices.m_Data;
-        const uint32_t* uv0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_Indices.m_Data;
+        uint32_t indices_count = mesh->m_PositionIndices.m_Count;
+        const uint32_t* indices = mesh->m_PositionIndices.m_Data;
+        const uint32_t* uv0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_PositionIndices.m_Data;
         const float* uv0 = mesh->m_Texcoord0.m_Data;
 
         if (mesh->m_NormalsIndices.m_Count)
@@ -1277,9 +1276,9 @@ namespace dmRig
 
     static RigSpineModelVertex* WriteVertexData(const dmRigDDF::Mesh* mesh, const float* positions, uint32_t color, RigSpineModelVertex* out_write_ptr)
     {
-        uint32_t indices_count = mesh->m_Indices.m_Count;
-        const uint32_t* indices = mesh->m_Indices.m_Data;
-        const uint32_t* uv0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_Indices.m_Data;
+        uint32_t indices_count = mesh->m_PositionIndices.m_Count;
+        const uint32_t* indices = mesh->m_PositionIndices.m_Data;
+        const uint32_t* uv0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_PositionIndices.m_Data;
         const float* uv0 = mesh->m_Texcoord0.m_Data;
 
         for (uint32_t i = 0; i < indices_count; ++i)
@@ -1402,7 +1401,7 @@ namespace dmRig
                     const Mesh* mesh_attachment = &instance->m_MeshSet->m_MeshAttachments[mesh_attachment_index];
 
                     // Bump scratch buffer capacity to handle current vertex count
-                    uint32_t index_count = mesh_attachment->m_Indices.m_Count;
+                    uint32_t index_count = mesh_attachment->m_PositionIndices.m_Count;
                     if (positions.Capacity() < index_count) {
                         positions.OffsetCapacity(index_count - positions.Capacity());
                     }

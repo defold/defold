@@ -324,7 +324,7 @@
 
 (defn open-project
   [^File game-project-file prefs render-progress! dashboard-client update-context newly-created?]
-  (let [project-path (.getPath (.getParentFile game-project-file))
+  (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
         build-settings (workspace/make-build-settings prefs)
         workspace    (setup-workspace project-path build-settings)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")

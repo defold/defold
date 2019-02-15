@@ -128,9 +128,12 @@
     (analytics/start! analytics-url analytics-send-interval invalidate-analytics-uid?)
     (Shutdown/addShutdownAction analytics/shutdown!)
     (try
-      (if-let [game-project-path (get-in opts [:arguments 0])]
-        (open-project-with-progress-dialog namespace-loader prefs game-project-path dashboard-client update-context false)
-        (select-project-from-welcome namespace-loader prefs dashboard-client update-context))
+      (let [game-project-path (get-in opts [:arguments 0])]
+        (if (and
+             game-project-path
+             (.exists (io/file game-project-path)))
+          (open-project-with-progress-dialog namespace-loader prefs game-project-path dashboard-client update-context false)
+          (select-project-from-welcome namespace-loader prefs dashboard-client update-context)))
       (catch Throwable t
         (log/error :exception t)
         (stack/print-stack-trace t)

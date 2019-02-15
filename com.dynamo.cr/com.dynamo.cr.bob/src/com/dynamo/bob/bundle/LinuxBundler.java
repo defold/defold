@@ -32,11 +32,7 @@ public class LinuxBundler implements IBundler {
         }
         File bundleExe = bundleExes.get(0);
 
-        File exeOut;
-        if (platform == Platform.X86Linux)
-            exeOut = new File(appDir, exeName + ".x86");
-        else
-            exeOut = new File(appDir, exeName + ".x86_64");
+        File exeOut = new File(appDir, exeName + ".x86_64");
 
         FileUtils.copyFile(bundleExe, exeOut);
         exeOut.setExecutable(true);
@@ -46,6 +42,7 @@ public class LinuxBundler implements IBundler {
     public void bundleApplication(Project project, File bundleDir)
             throws IOException, CompileExceptionError {
 
+        final Platform platform = Platform.X86_64Linux;
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String exeName = BundleHelper.projectNameToBinaryName(title);
@@ -58,8 +55,7 @@ public class LinuxBundler implements IBundler {
         final List<String> extensionFolders = ExtenderUtil.getExtensionFolders(project);
         final boolean hasExtensions = !extensionFolders.isEmpty();
 
-        Platform primaryPlatform = Platform.X86_64Linux;
-        bundleApplicationForPlatform(primaryPlatform, project, appDir, exeName);
+        bundleApplicationForPlatform(platform, project, appDir, exeName);
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
 
@@ -69,7 +65,7 @@ public class LinuxBundler implements IBundler {
         }
 
         // Collect bundle/package resources to be included in bundle directory
-        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, primaryPlatform);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, platform);
 
         // Copy bundle resources into bundle directory
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);

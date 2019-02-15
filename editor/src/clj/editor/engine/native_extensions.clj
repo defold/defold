@@ -15,7 +15,6 @@
   (:import
    (java.io File)
    (java.net URI)
-   (java.util.zip ZipFile)
    (java.security MessageDigest)
    (javax.ws.rs.core MediaType)
    (org.apache.commons.codec.binary Hex)
@@ -44,42 +43,42 @@
   md)
 
 (defn- cache-key
-  [^String platform ^String sdk-version resource-nodes evaluation-context]
+  [^String extender-platform ^String sdk-version resource-nodes evaluation-context]
   (-> (DigestUtils/getSha256Digest)
-      (DigestUtils/updateDigest platform)
+      (DigestUtils/updateDigest extender-platform)
       (DigestUtils/updateDigest (or sdk-version ""))
       (hash-resources! resource-nodes evaluation-context)
       (.digest)
       (Hex/encodeHexString)))
 
 (defn- cache-file ^File
-  [cache-dir platform]
-  (doto (io/file cache-dir platform "build.zip")
+  [cache-dir extender-platform]
+  (doto (io/file cache-dir extender-platform "build.zip")
     (fs/create-parent-directories!)))
 
 (defn- cache-file-hash ^File
-  [cache-dir platform]
-  (doto (io/file cache-dir platform "build.hash")
+  [cache-dir extender-platform]
+  (doto (io/file cache-dir extender-platform "build.hash")
     (fs/create-parent-directories!)))
 
 (defn- cache-dir ^File
-  [project-path]
-  (doto (io/file project-path ".internal" "cache" "engine-archives")
+  [project-directory]
+  (doto (io/file project-directory ".internal" "cache" "engine-archives")
     (fs/create-parent-directories!)))
 
 (defn- cached-engine-archive
-  [cache-dir platform key]
-  (let [cache-file (cache-file cache-dir platform)
-        cache-file-hash (cache-file-hash cache-dir platform)]
+  [cache-dir extender-platform key]
+  (let [cache-file (cache-file cache-dir extender-platform)
+        cache-file-hash (cache-file-hash cache-dir extender-platform)]
     (when (and (.exists cache-file)
                (.exists cache-file-hash)
                (= key (slurp cache-file-hash)))
       cache-file)))
 
 (defn- cache-engine-archive!
-  [cache-dir platform key ^File engine-archive]
-  (let [cache-file (cache-file cache-dir platform)
-        cache-file-hash (cache-file-hash cache-dir platform)]
+  [cache-dir extender-platform key ^File engine-archive]
+  (let [cache-file (cache-file cache-dir extender-platform)
+        cache-file-hash (cache-file-hash cache-dir extender-platform)]
     (fs/move-file! engine-archive cache-file)
     (spit cache-file-hash key)
     cache-file))
@@ -88,9 +87,7 @@
 ;;; Extension discovery/processing
 
 (def ^:private extender-platforms
-  {(.getPair Platform/X86Darwin)    {:platform      "x86-osx"
-                                     :library-paths #{"osx" "x86-osx"}}
-   (.getPair Platform/X86_64Darwin) {:platform      "x86_64-osx"
+  {(.getPair Platform/X86_64Darwin) {:platform      "x86_64-osx"
                                      :library-paths #{"osx" "x86_64-osx"}}
    (.getPair Platform/Armv7Darwin)  {:platform      "armv7-ios"
                                      :library-paths #{"ios" "armv7-ios"}}
@@ -153,8 +150,8 @@
 ;;; Extender API
 
 (defn- build-url
-  [platform sdk-version]
-  (format "/build/%s/%s" platform (or sdk-version "")))
+  [extender-platform sdk-version]
+  (format "/build/%s/%s" extender-platform (or sdk-version "")))
 
 (defn- resource-node-content-stream ^java.io.InputStream
   [resource-node evaluation-context]
@@ -187,7 +184,7 @@
                       (let [key (g/node-value resource-node :sha256 evaluation-context)]
                         {:path upload-path :key key}))
                     resource-nodes-by-upload-path)
-        json (json/write-str {:files items})
+        json (json/write-str {:files items :version 1 :hashType "sha256"})
         request (make-cache-request server-url json)
         response (http/request request)]
     ; Make a list of all files we intend to upload
@@ -208,14 +205,14 @@
         ne-cache-info))
 
 (defn- build-engine-archive ^File
-  [server-url platform sdk-version resource-nodes-by-upload-path evaluation-context]
+  [server-url extender-platform sdk-version resource-nodes-by-upload-path evaluation-context]
   ;; NOTE:
   ;; sdk-version is likely to be nil unless you're running a bundled editor.
   ;; In this case things will only work correctly if you're running a local
   ;; build server, as it will fall back on using the DYNAMO_HOME env variable.
   ;; Otherwise, you will likely get an Internal Server Error response.
   (let [cc (DefaultClientConfig.)
-        ;; TODO: Random errors wihtout this... Don't understand why random!
+        ;; TODO: Random errors without this... Don't understand why random!
         ;; For example No MessageBodyWriter for body part of type 'java.io.BufferedInputStream' and media type 'application/octet-stream"
         _ (.add (.getClasses cc) MultiPartWriter)
         _ (.add (.getClasses cc) InputStreamProvider)
@@ -224,7 +221,7 @@
                  (.setConnectTimeout (int connect-timeout-ms))
                  (.setReadTimeout (int read-timeout-ms)))
         api-root (.resource client (URI. server-url))
-        build-resource (.path api-root (build-url platform sdk-version))
+        build-resource (.path api-root (build-url extender-platform sdk-version))
         builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))
         ne-cache-info (query-cached-files server-url resource-nodes-by-upload-path evaluation-context)
         ne-cache-info-map (make-cached-info-map ne-cache-info)]
@@ -242,44 +239,7 @@
             (io/copy (.getEntityInputStream cr) engine-archive)
             engine-archive)
           (let [log (.getEntity cr String)]
-            (throw (engine-build-errors/build-error platform status log))))))))
-
-(defn- find-or-build-engine-archive
-  [cache-dir server-url platform sdk-version resource-nodes-by-upload-path evaluation-context]
-  (let [key (cache-key platform sdk-version (map second (sort-by first resource-nodes-by-upload-path)) evaluation-context)]
-    (or (cached-engine-archive cache-dir platform key)
-        (let [engine-archive (build-engine-archive server-url platform sdk-version resource-nodes-by-upload-path evaluation-context)]
-          (cache-engine-archive! cache-dir platform key engine-archive)))))
-
-(defn- ensure-empty-unpack-dir!
-  [project-path platform]
-  (let [dir (io/file project-path "build" platform)]
-    (fs/delete-directory! dir {:missing :ignore})
-    (fs/create-directories! dir)
-    dir))
-
-(def ^:private dmengine-dependencies
-  {"x86_64-win32" #{"OpenAL32.dll" "wrap_oal.dll"}
-   "x86-win32"    #{"OpenAL32.dll" "wrap_oal.dll"}})
-
-(defn- copy-dmengine-dependencies!
-  [unpack-dir platform]
-  (let [bundled-engine-dir (io/file (system/defold-unpack-path) platform "bin")]
-    (doseq [dep (dmengine-dependencies platform)]
-      (fs/copy! (io/file bundled-engine-dir dep) (io/file unpack-dir dep)))))
-
-(defn- unpack-dmengine
-  [^File engine-archive project-path platform]
-  (with-open [zip-file (ZipFile. engine-archive)]
-    (let [suffix (.getExeSuffix (Platform/getHostPlatform))
-          dmengine-entry (.getEntry zip-file (format "dmengine%s" suffix))
-          stream (.getInputStream zip-file dmengine-entry)
-          unpack-dir (ensure-empty-unpack-dir! project-path platform)
-          engine-file (io/file unpack-dir (format "dmengine%s" suffix))]
-      (io/copy stream engine-file)
-      (fs/set-executable! engine-file)
-      (copy-dmengine-dependencies! unpack-dir platform)
-      engine-file)))
+            (throw (engine-build-errors/build-error extender-platform status log))))))))
 
 (defn get-build-server-url
   ^String [prefs]
@@ -310,17 +270,18 @@
   (not (empty? (merge (extension-roots project evaluation-context)
                       (global-resource-nodes-by-upload-path project evaluation-context)))))
 
-(defn get-engine
-  [project evaluation-context platform build-server]
+(defn get-engine-archive [project evaluation-context platform build-server-url]
   (if-not (supported-platform? platform)
     (throw (engine-build-errors/unsupported-platform-error platform))
-    (let [project-path (workspace/project-path (project/workspace project evaluation-context) evaluation-context)]
-      (unpack-dmengine (find-or-build-engine-archive (cache-dir project-path)
-                                                     build-server
-                                                     (get-in extender-platforms [platform :platform])
-                                                     (system/defold-engine-sha1)
-                                                     (merge (global-resource-nodes-by-upload-path project evaluation-context)
-                                                            (extension-resource-nodes-by-upload-path project evaluation-context platform))
-                                                     evaluation-context)
-                       project-path
-                       platform))))
+    (let [extender-platform (get-in extender-platforms [platform :platform])
+          project-directory (workspace/project-path (project/workspace project evaluation-context) evaluation-context)
+          cache-dir (cache-dir project-directory)
+          resource-nodes-by-upload-path (merge (global-resource-nodes-by-upload-path project evaluation-context)
+                                               (extension-resource-nodes-by-upload-path project evaluation-context platform))
+          sdk-version (system/defold-engine-sha1)
+          key (cache-key extender-platform sdk-version (map second (sort-by first resource-nodes-by-upload-path)) evaluation-context)]
+      (if-let [cached-archive (cached-engine-archive cache-dir extender-platform key)]
+        {:id {:type :custom :version key} :cached true :engine-archive cached-archive :extender-platform extender-platform}
+        (let [temp-archive (build-engine-archive build-server-url extender-platform sdk-version resource-nodes-by-upload-path evaluation-context)
+              engine-archive (cache-engine-archive! cache-dir extender-platform key temp-archive)]
+          {:id {:type :custom :version key} :engine-archive engine-archive :extender-platform extender-platform})))))

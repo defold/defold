@@ -7,6 +7,7 @@
 #include <dlib/array.h>
 #include <dlib/thread.h>
 #include <dlib/mutex.h>
+#include <dlib/time.h>
 #include <dlib/condition_variable.h>
 
 namespace dmLoadQueue
@@ -34,8 +35,8 @@ namespace dmLoadQueue
     struct Queue
     {
         dmResource::HFactory m_Factory;
-        dmMutex::Mutex m_Mutex;
-        dmConditionVariable::ConditionVariable m_WakeupCond;
+        dmMutex::HMutex m_Mutex;
+        dmConditionVariable::HConditionVariable m_WakeupCond;
         dmThread::Thread m_Thread;
         Request m_Request[QUEUE_SLOTS];
         uint32_t m_Front, m_Back, m_Loaded;
