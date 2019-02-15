@@ -203,7 +203,7 @@ public class BundleHelper {
     private BufferedImage getFallbackIconImage(String categoryName, String[] alternativeKeys) throws IOException
     {
         // Try to use the largest icon as a fallback, otherwise use a builtin icon.
-        String largestIcon = "/builtins/graphics/default_icon.png";
+        String largestIcon = null;
         for (String propName : alternativeKeys) {
             String resource = projectProperties.getStringValue(categoryName, propName);
             if (resource != null && resource.length() > 0) {
@@ -211,8 +211,14 @@ public class BundleHelper {
             }
         }
         File largetIconFile = File.createTempFile("temp", "default_icon.png");
-        IResource largestIconRes = project.getResource(largestIcon);
-        FileUtils.writeByteArrayToFile(largetIconFile, largestIconRes.getContent());
+
+        if (largestIcon != null) {
+            IResource largestIconRes = project.getResource(largestIcon);
+            FileUtils.writeByteArrayToFile(largetIconFile, largestIconRes.getContent());
+        } else {
+            URL defaultIconURL = getClass().getResource("resources/ios/default_icon.png");
+            FileUtils.writeByteArrayToFile(largetIconFile, IOUtils.toByteArray(defaultIconURL));
+        }
 
         return ImageIO.read(largetIconFile);
     }
