@@ -273,7 +273,8 @@
 (defn- find-ext-manifest-relative-to-resource
   "Find the ext.manifest file for the native extension that proj-path belongs to."
   [project ^String proj-path]
-  (let [find-resource (fn [path] (:resource (get (g/node-value project :nodes-by-resource-path) path)))]
+  (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path)
+        find-resource (fn [path] (g/node-value (nodes-by-resource-path path) :resource))]
     (->> proj-path
          (iterate resource/parent-proj-path)
          (take-while not-empty)
