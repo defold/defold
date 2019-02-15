@@ -11,14 +11,14 @@
   [name]
   (slurp (str "test/resources/native_extension_error_parsing/" name)))
 
-(defn- make-fake-file-resource [workspace proj-path text]
+(defn- make-fake-file-resource [workspace proj-path text opts]
   (let [root-dir (workspace/project-path workspace)]
-    (tu/make-fake-file-resource workspace (.getPath root-dir) (io/file root-dir proj-path) (.getBytes text "UTF-8"))))
+    (tu/make-fake-file-resource workspace (.getPath root-dir) (io/file root-dir proj-path) (.getBytes text "UTF-8") opts)))
 
 (defn- make-fake-empty-files
   [workspace files]
   (for [f files]
-    (make-fake-file-resource workspace f "")))
+    (make-fake-file-resource workspace f "" nil)))
 
 (defn- parse-log-test
   [logfile result-file manifest-file project-resources]
@@ -132,4 +132,12 @@
          ["androidnative/ext.manifest"
           "androidnative/src/main.cpp"])]
     (is (= expected-result result))))
+
+(deftest manifest-lookup
+  (tu/with-loaded-project "test/resources/empty_project"
+    (let [cpp-file (make-fake-file-resource workspace "androidnative/main.cpp" "" nil)
+          manifest-file (make-fake-file-resource workspace "androidnative/ext.manifest" "" nil)
+          files [(make-fake-file-resource workspace "androidnative" "" {:children [cpp-file manifest-file]})]
+          project (tu/setup-project! workspace files)]
+      (is (= "/androidnative/ext.manifest" (build-errors/find-ext-manifest-relative-to-resource project "/androidnative/main.cpp"))))))
 
