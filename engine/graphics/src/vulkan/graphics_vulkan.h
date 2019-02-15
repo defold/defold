@@ -84,6 +84,7 @@ namespace dmGraphics
         void*                       m_WindowCloseCallbackUserData;
         WindowFocusCallback         m_WindowFocusCallback;
         void*                       m_WindowFocusCallbackUserData;
+        Type                        m_CurrentIndexBufferType;
         TextureFilter               m_DefaultTextureMinFilter;
         TextureFilter               m_DefaultTextureMagFilter;
         CompareFunc                 m_DepthFunc;
