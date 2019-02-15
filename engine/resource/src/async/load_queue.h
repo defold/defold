@@ -10,9 +10,9 @@ namespace dmLoadQueue
     // It is not exposed to the outside world.
     enum Result
     {
-        RESULT_OK                 =  0,
-        RESULT_PENDING            = -1,
-        RESULT_INVALID_PARAM      = -2
+        RESULT_OK            = 0,
+        RESULT_PENDING       = -1,
+        RESULT_INVALID_PARAM = -2
     };
 
     typedef struct Queue* HQueue;
@@ -44,6 +44,6 @@ namespace dmLoadQueue
 
     // Free once completed.
     void FreeLoad(HQueue queue, HRequest request);
-}
+} // namespace dmLoadQueue
 
 #endif
