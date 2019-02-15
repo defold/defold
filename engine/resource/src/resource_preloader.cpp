@@ -925,6 +925,7 @@ namespace dmResource
             rd->m_ReferenceCount++;
             req->m_Resource = rd->m_Resource;
             req->m_LoadResult = RESULT_OK;
+            RemoveChildren(preloader, req);
             RemoveFromParentPendingCount(preloader, req);
             if (PreloaderTryPruneParent(preloader, req))
             {
