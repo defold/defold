@@ -110,11 +110,15 @@ namespace dmResource
     static const uint16_t MAX_BLOCK_COUNT               = 8;
     static const uint32_t BLOCK_ALLOCATION_ALIGNEMENT   = sizeof(uint16_t);
     
-    struct Block
+    struct BlockData
     {
         uint32_t m_AllocationCount;
         uint32_t m_LowWaterMark;
         uint32_t m_HighWaterMark;
+    };
+
+    struct Block
+    {
         uint8_t m_Data[BLOCK_SIZE];
     };
     
@@ -122,9 +126,9 @@ namespace dmResource
     {
         BlockAllocator()
         {
-            m_InitialBlock.m_AllocationCount = 0;
-            m_InitialBlock.m_LowWaterMark = 0;
-            m_InitialBlock.m_HighWaterMark = 0;
+            m_BlockDatas[0].m_AllocationCount = 0;
+            m_BlockDatas[0].m_LowWaterMark = 0;
+            m_BlockDatas[0].m_HighWaterMark = 0;
             m_Blocks[0] = &m_InitialBlock;
             for (uint16_t i = 1; i < MAX_BLOCK_COUNT; ++i)
             {
@@ -133,12 +137,13 @@ namespace dmResource
         }
         ~BlockAllocator()
         {
-            assert(m_Blocks[0]->m_AllocationCount == 0);
+            assert(m_BlockDatas[0].m_AllocationCount == 0);
             for (uint16_t i = 1; i < MAX_BLOCK_COUNT; ++i)
             {
                 assert(m_Blocks[i] == 0x0);
             }
         }
+        BlockData m_BlockDatas[MAX_BLOCK_COUNT];
         Block* m_Blocks[MAX_BLOCK_COUNT];
         Block m_InitialBlock;
     };
@@ -161,19 +166,20 @@ namespace dmResource
                 first_free = (first_free == MAX_BLOCK_COUNT) ? block_index : first_free;
                 continue;
             }
-            if (block->m_LowWaterMark >= allocation_size)
+            BlockData* block_data = &block_allocator->m_BlockDatas[block_index];
+            if (block_data->m_LowWaterMark >= allocation_size)
             {
-                block->m_LowWaterMark -= allocation_size;
-                block->m_AllocationCount++;
-                uint16_t* ptr = (uint16_t*)&block->m_Data[block->m_LowWaterMark];
+                block_data->m_LowWaterMark -= allocation_size;
+                block_data->m_AllocationCount++;
+                uint16_t* ptr = (uint16_t*)&block->m_Data[block_data->m_LowWaterMark];
                 *ptr = block_index;
                 return &ptr[1];
             }
-            if (block->m_HighWaterMark + allocation_size <= BLOCK_SIZE)
+            if (block_data->m_HighWaterMark + allocation_size <= BLOCK_SIZE)
             {
-                block->m_AllocationCount++;
-                uint16_t* ptr = (uint16_t*)&block->m_Data[block->m_HighWaterMark];
-                block->m_HighWaterMark += allocation_size;
+                block_data->m_AllocationCount++;
+                uint16_t* ptr = (uint16_t*)&block->m_Data[block_data->m_HighWaterMark];
+                block_data->m_HighWaterMark += allocation_size;
                 *ptr = block_index;
                 return &ptr[1];
             }
@@ -181,9 +187,10 @@ namespace dmResource
         if (first_free != MAX_BLOCK_COUNT)
         {
             Block* block = new Block;
-            block->m_AllocationCount = 1;
-            block->m_LowWaterMark = 0;
-            block->m_HighWaterMark = allocation_size;
+            BlockData* block_data = &block_allocator->m_BlockDatas[first_free];
+            block_data->m_AllocationCount = 1;
+            block_data->m_LowWaterMark = 0;
+            block_data->m_HighWaterMark = allocation_size;
             uint16_t* ptr = (uint16_t*)&block->m_Data[0];
             *ptr = first_free;
             block_allocator->m_Blocks[first_free] = block;
@@ -209,10 +216,11 @@ namespace dmResource
         uint16_t allocation_size = DM_ALIGN(sizeof(uint16_t) + size, BLOCK_ALLOCATION_ALIGNEMENT);
         Block* block = block_allocator->m_Blocks[block_index];
         assert(block != 0x0);
-        assert(block->m_AllocationCount > 0);
+        BlockData* block_data = &block_allocator->m_BlockDatas[block_index];
+        assert(block_data->m_AllocationCount > 0);
         
-        block->m_AllocationCount--;
-        if (0 == block->m_AllocationCount)
+        block_data->m_AllocationCount--;
+        if (0 == block_data->m_AllocationCount)
         {
             if (block_index != 0)
             {
@@ -221,13 +229,13 @@ namespace dmResource
             }
             return;
         }
-        if ((uint8_t*)ptr == &block->m_Data[block->m_LowWaterMark])
+        if ((uint8_t*)ptr == &block->m_Data[block_data->m_LowWaterMark])
         {
-            block->m_LowWaterMark += allocation_size;
+            block_data->m_LowWaterMark += allocation_size;
         }
-        else if ((uint8_t*)ptr == &block->m_Data[block->m_HighWaterMark - allocation_size])
+        else if ((uint8_t*)ptr == &block->m_Data[block_data->m_HighWaterMark - allocation_size])
         {
-            block->m_HighWaterMark -= allocation_size;
+            block_data->m_HighWaterMark -= allocation_size;
         }
     }
     
@@ -262,7 +270,7 @@ namespace dmResource
     struct ResourcePreloader
     {
         ResourcePreloader()
-        : m_InProgress(&m_PathInProgressData, PATH_IN_PROGRESS_TABLE_SIZE, PATH_IN_PROGRESS_CAPACITY)
+            : m_InProgress(&m_PathInProgressData, PATH_IN_PROGRESS_TABLE_SIZE, PATH_IN_PROGRESS_CAPACITY)
         {
         }
         struct SyncedData {
@@ -555,8 +563,10 @@ namespace dmResource
         ResourcePreloader* preloader = new ResourcePreloader();
         // root is always allocated.
         for (uint32_t i=0;i<MAX_PRELOADER_REQUESTS-1;i++)
+        {
             preloader->m_Freelist[i] = MAX_PRELOADER_REQUESTS-i-1;
-        
+        }
+
         preloader->m_FreelistSize = MAX_PRELOADER_REQUESTS - 1;
         
         preloader->m_Factory = factory;
