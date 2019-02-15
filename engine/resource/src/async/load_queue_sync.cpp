@@ -12,9 +12,9 @@ namespace dmLoadQueue
 
     struct Request
     {
-         const char* m_Name;
-         const char* m_CanonicalPath;
-         PreloadInfo m_PreloadInfo;
+        const char* m_Name;
+        const char* m_CanonicalPath;
+        PreloadInfo m_PreloadInfo;
     };
 
     struct Queue
@@ -26,9 +26,9 @@ namespace dmLoadQueue
 
     HQueue CreateQueue(dmResource::HFactory factory)
     {
-        Queue *q = new Queue();
+        Queue* q           = new Queue();
         q->m_ActiveRequest = 0;
-        q->m_Factory = factory;
+        q->m_Factory       = factory;
         return q;
     }
 
@@ -44,10 +44,10 @@ namespace dmLoadQueue
             return 0;
         }
 
-        queue->m_ActiveRequest = &queue->m_SingleBuffer;
-        queue->m_ActiveRequest->m_Name = name;
+        queue->m_ActiveRequest                  = &queue->m_SingleBuffer;
+        queue->m_ActiveRequest->m_Name          = name;
         queue->m_ActiveRequest->m_CanonicalPath = canonical_path;
-        queue->m_ActiveRequest->m_PreloadInfo = *info;
+        queue->m_ActiveRequest->m_PreloadInfo   = *info;
         return queue->m_ActiveRequest;
     }
 
@@ -58,19 +58,19 @@ namespace dmLoadQueue
             return RESULT_INVALID_PARAM;
         }
 
-        load_result->m_LoadResult = dmResource::LoadResource(queue->m_Factory, request->m_CanonicalPath, request->m_Name, buf, size);
+        load_result->m_LoadResult    = dmResource::LoadResource(queue->m_Factory, request->m_CanonicalPath, request->m_Name, buf, size);
         load_result->m_PreloadResult = dmResource::RESULT_PENDING;
-        load_result->m_PreloadData = 0;
+        load_result->m_PreloadData   = 0;
 
         if (load_result->m_LoadResult == dmResource::RESULT_OK && request->m_PreloadInfo.m_Function)
         {
             dmResource::ResourcePreloadParams params;
-            params.m_Factory = queue->m_Factory;
-            params.m_Context = request->m_PreloadInfo.m_Context;
-            params.m_Buffer = *buf;
-            params.m_BufferSize = *size;
-            params.m_HintInfo = &request->m_PreloadInfo.m_HintInfo;
-            params.m_PreloadData = &load_result->m_PreloadData;
+            params.m_Factory             = queue->m_Factory;
+            params.m_Context             = request->m_PreloadInfo.m_Context;
+            params.m_Buffer              = *buf;
+            params.m_BufferSize          = *size;
+            params.m_HintInfo            = &request->m_PreloadInfo.m_HintInfo;
+            params.m_PreloadData         = &load_result->m_PreloadData;
             load_result->m_PreloadResult = request->m_PreloadInfo.m_Function(params);
         }
         return RESULT_OK;
@@ -78,8 +78,8 @@ namespace dmLoadQueue
 
     void FreeLoad(HQueue queue, HRequest request)
     {
-        queue->m_ActiveRequest = 0;
-        request->m_Name = 0x0;
+        queue->m_ActiveRequest   = 0;
+        request->m_Name          = 0x0;
         request->m_CanonicalPath = 0x0;
     }
-}
+} // namespace dmLoadQueue

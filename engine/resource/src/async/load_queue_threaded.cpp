@@ -16,20 +16,20 @@ namespace dmLoadQueue
 
     // Default to small buffers since a lot of what is loaded are just small objects anyway.
     // That way we can have more in flight, but throttle when max pending data grows too large anyway
-    const uint64_t DEFAULT_CAPACITY = 5*1024;
+    const uint64_t DEFAULT_CAPACITY = 5 * 1024;
 
     // Once the loader has this amount not picked up, it will stop loading more.
     // This sets the bandwidth of the loader.
-    const uint64_t MAX_PENDING_DATA = 4*1024*1024;
-    const uint32_t QUEUE_SLOTS = 16;
+    const uint64_t MAX_PENDING_DATA = 4 * 1024 * 1024;
+    const uint32_t QUEUE_SLOTS      = 16;
 
     struct Request
     {
-         const char* m_Name;
-         const char* m_CanonicalPath;
-         dmResource::LoadBufferType m_Buffer;
-         PreloadInfo m_PreloadInfo;
-         LoadResult m_Result;
+        const char* m_Name;
+        const char* m_CanonicalPath;
+        dmResource::LoadBufferType m_Buffer;
+        PreloadInfo m_PreloadInfo;
+        LoadResult m_Result;
     };
 
     struct Queue
@@ -69,10 +69,10 @@ namespace dmLoadQueue
         return &queue->m_Request[queue->m_Loaded % QUEUE_SLOTS];
     }
 
-    static void LoadThread(void *arg)
+    static void LoadThread(void* arg)
     {
-        Queue* queue = (Queue*) arg;
-        Request *current = 0;
+        Queue* queue     = (Queue*)arg;
+        Request* current = 0;
         LoadResult result;
         while (true)
         {
@@ -84,7 +84,7 @@ namespace dmLoadQueue
                     queue->m_BytesWaiting += current->m_Buffer.Capacity();
                     queue->m_Loaded++;
                     current->m_Result = result;
-                    current = 0;
+                    current           = 0;
                 }
                 if (queue->m_Shutdown)
                 {
@@ -122,9 +122,9 @@ namespace dmLoadQueue
                 {
                     current->m_Buffer.SetCapacity(DEFAULT_CAPACITY);
                 }
-                result.m_LoadResult = DoLoadResource(queue->m_Factory, current->m_CanonicalPath, current->m_Name, &size, &current->m_Buffer);
+                result.m_LoadResult    = DoLoadResource(queue->m_Factory, current->m_CanonicalPath, current->m_Name, &size, &current->m_Buffer);
                 result.m_PreloadResult = dmResource::RESULT_PENDING;
-                result.m_PreloadData = 0;
+                result.m_PreloadData   = 0;
 
                 if (result.m_LoadResult == dmResource::RESULT_OK)
                 {
@@ -132,12 +132,12 @@ namespace dmLoadQueue
                     if (current->m_PreloadInfo.m_Function)
                     {
                         dmResource::ResourcePreloadParams params;
-                        params.m_Factory = queue->m_Factory;
-                        params.m_Context = current->m_PreloadInfo.m_Context;
-                        params.m_Buffer = current->m_Buffer.Begin();
-                        params.m_BufferSize = current->m_Buffer.Size();
-                        params.m_HintInfo = &current->m_PreloadInfo.m_HintInfo;
-                        params.m_PreloadData = &result.m_PreloadData;
+                        params.m_Factory       = queue->m_Factory;
+                        params.m_Context       = current->m_PreloadInfo.m_Context;
+                        params.m_Buffer        = current->m_Buffer.Begin();
+                        params.m_BufferSize    = current->m_Buffer.Size();
+                        params.m_HintInfo      = &current->m_PreloadInfo.m_HintInfo;
+                        params.m_PreloadData   = &result.m_PreloadData;
                         result.m_PreloadResult = current->m_PreloadInfo.m_Function(params);
                     }
                     else
@@ -151,18 +151,18 @@ namespace dmLoadQueue
 
     HQueue CreateQueue(dmResource::HFactory factory)
     {
-        Queue *q = new Queue();
-        q->m_Factory = factory;
-        q->m_Front = 0;
-        q->m_Back = 0;
-        q->m_Loaded = 0;
-        q->m_Shutdown = false;
+        Queue* q          = new Queue();
+        q->m_Factory      = factory;
+        q->m_Front        = 0;
+        q->m_Back         = 0;
+        q->m_Loaded       = 0;
+        q->m_Shutdown     = false;
         q->m_BytesWaiting = 0;
-        q->m_Mutex = dmMutex::New();
-        q->m_WakeupCond = dmConditionVariable::New();
-        q->m_Thread = dmThread::New(&LoadThread, 65536, q, "AsyncLoad");
+        q->m_Mutex        = dmMutex::New();
+        q->m_WakeupCond   = dmConditionVariable::New();
+        q->m_Thread       = dmThread::New(&LoadThread, 65536, q, "AsyncLoad");
 
-//        dmLogWarning("sizeof(Queue): %u", (uint32_t)(sizeof(Queue) + QUEUE_SLOTS * DEFAULT_CAPACITY));
+        //        dmLogWarning("sizeof(Queue): %u", (uint32_t)(sizeof(Queue) + QUEUE_SLOTS * DEFAULT_CAPACITY));
 
         return q;
     }
@@ -199,11 +199,11 @@ namespace dmLoadQueue
             dmConditionVariable::Signal(queue->m_WakeupCond);
         }
 
-        Request *req = &queue->m_Request[(queue->m_Front++) % QUEUE_SLOTS];
-        req->m_Name = name;
+        Request* req         = &queue->m_Request[(queue->m_Front++) % QUEUE_SLOTS];
+        req->m_Name          = name;
         req->m_CanonicalPath = canonical_path;
 
-        req->m_PreloadInfo = *info;
+        req->m_PreloadInfo         = *info;
         req->m_Result.m_LoadResult = dmResource::RESULT_PENDING;
 
         return req;
@@ -215,8 +215,8 @@ namespace dmLoadQueue
         if (request->m_Result.m_LoadResult == dmResource::RESULT_PENDING)
             return RESULT_PENDING;
 
-        *buf = request->m_Buffer.Begin();
-        *size = request->m_Buffer.Size();
+        *buf         = request->m_Buffer.Begin();
+        *size        = request->m_Buffer.Size();
         *load_result = request->m_Result;
 
         return RESULT_OK;
@@ -242,7 +242,7 @@ namespace dmLoadQueue
         }
 
         // Clean up picked up requests
-        request->m_Name = 0x0;
+        request->m_Name          = 0x0;
         request->m_CanonicalPath = 0x0;
 
         while (queue->m_Back != queue->m_Loaded && queue->m_Request[queue->m_Back % QUEUE_SLOTS].m_Name == 0x0)
@@ -250,5 +250,4 @@ namespace dmLoadQueue
             queue->m_Back++;
         }
     }
-}
-
+} // namespace dmLoadQueue
