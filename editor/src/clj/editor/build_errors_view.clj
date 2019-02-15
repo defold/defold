@@ -177,7 +177,7 @@
       [node-id]
       (let [project (project/get-project node-id)]
         (when-some [resource-node (project/get-resource-node project resource)]
-          [(g/node-value resource-node :_node-id)])))))
+          [resource-node])))))
 
 (defn- open-error [open-resource-fn selection]
   (when-some [error-item (first selection)]
