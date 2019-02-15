@@ -147,7 +147,7 @@
 
 (defmethod make-tree-cell :unknown-parent
   [tree-item]
-  {:text "NO RESOURCE"
+  {:text "Unknown source"
    :icon "icons/32/Icons_29-AT-Unknown.png"
    :style #{"severity-info"}})
 
