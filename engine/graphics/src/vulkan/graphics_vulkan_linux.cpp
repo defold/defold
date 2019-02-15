@@ -1,4 +1,7 @@
 
+// TODO: Move into glfw?
+#ifdef __linux__
+
 #include <vulkan/vulkan.h>
 #include "graphics_vulkan_platform.h"
 
@@ -55,13 +58,13 @@ namespace glfwWrapper
 
     // Taken from GLFW3 source
     VkResult glfwCreateWindowSurface(VkInstance instance,
-        GLFWWindow* window, const VkAllocationCallbacks* allocator, VkSurfaceKHR* surface)
+        GLFWWindow* window, const VkAllocationCallbacks* allocator, VkSurfaceKHR* surface, bool highDpiEnabled)
     {
         Window* handle = (Window*) window->handle;
         Display* display = (Display*) window->display;
 
         //if (_glfw.vk.KHR_xcb_surface && _glfw.x11.x11xcb.handle)
-        
+
         // yeah uh... sure
         if(true)
         {
@@ -111,3 +114,4 @@ namespace glfwWrapper
         }
     }
 }
+#endif

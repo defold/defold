@@ -1,3 +1,5 @@
+
+#include <vulkan/vulkan.h>
 #include "graphics_vulkan_platform.h"
 
 namespace glfwWrapper
@@ -18,7 +20,8 @@ namespace glfwWrapper
     VkResult glfwCreateWindowSurface(VkInstance instance,
                                      GLFWWindow* window,
                                      const VkAllocationCallbacks* allocator,
-                                     VkSurfaceKHR* surface)
+                                     VkSurfaceKHR* surface,
+                                     bool highDpiEnabled)
     {
     #if MAC_OS_X_VERSION_MAX_ALLOWED >= 101100
         VkResult err;
@@ -49,7 +52,11 @@ namespace glfwWrapper
 
         [window->ns.view setLayer: window->ns.layer];
 
-        [window->ns.layer setContentsScale:[window->ns.object backingScaleFactor]];
+        if (highDpiEnabled)
+        {
+            [window->ns.layer setContentsScale:[window->ns.object backingScaleFactor]];
+        }
+
         [window->ns.view setWantsLayer:YES];
 
         memset(&sci, 0, sizeof(sci));
