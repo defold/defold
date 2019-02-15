@@ -171,11 +171,11 @@
   [^String path]
   (let [unix-path (FilenameUtils/separatorsToUnix path)
         idx (.indexOf unix-path "upload/")
-        idx (if (= -1 idx)
-              (.indexOf unix-path "build/")
-              idx)]
+        [idx word-len] (if (= -1 idx)
+                         [(.indexOf unix-path "build/") (count "build")]
+                         [idx (count "upload")])]
     (if-not (= -1 idx)
-      (subs path (+ idx (count "upload")))
+      (subs path (+ idx word-len))
       (if (string/starts-with? unix-path "/")
         unix-path
         (str "/" unix-path)))))
