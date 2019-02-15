@@ -56,7 +56,7 @@
            (test-util/with-loaded-project
              (let [path          "/sprite/small_atlas.sprite"
                    [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-                   renderables   (g/node-value view :renderables)]
+                   renderables   (g/node-value view :all-renderables)]
                (is (reduce #(and %1 %2) (map #(contains? renderables %) [pass/transparent pass/selection])))))))
 
 (deftest scene-selection
@@ -267,7 +267,7 @@
 (defn- produce-render-data [scene selection aux-renderables camera]
   (let [scene-render-data (scene/produce-scene-render-data {:scene scene :selection selection :hidden-renderable-args [] :hidden-node-outline-key-paths [] :camera camera})
         aux-render-data (scene/produce-aux-render-data {:aux-renderables aux-renderables :hidden-renderable-tags []})]
-    (scene/merge-render-datas aux-render-data scene-render-data {})))
+    (scene/merge-render-datas aux-render-data {} scene-render-data)))
 
 (deftest produce-render-data-test
   (let [passes [pass/transparent pass/selection pass/outline]
