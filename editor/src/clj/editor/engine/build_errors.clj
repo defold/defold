@@ -230,15 +230,6 @@
                           :message line}
       {:type name :message line})))
 
-(defn- get-project-path
-  "Returns the absolute project path with Unix separators."
-  ^String [project]
-  (->> project
-       (project/workspace)
-       (workspace/project-path)
-       .getAbsolutePath
-       (FilenameUtils/separatorsToUnix)))
-
 (defn- merge-compilation-messages
   "Add the message from line to the end of the message of current."
   [current line]
