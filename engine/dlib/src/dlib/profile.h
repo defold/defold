@@ -2,13 +2,6 @@
 #define DM_PROFILE_H
 
 #include <stdint.h>
-#if defined(_WIN32)
-#include "safe_windows.h"
-#elif  defined(__EMSCRIPTEN__)
-#include <emscripten.h>
-#else
-#include <sys/time.h>
-#endif
 #include <dlib/array.h>
 #include <dlib/log.h>
 #include <dlib/atomic.h>
@@ -344,51 +337,27 @@ namespace dmProfile
         Sample*     m_Sample;
         inline ProfileScope(Scope* scope, const char* name)
         {
-            if (!g_IsInitialized)
+            if (g_IsInitialized)
+            {
+                StartScope(scope, name);
+            }
+            else
             {
                 m_Sample = 0;
-                return;
             }
-
-            uint64_t start;
-#if defined(_WIN32)
-            QueryPerformanceCounter((LARGE_INTEGER *)&start);
-#elif defined(__EMSCRIPTEN__)
-            start = (uint64_t)(emscripten_get_now() * 1000.0);
-#else
-            timeval tv;
-            gettimeofday(&tv, 0);
-            start = tv.tv_sec * 1000000 + tv.tv_usec;
-#endif
-            Sample*s = AllocateSample();
-            s->m_Name = name;
-            s->m_Scope = scope;
-            s->m_Start = (uint32_t)(start - g_BeginTime);
-            m_Sample = s;
+            
         }
-
-
 
         inline ~ProfileScope()
         {
-            if (m_Sample == 0)
+            if (m_Sample)
             {
-                return;
+                EndScope();
             }
-
-            uint64_t end;
-#if defined(_WIN32)
-            QueryPerformanceCounter((LARGE_INTEGER *) &end);
-#elif defined(__EMSCRIPTEN__)
-            end = (uint64_t)(emscripten_get_now() * 1000.0);
-#else
-            timeval tv;
-            gettimeofday(&tv, 0);
-            end = tv.tv_sec * 1000000 + tv.tv_usec;
-#endif
-            ANALYZE_USE_POINTER(m_Sample);
-            m_Sample->m_Elapsed = (uint32_t)(end - g_BeginTime) - m_Sample->m_Start;
         }
+
+        void StartScope(Scope* scope, const char* name);
+        void EndScope();
     };
 
 }
