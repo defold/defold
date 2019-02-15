@@ -270,11 +270,11 @@
   (-> (next-compilation-line state {} :conj-entry)
       (assoc :ext-manifest-file original-ext-manifest-file)))
 
-(defn- find-ext-manifest-relative-to-resource
+(defn find-ext-manifest-relative-to-resource
   "Find the ext.manifest file for the native extension that proj-path belongs to."
-  [project ^String proj-path]
-  (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path)
-        find-resource (fn [path] (g/node-value (nodes-by-resource-path path) :resource))]
+  [project ^String proj-path evaluation-context]
+  (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)
+        find-resource (fn [path] (g/node-value (nodes-by-resource-path path) :resource evaluation-context))]
     (->> proj-path
          (iterate resource/parent-proj-path)
          (take-while not-empty)
@@ -296,73 +296,74 @@
   being parsed if none was supplied. If no ext.manifest file is supplied and
   none can be found then such entries will not receive a resource attribution."
   [text project ext-manifest-file]
-  (let [original-ext-manifest-file ext-manifest-file
-        nodes-by-resource-path (g/node-value project :nodes-by-resource-path)]
-    (loop [{:keys [lines current acc included-from? ext-manifest-file] :as state}
-           {:lines (string/split-lines text)
-            :current {}
-            :acc []
-            :included-from? false
-            :ext-manifest-file original-ext-manifest-file}]
-      (if-not lines
-        (if (= :included-from (:type current))
-          (conj (pop acc) (merge-compilation-messages (last acc) current))
-          (conj-compilation-entry acc current))
-        (let [line (parse-compilation-line (first lines) ext-manifest-file)
-              project-resource? (contains? nodes-by-resource-path (:file line))
-              ;; Make sure we point to a project file always. For errors that
-              ;; manifest in included files that live on the build server, this
-              ;; means that we will point at the include statement. Not strictly
-              ;; correct but it is the best we can do in the confines of the
-              ;; project. Also find the most relevant ext.manifest file for the
-              ;; current resource so we have something to associate for example
-              ;; link errors with.
-              [line ext-manifest-file] (if-not project-resource?
-                                         [(merge line (select-keys current [:file :line :column]))
-                                          (or ext-manifest-file (find-ext-manifest-relative-to-resource project (:file current)))]
-                                         [line
-                                          (or ext-manifest-file (find-ext-manifest-relative-to-resource project (:file line)))])
-              state (assoc state :ext-manifest-file ext-manifest-file)
-              next-state (case (:type line)
-                           :included-from (if included-from?
-                                            (if project-resource?
-                                              ;; Each successive included-from gets more
-                                              ;; specific so if it refers to a project file,
-                                              ;; use that.
-                                              (next-compilation-line state line :conj-message :replace-file :included-from)
-                                              (next-compilation-line state line :conj-message :included-from))
-                                            (if (= :included-from (:type current))
-                                              ;; If we have not found a warning, error or note yet we merge this entry into previous.
-                                              (next-compilation-line state line :conj-message-to-previous :included-from)
-                                              ;; New entry if "included from" does not follow another "included from".
-                                              (next-compilation-line state line :conj-entry :included-from)))
-                           ;; Unknown are a catch-all for informational messages without a category. Eg. source code lines.
-                           :unknown (next-compilation-line state line :conj-message)
-                           ;; Marker is the ^ pointing at the column where the error manifests.
-                           :marker (next-compilation-line state line :conj-message)
-                           ;; Summary line marks the end of current entry.
-                           ;; Next batch of errors could be from another native extension so we reset the ext.manifest reference.
-                           :summary (ignore-line-and-start-next-entry state original-ext-manifest-file)
-                           ;; Start of new entry with some extra information from gcc that we don't need. Do same as for summary line.
-                           :in-function (ignore-line-and-start-next-entry state original-ext-manifest-file)
-                           ;; Empty lines separate entries for some compilers/tools
-                           :empty (ignore-line-and-start-next-entry state original-ext-manifest-file)
-                           ;; javac invocation line, ignore.
-                           :javac (ignore-line-and-start-next-entry state original-ext-manifest-file)
-                           ;; Error/warning/note
-                           (if included-from?
-                             ;; If the last line was an "included from" line and we encounter a
-                             ;; note, warning or error that means the previous lines were
-                             ;; information belonging to the note/warning/error message. So we
-                             ;; attach the message from this line and change the type of the
-                             ;; previous to the type of this one.
-                             (if project-resource?
-                               ;; If the note/warning/error refers to a project file, let that take precedence.
-                               (next-compilation-line state line :conj-message :replace-type :replace-file)
-                               (next-compilation-line state line :conj-message :replace-type))
-                             ;; New entry.
-                             (next-compilation-line state line :conj-entry)))]
-          (recur next-state))))))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [original-ext-manifest-file ext-manifest-file
+          nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)]
+      (loop [{:keys [lines current acc included-from? ext-manifest-file] :as state}
+             {:lines (string/split-lines text)
+              :current {}
+              :acc []
+              :included-from? false
+              :ext-manifest-file original-ext-manifest-file}]
+        (if-not lines
+          (if (= :included-from (:type current))
+            (conj (pop acc) (merge-compilation-messages (last acc) current))
+            (conj-compilation-entry acc current))
+          (let [line (parse-compilation-line (first lines) ext-manifest-file)
+                project-resource? (contains? nodes-by-resource-path (:file line))
+                ;; Make sure we point to a project file always. For errors that
+                ;; manifest in included files that live on the build server, this
+                ;; means that we will point at the include statement. Not strictly
+                ;; correct but it is the best we can do in the confines of the
+                ;; project. Also find the most relevant ext.manifest file for the
+                ;; current resource so we have something to associate for example
+                ;; link errors with.
+                [line ext-manifest-file] (if-not project-resource?
+                                           [(merge line (select-keys current [:file :line :column]))
+                                            (or ext-manifest-file (find-ext-manifest-relative-to-resource project (:file current) evaluation-context))]
+                                           [line
+                                            (or ext-manifest-file (find-ext-manifest-relative-to-resource project (:file line) evaluation-context))])
+                state (assoc state :ext-manifest-file ext-manifest-file)
+                next-state (case (:type line)
+                             :included-from (if included-from?
+                                              (if project-resource?
+                                                ;; Each successive included-from gets more
+                                                ;; specific so if it refers to a project file,
+                                                ;; use that.
+                                                (next-compilation-line state line :conj-message :replace-file :included-from)
+                                                (next-compilation-line state line :conj-message :included-from))
+                                              (if (= :included-from (:type current))
+                                                ;; If we have not found a warning, error or note yet we merge this entry into previous.
+                                                (next-compilation-line state line :conj-message-to-previous :included-from)
+                                                ;; New entry if "included from" does not follow another "included from".
+                                                (next-compilation-line state line :conj-entry :included-from)))
+                             ;; Unknown are a catch-all for informational messages without a category. Eg. source code lines.
+                             :unknown (next-compilation-line state line :conj-message)
+                             ;; Marker is the ^ pointing at the column where the error manifests.
+                             :marker (next-compilation-line state line :conj-message)
+                             ;; Summary line marks the end of current entry.
+                             ;; Next batch of errors could be from another native extension so we reset the ext.manifest reference.
+                             :summary (ignore-line-and-start-next-entry state original-ext-manifest-file)
+                             ;; Start of new entry with some extra information from gcc that we don't need. Do same as for summary line.
+                             :in-function (ignore-line-and-start-next-entry state original-ext-manifest-file)
+                             ;; Empty lines separate entries for some compilers/tools
+                             :empty (ignore-line-and-start-next-entry state original-ext-manifest-file)
+                             ;; javac invocation line, ignore.
+                             :javac (ignore-line-and-start-next-entry state original-ext-manifest-file)
+                             ;; Error/warning/note
+                             (if included-from?
+                               ;; If the last line was an "included from" line and we encounter a
+                               ;; note, warning or error that means the previous lines were
+                               ;; information belonging to the note/warning/error message. So we
+                               ;; attach the message from this line and change the type of the
+                               ;; previous to the type of this one.
+                               (if project-resource?
+                                 ;; If the note/warning/error refers to a project file, let that take precedence.
+                                 (next-compilation-line state line :conj-message :replace-type :replace-file)
+                                 (next-compilation-line state line :conj-message :replace-type))
+                               ;; New entry.
+                               (next-compilation-line state line :conj-entry)))]
+            (recur next-state)))))))
 
 (defn- parsed-compilation-entry->ErrorInfoProvider
   "Convert a log entry produced by `parse-compilation-log` into to an
@@ -460,7 +461,8 @@
   (let [log (.getRawLog exception)
         ext-manifest-file (find-ext-manifest-relative-to-resource
                            project
-                           (buildpath->projpath (.getPath (.getContextResource exception))))]
+                           (buildpath->projpath (.getPath (.getContextResource exception)))
+                           evaluation-context)]
     (or (try-parse-invalid-lib-error-causes project evaluation-context log)
         (try-parse-compiler-error-causes project evaluation-context log ext-manifest-file)
         (generic-extension-error-causes project evaluation-context log))))
