@@ -2430,9 +2430,9 @@ namespace dmScript
     void PushVector4(lua_State* L, const Vectormath::Aos::Vector4& v)
     {
         Vectormath::Aos::Vector4* vp = (Vectormath::Aos::Vector4*)lua_newuserdata(L, sizeof(Vectormath::Aos::Vector4));
-        dmLogError("v mem adr: %p, proc 16: %lu", (void*) &v, (unsigned long)&v % 16);
-        dmLogError("vp mem adr: %p, proc 16: %lu", (void*) vp, (unsigned long)vp % 16);
-        assert((unsigned long)vp % 16 == 0 && "Unaligned vec4");
+#if defined(LUA_BYTECODE_ENABLE)
+        assert((unsigned long)vp % 16 == 0 && "Unaligned lua userdata");
+#endif
         *vp = v;
         luaL_getmetatable(L, SCRIPT_TYPE_NAME_VECTOR4);
         lua_setmetatable(L, -2);
