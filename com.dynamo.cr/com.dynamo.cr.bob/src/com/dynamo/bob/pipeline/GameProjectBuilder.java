@@ -51,6 +51,7 @@ import com.dynamo.graphics.proto.Graphics.Cubemap;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.gui.proto.Gui;
 import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
@@ -105,6 +106,8 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".soundc", SoundDesc.class);
         extToMessageClass.put(".labelc", LabelDesc.class);
         extToMessageClass.put(".modelc", Model.class);
+        extToMessageClass.put(".fpc", ShaderDesc.class);
+        extToMessageClass.put(".vpc", ShaderDesc.class);
         extToMessageClass.put(".input_bindingc", InputBinding.class);
         extToMessageClass.put(".gamepadsc", GamepadMaps.class);
         extToMessageClass.put(".renderc", RenderPrototypeDesc.class);
@@ -121,8 +124,6 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".display_profilesc", DisplayProfiles.class);
 
         leafResourceTypes.add(".texturec");
-        leafResourceTypes.add(".vpc");
-        leafResourceTypes.add(".fpc");
         leafResourceTypes.add(".wavc");
         leafResourceTypes.add(".oggc");
     }
@@ -463,7 +464,7 @@ public class GameProjectBuilder extends Builder<Void> {
         // If loading supplied keys failed or none were supplied, generate them instead.
         if (privateKeyFilepath.isEmpty() || publicKeyFilepath.isEmpty()) {
             if (project.option("liveupdate", "false").equals("true")) {
-                System.err.println("Warning! No public or private key for manifest signing set in liveupdate settings, generating keys instead.");
+                System.err.println("\nWarning! No public or private key for manifest signing set in liveupdate settings, generating keys instead.");
             }
             File privateKeyFileHandle = File.createTempFile("defold.private_", ".der");
             privateKeyFileHandle.deleteOnExit();
@@ -507,7 +508,7 @@ public class GameProjectBuilder extends Builder<Void> {
         // Map deprecated 'variable_dt' to new settings resulting in same runtime behavior
         Boolean variableDt = properties.getBooleanValue("display", "variable_dt");
         if (variableDt != null && variableDt == true) {
-            System.err.println("Warning! Setting 'variable_dt' in 'game.project' is deprecated. Disabling 'Vsync' and setting 'Frame cap' to 0 for equivalent behavior.");
+            System.err.println("\nWarning! Setting 'variable_dt' in 'game.project' is deprecated. Disabling 'Vsync' and setting 'Frame cap' to 0 for equivalent behavior.");
             properties.putBooleanValue("display", "vsync", false);
             properties.putIntValue("display", "update_frequency", 0);
         }

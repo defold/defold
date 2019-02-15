@@ -51,6 +51,16 @@
    "${DYNAMO-HOME}/ext/bin/x86_64-darwin/luajit-32"           "x86_64-darwin/bin/luajit-32"
    "${DYNAMO-HOME}/ext/bin/x86_64-darwin/luajit-64"           "x86_64-darwin/bin/luajit-64"
 
+   "$DYNAMO_HOME/ext/bin/x86_64-darwin/glslc"                 "x86_64-darwin/glslc"
+   "$DYNAMO_HOME/ext/bin/x86_64-linux/glslc"                  "x86_64-linux/glslc"
+   "$DYNAMO_HOME/ext/bin/x86_64-win32/glslc.exe"              "x86_64-win32/glslc.exe"
+   "$DYNAMO_HOME/ext/bin/win32/glslc.exe"                     "x86-win32/glslc.exe"
+
+   "$DYNAMO_HOME/ext/bin/x86_64-darwin/spirv-cross"           "x86_64-darwin/spirv-cross"
+   "$DYNAMO_HOME/ext/bin/x86_64-linux/spirv-cross"            "x86_64-linux/spirv-cross"
+   "$DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe"        "x86_64-win32/spirv-cross.exe"
+   "$DYNAMO_HOME/ext/bin/win32/spirv-cross.exe"               "x86-win32/spirv-cross.exe"
+
    "${DYNAMO-HOME}/ext/share/luajit"                  "shared/luajit"
 
    "bundle-resources/x86_64-darwin/lipo"              "x86_64-darwin/bin/lipo"
