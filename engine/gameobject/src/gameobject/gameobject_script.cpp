@@ -149,12 +149,11 @@ namespace dmGameObject
 
     HRegister g_Register = 0;
 
-    CompScriptWorld::CompScriptWorld()
+    CompScriptWorld::CompScriptWorld(uint32_t max_instance_count)
     : m_Instances()
     , m_ScriptWorld(0x0)
     {
-        // TODO: How to configure? It should correspond to collection instance count
-        m_Instances.SetCapacity(1024);
+        m_Instances.SetCapacity(max_instance_count);
     }
 
     static Script* GetScript(lua_State *L)
@@ -1192,7 +1191,7 @@ namespace dmGameObject
      * - `go.PLAYBACK_LOOP_PINGPONG`
      *
      * @param to [type:number|vector3|vector4|quaternion] target property value
-     * @param easing [type:constant|vector] easing to use during animation. Either specify a constant, see the <a href="/manuals/animation">animation guide</a> for a complete list, or a vmath.vector with a curve
+     * @param easing [type:constant|vector] easing to use during animation. Either specify a constant, see the <a href="/manuals/animation#_easing">animation guide</a> for a complete list, or a vmath.vector with a curve
      * @param duration [type:number] duration of the animation in seconds
      * @param [delay] [type:number] delay before the animation starts in seconds
      * @param [complete_function] [type:function(self, url, property)] optional function to call when the animation has completed

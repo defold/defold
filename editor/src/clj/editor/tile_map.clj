@@ -217,10 +217,11 @@
                     :passes [pass/transparent pass/selection]}})))
 
 (g/defnk produce-layer-outline
-  [_node-id id]
+  [_node-id id z]
   {:node-id _node-id
    :node-outline-key id
    :label id
+   :z z
    :icon tile-map-layer-icon})
 
 (g/defnk produce-layer-pb-msg
@@ -314,7 +315,7 @@
    :node-outline-key "Tile Map"
    :label            "Tile Map"
    :icon             tile-map-icon
-   :children         (vec (sort-by :label child-outlines))})
+   :children         (vec (sort-by :z child-outlines))})
 
 (g/defnk produce-pb-msg
   [tile-source material blend-mode layer-msgs]
@@ -548,7 +549,7 @@
     (gl/gl-push-matrix gl
                        (gl/gl-mult-matrix-4d gl brush-transform)
                        (gl/with-gl-bindings gl render-args [gpu-texture tex-shader vb]
-                         (shader/set-uniform tex-shader gl "texture" 0)
+                         (shader/set-uniform tex-shader gl "texture_sampler" 0)
                          (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
 
 
@@ -632,7 +633,7 @@
         vb (vtx/use-with ::palette-tiles vbuf tex-shader)
         gpu-texture (texture/set-params gpu-texture tile-source/texture-params)]
     (gl/with-gl-bindings gl render-args [gpu-texture tex-shader vb]
-      (shader/set-uniform tex-shader gl "texture" 0)
+      (shader/set-uniform tex-shader gl "texture_sampler" 0)
       (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
 
 

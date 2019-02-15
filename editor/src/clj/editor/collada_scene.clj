@@ -80,31 +80,36 @@
 (defmacro put! [vb x y z]
   `(vtx-pos-nrm-tex-put! ~vb ~x ~y ~z 0 0 0 0 0))
 
-(defn mesh->vb! [^VertexBuffer vb ^Matrix4d world-transform mesh scratch]
+(defn mesh->vb! [^VertexBuffer vb ^Matrix4d world-transform vertex-space mesh scratch]
   (let [^floats positions (to-scratch! mesh scratch :positions)
         ^floats normals   (to-scratch! mesh scratch :normals)
         ^floats texcoords (to-scratch! mesh scratch :texcoord0)
-        ^ints positions-indices (:indices mesh)
+        ^ints positions-indices (:position-indices mesh)
         ^ints normals-indices   (:normals-indices mesh)
         ^ints texcoords-indices (:texcoord0-indices mesh)
         vcount (alength positions-indices)
+
         ^Matrix4f world-transform (Matrix4f. world-transform)
-        ^floats positions (let [world-point (Point3f.)]
-                            (transform-array3! positions (fn [^floats d3]
-                                                           (.set world-point d3)
-                                                           (.transform world-transform world-point)
-                                                           (.get world-point d3))))
-       ^floats normals (let [world-normal (Vector3f.)
-                             normal-transform (let [tmp (Matrix3f.)]
-                                                (.getRotationScale world-transform tmp)
-                                                (.invert tmp)
-                                                (.transpose tmp)
-                                                tmp)]
-                         (transform-array3! normals (fn [^floats d3]
-                                                      (.set world-normal d3)
-                                                      (.transform normal-transform world-normal)
-                                                      (.normalize world-normal) ; need to normalize since since normal-transform may be scaled
-                                                      (.get world-normal d3))))]
+        ^floats positions (if (= vertex-space :vertex-space-world)
+                            (let [world-point (Point3f.)]
+                              (transform-array3! positions (fn [^floats d3]
+                                                             (.set world-point d3)
+                                                             (.transform world-transform world-point)
+                                                             (.get world-point d3))))
+                            positions)
+        ^floats normals (if (= vertex-space :vertex-space-world)
+                          (let [world-normal (Vector3f.)
+                                normal-transform (let [tmp (Matrix3f.)]
+                                                   (.getRotationScale world-transform tmp)
+                                                   (.invert tmp)
+                                                   (.transpose tmp)
+                                                   tmp)]
+                            (transform-array3! normals (fn [^floats d3]
+                                                         (.set world-normal d3)
+                                                         (.transform normal-transform world-normal)
+                                                         (.normalize world-normal) ; need to normalize since since normal-transform may be scaled
+                                                         (.get world-normal d3))))
+                          normals)]
     ;; Raw access to run as fast as possible
     ;; 3x faster than using generated *-put! function
     ;; Not clear how to turn this into pretty API
@@ -129,10 +134,10 @@
     ;; Since we have bypassed the vb and internal ByteBuffer, manually update the position
     (vtx/position! vb vcount)))
 
-(defn- request-vb! [^GL2 gl node-id mesh ^Matrix4d world-transform scratch]
+(defn- request-vb! [^GL2 gl node-id mesh ^Matrix4d world-transform vertex-space scratch]
   (let [clj-world (math/vecmath->clj world-transform)
         request-id [node-id mesh]
-        data {:mesh mesh :world-transform clj-world :scratch scratch}]
+        data {:mesh mesh :world-transform clj-world :scratch scratch :vertex-space vertex-space}]
     (scene-cache/request-object! ::vb request-id gl data)))
 
 (defn- render-scene [^GL2 gl render-args renderables rcount]
@@ -144,7 +149,17 @@
             user-data (:user-data renderable)
             meshes (:meshes user-data)
             shader (:shader user-data)
-            textures (:textures user-data)]
+            textures (:textures user-data)
+            vertex-space (:vertex-space user-data)
+            render-args (if (= vertex-space :vertex-space-world)
+                          render-args
+                          (let [world-view (doto (Matrix4d. ^Matrix4d (:view render-args)) (.mul ^Matrix4d (:world-transform renderable)))
+                                world-view-proj (doto (Matrix4d. ^Matrix4d (:projection render-args)) (.mul ^Matrix4d world-view))
+                                normal (doto (math/affine-inverse world-view) (.transpose))]
+                            (assoc render-args
+                              :world-view-proj world-view-proj
+                              :world-view world-view
+                              :normal normal)))]
         (gl/with-gl-bindings gl render-args [shader]
           (when (= pass pass/opaque)
             (doseq [[name t] textures]
@@ -160,7 +175,7 @@
                   meshes (:meshes user-data)
                   world-transform (:world-transform renderable)]
               (doseq [mesh meshes]
-                (let [vb (request-vb! gl node-id mesh world-transform scratch)
+                (let [vb (request-vb! gl node-id mesh world-transform vertex-space scratch)
                       vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
                   (gl/with-gl-bindings gl render-args [vertex-binding]
                     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb)))))))
@@ -200,7 +215,7 @@
     (update :positions doubles->floats)
     (update :normals doubles->floats)
     (update :texcoord0 doubles->floats)
-    (update :indices int-array)
+    (update :position-indices int-array)
     (update :normals-indices int-array)
     (update :texcoord0-indices int-array)))
 
@@ -228,17 +243,17 @@
         (error-values/error-fatal "The scene contains invalid numbers, likely produced by a buggy exporter." {:type :invalid-content})))))
 
 (defn- vbuf-size [meshes]
-  (reduce (fn [sz m] (max sz (alength ^ints (:indices m)))) 0 meshes))
+  (reduce (fn [sz m] (max sz (alength ^ints (:position-indices m)))) 0 meshes))
 
 (defn- index-oob [vs is comp-count]
   (> (* comp-count (reduce max 0 is)) (count vs)))
 
 (defn- validate-meshes [meshes]
   (when-let [es (seq (keep (fn [m]
-                             (let [{:keys [^floats positions ^floats normals ^floats texcoord0 ^ints indices ^ints normals-indices ^ints texcoord0-indices]} m]
-                               (when (or (not (= (alength indices) (alength texcoord0-indices)))
-                                         (and (not= (alength normals-indices) 0) (not= (alength indices) (alength normals-indices))) ; normals optional
-                                         (index-oob positions indices 3)
+                             (let [{:keys [^floats positions ^floats normals ^floats texcoord0 ^ints position-indices ^ints normals-indices ^ints texcoord0-indices]} m]
+                               (when (or (not (= (alength position-indices) (alength texcoord0-indices)))
+                                         (and (not= (alength normals-indices) 0) (not= (alength position-indices) (alength normals-indices))) ; normals optional
+                                         (index-oob positions position-indices 3)
                                          (index-oob normals normals-indices 3)
                                          (index-oob texcoord0 texcoord0-indices 2))
                                  (error-values/error-fatal "Failed to produce vertex buffers from mesh set. The scene might contain invalid data."))))
@@ -306,15 +321,15 @@
                                     :view-types [:scene :text]))
 
 (defn- update-vb [^GL2 gl ^VertexBuffer vb data]
-  (let [{:keys [mesh world-transform scratch]} data]
+  (let [{:keys [mesh world-transform vertex-space scratch]} data]
     (-> vb
       (vtx/clear!)
-      (mesh->vb! (doto (Matrix4d.) (math/clj->vecmath world-transform)) mesh scratch)
+      (mesh->vb! (doto (Matrix4d.) (math/clj->vecmath world-transform)) vertex-space mesh scratch)
       (vtx/flip!))))
 
 (defn- make-vb [^GL2 gl data]
   (let [{:keys [mesh]} data
-        vb (->vtx-pos-nrm-tex (alength ^ints (:indices mesh)))]
+        vb (->vtx-pos-nrm-tex (alength ^ints (:position-indices mesh)))]
     (update-vb gl vb data)))
 
 (defn- destroy-vbs [^GL2 gl vbs _])
