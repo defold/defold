@@ -4,12 +4,13 @@
             [editor.gl :as gl]
             [editor.colors :as colors]
             [editor.gl.pass :as pass])
-  (:import [com.jogamp.opengl GL2]))
+  (:import [com.jogamp.opengl GL2]
+           [editor.types Region]))
 
 (set! *warn-on-reflection* true)
 
 (defn render-background [^GL2 gl render-args renderables count]
-  (let [viewport (:viewport render-args)
+  (let [viewport ^Region (:viewport render-args)
         x0 (.left viewport)
         x1 (.right viewport)
         y0 (.top viewport)

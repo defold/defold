@@ -352,11 +352,11 @@
             pass-renderables
             (:children scene))))
 
-;; Picking id's are in the range 1..2^24-1. We can think of this as a
-;; multiplicative group modulo 2^24. picking-id-multiplier is used to
-;; shuffle the bits to make sure consecutive picking-seeds's don't get
-;; too similar colors. picking-id-inverse can be used to find the
-;; original picking-seed if need be.
+;; Picking id's are in the range 1..2^24-1. To more easily distinguish
+;; consecutive picking seeds (by color) we shuffle the bits by
+;; multiplying by picking-id-multiplier modulo 2^24. picking-id-multiplier is
+;; coprime to 2^24 so there will be no collisions. picking-id-inverse
+;; can be used to find the original picking-seed if need be.
 (def ^:private picking-id-multiplier 0x5b1047)
 #_(def picking-id-inverse 0x79977)
 
@@ -1161,7 +1161,7 @@
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables)
   (output frame BufferedImage produce-frame)
-  (output all-renderables pass/RenderData (g/fnk [scene-render-data] (:renderables scene-render-data)))
+  (output all-renderables pass/RenderData (g/fnk [scene-render-data] (:renderables (merge-render-datas {} {} scene-render-data))))
   (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil)))))
 
 (defn make-preview-view [graph width height]
