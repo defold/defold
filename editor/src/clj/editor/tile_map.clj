@@ -549,7 +549,7 @@
     (gl/gl-push-matrix gl
                        (gl/gl-mult-matrix-4d gl brush-transform)
                        (gl/with-gl-bindings gl render-args [gpu-texture tex-shader vb]
-                         (shader/set-uniform tex-shader gl "texture" 0)
+                         (shader/set-uniform tex-shader gl "texture_sampler" 0)
                          (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
 
 
@@ -633,7 +633,7 @@
         vb (vtx/use-with ::palette-tiles vbuf tex-shader)
         gpu-texture (texture/set-params gpu-texture tile-source/texture-params)]
     (gl/with-gl-bindings gl render-args [gpu-texture tex-shader vb]
-      (shader/set-uniform tex-shader gl "texture" 0)
+      (shader/set-uniform tex-shader gl "texture_sampler" 0)
       (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
 
 
