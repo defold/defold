@@ -139,5 +139,6 @@
           manifest-file (make-fake-file-resource workspace "androidnative/ext.manifest" "" nil)
           files [(make-fake-file-resource workspace "androidnative" "" {:children [cpp-file manifest-file]})]
           project (tu/setup-project! workspace files)]
-      (is (= "/androidnative/ext.manifest" (build-errors/find-ext-manifest-relative-to-resource project "/androidnative/main.cpp"))))))
+      (g/with-auto-evaluation-context evaluation-context
+        (is (= "/androidnative/ext.manifest" (build-errors/find-ext-manifest-relative-to-resource project "/androidnative/main.cpp" evaluation-context)))))))
 
