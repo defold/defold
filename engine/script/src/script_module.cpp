@@ -29,8 +29,7 @@ namespace dmScript
     // Currently the bytecode is only ever built with LuaJIT which means it cannot be loaded
     // with vanilla lua runtime. The LUA_BYTECODE_ENABLE indicates if we can load bytecode,
     // and in reality, if linking happens against LuaJIT.
-    // True if bytecode
-    static bool GetLuaSource(dmLuaDDF::LuaSource *source, const char **buf, uint32_t *size)
+    static void GetLuaSource(dmLuaDDF::LuaSource *source, const char **buf, uint32_t *size)
     {
 #if defined(LUA_BYTECODE_ENABLE)
         dmLogWarning("#### LUA_BYTECODE_ENABLE OH YEA!!!");
@@ -41,7 +40,7 @@ namespace dmScript
             dmLogWarning("#### USING BYTECODE 32bit! filename: %s, num bytes: %u", source->m_Filename, source->m_Bytecode.m_Count);
             *buf = (const char*)source->m_Bytecode.m_Data;
             *size = source->m_Bytecode.m_Count;
-            return true;
+            return;
         }
 #elif defined(LUA_BYTECODE_ENABLE_64)
         dmLogWarning("#### Trying bytecode 64...");
@@ -50,20 +49,17 @@ namespace dmScript
             dmLogWarning("#### USING BYTECODE 64bit! filename: %s, num bytes: %u", source->m_Filename, source->m_Bytecode64.m_Count);
             *buf = (const char*)source->m_Bytecode64.m_Data;
             *size = source->m_Bytecode64.m_Count;
-            return true;
+            return;
         }
 #endif
-        else // DEBUG clause --jbnn
-        {
-            dmLogWarning("#### WANTED TO USE BYTECODE, BUT WAS EMPTY! filename: %s", source->m_Filename);
-        }
+
 #else
         dmLogWarning("#### No LUA_BYTECODE_ENABLE :(")
 #endif
         dmLogWarning("#### USING SCRIPTDATA INSTEAD OF BYTECODE 32/64! filename: %s", source->m_Filename);
         *buf = (const char*)source->m_Script.m_Data;
         *size = source->m_Script.m_Count;
-        return false;
+        return;
     }
 
     // Chunkname (the identifying part of a script/source chunk) in Lua has a maximum length,
@@ -109,7 +105,7 @@ namespace dmScript
         const char *buf;
         uint32_t size;
         dmLogWarning("### LuaLoad");
-        bool bytecode = GetLuaSource(source, &buf, &size);
+        GetLuaSource(source, &buf, &size);
 
         char tmp[DMPATH_MAX_PATH];
         return luaL_loadbuffer(L, buf, size, PrefixFilename(FindSuitableChunkname(source->m_Filename), '=', tmp, sizeof(tmp)));
