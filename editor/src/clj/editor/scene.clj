@@ -606,7 +606,7 @@
           (g/set-property node-id :drawable nil)
           (g/set-property node-id :async-copier nil))))))
 
-(defn- ^Vector3d screen->world [camera viewport ^Vector3d screen-pos] ^Vector3d
+(defn- screen->world ^Vector3d [camera viewport ^Vector3d screen-pos]
   (let [w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
     (Vector3d. (.x w4) (.y w4) (.z w4))))
 

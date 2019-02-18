@@ -1,0 +1,26 @@
+# Every line (except if empty or starting with "#") is considered a separate tip
+# You can type "\n" to make a line break inside a tip
+# Links are specified using markdown syntax: [example](https://example.com)
+# Note: there is no unescaping for square brackets, they are always get parsed as links
+
+# Useful links
+
+Did you know? There are lots of [great examples with demos](https://britzl.github.io/publicexamples/) made by Björn Ritzl!
+Have you seen our [Youtube channel](https://www.youtube.com/user/defoldvideos/videos)?
+[Follow us](https://twitter.com/defold) on Twitter!
+Check out [open source games](https://github.com/benjames-171/defold-games) made by Ben James!
+Did you know? You can tweak your game [without stopping it](https://www.defold.com/manuals/hot-reload/) — even on device!
+Having issues? Write us on [forum](http://forum.defold.com/) or check out the [FAQ](https://www.defold.com/faq/)!
+
+# Hidden gems
+
+Did you know? You can type simple math expressions like 640 / 2 in numeric property fields.
+Did you know? You can press Ctrl/Cmd+D to select the word under the cursor. Pressing again will select the next occurrence, and so on.
+Did you know? You can edit files side by side: right-click on editor tab and select Move to Other Tab Pane.
+Hold Alt and Drag to perform box selection in code editor!
+To move an object along its rotated axis, select Local Space from the Edit menu.
+
+# Inspirational quotes
+
+Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away.\n— Antoine de Saint-Exupéry
+Not all those who wander are lost.\n— J. R. R. Tolkien
