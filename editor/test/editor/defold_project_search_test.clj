@@ -78,6 +78,11 @@
           [(resource/proj-path resource) (mapv :match matches)])
         consumed))
 
+(defn- match-proj-paths [consumed]
+  (into #{}
+        (map (comp resource/proj-path :resource))
+        consumed))
+
 (deftest mock-consumer-test
   (let [report-error! (test-util/make-call-logger)
         consumer (make-consumer report-error!)
@@ -207,6 +212,27 @@
           1 " lua,  go"
           1 " lua,  GO"
           1 "script")
+        (abort-search!)
+        (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))
+        (is (= [] (test-util/call-logger-calls report-error!)))))))
+
+(deftest file-searcher-include-libraries-test
+  (test-util/with-loaded-project search-project-path
+    (test-util/with-ui-run-later-rebound
+      (let [report-error! (test-util/make-call-logger)
+            consumer (make-consumer report-error!)
+            start-consumer! (partial consumer-start! consumer)
+            stop-consumer! consumer-stop!
+            save-data-future (project-search/make-file-resource-save-data-future report-error! project)
+            {:keys [start-search! abort-search!]} (project-search/make-file-searcher save-data-future start-consumer! stop-consumer! report-error!)
+            perform-search! (fn [term exts include-libraries?]
+                              (start-search! term exts include-libraries?)
+                              (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
+                              (-> consumer consumer-consumed match-proj-paths))]
+        (is (= #{}
+               (perform-search! "socket" "lua" false)))
+        (is (= #{"/builtins/scripts/mobdebug.lua" "/builtins/scripts/socket.lua"}
+               (perform-search! "socket" "lua" true)))
         (abort-search!)
         (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))
         (is (= [] (test-util/call-logger-calls report-error!)))))))
