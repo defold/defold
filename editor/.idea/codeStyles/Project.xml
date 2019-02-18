@@ -2,7 +2,6 @@
   <code_scheme name="Project" version="173">
     <option name="RIGHT_MARGIN" value="80" />
     <ClojureCodeStyleSettings>{
-  :clojure.core/defonce :only-indent
   :cursive.formatting/align-conditionals false
   :cursive.formatting/align-maps false
   :cursive.formatting/imports-use-vectors true
