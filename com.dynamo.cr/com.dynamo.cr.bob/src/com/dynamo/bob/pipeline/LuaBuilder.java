@@ -167,34 +167,29 @@ public abstract class LuaBuilder extends Builder<Void> {
         builder.setProperties(propertiesMsg);
 
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
-        
+
+        srcBuilder.setFilename(task.input(0).getPath());
+
         String[] platforms = project.getPlatformStrings();
-        
         boolean useLuaSource = false;
         for (String platform : platforms) {
-        	System.out.println("### platform: " + platform);
-        	if (needsLuaSource.contains(platform)) {
-        		useLuaSource = true;
-        		break;
-        	}
+            if (needsLuaSource.contains(platform)) {
+                useLuaSource = true;
+                break;
+            }
         }
 
         if (useLuaSource) {
-        	System.out.println("### Using lua source! size: " + scriptBytes.length);
-	        srcBuilder.setScript(ByteString.copyFrom(scriptBytes));
-	        srcBuilder.setFilename(task.input(0).getPath());
+            srcBuilder.setScript(ByteString.copyFrom(scriptBytes));
         } else {
-        	System.out.println("### Using lua bytecode!");
-	        byte[] bytecode = constructBytecode(task, "luajit-32");
-	        if (bytecode != null) {
-	            srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
-	            System.out.println("Bytecode 32, size: " + bytecode.length);
-	        }
-	        byte[] bytecode64 = constructBytecode(task, "luajit-64");
-	        if (bytecode64 != null) {
-	            srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
-	            System.out.println("Bytecode 64, size: " + bytecode64.length);
-	        }
+            byte[] bytecode = constructBytecode(task, "luajit-32");
+            if (bytecode != null) {
+                srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
+            }
+            byte[] bytecode64 = constructBytecode(task, "luajit-64");
+            if (bytecode64 != null) {
+                srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
+            }
         }
         
         builder.setSource(srcBuilder);
