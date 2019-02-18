@@ -1081,7 +1081,6 @@ instructions.configure=\
         cmd = ['./scripts/bundle.py',
                '--platform=x86_64-darwin',
                '--platform=x86_64-linux',
-               '--platform=x86-win32',
                '--platform=x86_64-win32',
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
@@ -1125,9 +1124,13 @@ instructions.configure=\
         bucket = self._get_s3_bucket(archive_url.hostname)
         key = bucket.new_key('editor2/channels/%(channel)s/update.json' % {'channel': self.channel})
         key.content_type = 'application/json'
-
-        self._log("Updating channel '%s': %s" % (self.channel, key))
+        self._log("Updating channel '%s' for update.json: %s" % (self.channel, key))
         key.set_contents_from_string(json.dumps(update_data))
+
+        key_v2 = bucket.new_key('editor2/channels/%(channel)s/update-v2.json' % {'channel': self.channel})
+        key_v2.content_type = 'application/json'
+        self._log("Updating channel '%s' for update-v2.json: %s" % (self.channel, key_v2))
+        key_v2.set_contents_from_string(json.dumps({'sha1': sha1}))
 
     def bump(self):
         sha1 = self._git_sha1()
@@ -1402,17 +1405,15 @@ instructions.configure=\
 
         # Pick editor URLs from the current SHA1 build.
         model['editor'] = {'stable': [ dict(name='macOS 10.7+', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-darwin.dmg' % release_sha1),
-                                       dict(name='Windows 64bit', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-win32.zip' % release_sha1),
-                                       dict(name='Windows 32bit', url='https://d.defold.com/editor2/%s/editor2/Defold-x86-win32.zip' % release_sha1),
-                                       dict(name='Ubuntu 16.04+ 64bit', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-linux.zip' % release_sha1)] }
+                                       dict(name='Windows', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-win32.zip' % release_sha1),
+                                       dict(name='Ubuntu 16.04+', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-linux.zip' % release_sha1)] }
 
         # We handle the stable channel seperately, since we want it to point
         # to the editor-dev release (which uses the latest stable engine).
         if self.channel == "stable":
             model['editor'] = {'stable': [ dict(name='macOS 10.7+', url='https://www.defold.com/download/editor2/Defold-x86_64-darwin.dmg'),
-                                           dict(name='Windows 64bit', url='https://www.defold.com/download/editor2/Defold-x86_64-win32.zip'),
-                                           dict(name='Windows 32bit', url='https://www.defold.com/download/editor2/Defold-x86-win32.zip'),
-                                           dict(name='Ubuntu 16.04+ 64bit', url='https://www.defold.com/download/editor2/Defold-x86_64-linux.zip')] }
+                                           dict(name='Windows', url='https://www.defold.com/download/editor2/Defold-x86_64-win32.zip'),
+                                           dict(name='Ubuntu 16.04+', url='https://www.defold.com/download/editor2/Defold-x86_64-linux.zip')] }
 
         model['editor']['version'] = self.version
 

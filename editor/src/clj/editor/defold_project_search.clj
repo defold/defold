@@ -84,7 +84,16 @@
           (report-error! error)
           nil)))))
 
-(defn- start-search-thread [report-error! file-resource-save-data-future term exts produce-fn]
+(defn- resource-matches-library-setting? [resource include-libraries?]
+  (or include-libraries?
+      (resource/file-resource? resource)))
+
+(defn- resource-matches-file-ext? [resource file-ext-pats]
+  (or (empty? file-ext-pats)
+      (let [ext (resource/type-ext resource)]
+        (some #(re-matches % ext) file-ext-pats))))
+
+(defn- start-search-thread [report-error! file-resource-save-data-future term exts include-libraries? produce-fn]
   (future
     (try
       (let [pattern (compile-find-in-files-regex term)
@@ -97,9 +106,8 @@
                                         (string/split #",")))
             xform (comp (map thread-util/abortable-identity!)
                         (filter (fn [{:keys [resource]}]
-                                  (or (empty? file-ext-pats)
-                                      (let [ext (resource/type-ext resource)]
-                                        (some #(re-matches % ext) file-ext-pats)))))
+                                  (and (resource-matches-library-setting? resource include-libraries?)
+                                       (resource-matches-file-ext? resource file-ext-pats))))
                         (map (fn [{:keys [resource] :as save-data}]
                                {:resource resource
                                 :matches (find-matches pattern save-data)}))
@@ -140,7 +148,7 @@
                         (some-> pending-search :thread future-cancel)
                         (some-> pending-search :consumer stop-consumer!)
                         nil)
-        start-search! (fn [pending-search term exts]
+        start-search! (fn [pending-search term exts include-libraries?]
                         (abort-search! pending-search)
                         (if (seq term)
                           (let [queue (LinkedBlockingQueue. 1024)
@@ -149,15 +157,15 @@
                                 consume-fn #(let [results (java.util.ArrayList.)]
                                               (.drainTo queue results)
                                               (seq results))
-                                thread (start-search-thread report-error! file-resource-save-data-future term exts produce-fn)
+                                thread (start-search-thread report-error! file-resource-save-data-future term exts include-libraries? produce-fn)
                                 consumer (start-consumer! consume-fn)]
                             {:thread thread
                              :consumer consumer})
                           (do (start-consumer! (constantly [::done]))
                               nil)))]
-    {:start-search! (fn [term exts]
+    {:start-search! (fn [term exts include-libraries?]
                       (try
-                        (swap! pending-search-atom start-search! term exts)
+                        (swap! pending-search-atom start-search! term exts include-libraries?)
                         (catch Throwable error
                           (report-error! error)))
                       nil)
