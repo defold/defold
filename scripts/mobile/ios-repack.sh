@@ -66,7 +66,12 @@ ENGINE="${DYNAMO_HOME:-}/bin/${PLATFORM:-}/dmengine"
 
 ASAN_PATH=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain/usr/lib/clang/9.0.0/lib/darwin
 # e.g. libclang_rt.asan_ios_dynamic.dylib
-ASAN=$(basename $(otool -L ${ENGINE} | grep libclang_rt.asan | awk '{print $1;}'))
+
+ASAN_DEPENDENCY=$(otool -L ${ENGINE} | grep libclang_rt.asan | awk '{print $1;}')
+ASAN=""
+if [ "$ASAN_DEPENDENCY" != "" ]; then
+    ASAN=$(basename $ASAN_DEPENDENCY)
+fi
 
 # ----------------------------------------------------------------------------
 # Script
