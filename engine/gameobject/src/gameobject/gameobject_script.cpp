@@ -1029,7 +1029,7 @@ namespace dmGameObject
 
         dmGameObjectDDF::SetParent ddf;
         ddf.m_ParentId           = parent_instance ? dmGameObject::GetIdentifier(parent_instance) : 0;
-        ddf.m_KeepWorldTransform = lua_toboolean(L, 3) : 0;
+        ddf.m_KeepWorldTransform = lua_toboolean(L, 3);
 
         dmMessage::URL receiver;
         receiver.m_Socket   = dmGameObject::GetMessageSocket(child_instance->m_Collection->m_HCollection);
