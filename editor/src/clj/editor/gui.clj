@@ -1147,7 +1147,10 @@
                  (let [[w h] aabb-size
                        offset (pivot-offset pivot aabb-size)
                        lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))
-                       font-shader (or (font-shaders font) (font-shaders ""))]
+                       font-map (get-in text-data [:font-data :font-map])
+                       texture-recip-uniform (font/get-texture-recip-uniform font-map)
+                       font-shader (or (font-shaders font) (font-shaders ""))
+                       font-shader (assoc-in font-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
                    ;; The material-shader output is used to propagate the shader
                    ;; from the GuiSceneNode to our child nodes. Thus we cannot
                    ;; simply overload the material-shader output on this node.
