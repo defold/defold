@@ -136,7 +136,7 @@
             save-data-future (project-search/make-file-resource-save-data-future report-error! project)
             {:keys [start-search! abort-search!]} (project-search/make-file-searcher save-data-future start-consumer! stop-consumer! report-error!)
             perform-search! (fn [term exts]
-                              (start-search! term exts)
+                              (start-search! term exts true)
                               (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
                               (-> consumer consumer-consumed match-strings-by-proj-path))]
         (is (= [] (perform-search! nil nil)))
@@ -172,7 +172,7 @@
             stop-consumer! consumer-stop!
             save-data-future (project-search/make-file-resource-save-data-future report-error! project)
             {:keys [start-search! abort-search!]} (project-search/make-file-searcher save-data-future start-consumer! stop-consumer! report-error!)]
-        (start-search! "*" nil)
+        (start-search! "*" nil true)
         (is (true? (consumer-started? consumer)))
         (abort-search!)
         (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))
@@ -190,7 +190,7 @@
             {:keys [start-search! abort-search!]} (project-search/make-file-searcher save-data-future start-consumer! stop-consumer! report-error!)
             search-string "peaNUTbutterjellytime"
             perform-search! (fn [term exts]
-                              (start-search! term exts)
+                              (start-search! term exts true)
                               (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
                               (-> consumer consumer-consumed match-strings-by-proj-path))]
         (are [expected-count exts]
