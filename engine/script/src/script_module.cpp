@@ -34,17 +34,24 @@ namespace dmScript
 #if defined(LUA_BYTECODE_ENABLE)
 
 #if defined(LUA_BYTECODE_ENABLE_32)
-        *buf = (const char*)source->m_Bytecode.m_Data;
-        *size = source->m_Bytecode.m_Count;
+        if (source->m_Bytecode.m_Count > 0)
+        {
+            *buf = (const char*)source->m_Bytecode.m_Data;
+            *size = source->m_Bytecode.m_Count;
+            return;
+        }
 #elif defined(LUA_BYTECODE_ENABLE_64)
-        *buf = (const char*)source->m_Bytecode64.m_Data;
-        *size = source->m_Bytecode64.m_Count;
+        if (source->m_Bytecode64.m_Count > 0)
+        {
+            *buf = (const char*)source->m_Bytecode64.m_Data;
+            *size = source->m_Bytecode64.m_Count;
+            return;
+        }
 #endif
 
-#else
+#endif
     *buf = (const char*)source->m_Script.m_Data;
     *size = source->m_Script.m_Count;
-#endif
     }
 
     // Chunkname (the identifying part of a script/source chunk) in Lua has a maximum length,
