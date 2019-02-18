@@ -361,11 +361,12 @@ namespace dmProfileRender
 
     struct DataLookup
     {
-        DataLookup(TIndex max_count, void* hash_table_data, TIndex* free_indexes_data, TIndex* sort_order_data)
-            : m_HashLookup(hash_table_data, (max_count * 2) / 3, max_count * 2)
+        DataLookup(TIndex max_count, TIndex* free_indexes_data, TIndex* sort_order_data)
+            : m_HashLookup()
             , m_FreeIndexes(free_indexes_data, max_count)
             , m_SortOrder(sort_order_data)
         {
+            m_HashLookup.SetCapacity((max_count * 2) / 3, max_count * 2);
         }
         TIndexLookupTable m_HashLookup;
         dmIndexPool<TIndex> m_FreeIndexes;
@@ -379,8 +380,7 @@ namespace dmProfileRender
         static RenderProfile* New(
         float fps,
         uint32_t ticks_per_second,
-        uint32_t lifetime_in_seconds,
-        uint32_t sort_intervall_in_seconds,
+        uint32_t lifetime_in_milliseconds,
         TIndex max_scope_count,
         TIndex max_sample_sum_count,
         TIndex max_counter_count,
@@ -390,7 +390,6 @@ namespace dmProfileRender
         const float m_FPS;
         const uint32_t m_TicksPerSecond;
         const uint32_t m_LifeTime;
-        const uint32_t m_SortInterval;
 
         ProfileFrame* m_BuildFrame;
         const ProfileFrame* m_ActiveFrame;
@@ -429,17 +428,12 @@ namespace dmProfileRender
         RenderProfile(
         float fps,
         uint32_t ticks_per_second,
-        uint32_t lifetime_in_seconds,
-        uint32_t sort_intervall_in_seconds,
+        uint32_t lifetime_in_milliseconds,
         TIndex max_scope_count,
         TIndex max_sample_sum_count,
         TIndex max_counter_count,
         TIndex max_sample_count,
         TIndex max_name_count,
-        void* scope_lookup_data,
-        void* sample_sum_lookup_data,
-        void* counter_lookup_data,
-        void* name_lookup_data,
         ScopeStats* scope_stats,
         SampleSumStats* sample_sum_stats,
         CounterStats* counter_stats,
@@ -1501,17 +1495,12 @@ namespace dmProfileRender
     RenderProfile::RenderProfile(
     float fps,
     uint32_t ticks_per_second,
-    uint32_t lifetime_in_seconds,
-    uint32_t sort_intervall_in_seconds,
+    uint32_t lifetime_in_milliseconds,
     TIndex max_scope_count,
     TIndex max_sample_sum_count,
     TIndex max_counter_count,
     TIndex max_sample_count,
     TIndex max_name_count,
-    void* scope_lookup_data,
-    void* sample_sum_lookup_data,
-    void* counter_lookup_data,
-    void* name_lookup_data,
     ScopeStats* scope_stats,
     SampleSumStats* sample_sum_stats,
     CounterStats* counter_stats,
@@ -1524,16 +1513,15 @@ namespace dmProfileRender
     ProfileFrame* build_frame)
         : m_FPS(fps)
         , m_TicksPerSecond(ticks_per_second)
-        , m_LifeTime((uint32_t)(lifetime_in_seconds * ticks_per_second))
-        , m_SortInterval((uint32_t)(sort_intervall_in_seconds * ticks_per_second))
+        , m_LifeTime((uint32_t)((lifetime_in_milliseconds * ticks_per_second) / 1000))
         , m_BuildFrame(build_frame)
         , m_ActiveFrame(m_BuildFrame)
         , m_Mode(PROFILER_MODE_RUN)
         , m_ViewMode(PROFILER_VIEW_MODE_FULL)
-        , m_ScopeLookup(max_scope_count, scope_lookup_data, scope_free_index_data, scope_sort_order)
-        , m_SampleSumLookup(max_sample_sum_count, sample_sum_lookup_data, sample_sum_free_index_data, sample_sum_sort_order)
-        , m_CounterLookup(max_counter_count, counter_lookup_data, counter_free_index_data, counter_sort_order_data)
-        , m_NameLookupTable(name_lookup_data, (max_name_count * 2) / 3, max_name_count * 2)
+        , m_ScopeLookup(max_scope_count, scope_free_index_data, scope_sort_order)
+        , m_SampleSumLookup(max_sample_sum_count, sample_sum_free_index_data, sample_sum_sort_order)
+        , m_CounterLookup(max_counter_count, counter_free_index_data, counter_sort_order_data)
+        , m_NameLookupTable()
         , m_ScopeStats(scope_stats)
         , m_SampleSumStats(sample_sum_stats)
         , m_CounterStats(counter_stats)
@@ -1548,43 +1536,36 @@ namespace dmProfileRender
         , m_OutOfScopes(0)
         , m_OutOfSamples(0)
     {
+        m_NameLookupTable.SetCapacity((max_name_count * 2) / 3, max_name_count * 2);
     }
 
     RenderProfile::~RenderProfile()
     {
+        free(m_BuildFrame);
     }
 
     RenderProfile* RenderProfile::New(
     float fps,
     uint32_t ticks_per_second,
-    uint32_t lifetime_in_seconds,
-    uint32_t sort_intervall_in_seconds,
+    uint32_t lifetime_in_milliseconds,
     TIndex max_scope_count,
     TIndex max_sample_sum_count,
     TIndex max_counter_count,
     TIndex max_sample_count)
     {
         // The compicated allocation of a render profile is to make sure we allocated all the data needed in a single allocation
-        const TIndex max_name_count              = max_scope_count + max_sample_sum_count + max_counter_count;
-        const size_t scope_lookup_data_size      = HASHTABLE_BUFFER_SIZE(TIndexLookupTable::Entry, (max_scope_count * 2) / 3, max_scope_count * 2);
-        const size_t sample_sum_lookup_data_size = HASHTABLE_BUFFER_SIZE(TIndexLookupTable::Entry, (max_sample_sum_count * 2) / 3, max_sample_sum_count * 2);
-        const size_t counter_lookup_data_size    = HASHTABLE_BUFFER_SIZE(TIndexLookupTable::Entry, (max_counter_count * 2) / 3, max_counter_count * 2);
-        const size_t name_lookup_data_size       = HASHTABLE_BUFFER_SIZE(TNameLookupTable::Entry, (max_name_count * 2) / 3, max_name_count * 2);
-        const size_t scope_stats_size            = sizeof(ScopeStats) * max_scope_count;
-        const size_t sample_sum_stats_size       = sizeof(SampleSumStats) * max_sample_sum_count;
-        const size_t counter_stats_size          = sizeof(CounterStats) * max_counter_count;
-        const size_t scope_sort_order_size       = sizeof(TIndex) * max_scope_count;
-        const size_t sample_sum_sort_order_size  = sizeof(TIndex) * max_sample_sum_count;
-        const size_t counter_sort_order_size     = sizeof(TIndex) * max_counter_count;
-        const size_t scope_free_index_size       = sizeof(TIndex) * max_scope_count;
-        const size_t sample_sum_free_index_size  = sizeof(TIndex) * max_sample_sum_count;
-        const size_t counters_free_index_size    = sizeof(TIndex) * max_counter_count;
+        const TIndex max_name_count             = max_scope_count + max_sample_sum_count + max_counter_count;
+        const size_t scope_stats_size           = sizeof(ScopeStats) * max_scope_count;
+        const size_t sample_sum_stats_size      = sizeof(SampleSumStats) * max_sample_sum_count;
+        const size_t counter_stats_size         = sizeof(CounterStats) * max_counter_count;
+        const size_t scope_sort_order_size      = sizeof(TIndex) * max_scope_count;
+        const size_t sample_sum_sort_order_size = sizeof(TIndex) * max_sample_sum_count;
+        const size_t counter_sort_order_size    = sizeof(TIndex) * max_counter_count;
+        const size_t scope_free_index_size      = sizeof(TIndex) * max_scope_count;
+        const size_t sample_sum_free_index_size = sizeof(TIndex) * max_sample_sum_count;
+        const size_t counters_free_index_size   = sizeof(TIndex) * max_counter_count;
 
         size_t size = sizeof(RenderProfile) +
-        scope_lookup_data_size +
-        sample_sum_lookup_data_size +
-        counter_lookup_data_size +
-        name_lookup_data_size +
         scope_stats_size +
         sample_sum_stats_size +
         counter_stats_size +
@@ -1593,26 +1574,14 @@ namespace dmProfileRender
         counter_sort_order_size +
         scope_free_index_size +
         sample_sum_free_index_size +
-        counters_free_index_size +
-        ProfileFrameSize(max_scope_count, max_sample_sum_count, max_counter_count, max_sample_count);
+        counters_free_index_size;
 
         uint8_t* mem = (uint8_t*)malloc(size);
         if (mem == 0x0)
         {
             return 0x0;
         }
-        uint8_t* p              = &mem[sizeof(RenderProfile)];
-        void* scope_lookup_data = p;
-        p += scope_lookup_data_size;
-
-        void* sample_sum_lookup_data = p;
-        p += sample_sum_lookup_data_size;
-
-        void* counter_lookup_data = p;
-        p += counter_lookup_data_size;
-
-        void* name_lookup_data = p;
-        p += name_lookup_data_size;
+        uint8_t* p = &mem[sizeof(RenderProfile)];
 
         ScopeStats* scope_stats_data = (ScopeStats*)p;
         p += scope_stats_size;
@@ -1641,22 +1610,19 @@ namespace dmProfileRender
         TIndex* counter_free_index_data = (TIndex*)p;
         p += counters_free_index_size;
 
-        ProfileFrame* frame = CreateProfileFrame(p, max_scope_count, max_sample_sum_count, max_counter_count, max_sample_count);
+        size_t frame_size   = ProfileFrameSize(max_scope_count, max_sample_sum_count, max_counter_count, max_sample_count);
+        void* frame_mem     = malloc(frame_size);
+        ProfileFrame* frame = CreateProfileFrame(frame_mem, max_scope_count, max_sample_sum_count, max_counter_count, max_sample_count);
 
         return new (mem) RenderProfile(
         fps,
         ticks_per_second,
-        lifetime_in_seconds,
-        sort_intervall_in_seconds,
+        lifetime_in_milliseconds,
         max_scope_count,
         max_sample_sum_count,
         max_counter_count,
         max_sample_count,
         max_name_count,
-        scope_lookup_data,
-        sample_sum_lookup_data,
-        counter_lookup_data,
-        name_lookup_data,
         scope_stats_data,
         sample_sum_stats_data,
         counter_stats_data,
@@ -1677,18 +1643,16 @@ namespace dmProfileRender
 
     HRenderProfile NewRenderProfile(float fps)
     {
-        const uint32_t LIFETIME_IN_SECONDS       = 6u;
-        const uint32_t SORT_INTERVALL_IN_SECONDS = 3u;
-        const uint32_t MAX_SCOPE_COUNT           = 256;
-        const uint32_t MAX_SAMPLE_SUM_COUNT      = 1024;
-        const uint32_t MAX_COUNTER_COUNT         = 128;
-        const uint32_t MAX_SAMPLE_COUNT          = 8192;
+        const uint32_t LIFETIME_IN_MILLISECONDS = 6000u;
+        const uint32_t MAX_SCOPE_COUNT          = 256;
+        const uint32_t MAX_SAMPLE_SUM_COUNT     = 1024;
+        const uint32_t MAX_COUNTER_COUNT        = 128;
+        const uint32_t MAX_SAMPLE_COUNT         = 8192;
 
         RenderProfile* profile = RenderProfile::New(
         fps,
         dmProfile::GetTicksPerSecond(),
-        LIFETIME_IN_SECONDS,
-        SORT_INTERVALL_IN_SECONDS,
+        LIFETIME_IN_MILLISECONDS,
         MAX_SCOPE_COUNT,
         MAX_SAMPLE_SUM_COUNT,
         MAX_COUNTER_COUNT,
