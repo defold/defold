@@ -1361,6 +1361,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context)
+    {
+        return ShaderDesc::LANGUAGE_GLSL;
+    }
+
     void EnableProgram(HContext context, HProgram program)
     {
         (void) context;
@@ -1909,9 +1914,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         texture->m_Params = params;
         if (!params.m_SubUpdate) {
             SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
+
+            if (params.m_MipMap == 0)
+            {
+                texture->m_Width  = params.m_Width;
+                texture->m_Height = params.m_Height;
+            }
         }
-
-
 
         GLenum gl_format;
         GLenum gl_type = DMGRAPHICS_TYPE_UNSIGNED_BYTE;
