@@ -190,12 +190,12 @@
                     user-data (:user-data renderable)
                     scratch (:scratch-arrays user-data)
                     meshes (:meshes user-data)
-                    world-transform (:world-transform renderable)]]
-        (doseq [mesh meshes
-                :let [vb (request-vb! gl node-id mesh world-transform vertex-space scratch)
-                      vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]]
+                    world-transform (:world-transform renderable)]
+              mesh meshes
+              :let [vb (request-vb! gl node-id mesh world-transform vertex-space scratch)
+                    vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]]
           (gl/with-gl-bindings gl render-args [vertex-binding]
-            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb)))))
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))
       (gl/gl-disable gl GL/GL_CULL_FACE)
       (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
       (doseq [[name t] textures]
