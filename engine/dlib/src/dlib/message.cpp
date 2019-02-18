@@ -377,8 +377,6 @@ namespace dmMessage
         dmMutex::Lock(s->m_Mutex);
         dmMutex::Unlock(g_MessageContext->m_Mutex);
 
-        DM_PROFILE_FMT(Message, "Dispatch %s", s->m_Name);
-
         MemoryAllocator* allocator = &s->m_Allocator;
 
         if (!s->m_Header)
@@ -390,6 +388,9 @@ namespace dmMessage
                 return 0;
             }
         }
+
+        DM_PROFILE_FMT(Message, "Dispatch %s", s->m_Name);
+
         uint32_t dispatch_count = 0;
 
         Message *message_object = s->m_Header;
