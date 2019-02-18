@@ -9,7 +9,6 @@ readonly VERSION=2.1.0-beta3
 TAR_SKIP_BIN=0
 
 function luajit_configure() {
-	echo "************** begin luajit_configure"
 	export MAKEFLAGS="-e"
 	export BUILDMODE=static
 	export PREFIX=`pwd`/build
@@ -27,7 +26,6 @@ function luajit_configure() {
 			TAR_SKIP_BIN=1
 			XFLAGS+="-DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT"
 			export HOST_CC="clang -m32"
-			# export HOST_CC="clang -arch i386"
 			export HOST_CFLAGS="$XFLAGS -m32 -I."
 			export HOST_ALDFLAGS="-m32"
 			;;
@@ -56,7 +54,6 @@ function luajit_configure() {
 			export TARGET_FLAGS="$CFLAGS"
 			;;
 		x86_64-linux)
-			XFLAGS="-DLUAJIT_ENABLE_GC64 -DLUAJIT_NUMMODE=2 -DLUAJIT_ENABLE_JIT" # TODO jbnn prolly dont need this, taken care of below (test it)
 			return
 			;;
 		*)
@@ -89,8 +86,6 @@ function luajit_configure() {
 	# Disable
 	export TARGET_STRIP=true
 	export CCOPTIONS=
-
-	echo "************** end luajit_configure"
 }
 
 # Use above function instead of shell scripts
@@ -120,58 +115,44 @@ case $1 in
 					TAR_SKIP_BIN=0
 					echo "Building x86_64-linux with LUAJIT_ENABLE_GC64=0"
 					export DEFOLD_ARCH="32"
-					echo "HOST_CC: ${HOST_CC}"
-					echo "XFLAGS: ${XFLAGS}"
-					echo "CROSS: ${CROSS}"
-					echo "DEFOLD_ARCH: ${DEFOLD_ARCH}"
-                    set -e
-                    make -j8
-                    make install
-                    make clean
-                    set +e
-                    echo "Building x86_64-linux with LUAJIT_ENABLE_GC64=1"
-                    export XCFLAGS+="-DLUAJIT_ENABLE_GC64"
-                    export DEFOLD_ARCH="64"
-					echo "XFLAGS: ${XFLAGS}"
-					echo "XCFLAGS: ${XCFLAGS}"
-					echo "DEFOLD_ARCH: ${DEFOLD_ARCH}"
-                    set -e
-                    make -j8
-                    make install
-                    set +e
-                    cp src/lj.supp $PREFIX/share/luajit
-        }
+					set -e
+					make -j8
+					make install
+					make clean
+					set +e
+					echo "Building x86_64-linux with LUAJIT_ENABLE_GC64=1"
+					export XCFLAGS+="-DLUAJIT_ENABLE_GC64"
+					export DEFOLD_ARCH="64"
+					set -e
+					make -j8
+					make install
+					set +e
+					cp src/lj.supp $PREFIX/share/luajit
+		}
 		;;
 	x86_64-darwin)
 		function cmi_make() {
 					TAR_SKIP_BIN=0
 					echo "Building x86_64-darwin with LUAJIT_ENABLE_GC64=0"
 					export DEFOLD_ARCH="32"
-					echo "HOST_CC: ${HOST_CC}"
-					echo "XFLAGS: ${XFLAGS}"
-					echo "CROSS: ${CROSS}"
-					echo "DEFOLD_ARCH: ${DEFOLD_ARCH}"
-                    set -e
-                    make -j8
-                    make install
-                    make clean
-                    set +e
-                    echo "Building x86_64-darwin with LUAJIT_ENABLE_GC64=1"
-                    export XCFLAGS+="-DLUAJIT_ENABLE_GC64"
-                    export DEFOLD_ARCH="64"
-					echo "XFLAGS: ${XFLAGS}"
-					echo "XCFLAGS: ${XCFLAGS}"
-					echo "DEFOLD_ARCH: ${DEFOLD_ARCH}"
-                    set -e
-                    make -j8
-                    make install
-                    set +e
-                    cp src/lj.supp $PREFIX/share/luajit
+					set -e
+					make -j8
+					make install
+					make clean
+					set +e
+					echo "Building x86_64-darwin with LUAJIT_ENABLE_GC64=1"
+					export XCFLAGS+="-DLUAJIT_ENABLE_GC64"
+					export DEFOLD_ARCH="64"
+					set -e
+					make -j8
+					make install
+					set +e
+					cp src/lj.supp $PREFIX/share/luajit
 		}
 		;;
 	win32|x86_64-win32)
-        cmi_setup_vs2015_env $1
-        
+		cmi_setup_vs2015_env $1
+
 		function cmi_make() {
 			cd src
 			export DEFOLD_ARCH="32"

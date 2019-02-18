@@ -1575,10 +1575,6 @@ def detect(conf):
     use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
     if build_util.get_target_os() == 'web':
         use_vanilla = True
-    ## TODO verify luajit in x86_64-linux --jbnn
-    # if build_util.get_target_platform() == 'x86_64-linux':
-        # TODO: LuaJIT is currently broken on x86_64-linux
-        # use_vanilla = True
 
     conf.env['LUA_BYTECODE_ENABLE_32'] = 'no'
     conf.env['LUA_BYTECODE_ENABLE_64'] = 'no'
@@ -1592,11 +1588,6 @@ def detect(conf):
             conf.env['LUA_BYTECODE_ENABLE_64'] = 'yes'
         else:
             conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
-
-    print("build_util.get_target_platform(): " + build_util.get_target_platform())
-    print("conf.env['LUA_BYTECODE_ENABLE']: " + conf.env['LUA_BYTECODE_ENABLE'])
-    print("conf.env['LUA_BYTECODE_ENABLE_32']: " + conf.env['LUA_BYTECODE_ENABLE_32'])
-    print("conf.env['LUA_BYTECODE_ENABLE_64']: " + conf.env['LUA_BYTECODE_ENABLE_64'])
 
 def configure(conf):
     detect(conf)
