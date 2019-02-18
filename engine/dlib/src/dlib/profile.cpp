@@ -155,7 +155,10 @@ namespace dmProfile
 #if defined(_WIN32)
         QueryPerformanceFrequency((LARGE_INTEGER*)&g_TicksPerSecond);
 #endif
-
+        // Set g_BeginTime even if we haven't started since threads may calculate scopes outside of
+        // engine Begin()/End() of profiles which happens in Engine::Step() - just so we don't get
+        // totally crazy numbers if this happens
+        g_BeginTime = GetNowTicks();
         g_IsInitialized = true;
     }
 
@@ -371,17 +374,8 @@ namespace dmProfile
 
         profile->m_Samples.SetSize(0);
 
-#if defined(_WIN32)
-        uint64_t pcnt;
-        QueryPerformanceCounter((LARGE_INTEGER*)&pcnt);
-        g_BeginTime = (uint32_t)pcnt;
-#elif defined(__EMSCRIPTEN__)
-        g_BeginTime = (uint64_t)(emscripten_get_now() * 1000.0);
-#else
-        timeval tv;
-        gettimeofday(&tv, 0);
-        g_BeginTime = tv.tv_sec * 1000000 + tv.tv_usec;
-#endif
+        g_BeginTime = GetNowTicks();
+
         g_OutOfScopes   = false;
         g_OutOfSamples  = false;
         g_OutOfCounters = false;
@@ -734,25 +728,30 @@ namespace dmProfile
 #else
         timeval tv;
         gettimeofday(&tv, 0);
-        now = tv.tv_sec * 1000000 + tv.tv_usec;
+        now = ((uint64_t)tv.tv_sec) * 1000000 + tv.tv_usec;
 #endif
         return now;
     }
 
     void ProfileScope::StartScope(Scope* scope, const char* name, uint32_t name_hash)
     {
-        uint64_t start = GetNowTicks();
+        m_StartTick    = GetNowTicks();
         Sample* s      = AllocateSample();
         s->m_Name      = name;
         s->m_Scope     = scope;
         s->m_NameHash  = name_hash;
-        s->m_Start     = (uint32_t)(start - g_BeginTime);
+        s->m_Start     = (uint32_t)(m_StartTick - g_BeginTime);
         m_Sample       = s;
     }
 
     void ProfileScope::EndScope()
     {
         uint64_t end        = GetNowTicks();
-        m_Sample->m_Elapsed = (uint32_t)(end - g_BeginTime) - m_Sample->m_Start;
+        m_Sample->m_Elapsed = (uint32_t)(end - m_StartTick);
+        double elapsed_s    = (double)(m_Sample->m_Elapsed) / dmProfile::GetTicksPerSecond();
+        if (elapsed_s > 3.0)
+        {
+            dmLogWarning("Profiler %s.%s took %.3lf seconds", m_Sample->m_Scope->m_Name, m_Sample->m_Name, elapsed_s);
+        }
     }
 } // namespace dmProfile

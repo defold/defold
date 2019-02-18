@@ -342,6 +342,7 @@ namespace dmProfile
     struct ProfileScope
     {
         Sample* m_Sample;
+        uint64_t m_StartTick;
         inline ProfileScope(Scope* scope, const char* name, uint32_t name_hash)
         {
             if (g_IsInitialized)
