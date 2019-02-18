@@ -12,7 +12,7 @@ message LuaSource
     // Path to the original file; used for debugging.
     // Note that if bytecode is supplied from LuaJIT it will contain embedded
     // chunk names that override this file name and this field is not used.
-    optional string filename                            = 2;
+    required string filename                            = 2;
 
     optional bytes bytecode                             = 3;
     optional bytes bytecode_64                          = 4;
