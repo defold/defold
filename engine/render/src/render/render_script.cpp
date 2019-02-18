@@ -1549,9 +1549,9 @@ namespace dmRender
      * The blended RGBA values of a pixel comes from the following equations:
      *
      * - R<sub>d</sub> = min(k<sub>R</sub>, R<sub>s</sub> * s<sub>R</sub> + R<sub>d</sub> * d<sub>R</sub>)
-     * - G<sub>d</sub> = min(k<sub>G</sub>, G<sub>s</sub> * s<sub>G</sub> + G<sub>d</sub> * d<sub>R</sub>)
+     * - G<sub>d</sub> = min(k<sub>G</sub>, G<sub>s</sub> * s<sub>G</sub> + G<sub>d</sub> * d<sub>G</sub>)
      * - B<sub>d</sub> = min(k<sub>B</sub>, B<sub>s</sub> * s<sub>B</sub> + B<sub>d</sub> * d<sub>B</sub>)
-     * - A<sub>d</sub> = min(k<sub>A</sub>, A<sub>s</sub> * s<sub>B</sub> + A<sub>d</sub> * d<sub>A</sub>)
+     * - A<sub>d</sub> = min(k<sub>A</sub>, A<sub>s</sub> * s<sub>A</sub> + A<sub>d</sub> * d<sub>A</sub>)
      *
      * Blend function `(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA)` is useful for
      * drawing with transparency when the drawn objects are sorted from farthest to nearest.

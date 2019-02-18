@@ -74,6 +74,10 @@ namespace dmPhysics
          return 0;
      }
 
+    void ClearGridShapeHulls(HCollisionObject2D collision_object)
+    {
+    }
+
     void SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
     {
     }
