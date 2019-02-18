@@ -342,6 +342,8 @@ namespace dmMessage
         new_message->m_DestroyCallback = destroy_callback;
         memcpy(&new_message->m_Data[0], message_data, message_data_size);
 
+        bool is_first_message = !s->m_Header;
+
         if (!s->m_Header)
         {
             s->m_Header = new_message;
@@ -353,7 +355,10 @@ namespace dmMessage
             s->m_Tail = new_message;
         }
 
-        dmConditionVariable::Signal(s->m_Condition);
+        if (is_first_message)
+        {
+            dmConditionVariable::Signal(s->m_Condition);
+        }
         dmMutex::Unlock(s->m_Mutex);
         return RESULT_OK;
     }
@@ -454,25 +459,38 @@ namespace dmMessage
         uint32_t path_size = 0;
         const char* fragment = 0x0;
         uint32_t fragment_size = 0;
-        const char* socket_end = strchr(uri, ':');
-        const char* fragment_start = strchr(uri, '#');
-        if (fragment_start != 0x0)
+
+        const char* socket_end = 0;
+        const char* fragment_start = 0;
+        const char* scan = uri;
+        while (*scan)
         {
-            if (fragment_start < socket_end)
+            switch(*scan)
             {
-                return RESULT_MALFORMED_URL;
+                case ':':
+                    if (socket_end != 0)
+                    {
+                        return RESULT_MALFORMED_URL;
+                    }
+                    if (fragment_start != 0)
+                    {
+                        return RESULT_MALFORMED_URL;
+                    }
+                    socket_end = scan;
+                    break;
+                case '#':
+                    if (fragment_start != 0)
+                    {
+                        return RESULT_MALFORMED_URL;
+                    }
+                    fragment_start = scan;
+                    break;
             }
-            if (fragment_start != strrchr(uri, '#'))
-            {
-                return RESULT_MALFORMED_URL;
-            }
-        }
+            ++scan;
+        };
+
         if (socket_end != 0x0)
         {
-            if (socket_end != strrchr(uri, ':'))
-            {
-                return RESULT_MALFORMED_URL;
-            }
             socket_size = socket_end - uri;
             if (socket_size >= 64)
             {
@@ -481,15 +499,17 @@ namespace dmMessage
             socket = uri;
             path = socket_end + 1;
         }
+
+        uint32_t uri_length = (uint32_t)(scan - uri);
         if (fragment_start != 0x0)
         {
             fragment = fragment_start + 1;
-            fragment_size = strlen(uri) - (fragment - uri);
+            fragment_size = uri_length - (fragment - uri);
             path_size = fragment_start - path;
         }
         else
         {
-            path_size = strlen(uri) - (path - uri);
+            path_size = uri_length - (path - uri);
         }
         out_url->m_Socket = socket;
         out_url->m_SocketSize = socket_size;
