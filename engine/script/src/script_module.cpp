@@ -29,39 +29,21 @@ namespace dmScript
     // Currently the bytecode is only ever built with LuaJIT which means it cannot be loaded
     // with vanilla lua runtime. The LUA_BYTECODE_ENABLE indicates if we can load bytecode,
     // and in reality, if linking happens against LuaJIT.
-    static bool GetLuaSource(dmLuaDDF::LuaSource *source, const char **buf, uint32_t *size)
+    static void GetLuaSource(dmLuaDDF::LuaSource *source, const char **buf, uint32_t *size)
     {
 #if defined(LUA_BYTECODE_ENABLE)
+
 #if defined(LUA_BYTECODE_ENABLE_32)
-        if (source->m_Bytecode.m_Count > 0)
-        {
-            *buf = (const char*)source->m_Bytecode.m_Data;
-            *size = source->m_Bytecode.m_Count;
-            return true;
-        }
-        else
-        {
-            dmLogFatal("No 32-bit bytecode found for filename: %s.", source->m_Filename);
-            return false;
-        }
+        *buf = (const char*)source->m_Bytecode.m_Data;
+        *size = source->m_Bytecode.m_Count;
 #elif defined(LUA_BYTECODE_ENABLE_64)
-        if (source->m_Bytecode64.m_Count > 0)
-        {
-            *buf = (const char*)source->m_Bytecode64.m_Data;
-            *size = source->m_Bytecode64.m_Count;
-            return true;
-        }
-        else
-        {
-            dmLogFatal("No 64-bit bytecode found for filename: %s.", source->m_Filename);
-            return false;
-        }
+        *buf = (const char*)source->m_Bytecode64.m_Data;
+        *size = source->m_Bytecode64.m_Count;
 #endif
-        
+
 #else
-        *buf = (const char*)source->m_Script.m_Data;
-        *size = source->m_Script.m_Count;
-        return true;
+    *buf = (const char*)source->m_Script.m_Data;
+    *size = source->m_Script.m_Count;
 #endif
     }
 
@@ -107,12 +89,7 @@ namespace dmScript
     {
         const char *buf;
         uint32_t size;
-        bool success = GetLuaSource(source, &buf, &size);
-
-        if (!success)
-        {
-            luaL_error(L, "Failed to load lua source.");
-        }
+        GetLuaSource(source, &buf, &size);
 
         char tmp[DMPATH_MAX_PATH];
         return luaL_loadbuffer(L, buf, size, PrefixFilename(FindSuitableChunkname(source->m_Filename), '=', tmp, sizeof(tmp)));
@@ -179,12 +156,7 @@ namespace dmScript
 
         const char *buf;
         uint32_t size;
-        bool success = GetLuaSource(source, &buf, &size);
-
-        if (!success)
-        {
-            dmLogFatal("Failed to load lua module source.");
-        }
+        GetLuaSource(source, &buf, &size);
 
         module.m_Script = (char*) malloc(size);
         module.m_ScriptSize = size;
@@ -220,12 +192,7 @@ namespace dmScript
 
         const char *buf;
         uint32_t size;
-        bool success = GetLuaSource(source, &buf, &size);
-
-        if (!success)
-        {
-            luaL_error(L, "Failed to reload lua source.");
-        }
+        GetLuaSource(source, &buf, &size);
 
         module->m_Script = (char*) realloc(module->m_Script, size);
         module->m_ScriptSize = size;

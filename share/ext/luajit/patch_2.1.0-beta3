@@ -94,7 +94,7 @@ Only in LuaJIT-2.1.0-beta3b/src/host: minilua
 Only in LuaJIT-2.1.0-beta3b/src/host: minilua.o
 diff -u -r -w LuaJIT-2.1.0-beta3/src/jit/bcsave.lua LuaJIT-2.1.0-beta3b/src/jit/bcsave.lua
 --- LuaJIT-2.1.0-beta3/src/jit/bcsave.lua	2017-05-01 21:05:00.000000000 +0200
-+++ LuaJIT-2.1.0-beta3b/src/jit/bcsave.lua	2019-01-25 11:51:55.000000000 +0100
++++ LuaJIT-2.1.0-beta3b/src/jit/bcsave.lua	2019-02-18 17:19:53.000000000 +0100
 @@ -25,6 +25,7 @@
    -l        Only list bytecode.
    -s        Strip debug info (default).
@@ -119,17 +119,24 @@ diff -u -r -w LuaJIT-2.1.0-beta3/src/jit/bcsave.lua LuaJIT-2.1.0-beta3b/src/jit/
  end
  
  local function savefile(name, mode)
-@@ -575,8 +579,8 @@
+@@ -575,13 +579,13 @@
  
  ------------------------------------------------------------------------------
  
 -local function bclist(input, output)
 -  local f = readfile(input)
-+local function bcsave(ctx, input, output, filename)
++local function bclist(ctx, input, output, filename)
 +  local f = readfile(input, filename)
    require("jit.bc").dump(f, savefile(output, "w"), true)
  end
  
+-local function bcsave(ctx, input, output)
+-  local f = readfile(input)
++local function bcsave(ctx, input, output, filename)
++  local f = readfile(input, filename)
+   local s = string.dump(f, ctx.strip)
+   local t = ctx.type
+   if not t then
 @@ -604,6 +608,7 @@
    local arg = {...}
    local n = 1
