@@ -1,4 +1,4 @@
-attribute    vec4 color : COLOR;
+varying    vec4 color;
 
 void main()
 {
