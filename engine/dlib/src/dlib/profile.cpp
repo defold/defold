@@ -748,10 +748,11 @@ namespace dmProfile
     {
         uint64_t end        = GetNowTicks();
         m_Sample->m_Elapsed = (uint32_t)(end - m_StartTick);
-        double elapsed_s    = (double)(m_Sample->m_Elapsed) / dmProfile::GetTicksPerSecond();
-        if (elapsed_s > 3.0)
+        if (m_Sample->m_Elapsed > (dmProfile::GetTicksPerSecond() * 2))
         {
+            double elapsed_s = (double)(m_Sample->m_Elapsed) / dmProfile::GetTicksPerSecond();
             dmLogWarning("Profiler %s.%s took %.3lf seconds", m_Sample->m_Scope->m_Name, m_Sample->m_Name, elapsed_s);
         }
+
     }
 } // namespace dmProfile
