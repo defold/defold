@@ -159,9 +159,6 @@ There are some examples in the testcases in dynamo.shader.translate-test."
                         (map #(shader-walk (list %)) (rest x))))]
     fn-str))
 
-(defn- infix-operator? [x]
-  (not (nil? (get #{ "+" "-" "*" "/" "=" "<" ">" "<=" ">=" "==" "!=" ">>" "<<"} x))))
-
 (defn- shader-stmt [x]
   (format "%s;\n" (string/join \space x)))
 
@@ -232,24 +229,24 @@ There are some examples in the testcases in dynamo.shader.translate-test."
   [x]
   (cond
    (list? x)    (let [sfx (str (first x))]
-                  (cond
-                   (= "defn" sfx)        (shader-walk-defn x)
-                   (= "setq" sfx)        (shader-walk-assign x)
-                   (= "forloop" sfx)     (shader-walk-forloop x)
-                   (= "while" sfx)       (shader-walk-while x)
-                   (= "if" sfx)          (shader-walk-if x)
-                   (= "do" sfx)          (shader-walk-do x)
-                   (= "switch" sfx)      (shader-walk-switch x)
-                   (= "break" sfx)       (shader-stmt x)
-                   (= "continue" sfx)    (shader-stmt x)
-                   (= "discard" sfx)     (shader-stmt x)                   
-                   (= "uniform" sfx)     (shader-stmt x)
-                   (= "varying" sfx)     (shader-stmt x)
-                   (= "attribute" sfx)   (shader-stmt x)
-                   (= "return" sfx)      (shader-walk-return x)
-                   (= "nth" sfx)         (shader-walk-index x)
-                   (infix-operator? sfx) (shader-walk-infix x)
-                   :else                 (shader-walk-fn x)))
+                  (case sfx
+                    "defn"        (shader-walk-defn x)
+                    "setq"        (shader-walk-assign x)
+                    "forloop"     (shader-walk-forloop x)
+                    "while"       (shader-walk-while x)
+                    "if"          (shader-walk-if x)
+                    "do"          (shader-walk-do x)
+                    "switch"      (shader-walk-switch x)
+                    "break"       (shader-stmt x)
+                    "continue"    (shader-stmt x)
+                    "discard"     (shader-stmt x)
+                    "uniform"     (shader-stmt x)
+                    "varying"     (shader-stmt x)
+                    "attribute"   (shader-stmt x)
+                    "return"      (shader-walk-return x)
+                    "nth"         (shader-walk-index x)
+                    ("+" "-" "*" "/" "=" "<" ">" "<=" ">=" "==" "!=" ">>" "<<") (shader-walk-infix x)
+                    (shader-walk-fn x)))
    (symbol? x)  (identity x)
    (float? x)   (identity x)
    (integer? x) (identity x)

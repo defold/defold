@@ -625,30 +625,31 @@
           tool-renderables)))
 
 (g/defnk produce-tool-selection [tool-renderables ^GLAutoDrawable picking-drawable ^Region viewport pass->render-args ^Rect tool-picking-rect inactive?]
-  (when (and (some? tool-picking-rect) (not inactive?))
-    (when (not (geom/rect-empty? tool-picking-rect))
-      (gl/with-drawable-as-current picking-drawable
-        (gl/gl-clear gl 0.0 0.0 0.0 1.0)
-        (gl-viewport gl picking-viewport)
-        (let [render-args (picking-render-args (pass->render-args pass/manipulator-selection) viewport tool-picking-rect)
-              tool-renderables (apply merge-with into tool-renderables)
-              pickable-tool-renderables (get tool-renderables pass/manipulator-selection)
-              picking-id->renderable (into {} (map (juxt :picking-id identity)) pickable-tool-renderables)
-              buf (int-array (* picking-drawable-size picking-drawable-size))]
-          (reset! last-picking-rect tool-picking-rect)
-          (setup-pass gl pass/manipulator-selection render-args)
-          (batch-render gl render-args pickable-tool-renderables :select-batch-key)
-          (.glFlush gl)
-          (.glFinish gl)
-          ;; Pixels read back are like 0xAARRGGBB
-          (.glReadPixels ^GL2 gl 0 0 ^int picking-drawable-size ^int picking-drawable-size
-                         GL2/GL_BGRA GL2/GL_UNSIGNED_BYTE (IntBuffer/wrap buf))
-          (into []
-                (comp (map scene-picking/argb->picking-id)
-                      (map picking-id->renderable)
-                      (filter some?)
-                      (distinct))
-                (picking-buf->spiral-seq buf)))))))
+  (when (and (some? tool-picking-rect)
+             (not inactive?)
+             (not (geom/rect-empty? tool-picking-rect)))
+    (gl/with-drawable-as-current picking-drawable
+      (gl/gl-clear gl 0.0 0.0 0.0 1.0)
+      (gl-viewport gl picking-viewport)
+      (let [render-args (picking-render-args (pass->render-args pass/manipulator-selection) viewport tool-picking-rect)
+            tool-renderables (apply merge-with into tool-renderables)
+            pickable-tool-renderables (get tool-renderables pass/manipulator-selection)
+            picking-id->renderable (into {} (map (juxt :picking-id identity)) pickable-tool-renderables)
+            buf (int-array (* picking-drawable-size picking-drawable-size))]
+        (reset! last-picking-rect tool-picking-rect)
+        (setup-pass gl pass/manipulator-selection render-args)
+        (batch-render gl render-args pickable-tool-renderables :select-batch-key)
+        (.glFlush gl)
+        (.glFinish gl)
+        ;; Pixels read back are like 0xAARRGGBB
+        (.glReadPixels ^GL2 gl 0 0 ^int picking-drawable-size ^int picking-drawable-size
+                       GL2/GL_BGRA GL2/GL_UNSIGNED_BYTE (IntBuffer/wrap buf))
+        (into []
+              (comp (map scene-picking/argb->picking-id)
+                    (map picking-id->renderable)
+                    (filter some?)
+                    (distinct))
+              (picking-buf->spiral-seq buf))))))
 
 (g/defnk produce-selected-tool-renderables [tool-selection]
   (apply merge-with concat {} (map #(do {(:node-id %) [(:selection-data %)]}) tool-selection)))
