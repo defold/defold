@@ -730,6 +730,12 @@ public class Project {
 
         monitor.beginTask("", 100);
 
+        try {
+            projectProperties.loadDefaults();
+        } catch (Exception e) {
+            throw new CompileExceptionError(null, -1, "Failed to load defaults for game.project", e);
+        }
+
         for (String command : commands) {
             if (command.equals("build")) {
 

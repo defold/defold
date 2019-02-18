@@ -163,6 +163,9 @@ platforms:
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
 
   armv7-android:
+    env:
+        PROGUARD:   "{{env.ANDROID_PROGUARD}}"
+        LIBRARYJAR: "{{env.ANDROID_LIBRARYJAR}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/facebooksdk.jar", "{{dynamo_home}}/ext/share/java/bolts-android-1.2.0.jar", "{{dynamo_home}}/ext/share/java/google-play-services.jar", "{{dynamo_home}}/ext/share/java/android-support-v4.jar", "{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/in-app-purchasing-2.0.61.jar", "{{dynamo_home}}/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/facebook_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/iap_android.jar", "{{dynamo_home}}/share/java/push_android.jar", "{{dynamo_home}}/share/java/sound_android.jar", "{{dynamo_home}}/share/java/iac_android.jar"]
         engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "openal_soft", "tremolo", "liveupdate", "unwind"]
@@ -184,6 +187,7 @@ platforms:
     writeLibPattern: 'lib%s.a'
     writeExePattern: 'libdmengine.so'
     zipContentPattern: 'libdmengine.so'
+    symbolsPattern: 'mapping.txt'
     allowedLibs:    ["(\\w[\\w\\.-]+)"]
     allowedFlags: ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9]+","-fno-rtti","-fpermissive"]
     compileCmd: 'arm-linux-androideabi-g++ -c -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -Wno-psabi -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -fomit-frame-pointer -fno-strict-aliasing -finline-limit=64 -funwind-tables --sysroot={{android_sysroot}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
@@ -191,7 +195,8 @@ platforms:
     libCmd: 'arm-linux-androideabi-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
     javacCmd: 'javac -source 1.6 -target 1.6 -J-Xms2048m -J-Xmx2048m -classpath {{dynamo_home}}/ext/share/java/android-support-v4.jar:{{dynamo_home}}/ext/share/java/android.jar:{{classPath}} -d {{classesDir}} @{{sourcesListFile}}'
     jarCmd: 'jar cf {{outputJar}} -C {{classesDir}} .'
-    dxCmd: 'dx -JXms2048m -JXmx2048m --dex --multi-dex --output {{classes_dex_dir}} {{#jars}}{{.}} {{/jars}} {{#engineJars}}{{.}} {{/engineJars}}'
+    dxCmd: 'dx -JXms2048m -JXmx2048m --dex --multi-dex --output {{classes_dex_dir}} {{#jars}}{{.}} {{/jars}}'
+    proGuardCmd: 'java -jar {{env.PROGUARD}} {{#src}}-include {{.}} {{/src}} -libraryjars {{env.LIBRARYJAR}} {{#jars}}-injars {{.}} {{/jars}} {{#engineJars}}-injars {{.}} {{/engineJars}} -outjar {{tgt}} -printmapping {{mapping}}'
 
   js-web:
     env:

@@ -245,18 +245,19 @@
   ^String [prefs]
   (prefs/get-prefs prefs "extensions-server" defold-build-server-url))
 
-(defn- get-app-manifest-resource [project-settings]
-  (get project-settings ["native_extension" "app_manifest"]))
-
 (defn- global-resource-nodes-by-upload-path [project evaluation-context]
-  (if-some [app-manifest-resource (get-app-manifest-resource (g/node-value project :settings evaluation-context))]
-    (let [resource-node (project/get-resource-node project app-manifest-resource evaluation-context)]
-      (if (some-> resource-node (g/node-value :resource evaluation-context) resource/exists?)
-        {"_app/app.manifest" resource-node}
-        (throw (engine-build-errors/missing-resource-error "Native Extension App Manifest"
-                                                           (resource/proj-path app-manifest-resource)
-                                                           (project/get-resource-node project "/game.project" evaluation-context)))))
-    {}))
+ (let [project-settings (g/node-value project :settings evaluation-context)]
+   (into {}
+         (keep (fn [[[section key] target]]
+                 (when-let [resource (get project-settings [section key])]
+                   (let [resource-node (project/get-resource-node project resource evaluation-context)]
+                     (if (some-> resource-node (g/node-value :resource evaluation-context) resource/exists?)
+                       [target resource-node]
+                       (throw (engine-build-errors/missing-resource-error "Missing Native Extension Resource"
+                                                                          (resource/proj-path resource)
+                                                                          (project/get-resource-node project "/game.project" evaluation-context)))))))
+               [[["native_extension" "app_manifest"] "_app/app.manifest"]
+                [["android" "proguard"] "_app/app.pro"]]))))
 
 (defn- resource-node-upload-path [resource-node evaluation-context]
   (fs/without-leading-slash (resource/proj-path (g/node-value resource-node :resource evaluation-context))))
