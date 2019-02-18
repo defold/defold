@@ -39,6 +39,11 @@ namespace dmScript
             *size = source->m_Bytecode.m_Count;
             return true;
         }
+        else
+        {
+            dmLogFatal("No 32-bit bytecode found for filename: %s.", source->m_Filename);
+            return false;
+        }
 #elif defined(LUA_BYTECODE_ENABLE_64)
         if (source->m_Bytecode64.m_Count > 0)
         {
@@ -46,13 +51,18 @@ namespace dmScript
             *size = source->m_Bytecode64.m_Count;
             return true;
         }
+        else
+        {
+            dmLogFatal("No 64-bit bytecode found for filename: %s.", source->m_Filename);
+            return false;
+        }
 #endif
-        dmLogFatal("No bytecode found for filename: %s.", source->m_Filename);
-        return false;
-#endif
+        
+#else
         *buf = (const char*)source->m_Script.m_Data;
         *size = source->m_Script.m_Count;
         return true;
+#endif
     }
 
     // Chunkname (the identifying part of a script/source chunk) in Lua has a maximum length,

@@ -43,6 +43,10 @@ static dmLuaDDF::LuaSource* LuaSourceFromText(const char *text)
     memset(&tmp, 0x00, sizeof(tmp));
     tmp.m_Script.m_Data = (uint8_t*)text;
     tmp.m_Script.m_Count = strlen(text);
+    tmp.m_Bytecode.m_Data = (uint8_t*)text;
+    tmp.m_Bytecode.m_Count = strlen(text);
+    tmp.m_Bytecode64.m_Data = (uint8_t*)text;
+    tmp.m_Bytecode64.m_Count = strlen(text);
     tmp.m_Filename = "dummy";
     return &tmp;
 }
