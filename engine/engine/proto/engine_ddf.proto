@@ -134,11 +134,11 @@ message ProfilerPauseOnPeak {}
  * This message only has effect if the on-screen profiler has been enabled.
  *
  * @message
- * @name profiler_pause_on_peak
+ * @name profiler_record
  * @examples
  *
  * ```lua
- * msg.post("@system:", "profiler_pause_on_peak")
+ * msg.post("@system:", "profiler_record")
  * ```
  */
 message ProfilerRecord {}
@@ -214,7 +214,7 @@ message ProfilerSetWaitTime {
  * This message only has effect if the on-screen profiler has been enabled.
  *
  * @message
- * @name profiler_set_wait_time
+ * @name profiler_adjust_shown_frame
  * @examples
  *
  * ```lua
