@@ -702,6 +702,11 @@ namespace dmGraphics
         delete p;
     }
 
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context)
+    {
+        return ShaderDesc::LANGUAGE_GLSL;
+    }
+
     void EnableProgram(HContext context, HProgram program)
     {
         assert(context);

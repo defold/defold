@@ -150,3 +150,23 @@ message TextureProfiles
     repeated PathSettings path_settings         = 1;
     repeated TextureProfile profiles            = 2;
 }
+
+
+message ShaderDesc
+{
+    enum Language
+    {
+        LANGUAGE_GLSL   = 1;
+        LANGUAGE_SPIRV  = 2;
+        LANGUAGE_MSL    = 3;
+    }
+
+    message Shader
+    {
+        required Language language  = 1;
+        optional bytes source       = 2;
+        optional bytes binary       = 3;
+    }
+
+    repeated Shader shaders	= 1;
+}
