@@ -196,7 +196,7 @@ platforms:
     javacCmd: 'javac -source 1.6 -target 1.6 -J-Xms2048m -J-Xmx2048m -classpath {{dynamo_home}}/ext/share/java/android-support-v4.jar:{{dynamo_home}}/ext/share/java/android.jar:{{classPath}} -d {{classesDir}} @{{sourcesListFile}}'
     jarCmd: 'jar cf {{outputJar}} -C {{classesDir}} .'
     dxCmd: 'dx -JXms2048m -JXmx2048m --dex --multi-dex --output {{classes_dex_dir}} {{#jars}}{{.}} {{/jars}}'
-    proGuardCmd: 'java -jar {{env.PROGUARD}} {{#src}}-include {{.}} {{/src}} -libraryjars {{env.LIBRARYJAR}} {{#jars}}-injars {{.}} {{/jars}} {{#engineJars}}-injars {{.}} {{/engineJars}} -outjar {{tgt}} -printmapping {{mapping}}'
+    proGuardCmd: 'java -jar {{env.PROGUARD}} {{#src}}-include {{.}} {{/src}} -libraryjars {{env.LIBRARYJAR}} {{#jars}}-injars {{.}} {{/jars}} -outjar {{tgt}} -printmapping {{mapping}}'
 
   js-web:
     env:
