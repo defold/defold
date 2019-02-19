@@ -25,8 +25,10 @@ namespace dmProfileRender
     static const int SCOPES_TIME_WIDTH  = 6 * CHAR_WIDTH;
     static const int SCOPES_COUNT_WIDTH = 3 * CHAR_WIDTH;
 
-    static const int SAMPLE_FRAMES_NAME_LENGTH = 40;
-    static const int SAMPLE_FRAMES_NAME_WIDTH  = SAMPLE_FRAMES_NAME_LENGTH * CHAR_WIDTH;
+    static const int PORTRAIT_SAMPLE_FRAMES_NAME_LENGTH = 40;
+    static const int LANDSCAPE_SAMPLE_FRAMES_NAME_LENGTH = 60;
+    static const int PORTRAIT_SAMPLE_FRAMES_NAME_WIDTH  = PORTRAIT_SAMPLE_FRAMES_NAME_LENGTH * CHAR_WIDTH;
+    static const int LANDSCAPE_SAMPLE_FRAMES_NAME_WIDTH  = LANDSCAPE_SAMPLE_FRAMES_NAME_LENGTH * CHAR_WIDTH;
     static const int SAMPLE_FRAMES_TIME_WIDTH  = 6 * CHAR_WIDTH;
     static const int SAMPLE_FRAMES_COUNT_WIDTH = 3 * CHAR_WIDTH;
 
@@ -1204,10 +1206,10 @@ namespace dmProfileRender
         return Area(Position(0, 0), Size(0, 0));
     }
 
-    static Area GetSampleFramesArea(DisplayMode display_mode, const Area& samples_area)
+    static Area GetSampleFramesArea(DisplayMode display_mode, int sample_frames_name_width, const Area& samples_area)
     {
         const int offset_y = LINE_SPACING;
-        const int offset_x = SAMPLE_FRAMES_NAME_WIDTH + CHAR_WIDTH + SAMPLE_FRAMES_TIME_WIDTH + CHAR_WIDTH + SAMPLE_FRAMES_COUNT_WIDTH + CHAR_WIDTH;
+        const int offset_x = sample_frames_name_width + CHAR_WIDTH + SAMPLE_FRAMES_TIME_WIDTH + CHAR_WIDTH + SAMPLE_FRAMES_COUNT_WIDTH + CHAR_WIDTH;
 
         Position p(samples_area.p.x + offset_x, samples_area.p.y);
         Size s(samples_area.s.w - offset_x, samples_area.s.h - offset_y);
@@ -1231,6 +1233,9 @@ namespace dmProfileRender
             dmHashUpdateBuffer64(&key_state, &render_order, sizeof(uint16_t));
             batch_key = dmHashFinal64(&key_state);
         }
+
+        const int SAMPLE_FRAMES_NAME_LENGTH = display_mode == DISPLAYMODE_LANDSCAPE ? LANDSCAPE_SAMPLE_FRAMES_NAME_LENGTH : PORTRAIT_SAMPLE_FRAMES_NAME_LENGTH;
+        const int SAMPLE_FRAMES_NAME_WIDTH = display_mode == DISPLAYMODE_LANDSCAPE ? LANDSCAPE_SAMPLE_FRAMES_NAME_WIDTH : PORTRAIT_SAMPLE_FRAMES_NAME_WIDTH;
 
         const Area profiler_area = GetProfilerArea(display_mode, display_size);
         FillArea(render_context, profiler_area, PROFILER_BG_COLOR);
@@ -1298,7 +1303,7 @@ namespace dmProfileRender
         const Area scopes_area        = GetScopesArea(display_mode, details_area, scope_count, counter_count);
         const Area counters_area      = GetCountersArea(display_mode, details_area, scope_count, counter_count);
         const Area samples_area       = GetSamplesArea(display_mode, details_area, scopes_area, counters_area);
-        const Area sample_frames_area = GetSampleFramesArea(display_mode, samples_area);
+        const Area sample_frames_area = GetSampleFramesArea(display_mode, SAMPLE_FRAMES_NAME_WIDTH, samples_area);
 
         FillArea(render_context, sample_frames_area, SAMPLES_BG_COLOR);
 
