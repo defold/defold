@@ -1465,7 +1465,34 @@ namespace dmProfileRender
                 const char* scope_name            = *scope_name_hash_ptr;
                 const char** sample_name_hash_ptr = render_profile->m_NameLookupTable.Get(sample_sum->m_SampleNameHash);
                 const char* sample_name           = *sample_name_hash_ptr;
-                DM_SNPRINTF(buffer, SAMPLE_FRAMES_NAME_LENGTH, "%s.%s", scope_name, sample_name);
+
+                int buffer_offset = DM_SNPRINTF(buffer, SAMPLE_FRAMES_NAME_LENGTH, "%s.", scope_name);
+
+                while (buffer_offset < SAMPLE_FRAMES_NAME_LENGTH)
+                {
+                    if (*sample_name == 0)
+                    {
+                        break;
+                    }
+                    else if (*sample_name == '@')
+                    {
+                        buffer[buffer_offset++] = *sample_name++;
+                        if (buffer_offset == SAMPLE_FRAMES_NAME_LENGTH)
+                        {
+                            break;
+                        }
+                        const uint32_t remaining_sample_name_length = (uint32_t)strlen(sample_name);
+                        const uint32_t remaining_buffer_length = SAMPLE_FRAMES_NAME_LENGTH - buffer_offset;
+                        if (remaining_sample_name_length > remaining_buffer_length)
+                        {
+                            sample_name += (remaining_sample_name_length - remaining_buffer_length);
+                        }
+                        continue;
+                    }
+                    buffer[buffer_offset++] = *sample_name++;
+                }
+                buffer[buffer_offset] = 0;
+
                 params.m_WorldTransform.setElem(3, 0, name_x);
                 dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
