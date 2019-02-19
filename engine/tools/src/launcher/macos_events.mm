@@ -51,6 +51,7 @@ char** ReceiveFileOpenEvent() {
   AppDelegate* delegate = [[AppDelegate alloc] init];
 
   [NSApp setDelegate:delegate];
+  [NSApp setActivationPolicy: NSApplicationActivationPolicyProhibited];
   [NSApp run];
 
   [delegate dealloc];
