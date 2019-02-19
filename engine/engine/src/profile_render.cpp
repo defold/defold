@@ -449,14 +449,6 @@ namespace dmProfileRender
         ~RenderProfile();
     };
 
-    static void ResetFreeIndexes(TIndex* free_index_buffer, uint32_t count)
-    {
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            free_index_buffer[i] = count - i - 1;
-        }
-    }
-
     static void FlushRecording(RenderProfile* render_profile, uint32_t capacity)
     {
         uint32_t c = render_profile->m_RecordBuffer.Size();
