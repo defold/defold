@@ -676,7 +676,7 @@
           (keep (fn [tab-trigger-word-region]
                   (when (and (contains? active-tab-trigger-scope-ids (:scope-id tab-trigger-word-region))
                              (not-any? #(data/cursor-range-contains? tab-trigger-word-region %)
-                                         visible-cursors))
+                                       visible-cursors))
                     (cursor-range-draw-info :range nil tab-trigger-word-outline-color tab-trigger-word-region)))
                 (visible-regions-by-type :tab-trigger-word))
 
@@ -1225,7 +1225,9 @@
         undo-grouping (when cursor-ranges-empty? :typing)
         delete-fn (case delete-type
                     :delete-before data/delete-character-before-cursor
-                    :delete-after data/delete-character-after-cursor)]
+                    :delete-word-before data/delete-word-before-cursor
+                    :delete-after data/delete-character-after-cursor
+                    :delete-word-after data/delete-word-after-cursor)]
     (when-not single-character-backspace?
       (hide-suggestions! view-node))
     (set-properties! view-node undo-grouping
@@ -1588,6 +1590,12 @@
 
 (handler/defhandler :delete-backward :code-view
   (run [view-node] (delete! view-node :delete-before)))
+
+(handler/defhandler :delete-prev-word :code-view
+  (run [view-node] (delete! view-node :delete-word-before)))
+
+(handler/defhandler :delete-next-word :code-view
+  (run [view-node] (delete! view-node :delete-word-after)))
 
 (handler/defhandler :select-next-occurrence :code-view
   (run [view-node] (select-next-occurrence! view-node)))
