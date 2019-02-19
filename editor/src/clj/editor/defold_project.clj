@@ -382,6 +382,8 @@
                                                                    :command :bundle
                                                                    :user-data {:platform platform}})
                                                                 bundle-targets)}
+                                               {:label "ReBundle"
+                                                :command :rebundle}
                                                {:label "Fetch Libraries"
                                                 :command :fetch-libraries}
                                                {:label "Live Update Settings"

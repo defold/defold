@@ -82,6 +82,7 @@
    ["Shift+Alt+Left"        :select-prev-word]
    ["Shift+Alt+Right"       :select-next-word]
    ["Shift+Alt+Up"          :select-beginning-of-line]
+   ["Shift+Alt+Shortcut+B"  :rebundle]
    #_["Shift+Alt+Shortcut+X"  :profile-show]
    ["Shift+Ctrl+A"          :select-beginning-of-line]
    ["Shift+Ctrl+E"          :select-end-of-line]
@@ -177,6 +178,7 @@
                                                    "W"       ; :move-tool
                                                    "Shift+A" ; :add-secondary
                                                    "Shift+E" ; :erase-tool
+                                                   "Shift+Alt+Shortcut+B" ; :rebundle
                                                    })
 
 (defprotocol KeyComboData

@@ -1551,6 +1551,8 @@ If you do not specifically require different script states, consider changing th
       (search-results-view/set-search-term! prefs term))
     (search-results-view/show-search-in-files-dialog! search-results-view project prefs)))
 
+(def ^:private last-bundle-options (atom nil))
+
 (defn- bundle! [changes-view build-errors-view project prefs platform bundle-options]
   (console/clear-console!)
   (let [output-directory ^File (:output-directory bundle-options)
@@ -1566,15 +1568,29 @@ If you do not specifically require different script states, consider changing th
                            (fn [successful?]
                              (when successful?
                                (if (some-> output-directory .isDirectory)
-                                 (ui/open-file output-directory)
+                                 (do
+                                   (reset! last-bundle-options (assoc bundle-options :platform-key platform))
+                                   (ui/open-file output-directory))
                                  (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again.")))))))
+
+(defn- do-bundle!
+  [user-data workspace project prefs app-view changes-view build-errors-view rebundle?]
+  (let [owner-window (g/node-value app-view :stage)
+        last-bundle-options (when rebundle? @last-bundle-options)
+        platform (:platform user-data (:platform-key last-bundle-options))
+        bundle! (partial bundle! changes-view build-errors-view project prefs platform)]
+    (if last-bundle-options
+      (bundle! last-bundle-options)
+      (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
 
 (handler/defhandler :bundle :global
   (run [user-data workspace project prefs app-view changes-view build-errors-view]
-       (let [owner-window (g/node-value app-view :stage)
-             platform (:platform user-data)
-             bundle! (partial bundle! changes-view build-errors-view project prefs platform)]
-         (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
+    (do-bundle! user-data workspace project prefs app-view changes-view build-errors-view false)))
+
+(handler/defhandler :rebundle :global
+  (enabled? [] (not (nil? @last-bundle-options)))
+  (run [workspace project prefs app-view changes-view build-errors-view]
+    (do-bundle! nil workspace project prefs app-view changes-view build-errors-view true)))
 
 (defn- fetch-libraries [workspace project dashboard-client changes-view]
   (let [library-uris (project/project-dependencies project)
