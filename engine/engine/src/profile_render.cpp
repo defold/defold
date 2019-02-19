@@ -143,8 +143,6 @@ namespace dmProfileRender
         TIndex m_PreviousSampleIndex;
     };
 
-#define HASHTABLE_BUFFER_SIZE(c, table_size, capacity) ((table_size) * sizeof(uint32_t) + (capacity) * sizeof(c))
-
     typedef dmHashTable<TNameHash, TIndex> TIndexLookupTable;
     typedef dmHashTable<TNameHash, const char*> TNameLookupTable;
 
