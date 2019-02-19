@@ -15,6 +15,54 @@
 
 namespace dmProfileRender
 {
+/**
+ * The on-screen profiler stores a copy of a profiled frame locally and tries
+ * to be as efficitent as possible by only storing the necessary data.
+ * 
+ * It also has a recording buffer where recorded frames are stored.
+ * 
+ * A base frame (ProfileFrame) is a struct containing all the data related to
+ * a sampled frame. It tries to be as minimal as possible, ie it does not
+ * contain the actual number of scopes and samples etc in this basic struct.
+ * 
+ * The base frame (ProfileFrame) extended by either a ProfileSnapshot which
+ * is the data structure used for recorded profile frames and includes the
+ * number of scopes and counters etc in the frame.
+ * 
+ * The profiler (RenderProfile) also has a ProfileFrame but instead of direct
+ * numbers for scopes and counters count it derives the counts from its lookup tables.
+ * 
+ * Extra data such as filtered values for elapsed times and "last seen" information
+ * is separated and only present in the RenderProfile, not in the actual frames.
+ * 
+ * The lookup-by-hash and allocation information for data in the RenderProfile is
+ * built on demand as a new frame is built from a frame sample on the go or when
+ * picking up and displaying a frame from the recording buffer.
+ * 
+ * The RenderProfile is created with a pre-defined number of sample/scopes/counters
+ * available and no memory allocation is done when processing a frame.
+ * 
+ * When recording profile frames only one malloc() call is done per recorded frame
+ * to reduce overhead and keep the data compact.
+ * 
+ * The profiler sorts the data on filtered values and keeps the coloring of sample
+ * names consistent in an effort to reduce flickering and samples moving around to fast.
+ * 
+ * It also automatically adjust the layout depending on the aspect ratio of the
+ * profiler display area (which is directly derived from the window/screen size).
+ * 
+ * Some terms:
+ *  -   Scope           High level scope such as "Engine" and "Script", the first parameter to DM_PROFILE(Physics, ...)
+ *  -   Counter         A counter - ie DM_COUNTER("DrawCalls", 1)
+ *  -   Sample          A single sample of a ProfilerScope, ie DM_PROFILE(Physics, "UpdateKinematic")
+ *  -   SampleSum       The summation of all the samples for a ProfilerScope, ie DM_PROFILE(Physics, "UpdateKinematic")
+ *                      it also has a list of all the Sample instances for the ProfileScope
+ *  -   ProfileFrame    Information (Scopes, Counters, Samples, SampleSums etc) of a single profile frame
+ *  -   ProfileSnapshot A recorded profile frame, embedds a ProfileFrame
+ *  -   RenderProfile   The on-screen profiler instance, embeds a ProfileFrame and holds lookup tables and allocation
+ *                      buffers for sampled data. It also holds information of filtered values, sorting and a
+ *                      recording buffer (array of ProfileSnapshot)
+ */
     static const int CHAR_HEIGHT  = 16;
     static const int CHAR_WIDTH   = 8;
     static const int CHAR_BORDER  = 1;
@@ -58,6 +106,7 @@ namespace dmProfileRender
         return hash;
     }
 
+    // These hashes are used so we can filter out the time the engine is waiting for frame buffer flip
     static const TNameHash VSYNC_WAIT_NAME_HASH   = GetCombinedHash(dmProfile::GetNameHash("VSync"), dmProfile::GetNameHash("Wait"));
     static const TNameHash ENGINE_FRAME_NAME_HASH = GetCombinedHash(dmProfile::GetNameHash("Engine"), dmProfile::GetNameHash("Frame"));
 
@@ -359,6 +408,8 @@ namespace dmProfileRender
         uint64_t m_LastSeenTick;
     };
 
+    // Allocation, lookup and sorting is stored here and is used for
+    // Scope, SampleSum and Counter
     struct DataLookup
     {
         DataLookup(TIndex max_count, TIndex* free_indexes_data, TIndex* sort_order_data)
@@ -1678,7 +1729,7 @@ namespace dmProfileRender
         MAX_SCOPE_COUNT,
         MAX_SAMPLE_SUM_COUNT,
         MAX_COUNTER_COUNT,
-        MAX_SAMPLE_COUNT); // About 260 Kb
+        MAX_SAMPLE_COUNT);
 
         return profile;
     }
