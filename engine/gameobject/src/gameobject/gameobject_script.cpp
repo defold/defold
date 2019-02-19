@@ -990,6 +990,8 @@ namespace dmGameObject
      */
     int Script_SetParent(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L,0);
+
         ScriptInstance* i  = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
 
@@ -999,7 +1001,7 @@ namespace dmGameObject
 
         if (target.m_Socket != dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
         {
-            return luaL_error(L, "go.set_parent can only access instances within the same collection.");
+            return DM_LUA_ERROR("go.set_parent can only access instances within the same collection.");
         }
 
         HCollection collection    = dmGameObject::GetCollection(instance);
@@ -1008,7 +1010,7 @@ namespace dmGameObject
 
         if (!child_instance)
         {
-            return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
+            return DM_LUA_ERROR("Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
         }
 
         if (lua_gettop(L) > 1 && !lua_isnil(L, 2))
@@ -1018,18 +1020,27 @@ namespace dmGameObject
 
             if (!parent_instance)
             {
-                return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
+                return DM_LUA_ERROR("Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
             }
 
             if (target.m_Socket != dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
             {
-                return luaL_error(L, "go.set_parent can only access instances within the same collection.");
+                return DM_LUA_ERROR("go.set_parent can only access instances within the same collection.");
             }
         }
 
         dmGameObjectDDF::SetParent ddf;
-        ddf.m_ParentId           = parent_instance ? dmGameObject::GetIdentifier(parent_instance) : 0;
-        ddf.m_KeepWorldTransform = lua_toboolean(L, 3);
+
+        if (parent_instance)
+        {
+            ddf.m_ParentId           = dmGameObject::GetIdentifier(parent_instance);
+            ddf.m_KeepWorldTransform = lua_toboolean(L, 3);
+        }
+        else
+        {
+            ddf.m_ParentId           = 0;
+            ddf.m_KeepWorldTransform = 0;
+        }
 
         dmMessage::URL receiver;
         receiver.m_Socket   = dmGameObject::GetMessageSocket(child_instance->m_Collection->m_HCollection);
@@ -1040,7 +1051,7 @@ namespace dmGameObject
             (uintptr_t) child_instance, (uintptr_t) dmGameObjectDDF::SetParent::m_DDFDescriptor,
             &ddf, sizeof(dmGameObjectDDF::SetParent), 0))
         {
-            return luaL_error(L, "Could not send parenting message!");
+            return DM_LUA_ERROR("Could not send parenting message!");
         }
 
         return 0;
