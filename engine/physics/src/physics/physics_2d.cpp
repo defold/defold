@@ -435,6 +435,19 @@ namespace dmPhysics
         return new b2GridShape((b2HullSet*) hull_set, p, cell_width * scale, cell_height * scale, row_count, column_count);
     }
 
+    void ClearGridShapeHulls(HCollisionObject2D collision_object)
+    {
+        b2Body* body = (b2Body*) collision_object;
+        b2Fixture* fixture = body->GetFixtureList();
+        while (fixture != 0x0)
+        {
+            assert(fixture->GetShape()->GetType() == b2Shape::e_grid);
+            b2GridShape* grid_shape = (b2GridShape*) fixture->GetShape();
+            grid_shape->ClearCellData();
+            fixture = fixture->GetNext();
+        }
+    }
+
     void SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
     {
         b2Body* body = (b2Body*) collision_object;

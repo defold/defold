@@ -458,6 +458,8 @@ namespace dmPhysics
                                      uint32_t cell_width, uint32_t cell_height,
                                      uint32_t row_count, uint32_t column_count);
 
+    void ClearGridShapeHulls(HCollisionObject2D collision_object);
+
     /**
      * Set hull for cell in grid-shape
      * @param collision_object collision object
