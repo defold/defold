@@ -13,24 +13,15 @@ public class Editor {
     }
 
     public static Path getSupportPath() {
-        try {
-            Path supportPath = SupportPath.getPlatformSupportPath("Defold");
-            if (supportPath != null && (Files.exists(supportPath) || supportPath.toFile().mkdirs())) {
-                return supportPath;
-            }
-        } catch (Exception e) {
-            System.err.println("Unable to determine support path: " + e);
+        Path supportPath = SupportPath.getPlatformSupportPath("Defold");
+        if (!Files.exists(supportPath)) {
+            supportPath.toFile().mkdirs();
         }
-
-        return null;
+        return supportPath;
     }
 
     public static Path getLogDirectory() {
         String defoldLogDir = System.getProperty("defold.log.dir");
-        Path logDirectory = defoldLogDir != null ? Paths.get(defoldLogDir) : getSupportPath();
-        if (logDirectory == null) {
-            logDirectory = Paths.get(System.getProperty("user.home"));
-        }
-        return logDirectory;
+        return defoldLogDir != null ? Paths.get(defoldLogDir) : getSupportPath();
     }
 }
