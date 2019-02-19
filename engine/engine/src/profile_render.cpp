@@ -52,14 +52,14 @@ namespace dmProfileRender
     typedef uint32_t TIndex;
     typedef uint32_t TNameHash;
 
-    static TNameHash GetSampleSumHash(TNameHash scope_hash, TNameHash sample_hash)
+    static TNameHash GetCombinedHash(TNameHash scope_hash, TNameHash sample_hash)
     {
         TNameHash hash = scope_hash ^ (sample_hash + 0x9e3779b9 + (scope_hash << 6) + (scope_hash >> 2));
         return hash;
     }
 
-    static const TNameHash VSYNC_WAIT_NAME_HASH   = GetSampleSumHash(dmProfile::GetNameHash("VSync"), dmProfile::GetNameHash("Wait"));
-    static const TNameHash ENGINE_FRAME_NAME_HASH = GetSampleSumHash(dmProfile::GetNameHash("Engine"), dmProfile::GetNameHash("Frame"));
+    static const TNameHash VSYNC_WAIT_NAME_HASH   = GetCombinedHash(dmProfile::GetNameHash("VSync"), dmProfile::GetNameHash("Wait"));
+    static const TNameHash ENGINE_FRAME_NAME_HASH = GetCombinedHash(dmProfile::GetNameHash("Engine"), dmProfile::GetNameHash("Frame"));
 
     //  float *r, *g, *b; /* red, green, blue in [0,1] */
     //  float h, s, l;    /* hue in [0,360]; saturation, light in [0,1] */
@@ -531,7 +531,7 @@ namespace dmProfileRender
     static SampleSum* GetOrCreateSampleSum(RenderProfile* render_profile, TNameHash sample_name_hash, TNameHash scope_name_hash)
     {
         ProfileFrame* frame       = render_profile->m_BuildFrame;
-        TNameHash sample_sum_hash = GetSampleSumHash(scope_name_hash, sample_name_hash);
+        TNameHash sample_sum_hash = GetCombinedHash(scope_name_hash, sample_name_hash);
         TIndex* index_ptr         = render_profile->m_SampleSumLookup.m_HashLookup.Get(sample_sum_hash);
         if (index_ptr != 0x0)
         {
@@ -609,7 +609,7 @@ namespace dmProfileRender
         ProfileFrame* frame       = render_profile->m_BuildFrame;
         TIndex sample_sum_index   = render_profile->m_SampleSumLookup.m_SortOrder[index];
         SampleSum* sample_sum     = &frame->m_SampleSums[sample_sum_index];
-        TNameHash sample_sum_hash = GetSampleSumHash(sample_sum->m_ScopeNameHash, sample_sum->m_SampleNameHash);
+        TNameHash sample_sum_hash = GetCombinedHash(sample_sum->m_ScopeNameHash, sample_sum->m_SampleNameHash);
         render_profile->m_SampleSumLookup.m_HashLookup.Erase(sample_sum_hash);
         uint32_t new_count = render_profile->m_SampleSumLookup.m_HashLookup.Size();
         render_profile->m_SampleSumLookup.m_FreeIndexes.Push(sample_sum_index);
@@ -1072,7 +1072,7 @@ namespace dmProfileRender
         {
             TIndex sample_sum_index = render_profile->m_SampleSumLookup.m_FreeIndexes.Pop();
             SampleSum* sample_sum   = &snapshot->m_Frame.m_SampleSums[sample_sum_index];
-            TNameHash name_hash     = GetSampleSumHash(sample_sum->m_ScopeNameHash, sample_sum->m_SampleNameHash);
+            TNameHash name_hash     = GetCombinedHash(sample_sum->m_ScopeNameHash, sample_sum->m_SampleNameHash);
             render_profile->m_SampleSumLookup.m_HashLookup.Put(name_hash, sample_sum_index);
             render_profile->m_SampleSumLookup.m_SortOrder[i] = sample_sum_index;
             SampleSumStats* sample_stats                     = &render_profile->m_SampleSumStats[i];
@@ -1430,7 +1430,7 @@ namespace dmProfileRender
             {
                 TIndex index          = render_profile->m_SampleSumLookup.m_SortOrder[sort_index];
                 SampleSum* sample_sum = &frame->m_SampleSums[index];
-                TNameHash name_hash   = GetSampleSumHash(sample_sum->m_ScopeNameHash, sample_sum->m_SampleNameHash);
+                TNameHash name_hash   = GetCombinedHash(sample_sum->m_ScopeNameHash, sample_sum->m_SampleNameHash);
                 if (render_profile->m_IncludeFrameWait == 0)
                 {
                     if (name_hash == VSYNC_WAIT_NAME_HASH ||
