@@ -1509,7 +1509,7 @@ namespace dmProfileRender
 
                 int buffer_offset = DM_SNPRINTF(buffer, SAMPLE_FRAMES_NAME_LENGTH, "%s.", scope_name);
 
-                while (buffer_offset < SAMPLE_FRAMES_NAME_LENGTH)
+                while (buffer_offset <= SAMPLE_FRAMES_NAME_LENGTH)
                 {
                     if (*sample_name == 0)
                     {
@@ -1518,12 +1518,12 @@ namespace dmProfileRender
                     else if (*sample_name == '@')
                     {
                         buffer[buffer_offset++] = *sample_name++;
-                        if (buffer_offset == SAMPLE_FRAMES_NAME_LENGTH)
+                        if (buffer_offset == (SAMPLE_FRAMES_NAME_LENGTH + 1))
                         {
                             break;
                         }
                         const uint32_t remaining_sample_name_length = (uint32_t)strlen(sample_name);
-                        const uint32_t remaining_buffer_length = SAMPLE_FRAMES_NAME_LENGTH - buffer_offset;
+                        const uint32_t remaining_buffer_length = (SAMPLE_FRAMES_NAME_LENGTH + 1) - buffer_offset;
                         if (remaining_sample_name_length > remaining_buffer_length)
                         {
                             sample_name += (remaining_sample_name_length - remaining_buffer_length);
