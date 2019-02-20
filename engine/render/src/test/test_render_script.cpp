@@ -347,6 +347,29 @@ TEST_F(dmRenderScriptTest, TestLuaState)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+TEST_F(dmRenderScriptTest, TestLuaRenderTargetTooLarge)
+{
+    const char* script =
+    "function init(self)\n"
+    "    local params_color = {\n"
+    "        format = render.FORMAT_RGBA,\n"
+    "        width = 1000000000,\n"
+    "        height = 2,\n"
+    "        min_filter = render.FILTER_NEAREST,\n"
+    "        mag_filter = render.FILTER_LINEAR,\n"
+    "        u_wrap = render.WRAP_REPEAT,\n"
+    "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
+    "    }\n"
+    "    self.rt = render.render_target(\"rt\", {[render.BUFFER_COLOR_BIT] = params_color})\n"
+    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
 {
     const char* script =
