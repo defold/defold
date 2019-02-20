@@ -16,6 +16,7 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
+            [editor.scene-picking :as scene-picking]
             [editor.render :as render]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -785,6 +786,26 @@
       (let [vb (render/->vtx-pos-col vcount)]
         (persistent! (reduce conj! vb vs))))))
 
+(shader/defshader spine-id-vertex-shader
+  (attribute vec4 position)
+  (attribute vec2 texcoord0)
+  (varying vec2 var_texcoord0)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq var_texcoord0 texcoord0)))
+
+(shader/defshader spine-id-fragment-shader
+  (varying vec2 var_texcoord0)
+  (uniform sampler2D texture)
+  (uniform vec4 id)
+  (defn void main []
+    (setq vec4 color (texture2D texture var_texcoord0.xy))
+    (if (> color.a 0.05)
+      (setq gl_FragColor id)
+      (discard))))
+
+(def spine-id-shader (shader/make-shader ::id-shader spine-id-vertex-shader spine-id-fragment-shader {"id" :id}))
+
 (defn- render-spine-scenes [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)]
     (condp = pass
@@ -802,8 +823,9 @@
 
       pass/selection
       (when-let [vb (gen-vb renderables)]
-        (let [vertex-binding (vtx/use-with ::spine-selection vb render/shader-tex-tint)]
-          (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
+        (let [gpu-texture (:gpu-texture (:user-data (first renderables)))
+              vertex-binding (vtx/use-with ::spine-selection vb spine-id-shader)]
+          (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [gpu-texture spine-id-shader vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
 
 (defn- render-spine-skeletons [^GL2 gl render-args renderables rcount]
