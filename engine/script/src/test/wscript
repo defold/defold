@@ -188,7 +188,7 @@ def build(bld):
 
     test_script_buffer.install_path = None
 
-    test_script_user_type = bld.new_task_gen(features = 'cxx cprogram',
+    test_script_user_type = bld.new_task_gen(features = 'cxx cprogram test',
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
