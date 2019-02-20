@@ -382,7 +382,7 @@
                                                                    :command :bundle
                                                                    :user-data {:platform platform}})
                                                                 bundle-targets)}
-                                               {:label "ReBundle"
+                                               {:label "Rebundle"
                                                 :command :rebundle}
                                                {:label "Fetch Libraries"
                                                 :command :fetch-libraries}
