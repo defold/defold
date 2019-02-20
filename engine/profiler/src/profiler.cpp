@@ -130,6 +130,11 @@ int CPUUsage(lua_State* L)
  * 
  * @name profiler.enable_ui
  * @param enabled [type:boolean] true to enable, false to disable
+ * 
+ * @examples
+ * ```lua
+ *      profiler.enable_ui(true)
+ * ```
  */
 int EnableProfilerUI(lua_State* L)
 {
