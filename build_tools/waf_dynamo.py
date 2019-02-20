@@ -1152,9 +1152,9 @@ def run_gtests(valgrind = False, configfile = None):
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
         return
 
-# TODO: Add something similar to this
-# http://code.google.com/p/v8/source/browse/trunk/tools/run-valgrind.py
-# to find leaks and set error code
+    # TODO: Add something similar to this
+    # http://code.google.com/p/v8/source/browse/trunk/tools/run-valgrind.py
+    # to find leaks and set error code
 
     if not Build.bld.env['VALGRIND']:
         valgrind = False
@@ -1167,7 +1167,7 @@ def run_gtests(valgrind = False, configfile = None):
         return
 
     for t in Build.bld.all_task_gen:
-        if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
+        if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1 and 'test' in t.features:
             output = t.path
             cmd = "%s %s" % (os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target), configfile)
             if 'web' in Build.bld.env.PLATFORM:
