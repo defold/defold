@@ -150,7 +150,8 @@
 
 (defn calc-picking-rect
   "Returns a rect where .x, .y is center of rect spanned by
-  points [start current] and .width, .height the corresponding dimensions"
+  points [start current] and .width, .height the corresponding
+  dimensions"
   [start current]
   (let [ps [start current]
         min-p (Point2i. (reduce imin (map first ps)) (reduce imin (map second ps)))
