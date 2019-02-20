@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import os, re
 from waf_dynamo import apidoc_extract_task
+import Options
 
 def configure(conf):
     pass
@@ -34,4 +35,5 @@ def build(bld):
 
     apidoc_extract_task(bld, ['profiler.cpp'])
 
-    bld.add_subdirs('test')
+    if not Options.options.skip_build_tests:
+        bld.add_subdirs('test')
