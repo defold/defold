@@ -340,7 +340,7 @@
 ** CHANGE it to undefined as soon as your programs use 'math.fmod' or
 ** the new '%' operator instead of 'math.mod'.
 */
-#define LUA_COMPAT_MOD
+#define LUA_COMPAT_MOD 1
 
 /*
 @@ LUA_COMPAT_LSTR controls compatibility with old long string nesting
