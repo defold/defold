@@ -223,7 +223,7 @@
                geom/Identity4d)
         proj (if (types/model-transform? pass)
                (c/camera-projection-matrix camera)
-               (c/region-orthographic-projection-matrix viewport -1.0 1.0))
+               (c/region-orthographic-projection-matrix viewport -1.0 1.0)) ; used for background & tile map overlay so no need to use camera settings
         world geom/Identity4d
         texture geom/Identity4d
         transforms (math/derive-render-transforms world view proj texture)]
@@ -366,18 +366,19 @@
     (assert (<= picking-id 0x00ffffff))
     picking-id))
 
-(defn- alloc-picking-id! [node-id->picking-id-ref node-id]
-  (dosync
-    (if-let [picking-id (get @node-id->picking-id-ref node-id)]
-      picking-id
-      (let [picking-seed (inc (count @node-id->picking-id-ref))
-            picking-id (picking-seed->picking-id picking-seed)]
-        (alter node-id->picking-id-ref assoc node-id picking-id)
-        picking-id))))
+(defn- alloc-picking-id! [node-id->picking-id-atom node-id]
+  (if-let [picking-id (get @node-id->picking-id-atom node-id)]
+    picking-id
+    (get (swap! node-id->picking-id-atom
+                (fn [node-id->picking-id]
+                  (let [picking-seed (inc (count node-id->picking-id))
+                        picking-id (picking-seed->picking-id picking-seed)]
+                    (assoc node-id->picking-id node-id picking-id))))
+         node-id)))
 
 (defn- flatten-scene [scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj]
-  (let [node-id->picking-id-ref (ref {})
-        alloc-picking-id! (partial alloc-picking-id! node-id->picking-id-ref)
+  (let [node-id->picking-id-atom (atom {})
+        alloc-picking-id! (partial alloc-picking-id! node-id->picking-id-atom)
         node-id-path []
         node-outline-key-path [(:node-id scene)]
         parent-world-rotation geom/NoRotation
@@ -589,24 +590,21 @@
                                                 (vals renderables))
               buf (int-array (* picking-drawable-size picking-drawable-size))]
           (reset! last-picking-rect picking-rect)
-          (into []
-                (mapcat (fn [pass]
-                          (let [pass-render-args (picking-render-args (pass->render-args pass) viewport picking-rect)
-                                pass-renderables (get renderables pass)]
-                            (setup-pass gl pass pass-render-args)
-                            (batch-render gl pass-render-args pass-renderables :select-batch-key)
-                            (.glFlush gl)
-                            (.glFinish gl)
-                            ;; Pixels read back are like 0xAARRGGBB
-                            (.glReadPixels ^GL2 gl 0 0 ^int picking-drawable-size ^int picking-drawable-size
-                                           GL2/GL_BGRA GL2/GL_UNSIGNED_BYTE (IntBuffer/wrap buf))
-                            (into []
-                                  (comp (map scene-picking/argb->picking-id)
-                                        (map picking-id->picking-node-id)
-                                        (filter some?)
-                                        (distinct))
-                                  (picking-buf->spiral-seq buf)))))
-                [pass/opaque-selection pass/selection]))))))
+          (doseq [pass [pass/opaque-selection pass/selection]]
+            (let [pass-render-args (picking-render-args (pass->render-args pass) viewport picking-rect)
+                  pass-renderables (get renderables pass)]
+              (setup-pass gl pass pass-render-args)
+              (batch-render gl pass-render-args pass-renderables :select-batch-key)))
+          (.glFlush gl)
+          (.glFinish gl)
+          ;; Pixels read back are like 0xAARRGGBB
+          (.glReadPixels ^GL2 gl 0 0 ^int picking-drawable-size ^int picking-drawable-size
+                         GL2/GL_BGRA GL2/GL_UNSIGNED_BYTE (IntBuffer/wrap buf))
+          (transduce (comp (map scene-picking/argb->picking-id)
+                           (keep picking-id->picking-node-id)
+                           (take 1))
+                     conj
+                     (picking-buf->spiral-seq buf)))))))
 
 (g/defnk produce-tool-renderables [tool-renderables]
   ;; tool-renderables input is a [{pass [renderables]}]
@@ -644,12 +642,11 @@
         ;; Pixels read back are like 0xAARRGGBB
         (.glReadPixels ^GL2 gl 0 0 ^int picking-drawable-size ^int picking-drawable-size
                        GL2/GL_BGRA GL2/GL_UNSIGNED_BYTE (IntBuffer/wrap buf))
-        (into []
-              (comp (map scene-picking/argb->picking-id)
-                    (map picking-id->renderable)
-                    (filter some?)
-                    (distinct))
-              (picking-buf->spiral-seq buf))))))
+        (transduce (comp (map scene-picking/argb->picking-id)
+                         (keep picking-id->renderable)
+                         (take 1))
+                   conj
+                   (picking-buf->spiral-seq buf))))))
 
 (g/defnk produce-selected-tool-renderables [tool-selection]
   (apply merge-with concat {} (map #(do {(:node-id %) [(:selection-data %)]}) tool-selection)))
@@ -725,16 +722,16 @@
         (when-let [^AsyncCopier copier (g/node-value node-id :async-copier)]
           (.dispose copier gl))
         (.glFinish gl))
-      (.destroy drawable)
-      (when-let [^GLAutoDrawable picking-drawable (g/node-value node-id :picking-drawable)]
-        (gl/with-drawable-as-current picking-drawable
-          (.glFinish gl))
-        (.destroy drawable))
-      (g/transact
-        (concat
-          (g/set-property node-id :drawable nil)
-          (g/set-property node-id :picking-drawable nil)
-          (g/set-property node-id :async-copier nil))))))
+      (.destroy drawable))
+    (when-let [^GLAutoDrawable picking-drawable (g/node-value node-id :picking-drawable)]
+      (gl/with-drawable-as-current picking-drawable
+        (.glFinish gl))
+      (.destroy picking-drawable))
+    (g/transact
+      (concat
+        (g/set-property node-id :drawable nil)
+        (g/set-property node-id :picking-drawable nil)
+        (g/set-property node-id :async-copier nil)))))
 
 (defn- screen->world ^Vector3d [camera viewport ^Vector3d screen-pos]
   (let [w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
@@ -924,8 +921,6 @@
             {}
             active-updatables)))
 
-
-
 (defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable ^AsyncCopier async-copier]
   (when-let [view-id (ui/user-data image-view ::view-id)]
     (g/with-auto-evaluation-context evaluation-context
@@ -948,23 +943,23 @@
         (when (seq action-queue)
           (g/set-property! view-id :input-action-queue []))
         (profiler/profile "input-dispatch" -1
-                          (let [input-handlers (g/sources-of view-id :input-handlers)]
-                            (doseq [action action-queue]
-                              (dispatch-input input-handlers action tool-user-data))))
+          (let [input-handlers (g/sources-of (:basis evaluation-context) view-id :input-handlers)]
+            (doseq [action action-queue]
+              (dispatch-input input-handlers action tool-user-data))))
         (when (seq active-updatables)
           (g/set-property! view-id :updatable-states new-updatable-states))
         (profiler/profile "render" -1
-                          (gl/with-drawable-as-current drawable
-                            (when (not= last-frame-version frame-version)
-                              (let [renderables (g/node-value view-id :all-renderables evaluation-context)
-                                    viewport (g/node-value view-id :viewport evaluation-context)
-                                    pass->render-args (g/node-value view-id :pass->render-args evaluation-context)]
-                                (render! gl-context renderables new-updatable-states viewport pass->render-args)
-                                (ui/user-data! image-view ::last-renderables-invalidate-counter renderables-invalidate-counter)
-                                (ui/user-data! image-view ::last-frame-version frame-version)
-                                (scene-cache/prune-context! gl)))
-                            (when-let [^WritableImage image (.flip async-copier gl frame-version)]
-                              (.setImage image-view image))))))))
+          (gl/with-drawable-as-current drawable
+            (when (not= last-frame-version frame-version)
+              (let [renderables (g/node-value view-id :all-renderables evaluation-context)
+                    viewport (g/node-value view-id :viewport evaluation-context)
+                    pass->render-args (g/node-value view-id :pass->render-args evaluation-context)]
+                (render! gl-context renderables new-updatable-states viewport pass->render-args)
+                (ui/user-data! image-view ::last-renderables-invalidate-counter renderables-invalidate-counter)
+                (ui/user-data! image-view ::last-frame-version frame-version)
+                (scene-cache/prune-context! gl)))
+            (when-let [^WritableImage image (.flip async-copier gl frame-version)]
+              (.setImage image-view image))))))))
 
 (defn- nudge! [scene-node-ids ^double dx ^double dy ^double dz]
   (g/transact
@@ -1108,11 +1103,11 @@
         (.add (.getChildren scene-view-pane) 0 gl-pane)))
     (when (system/defold-dev?)
       (.setOnKeyPressed scene-view-pane (ui/event-handler event
-                                                          (let [key-event ^KeyEvent event]
-                                                            (when (and (.isShortcutDown key-event)
-                                                                       (= "t" (.getText key-event)))
-                                                              (swap! render-mode-atom render-mode-transitions)
-                                                              (g/invalidate-outputs! [[view-id :all-renderables]]))))))
+                                          (let [key-event ^KeyEvent event]
+                                            (when (and (.isShortcutDown key-event)
+                                                       (= "t" (.getText key-event)))
+                                              (swap! render-mode-atom render-mode-transitions)
+                                              (g/invalidate-outputs! [[view-id :all-renderables]]))))))
     scene-view-pane))
 
 (defn- make-scene-view [scene-graph ^Parent parent opts]

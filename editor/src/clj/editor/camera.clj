@@ -205,8 +205,16 @@
 
 (defn pick-matrix
   "Create a picking matrix as used by gluPickMatrix.
-  `viewport` is the extents of the viewport.
-  `pick-rect` is the picking rectangle, where .x .y is the center."
+
+  `viewport` is the extents of the viewport
+
+  `pick-rect` is the picking rectangle, where .x .y is the center of
+  the picking region and .width .height the corresponding dimensions
+  picking region.
+
+  See:
+    * editor.scene-selection/calc-picking-rect
+    * https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/gluPickMatrix.xml"
   ^Matrix4d [^Region viewport ^Rect pick-rect]
   (let [sx (/ (.right viewport)
               (.width pick-rect))
