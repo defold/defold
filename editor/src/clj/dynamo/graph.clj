@@ -796,9 +796,6 @@
   ([] (is/default-evaluation-context @*the-system*))
   ([options] (is/custom-evaluation-context @*the-system* options)))
 
-(defn- do-node-value [node-id label evaluation-context]
-  (is/node-value @*the-system* node-id label evaluation-context))
-
 (defn update-cache-from-evaluation-context!
   [evaluation-context]
   (is/update-cache-from-evaluation-context! @*the-system* evaluation-context)
@@ -809,6 +806,16 @@
          result# (do ~@body)]
      (update-cache-from-evaluation-context! ~ec)
      result#))
+
+(defn invalidate-counter
+  ([node-id output]
+   (with-auto-evaluation-context evaluation-context
+     (invalidate-counter node-id output evaluation-context)))
+  ([node-id output evaluation-context]
+   (get (:initial-invalidate-counters evaluation-context) [node-id output])))
+
+(defn- do-node-value [node-id label evaluation-context]
+  (is/node-value @*the-system* node-id label evaluation-context))
 
 (defn node-value
   "Pull a value from a node's output, identified by `label`.
@@ -832,10 +839,8 @@
 
   `(node-value node-id :chained-output)`"
   ([node-id label]
-   (let [evaluation-context (make-evaluation-context)
-         result (do-node-value node-id label evaluation-context)]
-     (update-cache-from-evaluation-context! evaluation-context)
-     result))
+   (with-auto-evaluation-context evaluation-context
+     (do-node-value node-id label evaluation-context)))
   ([node-id label evaluation-context]
    (do-node-value node-id label evaluation-context)))
 
