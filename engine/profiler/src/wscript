@@ -33,3 +33,5 @@ def build(bld):
     bld.install_files('${PREFIX}/include/profiler', 'profiler.h')
 
     apidoc_extract_task(bld, ['profiler.cpp'])
+
+    bld.add_subdirs('test')

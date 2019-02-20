@@ -1,0 +1,12 @@
+#! /usr/bin/env python
+
+def build(bld):
+
+    null_test = bld.new_task_gen(features = 'cxx cprogram',
+                                    source = 'test_profilerext_null.cpp',
+                                    uselib = 'DLIB GTEST PLATFORM_THREAD BULLET',
+                                    uselib_local = 'profilerext_null',
+                                    includes = ['../../../src'],
+                                    target = 'test_profilerext_null')
+
+    null_test.install_path = None
