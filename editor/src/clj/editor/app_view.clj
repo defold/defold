@@ -1586,7 +1586,7 @@ If you do not specifically require different script states, consider changing th
     (do-bundle! user-data workspace project prefs app-view changes-view build-errors-view false)))
 
 (handler/defhandler :rebundle :global
-  (enabled? [project] (not (nil? (g/user-data project :last-bundle-options))))
+  (enabled? [project] (some? (g/user-data project :last-bundle-options)))
   (run [workspace project prefs app-view changes-view build-errors-view]
     (do-bundle! nil workspace project prefs app-view changes-view build-errors-view true)))
 
