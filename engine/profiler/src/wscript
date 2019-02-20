@@ -9,6 +9,7 @@ def build(bld):
     embed_source = ''
 
     source = 'profiler.cpp profile_render.cpp'
+    source_null = 'profiler_null.cpp'
 
     if 'darwin' in bld.env.PLATFORM:
         source += ' profiler_cocoa.mm'
@@ -17,12 +18,17 @@ def build(bld):
     elif 'win32' in bld.env.PLATFORM:
         source += ' profiler_win32.cpp'
     else:
-        source += ' profiler_null.cpp'
+        source += ' profiler_unsupported.cpp'
 
     profiler = bld.new_task_gen(features = 'cxx cstaticlib',
                             includes = '.',
                             source = source,
                             target = 'profilerext')
+
+    profiler = bld.new_task_gen(features = 'cxx cstaticlib',
+                            includes = '.',
+                            source = source_null,
+                            target = 'profilerext_null')
 
     bld.install_files('${PREFIX}/include/profiler', 'profiler.h')
 

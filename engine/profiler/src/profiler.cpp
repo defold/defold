@@ -12,8 +12,6 @@
 
 using namespace Vectormath::Aos;
 
-static bool g_TrackCpuUsage = false;
-
 namespace dmProfiler
 {
 
@@ -27,6 +25,7 @@ namespace dmProfiler
  * @namespace profiler
  */
 
+static bool g_TrackCpuUsage = false;
 static dmProfileRender::HRenderProfile gRenderProfile = 0;
 static uint32_t gUpdateFrequency = 60;
 
@@ -410,10 +409,10 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
 {
     // Should CPU sample tracking be run each step?
     // This is enabled by default in debug, but can be turned on in release via project config.
-    g_TrackCpuUsage = dLib::IsDebugMode();
+    dmProfiler::g_TrackCpuUsage = dLib::IsDebugMode();
     if (dmConfigFile::GetInt(params->m_ConfigFile, "profiler.track_cpu", 0) == 1)
     {
-        g_TrackCpuUsage = true;
+        dmProfiler::g_TrackCpuUsage = true;
     }
 
     static const luaL_reg Module_methods[] =
@@ -454,7 +453,7 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
 
 static dmExtension::Result UpdateProfiler(dmExtension::Params* params)
 {
-    if (g_TrackCpuUsage)
+    if (dmProfiler::g_TrackCpuUsage)
     {
         dmProfilerExt::SampleCpuUsage();
     }

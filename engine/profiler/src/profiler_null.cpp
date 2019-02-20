@@ -1,16 +1,20 @@
-#include "profiler_private.h"
+#include "profiler.h"
 
-void dmProfilerExt::SampleCpuUsage()
+namespace dmProfiler
+{
+void SetUpdateFrequency(uint32_t )
 {
     // nop
 }
 
-uint64_t dmProfilerExt::GetMemoryUsage()
+void ToggleProfiler()
 {
-    return 0;
+    // nop
 }
 
-double dmProfilerExt::GetCpuUsage()
+void RenderProfiler(dmProfile::HProfile , dmGraphics::HContext , dmRender::HRenderContext , dmRender::HFontMap )
 {
-    return 0.0;
+    // nop
 }
+
+} // dmProfiler
