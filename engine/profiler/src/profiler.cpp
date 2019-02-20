@@ -121,22 +121,35 @@ int CPUUsage(lua_State* L)
     return 1;
 }
 
-/*# enable the on-screen profiler ui
- * Creates and shows the on-sceen profiler ui
+/*# enables or disables the on-screen profiler ui
+ * Creates and shows or hides and destroys the on-sceen profiler ui
  * 
  * The profiler is a real-time tool that shows the numbers of milliseconds spent
  * in each scope per frame as well as counters. The profiler is very useful for
  * tracking down performance and resource problems.
  * 
  * @name profiler.enable_ui
+ * @param enabled [type:boolean] true to enable, false to disable
  */
 int EnableProfilerUI(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0)
 
-    if (!gRenderProfile)
+    if (!lua_isboolean(L, 1))
+    {
+        DM_LUA_ERROR("Invalid parameter, expected a boolean but got a %s", lua_typename(L, lua_type(L, 1)))
+    }
+
+    bool enabled = lua_toboolean(L, 1);
+
+    if (enabled && !gRenderProfile)
     {
         gRenderProfile = dmProfileRender::NewRenderProfile(gUpdateFrequency);
+    }
+    else if (!enabled && gRenderProfile)
+    {
+        dmProfileRender::DeleteRenderProfile(gRenderProfile);
+        gRenderProfile = 0;
     }
 
     return 0;
@@ -156,8 +169,6 @@ int DisableProfilerUI(lua_State* L)
         return 0;
     }
 
-    dmProfileRender::DeleteRenderProfile(gRenderProfile);
-    gRenderProfile = 0;
 
     return 0;
 }
@@ -376,7 +387,7 @@ int ProfilerUIViewRecordedFrame(lua_State* L)
     return 0;
 }
 
-/*# Flushes recording in on-screen profiler ui
+/*# flushes recording in on-screen profiler ui
  * Flushes the recording buffer of the on-screen profiler ui
  * 
  * If any frames are recorded  in the on-screen profiler ui and displays the last active frame.
@@ -420,7 +431,6 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
         {"get_memory_usage", dmProfiler::MemoryUsage},
         {"get_cpu_usage", dmProfiler::CPUUsage},
         {"enable_ui", dmProfiler::EnableProfilerUI},
-        {"disable_ui", dmProfiler::DisableProfilerUI},
         {"set_ui_mode", dmProfiler::SetProfileUIMode},
         {"set_ui_view_mode", dmProfiler::SetProfilerUIViewMode},
         {"set_ui_vsync_wait_visible", dmProfiler::SetProfileUIVSyncWaitVisible},
