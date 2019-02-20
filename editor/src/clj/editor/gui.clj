@@ -18,6 +18,7 @@
             [editor.progress :as progress]
             [editor.scene :as scene]
             [editor.scene-cache :as scene-cache]
+            [editor.scene-picking :as scene-picking]
             [editor.workspace :as workspace]
             [editor.math :as math]
             [editor.colors :as colors]
@@ -107,6 +108,26 @@
 
 ; TODO - macro of this
 (def shader (shader/make-shader ::shader vertex-shader fragment-shader))
+
+(shader/defshader gui-id-vertex-shader
+  (attribute vec4 position)
+  (attribute vec2 texcoord0)
+  (varying vec2 var_texcoord0)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq var_texcoord0 texcoord0)))
+
+(shader/defshader gui-id-fragment-shader
+  (varying vec2 var_texcoord0)
+  (uniform sampler2D texture)
+  (uniform vec4 id)
+  (defn void main []
+    (setq vec4 color (texture2D texture var_texcoord0.xy))
+    (if (> color.a 0.05)
+      (setq gl_FragColor id)
+      (discard))))
+
+(def id-shader (shader/make-shader ::id-shader gui-id-vertex-shader gui-id-fragment-shader {"id" :id}))
 
 (shader/defshader line-vertex-shader
   (attribute vec4 position)
@@ -216,16 +237,27 @@
         vb (gen-vb gl renderables)
         vcount (count vb)]
     (when (> vcount 0)
-      (let [shader (or material-shader shader)
-            vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
-                             (vtx2/use-with ::tris vb shader)
-                             (vtx/use-with ::tris vb shader))]
-        (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
-          (clipping/setup-gl gl clipping-state)
-          (gl/set-blend-mode gl blend-mode)
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
-          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
-          (clipping/restore-gl gl clipping-state))))))
+      (condp = (:pass render-args)
+        pass/transparent
+        (let [shader (or material-shader shader)
+              vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
+                               (vtx2/use-with ::tris vb shader)
+                               (vtx/use-with ::tris vb shader))]
+          (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
+            (clipping/setup-gl gl clipping-state)
+            (gl/set-blend-mode gl blend-mode)
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
+            (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
+            (clipping/restore-gl gl clipping-state)))
+
+        pass/selection
+        (let [vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
+                               (vtx2/use-with ::tris vb id-shader)
+                               (vtx/use-with ::tris vb id-shader))]
+          (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
+            (clipping/setup-gl gl clipping-state)
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
+            (clipping/restore-gl gl clipping-state)))))))
 
 (defn- pivot->h-align [pivot]
   (case pivot

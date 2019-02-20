@@ -18,11 +18,12 @@
    [editor.protobuf :as protobuf]
    [editor.resource :as resource]
    [editor.resource-node :as resource-node]
+   [editor.scene :as scene]
+   [editor.scene-picking :as scene-picking]
+   [editor.scene-tools :as scene-tools]
    [editor.types :as types]
    [editor.validation :as validation]
-   [editor.workspace :as workspace]
-   [editor.scene :as scene]
-   [editor.scene-tools :as scene-tools])
+   [editor.workspace :as workspace])
   (:import
    [com.dynamo.physics.proto Physics$CollisionObjectDesc
     Physics$CollisionObjectType
@@ -114,6 +115,19 @@
 
 (def shader (shader/make-shader ::shader vertex-shader fragment-shader))
 
+(shader/defshader shape-id-vertex-shader
+  (uniform mat4 view_proj)
+  (attribute vec4 position)
+  (defn void main []
+    (setq gl_Position (* view_proj (vec4 position.xyz 1.0)))))
+
+(shader/defshader shape-id-fragment-shader
+  (uniform vec4 id)
+  (defn void main []
+    (setq gl_FragColor id)))
+
+(def id-shader (shader/make-shader ::shape-id-shader shape-id-vertex-shader shape-id-fragment-shader {"view_proj" :view-proj "id" :id}))
+
 (def outline-alpha 1.0)
 (def shape-alpha 0.1)
 (def selected-outline-alpha 1.0)
@@ -194,8 +208,8 @@
 
       pass/selection
       (let [vbuf (gen-vertex-buffer renderables n gen-disc-vertex-buffer)
-            vbuf-binding (vtx/use-with ::box vbuf shader)]
-        (gl/with-gl-bindings gl render-args [shader vbuf-binding]
+            vbuf-binding (vtx/use-with ::box vbuf id-shader)]
+        (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vbuf-binding]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLE_FAN 0 (count vbuf)))))))
 
 
@@ -248,8 +262,8 @@
 
       pass/selection
       (let [vbuf (gen-vertex-buffer renderables n gen-box-vertex-buffer)
-            vbuf-binding (vtx/use-with ::box vbuf shader)]
-        (gl/with-gl-bindings gl render-args [shader vbuf-binding]
+            vbuf-binding (vtx/use-with ::box vbuf id-shader)]
+        (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vbuf-binding]
           (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))))
 
 
@@ -326,8 +340,8 @@
 
       pass/selection
       (let [vbuf (gen-vertex-buffer renderables n gen-capsule-vbuf)
-            vertex-binding (vtx/use-with ::capsule vbuf shader)]
-        (gl/with-gl-bindings gl render-args [shader vertex-binding]
+            vertex-binding (vtx/use-with ::capsule vbuf id-shader)]
+        (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLE_FAN 0 (count vbuf)))))))
 
 (g/defnk produce-sphere-shape-scene

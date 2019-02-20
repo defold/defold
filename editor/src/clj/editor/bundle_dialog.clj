@@ -570,7 +570,8 @@
           buttons (doto (HBox.) (ui/add-style! "buttons"))]
       (ui/add-child! buttons ok-button)
       (ui/add-child! root buttons)
-      (ui/bind-action! ok-button ::query-output-directory))
+      (ui/bind-action! ok-button ::query-output-directory)
+      (.setDefaultButton ok-button true))
 
     ;; Load preferences and refresh the view.
     ;; We also refresh whenever our application becomes active.
