@@ -1598,8 +1598,7 @@ bail:
                     dmGameObject::LuaLoad(factory, self->m_RenderScriptContext, &run_script->m_Module);
                 }
             }
- // TODO           else if (!DispatchProfileRenderMessages(&self->m_RenderProfile, message, descriptor, self->m_UpdateFrequency))
-             else
+            else
             {
                 const dmMessage::URL* sender = &message->m_Sender;
                 const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
