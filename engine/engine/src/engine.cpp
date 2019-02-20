@@ -27,6 +27,7 @@
 #include <sound/sound.h>
 #include <render/render.h>
 #include <render/render_ddf.h>
+#include <profiler/profiler.h>
 #include <particle/particle.h>
 #include <tracking/tracking.h>
 #include <tracking/tracking_ddf.h>
@@ -35,7 +36,6 @@
 #include "engine_service.h"
 #include "engine_version.h"
 #include "physics_debug_render.h"
-#include "profile_render.h"
 
 // Embedded resources
 // Unfortunately, the draw_line et. al are used in production code
@@ -177,7 +177,6 @@ namespace dmEngine
     , m_MainCollection(0)
     , m_LastReloadMTime(0)
     , m_MouseSensitivity(1.0f)
-    , m_RenderProfile(0x0)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
     , m_SharedScriptContext(0x0)
@@ -412,6 +411,9 @@ namespace dmEngine
     {
         engine->m_UpdateFrequency = frequency;
         engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
+#if !defined(DM_RELEASE)
+        dmProfiler::SetUpdateFrequency(engine->m_UpdateFrequency);
+#endif
     }
 
     /*
@@ -1335,23 +1337,8 @@ bail:
                 }
 
 #if !defined(DM_RELEASE)
-                if(engine->m_RenderProfile)
-                {
-                    DM_PROFILE(Profile, "Draw");
-                    dmProfile::Pause(true);
-
-                    dmProfileRender::UpdateRenderProfile(engine->m_RenderProfile, profile);
-                    dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmProfileRender::Draw(engine->m_RenderProfile, engine->m_RenderContext, engine->m_SystemFontMap);
-                    dmRender::RenderListEnd(engine->m_RenderContext);
-                    dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
-                    dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
-                    dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
-                    dmRender::ClearRenderObjects(engine->m_RenderContext);
-                    dmProfile::Pause(false);
-                }
+                dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, engine->m_SystemFontMap);
 #endif
-
                 if (engine->m_UseSwVsync)
                 {
                     uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
@@ -1513,105 +1500,6 @@ bail:
         return run_result.m_ExitCode;
     }
 
-    static bool DispatchProfileRenderMessages(dmProfileRender::HRenderProfile* render_profile_ptr, const dmMessage::Message* message, const dmDDF::Descriptor* descriptor, uint32_t update_frequency)
-    {
-#if defined(DM_RELEASE)
-        if (descriptor == dmEngineDDF::ToggleProfile::m_DDFDescriptor ||
-            descriptor == dmEngineDDF::ProfilerPause::m_DDFDescriptor ||
-            descriptor == dmEngineDDF::ProfilerResume::m_DDFDescriptor ||
-            descriptor == dmEngineDDF::ProfilerPauseOnPeak::m_DDFDescriptor ||
-            descriptor == dmEngineDDF::ProfilerRecord::m_DDFDescriptor ||
-            descriptor == dmEngineDDF::ProfilerMinimize::m_DDFDescriptor ||
-            descriptor == dmEngineDDF::ProfilerExpand::m_DDFDescriptor ||
-            descriptor == dmEngineDDF::ProfilerSetWaitTime::m_DDFDescriptor ||
-            descriptor == dmEngineDDF::ProfilerAdjustShownFrame::m_DDFDescriptor)
-        {
-            return true;
-        }
-#else
-        if (descriptor == dmEngineDDF::ToggleProfile::m_DDFDescriptor)
-        {
-            if (*render_profile_ptr)
-            {
-                dmProfileRender::DeleteRenderProfile(*render_profile_ptr);
-                *render_profile_ptr = 0x0;
-            }
-            else
-            {
-                *render_profile_ptr = dmProfileRender::NewRenderProfile(update_frequency);
-            }
-            return true;
-        }
-        else if (descriptor == dmEngineDDF::ProfilerPause::m_DDFDescriptor)
-        {
-            if (*render_profile_ptr != 0x0)
-            {
-                dmProfileRender::SetMode(*render_profile_ptr, dmProfileRender::PROFILER_MODE_PAUSE);
-            }
-            return true;
-        }
-        else if (descriptor == dmEngineDDF::ProfilerResume::m_DDFDescriptor)
-        {
-            if (*render_profile_ptr != 0x0)
-            {
-                dmProfileRender::SetMode(*render_profile_ptr, dmProfileRender::PROFILER_MODE_RUN);
-            }
-            return true;
-        }
-        else if (descriptor == dmEngineDDF::ProfilerPauseOnPeak::m_DDFDescriptor)
-        {
-            if (*render_profile_ptr != 0x0)
-            {
-                dmProfileRender::SetMode(*render_profile_ptr, dmProfileRender::PROFILER_MODE_PAUSE_ON_PEAK);
-            }
-            return true;
-        }
-        else if (descriptor == dmEngineDDF::ProfilerRecord::m_DDFDescriptor)
-        {
-            if (*render_profile_ptr != 0x0)
-            {
-                dmProfileRender::SetMode(*render_profile_ptr, dmProfileRender::PROFILER_MODE_RECORD);
-            }
-            return true;
-        }
-        else if (descriptor == dmEngineDDF::ProfilerMinimize::m_DDFDescriptor)
-        {
-            if (*render_profile_ptr != 0x0)
-            {
-                dmProfileRender::SetViewMode(*render_profile_ptr, dmProfileRender::PROFILER_VIEW_MODE_MINIMIZED);
-            }
-            return true;
-        }
-        else if (descriptor == dmEngineDDF::ProfilerExpand::m_DDFDescriptor)
-        {
-            if (*render_profile_ptr != 0x0)
-            {
-                dmProfileRender::SetViewMode(*render_profile_ptr, dmProfileRender::PROFILER_VIEW_MODE_FULL);
-            }
-            return true;
-        }
-        else if (descriptor == dmEngineDDF::ProfilerSetWaitTime::m_DDFDescriptor)
-        {
-            if (*render_profile_ptr != 0x0)
-            {
-                dmEngineDDF::ProfilerSetWaitTime* set_wait_time = (dmEngineDDF::ProfilerSetWaitTime*) message->m_Data;
-                dmProfileRender::SetWaitTime(*render_profile_ptr, set_wait_time->m_Include);
-            }
-            return true;
-        }
-        else if (descriptor == dmEngineDDF::ProfilerAdjustShownFrame::m_DDFDescriptor)
-        {
-            if (*render_profile_ptr != 0x0)
-            {
-                dmEngineDDF::ProfilerAdjustShownFrame* adjust_shown_frame = (dmEngineDDF::ProfilerAdjustShownFrame*) message->m_Data;
-                dmProfileRender::AdjustShownFrame(*render_profile_ptr, adjust_shown_frame->m_Distance);
-            }
-            return true;
-        }
-#endif
-        return false;
-    }
-
     void Dispatch(dmMessage::Message* message, void* user_ptr)
     {
         Engine* self = (Engine*) user_ptr;
@@ -1631,6 +1519,12 @@ bail:
             {
                 dmEngineDDF::Reboot* reboot = (dmEngineDDF::Reboot*) message->m_Data;
                 dmEngine::Reboot(self, reboot);
+            }
+            else if (descriptor == dmEngineDDF::ToggleProfile::m_DDFDescriptor)		
+            {		
+#if !defined(DM_RELEASE)
+                dmProfiler::ToggleProfiler();
+#endif
             }
             else if (descriptor == dmEngineDDF::TogglePhysicsDebug::m_DDFDescriptor)
             {
@@ -1709,7 +1603,8 @@ bail:
                     dmGameObject::LuaLoad(factory, self->m_RenderScriptContext, &run_script->m_Module);
                 }
             }
-            else if (!DispatchProfileRenderMessages(&self->m_RenderProfile, message, descriptor, self->m_UpdateFrequency))
+ // TODO           else if (!DispatchProfileRenderMessages(&self->m_RenderProfile, message, descriptor, self->m_UpdateFrequency))
+             else
             {
                 const dmMessage::URL* sender = &message->m_Sender;
                 const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);

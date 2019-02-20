@@ -17,16 +17,16 @@ namespace dmProfileRender
     typedef struct RenderProfile* HRenderProfile;
 
     enum ProfilerMode {
-        PROFILER_MODE_RUN = 0,
-        PROFILER_MODE_PAUSE = 1,
-        PROFILER_MODE_PAUSE_ON_PEAK = 2,
-        PROFILER_MODE_RECORD = 3
+        PROFILER_MODE_RUN = 1,
+        PROFILER_MODE_PAUSE = 2,
+        PROFILER_MODE_SHOW_PEAK_FRAME = 3,
+        PROFILER_MODE_RECORD = 4
     };
 
     enum ProfilerViewMode
     {
-        PROFILER_VIEW_MODE_FULL = 0,
-        PROFILER_VIEW_MODE_MINIMIZED = 1
+        PROFILER_VIEW_MODE_FULL = 1,
+        PROFILER_VIEW_MODE_MINIMIZED = 2
     };
 
     HRenderProfile NewRenderProfile(float fps);
@@ -35,6 +35,9 @@ namespace dmProfileRender
     void SetViewMode(HRenderProfile render_profile, ProfilerViewMode view_mode);
     void SetWaitTime(HRenderProfile render_profile, bool include_wait_time);
     void AdjustShownFrame(HRenderProfile render_profile, int distance);
+    void ShowRecordedFrame(HRenderProfile render_profile, int frame);
+    int GetRecordedFrameCount(HRenderProfile render_profile);
+    void FlushRecordedFrames(HRenderProfile render_profile);
     void DeleteRenderProfile(HRenderProfile render_profile);
 
     void Draw(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map);

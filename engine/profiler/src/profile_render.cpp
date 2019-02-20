@@ -12,6 +12,7 @@
 #include <dlib/profile.h>
 #include <render/font_renderer.h>
 #include <render/font_ddf.h>
+#include "profile_render.h"
 
 namespace dmProfileRender
 {
@@ -1319,7 +1320,7 @@ namespace dmProfileRender
                     DM_SNPRINTF(&buffer[l], sizeof(buffer) - l, " (Show: %d)", render_profile->m_PlaybackFrame);
                 }
                 break;
-            case PROFILER_MODE_PAUSE_ON_PEAK:
+            case PROFILER_MODE_SHOW_PEAK_FRAME:
                 DM_SNPRINTF(&buffer[l], sizeof(buffer) - l, " (Peak)");
                 break;
             case PROFILER_MODE_RECORD:
@@ -1747,7 +1748,7 @@ namespace dmProfileRender
         ResetStructure(render_profile);
         BuildStructure(profile, render_profile);
 
-        if (render_profile->m_Mode == PROFILER_MODE_PAUSE_ON_PEAK)
+        if (render_profile->m_Mode == PROFILER_MODE_SHOW_PEAK_FRAME)
         {
             float this_frame_time = render_profile->m_BuildFrame->m_FrameTime;
             this_frame_time -= render_profile->m_BuildFrame->m_WaitTime;
@@ -1834,6 +1835,26 @@ namespace dmProfileRender
             GotoRecordedFrame(render_profile, render_profile->m_PlaybackFrame + distance);
             SortStructure(render_profile);
         }
+    }
+
+    void ShowRecordedFrame(HRenderProfile render_profile, int frame)
+    {
+        render_profile->m_Mode = PROFILER_MODE_PAUSE;
+        if (frame > 0)
+        {
+            GotoRecordedFrame(render_profile, frame);
+            SortStructure(render_profile);
+        }
+    }
+
+    int GetRecordedFrameCount(HRenderProfile render_profile)
+    {
+        return render_profile->m_RecordBuffer.Size();
+    }
+
+    void FlushRecordedFrames(HRenderProfile render_profile)
+    {
+        FlushRecording(render_profile, (uint32_t)render_profile->m_FPS);
     }
 
     void DeleteRenderProfile(HRenderProfile render_profile)

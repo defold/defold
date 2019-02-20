@@ -8,7 +8,7 @@ def configure(conf):
 def build(bld):
     embed_source = ''
 
-    source = 'profiler.cpp'
+    source = 'profiler.cpp profile_render.cpp'
 
     if 'darwin' in bld.env.PLATFORM:
         source += ' profiler_cocoa.mm'
@@ -24,6 +24,6 @@ def build(bld):
                             source = source,
                             target = 'profilerext')
 
+    bld.install_files('${PREFIX}/include/profiler', 'profiler.h')
+
     apidoc_extract_task(bld, ['profiler.cpp'])
-
-

@@ -24,7 +24,7 @@ def build(bld):
                           proto_gen_py = True,
                           protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
                           embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins/connect/connect.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
-                          source='engine.cpp engine_main.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto',
+                          source='engine.cpp engine_main.cpp physics_debug_render.cpp ../proto/engine_ddf.proto',
                           uselib_local = 'engine_service')
 
     obj = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
