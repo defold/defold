@@ -30,7 +30,7 @@
            [java.io PushbackReader]
            [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
            [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Matrix4d Vector4d Point3d]))
+           [javax.vecmath Matrix4d Point3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 
