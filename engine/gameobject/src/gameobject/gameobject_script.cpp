@@ -960,6 +960,103 @@ namespace dmGameObject
         return 0;
     }
 
+    /*# sets the parent for a specific game object instance
+     * Sets the parent for a game object instance. This means that the instance will exist in the geometrical space of its parent,
+     * like a basic transformation hierarchy or scene graph. If no parent is specified, the instance will be detached from any parent and exist in world space.
+     *
+     * @name go.set_parent
+     * @param [id] [type:string|hash|url] optional id of the game object instance to set parent for, defaults to the instance containing the calling script
+     * @param [parent_id] [type:string|hash|url] optional id of the new parent game object, defaults to detaching game object from its parent
+     * @param [keep_world_transform] [type:boolean] optional boolean, set to true to maintain the world transform when changing spaces. Defaults to false.
+     * @examples
+     *
+     * Attach myself to another instance "my_parent":
+     *
+     * ```lua
+     * go.set_parent(go.get_id(),go.get_id("my_parent"))
+     * ```
+     *
+     * Attach an instance "my_instance" to another instance "my_parent":
+     *
+     * ```lua
+     * go.set_parent(go.get_id("my_instance"),go.get_id("my_parent"))
+     * ```
+     *
+     * Detach an instance "my_instance" from its parent (if any):
+     *
+     * ```lua
+     * go.set_parent(go.get_id("my_instance"))
+     * ```
+     */
+    int Script_SetParent(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L,0);
+
+        ScriptInstance* i  = ScriptInstance_Check(L);
+        Instance* instance = i->m_Instance;
+
+        dmMessage::URL sender, target;
+        dmScript::GetURL(L, &sender);
+        dmScript::ResolveURL(L, 1, &target, &sender);
+
+        if (target.m_Socket != dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
+        {
+            return DM_LUA_ERROR("go.set_parent can only access instances within the same collection.");
+        }
+
+        HCollection collection    = dmGameObject::GetCollection(instance);
+        Instance* child_instance  = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
+        Instance* parent_instance = 0x0;
+
+        if (!child_instance)
+        {
+            return DM_LUA_ERROR("Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
+        }
+
+        if (lua_gettop(L) > 1 && !lua_isnil(L, 2))
+        {
+            dmScript::ResolveURL(L, 2, &target, &sender);
+            parent_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
+
+            if (!parent_instance)
+            {
+                return DM_LUA_ERROR("Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
+            }
+
+            if (target.m_Socket != dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
+            {
+                return DM_LUA_ERROR("go.set_parent can only access instances within the same collection.");
+            }
+        }
+
+        dmGameObjectDDF::SetParent ddf;
+
+        if (parent_instance)
+        {
+            ddf.m_ParentId           = dmGameObject::GetIdentifier(parent_instance);
+            ddf.m_KeepWorldTransform = lua_toboolean(L, 3);
+        }
+        else
+        {
+            ddf.m_ParentId           = 0;
+            ddf.m_KeepWorldTransform = 0;
+        }
+
+        dmMessage::URL receiver;
+        receiver.m_Socket   = dmGameObject::GetMessageSocket(child_instance->m_Collection->m_HCollection);
+        receiver.m_Path     = dmGameObject::GetIdentifier(child_instance);
+        receiver.m_Fragment = 0;
+
+        if (dmMessage::RESULT_OK != dmMessage::Post(0x0, &receiver, dmGameObjectDDF::SetParent::m_DDFDescriptor->m_NameHash,
+            (uintptr_t) child_instance, (uintptr_t) dmGameObjectDDF::SetParent::m_DDFDescriptor,
+            &ddf, sizeof(dmGameObjectDDF::SetParent), 0))
+        {
+            return DM_LUA_ERROR("Could not send parenting message!");
+        }
+
+        return 0;
+    }
+
     /*# gets the game object instance world position
      * Use [ref:go.get_position] to retrieve the position relative to the parent.
      *
@@ -1743,6 +1840,7 @@ namespace dmGameObject
         {"set_position",            Script_SetPosition},
         {"set_rotation",            Script_SetRotation},
         {"set_scale",               Script_SetScale},
+        {"set_parent",              Script_SetParent},
         {"get_world_position",      Script_GetWorldPosition},
         {"get_world_rotation",      Script_GetWorldRotation},
         {"get_world_scale",         Script_GetWorldScale},
