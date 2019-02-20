@@ -411,9 +411,7 @@ namespace dmEngine
     {
         engine->m_UpdateFrequency = frequency;
         engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
-#if !defined(DM_RELEASE)
         dmProfiler::SetUpdateFrequency(engine->m_UpdateFrequency);
-#endif
     }
 
     /*
@@ -1336,9 +1334,8 @@ bail:
                     dmEngineService::Update(engine->m_EngineService, profile);
                 }
 
-#if !defined(DM_RELEASE)
                 dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, engine->m_SystemFontMap);
-#endif
+
                 if (engine->m_UseSwVsync)
                 {
                     uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
@@ -1522,9 +1519,7 @@ bail:
             }
             else if (descriptor == dmEngineDDF::ToggleProfile::m_DDFDescriptor)		
             {		
-#if !defined(DM_RELEASE)
                 dmProfiler::ToggleProfiler();
-#endif
             }
             else if (descriptor == dmEngineDDF::TogglePhysicsDebug::m_DDFDescriptor)
             {
