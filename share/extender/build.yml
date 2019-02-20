@@ -90,7 +90,7 @@ platforms:
     writeExePattern: 'dmengine'
     symbolsPattern: '.*dSYM'
     zipContentPattern: 'dmengine'
-    allowedLibs:    ["(\\w[\\w\\.-]+)"]
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags: ["-ObjC","-ObjC++","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-f(no-)?objc-arc(-exceptions)?","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-Wl,[-_a-zA-Z0-9]+","-fno-rtti"]
     compileCmd: 'clang++ -c -arch x86_64 -target x86_64-apple-darwin12 -isysroot {{env.PLATFORMSDK_DIR}}/MacOSX10.13.sdk/ -m64 -O2 -g -mmacosx-version-min=10.7 {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
     linkCmd: 'clang++ -arch x86_64 -target x86_64-apple-darwin12 -isysroot {{env.PLATFORMSDK_DIR}}/MacOSX10.13.sdk/ -m64 -O2 -g -mmacosx-version-min=10.7 -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#src}}{{{.}}} {{/src}}'
@@ -124,7 +124,7 @@ platforms:
     writeExePattern: 'dmengine'
     symbolsPattern: '.*dSYM'
     zipContentPattern: 'dmengine'
-    allowedLibs:    ["(\\w[\\w\\.-]+)"]
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags: ["-ObjC","-ObjC++","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-f(no-)?objc-arc(-exceptions)?","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-Wl,[-_a-zA-Z0-9]+","-fno-rtti"]
     compileCmd: 'clang++ -c -arch arm64 -target arm-apple-darwin12 -isysroot {{env.PLATFORMSDK_DIR}}/iPhoneOS12.1.sdk/ -m64 -O2 -g -stdlib=libc++ -miphoneos-version-min=8.0 {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
     linkCmd: 'clang++ -arch arm64 -target arm-apple-darwin12 -isysroot {{env.PLATFORMSDK_DIR}}/iPhoneOS12.1.sdk/ -m64 -O2 -g -stdlib=libc++ -miphoneos-version-min=8.0 -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#weakFrameworks}}-weak_framework {{{.}}} {{/weakFrameworks}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
@@ -155,7 +155,7 @@ platforms:
     writeExePattern: 'dmengine'
     symbolsPattern: '.*dSYM'
     zipContentPattern: 'dmengine'
-    allowedLibs:    ["(\\w[\\w\\.-]+)"]
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags: ["-ObjC","-ObjC++","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-f(no-)?objc-arc(-exceptions)?","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-Wl,[-_a-zA-Z0-9]+","-fno-rtti"]
     compileCmd: 'clang++ -c -arch armv7 -target arm-apple-darwin12 -isysroot {{env.PLATFORMSDK_DIR}}/iPhoneOS12.1.sdk/ -m32 -g -O2 -stdlib=libc++ -miphoneos-version-min=8.0 {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
     linkCmd: 'clang++ -arch armv7 -target arm-apple-darwin12 -isysroot {{env.PLATFORMSDK_DIR}}/iPhoneOS12.1.sdk/ -m32 -g -O2 -stdlib=libc++ -miphoneos-version-min=8.0 -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#weakFrameworks}}-weak_framework {{{.}}} {{/weakFrameworks}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
@@ -187,8 +187,7 @@ platforms:
     writeLibPattern: 'lib%s.a'
     writeExePattern: 'libdmengine.so'
     zipContentPattern: 'libdmengine.so'
-    symbolsPattern: 'mapping.txt'
-    allowedLibs:    ["(\\w[\\w\\.-]+)"]
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags: ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9]+","-fno-rtti","-fpermissive"]
     compileCmd: 'arm-linux-androideabi-g++ -c -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -Wno-psabi -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -fomit-frame-pointer -fno-strict-aliasing -finline-limit=64 -funwind-tables --sysroot={{android_sysroot}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
     linkCmd: 'arm-linux-androideabi-g++ --sysroot={{android_sysroot}} {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--fix-cortex-a8 -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -lgnustl_static -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -shared'
@@ -224,7 +223,7 @@ platforms:
     writeExePattern: 'dmengine.js'
     symbolsPattern:  'dmengine.js.symbols'
     zipContentPattern: 'dmengine.js'
-    allowedLibs:    ["(\\w[\\w\\.-]+)"]
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)"]
     compileCmd:     '{{env.EMSCRIPTEN_BIN}}/em++ -c -O3 -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o {{tgt}}'
     linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/js-web/js/library_{{{.}}}.js {{/engineJsLibs}}'
@@ -257,7 +256,7 @@ platforms:
     writeExePattern: 'dmengine.js'
     symbolsPattern:  'dmengine.js.symbols'
     zipContentPattern: 'dmengine.(wasm|js)'
-    allowedLibs:    ["(\\w[\\w\\.-]+)"]
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)"]
     compileCmd:     '{{env.EMSCRIPTEN_BIN}}/em++ -c -O3 -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o {{tgt}}'
     linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/wasm-web/js/library_{{{.}}}.js {{/engineJsLibs}}'
@@ -286,7 +285,7 @@ platforms:
     writeLibPattern: '%s.lib'
     writeExePattern: 'dmengine.exe'
     zipContentPattern: 'dmengine.exe'
-    allowedLibs:    ["(\\w[\\w\\.-]+)"]
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9]+","-fno-rtti","-fpermissive","-Wl,/subsystem:(console|windows)","-Wl,/entry:\\w+","-f\\w[\\w-]+"]
     compileCmd:     'clang++ -target x86_64-pc-win32-msvc -m64 -g -gcodeview {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#platformIncludes}}-isystem {{{.}}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
     linkCmd:        'clang++ -target x86_64-pc-win32-msvc -m64 -g -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
@@ -316,7 +315,7 @@ platforms:
     writeLibPattern: '%s.lib'
     writeExePattern: 'dmengine.exe'
     zipContentPattern: 'dmengine.exe'
-    allowedLibs:    ["(\\w[\\w\\.-]+)"]
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9,]+","-fno-rtti","-fpermissive","-Wl,/subsystem:(console|windows)","-Wl,/entry:\\w+","-f\\w[\\w-]+"]
     compileCmd:     'clang++ -target i386-pc-win32-msvc -m32 -g -gcodeview {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#platformIncludes}}-isystem {{{.}}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
     linkCmd:        'clang++ -target i386-pc-win32-msvc -m32 -g -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
@@ -349,7 +348,7 @@ platforms:
     writeLibPattern: 'lib%s.a'
     writeExePattern: 'dmengine'
     zipContentPattern: 'dmengine'
-    allowedLibs:    ["(\\w[\\w\\.-]+)"]
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9]+","-fno-rtti","-fpermissive"]
     compileCmd:     '/usr/bin/g++ {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
     linkCmd:        '/usr/bin/g++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} -Wl,--end-group -Wl,-Bdynamic {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}}'
