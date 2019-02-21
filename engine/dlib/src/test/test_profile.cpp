@@ -388,31 +388,19 @@ TEST(dmProfile, DynamicScope)
 
     dmProfile::Initialize(128, 1024 * 1024, 16);
 
-    dmProfile::Scope* scope0 = dmProfile::AllocateScope(SCOPE_NAMES[0]);
-    dmProfile::Scope* scope1 = dmProfile::AllocateScope(SCOPE_NAMES[1]);
-
     dmProfile::HProfile profile = dmProfile::Begin();
     dmProfile::Release(profile);
-
-    char name0[128];
-    DM_SNPRINTF(name0, sizeof(name0), "%s@%s", "test.script", FUNCTION_NAMES[0]);
-
-    char name1[128];
-    DM_SNPRINTF(name1, sizeof(name1), "%s@%s", "test.script", FUNCTION_NAMES[1]);
-
-    char name2[128];
-    DM_SNPRINTF(name2, sizeof(name2), "%s@%s", "test.script", FUNCTION_NAMES[2]);
 
     for (uint i = 0; i < 10 ; ++i)
     {
         {
-            DM_PROFILE_SCOPE(scope0, name0);
-            DM_PROFILE_SCOPE(scope1, name1);
+            DM_PROFILE_FMT(Scope1, "%s@%s", "test.script", FUNCTION_NAMES[0]);
+            DM_PROFILE_FMT(Scope2, "%s@%s", "test.script", FUNCTION_NAMES[1]);
         }
         {
-            DM_PROFILE_SCOPE(scope1, name2);
+            DM_PROFILE_FMT(Scope2, "%s@%s", "test.script", FUNCTION_NAMES[2]);
         }
-        DM_PROFILE_SCOPE(scope0, name0);
+        DM_PROFILE_FMT(Scope1, "%s@%s", "test.script", FUNCTION_NAMES[0]);
     }
 
     std::vector<dmProfile::Sample> samples;
@@ -426,16 +414,36 @@ TEST(dmProfile, DynamicScope)
     ASSERT_EQ(10U * 2, scopes[SCOPE_NAMES[0]]->m_Count);
     ASSERT_EQ(10U * 2, scopes[SCOPE_NAMES[1]]->m_Count);
 
+    char name0[128];
+    DM_SNPRINTF(name0, sizeof(name0), "%s@%s", "test.script", FUNCTION_NAMES[0]);
+
+    char name1[128];
+    DM_SNPRINTF(name1, sizeof(name1), "%s@%s", "test.script", FUNCTION_NAMES[1]);
+
+    char name2[128];
+    DM_SNPRINTF(name2, sizeof(name2), "%s@%s", "test.script", FUNCTION_NAMES[2]);
+
     for (size_t i = 0; i < samples.size(); i++)
     {
         dmProfile::Sample* sample = &samples[i];
-        if (sample->m_Scope == scope0)
+        if (sample->m_Scope->m_NameHash == dmProfile::GetNameHash("Scope1"))
         {
             ASSERT_STREQ(sample->m_Name, name0);
         }
-        else if (sample->m_Scope == scope1)
+        else if (sample->m_Scope->m_NameHash == dmProfile::GetNameHash("Scope2"))
         {
-            ASSERT_TRUE(sample->m_Name == name1 || sample->m_Name == name2);
+            if (sample->m_NameHash == dmProfile::GetNameHash(name1))
+            {
+                ASSERT_STREQ(sample->m_Name, name1);
+            }
+            else if (sample->m_NameHash == dmProfile::GetNameHash(name2))
+            {
+                ASSERT_STREQ(sample->m_Name, name2);
+            }
+            else
+            {
+                ASSERT_TRUE(false);
+            }
         }
         else
         {
