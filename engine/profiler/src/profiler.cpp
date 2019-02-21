@@ -437,12 +437,7 @@ static dmExtension::Result UpdateProfiler(dmExtension::Params* params)
 
 static dmExtension::Result FinalizeProfiler(dmExtension::Params* params)
 {
-    if (dmProfiler::gRenderProfile)
-    {
-        dmProfileRender::DeleteRenderProfile(dmProfiler::gRenderProfile);
-        dmProfiler::gRenderProfile = 0;
-    }
-
+    dmProfiler::ShutdownRenderProfile();
     return dmExtension::RESULT_OK;
 }
 
