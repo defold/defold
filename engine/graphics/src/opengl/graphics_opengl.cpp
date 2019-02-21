@@ -586,7 +586,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #undef GET_PROC_ADDRESS
 #endif
 
+#if !defined(__EMSCRIPTEN__)
         glfwSetWindowTitle(params->m_Title);
+#endif
+        
         glfwSetWindowSizeCallback(OnWindowResize);
         glfwSetWindowCloseCallback(OnWindowClose);
         glfwSetWindowFocusCallback(OnWindowFocus);

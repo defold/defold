@@ -9,7 +9,8 @@
             [editor.gl.vertex :as vtx]
             [editor.gl.pass :as pass]
             [editor.math :as math]
-            [editor.prefs :as prefs])
+            [editor.prefs :as prefs]
+            [editor.scene-picking :as scene-picking])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Camera AABB Region Rect]
@@ -78,7 +79,7 @@
     (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
 
 (shader/defshader fragment-shader
-  (uniform vec4 color)
+  (uniform vec4 color) ; `color` also used in selection pass to render picking id
   (defn void main []
     (setq gl_FragColor color)))
 
@@ -143,21 +144,25 @@
     :local manip-world-rotation
     :world geom/NoRotation))
 
-(defn render-manips [^GL2 gl render-args renderables count]
+(defn render-manips [^GL2 gl render-args renderables n]
   (let [camera (:camera render-args)
         renderable (first renderables)
         world-transform (:world-transform renderable)
         user-data (:user-data renderable)
         manip (:manip user-data)
         manip-rotation (:manip-rotation user-data)
-        color (:color user-data)
+        color (if (= (:pass render-args) pass/manipulator-selection)
+                (scene-picking/picking-id->color (:picking-id renderable))
+                (:color user-data))
         vertex-buffers (:vertex-buffers user-data)]
     (when (manip-visible? manip manip-rotation (c/camera-view-matrix camera))
       (gl/gl-push-matrix gl
         (gl/gl-mult-matrix-4d gl world-transform)
         (doseq [[mode vertex-buffer vertex-count] vertex-buffers
                 :let [vertex-binding (vtx/use-with mode vertex-buffer shader)
-                      color (if (#{GL/GL_LINES GL/GL_POINTS} mode) (float-array (assoc color 3 1.0)) (float-array color))]
+                      color (if (#{GL/GL_LINES GL/GL_POINTS} mode)
+                              (float-array (assoc color 3 1.0))
+                              (float-array color))]
                 :when (> vertex-count 0)]
           (gl/with-gl-bindings gl render-args [shader vertex-binding]
             (shader/set-uniform shader gl "color" color)

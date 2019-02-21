@@ -1,41 +1,41 @@
 (ns editor.debug-view
-  (:require
-   [clojure.java.io :as io]
-   [clojure.set :as set]
-   [clojure.string :as str]
-   [dynamo.graph :as g]
-   [editor.console :as console]
-   [editor.core :as core]
-   [editor.debugging.mobdebug :as mobdebug]
-   [editor.defold-project :as project]
-   [editor.dialogs :as dialogs]
-   [editor.engine :as engine]
-   [editor.handler :as handler]
-   [editor.lua :as lua]
-   [editor.protobuf :as protobuf]
-   [editor.resource :as resource]
-   [editor.ui :as ui]
-   [editor.workspace :as workspace]
-   [service.log :as log])
-  (:import
-   (com.dynamo.lua.proto Lua$LuaModule)
-   (java.nio.file Files)
-   (javafx.scene Parent)
-   (javafx.scene.control Button Label ListView TreeItem TreeView SplitPane)
-   (javafx.scene.layout HBox Pane Priority)
-   (org.apache.commons.io FilenameUtils)))
+  (:require [clojure.java.io :as io]
+            [clojure.set :as set]
+            [clojure.string :as str]
+            [dynamo.graph :as g]
+            [editor.console :as console]
+            [editor.core :as core]
+            [editor.debugging.mobdebug :as mobdebug]
+            [editor.defold-project :as project]
+            [editor.dialogs :as dialogs]
+            [editor.engine :as engine]
+            [editor.handler :as handler]
+            [editor.lua :as lua]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.targets :as targets]
+            [editor.ui :as ui]
+            [editor.workspace :as workspace]
+            [service.log :as log])
+  (:import [com.dynamo.lua.proto Lua$LuaModule]
+           [java.nio.file Files]
+           [javafx.scene Parent]
+           [javafx.scene.control Button Label ListView TreeItem TreeView SplitPane]
+           [javafx.scene.layout HBox Pane Priority]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* false)
 
-(defonce ^:private ^String attach-debugger-label "Attach Debugger")
-(defonce ^:private ^String break-label "Break")
-(defonce ^:private ^String continue-label "Continue")
-(defonce ^:private ^String detach-debugger-label "Detach Debugger")
-(defonce ^:private ^String start-debugger-label "Run with Debugger")
-(defonce ^:private ^String step-into-label "Step Into")
-(defonce ^:private ^String step-out-label "Step Out")
-(defonce ^:private ^String step-over-label "Step Over")
-(defonce ^:private ^String stop-debugger-label "Stop Debugger")
+(def ^:private attach-debugger-label "Attach Debugger")
+(def ^:private break-label "Break")
+(def ^:private continue-label "Continue")
+(def ^:private detach-debugger-label "Detach Debugger")
+(def ^:private start-debugger-label "Run with Debugger")
+(def ^:private step-into-label "Step Into")
+(def ^:private step-out-label "Step Out")
+(def ^:private step-over-label "Step Over")
+(def ^:private stop-debugger-label "Stop Debugger")
+(def ^:private open-web-profiler-label "Open Web Profiler")
 
 (defn- single [coll]
   (when (nil? (next coll)) (first coll)))
@@ -462,6 +462,13 @@
   (enabled? [debug-view] (current-session debug-view))
   (run [debug-view] (mobdebug/exit! (current-session debug-view))))
 
+(handler/defhandler :open-web-profiler :global
+  (enabled? [prefs]
+    (some? (targets/selected-target prefs)))
+  (run [prefs]
+    (let [address (:address (targets/selected-target prefs))]
+      (ui/open-url (format "http://%s:8002/" address)))))
+
 (ui/extend-menu ::menubar :editor.defold-project/project
                 [{:label "Debug"
                   :id ::debug
@@ -483,4 +490,7 @@
                              {:label detach-debugger-label
                               :command :detach-debugger}
                              {:label stop-debugger-label
-                              :command :stop-debugger}]}])
+                              :command :stop-debugger}
+                             {:label :separator}
+                             {:label open-web-profiler-label
+                              :command :open-web-profiler}]}])

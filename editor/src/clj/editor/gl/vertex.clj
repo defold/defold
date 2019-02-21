@@ -484,24 +484,6 @@ the `do-gl` macro from `editor.gl`."
   (util/first-index-where (fn [[name-sym]] (= attribute-name (name name-sym)))
                           attributes))
 
-(defn- bind-vertex-buffer! [^GL2 gl request-id ^PersistentVertexBuffer vertex-buffer]
-  (let [vbo (scene-cache/request-object! ::vbo request-id gl vertex-buffer)
-        attributes (:attributes (.layout vertex-buffer))
-        position-index (find-attribute-index "position" attributes)]
-    (when (some? position-index)
-      (let [offsets (reductions + 0 (attribute-sizes attributes))
-            stride (vertex-size attributes)
-            position-attribute (nth attributes position-index)
-            position-offset (nth offsets position-index)
-            [_ sz tp] position-attribute]
-        (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
-        (.glVertexPointer gl ^int sz ^int (gl-types tp) ^int stride ^long position-offset)
-        (.glEnableClientState gl GL2/GL_VERTEX_ARRAY)))))
-
-(defn- unbind-vertex-buffer! [^GL2 gl]
-  (.glDisableClientState gl GL2/GL_VERTEX_ARRAY)
-  (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0))
-
 (defn- bind-vertex-buffer-with-shader! [^GL2 gl request-id ^PersistentVertexBuffer vertex-buffer shader]
   (let [vbo (scene-cache/request-object! ::vbo request-id gl vertex-buffer)]
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
@@ -519,14 +501,10 @@ the `do-gl` macro from `editor.gl`."
 (defrecord VertexBufferShaderLink [request-id ^PersistentVertexBuffer vertex-buffer shader]
   GlBind
   (bind [_this gl render-args]
-    (if (types/selection? (:pass render-args))
-      (bind-vertex-buffer! gl request-id vertex-buffer)
-      (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)))
+    (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader))
 
   (unbind [_this gl render-args]
-    (if (types/selection? (:pass render-args))
-      (unbind-vertex-buffer! gl)
-      (unbind-vertex-buffer-with-shader! gl vertex-buffer shader))))
+    (unbind-vertex-buffer-with-shader! gl vertex-buffer shader)))
 
 (defn use-with
   "Return a GlBind implementation that can match vertex buffer attributes to the

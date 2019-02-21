@@ -626,6 +626,7 @@ namespace dmGraphics
     void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
     inline uint32_t GetBufferTypeIndex(BufferType buffer_type);
+    inline const char* GetBufferTypeLiteral(BufferType buffer_type);
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format);
     HTexture NewTexture(HContext context, const TextureCreationParams& params);
@@ -674,6 +675,17 @@ namespace dmGraphics
      * @param buffer_size buffer size
      */
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
+
+    const char* GetBufferTypeLiteral(BufferType buffer_type)
+    {
+        switch (buffer_type)
+        {
+            case BUFFER_TYPE_COLOR_BIT: return "BUFFER_TYPE_COLOR_BIT";
+            case BUFFER_TYPE_DEPTH_BIT: return "BUFFER_TYPE_DEPTH_BIT";
+            case BUFFER_TYPE_STENCIL_BIT: return "BUFFER_TYPE_STENCIL_BIT";
+            default: return "<unknown buffer type>";
+        }
+    }
 
     uint32_t GetBufferTypeIndex(BufferType buffer_type)
     {

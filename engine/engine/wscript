@@ -124,6 +124,7 @@ namespace dmEngineVersion
     conf.env['STATICLIB_WEBVIEWEXT'] = 'webviewext'
     conf.env['STATICLIB_IACEXT'] = 'iacext'
     conf.env['STATICLIB_PROFILEREXT'] = 'profilerext'
+    conf.env['STATICLIB_PROFILEREXT_NULL'] = 'profilerext_null'
 
     conf.env['STATICLIB_TREMOLO'] = 'tremolo'
     conf.env['STATICLIB_TRACKING'] = 'tracking'
