@@ -9,7 +9,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/static_assert.h> // ANALYZE_USE_POINTER
 
-#define DM_PROFILE_PASTE(x, y) x##y
+#define DM_PROFILE_PASTE(x, y) x ## y
 #define DM_PROFILE_PASTE2(x, y) DM_PROFILE_PASTE(x, y)
 
 /**
@@ -77,8 +77,7 @@
         static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : 0; \
         const char* DM_PROFILE_PASTE2(name, __LINE__)               = 0; \
         static uint32_t DM_PROFILE_PASTE2(hash, __LINE__)           = 0; \
-        if (dmProfile::g_IsInitialized) \
-        { \
+        if (dmProfile::g_IsInitialized) { \
             char buffer[128]; \
             DM_SNPRINTF(buffer, sizeof(buffer), fmt, __VA_ARGS__); \
             DM_PROFILE_PASTE2(name, __LINE__) = dmProfile::Internalize(buffer); \
@@ -87,15 +86,13 @@
         DM_PROFILE_SCOPE(DM_PROFILE_PASTE2(scope, __LINE__), DM_PROFILE_PASTE2(name, __LINE__), DM_PROFILE_PASTE2(hash, __LINE__))
 
     #define DM_COUNTER(name, amount) \
-        if (dmProfile::g_IsInitialized) \
-        { \
+        if (dmProfile::g_IsInitialized) { \
             static const uint32_t DM_PROFILE_PASTE2(hash, __LINE__) = dmProfile::GetNameHash(name); \
             dmProfile::AddCounterHash(name, DM_PROFILE_PASTE2(hash, __LINE__), amount); \
         }
 
     #define DM_COUNTER_DYN(name, name_hash, amount) \
-        if (dmProfile::g_IsInitialized) \
-        { \
+        if (dmProfile::g_IsInitialized) { \
             dmProfile::AddCounterHash(name, name_hash, amount); \
         }
 #endif
@@ -115,11 +112,11 @@ namespace dmProfile
         /// Scope name
         const char* m_Name;
         /// Scope name hash
-        uint32_t m_NameHash;
+        uint32_t    m_NameHash;
         /// Scope index, range [0, scopes-1]
-        uint16_t m_Index;
+        uint16_t    m_Index;
         /// Internal data
-        void* m_Internal;
+        void*       m_Internal;
     };
 
     /**
@@ -128,7 +125,7 @@ namespace dmProfile
     struct ScopeData
     {
         /// The scope
-        Scope* m_Scope;
+        Scope*   m_Scope;
         /// Total time spent in scope (in ticks) summed over all threads
         uint32_t m_Elapsed;
         /// Occurrences of this scope summed over all threads
@@ -143,17 +140,17 @@ namespace dmProfile
         /// Sample name
         const char* m_Name;
         /// Sampled within scope
-        Scope* m_Scope;
+        Scope*      m_Scope;
         /// Start time in ticks
-        uint32_t m_Start;
+        uint32_t    m_Start;
         /// Elapsed time in ticks
-        uint32_t m_Elapsed;
+        uint32_t    m_Elapsed;
         /// Sample name hash
-        uint32_t m_NameHash;
+        uint32_t    m_NameHash;
         /// Thread id this sample belongs to
-        uint16_t m_ThreadId;
+        uint16_t    m_ThreadId;
         /// Padding to 64-bit align
-        uint16_t m_Pad;
+        uint16_t    m_Pad;
     };
 
     /**
@@ -164,7 +161,7 @@ namespace dmProfile
         /// Counter name
         const char* m_Name;
         /// Counter name hash
-        uint32_t m_NameHash;
+        uint32_t    m_NameHash;
     };
 
     /**
@@ -173,9 +170,9 @@ namespace dmProfile
     struct CounterData
     {
         /// The counter
-        Counter* m_Counter;
+        Counter*        m_Counter;
         /// Counter value
-        int32_atomic_t m_Value;
+        int32_atomic_t  m_Value;
     };
 
     /**

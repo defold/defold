@@ -5,7 +5,7 @@
 
 #if defined(_WIN32)
 #include "safe_windows.h"
-#elif defined(__EMSCRIPTEN__)
+#elif  defined(__EMSCRIPTEN__)
 #include <emscripten.h>
 #else
 #include <sys/time.h>
@@ -33,11 +33,11 @@ namespace dmProfile
 
     struct Profile
     {
-        dmArray<Sample> m_Samples;
+        dmArray<Sample>      m_Samples;
         dmArray<CounterData> m_CountersData;
-        dmArray<ScopeData> m_ScopesData;
-        uint32_t m_ScopeCount;
-        uint32_t m_CounterCount;
+        dmArray<ScopeData>   m_ScopesData;
+        uint32_t             m_ScopeCount;
+        uint32_t             m_CounterCount;
     };
 
     // Default profile if not dmProfile::Initialize is invoked
@@ -53,20 +53,20 @@ namespace dmProfile
     dmHashTable<uintptr_t, const char*> g_StringTable;
     dmStringPool::HPool g_StringPool = 0;
 
-    uint32_t g_BeginTime           = 0;
-    uint64_t g_TicksPerSecond      = 1000000;
-    float g_FrameTime              = 0.0f;
-    float g_MaxFrameTime           = 0.0f;
+    uint32_t g_BeginTime = 0;
+    uint64_t g_TicksPerSecond = 1000000;
+    float g_FrameTime = 0.0f;
+    float g_MaxFrameTime = 0.0f;
     uint32_t g_MaxFrameTimeCounter = 0;
-    bool g_OutOfScopes             = false;
-    bool g_OutOfSamples            = false;
-    bool g_OutOfCounters           = false;
-    bool g_IsInitialized           = false;
-    bool g_Paused                  = false;
+    bool g_OutOfScopes = false;
+    bool g_OutOfSamples = false;
+    bool g_OutOfCounters = false;
+    bool g_IsInitialized = false;
+    bool g_Paused = false;
     dmSpinlock::lock_t g_ProfileLock;
 
     dmThread::TlsKey g_TlsKey = dmThread::AllocTls();
-    uint32_t g_ThreadCount    = 0;
+    uint32_t g_ThreadCount = 0;
 
     // Used when out of scopes in order to remove conditional branches
     ScopeData g_DummyScopeData;
@@ -121,7 +121,7 @@ namespace dmProfile
             p->m_ScopesData.SetCapacity(max_scopes);
             p->m_ScopesData.SetSize(max_scopes);
 
-            p->m_ScopeCount   = 0;
+            p->m_ScopeCount = 0;
             p->m_CounterCount = 0;
 
             g_FreeProfiles.Push(p);
@@ -140,9 +140,9 @@ namespace dmProfile
         uint32_t n = g_Scopes.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
-            ScopeData* scope_data                    = &g_ActiveProfile->m_ScopesData[i];
-            scope_data->m_Elapsed                    = 0;
-            scope_data->m_Count                      = 0;
+            ScopeData* scope_data = &g_ActiveProfile->m_ScopesData[i];
+            scope_data->m_Elapsed = 0;
+            scope_data->m_Count = 0;
             g_ActiveProfile->m_ScopesData[i].m_Scope = &g_Scopes[i];
         }
 
@@ -184,13 +184,13 @@ namespace dmProfile
         g_StringTable.Clear();
         if (g_StringPool != 0)
             dmStringPool::Delete(g_StringPool);
-        g_StringPool    = 0;
+        g_StringPool = 0;
         g_IsInitialized = false;
     }
 
     static void CalculateScopeProfileThread(Profile* profile, const uint32_t* key, uint8_t* value)
     {
-        const uint32_t n_scopes  = g_Scopes.Size();
+        const uint32_t n_scopes = g_Scopes.Size();
         const uint32_t n_samples = profile->m_Samples.Size();
         const uint32_t thread_id = *key;
 
@@ -234,7 +234,7 @@ namespace dmProfile
                 // If overlapping ignore the sample. We are only interested in the
                 // total time spent in top scope
                 Sample* last_sample = (Sample*)scope->m_Internal;
-                uint32_t end_last   = last_sample->m_Start + last_sample->m_Elapsed;
+                uint32_t end_last = last_sample->m_Start + last_sample->m_Elapsed;
                 if (sample->m_Start >= last_sample->m_Start && sample->m_Start < end_last)
                 {
                     // New simple within, ignore
@@ -274,17 +274,17 @@ namespace dmProfile
             if (g_Scopes.Size() > 0)
             {
                 float millisPerTick = (float)(1000.0 / g_TicksPerSecond);
-                g_FrameTime         = profile->m_ScopesData[0].m_Elapsed * millisPerTick;
+                g_FrameTime = profile->m_ScopesData[0].m_Elapsed * millisPerTick;
                 for (uint32_t i = 1; i < g_Scopes.Size(); ++i)
                 {
-                    float time  = profile->m_ScopesData[i].m_Elapsed * millisPerTick;
+                    float time = profile->m_ScopesData[i].m_Elapsed * millisPerTick;
                     g_FrameTime = dmMath::Select(g_FrameTime - time, g_FrameTime, time);
                 }
                 ++g_MaxFrameTimeCounter;
                 if (g_MaxFrameTimeCounter > 60 || g_FrameTime > g_MaxFrameTime)
                 {
                     g_MaxFrameTimeCounter = 0;
-                    g_MaxFrameTime        = g_FrameTime;
+                    g_MaxFrameTime = g_FrameTime;
                 }
             }
             else
@@ -298,7 +298,7 @@ namespace dmProfile
     {
         // First pass is to determine count of active threads
         const uint32_t table_size = 16;
-        const uint32_t capacity   = 64;
+        const uint32_t capacity = 64;
         typedef dmHashTable<uint32_t, uint8_t> ActiveThreadsT;
         char hash_buf[table_size * sizeof(uint32_t) + capacity * sizeof(ActiveThreadsT::Entry)];
 
@@ -333,8 +333,8 @@ namespace dmProfile
 
         CalculateScopeProfile(g_ActiveProfile);
 
-        Profile* ret        = g_ActiveProfile;
-        ret->m_ScopeCount   = g_Scopes.Size();
+        Profile* ret = g_ActiveProfile;
+        ret->m_ScopeCount = g_Scopes.Size();
         ret->m_CounterCount = g_Counters.Size();
 
         int wait_count = 0;
@@ -359,9 +359,9 @@ namespace dmProfile
         uint32_t n = g_Scopes.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
-            ScopeData* scope_data            = &profile->m_ScopesData[i];
-            scope_data->m_Elapsed            = 0;
-            scope_data->m_Count              = 0;
+            ScopeData* scope_data = &profile->m_ScopesData[i];
+            scope_data->m_Elapsed = 0;
+            scope_data->m_Count = 0;
             profile->m_ScopesData[i].m_Scope = &g_Scopes[i];
         }
 
@@ -369,15 +369,15 @@ namespace dmProfile
         for (uint32_t i = 0; i < n; ++i)
         {
             profile->m_CountersData[i].m_Counter = &g_Counters[i];
-            profile->m_CountersData[i].m_Value   = 0;
+            profile->m_CountersData[i].m_Value = 0;
         }
 
         profile->m_Samples.SetSize(0);
 
         g_BeginTime = GetNowTicks();
 
-        g_OutOfScopes   = false;
-        g_OutOfSamples  = false;
+        g_OutOfScopes = false;
+        g_OutOfSamples = false;
         g_OutOfCounters = false;
 
         dmSpinlock::Unlock(&g_ProfileLock);
@@ -429,14 +429,14 @@ namespace dmProfile
 
             uint32_t i = g_Scopes.Size();
             g_Scopes.SetSize(i + 1);
-            Scope* s      = &g_Scopes[i];
+            Scope* s = &g_Scopes[i];
             ScopeData* sd = &g_ActiveProfile->m_ScopesData[i];
-            sd->m_Scope   = s;
+            sd->m_Scope = s;
             sd->m_Elapsed = 0;
-            sd->m_Count   = 0;
-            s->m_Name     = name;
+            sd->m_Count = 0;
+            s->m_Name = name;
             s->m_NameHash = name_hash;
-            s->m_Index    = i;
+            s->m_Index = i;
             dmSpinlock::Unlock(&g_ProfileLock);
             return s;
         }
@@ -472,7 +472,7 @@ namespace dmProfile
             {
                 // NOTE: We store thread_id + 1. Otherwise we can't differentiate between thread-id 0 and not initialized
                 int32_t next_thread_id = ++g_ThreadCount;
-                void* thread_id        = (void*)((uintptr_t)next_thread_id);
+                void* thread_id = (void*)((uintptr_t)next_thread_id);
                 dmThread::SetTlsValue(g_TlsKey, thread_id);
                 tls_data = thread_id;
             }
@@ -481,7 +481,7 @@ namespace dmProfile
 
             uint32_t size = profile->m_Samples.Size();
             profile->m_Samples.SetSize(size + 1);
-            Sample* ret     = &profile->m_Samples[size];
+            Sample* ret = &profile->m_Samples[size];
             ret->m_ThreadId = thread_id;
             dmSpinlock::Unlock(&g_ProfileLock);
             return ret;
@@ -541,13 +541,13 @@ namespace dmProfile
             uint32_t new_index = g_Counters.Size();
             g_Counters.SetSize(new_index + 1);
 
-            Counter* c    = &g_Counters[new_index];
-            c->m_Name     = name;
+            Counter* c = &g_Counters[new_index];
+            c->m_Name = name;
             c->m_NameHash = name_hash;
 
             CounterData* cd = &profile->m_CountersData[new_index];
-            cd->m_Counter   = c;
-            cd->m_Value     = 0;
+            cd->m_Counter = c;
+            cd->m_Value = 0;
 
             g_CountersTable.Put(c->m_NameHash, new_index);
 
@@ -598,12 +598,10 @@ namespace dmProfile
         }
     }
 
-    struct ScopeSorter
-    {
+    struct ScopeSorter {
         ScopeSorter(HProfile profile)
             : m_Profile(profile)
-        {
-        }
+        {}
         bool operator()(uint32_t a, uint32_t b) const
         {
             return m_Profile->m_ScopesData[b].m_Elapsed < m_Profile->m_ScopesData[a].m_Elapsed;
@@ -640,16 +638,14 @@ namespace dmProfile
         }
     }
 
-    struct SampleSorter
-    {
+    struct SampleSorter {
         SampleSorter(HProfile profile)
             : m_Profile(profile)
-        {
-        }
+        {}
         bool operator()(uint32_t a, uint32_t b) const
         {
-            const Sample* sample_a        = &m_Profile->m_Samples[a];
-            const Sample* sample_b        = &m_Profile->m_Samples[b];
+            const Sample* sample_a = &m_Profile->m_Samples[a];
+            const Sample* sample_b = &m_Profile->m_Samples[b];
             const ScopeData* scope_data_a = &m_Profile->m_ScopesData[sample_a->m_Scope->m_Index];
             const ScopeData* scope_data_b = &m_Profile->m_ScopesData[sample_b->m_Scope->m_Index];
             if (scope_data_a == scope_data_b)
@@ -724,7 +720,7 @@ namespace dmProfile
 #if defined(_WIN32)
         QueryPerformanceCounter((LARGE_INTEGER*)&now);
 #elif defined(__EMSCRIPTEN__)
-        now         = (uint64_t)(emscripten_get_now() * 1000.0);
+        now = (uint64_t)(emscripten_get_now() * 1000.0);
 #else
         timeval tv;
         gettimeofday(&tv, 0);
@@ -735,18 +731,18 @@ namespace dmProfile
 
     void ProfileScope::StartScope(Scope* scope, const char* name, uint32_t name_hash)
     {
-        m_StartTick    = GetNowTicks();
-        Sample* s      = AllocateSample();
-        s->m_Name      = name;
-        s->m_Scope     = scope;
-        s->m_NameHash  = name_hash;
-        s->m_Start     = (uint32_t)(m_StartTick - g_BeginTime);
-        m_Sample       = s;
+        m_StartTick = GetNowTicks();
+        Sample* s = AllocateSample();
+        s->m_Name = name;
+        s->m_Scope = scope;
+        s->m_NameHash = name_hash;
+        s->m_Start = (uint32_t)(m_StartTick - g_BeginTime);
+        m_Sample = s;
     }
 
     void ProfileScope::EndScope()
     {
-        uint64_t end        = GetNowTicks();
+        uint64_t end = GetNowTicks();
         m_Sample->m_Elapsed = (uint32_t)(end - m_StartTick);
         if (m_Sample->m_Elapsed > (dmProfile::GetTicksPerSecond() * 2))
         {
