@@ -1,6 +1,5 @@
 (ns editor.scene-async
-  (:require [editor.types :as types]
-            [util.profiler :as profiler])
+  (:require [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL2]
            [java.nio ByteBuffer]
            [javafx.scene.image PixelFormat WritableImage]))
@@ -45,10 +44,10 @@
   (.glBindBuffer gl GL2/GL_PIXEL_PACK_BUFFER 0)
   async-copy-state)
 
-(defn- resize-pbo! [{:keys [^int width ^int height pbo-size] :as async-copy-state} ^GL2 gl]
+(defn- resize-pbo! [{:keys [width height pbo-size] :as async-copy-state} ^GL2 gl]
   (profiler/profile "resize-pbo" -1
-    (if (and (= width ^int (:width pbo-size))
-             (= height ^int (:height pbo-size)))
+    (if (and (= width (:width pbo-size))
+             (= height (:height pbo-size)))
       async-copy-state
       (let [data-size (* width height 4)]
         (.glBufferData gl GL2/GL_PIXEL_PACK_BUFFER data-size nil GL2/GL_STREAM_READ)
