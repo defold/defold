@@ -702,12 +702,13 @@
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
 
 (defn refresh-scene-view! [node-id]
-  (let [image-view (g/node-value node-id :image-view)]
-    (when-not (ui/inside-hidden-tab? image-view)
-      (let [drawable (g/node-value node-id :drawable)
-            async-copy-state-atom (g/node-value node-id :async-copy-state)]
-        (when (and (some? drawable) (some? async-copy-state-atom))
-          (update-image-view! image-view drawable async-copy-state-atom))))))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [image-view (g/node-value node-id :image-view evaluation-context)]
+      (when-not (ui/inside-hidden-tab? image-view)
+        (let [drawable (g/node-value node-id :drawable evaluation-context)
+              async-copy-state-atom (g/node-value node-id :async-copy-state evaluation-context)]
+          (when (and (some? drawable) (some? async-copy-state-atom))
+            (update-image-view! image-view drawable async-copy-state-atom evaluation-context)))))))
 
 (defn dispose-scene-view! [node-id]
   (when-let [scene (g/node-by-id node-id)]
@@ -916,48 +917,47 @@
             {}
             active-updatables)))
 
-(defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom]
+(defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom evaluation-context]
   (when-let [view-id (ui/user-data image-view ::view-id)]
-    (g/with-auto-evaluation-context evaluation-context
-      (let [action-queue (g/node-value view-id :input-action-queue evaluation-context)
-            tool-user-data (g/node-value view-id :selected-tool-renderables evaluation-context) ; TODO: for what actions do we need selected tool renderables?
-            play-mode (g/node-value view-id :play-mode evaluation-context)
-            active-updatables (g/node-value view-id :active-updatables evaluation-context)
-            updatable-states (g/node-value view-id :updatable-states evaluation-context)
-            new-updatable-states (if (seq active-updatables)
-                                   (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables))
-                                   updatable-states)
-            renderables-invalidate-counter (g/invalidate-counter view-id :all-renderables evaluation-context)
-            last-renderables-invalidate-counter (ui/user-data image-view ::last-renderables-invalidate-counter)
-            last-frame-version (ui/user-data image-view ::last-frame-version)
-            frame-version (cond-> (or last-frame-version 0)
-                            (or (nil? last-renderables-invalidate-counter)
-                                (not= last-renderables-invalidate-counter renderables-invalidate-counter)
-                                (seq active-updatables))
-                            inc)]
-        (when (seq action-queue)
-          (g/set-property! view-id :input-action-queue []))
-        (profiler/profile "input-dispatch" -1
-          (let [input-handlers (g/sources-of (:basis evaluation-context) view-id :input-handlers)]
-            (doseq [action action-queue]
-              (dispatch-input input-handlers action tool-user-data))))
-        (when (seq active-updatables)
-          (g/set-property! view-id :updatable-states new-updatable-states))
-        (profiler/profile "render" -1
-          (gl/with-drawable-as-current drawable
-            (if (not= last-frame-version frame-version)
-              (let [renderables (g/node-value view-id :all-renderables evaluation-context)
-                    viewport (g/node-value view-id :viewport evaluation-context)
-                    pass->render-args (g/node-value view-id :pass->render-args evaluation-context)]
-                (render! gl-context renderables new-updatable-states viewport pass->render-args)
-                (ui/user-data! image-view ::last-renderables-invalidate-counter renderables-invalidate-counter)
-                (ui/user-data! image-view ::last-frame-version frame-version)
-                (scene-cache/prune-context! gl)
-                (swap! async-copy-state-atom #(-> % (scene-async/flush! gl) (scene-async/begin-read! gl))))
-              (swap! async-copy-state-atom scene-async/flush! gl)))
-          (let [new-image (scene-async/image @async-copy-state-atom)]
-            (when (not= (.getImage image-view) new-image)
-              (.setImage image-view new-image))))))))
+    (let [action-queue (g/node-value view-id :input-action-queue evaluation-context)
+          tool-user-data (g/node-value view-id :selected-tool-renderables evaluation-context) ; TODO: for what actions do we need selected tool renderables?
+          play-mode (g/node-value view-id :play-mode evaluation-context)
+          active-updatables (g/node-value view-id :active-updatables evaluation-context)
+          updatable-states (g/node-value view-id :updatable-states evaluation-context)
+          new-updatable-states (if (seq active-updatables)
+                                 (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables))
+                                 updatable-states)
+          renderables-invalidate-counter (g/invalidate-counter view-id :all-renderables evaluation-context)
+          last-renderables-invalidate-counter (ui/user-data image-view ::last-renderables-invalidate-counter)
+          last-frame-version (ui/user-data image-view ::last-frame-version)
+          frame-version (cond-> (or last-frame-version 0)
+                          (or (nil? last-renderables-invalidate-counter)
+                              (not= last-renderables-invalidate-counter renderables-invalidate-counter)
+                              (seq active-updatables))
+                          inc)]
+      (when (seq action-queue)
+        (g/set-property! view-id :input-action-queue []))
+      (profiler/profile "input-dispatch" -1
+        (let [input-handlers (g/sources-of (:basis evaluation-context) view-id :input-handlers)]
+          (doseq [action action-queue]
+            (dispatch-input input-handlers action tool-user-data))))
+      (when (seq active-updatables)
+        (g/set-property! view-id :updatable-states new-updatable-states))
+      (profiler/profile "render" -1
+        (gl/with-drawable-as-current drawable
+          (if (= last-frame-version frame-version)
+            (reset! async-copy-state-atom (scene-async/finish-image! @async-copy-state-atom gl))
+            (let [renderables (g/node-value view-id :all-renderables evaluation-context)
+                  viewport (g/node-value view-id :viewport evaluation-context)
+                  pass->render-args (g/node-value view-id :pass->render-args evaluation-context)]
+              (render! gl-context renderables new-updatable-states viewport pass->render-args)
+              (ui/user-data! image-view ::last-renderables-invalidate-counter renderables-invalidate-counter)
+              (ui/user-data! image-view ::last-frame-version frame-version)
+              (scene-cache/prune-context! gl)
+              (reset! async-copy-state-atom (scene-async/finish-image! (scene-async/begin-read! @async-copy-state-atom gl) gl))))))
+      (let [new-image (scene-async/image @async-copy-state-atom)]
+        (when-not (identical? (.getImage image-view) new-image)
+          (.setImage image-view new-image))))))
 
 (defn- nudge! [scene-node-ids ^double dx ^double dy ^double dz]
   (g/transact
@@ -1071,7 +1071,7 @@
                              (doto drawable
                                (.setSurfaceSize width height))
                              (let [async-copy-state-atom (g/node-value view-id :async-copy-state)]
-                               (swap! async-copy-state-atom scene-async/set-size width height)))
+                               (reset! async-copy-state-atom (scene-async/request-resize! @async-copy-state-atom width height))))
                            (let [drawable (gl/offscreen-drawable width height)
                                  picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size)]
                              (ui/user-data! image-view ::view-id view-id)
