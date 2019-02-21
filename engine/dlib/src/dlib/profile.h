@@ -170,9 +170,9 @@ namespace dmProfile
     struct CounterData
     {
         /// The counter
-        Counter*        m_Counter;
+        Counter*       m_Counter;
         /// Counter value
-        int32_atomic_t  m_Value;
+        int32_atomic_t m_Value;
     };
 
     /**
