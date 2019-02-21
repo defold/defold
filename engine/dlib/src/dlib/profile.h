@@ -159,9 +159,9 @@ namespace dmProfile
     struct Counter
     {
         /// Counter name
-        const char* m_Name;
+        const char*      m_Name;
         /// Counter name hash
-        uint32_t    m_NameHash;
+        uint32_t         m_NameHash;
     };
 
     /**

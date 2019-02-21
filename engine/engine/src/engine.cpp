@@ -1517,8 +1517,8 @@ bail:
                 dmEngineDDF::Reboot* reboot = (dmEngineDDF::Reboot*) message->m_Data;
                 dmEngine::Reboot(self, reboot);
             }
-            else if (descriptor == dmEngineDDF::ToggleProfile::m_DDFDescriptor)		
-            {		
+            else if (descriptor == dmEngineDDF::ToggleProfile::m_DDFDescriptor)
+            {
                 dmProfiler::ToggleProfiler();
             }
             else if (descriptor == dmEngineDDF::TogglePhysicsDebug::m_DDFDescriptor)
