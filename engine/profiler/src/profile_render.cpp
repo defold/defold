@@ -1853,11 +1853,6 @@ namespace dmProfileRender
         return render_profile->m_RecordBuffer.Size();
     }
 
-    void FlushRecordedFrames(HRenderProfile render_profile)
-    {
-        FlushRecording(render_profile, (uint32_t)render_profile->m_FPS);
-    }
-
     void DeleteRenderProfile(HRenderProfile render_profile)
     {
         RenderProfile::Delete(render_profile);

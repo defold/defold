@@ -10,8 +10,6 @@
 #include "profiler_private.h"
 #include "profile_render.h"
 
-using namespace Vectormath::Aos;
-
 namespace dmProfiler
 {
 
@@ -58,8 +56,8 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
         dmRender::RenderListBegin(render_context);
         dmProfileRender::Draw(gRenderProfile, render_context, system_font_map);
         dmRender::RenderListEnd(render_context);
-        dmRender::SetViewMatrix(render_context, Matrix4::identity());
-        dmRender::SetProjectionMatrix(render_context, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(graphics_context), 0.0f, dmGraphics::GetWindowHeight(graphics_context), 1.0f, -1.0f));
+        dmRender::SetViewMatrix(render_context, Vectormath::Aos::Matrix4::identity());
+        dmRender::SetProjectionMatrix(render_context, Vectormath::Aos::Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(graphics_context), 0.0f, dmGraphics::GetWindowHeight(graphics_context), 1.0f, -1.0f));
         dmRender::DrawRenderList(render_context, 0, 0);
         dmRender::ClearRenderObjects(render_context);
 
@@ -67,6 +65,14 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
     }
 }
 
+void ShutdownRenderProfile()
+{
+    if (gRenderProfile)
+    {
+        dmProfileRender::DeleteRenderProfile(gRenderProfile);
+        gRenderProfile = 0;
+    }
+}
 
 /*# get current memory usage for app reported by OS
  * Get the amount of memory used (resident/working set) by the application in bytes, as reported by the OS.
@@ -94,7 +100,7 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
  * print(profiler.get_memory_usage()) -- will report a higher number than the initial call
  * ```
  */
-int MemoryUsage(lua_State* L)
+static int MemoryUsage(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1)
     lua_pushnumber(L, dmProfilerExt::GetMemoryUsage());
@@ -114,7 +120,7 @@ int MemoryUsage(lua_State* L)
  * @name profiler.get_cpu_usage
  * @return percent [type:number] of CPU used by the application
  */
-int CPUUsage(lua_State* L)
+static int CPUUsage(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1)
     lua_pushnumber(L, dmProfilerExt::GetCpuUsage());
@@ -136,13 +142,13 @@ int CPUUsage(lua_State* L)
  *      profiler.enable_ui(true)
  * ```
  */
-int EnableProfilerUI(lua_State* L)
+static int EnableProfilerUI(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0)
 
     if (!lua_isboolean(L, 1))
     {
-        DM_LUA_ERROR("Invalid parameter, expected a boolean but got a %s", lua_typename(L, lua_type(L, 1)))
+        return DM_LUA_ERROR("Invalid parameter, expected a boolean but got a %s", lua_typename(L, lua_type(L, 1)))
     }
 
     bool enabled = lua_toboolean(L, 1);
@@ -156,24 +162,6 @@ int EnableProfilerUI(lua_State* L)
         dmProfileRender::DeleteRenderProfile(gRenderProfile);
         gRenderProfile = 0;
     }
-
-    return 0;
-}
-
-/*# disables the on-screen profiler ui
- * Hide and destroys the on-sceen profiler ui
- * 
- * @name profiler.disable_ui
- */
-int DisableProfilerUI(lua_State* L)
-{
-    DM_LUA_STACK_CHECK(L, 0)
-
-    if (!gRenderProfile)
-    {
-        return 0;
-    }
-
 
     return 0;
 }
@@ -206,7 +194,7 @@ int DisableProfilerUI(lua_State* L)
  * end
  * ```
  */
-int SetProfileUIMode(lua_State* L)
+static int SetProfileUIMode(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0)
 
@@ -237,7 +225,7 @@ int SetProfileUIMode(lua_State* L)
  *      profiler.set_ui_view_mode(profiler.VIEW_MODE_MINIMIZED)
  * ```
  */
-int SetProfilerUIViewMode(lua_State* L)
+static int SetProfilerUIViewMode(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0)
 
@@ -278,7 +266,7 @@ int SetProfilerUIViewMode(lua_State* L)
  * end
  * ```
  */
-int SetProfileUIVSyncWaitVisible(lua_State* L)
+static int SetProfileUIVSyncWaitVisible(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0)
 
@@ -289,7 +277,7 @@ int SetProfileUIVSyncWaitVisible(lua_State* L)
 
     if (!lua_isboolean(L, 1))
     {
-        DM_LUA_ERROR("Invalid parameter, expected a boolean but got a %s", lua_typename(L, lua_type(L, 1)))
+        return DM_LUA_ERROR("Invalid parameter, expected a boolean but got a %s", lua_typename(L, lua_type(L, 1)))
     }
 
     bool visible = lua_toboolean(L, 1);
@@ -313,7 +301,7 @@ int SetProfileUIVSyncWaitVisible(lua_State* L)
  * end
  * ```
  */
-int ProfilerUIRecordedFrameCount(lua_State* L)
+static int ProfilerUIRecordedFrameCount(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1)
 
@@ -347,7 +335,7 @@ int ProfilerUIRecordedFrameCount(lua_State* L)
  * end
  * ```
  */
-int ProfilerUIViewRecordedFrame(lua_State* L)
+static int ProfilerUIViewRecordedFrame(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0)
 
@@ -375,48 +363,15 @@ int ProfilerUIViewRecordedFrame(lua_State* L)
         int recorded_frame_count = dmProfileRender::GetRecordedFrameCount(gRenderProfile);
         if (recorded_frame_count == 0)
         {
-            lua_pop(L, 1);
-            DM_LUA_ERROR("The profiler recording buffer is empty");
+            return DM_LUA_ERROR("The profiler recording buffer is empty");
         }
         if (frame < 1 || frame > recorded_frame_count)
         {
-            DM_LUA_ERROR("Frame index is out of range, valid range is %d to %d", 1, recorded_frame_count);
+            return DM_LUA_ERROR("Frame index is out of range, valid range is %d to %d", 1, recorded_frame_count);
         }
         dmProfileRender::ShowRecordedFrame(gRenderProfile, frame - 1);
     }
-    else
-    {
-        DM_LUA_ERROR("'distance' or 'frame' must be given in properties table");
-    }
-
-    return 0;
-}
-
-/*# flushes recording in on-screen profiler ui
- * Flushes the recording buffer of the on-screen profiler ui
- * 
- * If any frames are recorded  in the on-screen profiler ui and displays the last active frame.
- * 
- * @name profiler.flush_recorded_frames
- * 
- * @examples
- * ```lua
- *      profiler.flush_recorded_frames()
- * end
- * ```
- */
-int ProfilerUIFlushRecordedFrames(lua_State* L)
-{
-    DM_LUA_STACK_CHECK(L, 0)
-
-    if (!gRenderProfile)
-    {
-        return 0;
-    }
-
-    dmProfileRender::FlushRecordedFrames(gRenderProfile);
-
-    return 0;
+    return DM_LUA_ERROR("'distance' or 'frame' must be given in properties table");
 }
 
 } // dmProfiler
@@ -441,7 +396,6 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
         {"set_ui_vsync_wait_visible", dmProfiler::SetProfileUIVSyncWaitVisible},
         {"recorded_frame_count", dmProfiler::ProfilerUIRecordedFrameCount},
         {"view_recorded_frame", dmProfiler::ProfilerUIViewRecordedFrame},
-        {"flush_recorded_frames", dmProfiler::ProfilerUIFlushRecordedFrames},
         {0, 0}
     };
 

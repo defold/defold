@@ -37,7 +37,6 @@ namespace dmProfileRender
     void AdjustShownFrame(HRenderProfile render_profile, int distance);
     void ShowRecordedFrame(HRenderProfile render_profile, int frame);
     int GetRecordedFrameCount(HRenderProfile render_profile);
-    void FlushRecordedFrames(HRenderProfile render_profile);
     void DeleteRenderProfile(HRenderProfile render_profile);
 
     void Draw(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map);
