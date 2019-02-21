@@ -17,6 +17,7 @@
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
+            [editor.scene-picking :as scene-picking]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
@@ -65,6 +66,19 @@
 
 (def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
 
+(shader/defshader label-id-vertex-shader
+  (uniform mat4 view_proj)
+  (attribute vec4 position)
+  (defn void main []
+    (setq gl_Position (* view_proj (vec4 position.xyz 1.0)))))
+
+(shader/defshader label-id-fragment-shader
+  (uniform vec4 id)
+  (defn void main []
+    (setq gl_FragColor id)))
+
+(def id-shader (shader/make-shader ::label-id-shader label-id-vertex-shader label-id-fragment-shader {"view_proj" :view-proj "id" :id}))
+
 ; Vertex generation
 
 (def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0]))
@@ -104,25 +118,27 @@
     (font/request-vertex-buffer gl node-ids font-data text-entries)))
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
-  (let [user-data (get-in renderables [0 :user-data])
+  (let [renderable (first renderables)
+        user-data (:user-data renderable)
         gpu-texture (or (get user-data :gpu-texture) texture/white-pixel)
-        material-shader (get user-data :material-shader)
-        blend-mode (get user-data :blend-mode)
         vb (gen-vb gl renderables)
         vcount (count vb)]
     (when (> vcount 0)
-      (let [shader (or material-shader shader)
-            vertex-binding (vtx/use-with ::tris vb shader)]
+      (condp = (:pass render-args)
+        pass/transparent
+        (let [material-shader (get user-data :material-shader)
+              blend-mode (get user-data :blend-mode)
+              shader (or material-shader shader)
+              vertex-binding (vtx/use-with ::tris vb shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
           (gl/set-blend-mode gl blend-mode)
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
-          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))))
+          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
 
-(defn render-labels [^GL2 gl render-args renderables rcount]
-  (let [pass (:pass render-args)]
-    (if (= pass pass/outline)
-      (render-lines gl render-args renderables rcount)
-      (render-tris gl render-args renderables rcount))))
+        pass/selection
+        (let [vertex-binding (vtx/use-with ::tris-selection vb id-shader)]
+          (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable)) [id-shader vertex-binding gpu-texture]
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)))))))
 
 ; Node defs
 
@@ -176,7 +192,10 @@
   [_node-id aabb gpu-texture material-shader blend-mode pivot text-data scale]
   (let [scene {:node-id _node-id
                :aabb aabb
-               :transform (math/->mat4-scale scale)}]
+               :transform (math/->mat4-scale scale)}
+        font-map (get-in text-data [:font-data :font-map])
+        texture-recip-uniform (font/get-texture-recip-uniform font-map)
+        material-shader (assoc-in material-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
     (if text-data
       (let [min (types/min-p aabb)
             max (types/max-p aabb)
@@ -184,7 +203,8 @@
             [w h _] size
             offset (pivot-offset pivot size)
             lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))]
-        (assoc scene :renderable {:render-fn render-labels
+        (assoc scene :renderable {:render-fn render-tris
+                                  :tags #{:text}
                                   :batch-key {:blend-mode blend-mode :gpu-texture gpu-texture :material-shader material-shader}
                                   :select-batch-key _node-id
                                   :user-data {:material-shader material-shader
@@ -192,7 +212,14 @@
                                               :gpu-texture gpu-texture
                                               :line-data lines
                                               :text-data text-data}
-                                  :passes [pass/transparent pass/selection pass/outline]}))
+                                  :passes [pass/transparent pass/selection]}
+               :children [{:node-id _node-id
+                           :aabb aabb
+                           :renderable {:render-fn render-lines
+                                        :tags #{:text :outline}
+                                        :batch-key ::outline
+                                        :user-data {:line-data lines}
+                                        :passes [pass/outline]}}]))
       scene)))
 
 (defn- build-label [resource dep-resources user-data]
@@ -238,8 +265,8 @@
     
   (property font resource/Resource
             (value (gu/passthrough font-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :font-resource]
                                             [:gpu-texture :gpu-texture]
                                             [:font-map :font-map]
@@ -253,8 +280,8 @@
                                   :ext ["font"]})))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]

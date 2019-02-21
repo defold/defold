@@ -44,7 +44,7 @@ def build(bld):
     exported_symbols = ['DefaultSoundDevice', 'NullSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt']
 
     # Add stb_vorbis and/or tremolo depending on platform
-    if 'js-web' in bld.env['PLATFORM'] or 'win32' in bld.env['PLATFORM']:
+    if 'web' in bld.env['PLATFORM'] or 'win32' in bld.env['PLATFORM']:
         exported_symbols.append('AudioDecoderStbVorbis')
     else:
         exported_symbols.append('AudioDecoderStbVorbis')
@@ -56,8 +56,9 @@ def build(bld):
         exported_symbols.append('FacebookExt')
         exported_symbols.append('IAPExt')
 
-    mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'AdTruthExt', 'WebViewExt']
+    mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'WebViewExt']
     if  re.match('arm.*?darwin', bld.env['PLATFORM']):
+        additional_libs.append('BOLTS')
         additional_libs.append('FBSDKCORE')
         additional_libs.append('FBSDKLOGIN')
         additional_libs.append('FBSDKSHARE')
@@ -65,11 +66,15 @@ def build(bld):
         exported_symbols.extend(mobile_service_symbols)
         exported_symbols.append('FacebookExt')
 
+    if 'x86_64-darwin' == bld.env['PLATFORM']:
+        additional_libs.append('UNWIND')
+
     if 'android' in bld.env['PLATFORM']:
         sound_lib = 'SOUND OPENAL_SOFT OPENSLES'
         exported_symbols.extend(mobile_service_symbols)
         exported_symbols.append('FacebookExt')
-    elif 'js-web' in bld.env['PLATFORM']:
+        additional_libs.append('UNWIND')
+    elif 'web' in bld.env['PLATFORM']:
         sound_lib = 'SOUND OPENAL'
         exported_symbols.append('FacebookExt')
         exported_symbols.append('IAPExt')
@@ -95,14 +100,12 @@ def build(bld):
               '%s/share/java/gamesys_android.jar' % (dynamo_home),
               '%s/share/java/iap_android.jar' % (dynamo_home),
               '%s/share/java/push_android.jar' % (dynamo_home),
-              '%s/share/java/adtruth_android.jar' % (dynamo_home),
               '%s/share/java/sound_android.jar' % (dynamo_home),
-              '%s/share/java/webview_android.jar' % (dynamo_home),
               '%s/share/java/iac_android.jar' % (dynamo_home)]
 
     obj = bld.new_task_gen(
-        features = 'cc cxx cprogram apk web',
-        uselib = 'WEBVIEWEXT ADTRUTHEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
+        features = 'cc cxx cprogram apk web extract_symbols',
+        uselib = 'WEBVIEWEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine engine_service',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
@@ -118,7 +121,11 @@ def build(bld):
         jars = android_jar_paths)
 
     if 'win32' in bld.env.BUILD_PLATFORM:
-        obj.source.append('engine.rc')
+        obj.source.append('engine.rc') # Needs to bundle with icons, or IconExe.java won't be able to replace them (it cannot add them)
+
+    if 'win32' in bld.env['PLATFORM']:
+        bld.install_files('${PREFIX}/lib/%s' % bld.env['PLATFORM'], 'defold.ico')
+        bld.install_files('${PREFIX}/lib/%s' % bld.env['PLATFORM'], 'engine.rc')
 
     if 'android' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/share/java', 'dmengine.android/classes.dex')
@@ -126,8 +133,8 @@ def build(bld):
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine.android/dmengine.apk')
 
     obj = bld.new_task_gen(
-        features = 'cc cxx cprogram apk web',
-        uselib = 'WEBVIEWEXT ADTRUTHEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
+        features = 'cc cxx cprogram apk web extract_symbols',
+        uselib = 'WEBVIEWEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine_release engine_service_null',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
@@ -153,10 +160,15 @@ def build(bld):
     # in the GLFW module.
     additional_libs = ''
     if 'android' in bld.env['PLATFORM']:
-      additional_libs = 'DMGLFW'
+        additional_libs = ['DMGLFW', 'UNWIND']
+
+    if 'x86_64-darwin' == bld.env['PLATFORM']:
+        additional_libs = ['UNWIND']
+
+    additional_libs = ' '.join(additional_libs)
 
     obj = bld.new_task_gen(
-        features = 'cc cxx cprogram apk web',
+        features = 'cc cxx cprogram apk web extract_symbols',
         uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH DLIB LIVEUPDATE SOUND_NULL CRASH %s' % (additional_libs,),
         exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine engine_service',

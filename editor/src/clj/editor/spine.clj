@@ -16,6 +16,7 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
+            [editor.scene-picking :as scene-picking]
             [editor.render :as render]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -101,7 +102,7 @@
                    :scale [1 1 1]
                    :slot-colors [1 1 1 1]
                    :attachment true
-                   :order-offset 0
+                   :order-offset slot-signal-unchanged
                    :mix 1.0
                    :positive true}) ;; spine docs say assume false, but implementations actually default to true
 
@@ -412,7 +413,7 @@
                                              [(.x p) (.y p) (.z p) (.x uv) (.y uv)])))]
                    {:positions (flatten (partition 3 5 vertices))
                     :texcoord0 (flatten (partition 2 5 (drop 3 vertices)))
-                    :indices [0 1 2 2 1 3]
+                    :position-indices [0 1 2 2 1 3]
                     :weights (take 16 (cycle [1 0 0 0]))
                     :bone-indices (take 16 (cycle [(:bone-index slot-data) 0 0 0]))
                     :mesh-color (hex->color (get attachment "color" "ffffffff"))})
@@ -458,7 +459,7 @@
                                                (.apply uv-trans uv)
                                                [(.x uv) (.y uv)]))
                                            (partition 2 uvs))
-                        :indices (get attachment "triangles")
+                        :position-indices (get attachment "triangles")
                         :weights bone-weights
                         :bone-indices bone-indices
                         :mesh-color (hex->color (get attachment "color" "ffffffff"))})
@@ -473,7 +474,7 @@
                                                (.apply uv-trans uv)
                                                [(.x uv) (.y uv)]))
                                            (partition 2 uvs))
-                        :indices (get attachment "triangles")
+                        :position-indices (get attachment "triangles")
                         :weights (take weight-count (cycle [1 0 0 0]))
                         :bone-indices (take weight-count (cycle [(:bone-index slot-data) 0 0 0]))
                         :mesh-color (hex->color (get attachment "color" "ffffffff"))})))
@@ -750,11 +751,11 @@
 
 (defn- mesh->verts [mesh]
   (let [verts (mapv concat (partition 3 (:positions mesh)) (partition 2 (:texcoord0 mesh)) (repeat (:color mesh)))]
-    (map (partial get verts) (:indices mesh))))
+    (map (partial get verts) (:position-indices mesh))))
 
 (defn gen-vb [renderables]
   (let [meshes (mapcat renderable->meshes renderables)
-        vcount (reduce + 0 (map (comp count :indices) meshes))]
+        vcount (reduce + 0 (map (comp count :position-indices) meshes))]
     (when (> vcount 0)
       (let [vb (render/->vtx-pos-tex-col vcount)
             verts (mapcat mesh->verts meshes)]
@@ -785,48 +786,88 @@
       (let [vb (render/->vtx-pos-col vcount)]
         (persistent! (reduce conj! vb vs))))))
 
-(defn render-spine-scenes [^GL2 gl render-args renderables rcount]
+(shader/defshader spine-id-vertex-shader
+  (attribute vec4 position)
+  (attribute vec2 texcoord0)
+  (varying vec2 var_texcoord0)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq var_texcoord0 texcoord0)))
+
+(shader/defshader spine-id-fragment-shader
+  (varying vec2 var_texcoord0)
+  (uniform sampler2D texture)
+  (uniform vec4 id)
+  (defn void main []
+    (setq vec4 color (texture2D texture var_texcoord0.xy))
+    (if (> color.a 0.05)
+      (setq gl_FragColor id)
+      (discard))))
+
+(def spine-id-shader (shader/make-shader ::id-shader spine-id-vertex-shader spine-id-fragment-shader {"id" :id}))
+
+(defn- render-spine-scenes [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)]
-    (cond
-      (= pass pass/outline)
-      (render/render-aabb-outline gl render-args ::spine-outline renderables rcount)
-
-      (= pass pass/transparent)
-      (do (when-let [vb (gen-vb renderables)]
-            (let [user-data (:user-data (first renderables))
-                  blend-mode (:blend-mode user-data)
-                  gpu-texture (:gpu-texture user-data)
-                  shader (get user-data :shader render/shader-tex-tint)
-                  vertex-binding (vtx/use-with ::spine-trans vb shader)]
-              (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
-                (gl/set-blend-mode gl blend-mode)
-                (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
-                (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
-          (when-let [vb (gen-skeleton-vb renderables)]
-            (let [vertex-binding (vtx/use-with ::spine-skeleton vb render/shader-outline)]
-              (gl/with-gl-bindings gl render-args [render/shader-outline vertex-binding]
-                (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
-
-      (= pass pass/selection)
+    (condp = pass
+      pass/transparent
       (when-let [vb (gen-vb renderables)]
-        (let [vertex-binding (vtx/use-with ::spine-selection vb render/shader-tex-tint)]
-          (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
+        (let [user-data (:user-data (first renderables))
+              blend-mode (:blend-mode user-data)
+              gpu-texture (:gpu-texture user-data)
+              shader (get user-data :shader render/shader-tex-tint)
+              vertex-binding (vtx/use-with ::spine-trans vb shader)]
+          (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
+            (gl/set-blend-mode gl blend-mode)
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
+            (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
+
+      pass/selection
+      (when-let [vb (gen-vb renderables)]
+        (let [gpu-texture (:gpu-texture (:user-data (first renderables)))
+              vertex-binding (vtx/use-with ::spine-selection vb spine-id-shader)]
+          (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [gpu-texture spine-id-shader vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
+
+(defn- render-spine-skeletons [^GL2 gl render-args renderables rcount]
+  (assert (= (:pass render-args) pass/transparent))
+  (when-let [vb (gen-skeleton-vb renderables)]
+    (let [vertex-binding (vtx/use-with ::spine-skeleton vb render/shader-outline)]
+      (gl/with-gl-bindings gl render-args [render/shader-outline vertex-binding]
+        (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
+
+(defn- render-spine-outlines [^GL2 gl render-args renderables rcount]
+  (assert (= (:pass render-args) pass/outline))
+  (render/render-aabb-outline gl render-args ::spine-outline renderables rcount))
 
 (g/defnk produce-scene [_node-id aabb gpu-texture default-tex-params spine-scene-pb scene-structure]
   (let [scene {:node-id _node-id
                :aabb aabb}]
     (if (and gpu-texture scene-structure)
       (let [blend-mode :blend-mode-alpha]
-        (assoc scene :renderable {:render-fn render-spine-scenes
-                                  :batch-key gpu-texture
-                                  :select-batch-key _node-id
-                                  :user-data {:spine-scene-pb spine-scene-pb
-                                              :scene-structure scene-structure
-                                              :gpu-texture gpu-texture
-                                              :tex-params default-tex-params
-                                              :blend-mode blend-mode}
-                                  :passes [pass/transparent pass/selection pass/outline]}))
+        (assoc scene
+               :renderable {:render-fn render-spine-scenes
+                            :tags #{:spine}
+                            :batch-key gpu-texture
+                            :select-batch-key _node-id
+                            :user-data {:spine-scene-pb spine-scene-pb
+                                        :scene-structure scene-structure
+                                        :gpu-texture gpu-texture
+                                        :tex-params default-tex-params
+                                        :blend-mode blend-mode}
+                            :passes [pass/transparent pass/selection]}
+               :children [{:aabb aabb
+                           :node-id _node-id
+                           :renderable {:render-fn render-spine-skeletons
+                                        :tags #{:spine :skeleton :outline}
+                                        :batch-key gpu-texture
+                                        :user-data {:scene-structure scene-structure}
+                                        :passes [pass/transparent]}}
+                          {:aabb aabb
+                           :node-id _node-id
+                           :renderable {:render-fn render-spine-outlines
+                                        :tags #{:spine :outline}
+                                        :batch-key ::outline
+                                        :passes [pass/outline]}}]))
       scene)))
 
 (defn- mesh->aabb [aabb mesh]
@@ -838,8 +879,8 @@
 
   (property spine-json resource/Resource
             (value (gu/passthrough spine-json-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :spine-json-resource]
                                             [:content :spine-scene]
                                             [:consumer-passthrough :scene-structure]
@@ -850,8 +891,8 @@
 
   (property atlas resource/Resource
             (value (gu/passthrough atlas-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :atlas-resource]
                                             [:anim-data :anim-data]
                                             [:gpu-texture :gpu-texture]
@@ -960,14 +1001,13 @@
 
   (property spine-scene resource/Resource
             (value (gu/passthrough spine-scene-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :spine-scene-resource]
                                             [:scene :spine-scene-scene]
                                             [:spine-anim-ids :spine-anim-ids]
                                             [:aabb :aabb]
                                             [:build-targets :dep-build-targets]
-                                            [:node-outline :source-outline]
                                             [:anim-data :anim-data]
                                             [:scene-structure :scene-structure])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext spine-scene-ext}))
@@ -978,8 +1018,8 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Spine$SpineModelDesc$BlendMode))))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
@@ -1021,6 +1061,15 @@
                                         (update-in [:renderable :user-data :gpu-texture] texture/set-params tex-params)
                                         (assoc-in [:renderable :user-data :skin] skin))
                                     spine-scene-scene))))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id own-build-errors spine-scene]
+                                                     (cond-> {:node-id _node-id
+                                                              :node-outline-key "Spine Model"
+                                                              :label "Spine Model"
+                                                              :icon spine-model-icon
+                                                              :outline-error? (g/error-fatal? own-build-errors)}
+
+                                                             (resource/openable-resource? spine-scene)
+                                                             (assoc :link spine-scene :outline-reference? false))))
   (output model-pb g/Any produce-model-pb)
   (output save-value g/Any (gu/passthrough model-pb))
   (output own-build-errors g/Any :cached produce-model-own-build-errors)
@@ -1089,6 +1138,7 @@
                              :children child-bones}))
   (output node-outline outline/OutlineData (g/fnk [_node-id name child-outlines]
                                                   {:node-id _node-id
+                                                   :node-outline-key name
                                                    :label name
                                                    :icon spine-bone-icon
                                                    :children child-outlines

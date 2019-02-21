@@ -79,7 +79,7 @@ namespace dmHttpClient
 
     private:
         dmConnectionPool::HPool m_Pool;
-        dmMutex::Mutex          m_Mutex;
+        dmMutex::HMutex         m_Mutex;
     };
 
     PoolCreator g_PoolCreator;
@@ -150,7 +150,7 @@ namespace dmHttpClient
     struct Client
     {
         char*               m_Hostname;
-        char                m_URI[1024];
+        char                m_URI[dmURI::MAX_URI_LEN];
         dmSocket::Result    m_SocketResult;
 
         void*               m_Userdata;
@@ -477,7 +477,7 @@ namespace dmHttpClient
                 return RESULT_HTTP_HEADERS_ERROR;
             }
 
-            int recv_bytes;
+            int recv_bytes = 0;
             dmSocket::Result r = Receive(response, client->m_Buffer + response->m_TotalReceived, max_to_recv, &recv_bytes);
 
             if( r == dmSocket::RESULT_WOULDBLOCK )

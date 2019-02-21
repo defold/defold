@@ -91,6 +91,8 @@ namespace dmGameSystem
      *   go.set("#sprite", "image", self.my_image)
      * end
      * ```
+     *
+     * See [ref:resource.set_texture] for an example on how to set the texture of an atlas.
      */
 
     /*# [type:hash] sprite material
@@ -299,11 +301,11 @@ namespace dmGameSystem
 
     /*# Play an animation on a sprite component
      * Play an animation on a sprite component from its tile set
-     * 
+     *
      * An optional completion callback function can be provided that will be called when
      * the animation has completed playing. If no function is provided,
      * a [ref:animation_done] message is sent to the script that started the animation.
-     * 
+     *
      * @name sprite.play_flipbook
      * @param url [type:string|hash|url] the sprite that should play the animation
      * @param id hash name hash of the animation to play
@@ -324,11 +326,11 @@ namespace dmGameSystem
      * `sender`
      * : [type:url] The invoker of the callback: the sprite component.
      * @examples
-     * 
+     *
      * The following examples assumes that the model has id "sprite".
-     * 
+     *
      * How to play the "jump" animation followed by the "run" animation:
-     * 
+     *
      * local function anim_done(self, message_id, message, sender)
      *   if message_id == hash("model_animation_done") then
      *     if message.id == hash("jump") then
@@ -337,7 +339,7 @@ namespace dmGameSystem
      *     end
      *   end
      * end
-     * 
+     *
      * ```lua
      * function init(self)
      *   local url = msg.url("#sprite")

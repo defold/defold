@@ -86,9 +86,6 @@
 
 (def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
 
-(defn gl-viewport [^GL2 gl viewport]
-  (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport))))
-
 (defn render-curves [^GL2 gl render-args renderables rcount]
   (let [camera (:camera render-args)
         viewport (:viewport render-args)]
@@ -479,12 +476,12 @@
   (property viewport Region (default (types/->Region 0 0 0 0)))
   (property play-mode g/Keyword)
   (property drawable GLAutoDrawable)
+  (property picking-drawable GLAutoDrawable)
   (property async-copier AsyncCopier)
   (property cursor-pos types/Vec2)
   (property tool-picking-rect Rect)
   (property list ListView)
   (property hidden-curves g/Any)
-  (property tool-user-data g/Any (default (atom [])))
   (property input-action-queue g/Any (default []))
   (property updatable-states g/Any (default (atom {})))
 
@@ -497,8 +494,10 @@
   (input picking-rect Rect)
   (input sub-selection g/Any)
 
-  (output all-renderables g/Any :cached (g/fnk [renderables curve-renderables cp-renderables tool-renderables]
-                                          (reduce (partial merge-with into) renderables (into [curve-renderables cp-renderables] tool-renderables))))
+  (output all-renderables g/Any :cached (g/fnk [aux-render-data curve-renderables cp-renderables tool-renderables]
+                                          (reduce (partial merge-with into)
+                                                  (:renderables aux-render-data)
+                                                  (into [curve-renderables cp-renderables] tool-renderables))))
   (output curves g/Any :cached produce-curves)
   (output visible-curves g/Any :cached (g/fnk [curves hidden-curves] (remove #(contains? hidden-curves (:property %)) curves)))
   (output curve-renderables g/Any :cached produce-curve-renderables)
@@ -603,7 +602,7 @@
       view-id))
   ([app-view graph ^Parent parent ^ListView list ^AnchorPane view opts reloading?]
     (let [[node-id] (g/tx-nodes-added
-                      (g/transact (g/make-nodes graph [view-id    [CurveView :list list :hidden-curves #{} :frame-version (atom 0)]
+                      (g/transact (g/make-nodes graph [view-id    [CurveView :list list :hidden-curves #{}]
                                                        controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                        selection  [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                        background background/Background

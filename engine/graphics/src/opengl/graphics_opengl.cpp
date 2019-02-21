@@ -10,6 +10,7 @@
 #include <dlib/array.h>
 #include <dlib/index_pool.h>
 #include <dlib/time.h>
+#include <dlib/dstrings.h>
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
@@ -144,6 +145,8 @@ using namespace Vectormath::Aos;
 #define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
 #endif
 
+
+
 namespace dmGraphics
 {
 void LogGLError(GLint err)
@@ -267,6 +270,11 @@ static void LogFrameBufferError(GLenum status)
     extern BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT];
     extern GLenum TEXTURE_UNIT_NAMES[32];
 
+    // Cross-platform OpenGL/ES extension points. We define our own function pointer typedefs to handle the combination of statically or dynamically linked or core functionality.
+    // The alternative is a matrix of conditional typedefs, linked statically/dynamically or core. OpenGL function prototypes does not change, so this is safe.
+    typedef void (* DM_PFNGLINVALIDATEFRAMEBUFFERPROC) (GLenum target, GLsizei numAttachments, const GLenum *attachments);
+    DM_PFNGLINVALIDATEFRAMEBUFFERPROC PFN_glInvalidateFramebuffer = NULL;
+
     Context* g_Context = 0x0;
 
     Context::Context(const ContextParams& params)
@@ -283,6 +291,7 @@ static void LogFrameBufferError(GLenum status)
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
+        m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_16;
     }
 
     HContext NewContext(const ContextParams& params)
@@ -379,6 +388,48 @@ static void LogFrameBufferError(GLenum status)
 
         return false;
     }
+
+static uintptr_t GetExtProcAddress(const char* name, const char* extension_name, const char* core_name, const GLubyte* extensions)
+{
+    /*
+        Check in order
+        1) ARB - Extensions officially approved by the OpenGL Architecture Review Board
+        2) EXT - Extensions agreed upon by multiple OpenGL vendors
+        3) OES - Vendor specific code for the OpenGL ES working group
+        4) Optionally check as core function (if not GLES and core_name is set)
+    */
+    uintptr_t func = 0x0;
+    static const char* ext_name_prefix_str[] = {"GL_ARB_", "GL_EXT_", "GL_OES_"};
+    static const char* proc_name_postfix_str[] = {"ARB", "EXT", "OES"};
+    char proc_str[256];
+    for(uint32_t i = 0; i < sizeof(ext_name_prefix_str)/sizeof(*ext_name_prefix_str); ++i)
+    {
+        // Check for extension name string AND process function pointer. Either may be disabled (by vendor) so both must be valid!
+        size_t l = dmStrlCpy(proc_str, ext_name_prefix_str[i], 8);
+        dmStrlCpy(proc_str + l, extension_name, 256-l);
+        if(!IsExtensionSupported(proc_str,  extensions))
+            continue;
+        l = dmStrlCpy(proc_str, name, 255);
+        dmStrlCpy(proc_str + l, proc_name_postfix_str[i], 256-l);
+        func = (uintptr_t) glfwGetProcAddress(proc_str);
+        if(func != 0x0)
+        {
+            break;
+        }
+    }
+#if !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
+    if(func == 0 && core_name)
+    {
+        // On OpenGL, optionally check for core driver support if extension wasn't found (i.e extension has become part of core OpenGL)
+        func = (uintptr_t) glfwGetProcAddress(core_name);
+    }
+#endif
+    return func;
+}
+
+#define DMGRAPHICS_GET_PROC_ADDRESS_EXT(function, name, extension_name, core_name, type, extensions)\
+    if (function == 0x0)\
+        function = (type) GetExtProcAddress(name, extension_name, core_name, extensions);
 
     static bool ValidateAsyncJobProcessing(HContext context)
     {
@@ -535,7 +586,10 @@ static void LogFrameBufferError(GLenum status)
 #undef GET_PROC_ADDRESS
 #endif
 
+#if !defined(__EMSCRIPTEN__)
         glfwSetWindowTitle(params->m_Title);
+#endif
+        
         glfwSetWindowSizeCallback(OnWindowResize);
         glfwSetWindowCloseCallback(OnWindowClose);
         glfwSetWindowFocusCallback(OnWindowFocus);
@@ -577,8 +631,11 @@ static void LogFrameBufferError(GLenum status)
             (void) SetFrontProcess( &psn );
 #endif
 
-        // Check texture format support
+        // Extension support
         const GLubyte* extensions = glGetString(GL_EXTENSIONS);
+
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, extensions);
+
         if (IsExtensionSupported("GL_IMG_texture_compression_pvrtc", extensions))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
@@ -642,6 +699,20 @@ static void LogFrameBufferError(GLenum status)
         CLEAR_GL_ERROR
 #endif
 
+        if (IsExtensionSupported("GL_OES_compressed_ETC1_RGB8_texture", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+        }
+
+#if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
+        if ((IsExtensionSupported("GL_OES_element_index_uint", extensions)))
+        {
+            context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
+        }
+#else
+        context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
+#endif
+
         JobQueueInitialize();
         if(JobQueueIsAsync())
         {
@@ -701,6 +772,15 @@ static void LogFrameBufferError(GLenum status)
         assert(context);
         if (context->m_WindowOpened)
             return glfwGetWindowParam(state);
+        else
+            return 0;
+    }
+
+    uint32_t GetWindowRefreshRate(HContext context)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+            return glfwGetWindowRefreshRate();
         else
             return 0;
     }
@@ -810,6 +890,7 @@ static void LogFrameBufferError(GLenum status)
     WRAP_GLFW_NATIVE_HANDLE_CALL(EGLSurface, AndroidEGLSurface);
     WRAP_GLFW_NATIVE_HANDLE_CALL(JavaVM*, AndroidJavaVM);
     WRAP_GLFW_NATIVE_HANDLE_CALL(jobject, AndroidActivity);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(android_app*, AndroidApp);
     WRAP_GLFW_NATIVE_HANDLE_CALL(Window, X11Window);
     WRAP_GLFW_NATIVE_HANDLE_CALL(GLXContext, X11GLXContext);
 
@@ -898,6 +979,11 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR
+    }
+
+    bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
+    {
+        return (context->m_IndexBufferFormatSupport & (1 << format)) != 0;
     }
 
     uint32_t GetMaxElementIndices(HContext context)
@@ -1077,14 +1163,13 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
-    uint32_t g_DrawCallsHash = dmHashString32("DrawCalls");
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context);
         assert(index_buffer);
         DM_PROFILE(Graphics, "DrawElements");
-        DM_COUNTER_HASH("DrawCalls", g_DrawCallsHash, 1);
+        DM_COUNTER("DrawCalls", 1);
 
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
         CHECK_GL_ERROR
@@ -1097,7 +1182,7 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(context);
         DM_PROFILE(Graphics, "Draw");
-        DM_COUNTER_HASH("DrawCalls", g_DrawCallsHash, 1);
+        DM_COUNTER("DrawCalls", 1);
         glDrawArrays(prim_type, first, count);
         CHECK_GL_ERROR
     }
@@ -1277,6 +1362,11 @@ static void LogFrameBufferError(GLenum status)
         assert(program);
         glDeleteShader(program);
         CHECK_GL_ERROR
+    }
+
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context)
+    {
+        return ShaderDesc::LANGUAGE_GLSL;
     }
 
     void EnableProgram(HContext context, HProgram program)
@@ -1547,16 +1637,42 @@ static void LogFrameBufferError(GLenum status)
         delete render_target;
     }
 
-    void EnableRenderTarget(HContext context, HRenderTarget render_target)
+    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
     {
-        glBindFramebuffer(GL_FRAMEBUFFER, render_target->m_Id);
-        CHECK_GL_ERROR
-        CHECK_GL_FRAMEBUFFER_ERROR
-    }
-
-    void DisableRenderTarget(HContext context, HRenderTarget render_target)
-    {
-        glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
+        if(PFN_glInvalidateFramebuffer != NULL)
+        {
+            if(context->m_FrameBufferInvalidateBits)
+            {
+                uint32_t invalidate_bits = context->m_FrameBufferInvalidateBits;
+                if((invalidate_bits & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT)) && (context->m_PackedDepthStencil))
+                {
+                    // if packed depth/stencil buffer is used and either is set as transient, force both non-transient (as both will otherwise be transient).
+                    invalidate_bits &= ~(BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT);
+                }
+                GLenum types[MAX_BUFFER_TYPE_COUNT];
+                uint32_t types_count = 0;
+                if(invalidate_bits & BUFFER_TYPE_COLOR_BIT)
+                {
+                    types[types_count++] = context->m_FrameBufferInvalidateAttachments ? DMGRAPHICS_RENDER_BUFFER_COLOR_ATTACHMENT : DMGRAPHICS_RENDER_BUFFER_COLOR;
+                }
+                if(invalidate_bits & BUFFER_TYPE_DEPTH_BIT)
+                {
+                    types[types_count++] = context->m_FrameBufferInvalidateAttachments ? DMGRAPHICS_RENDER_BUFFER_DEPTH_ATTACHMENT : DMGRAPHICS_RENDER_BUFFER_DEPTH;
+                }
+                if(invalidate_bits & BUFFER_TYPE_STENCIL_BIT)
+                {
+                    types[types_count++] = context->m_FrameBufferInvalidateAttachments ? DMGRAPHICS_RENDER_BUFFER_STENCIL_ATTACHMENT : DMGRAPHICS_RENDER_BUFFER_STENCIL;
+                }
+                PFN_glInvalidateFramebuffer( GL_FRAMEBUFFER, types_count, &types[0] );
+            }
+            context->m_FrameBufferInvalidateBits = transient_buffer_types;
+#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) )
+            context->m_FrameBufferInvalidateAttachments = 1; // always attachments on iOS
+#else
+            context->m_FrameBufferInvalidateAttachments = render_target != NULL;
+#endif
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, render_target == NULL ? glfwGetDefaultFramebuffer() : render_target->m_Id);
         CHECK_GL_ERROR
         CHECK_GL_FRAMEBUFFER_ERROR
     }
@@ -1732,6 +1848,19 @@ static void LogFrameBufferError(GLenum status)
         JobQueuePush(j);
     }
 
+    HandleResult GetTextureHandle(HTexture texture, void** out_handle)
+    {
+        *out_handle = 0x0;
+
+        if (!texture) {
+            return HANDLE_RESULT_ERROR;
+        }
+
+        *out_handle = &texture->m_Texture;
+
+        return HANDLE_RESULT_OK;
+    }
+
     static inline uint32_t GetTextureFormatBPP(TextureFormat format)
     {
         static TextureFormatToBPP g_TextureFormatToBPP;
@@ -1788,14 +1917,18 @@ static void LogFrameBufferError(GLenum status)
         texture->m_Params = params;
         if (!params.m_SubUpdate) {
             SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
+
+            if (params.m_MipMap == 0)
+            {
+                texture->m_Width  = params.m_Width;
+                texture->m_Height = params.m_Height;
+            }
         }
-
-
 
         GLenum gl_format;
         GLenum gl_type = DMGRAPHICS_TYPE_UNSIGNED_BYTE;
         // Only used for uncompressed formats
-        GLint internal_format;
+        GLint internal_format = -1;
         switch (params.m_Format)
         {
         case TEXTURE_FORMAT_LUMINANCE:

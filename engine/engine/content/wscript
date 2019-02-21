@@ -39,8 +39,14 @@ def build(bld):
 
     builtins_release.find_sources_in_dirs('builtins/fonts')
 
-    for d in ['fonts', 'input', 'render', 'materials', 'graphics', 'scripts']:
+    for d in ['fonts', 'input', 'render', 'materials', 'graphics', 'scripts', 'docs']:
         bld.install_files('${PREFIX}/content/builtins/%s' % d, 'builtins/%s/*' % d)
+
+    for d in ['manifests']:
+        bld.install_files('${PREFIX}/content',
+                  bld.path.ant_glob('builtins/%s/**' % d),
+                  cwd=bld.path.find_dir('builtins'),
+                  relative_trick=True)
 
     if not Options.options.skip_build_tests:
         bld.new_task_gen(name = 'bob-engine',

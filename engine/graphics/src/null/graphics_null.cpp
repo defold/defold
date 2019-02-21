@@ -115,6 +115,12 @@ namespace dmGraphics
         return WINDOW_RESULT_OK;
     }
 
+    uint32_t GetWindowRefreshRate(HContext context)
+    {
+        assert(context);
+        return 0;
+    }
+
     void CloseWindow(HContext context)
     {
         assert(context);
@@ -273,6 +279,7 @@ namespace dmGraphics
     NATIVE_HANDLE_IMPL(EGLSurface, AndroidEGLSurface);
     NATIVE_HANDLE_IMPL(JavaVM*, AndroidJavaVM);
     NATIVE_HANDLE_IMPL(jobject, AndroidActivity);
+    NATIVE_HANDLE_IMPL(android_app*, AndroidApp);
     NATIVE_HANDLE_IMPL(Window, X11Window);
     NATIVE_HANDLE_IMPL(GLXContext, X11GLXContext);
 
@@ -387,6 +394,11 @@ namespace dmGraphics
         memcpy(ib->m_Buffer, ib->m_Copy, ib->m_Size);
         delete [] ib->m_Copy;
         ib->m_Copy = 0x0;
+        return true;
+    }
+
+    bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
+    {
         return true;
     }
 
@@ -690,6 +702,11 @@ namespace dmGraphics
         delete p;
     }
 
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context)
+    {
+        return ShaderDesc::LANGUAGE_GLSL;
+    }
+
     void EnableProgram(HContext context, HProgram program)
     {
         assert(context);
@@ -784,7 +801,6 @@ namespace dmGraphics
             if (buffer_type_flags & buffer_types[i])
             {
                 uint32_t buffer_size = sizeof(uint32_t) * params[i].m_Width * params[i].m_Height;
-                *(buffers[i]) = new char[buffer_size];
                 *(buffer_sizes[i]) = buffer_size;
                 rt->m_BufferTextureParams[i] = params[i];
                 rt->m_BufferTextureParams[i].m_Data = 0x0;
@@ -792,8 +808,12 @@ namespace dmGraphics
 
                 if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT))
                 {
+                    rt->m_BufferTextureParams[i].m_DataSize = buffer_size;
                     rt->m_ColorBufferTexture = NewTexture(context, creation_params[i]);
                     SetTexture(rt->m_ColorBufferTexture, rt->m_BufferTextureParams[i]);
+                    *(buffers[i]) = rt->m_ColorBufferTexture->m_Data;
+                } else {
+                    *(buffers[i]) = new char[buffer_size];
                 }
             }
         }
@@ -805,24 +825,16 @@ namespace dmGraphics
     {
         if (rt->m_ColorBufferTexture)
             DeleteTexture(rt->m_ColorBufferTexture);
-        delete [] (char*)rt->m_FrameBuffer.m_ColorBuffer;
         delete [] (char*)rt->m_FrameBuffer.m_DepthBuffer;
         delete [] (char*)rt->m_FrameBuffer.m_StencilBuffer;
         delete rt;
     }
 
-    void EnableRenderTarget(HContext context, HRenderTarget rendertarget)
+    void SetRenderTarget(HContext context, HRenderTarget rendertarget, uint32_t transient_buffer_types)
     {
+        (void) transient_buffer_types;
         assert(context);
-        assert(rendertarget);
         context->m_CurrentFrameBuffer = &rendertarget->m_FrameBuffer;
-    }
-
-    void DisableRenderTarget(HContext context, HRenderTarget rendertarget)
-    {
-        assert(context);
-        assert(rendertarget);
-        context->m_CurrentFrameBuffer = &context->m_MainFrameBuffer;
     }
 
     HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type)
@@ -843,21 +855,25 @@ namespace dmGraphics
 
     void SetRenderTargetSize(HRenderTarget rt, uint32_t width, uint32_t height)
     {
+        uint32_t buffer_size = sizeof(uint32_t) * width * height;
+
         void** buffers[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBuffer, &rt->m_FrameBuffer.m_DepthBuffer, &rt->m_FrameBuffer.m_StencilBuffer};
         uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBufferSize, &rt->m_FrameBuffer.m_DepthBufferSize, &rt->m_FrameBuffer.m_StencilBufferSize};
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
             if (buffers[i])
             {
-                delete [] (char*)*(buffers[i]);
-                uint32_t buffer_size = sizeof(uint32_t) * width * height;
-                *(buffers[i]) = new char[buffer_size];
                 *(buffer_sizes[i]) = buffer_size;
                 rt->m_BufferTextureParams[i].m_Width = width;
                 rt->m_BufferTextureParams[i].m_Height = height;
                 if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT))
                 {
+                    rt->m_BufferTextureParams[i].m_DataSize = buffer_size;
                     SetTexture(rt->m_ColorBufferTexture, rt->m_BufferTextureParams[i]);
+                    *(buffers[i]) = rt->m_ColorBufferTexture->m_Data;
+                } else {
+                    delete [] (char*)*(buffers[i]);
+                    *(buffers[i]) = new char[buffer_size];
                 }
             }
         }
@@ -901,6 +917,19 @@ namespace dmGraphics
         delete t;
     }
 
+    HandleResult GetTextureHandle(HTexture texture, void** out_handle)
+    {
+        *out_handle = 0x0;
+
+        if (!texture) {
+            return HANDLE_RESULT_ERROR;
+        }
+
+        *out_handle = texture->m_Data;
+
+        return HANDLE_RESULT_OK;
+    }
+
     void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
     {
         assert(texture);
@@ -909,12 +938,16 @@ namespace dmGraphics
     void SetTexture(HTexture texture, const TextureParams& params)
     {
         assert(texture);
+        assert(!params.m_SubUpdate || params.m_SubUpdate && (params.m_X + params.m_Width <= texture->m_Width));
+        assert(!params.m_SubUpdate || params.m_SubUpdate && (params.m_Y + params.m_Height <= texture->m_Height));
+
         if (texture->m_Data != 0x0)
             delete [] (char*)texture->m_Data;
         texture->m_Format = params.m_Format;
         // Allocate even for 0x0 size so that the rendertarget dummies will work.
         texture->m_Data = new char[params.m_DataSize];
-        memcpy(texture->m_Data, params.m_Data, params.m_DataSize);
+        if (params.m_Data != 0x0)
+            memcpy(texture->m_Data, params.m_Data, params.m_DataSize);
         texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
     }
 

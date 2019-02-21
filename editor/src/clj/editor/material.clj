@@ -17,7 +17,7 @@
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
             [internal.util :as util])
-  (:import [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$WrapMode Material$MaterialDesc$FilterModeMin Material$MaterialDesc$FilterModeMag]
+  (:import [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$WrapMode Material$MaterialDesc$FilterModeMin Material$MaterialDesc$FilterModeMag Material$MaterialDesc$VertexSpace]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
@@ -28,7 +28,7 @@
 
 (set! *warn-on-reflection* true)
 
-(g/defnk produce-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags :as pb-msg]
+(g/defnk produce-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space :as pb-msg]
   (-> pb-msg
       (dissoc :_node-id :basis)
       (update :vertex-program resource/resource->proj-path)
@@ -123,7 +123,12 @@
          {:path [:tags]
           :label "Tags"
           :type :list
-          :element {:type :string :default "New Tag"}}]}]}))
+          :element {:type :string :default "New Tag"}}
+         {:path [:vertex-space]
+          :label "Vertex Space"
+          :type :choicebox
+          :options (protobuf-forms/make-options (protobuf/enum-values Material$MaterialDesc$VertexSpace))
+          :default (ffirst (protobuf/enum-values Material$MaterialDesc$VertexSpace))}]}]}))
 
 (defn- set-form-op [{:keys [node-id]} [property] value]
   (g/set-property! node-id property value))
@@ -131,7 +136,7 @@
 (defn- clear-form-op [{:keys [node-id]} [property]]
   (g/clear-property! node-id property))
 
-(g/defnk produce-form-data [_node-id name vertex-program fragment-program vertex-constants fragment-constants samplers tags :as args]
+(g/defnk produce-form-data [_node-id name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space :as args]
   (let [values (-> (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields]))))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
@@ -150,7 +155,8 @@
     :constant-type-view :view
     :constant-type-projection :projection
     :constant-type-normal :normal
-    :constant-type-worldview :world-view))
+    :constant-type-worldview :world-view
+    :constant-type-worldviewproj :world-view-proj))
 
 (def ^:private wrap-mode->gl {:wrap-mode-repeat GL2/GL_REPEAT
                               :wrap-mode-mirrored-repeat GL2/GL_MIRRORED_REPEAT
@@ -186,8 +192,8 @@
   (property vertex-program resource/Resource
     (dynamic visible (g/constantly false))
     (value (gu/passthrough vertex-resource))
-    (set (fn [_evaluation-context self old-value new-value]
-           (project/resource-setter self old-value new-value
+    (set (fn [evaluation-context self old-value new-value]
+           (project/resource-setter evaluation-context self old-value new-value
                                     [:resource :vertex-resource]
                                     [:full-source :vertex-source]
                                     [:build-targets :dep-build-targets]))))
@@ -195,8 +201,8 @@
   (property fragment-program resource/Resource
     (dynamic visible (g/constantly false))
     (value (gu/passthrough fragment-resource))
-    (set (fn [_evaluation-context self old-value new-value]
-           (project/resource-setter self old-value new-value
+    (set (fn [evaluation-context self old-value new-value]
+           (project/resource-setter evaluation-context self old-value new-value
                                     [:resource :fragment-resource]
                                     [:full-source :fragment-source]
                                     [:build-targets :dep-build-targets]))))
@@ -205,6 +211,7 @@
   (property fragment-constants g/Any (dynamic visible (g/constantly false)))
   (property samplers g/Any (dynamic visible (g/constantly false)))
   (property tags g/Any (dynamic visible (g/constantly false)))
+  (property vertex-space g/Keyword (dynamic visible (g/constantly false)))
 
   (output form-data g/Any :cached produce-form-data)
 
@@ -234,7 +241,7 @@
   (concat
     (g/set-property self :vertex-program (workspace/resolve-resource resource (:vertex-program pb)))
     (g/set-property self :fragment-program (workspace/resolve-resource resource (:fragment-program pb)))
-    (for [field [:name :vertex-constants :fragment-constants :samplers :tags]]
+    (for [field [:name :vertex-constants :fragment-constants :samplers :tags :vertex-space]]
       (g/set-property self field (field pb)))))
 
 (defn- convert-textures-to-samplers

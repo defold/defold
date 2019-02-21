@@ -2,7 +2,7 @@
   (:require [dynamo.graph :as g]
             [editor.core :as core]
             [editor.defold-project-search :as project-search]
-            [editor.dialogs :as dialogs]
+            [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
@@ -10,7 +10,7 @@
            [javafx.animation AnimationTimer]
            [javafx.event Event]
            [javafx.scene Parent Scene]
-           [javafx.scene.control SelectionMode TabPane TextField TreeItem TreeView]
+           [javafx.scene.control CheckBox SelectionMode TabPane TextField TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane]
            [javafx.stage StageStyle]))
@@ -106,19 +106,22 @@
                         [resource {}]))))
         selection))
 
-(def ^:private search-in-files-dialog-state (atom nil))
+(def ^:private search-in-files-term-prefs-key "search-in-files-term")
+(def ^:private search-in-files-exts-prefs-key "search-in-files-exts")
+(def ^:private search-in-files-include-libraries-prefs-key "search-in-files-include-libraries")
 
-(defn set-search-term! [term]
-  (swap! search-in-files-dialog-state assoc :term term))
+(defn set-search-term! [prefs term]
+  (assert (string? term))
+  (prefs/set-prefs prefs search-in-files-term-prefs-key term))
 
-(defn- start-search-in-files! [project results-tab-tree-view open-fn show-find-results-fn]
+(defn- start-search-in-files! [project prefs results-tab-tree-view open-fn show-find-results-fn]
   (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
         scene     (Scene. root)
         stage     (doto (ui/make-stage)
                     (.initStyle StageStyle/DECORATED)
                     (.initOwner (ui/main-stage))
                     (.setResizable false))]
-    (ui/with-controls root [^TextField search ^TextField types ^TreeView resources-tree ok search-in-progress]
+    (ui/with-controls root [^TextField search ^TextField types ^CheckBox include-libraries-check-box ^TreeView resources-tree ok search-in-progress]
       (ui/visible! search-in-progress false)
       (let [start-consumer! (partial start-tree-update-timer! [resources-tree results-tab-tree-view] search-in-progress)
             stop-consumer! ui/timer-stop!
@@ -127,9 +130,12 @@
             {:keys [abort-search! start-search!]} (project-search/make-file-searcher file-resource-save-data-future start-consumer! stop-consumer! report-error!)
             on-input-changed! (fn [_ _ _]
                                 (let [term (.getText search)
-                                      exts (.getText types)]
-                                  (reset! search-in-files-dialog-state {:term term :exts exts})
-                                  (start-search! term exts)))
+                                      exts (.getText types)
+                                      include-libraries? (.isSelected include-libraries-check-box)]
+                                  (prefs/set-prefs prefs search-in-files-term-prefs-key term)
+                                  (prefs/set-prefs prefs search-in-files-exts-prefs-key exts)
+                                  (prefs/set-prefs prefs search-in-files-include-libraries-prefs-key include-libraries?)
+                                  (start-search! term exts include-libraries?)))
             dismiss-and-abort-search! (fn []
                                         (abort-search!)
                                         (ui/close! stage))
@@ -168,13 +174,17 @@
                                                 (ui/request-focus! search))
                                nil))))
 
-        (let [{:keys [term exts]} @search-in-files-dialog-state]
+        (let [term (prefs/get-prefs prefs search-in-files-term-prefs-key "")
+              exts (prefs/get-prefs prefs search-in-files-exts-prefs-key "")
+              include-libraries? (prefs/get-prefs prefs search-in-files-include-libraries-prefs-key true)]
           (ui/text! search term)
           (ui/text! types exts)
-          (start-search! term exts))
+          (ui/value! include-libraries-check-box include-libraries?)
+          (start-search! term exts include-libraries?))
 
         (ui/observe (.textProperty search) on-input-changed!)
         (ui/observe (.textProperty types) on-input-changed!)
+        (ui/observe (.selectedProperty include-libraries-check-box) on-input-changed!)
         (.setScene stage scene)
         (ui/show! stage)))))
 
@@ -211,8 +221,8 @@
                               :search-results-container search-results-container)]
     view-id))
 
-(defn show-search-in-files-dialog! [search-results-view project]
+(defn show-search-in-files-dialog! [search-results-view project prefs]
   (let [results-tab-tree-view (make-search-in-files-tree-view)
         open-fn (partial open-resource! search-results-view)
         show-matches-fn (partial update-search-results! search-results-view results-tab-tree-view)]
-    (start-search-in-files! project results-tab-tree-view open-fn show-matches-fn)))
+    (start-search-in-files! project prefs results-tab-tree-view open-fn show-matches-fn)))

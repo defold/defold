@@ -745,7 +745,7 @@ int XSDL_SYS_JoystickInit(void)
             gpDeviceList = device;
         lastDevice = device;
     }
-    result = IOObjectRelease(hidObjectIterator);        /* release the iterator */
+    IOObjectRelease(hidObjectIterator);        /* release the iterator */
 
     /* Count the total number of devices we found */
     device = gpDeviceList;
@@ -825,7 +825,8 @@ XSDL_SYS_JoystickUpdate(int joy_index)
 {
     recDevice *device = (recDevice*) _glfwJoy[joy_index].Device;
     recElement *element;
-    SInt32 value, range;
+    SInt32 value;
+    //SInt32 range;
     int i;
 
     if (device->removed) {      /* device was unplugged; ignore it. */
@@ -951,7 +952,7 @@ int _glfwInitJoysticks( void )
             _glfwJoy[i].Axis = malloc(sizeof(float) * device->axes);
 
             _glfwJoy[i].NumButtons = device->buttons;
-            _glfwJoy[i].Button = malloc(sizeof(char) * device->buttons);
+            _glfwJoy[i].Button = malloc(sizeof(unsigned char) * device->buttons);
 
             i++;
             device = device->pNext;

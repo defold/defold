@@ -53,7 +53,7 @@ namespace dmConnectionPool
         dmArray<Connection> m_Connections;
         uint16_t            m_NextVersion;
         dmAxTls::SSL_CTX*   m_SSLContext;
-        dmMutex::Mutex      m_Mutex;
+        dmMutex::HMutex     m_Mutex;
 
         uint16_t            m_AllowNewConnections:1;
 
@@ -311,9 +311,8 @@ namespace dmConnectionPool
         }
 
         uint64_t handshakestart = dmTime::GetTime();
-        if( timeout > 0 && (handshakestart - connectstart) > timeout )
+        if( timeout > 0 && (handshakestart - connectstart) > (uint64_t)timeout )
         {
-            r = RESULT_SOCKET_ERROR;
             dmSocket::Delete(c->m_Socket);
             c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
             return RESULT_SOCKET_ERROR;
@@ -484,7 +483,8 @@ namespace dmConnectionPool
         // in-use connections.
         DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
         uint32_t count = 0;
-        for (uint32_t i=0;i!=pool->m_Connections.Size();i++) {
+        uint32_t n = pool->m_Connections.Size();
+        for (uint32_t i=0; i != n; i++) {
             Connection* c = &pool->m_Connections[i];
             if (c->m_State == STATE_INUSE) {
                 count++;
@@ -501,7 +501,22 @@ namespace dmConnectionPool
 
     void Reopen(HPool pool)
     {
+        // This function is used by tests to restore usage of a pool
+        // We purge any live connections so the test does not run out
+        // of connection pool items
         DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
+        uint32_t n = pool->m_Connections.Size();
+        for (uint32_t i=0; i != n; i++) {
+            Connection* c = &pool->m_Connections[i];
+            if (c->m_State == STATE_CONNECTED)
+            {
+                dmSocket::Delete(c->m_Socket);
+                if (c->m_SSLConnection) {
+                    ssl_free(c->m_SSLConnection);
+                }
+                c->Clear();
+            }
+        }
         pool->m_AllowNewConnections = 1;
     }
 }

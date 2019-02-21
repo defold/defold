@@ -25,7 +25,7 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
-import com.dynamo.bob.bundle.OSX64Bundler;
+import com.dynamo.bob.bundle.OSXBundler;
 import com.dynamo.bob.fs.DefaultFileSystem;
 
 public class OSXBundlerTest {
@@ -59,9 +59,13 @@ public class OSXBundlerTest {
         createFile(contentRoot, "builtins/render/default.render_script", "");
         createFile(contentRoot, "builtins/render/default.display_profiles", "");
         createFile(contentRoot, "builtins/input/default.gamepads", "");
+        createFile(contentRoot, "builtins/manifests/osx/Info.plist", "");
+        createFile(contentRoot, "builtins/manifests/ios/Info.plist", "");
+        createFile(contentRoot, "builtins/manifests/android/AndroidManifest.xml", "");
+        createFile(contentRoot, "builtins/manifests/web/engine_template.html", "");
         createFile(contentRoot, "input/game.input_binding", "");
     }
-    
+
     void build() throws IOException, CompileExceptionError, MultipleCompileException {
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
         project.setPublisher(new NullPublisher(new PublisherSettings()));
@@ -83,7 +87,7 @@ public class OSXBundlerTest {
         createFile(contentRoot, "test.icns", "test_icon");
         createFile(contentRoot, "game.project", "[osx]\napp_icon=test.icns\n");
         build();
-        assertEquals("test_icon", readFile(concat(outputDir, "Unnamed.app/Contents/Resources"), OSX64Bundler.ICON_NAME));
+        assertEquals("test_icon", readFile(concat(outputDir, "Unnamed.app/Contents/Resources"), OSXBundler.ICON_NAME));
         assertExe();
         assertPList();
     }

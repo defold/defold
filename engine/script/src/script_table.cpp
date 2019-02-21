@@ -4,6 +4,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/static_assert.h>
 #include "script.h"
+#include "script_private.h"
 
 extern "C"
 {
@@ -209,7 +210,7 @@ namespace dmScript
         size_t value_len = 0;
         const char* value = lua_tolstring(L, index, &value_len);
         uint32_t total_size = value_len + sizeof(uint32_t);
-        if (buffer_end - buffer < total_size)
+        if (buffer_end - buffer < (intptr_t)total_size)
         {
             luaL_error(L, "buffer (%d bytes) too small for table, exceeded at '%s' for element #%d", buffer_size, value, count);
         }
@@ -221,12 +222,14 @@ namespace dmScript
     }
 
     // When loading older save games, we will use the old unpack method (with truncated c strings)
-    static uint32_t LoadOldTSTRING(lua_State* L, const char* buffer, const char* buffer_end, uint32_t count)
+    static uint32_t LoadOldTSTRING(lua_State* L, const char* buffer, const char* buffer_end, uint32_t count, PushTableLogger& logger)
     {
         uint32_t total_size = strlen(buffer) + 1;
-        if (buffer_end - buffer < total_size)
+        if (buffer_end - buffer < (intptr_t)total_size)
         {
-            luaL_error(L, "Reading outside of buffer at element #%d (string): wanted to read: %d   bytes left: %d", count, total_size, (uint32_t)(buffer_end - buffer));
+            char log_str[PUSH_TABLE_LOGGER_STR_SIZE];
+            PushTableLogPrint(logger, log_str);
+            luaL_error(L, "Reading outside of buffer at element #%d (string): wanted to read: %d bytes left: %d [BufStart: %p, BufSize: %lu]\n'%s'", count, total_size, (int)(buffer_end - buffer), logger.m_BufferStart, logger.m_BufferSize, log_str);
         }
 
         lua_pushstring(L, buffer);
@@ -234,14 +237,18 @@ namespace dmScript
     }
 
     // When loading/unpacking messages/save games, we use pascal strings, and the Lua binary string api
-    static uint32_t LoadTSTRING(lua_State* L, const char* buffer, const char* buffer_end, uint32_t count)
+    static uint32_t LoadTSTRING(lua_State* L, const char* buffer, const char* buffer_end, uint32_t count, PushTableLogger& logger)
     {
         uint32_t_1_align* u32ptr = (uint32_t_1_align*)buffer;
         size_t value_len = (size_t)*u32ptr;
         uint32_t total_size = value_len + sizeof(uint32_t);
-        if (buffer_end - buffer < total_size)
+        if (buffer_end - buffer < (intptr_t)total_size)
         {
-            luaL_error(L, "Reading outside of buffer at element #%d (string): wanted to read: %d   bytes left: %d", count, total_size, (uint32_t)(buffer_end - buffer));
+            char log_str[PUSH_TABLE_LOGGER_STR_SIZE];
+            PushTableLogPrint(logger, log_str);
+            char str[512];
+            DM_SNPRINTF(str, sizeof(str), "Reading outside of buffer at element #%d (string) [value_len=%lu]: wanted to read: %d bytes left: %d [BufStart: %p, BufSize: %lu]\n'%s'", count, value_len, total_size, (uint32_t)(buffer_end - buffer), logger.m_BufferStart, logger.m_BufferSize, log_str);
+            luaL_error(L, "%s", str);
         }
 
         lua_pushlstring(L, buffer + sizeof(uint32_t), value_len);
@@ -553,44 +560,132 @@ namespace dmScript
         return buffer;
     }
 
-    int DoPushTable(lua_State*L, const TableHeader& header, const char* original_buffer, const char* buffer, uint32_t buffer_size)
+    void PushTableLogChar(PushTableLogger& logger, char c)
+    {
+        logger.m_Log[logger.m_Cursor++] = c;
+        if (logger.m_Cursor > logger.m_Size) {
+            logger.m_Size = logger.m_Cursor;
+        }
+        logger.m_Cursor = logger.m_Cursor % PUSH_TABLE_LOGGER_CAPACITY;
+    }
+
+    void PushTableLogString(PushTableLogger& logger, const char* s)
+    {
+        size_t len = strlen(s);
+        for (size_t i = 0; i < len; i++)
+        {
+            PushTableLogChar(logger, s[i]);
+        }
+    }
+
+    void PushTableLogFormat(PushTableLogger& logger, const char *format, ...)
+    {
+        char buffer[128];
+        size_t count = sizeof(buffer);
+        va_list argp;
+        va_start(argp, format);
+#if defined(_WIN32)
+        _vsnprintf_s(buffer, count, _TRUNCATE, format, argp);
+#else
+        vsnprintf(buffer, count, format, argp);
+#endif
+        va_end(argp);
+        PushTableLogString(logger, buffer);
+    }
+
+    void PushTableLogPrint(PushTableLogger& logger, char out[PUSH_TABLE_LOGGER_STR_SIZE])
+    {
+        memset(out, 0x0, PUSH_TABLE_LOGGER_STR_SIZE);
+        if (logger.m_Size == 0) {
+            return;
+        }
+
+        int t_c = ((int)logger.m_Cursor) - 1;
+        for (int32_t i = 0; i < logger.m_Size;)
+        {
+            if (t_c < 0)
+                t_c = PUSH_TABLE_LOGGER_CAPACITY + t_c;
+            t_c = t_c % PUSH_TABLE_LOGGER_CAPACITY;
+
+            int b = logger.m_Size - 1 - i++;
+            out[b] = logger.m_Log[t_c--];
+        }
+    }
+
+#define CHECK_PUSHTABLE_OOB(ELEMTYPE, LOGGER, BUFFER, BUFFER_END, COUNT, DEPTH) \
+    if (BUFFER > BUFFER_END) { \
+        char log_str[PUSH_TABLE_LOGGER_STR_SIZE]; \
+        PushTableLogPrint(LOGGER, log_str); \
+        char str[512]; \
+        DM_SNPRINTF(str, sizeof(str), "Reading outside of buffer after %s element #%d (depth: #%d) [BufStart: %p, Cursor: %p, End: %p, BufSize: %lu, Bytes OOB: %d].\n'%s'", ELEMTYPE, COUNT, DEPTH, LOGGER.m_BufferStart, BUFFER, BUFFER_END, LOGGER.m_BufferSize, (int)(BUFFER_END - BUFFER), log_str); \
+        return luaL_error(L, "%s", str); \
+    }
+
+    int DoPushTable(lua_State*L, PushTableLogger& logger, const TableHeader& header, const char* original_buffer, const char* buffer, uint32_t buffer_size, uint32_t depth)
     {
         int top = lua_gettop(L);
         (void)top;
+
         const char* buffer_start = buffer;
         const char* buffer_end = buffer + buffer_size;
+        CHECK_PUSHTABLE_OOB("table header", logger, buffer+2, buffer_end, 0, depth);
+
         uint32_t count = *(uint16_t_1_align *)buffer;
         buffer += 2;
+
+        PushTableLogFormat(logger, "{%d|", count);
+
+        if (buffer > buffer_end) {
+            char log_str[PUSH_TABLE_LOGGER_STR_SIZE];
+            PushTableLogPrint(logger, log_str);
+            char str[512]; \
+            DM_SNPRINTF(str, sizeof(str), "Reading outside of buffer at before element [BufStart: %p, Cursor: %p, End: %p, BufSize: %lu, Bytes OOB: %d].\n'%s'", logger.m_BufferStart, buffer, buffer_end, logger.m_BufferSize, (int)(buffer_end - buffer), log_str); \
+            return luaL_error(L, "%s", str);
+        }
 
         lua_newtable(L);
 
         for (uint32_t i = 0; i < count; ++i)
         {
+            CHECK_PUSHTABLE_OOB("key-value tags", logger, buffer+2, buffer_end, count, depth);
+
             char key_type = (*buffer++);
             char value_type = (*buffer++);
 
             if (key_type == LUA_TSTRING)
             {
+                PushTableLogString(logger, "KS");
+
                 if (header.m_Version <= 1)
-                    buffer += LoadOldTSTRING(L, buffer, buffer_end, count);
+                    buffer += LoadOldTSTRING(L, buffer, buffer_end, count, logger);
                 else
-                    buffer += LoadTSTRING(L, buffer, buffer_end, count);
+                    buffer += LoadTSTRING(L, buffer, buffer_end, count, logger);
+
+                CHECK_PUSHTABLE_OOB("key string", logger, buffer, buffer_end, count, depth);
             }
             else if (key_type == LUA_TNUMBER)
             {
+                PushTableLogString(logger, "KN");
+
                 buffer = ReadEncodedNumber(L, header, buffer);
+                CHECK_PUSHTABLE_OOB("key number", logger, buffer, buffer_end, count, depth);
             }
 
             switch (value_type)
             {
                 case LUA_TBOOLEAN:
                 {
+                    PushTableLogString(logger, "VB");
+
                     lua_pushboolean(L, *buffer++);
+                    CHECK_PUSHTABLE_OOB("value bool", logger, buffer, buffer_end, count, depth);
                 }
                 break;
 
                 case LUA_TNUMBER:
                 {
+                    PushTableLogString(logger, "VN");
+
                     // NOTE: We align lua_Number to sizeof(float) even if lua_Number probably is of double type
                     intptr_t offset = buffer - original_buffer;
                     intptr_t aligned_buffer = ((intptr_t) offset + sizeof(float)-1) & ~(sizeof(float)-1);
@@ -601,20 +696,28 @@ namespace dmScript
 
                     lua_pushnumber(L, *((lua_Number_4_align *) buffer));
                     buffer += sizeof(lua_Number);
+
+                    CHECK_PUSHTABLE_OOB("value number", logger, buffer, buffer_end, count, depth);
                 }
                 break;
 
                 case LUA_TSTRING:
                 {
+                    PushTableLogString(logger, "VS");
+
                     if (header.m_Version <= 1)
-                        buffer += LoadOldTSTRING(L, buffer, buffer_end, count);
+                        buffer += LoadOldTSTRING(L, buffer, buffer_end, count, logger);
                     else
-                        buffer += LoadTSTRING(L, buffer, buffer_end, count);
+                        buffer += LoadTSTRING(L, buffer, buffer_end, count, logger);
+
+                    CHECK_PUSHTABLE_OOB("value string", logger, buffer, buffer_end, count, depth);
                 }
                 break;
 
                 case LUA_TUSERDATA:
                 {
+                    PushTableLogString(logger, "VU");
+
                     char sub_type = *buffer++;
 
                     // NOTE: We align lua_Number to sizeof(float) even if lua_Number probably is of double type
@@ -625,26 +728,39 @@ namespace dmScript
                     // Sanity-check. At least 4 bytes alignment (de facto)
                     assert((((intptr_t) buffer) & 3) == 0);
 
+                    CHECK_PUSHTABLE_OOB("descriptor for udata", logger, buffer, buffer_end, count, depth);
+
                     if (sub_type == (char) SUB_TYPE_VECTOR3)
                     {
+                        PushTableLogString(logger, "V3");
+
                         float* f = (float*) buffer;
                         dmScript::PushVector3(L, Vectormath::Aos::Vector3(f[0], f[1], f[2]));
                         buffer += sizeof(float) * 3;
+                        CHECK_PUSHTABLE_OOB("udata vec3", logger, buffer, buffer_end, count, depth);
                     }
                     else if (sub_type == (char) SUB_TYPE_VECTOR4)
                     {
+                        PushTableLogString(logger, "V4");
+
                         float* f = (float*) buffer;
                         dmScript::PushVector4(L, Vectormath::Aos::Vector4(f[0], f[1], f[2], f[3]));
                         buffer += sizeof(float) * 4;
+                        CHECK_PUSHTABLE_OOB("udata vec4", logger, buffer, buffer_end, count, depth);
                     }
                     else if (sub_type == (char) SUB_TYPE_QUAT)
                     {
+                        PushTableLogString(logger, "Q4");
+
                         float* f = (float*) buffer;
                         dmScript::PushQuat(L, Vectormath::Aos::Quat(f[0], f[1], f[2], f[3]));
                         buffer += sizeof(float) * 4;
+                        CHECK_PUSHTABLE_OOB("udata quat", logger, buffer, buffer_end, count, depth);
                     }
                     else if (sub_type == (char) SUB_TYPE_MATRIX4)
                     {
+                        PushTableLogString(logger, "M4");
+
                         float* f = (float*) buffer;
                         Vectormath::Aos::Matrix4 m;
                         for (uint32_t i = 0; i < 4; ++i)
@@ -652,22 +768,29 @@ namespace dmScript
                                 m.setElem(i, j, f[i * 4 + j]);
                         dmScript::PushMatrix4(L, m);
                         buffer += sizeof(float) * 16;
+                        CHECK_PUSHTABLE_OOB("udata mat4", logger, buffer, buffer_end, count, depth);
                     }
                     else if (sub_type == (char) SUB_TYPE_HASH)
                     {
+                        PushTableLogString(logger, "H");
+
                         dmhash_t hash;
                         uint32_t hash_size = sizeof(dmhash_t);
                         memcpy(&hash, buffer, hash_size);
                         dmScript::PushHash(L, hash);
                         buffer += hash_size;
+                        CHECK_PUSHTABLE_OOB("udata hash", logger, buffer, buffer_end, count, depth);
                     }
                     else if (sub_type == (char) SUB_TYPE_URL)
                     {
+                        PushTableLogString(logger, "URL");
+
                         dmMessage::URL url;
                         uint32_t url_size = sizeof(dmMessage::URL);
                         memcpy(&url, buffer, url_size);
                         dmScript::PushURL(L, url);
                         buffer += url_size;
+                        CHECK_PUSHTABLE_OOB("udata url", logger, buffer, buffer_end, count, depth);
                     }
                     else
                     {
@@ -677,8 +800,9 @@ namespace dmScript
                 break;
                 case LUA_TTABLE:
                 {
-                    int n_consumed = DoPushTable(L, header, original_buffer, buffer, buffer_size);
+                    int n_consumed = DoPushTable(L, logger, header, original_buffer, buffer, buffer_size, depth+1);
                     buffer += n_consumed;
+                    CHECK_PUSHTABLE_OOB("table", logger, buffer, buffer_end, count, depth);
                 }
                 break;
 
@@ -687,21 +811,38 @@ namespace dmScript
                     break;
             }
             lua_settable(L, -3);
+
+            CHECK_PUSHTABLE_OOB("loop end", logger, buffer, buffer_end, count, depth);
         }
 
         assert(top + 1 == lua_gettop(L));
 
+        PushTableLogString(logger, "}");
         return buffer - buffer_start;
     }
+
+#undef CHECK_PUSHTABLE_OOB
 
     void PushTable(lua_State*L, const char* buffer, uint32_t buffer_size)
     {
         TableHeader header;
         const char* original_buffer = buffer;
+
+        // Check so that buffer has enough size to read header
+        if (buffer_size < sizeof(TableHeader)) {
+            char str[256];
+            DM_SNPRINTF(str, sizeof(str), "Not enough data to read table header (buffer size: %u, header size: %lu)", buffer_size, sizeof(TableHeader));
+            luaL_error(L, "%s", str);
+        }
+
         buffer = ReadHeader(buffer, header);
         if (IsSupportedVersion(header))
         {
-            DoPushTable(L, header, original_buffer, buffer, buffer_size);
+            buffer_size -= sizeof(TableHeader);
+            PushTableLogger logger;
+            logger.m_BufferStart = buffer;
+            logger.m_BufferSize = buffer_size;
+            DoPushTable(L, logger, header, original_buffer, buffer, buffer_size, 0);
         }
         else
         {

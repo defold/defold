@@ -15,6 +15,8 @@ extern void dmMemProfileInternalData();
 
 void* g_dont_optimize = 0;
 
+#if !(defined(SANITIZE_ADDRESS) || defined(SANITIZE_MEMORY)) // until we can load the dylibs properly
+
 TEST(dmMemProfile, TestMalloc)
 {
     // We assume that the memory (actual size) allocated is 1024 <= x <= 1024 + sizeof(size_t)
@@ -304,6 +306,8 @@ TEST(dmMemProfile, TestTrace1)
     }
 }
 #endif
+
+#endif // SANITIZE ADDRESS/MEMORY
 
 int main(int argc, char **argv)
 {

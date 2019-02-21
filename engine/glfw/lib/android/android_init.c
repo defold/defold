@@ -288,6 +288,11 @@ static GLFWTouch* touchStart(void *ref, int32_t x, int32_t y)
     GLFWTouch *touch = touchById(ref);
     if (touch)
     {
+        // We can't start/begin a new touch if it already has an ongoing phase (ie not idle).
+        if (touch->Phase != GLFW_PHASE_IDLE) {
+            return 0x0;
+        }
+
         // When a new touch starts, and there was no previous one, this will be our mouse emulation touch.
         if (g_MouseEmulationTouch == 0x0) {
             g_MouseEmulationTouch = touch;
@@ -310,8 +315,19 @@ static GLFWTouch* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
     GLFWTouch *touch = touchById(ref);
     if (touch)
     {
+        // We can only update previous touches that has been initialized (began, moved etc).
+        if (touch->Phase == GLFW_PHASE_IDLE) {
+            touch->Reference = 0x0;
+            return 0x0;
+        }
+
         int prevPhase = touch->Phase;
         int newPhase = phase;
+
+        // If previous phase was TAPPED, we need to return early since we currently cannot buffer actions/phases.
+        if (prevPhase == GLFW_PHASE_TAPPED) {
+            return 0x0;
+        }
 
         // If this touch is currently used for mouse emulation, and it ended, unset the mouse emulation pointer.
         if (newPhase == GLFW_PHASE_ENDED && g_MouseEmulationTouch == touch) {
@@ -410,7 +426,7 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
                 }
                 break;
             case AMOTION_EVENT_ACTION_CANCEL:
-                if (touchUpdate(pointer_ref, x, y, GLFW_PHASE_CANCELLED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
+                if (touchUpdate(pointer_ref, x, y, GLFW_PHASE_ENDED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
                     updateGlfwMousePos(x,y);
                     _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
                 }
@@ -494,9 +510,8 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
             if (g_KeyboardActive) {
                 // Implicitly hide keyboard
                 _glfwShowKeyboard(0, 0, 0);
-            } else {
-                _glfwInputKey( GLFW_KEY_BACK, glfw_action );
             }
+            _glfwInputKey( GLFW_KEY_BACK, glfw_action );
             return 1;
         case AKEYCODE_ESCAPE: _glfwInputKey( GLFW_KEY_ESC, glfw_action ); return 1;
         case AKEYCODE_F1: _glfwInputKey( GLFW_KEY_F1, glfw_action ); return 1;
@@ -527,7 +542,6 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
         case AKEYCODE_TAB: _glfwInputKey( GLFW_KEY_TAB, glfw_action ); return 1;
         case AKEYCODE_INSERT: _glfwInputKey( GLFW_KEY_INSERT, glfw_action ); return 1;
         case AKEYCODE_DEL: _glfwInputKey( GLFW_KEY_DEL, glfw_action ); return 1;
-        case AKEYCODE_ENTER: _glfwInputKey( GLFW_KEY_ENTER, glfw_action ); return 1;
         case AKEYCODE_PAGE_UP: _glfwInputKey( GLFW_KEY_PAGEUP, glfw_action ); return 1;
         case AKEYCODE_PAGE_DOWN: _glfwInputKey( GLFW_KEY_PAGEDOWN, glfw_action ); return 1;
         case AKEYCODE_MOVE_HOME: _glfwInputKey( GLFW_KEY_HOME, glfw_action ); return 1;
@@ -571,7 +585,7 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
             case AKEYCODE_SPACE: _glfwInputKey( GLFW_KEY_SPACE, glfw_action ); break;
             case AKEYCODE_GRAVE: _glfwInputKey( '`', glfw_action ); break;
             case AKEYCODE_MINUS: _glfwInputKey( '-', glfw_action ); break;
-            case AKEYCODE_EQUALS: _glfwInputKey( "=", glfw_action ); break;
+            case AKEYCODE_EQUALS: _glfwInputKey( '=', glfw_action ); break;
             case AKEYCODE_LEFT_BRACKET: _glfwInputKey( '[', glfw_action ); break;
             case AKEYCODE_RIGHT_BRACKET: _glfwInputKey( ']', glfw_action ); break;
             case AKEYCODE_BACKSLASH: _glfwInputKey( '\\', glfw_action ); break;
@@ -634,7 +648,7 @@ void _glfwPreMain(struct android_app* state)
         int events;
         struct android_poll_source* source;
 
-        while ((ident=ALooper_pollAll(300, NULL, &events, (void**)&source)) >= 0)
+        if ((ident=ALooper_pollAll(300, NULL, &events, (void**)&source)) >= 0)
         {
             // Process this event.
             if (source != NULL) {

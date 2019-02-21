@@ -1,0 +1,44 @@
+<component name="ProjectCodeStyleConfiguration">
+  <code_scheme name="Project" version="173">
+    <option name="RIGHT_MARGIN" value="80" />
+    <ClojureCodeStyleSettings>{
+  :cursive.formatting/align-conditionals false
+  :cursive.formatting/align-maps false
+  :cursive.formatting/imports-use-vectors true
+  :dynamo.graph/precluding-errors :only-indent
+  :dynamo.graph/with-auto-evaluation-context :only-indent
+  :dynamo.graph/with-system :only-indent
+  :editor.analytics-test/with-config! :only-indent
+  :editor.file-test/with-temp-dir :only-indent
+  :editor.file-test/with-temp-dir! :only-indent
+  :editor.fs/maybe-silently :only-indent
+  :editor.git-test/with-git :only-indent
+  :editor.gl/gl-push-matrix :only-indent
+  :editor.gl/with-gl-bindings :only-indent
+  :editor.handler/defhandler :only-indent
+  :editor.resource-node/register-ddf-resource-type :only-indent
+  :editor.ui/event-handler :only-indent
+  :editor.ui/invalidation-listener :only-indent
+  :editor.ui/on-action! :only-indent
+  :editor.ui/on-closing! :only-indent
+  :editor.ui/with-controls :only-indent
+  :editor.ui/with-progress :only-indent
+  :editor.ui.bindings/-if :only-indent
+  :editor.ui.bindings/when :only-indent
+  :editor.ui.bindings/when-not :only-indent
+  :editor.updater-test/with-server 2
+  :integration.build-test/with-build-results :only-indent
+  :integration.test-util/with-loaded-project :only-indent
+  :integration.test-util/with-logged-calls :only-indent
+  :integration.test-util/with-prop :only-indent
+  :integration.test-util/with-temp-dir! :only-indent
+  :org.httpkit.server/with-channel :only-indent
+  :util.profiler/profile :only-indent
+}</ClojureCodeStyleSettings>
+    <XML>
+      <option name="XML_ATTRIBUTE_WRAP" value="0" />
+      <option name="XML_TEXT_WRAP" value="0" />
+      <option name="XML_SPACE_INSIDE_EMPTY_TAG" value="true" />
+    </XML>
+  </code_scheme>
+</component>

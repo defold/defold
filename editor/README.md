@@ -45,6 +45,9 @@ Consider putting it in an alias in your bash profile.
   from the `defold` directory
 * From the `defold/editor` directory, run `lein init`
 
+## Cursive IDE Setup
+Some of the remaining instructions are about EMACS. If instead you want to use the Cursive IDE, read the [Cursive setup guide](README_CURSIVE.md).
+
 ## Running Tests
 `lein test` will run all the tests including the integration tests.
 
@@ -78,20 +81,20 @@ There are a few different scenarios in which you might want to build
 the editor locally:
 
 - Local editor sources, archived engine artifacts based on HEAD:
-  - `./scripts/bundle.py --platform x86-win32 --version 1.2.3.4`
+  - `./scripts/bundle.py --platform x86_64-win32 --version 1.2.3.4`
     - This will fetch engine and launcher artifacts using the `HEAD`
       revision.
 - Local editor sources, archived engine artifacts based on a different revision:
-  - `./scripts/bundle.py --platform x86-win32 --version 1.2.3.4 --git-rev dev`
+  - `./scripts/bundle.py --platform x86_64-win32 --version 1.2.3.4 --git-rev dev`
     - This will fetch engine and launcher artifacts using the `dev`
       revision and is handy if you are on a branch where no engine
       artifacts have been archived.
 - Local editor sources, local engine artifacts, archived launcher from `dev`:
-  - `./scripts/bundle.py --platform x86-win32 --version 1.2.3.4 --git-rev dev --pack-local`
+  - `./scripts/bundle.py --platform x86_64-win32 --version 1.2.3.4 --git-rev dev --pack-local`
     - This will use local engine artifacts from `$DYNAMO_HOME`, with
       the exception of the launcher.
 - Local editor sources, local engine artifacts, local launcher:
-  - `./scripts/bundle.py --platform x86-win32 --version 1.2.3.4--pack-local --launcher ../tmp/dynamo_home/bin/x86_64-darwin/launcher`
+  - `./scripts/bundle.py --platform x86_64-win32 --version 1.2.3.4--pack-local --launcher ../tmp/dynamo_home/bin/x86_64-darwin/launcher`
 
 
 ## Jacking into a REPL

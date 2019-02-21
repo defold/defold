@@ -35,6 +35,7 @@ import com.dynamo.liveupdate.proto.Manifest.ManifestData;
 import com.dynamo.liveupdate.proto.Manifest.ManifestFile;
 import com.dynamo.liveupdate.proto.Manifest.ManifestHeader;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntry;
+import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.google.protobuf.ByteString;
 import org.apache.commons.io.FileUtils;
@@ -75,7 +76,7 @@ public class ManifestTest {
             }
 
             for (String[] entry : this.resources) {
-                manifestBuilder.addResourceEntry(entry[0], entry[1].getBytes());
+                manifestBuilder.addResourceEntry(entry[0], entry[1].getBytes(), ResourceEntryFlag.BUNDLED.getNumber());
             }
 
             this.manifestHeader = manifestBuilder.buildManifestHeader();
@@ -143,9 +144,15 @@ public class ManifestTest {
         }
 
         public HashDigest supportedEngineVersionHash(int index) {
-            HashDigest.Builder builder = HashDigest.newBuilder();
-            ByteString content = ByteString.copyFrom(this.supportedEngineVersions[index].getBytes());
-            HashDigest result = builder.setData(content).build();
+            HashDigest result = null;
+            try {
+                HashDigest.Builder builder = HashDigest.newBuilder();
+                byte[] hash = ManifestBuilder.CryptographicOperations.hash(this.supportedEngineVersions[index].getBytes(), HashAlgorithm.HASH_SHA1);
+                ByteString content = ByteString.copyFrom(hash);
+                result = builder.setData(content).build();
+            } catch (Exception exception) {
+                System.out.println("TEST ERROR: Unable to create hash for engine version!");
+            }
             return result;
         }
 
@@ -346,8 +353,8 @@ public class ManifestTest {
         fins.close();
         
         assertEquals(true, manifestFile2.hasData());
-        
-        ManifestHeader header = manifestFile2.getData().getHeader();
+        ManifestData data = ManifestData.parseFrom(manifestFile2.getData());
+        ManifestHeader header = data.getHeader();
         
         assertEquals(ManifestBuilder.CONST_MAGIC_NUMBER, header.getMagicNumber());
         assertEquals(ManifestBuilder.CONST_VERSION, header.getVersion());

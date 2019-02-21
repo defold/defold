@@ -1,10 +1,12 @@
 (ns editor.gl
   "Expose some GL functions and constants with Clojure-ish flavor"
   (:refer-clojure :exclude [repeat])
-  (:require [editor.gl.protocols :as p])
+  (:require [clojure.string :as string]
+            [editor.gl.protocols :as p]
+            [service.log :as log])
   (:import [java.awt Font]
            [java.nio IntBuffer]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory GLProfile]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory GLProfile GLException GLAutoDrawable GLOffscreenAutoDrawable GLCapabilities]
            [javax.vecmath Matrix4d]
            [com.jogamp.opengl.awt GLCanvas]
            [com.jogamp.opengl.util.awt TextRenderer]))
@@ -12,34 +14,110 @@
 (set! *warn-on-reflection* true)
 
 (defonce ^:private gl-info-atom (atom nil))
-
 (defonce ^:private required-functions ["glGenBuffers"])
 
-(defn gl-info! [^GLContext context]
-  (let [^GL gl (.getGL context)]
-    (reset! gl-info-atom {:vendor (.glGetString gl GL2/GL_VENDOR)
-                          :renderer (.glGetString gl GL2/GL_RENDERER)
-                          :version (.glGetString gl GL2/GL_VERSION)
-                          :desc (.toString context)
-                          :missing-functions (filterv (fn [^String name] (not (.isFunctionAvailable context name))) required-functions)})))
+(defn- profile ^GLProfile []
+  (try
+    (GLProfile/getGL2ES1)
+    (catch GLException e
+      (log/warn :message "Failed to acquire GL profile for GL2/GLES1.")
+      (GLProfile/getDefault))))
 
-(defn gl-info []
-  @gl-info-atom)
+(defn drawable-factory
+  (^GLDrawableFactory [] (drawable-factory (profile)))
+  (^GLDrawableFactory [^GLProfile profile] (GLDrawableFactory/getFactory profile)))
 
-(defn gl-version-info [^GL2 gl]
-  {:vendor                   (.glGetString gl GL2/GL_VENDOR)
-   :renderer                 (.glGetString gl GL2/GL_RENDERER)
-   :version                  (.glGetString gl GL2/GL_VERSION)
-   :shading-language-version (.glGetString gl GL2/GL_SHADING_LANGUAGE_VERSION)
-   :glcontext-class          (class gl)})
+(defn- unchecked-offscreen-drawable ^GLOffscreenAutoDrawable [w h]
+  (let [profile (profile)
+        factory (drawable-factory profile)
+        caps    (doto (GLCapabilities. profile)
+                  (.setOnscreen false)
+                  (.setFBO true)
+                  (.setPBuffer true)
+                  (.setDoubleBuffered false)
+                  (.setStencilBits 8))
+        drawable (.createOffscreenAutoDrawable factory nil caps nil w h)
+        context (.createContext drawable nil)]
+    (.setContext drawable context true)
+    drawable))
 
-(defn glcanvas ^GLCanvas
-  [parent]
-  (GLCanvas.))
+(def ^:private last-make-current-failure (atom 0))
 
-(defn glfactory ^GLDrawableFactory
-  []
-  (GLDrawableFactory/getFactory (GLProfile/getGL2ES2)))
+(defn- time-to-log? []
+  (let [now (System/currentTimeMillis)]
+    (when (> (- now @last-make-current-failure) (* 1000 60))
+      (reset! last-make-current-failure now)
+      true)))
+
+(def ^:private ignored-message-ids
+  (int-array
+    [;; Software processing fallback warning. The render mode is
+     ;; GL_FEEDBACK or GL_SELECT, neither of which is hardware accelerated.
+     0x20005
+     ;; Buffer object n will use VIDEO memory as the source for buffer
+     ;; object operations
+     0x20071]))
+
+(defn- ignore-some-gl-warnings! [^GLContext context]
+  (.glDebugMessageControl context
+                          GL2/GL_DEBUG_SOURCE_API
+                          GL2/GL_DEBUG_TYPE_OTHER
+                          GL2/GL_DONT_CARE
+                          (count ignored-message-ids)
+                          ignored-message-ids
+                          0
+                          false))
+
+(defn make-current ^GLContext [^GLAutoDrawable drawable]
+  (when-let [^GLContext context (.getContext drawable)]
+    (try
+      (let [result (.makeCurrent context)]
+        (if (= result GLContext/CONTEXT_NOT_CURRENT)
+          (do
+            (when (time-to-log?)
+              (log/warn :message "Failed to set gl context as current."))
+            nil)
+          (doto context ignore-some-gl-warnings!)))
+      (catch Exception e
+        (when (time-to-log?)
+          (log/error :exception e))
+        nil))))
+
+(defmacro with-drawable-as-current
+  [^GLAutoDrawable drawable & forms]
+  `(when-let [^GLContext ~'gl-context (make-current ~drawable)]
+     (try
+       (let [^GL2 ~'gl (.getGL ~'gl-context)]
+         ~@forms)
+       (finally (.release ~'gl-context)))))
+
+(defn- init-info! []
+  (let [drawable (unchecked-offscreen-drawable 100 100)]
+    (with-drawable-as-current drawable
+      (let [^GL gl (.getGL gl-context)]
+        (reset! gl-info-atom {:vendor (.glGetString gl GL2/GL_VENDOR)
+                              :renderer (.glGetString gl GL2/GL_RENDERER)
+                              :version (.glGetString gl GL2/GL_VERSION)
+                              :shading-language-version (.glGetString gl GL2/GL_SHADING_LANGUAGE_VERSION)
+                              :desc (.toString gl-context)
+                              :missing-functions (filterv (fn [^String name] (not (.isFunctionAvailable gl-context name))) required-functions)})))
+    (.destroy drawable)
+    @gl-info-atom))
+
+(defn info []
+  (or @gl-info-atom (init-info!)))
+
+(defn gl-support-error ^String []
+  (let [info (info)]
+    (when-let [missing (seq (:missing-functions info))]
+      (string/join "\n"
+                   [(format "The graphics device does not support: %s" (string/join ", " missing))
+                    (format "GPU: %s" (:renderer info))
+                    (format "Driver: %s" (:version info))]))))
+
+(defn offscreen-drawable ^GLOffscreenAutoDrawable [w h]
+  (when (empty? (:missing-functions (info)))
+    (unchecked-offscreen-drawable w h)))
 
 (defn gl-init-vba [^GL2 gl]
   (let [vba-name-buf (IntBuffer/allocate 1)]
@@ -83,6 +161,9 @@
 (defn gl-max-texture-units
   [^GL2 gl]
   (first (gl-get-integer-v gl GL2/GL_MAX_TEXTURE_UNITS 1)))
+
+(defn gl-current-program [^GL2 gl]
+  (first (gl-get-integer-v gl GL2/GL_CURRENT_PROGRAM 1)))
 
 (defn text-renderer [font-name font-style font-size]
   (doto (TextRenderer. (Font. font-name font-style font-size) false false)
@@ -167,19 +248,17 @@
        (finally
          (.glPopMatrix gl#)))))
 
+(defn matrix->floats [^Matrix4d mat]
+  (float-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
+                (.m01 mat) (.m11 mat) (.m21 mat) (.m31 mat)
+                (.m02 mat) (.m12 mat) (.m22 mat) (.m32 mat)
+                (.m03 mat) (.m13 mat) (.m23 mat) (.m33 mat)]))
+
 (defn gl-load-matrix-4d [^GL2 gl ^Matrix4d mat]
-  (let [fbuf (float-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
-                           (.m01 mat) (.m11 mat) (.m21 mat) (.m31 mat)
-                           (.m02 mat) (.m12 mat) (.m22 mat) (.m32 mat)
-                           (.m03 mat) (.m13 mat) (.m23 mat) (.m33 mat)])]
-    (.glLoadMatrixf gl fbuf 0)))
+  (.glLoadMatrixf gl (matrix->floats mat) 0))
 
 (defn gl-mult-matrix-4d [^GL2 gl ^Matrix4d mat]
-  (let [fbuf (float-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
-                           (.m01 mat) (.m11 mat) (.m21 mat) (.m31 mat)
-                           (.m02 mat) (.m12 mat) (.m22 mat) (.m32 mat)
-                           (.m03 mat) (.m13 mat) (.m23 mat) (.m33 mat)])]
-    (.glMultMatrixf gl fbuf 0)))
+  (.glMultMatrixf gl (matrix->floats mat) 0))
 
 (defmacro color
   ([r g b]        `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0)]))
@@ -233,7 +312,7 @@
 (def nearest-mipmap-linear  GL2/GL_NEAREST_MIPMAP_LINEAR)
 (def linear-mipmap-linear   GL2/GL_LINEAR_MIPMAP_LINEAR)
 
-(defn ^"[I" viewport-array [viewport]
+(defn viewport-array ^"[I" [viewport]
   (int-array [(:left viewport)
               (:top viewport)
               (:right viewport)
@@ -263,26 +342,6 @@
                    (.begin3DRendering text-renderer)
                    (.draw3D text-renderer chars 0.0 0.0 1.0 1.0)
                    (.end3DRendering text-renderer))))
-
-(defn select-buffer-names
-  "Returns a collection of names from a GL_SELECT buffer.
-   Names are integers assigned during rendering with glPushName and glPopName.
-   The select-buffer contains a series of 'hits' where each hit
-   is [name-count min-z max-z & names+]. In our usage, names may not be
-   nested so name-count must always be one."
-  [hit-count ^IntBuffer select-buffer]
-  (loop [i 0
-         ptr 0
-         names []]
-    (if (< i hit-count)
-      (let [name-count (.get select-buffer ptr)
-            name (.get select-buffer (+ ptr 3))]
-        (assert (>= 1 name-count) (str "Count of names in a hit record must be no more than one, was " name-count))
-        (when (< 0 name-count)
-          (recur (inc i)
-            (+ ptr 3 name-count)
-            (conj names name))))
-      names)))
 
 (defn set-blend-mode [^GL gl blend-mode]
   ;; Assumes pre-multiplied source/destination

@@ -11,6 +11,7 @@ import java.io.BufferedReader;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -50,6 +51,7 @@ import com.dynamo.graphics.proto.Graphics.Cubemap;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.gui.proto.Gui;
 import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
@@ -94,7 +96,7 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".gui_scriptc", LuaModule.class);
         extToMessageClass.put(".render_scriptc", LuaModule.class);
         extToMessageClass.put(".luac", LuaModule.class);
-        extToMessageClass.put(".tilegridc", TileGrid.class);
+        extToMessageClass.put(".tilemapc", TileGrid.class);
         extToMessageClass.put(".collisionobjectc", CollisionObjectDesc.class);
         extToMessageClass.put(".spritec", SpriteDesc.class);
         extToMessageClass.put(".factoryc", FactoryDesc.class);
@@ -104,6 +106,8 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".soundc", SoundDesc.class);
         extToMessageClass.put(".labelc", LabelDesc.class);
         extToMessageClass.put(".modelc", Model.class);
+        extToMessageClass.put(".fpc", ShaderDesc.class);
+        extToMessageClass.put(".vpc", ShaderDesc.class);
         extToMessageClass.put(".input_bindingc", InputBinding.class);
         extToMessageClass.put(".gamepadsc", GamepadMaps.class);
         extToMessageClass.put(".renderc", RenderPrototypeDesc.class);
@@ -120,8 +124,6 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".display_profilesc", DisplayProfiles.class);
 
         leafResourceTypes.add(".texturec");
-        leafResourceTypes.add(".vpc");
-        leafResourceTypes.add(".fpc");
         leafResourceTypes.add(".wavc");
         leafResourceTypes.add(".oggc");
     }
@@ -135,6 +137,8 @@ public class GameProjectBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+        boolean shouldPublish = project.option("liveupdate", "false").equals("true");
+        project.createPublisher(shouldPublish);
         TaskBuilder<Void> builder = Task.<Void> newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
@@ -208,7 +212,7 @@ public class GameProjectBuilder extends Builder<Void> {
         return builder.build();
     }
 
-    private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources) throws IOException, CompileExceptionError {
+    private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder);
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
@@ -220,23 +224,16 @@ public class GameProjectBuilder extends Builder<Void> {
             archiveBuilder.add(s, compress);
         }
 
-        Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
         archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
         manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
         archiveIndex.close();
         archiveData.close();
 
-        // Populate the zip archive with the resource pack
+        // Populate publisher with the resource pack
         for (File fhandle : (new File(resourcePackDirectory.toAbsolutePath().toString())).listFiles()) {
             if (fhandle.isFile()) {
                 project.getPublisher().AddEntry(fhandle.getName(), fhandle);
             }
-        }
-
-        project.getPublisher().Publish();
-        File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
-        if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
-            FileUtils.deleteDirectory(resourcePackDirectoryHandle);
         }
     }
 
@@ -435,18 +432,40 @@ public class GameProjectBuilder extends Builder<Void> {
 
     private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode, List<String> excludedResourcesList) throws IOException {
         String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
-        String supportedEngineVersionsString = project.getProjectProperties().getStringValue("liveupdate", "supported_versions", null);
-        String privateKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "privatekey", null);
-        String publicKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "publickey", null);
+        String supportedEngineVersionsString = project.getPublisher().getSupportedVersions();
+        String privateKeyFilepath = project.getPublisher().getManifestPrivateKey();
+        String publicKeyFilepath = project.getPublisher().getManifestPublicKey();
 
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setDependencies(rootNode);
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
-        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
+        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
         manifestBuilder.setProjectIdentifier(projectIdentifier);
 
-        if (privateKeyFilepath == null || publicKeyFilepath == null) {
+
+        // If manifest signing keys are specified, use them instead of generating them.
+        if (!privateKeyFilepath.isEmpty() && !publicKeyFilepath.isEmpty() ) {
+            if (!Files.exists(Paths.get(privateKeyFilepath))) {
+                privateKeyFilepath = Paths.get(project.getRootDirectory(), privateKeyFilepath).toString();
+                if (!Files.exists(Paths.get(privateKeyFilepath))) {
+                    privateKeyFilepath = "";
+                }
+            }
+
+            if (!Files.exists(Paths.get(publicKeyFilepath))) {
+                publicKeyFilepath = Paths.get(project.getRootDirectory(), publicKeyFilepath).toString();
+                if (!Files.exists(Paths.get(publicKeyFilepath))) {
+                    publicKeyFilepath = "";
+                }
+            }
+        }
+
+        // If loading supplied keys failed or none were supplied, generate them instead.
+        if (privateKeyFilepath.isEmpty() || publicKeyFilepath.isEmpty()) {
+            if (project.option("liveupdate", "false").equals("true")) {
+                System.err.println("\nWarning! No public or private key for manifest signing set in liveupdate settings, generating keys instead.");
+            }
             File privateKeyFileHandle = File.createTempFile("defold.private_", ".der");
             privateKeyFileHandle.deleteOnExit();
 
@@ -465,7 +484,7 @@ public class GameProjectBuilder extends Builder<Void> {
         manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
         manifestBuilder.setPublicKeyFilepath(publicKeyFilepath);
 
-        manifestBuilder.addSupportedEngineVersion(EngineVersion.sha1);
+        manifestBuilder.addSupportedEngineVersion(EngineVersion.version);
         if (supportedEngineVersionsString != null) {
             String[] supportedEngineVersions = supportedEngineVersionsString.split("\\s*,\\s*");
             for (String supportedEngineVersion : supportedEngineVersions) {
@@ -480,29 +499,19 @@ public class GameProjectBuilder extends Builder<Void> {
         return manifestBuilder;
     }
 
-    // Filter content of the game.project file.
-    // Currently only strips away "project.dependencies" from the built file.
-    static public byte[] filterProjectFileContent(IResource projectFile) throws IOException {
-        BufferedReader bufReader = new BufferedReader(new StringReader(new String(projectFile.getContent())));
+    // Used to transform an input game.project properties map to a game.projectc representation.
+    // Can be used for doing build time properties conversion.
+    static public void transformGameProjectFile(BobProjectProperties properties) throws IOException {
+        // Remove project dependencies list for security.
+        properties.remove("project", "dependencies");
 
-        String outputContent = "";
-        String category = null;
-        String line;
-        while( (line = bufReader.readLine()) != null ) {
-
-            // Keep track of current category name
-            String lineTrimmed = line.trim();
-            if (lineTrimmed.startsWith("[") && lineTrimmed.endsWith("]"))  {
-                category = line.substring(1, line.length()-1);
-            }
-
-            // Filter out project.dependencies from build version of game.project
-            if (!(category.equalsIgnoreCase("project") && line.startsWith("dependencies"))) {
-                outputContent += line + "\n";
-            }
+        // Map deprecated 'variable_dt' to new settings resulting in same runtime behavior
+        Boolean variableDt = properties.getBooleanValue("display", "variable_dt");
+        if (variableDt != null && variableDt == true) {
+            System.err.println("\nWarning! Setting 'variable_dt' in 'game.project' is deprecated. Disabling 'Vsync' and setting 'Frame cap' to 0 for equivalent behavior.");
+            properties.putBooleanValue("display", "vsync", false);
+            properties.putIntValue("display", "update_frequency", 0);
         }
-
-        return outputContent.getBytes();
     }
 
     @Override
@@ -515,6 +524,7 @@ public class GameProjectBuilder extends Builder<Void> {
         BobProjectProperties properties = new BobProjectProperties();
         IResource input = task.input(0);
         try {
+            properties.loadDefaults();
             properties.load(new ByteArrayInputStream(input.getContent()));
         } catch (Exception e) {
             throw new CompileExceptionError(input, -1, "Failed to parse game.project", e);
@@ -537,7 +547,8 @@ public class GameProjectBuilder extends Builder<Void> {
                 RandomAccessFile archiveIndex = createRandomAccessFile(archiveIndexHandle);
                 File archiveDataHandle = File.createTempFile("defold.data_", ".arcd");
                 RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle);
-                createArchive(resources, archiveIndex, archiveData, manifestBuilder, excludedResources);
+                Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
+                createArchive(resources, archiveIndex, archiveData, manifestBuilder, excludedResources, resourcePackDirectory);
 
                 // Create manifest
                 byte[] manifestFile = manifestBuilder.buildManifest();
@@ -554,6 +565,20 @@ public class GameProjectBuilder extends Builder<Void> {
                 publicKeyInputStream = new FileInputStream(manifestBuilder.getPublicKeyFilepath());
                 task.getOutputs().get(4).setContent(publicKeyInputStream);
 
+                // Add copy of game.dmanifest to be published with liveuodate resources
+                File manifestFileHandle = new File(task.getOutputs().get(3).getAbsPath());
+                String liveupdateManifestFilename = "liveupdate.game.dmanifest";
+                File manifestTmpFileHandle = new File(FilenameUtils.concat(manifestFileHandle.getParent(), liveupdateManifestFilename));
+                FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
+                project.getPublisher().AddEntry(liveupdateManifestFilename, manifestTmpFileHandle);
+                project.getPublisher().Publish();
+
+                manifestTmpFileHandle.delete();
+                File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
+                if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
+                    FileUtils.deleteDirectory(resourcePackDirectoryHandle);
+                }
+
                 List<InputStream> publisherOutputs = project.getPublisher().getOutputResults();
                 for (int i = 0; i < publisherOutputs.size(); ++i) {
                     task.getOutputs().get(5 + i).setContent(publisherOutputs.get(i));
@@ -561,7 +586,8 @@ public class GameProjectBuilder extends Builder<Void> {
                 }
             }
 
-            task.getOutputs().get(0).setContent(filterProjectFileContent(task.getInputs().get(0)));
+            transformGameProjectFile(properties);
+            task.getOutputs().get(0).setContent(properties.serialize().getBytes());
         } finally {
             IOUtils.closeQuietly(archiveIndexInputStream);
             IOUtils.closeQuietly(archiveDataInputStream);

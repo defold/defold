@@ -213,12 +213,25 @@ namespace dmGameSystem
 
         int x = luaL_checkinteger(L, 3) - 1;
         int y = luaL_checkinteger(L, 4) - 1;
+        int lua_tile  = luaL_checkinteger(L, 5);
+
+        /* Range check: tile indices that fall outside of the valid limits will crash the engine.
+         * 
+         * Note that 0 resets the tile cell, so the valid range is [0...N]
+         * where N is equal to the amount of tiles availabel in the tile source.
+         */
+        if (lua_tile < 0 || lua_tile > resource->m_TextureSet->m_TextureSet->m_TileCount)
+        {
+            return luaL_error(L, "tilemap.set_tile called with out-of-range tile index (%d)", lua_tile);
+        }
+
         /*
          * NOTE AND BEWARE: Empty tile is encoded as 0xffffffff
          * That's why tile-index is subtracted by 1
          * See B2GRIDSHAPE_EMPTY_CELL in b2GridShape.h
          */
-        uint32_t tile = ((uint16_t) luaL_checkinteger(L, 5)) - 1;
+        uint32_t tile = ((uint16_t) lua_tile) - 1;
+
         int32_t cell_x = x - resource->m_MinCellX, cell_y = y - resource->m_MinCellY;
         if (cell_x < 0 || cell_x >= (int32_t)resource->m_ColumnCount || cell_y < 0 || cell_y >= (int32_t)resource->m_RowCount)
         {

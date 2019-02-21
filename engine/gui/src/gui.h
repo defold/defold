@@ -42,14 +42,9 @@ namespace dmGui
     const HNode INVALID_HANDLE = 0;
 
     /**
-     * Default layer id
-     */
-    const dmhash_t DEFAULT_LAYER = dmHashString64("");
-
-    /**
      * Default layout id
      */
-    const dmhash_t DEFAULT_LAYOUT = dmHashString64("");
+    extern const dmhash_t DEFAULT_LAYOUT;
 
     /**
      * Animation
@@ -93,8 +88,8 @@ namespace dmGui
             {
                 uint64_t m_Start : 13;
                 uint64_t m_End : 13;
-                uint64_t m_TextureWidth : 13;
-                uint64_t m_TextureHeight : 13;
+                uint64_t m_OriginalTextureWidth : 13;
+                uint64_t m_OriginalTextureHeight : 13;
                 uint64_t m_FPS : 8;
                 uint64_t m_Playback : 4;
             };
@@ -384,6 +379,15 @@ namespace dmGui
         PIEBOUNDS_ELLIPSE   = 1,
     };
 
+    // This enum denotes what kind of texture type the m_Texture pointer is referencing.
+    enum NodeTextureType
+    {
+        NODE_TEXTURE_TYPE_NONE,
+        NODE_TEXTURE_TYPE_TEXTURE,
+        NODE_TEXTURE_TYPE_TEXTURE_SET,
+        NODE_TEXTURE_TYPE_DYNAMIC
+    };
+
     /**
      * Container of input related information.
      */
@@ -411,6 +415,12 @@ namespace dmGui
         float m_ScreenDX;
         /// Cursor dy since last frame, in screen space
         float m_ScreenDY;
+        /// Accelerometer x value (if present)
+        float m_AccX;
+        /// Accelerometer y value (if present)
+        float m_AccY;
+        /// Accelerometer z value (if present)
+        float m_AccZ;
         /// Touch data
         dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
         /// Number of m_Touch
@@ -428,6 +438,8 @@ namespace dmGui
         uint16_t m_Repeated : 1;
         /// If the position fields (m_X, m_Y, m_DX, m_DY) are set and valid to read
         uint16_t m_PositionSet : 1;
+        /// If the acceleration fields (m_AccX, m_AccY, m_AccZ) are set and valid to read
+        uint16_t m_AccelerationSet : 1;
     };
 
     struct RenderEntry {
@@ -544,11 +556,11 @@ namespace dmGui
      * @param texture_name Name of the texture that will be used in the gui scripts
      * @param texture The texture to add
      * @param textureset The textureset to add if animation is used, otherwise zero. If set, texture parameter is expected to be equal to textureset texture.
-     * @param width With of the texture
-     * @param height Height of the texture
+     * @param original_width Original With of the texture
+     * @param original_height Original Height of the texture
      * @return Outcome of the operation
      */
-    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset, uint32_t width, uint32_t height);
+    Result AddTexture(HScene scene, const char* texture_name, void* texture, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height);
 
     /**
      * Removes a texture with the specified name from the scene.
@@ -920,7 +932,7 @@ namespace dmGui
     void SetNodeTextTracking(HScene scene, HNode node, float tracking);
     float GetNodeTextTracking(HScene scene, HNode node);
 
-    void* GetNodeTexture(HScene scene, HNode node);
+    void* GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut);
     dmhash_t GetNodeTextureId(HScene scene, HNode node);
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);
@@ -1116,7 +1128,7 @@ namespace dmGui
      */
     void SetNodeEnabled(HScene scene, HNode node, bool enabled);
 
-    Result SetNodeParent(HScene scene, HNode node, HNode parent);
+    Result SetNodeParent(HScene scene, HNode node, HNode parent, bool keep_scene_transform);
 
     Result CloneNode(HScene scene, HNode node, HNode* out_node);
 

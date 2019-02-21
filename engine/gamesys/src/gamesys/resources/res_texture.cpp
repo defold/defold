@@ -3,7 +3,6 @@
 #include <dlib/log.h>
 #include <dlib/webp.h>
 #include <dlib/time.h>
-#include <graphics/graphics_ddf.h>
 #include <graphics/graphics.h>
 
 namespace dmGameSystem
@@ -37,6 +36,7 @@ namespace dmGameSystem
                 return dmWebP::TEXTURE_ENCODE_FORMAT_L8A8;
             default:
                 assert(0);
+                return (dmWebP::TextureEncodeFormat)-1;
         }
     }
 
@@ -80,6 +80,7 @@ namespace dmGameSystem
             */
             default:
                 assert(0);
+                return (dmGraphics::TextureFormat)-1;
         }
     }
 
@@ -344,7 +345,7 @@ namespace dmGameSystem
 
     void DestroyImage(ImageDesc* image_desc)
     {
-        for (int i = 0; i < m_MaxMipCount; ++i)
+        for (uint32_t i = 0; i < m_MaxMipCount; ++i)
         {
             if(image_desc->m_DecompressedData[i])
                 delete[] image_desc->m_DecompressedData[i];

@@ -114,6 +114,23 @@
     }
 
     .tree-cell {
+
+        -fx-font-family: "Dejavu Sans Mono";
+        -fx-font-size: 9pt;
+
+        HBox {
+            -fx-spacing: 9px;
+        }
+
+        Text {
+            -fx-fill: $bright-grey-light;
+        }
+        &:selected, &:hover {
+            Text {
+                -fx-fill: $defold-white;
+            }
+        }
+
         @mixin colorize-severity($color, $active-color) {
             .image-view {
                 -fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);

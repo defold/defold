@@ -102,7 +102,7 @@ public:
      */
     uint32_t Capacity()
     {
-        return m_InitialEntriesEnd - m_InitialEntries;
+        return (uint32_t)(uintptr_t)(m_InitialEntriesEnd - m_InitialEntries);
     }
 
     /**
@@ -198,7 +198,7 @@ public:
             uint32_t entry_ptr = m_HashTable[bucket_index];
             if (entry_ptr == 0xffffffff)
             {
-                m_HashTable[bucket_index] = entry - m_InitialEntries; // Store the index of the entry
+                m_HashTable[bucket_index] = (uint32_t)(uintptr_t)(entry - m_InitialEntries); // Store the index of the entry
             }
             else
             {
@@ -212,7 +212,7 @@ public:
                 assert(prev_entry->m_Next == 0xffffffff);
 
                 // Link prev entry to this
-                prev_entry->m_Next = entry - m_InitialEntries;
+                prev_entry->m_Next = (uint32_t)(uintptr_t)(entry - m_InitialEntries);
             }
         }
 
@@ -297,7 +297,7 @@ public:
                 if (prev_e == 0)
                 {
                     // Relink
-                    m_HashTable[bucket_index] = e->m_Next;;
+                    m_HashTable[bucket_index] = e->m_Next;
                 }
                 else
                 {
@@ -430,13 +430,13 @@ private:
         // Empty list of entries?
         if (m_FreeEntries == 0xffffffff)
         {
-            m_FreeEntries = e - m_InitialEntries;
+            m_FreeEntries = (uint32_t)(uintptr_t)(e - m_InitialEntries);
             e->m_Next = 0xffffffff;
         }
         else
         {
             e->m_Next = m_FreeEntries;
-            m_FreeEntries = e - m_InitialEntries;
+            m_FreeEntries = (uint32_t)(uintptr_t)(e - m_InitialEntries);
         }
     }
 

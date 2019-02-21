@@ -127,19 +127,10 @@ namespace
 
     void DestroySSDPInstance(dmSSDP::SSDP* instance) {
         int context = 0x0;
-        instance->m_RegistredEntries.Iterate(IterateCallbackDelete, &context);
-        instance->m_RegistredEntries.Clear();
+        instance->m_RegisteredEntries.Iterate(IterateCallbackDelete, &context);
+        instance->m_RegisteredEntries.Clear();
         dmSSDP::Delete(instance);
     }
-
-    void RemoveRegisteredDevice(dmSSDP::SSDP* instance, dmSSDP::DeviceDesc* deviceDesc)
-    {
-        dmhash_t hashId = dmHashString64(deviceDesc->m_Id);
-        dmSSDP::Device** device = instance->m_RegistredEntries.Get(hashId);
-        delete *device;
-        instance->m_RegistredEntries.Erase(hashId);
-    }
-
 };
 
 class dmSSDPInternalTest: public ::testing::Test
@@ -239,7 +230,7 @@ TEST_F(dmSSDPInternalTest, RegisterDevice)
     ASSERT_EQ(dmSSDP::RESULT_OK, actual);
 
     actual = dmSSDP::RegisterDevice(instance, &deviceDesc);
-    ASSERT_EQ(dmSSDP::RESULT_ALREADY_REGISTRED, actual);
+    ASSERT_EQ(dmSSDP::RESULT_ALREADY_REGISTERED, actual);
 
     // Teardown
     DestroySSDPInstance(instance);
@@ -292,7 +283,7 @@ TEST_F(dmSSDPInternalTest, DeregisterDevice)
     ASSERT_EQ(dmSSDP::RESULT_OK, actual);
 
     actual = dmSSDP::DeregisterDevice(instance, deviceDesc.m_Id);
-    ASSERT_EQ(dmSSDP::RESULT_NOT_REGISTRED, actual);
+    ASSERT_EQ(dmSSDP::RESULT_NOT_REGISTERED, actual);
 
     // Teardown
     DestroySSDPInstance(instance);
@@ -308,7 +299,8 @@ TEST_F(dmSSDPInternalTest, UpdateListeningSockets)
     dmSSDP::SSDP* instance = CreateSSDPClient();
 
     // Test
-    dmSocket::IfAddr interfaces[dmSSDP::SSDP_MAX_LOCAL_ADDRESSES] = { 0 };
+    dmSocket::IfAddr interfaces[dmSSDP::SSDP_MAX_LOCAL_ADDRESSES];
+    memset(interfaces, 0, sizeof(interfaces));
     uint32_t interface_count = GetInterfaces(interfaces, dmSSDP::SSDP_MAX_LOCAL_ADDRESSES);
     ASSERT_GE(interface_count, 1) << "There are no IPv4 interface(s) available";
 
@@ -338,9 +330,10 @@ TEST_F(dmSSDPInternalTest, SendAnnounce)
     CreateDeviceDescription(&deviceDesc);
     result = dmSSDP::RegisterDevice(instance, &deviceDesc);
     ASSERT_EQ(dmSSDP::RESULT_OK, result);
-    dmSSDP::Device** device = instance->m_RegistredEntries.Get(dmHashString64(deviceDesc.m_Id));
+    dmSSDP::Device** device = instance->m_RegisteredEntries.Get(dmHashString64(deviceDesc.m_Id));
 
-    dmSocket::IfAddr interfaces[dmSSDP::SSDP_MAX_LOCAL_ADDRESSES] = { 0 };
+    dmSocket::IfAddr interfaces[dmSSDP::SSDP_MAX_LOCAL_ADDRESSES];
+    memset(interfaces, 0, sizeof(interfaces));
     uint32_t interface_count = GetInterfaces(interfaces, dmSSDP::SSDP_MAX_LOCAL_ADDRESSES);
     dmSSDP::UpdateListeningSockets(instance, interfaces, interface_count);
 
@@ -362,9 +355,10 @@ TEST_F(dmSSDPInternalTest, SendUnannounce)
     CreateDeviceDescription(&deviceDesc);
     result = dmSSDP::RegisterDevice(instance, &deviceDesc);
     ASSERT_EQ(dmSSDP::RESULT_OK, result);
-    dmSSDP::Device** device = instance->m_RegistredEntries.Get(dmHashString64(deviceDesc.m_Id));
+    dmSSDP::Device** device = instance->m_RegisteredEntries.Get(dmHashString64(deviceDesc.m_Id));
 
-    dmSocket::IfAddr interfaces[dmSSDP::SSDP_MAX_LOCAL_ADDRESSES] = { 0 };
+    dmSocket::IfAddr interfaces[dmSSDP::SSDP_MAX_LOCAL_ADDRESSES];
+    memset(interfaces, 0, sizeof(interfaces));
     uint32_t interface_count = GetInterfaces(interfaces, dmSSDP::SSDP_MAX_LOCAL_ADDRESSES);
     dmSSDP::UpdateListeningSockets(instance, interfaces, interface_count);
 
@@ -379,7 +373,6 @@ TEST_F(dmSSDPInternalTest, SendUnannounce)
 TEST_F(dmSSDPInternalTest, ClientServer_MatchingInterfaces)
 {
     // Setup
-    dmSSDP::Result result = dmSSDP::RESULT_OK;
     dmSSDP::SSDP* client = CreateSSDPClient();
     dmSSDP::SSDP* server = CreateSSDPServer();
 

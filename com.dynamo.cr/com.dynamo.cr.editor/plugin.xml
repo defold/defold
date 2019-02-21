@@ -167,6 +167,11 @@
                style="push">
          </command>
          <command
+               commandId="com.dynamo.cr.editor.commands.openUpgrade"
+               label="Upgrade Guide"
+               style="push">
+         </command>
+         <command
                commandId="com.dynamo.crepo.commands.openWebLink"
                label="Documentation..."
                style="push">
@@ -394,6 +399,10 @@
       <command
             id="com.dynamo.cr.editor.commands.openWelcome"
             name="Welcome">
+      </command>
+      <command
+            id="com.dynamo.cr.editor.commands.openUpgrade"
+            name="Upgrade">
       </command>
       <command
             id="com.dynamo.cr.editor.commands.newFolder"
@@ -674,6 +683,10 @@
             commandId="com.dynamo.cr.editor.commands.openWelcome">
       </handler>
       <handler
+            class="com.dynamo.cr.editor.handlers.OpenUpgradeHandler"
+            commandId="com.dynamo.cr.editor.commands.openUpgrade">
+      </handler>
+      <handler
             class="com.dynamo.cr.editor.handlers.NewFolderHandler"
             commandId="com.dynamo.cr.editor.commands.newFolder">
       </handler>
@@ -720,7 +733,7 @@
                       value="win32">
                 </systemProperty>
                 <systemProperty
-                
+
                       name="com.defold.platform"
                       value="x86_64-win32">
                 </systemProperty>
@@ -739,10 +752,6 @@
          </action>
          <visibility>
             <or>
-                <systemProperty
-                      name="com.defold.platform"
-                      value="linux">
-                </systemProperty>
                 <systemProperty
                       name="com.defold.platform"
                       value="x86_64-linux">
@@ -810,6 +819,16 @@
             icon="icons/welcome.png"
             id="com.dynamo.cr.editor.welcomeEditor"
             name="Welcome">
+      </editor>
+   </extension>
+   <extension
+         point="org.eclipse.ui.editors">
+      <editor
+            class="com.dynamo.cr.editor.upgrade.UpgradeEditor"
+            default="false"
+            icon="icons/welcome.png"
+            id="com.dynamo.cr.editor.upgradeEditor"
+            name="Upgrade">
       </editor>
    </extension>
    <extension

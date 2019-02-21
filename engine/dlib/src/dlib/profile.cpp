@@ -1,5 +1,16 @@
+#include "profile.h"
+
 #include <algorithm>
 #include <string.h>
+
+#if defined(_WIN32)
+#include "safe_windows.h"
+#elif  defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#else
+#include <sys/time.h>
+#endif
+
 #include "dlib.h"
 
 #include "hashtable.h"
@@ -9,9 +20,7 @@
 #include "math.h"
 #include "time.h"
 #include "thread.h"
-#include "dstrings.h"
 #include "array.h"
-#include "profile.h"
 
 namespace dmProfile
 {
@@ -72,10 +81,6 @@ namespace dmProfile
     };
 
     InitSpinLocks g_InitSpinlocks;
-
-    static void HttpHeader(void* user_data, const char* key, const char* value)
-    {
-    }
 
     void Initialize(uint32_t max_scopes, uint32_t max_samples, uint32_t max_counters)
     {
@@ -470,10 +475,10 @@ namespace dmProfile
             if (tls_data == 0)
             {
                 // NOTE: We store thread_id + 1. Otherwise we can't differentiate between thread-id 0 and not initialized
-                int32_t thread_id = g_ThreadCount + 1;
-                g_ThreadCount++;
-                dmThread::SetTlsValue(g_TlsKey, (void*) thread_id);
-                tls_data = (void*) thread_id;
+                int32_t next_thread_id = ++g_ThreadCount;
+                void* thread_id = (void*)((uintptr_t)next_thread_id);
+                dmThread::SetTlsValue(g_TlsKey, thread_id);
+                tls_data = thread_id;
             }
             intptr_t thread_id = ((intptr_t) tls_data) - 1;
             assert(thread_id >= 0);
@@ -500,16 +505,24 @@ namespace dmProfile
         }
     }
 
+    uint32_t HashCounterName(const char* name)
+    {
+        return dmHashBufferNoReverse32(name, strlen(name));
+    }
+
     void AddCounter(const char* name, uint32_t amount)
     {
-        uint32_t name_hash = dmHashBufferNoReverse32(name, strlen(name));
-        AddCounterHash(name, name_hash, amount);
+        // dmProfile::Initialize allocates memory. If memprofile is activated this function is called from overloaded malloc while g_CountersTable is being created. No good!
+        if (!g_IsInitialized)
+        {
+            return;
+        }
+        AddCounterHash(name, HashCounterName(name), amount);
     }
 
     void AddCounterHash(const char* name, uint32_t name_hash, uint32_t amount)
     {
-        // dmProfile::Initialize allocates memory. Is memprofile is activated this function is called from overloaded malloc while g_CountersTable is being created. No good!
-        if (!g_IsInitialized || g_Paused)
+        if (g_Paused)
             return;
 
         dmSpinlock::Lock(&g_ProfileLock);
@@ -531,7 +544,7 @@ namespace dmProfile
 
             Counter* c = &g_Counters[new_index];
             c->m_Name = name;
-            c->m_NameHash = dmHashBufferNoReverse32(name, strlen(name));
+            c->m_NameHash = name_hash;
 
             CounterData* cd = &profile->m_CountersData[new_index];
             cd->m_Counter = c;
@@ -586,21 +599,94 @@ namespace dmProfile
         }
     }
 
-    void IterateScopeData(HProfile profile, void* context, void (*call_back)(void* context, const ScopeData* scope_data))
+    struct ScopeSorter {
+        ScopeSorter(HProfile profile)
+            : m_Profile(profile)
+        {}
+        bool operator()(uint32_t a, uint32_t b) const
+        {
+            return m_Profile->m_ScopesData[b].m_Elapsed < m_Profile->m_ScopesData[a].m_Elapsed;
+        }
+        HProfile m_Profile;
+    };
+
+    void IterateScopeData(HProfile profile, void* context, bool sort, void (*call_back)(void* context, const ScopeData* scope_data))
     {
         uint32_t n = profile->m_ScopeCount;
+        if (n == 0)
+        {
+            return;
+        }
+        if (!sort)
+        {
+            for (uint32_t i = 0; i < n; ++i)
+            {
+                call_back(context, &profile->m_ScopesData[i]);
+            }
+            return;
+        }
+
+        uint32_t* sorted_scopes = (uint32_t*)alloca(sizeof(uint32_t) * n);
         for (uint32_t i = 0; i < n; ++i)
         {
-            call_back(context, &profile->m_ScopesData[i]);
+            sorted_scopes[i] = i;
+        }
+        std::sort(sorted_scopes, &sorted_scopes[n], ScopeSorter(profile));
+
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            call_back(context, &profile->m_ScopesData[sorted_scopes[i]]);
         }
     }
 
-    void IterateSamples(HProfile profile, void* context, void (*call_back)(void* context, const Sample* sample))
+    struct SampleSorter {
+        SampleSorter(HProfile profile)
+            : m_Profile(profile)
+        {}
+        bool operator()(uint32_t a, uint32_t b) const
+        {
+            const Sample* sample_a = &m_Profile->m_Samples[a];
+            const Sample* sample_b = &m_Profile->m_Samples[b];
+            const ScopeData* scope_data_a = &m_Profile->m_ScopesData[sample_a->m_Scope->m_Index];
+            const ScopeData* scope_data_b = &m_Profile->m_ScopesData[sample_b->m_Scope->m_Index];
+            if (scope_data_a == scope_data_b)
+            {
+                return sample_b->m_Elapsed < sample_a->m_Elapsed;
+            }
+            if (scope_data_b->m_Elapsed < scope_data_a->m_Elapsed)
+            {
+                return true;
+            }
+            return false;
+        }
+        HProfile m_Profile;
+    };
+
+    void IterateSamples(HProfile profile, void* context, bool sort, void (*call_back)(void* context, const Sample* sample))
     {
         uint32_t n = profile->m_Samples.Size();
+        if (n == 0)
+        {
+            return;
+        }
+        if (!sort)
+        {
+            for (uint32_t i = 0; i < n; ++i)
+            {
+                call_back(context, &profile->m_Samples[i]);
+            }
+            return;
+        }
+        uint32_t* sorted_samples = (uint32_t*)alloca(sizeof(uint32_t) * n);
         for (uint32_t i = 0; i < n; ++i)
         {
-            call_back(context, &profile->m_Samples[i]);
+            sorted_samples[i] = i;
+        }
+        std::sort(sorted_samples, &sorted_samples[n], SampleSorter(profile));
+
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            call_back(context, &profile->m_Samples[sorted_samples[i]]);
         }
     }
 
@@ -621,6 +707,41 @@ namespace dmProfile
         {
             call_back(context, &profile->m_CountersData[i]);
         }
+    }
+
+    void ProfileScope::StartScope(Scope* scope, const char* name)
+    {
+        uint64_t start;
+#if defined(_WIN32)
+        QueryPerformanceCounter((LARGE_INTEGER *)&start);
+#elif defined(__EMSCRIPTEN__)
+        start = (uint64_t)(emscripten_get_now() * 1000.0);
+#else
+        timeval tv;
+        gettimeofday(&tv, 0);
+        start = tv.tv_sec * 1000000 + tv.tv_usec;
+#endif
+        Sample*s = AllocateSample();
+        s->m_Name = name;
+        s->m_Scope = scope;
+        s->m_Start = (uint32_t)(start - g_BeginTime);
+        m_Sample = s;
+    }
+
+    void ProfileScope::EndScope()
+    {
+        uint64_t end;
+#if defined(_WIN32)
+        QueryPerformanceCounter((LARGE_INTEGER *) &end);
+#elif defined(__EMSCRIPTEN__)
+        end = (uint64_t)(emscripten_get_now() * 1000.0);
+#else
+        timeval tv;
+        gettimeofday(&tv, 0);
+        end = tv.tv_sec * 1000000 + tv.tv_usec;
+#endif
+        ANALYZE_USE_POINTER(m_Sample);
+        m_Sample->m_Elapsed = (uint32_t)(end - g_BeginTime) - m_Sample->m_Start;
     }
 }
 

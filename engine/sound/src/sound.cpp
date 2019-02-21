@@ -4,7 +4,6 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/profile.h>
-#include <dlib/time.h>
 
 #include "sound.h"
 #include "sound_codec.h"
@@ -186,7 +185,7 @@ namespace dmSound
         int16_t*                m_OutBuffers[SOUND_OUTBUFFER_COUNT];
         uint16_t                m_NextOutBuffer;
 
-        bool                    m_IsSoundActive;
+        bool                    m_IsDeviceStarted;
         bool                    m_IsPhoneCallActive;
     };
 
@@ -278,7 +277,7 @@ namespace dmSound
 
         g_SoundSystem = new SoundSystem();
         SoundSystem* sound = g_SoundSystem;
-        sound->m_IsSoundActive = false;
+        sound->m_IsDeviceStarted = false;
         sound->m_IsPhoneCallActive = false;
         sound->m_DeviceType = device_type;
         sound->m_Device = device;
@@ -380,8 +379,6 @@ namespace dmSound
         }
 
         return result;
-
-        return RESULT_OK;
     }
 
     void GetStats(Stats* stats)
@@ -545,8 +542,29 @@ namespace dmSound
             return RESULT_NO_SUCH_GROUP;
         }
 
+        // If all playing sounds is currently at gain zero
+        // we can safely do a hard reset of the group gain
+        bool reset = true;
+        uint32_t instances = sound->m_Instances.Size();
+        for (uint32_t i = 0; i < instances; ++i)
+        {
+            SoundInstance* instance = &sound->m_Instances[i];
+            if (instance->m_Group != group_hash)
+            {
+                continue;
+            }
+            if (instance->m_Playing || instance->m_FrameCount > 0)
+            {
+                if (instance->m_Gain.m_Prev == 0.0)
+                {
+                    continue;
+                }
+                reset = false;
+                break;
+            }
+        }
         SoundGroup* group = &sound->m_Groups[*index];
-        group->m_Gain.m_Next = gain;
+        group->m_Gain.Set(gain, reset);
         return RESULT_OK;
     }
 
@@ -1010,7 +1028,7 @@ namespace dmSound
         }
     }
 
-    static Result MixInstances(const MixContext* mix_context) {
+    static void MixInstances(const MixContext* mix_context) {
         DM_PROFILE(Sound, "MixInstances")
         SoundSystem* sound = g_SoundSystem;
 
@@ -1046,23 +1064,18 @@ namespace dmSound
             }
         }
 
-        uint32_t num_playing = 0;
         uint32_t instances = sound->m_Instances.Size();
         for (uint32_t i = 0; i < instances; ++i) {
             SoundInstance* instance = &sound->m_Instances[i];
             if (instance->m_Playing || instance->m_FrameCount > 0)
             {
                 MixInstance(mix_context, instance);
-                num_playing += dmSound::IsMuted(instance) ? 0 : 1;
             }
 
             if (instance->m_EndOfStream && instance->m_FrameCount == 0) {
                 instance->m_Playing = 0;
             }
-
         }
-
-        return num_playing > 0 ? RESULT_OK : RESULT_NOTHING_TO_PLAY;
     }
 
     static void Master(const MixContext* mix_context) {
@@ -1075,19 +1088,35 @@ namespace dmSound
         SoundGroup* master = &sound->m_Groups[*master_index];
         float* mix_buffer = master->m_MixBuffer;
 
+        if (master->m_Gain.IsZero())
+        {
+            memset(out, 0, n * sizeof(uint16_t) * 2);
+            return;
+        }
+
         for (uint32_t i = 0; i < MAX_GROUPS; i++) {
             SoundGroup* g = &sound->m_Groups[i];
+            if (g->m_MixBuffer == 0x0)
+            {
+                continue;
+            }
+            if (g->m_NameHash == MASTER_GROUP_HASH)
+            {
+                continue;
+            }
+            if (g->m_Gain.IsZero())
+            {
+                continue;
+            }
             Ramp ramp = GetRamp(mix_context, &g->m_Gain, n);
-            if (g->m_MixBuffer && g->m_NameHash != MASTER_GROUP_HASH) {
-                for (uint32_t i = 0; i < n; i++) {
-                    float gain = ramp.GetValue(i);
-                    gain = dmMath::Clamp(gain, 0.0f, 1.0f);
+            for (uint32_t i = 0; i < n; i++) {
+                float gain = ramp.GetValue(i);
+                gain = dmMath::Clamp(gain, 0.0f, 1.0f);
 
-                    float s1 = g->m_MixBuffer[2 * i];
-                    float s2 = g->m_MixBuffer[2 * i + 1];
-                    mix_buffer[2 * i] += s1 * gain;
-                    mix_buffer[2 * i + 1] += s2 * gain;
-                }
+                float s1 = g->m_MixBuffer[2 * i];
+                float s2 = g->m_MixBuffer[2 * i + 1];
+                mix_buffer[2 * i] += s1 * gain;
+                mix_buffer[2 * i + 1] += s2 * gain;
             }
         }
 
@@ -1135,17 +1164,25 @@ namespace dmSound
         DM_PROFILE(Sound, "Update")
         SoundSystem* sound = g_SoundSystem;
 
+        uint16_t active_instance_count = sound->m_InstancesPool.Size();
+
         bool currentIsPhoneCallActive = IsPhoneCallActive();
         if (!sound->m_IsPhoneCallActive && currentIsPhoneCallActive)
         {
             sound->m_IsPhoneCallActive = true;
-            sound->m_DeviceType->m_DeviceStop(sound->m_Device);
+            if (sound->m_IsDeviceStarted)
+            {
+                sound->m_DeviceType->m_DeviceStop(sound->m_Device);
+                sound->m_IsDeviceStarted = false;
+            }
         }
         else if (sound->m_IsPhoneCallActive && !currentIsPhoneCallActive)
         {
             sound->m_IsPhoneCallActive = false;
-            sound->m_DeviceType->m_DeviceRestart(sound->m_Device);
-            (void) PlatformAcquireAudioFocus();
+            if (active_instance_count == 0 && sound->m_IsDeviceStarted == false)
+            {
+                return RESULT_NOTHING_TO_PLAY;
+            }
         }
 
         if (sound->m_IsPhoneCallActive)
@@ -1154,9 +1191,37 @@ namespace dmSound
             return RESULT_OK;
         }
 
-        if (!sound->m_IsSoundActive && sound->m_InstancesPool.Size() == 0)
+        if (active_instance_count == 0 && sound->m_IsDeviceStarted == false)
         {
             return RESULT_NOTHING_TO_PLAY;
+        }
+
+        if (active_instance_count == 0)
+        {
+            if (sound->m_IsDeviceStarted)
+            {
+                // DEF-3512 Wait with releasing audio focus until all our queued buffers have played, if any queued buffers are
+                // still playing we will get the wrong result in isMusicPlaying on android if we release audio focus to soon
+                // since it detects our buffered sounds as "other application".
+                uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
+                if (free_slots == SOUND_OUTBUFFER_COUNT)
+                {
+                    sound->m_DeviceType->m_DeviceStop(sound->m_Device);
+                    sound->m_IsDeviceStarted = false;
+                }
+            }
+            return RESULT_NOTHING_TO_PLAY;
+        }
+
+        // DEF-3130 Don't request the audio focus unless something is being played
+        // This allows the client to check for sound.is_music_playing() and mute sounds accordingly
+        // DEF-3138 If you queue silent audio to the device it will still be registered by Android
+        // as music is playing, therefore we need to acquire the audio focus even if the resulting
+        // sound of our mix is silence.
+        if (sound->m_IsDeviceStarted == false)
+        {
+            sound->m_DeviceType->m_DeviceStart(sound->m_Device);
+            sound->m_IsDeviceStarted = true;
         }
 
         uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
@@ -1169,21 +1234,13 @@ namespace dmSound
         uint32_t total_buffers = free_slots;
         while (free_slots > 0) {
             MixContext mix_context(current_buffer, total_buffers);
-            Result result = MixInstances(&mix_context);
-
-            // DEF-3130 Don't request the audio focus when we know nothing it being played
-            // This allows the client to check for sound.is_music_playing() and mute sounds accordingly
-            if (result == RESULT_OK && sound->m_IsSoundActive == false)
-            {
-                sound->m_IsSoundActive = true;
-                (void) PlatformAcquireAudioFocus();
-            }
+            MixInstances(&mix_context);
 
             Master(&mix_context);
 
-            // DEF-2540: By not feeding the sound device, you'll get more slots free,
-            // thus updating sound (redundantly) every call, resulting in a huge performance hit.
-            // Also, you'll fast forward the sounds.
+            // DEF-2540: Make sure to keep feeding the sound device if audio is being generated,
+            // if you don't you'll get more slots free, thus updating sound (redundantly) every call,
+            // resulting in a huge performance hit. Also, you'll fast forward the sounds.
             sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], sound->m_FrameCount);
 
             sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;
@@ -1191,18 +1248,12 @@ namespace dmSound
             free_slots--;
         }
 
-        if (sound->m_IsSoundActive == true && sound->m_InstancesPool.Size() == 0)
-        {
-            sound->m_IsSoundActive = false;
-            (void) PlatformReleaseAudioFocus();
-        }
-
         return RESULT_OK;
     }
 
     bool IsMusicPlaying()
     {
-        return PlatformIsMusicPlaying();
+        return PlatformIsMusicPlaying(g_SoundSystem->m_IsDeviceStarted);
     }
 
     bool IsPhoneCallActive()

@@ -1,7 +1,5 @@
 #welcome-dialog {
-  $df-bright-blue: #5BC0FF;
-
-  -fx-background-color: #292A2F;
+  -fx-background-color: $df-dark-grey1;
 
   HBox, VBox {
     -fx-spacing: 0; // Fight crazy non-zero default.
@@ -72,6 +70,11 @@
     .defold-logo {
       -fx-padding: 16px;
     }
+
+    .really-small-progress-bar {
+      // 115 (defold logo width) + 16 * 2 (defold logo padding) - 19 * 2 (stack pane margins)
+      -fx-min-width: 109px;
+    }
   }
 
   .pane-button {
@@ -84,7 +87,7 @@
     -fx-padding: 9px 16px;
     -fx-border-color: transparent;
     -fx-border-width: 0px 3px 0px 0px;
-    -fx-text-fill: #CFDAE6;
+    -fx-text-fill: $df-grey2;
     -fx-opacity: 50%;
 
     &:hover {
@@ -125,7 +128,7 @@
       -fx-padding: 4px 4px;
       -fx-border-color: transparent;
       -fx-border-width: 0px 0px 2px 0px;
-      -fx-text-fill: #CFDAE6;
+      -fx-text-fill: $df-grey2;
       -fx-opacity: 50%;
 
       &:hover {
@@ -184,27 +187,6 @@
     }
   }
 
-  .empty-list-overlay {
-    -fx-alignment: top-center;
-
-    .hero-text {
-      -fx-padding: 10px 0px 0px 0px;
-      -fx-font-size: 16px;
-      -fx-line-spacing: 3px;
-    }
-
-    Label {
-      -fx-fill: #CFDAE6;
-      -fx-text-fill: #CFDAE6;
-      -fx-opacity: 0.75;
-      -fx-font-size: 14px;
-      -fx-font-smoothing-type: lcd;
-      -fx-text-alignment: center;
-      -fx-wrap-text: true;
-      -fx-padding: 0;
-    }
-  }
-
   .defold-logo-container.gray {
     .left {
       -fx-fill: #3E3E43;
@@ -254,7 +236,7 @@
 
       .title {
         Text {
-          -fx-fill: #A6B2BF;
+          -fx-fill: $df-grey1;
           -fx-opacity: 87%;
           -fx-font-size: 16px;
           -fx-font-smoothing-type: lcd;
@@ -268,7 +250,7 @@
 
       .description {
         -fx-font-smoothing-type: lcd;
-        -fx-text-fill: #A6B2BF;
+        -fx-text-fill: $df-grey1;
         -fx-opacity: 0.4;
       }
     }
@@ -278,7 +260,7 @@
       -fx-text-alignment: right;
       -fx-alignment: center-right;
       -fx-font-smoothing-type: lcd;
-      -fx-text-fill: #A6B2BF;
+      -fx-text-fill: $df-grey1;
       -fx-opacity: 0.4;
     }
   }
@@ -307,7 +289,7 @@
       -fx-padding: 6px 16px;
 
       Text {
-        -fx-fill: #A6B2BF;
+        -fx-fill: $df-grey1;
         -fx-font-smoothing-type: lcd;
       }
 
@@ -338,7 +320,7 @@
     }
 
     #progress-header {
-      -fx-text-fill: #A6B2BF;
+      -fx-text-fill: $df-grey1;
       -fx-font-family: "Source Sans Pro Light";
       -fx-font-size: 20px;
       -fx-font-smoothing-type: lcd;
@@ -421,57 +403,7 @@
     }
   }
 
-  // General styling
-  .hyperlink {
-    -fx-font-size: 14px;
-    -fx-text-fill: $df-bright-blue;
-    -fx-padding: 0;
-    -fx-underline: false;
-    -fx-cursor: default;
-
-    &:hover {
-      -fx-text-fill: lighten($df-bright-blue, 9%);
-    }
-  }
-
-  Text.header {
-    -fx-fill: #A6B2BF;
-    -fx-font-family: "Source Sans Pro Light";
-    -fx-font-size: 20px;
-    -fx-font-smoothing-type: lcd;
-  }
-
-  Label.header {
-    -fx-text-fill: #A6B2BF;
-    -fx-font-family: "Source Sans Pro Light";
-    -fx-font-size: 20px;
-    -fx-font-smoothing-type: lcd;
+  .df-header {
     -fx-max-width: Infinity;
-  }
-
-  // New-look components
-  .df-button {
-    -fx-min-width: 0;
-    -fx-background-color: transparent;
-    -fx-border-color: $df-bright-blue;
-    -fx-border-radius: 2px;
-    -fx-text-fill: $df-bright-blue;
-    -fx-font-size: 14px;
-    -fx-padding: 4px 12px;
-
-    &:hover {
-      -fx-border-color: lighten($df-bright-blue, 9%);
-      -fx-text-fill: lighten($df-bright-blue, 9%);
-    }
-  }
-
-  .df-button.dim {
-    -fx-border-color: #A6B2BF;
-    -fx-text-fill: #A6B2BF;
-
-    &:hover {
-      -fx-border-color: lighten(#A6B2BF, 9%);
-      -fx-text-fill: lighten(#A6B2BF, 9%);
-    }
   }
 }

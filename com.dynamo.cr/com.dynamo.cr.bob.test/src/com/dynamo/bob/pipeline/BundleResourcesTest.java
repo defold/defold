@@ -71,6 +71,7 @@ public class BundleResourcesTest {
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
         addResourceDirectory("/testextension");
+        addResourceDirectory("/testappmanifest");
     }
 
     private void addFile(String file, String source) {
@@ -277,9 +278,7 @@ public class BundleResourcesTest {
 
         // Test data
         Map<Platform, String[]> expected = new HashMap<Platform, String[]>();
-        expected.put(Platform.X86Darwin, new String[] { "osx.txt", "x86-osx.txt" });
         expected.put(Platform.X86_64Darwin, new String[] { "osx.txt", "x86_64-osx.txt" });
-        expected.put(Platform.X86Linux, new String[] { "linux.txt", "x86-linux.txt" });
         expected.put(Platform.X86_64Linux, new String[] { "linux.txt", "x86_64-linux.txt" });
         expected.put(Platform.X86Win32, new String[] { "win32.txt", "x86-win32.txt" });
         expected.put(Platform.X86_64Win32, new String[] { "win32.txt", "x86_64-win32.txt" });
@@ -313,15 +312,15 @@ public class BundleResourcesTest {
 
     }
 
-    private boolean findInResourceList(List<ExtenderResource> list, String path) {
+    private ExtenderResource findInResourceList(List<ExtenderResource> list, String path) {
 
         for (ExtenderResource resource : list) {
             if (resource.getPath().equals(path)) {
-                return true;
+                return resource;
             }
         }
 
-        return false;
+        return null;
     }
 
     // Extension source collecting
@@ -329,20 +328,45 @@ public class BundleResourcesTest {
     public void testExtensionSources() throws Exception {
 
         // Should find: ext.manifest, src/extension1.cpp, lib/common/common.a, lib/x86_64-osx/x86_64-osx.a
-        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin);
+        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, null);
         assertEquals(4, resources.size());
 
-        assertTrue(findInResourceList(resources, "extension1/ext.manifest"));
-        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp"));
-        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a"));
-        assertTrue(findInResourceList(resources, "extension1/lib/x86_64-osx/x86_64-osx.a"));
+        assertTrue(findInResourceList(resources, "extension1/ext.manifest") != null);
+        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp") != null);
+        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a") != null);
+        assertTrue(findInResourceList(resources, "extension1/lib/x86_64-osx/x86_64-osx.a") != null);
 
-        resources = ExtenderUtil.getExtensionSources(project, Platform.Armv7Darwin);
-        assertEquals(3, resources.size());
+        Map<String, String> appmanifestOptions = new HashMap<String,String>();
+        appmanifestOptions.put("baseVariant", "release");
+        resources = ExtenderUtil.getExtensionSources(project, Platform.Armv7Darwin, appmanifestOptions);
+        assertEquals(4, resources.size());
 
-        assertTrue(findInResourceList(resources, "extension1/ext.manifest"));
-        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp"));
-        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a"));
+        assertTrue(findInResourceList(resources, "extension1/ext.manifest") != null);
+        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp") != null);
+        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a") != null);
+        ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
+        String synthesizedManifest = new String(appManifest.getContent());
+        String expectedManifest = "";
+        expectedManifest += "context:" + System.getProperty("line.separator");
+        expectedManifest += "    baseVariant: release" + System.getProperty("line.separator");
+        assertEquals(synthesizedManifest, expectedManifest);
+    }
+
+    @Test
+    public void testAppManifestVariant() throws Exception {
+        Map<String, String> appmanifestOptions = new HashMap<String,String>();
+        appmanifestOptions.put("baseVariant", "debug");
+
+        project.getProjectProperties().putStringValue("native_extension", "app_manifest", "myapp.appmanifest");
+        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, appmanifestOptions);
+        assertEquals(5, resources.size());
+        ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
+        String patchedManifest = new String(appManifest.getContent());
+        String expectedManifest = "";
+        expectedManifest += "context:" + System.getProperty("line.separator");
+        expectedManifest += "    baseVariant: debug" + System.getProperty("line.separator");
+        assertTrue(patchedManifest.length() > expectedManifest.length());
+        assertEquals(patchedManifest.substring(0, expectedManifest.length()), expectedManifest);
     }
 
 }

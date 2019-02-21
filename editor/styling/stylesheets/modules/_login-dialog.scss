@@ -1,0 +1,59 @@
+#login-dialog {
+  -fx-background-color: $df-dark-grey1;
+
+  HBox, VBox {
+    -fx-spacing: 0; // Fight crazy non-zero default.
+  }
+}
+
+.login-state {
+  #password-error-label {
+    -fx-max-width: Infinity;
+  }
+
+  .label {
+    -fx-opacity: 0.75;
+
+    &.error, &.warning, &.df-error-banner {
+      -fx-opacity: 1.0;
+    }
+
+    &.error { -fx-text-fill: $error-severity-warning; } // Use yellow for readability.
+    &.warning { -fx-text-fill: $error-severity-warning; }
+  }
+
+  .text-field {
+    &.error { -fx-border-color: $error-severity-fatal; }
+    &.warning { -fx-border-color: $error-severity-warning; }
+  }
+
+  .field-label {
+    -fx-padding: 0px 8px 0px 0px;
+    -fx-text-alignment: right;
+  }
+
+  .sign-in-header {
+    -fx-alignment: center;
+    -fx-padding: 0px 0px 16px 0px;
+    -fx-text-alignment: center;
+  }
+
+  .login-fields {
+    -fx-alignment: center;
+  }
+
+  .buttons-hbox {
+    -fx-alignment: center;
+    -fx-padding: 32px 0px 0px 0px;
+    -fx-spacing: 8px !important;
+  }
+
+  .footer {
+    -fx-alignment: bottom-center;
+    -fx-padding: 0px 0px 16px 0px;
+  }
+
+  .explanation-overlay {
+    -fx-min-height: 230px;
+  }
+}

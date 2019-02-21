@@ -61,7 +61,8 @@ void MyRenderNodes(dmGui::HScene scene,
                 break;
         }
 
-        if (dmGui::GetNodeTexture(scene, node))
+        dmGui::NodeTextureType texture_type;
+        if (dmGui::GetNodeTexture(scene, node, &texture_type))
         {
             glEnable(GL_TEXTURE_2D);
             glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
@@ -198,7 +199,7 @@ int main(void)
         fread(buf, 1, file_size, f);
         fclose(f);
 
-        dmGui::AddTexture(scene, "checker", (void*) checker_texture, 0, 2, 2);
+        dmGui::AddTexture(scene, "checker", (void*)(uintptr_t) checker_texture, dmGui::NODE_TEXTURE_TYPE_TEXTURE, 2, 2);
 
         dmLuaDDF::LuaSource luaSource;
         memset(&luaSource, 0x00, sizeof(luaSource));

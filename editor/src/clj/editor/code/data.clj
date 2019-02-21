@@ -1846,53 +1846,70 @@
     (let [text-lines (util/split-lines text)]
       (insert-lines-seqs indent-level-pattern indent-string grammar lines cursor-ranges regions layout (repeat text-lines)))))
 
-(defn find-last-region-index [region-type regions]
-  (some (fn [index]
-          (when (= region-type (:type (regions index)))
-            index))
-        (range (dec (count regions)) -1 -1)))
-
 (defn- inc-limited
   ^long [^long n]
   (if (= n Long/MAX_VALUE)
     (inc (- n 1000000))
     (inc n)))
 
-(defn append-distinct-lines [lines regions new-lines]
-  (let [[lines' regions'] (loop [new-lines new-lines
-                                 lines (transient (if (= [""] lines) [] lines))
+(defn append-distinct-lines [lines regions added-lines line-regions-fn]
+  ;; NOTE: line-regions-fn takes a zero-based row index and a line string,
+  ;; and is expected to return a seq of ordered regions within the line.
+  ;; In addition to these, repeat lines will be encompassed by a :repeat region.
+  (assert (vector? lines))
+  (assert (vector? regions))
+  (let [clean-lines (if (= [""] lines) [] lines)
+        [lines' regions'] (loop [added-lines added-lines
+                                 lines (transient clean-lines)
+                                 line-row (count clean-lines)
                                  regions regions]
-                            (if-some [new-line (first new-lines)]
+                            (if-some [added-line (first added-lines)]
                               (let [prev-line (peek! lines)]
-                                (if (= prev-line new-line)
-                                  (recur (next new-lines)
+                                (if (= prev-line added-line)
+                                  (recur (next added-lines)
                                          lines
-                                         (let [prev-repeat-region-index (find-last-region-index :repeat regions)
+                                         line-row
+                                         (let [prev-repeat-region-index (util/last-index-where #(= :repeat (:type %)) regions)
                                                prev-repeat-region (some->> prev-repeat-region-index (get regions))
-                                               prev-line-row (dec (count lines))]
+                                               prev-line-row (dec line-row)]
                                            (if (= prev-line-row (some-> prev-repeat-region :from :row))
                                              (assoc regions prev-repeat-region-index (update prev-repeat-region :count inc-limited))
-                                             (conj regions (let [end-col (count new-line)]
-                                                             (assoc (->CursorRange (->Cursor prev-line-row 0)
-                                                                                   (->Cursor prev-line-row end-col))
-                                                               :type :repeat
-                                                               :count 2))))))
-                                  (recur (next new-lines)
-                                         (conj! lines new-line)
-                                         regions)))
+                                             (let [new-repeat-region (let [end-col (count added-line)]
+                                                                       (assoc (->CursorRange (->Cursor prev-line-row 0)
+                                                                                             (->Cursor prev-line-row end-col))
+                                                                         :type :repeat
+                                                                         :count 2))]
+                                               (util/insert-sort regions new-repeat-region)))))
+                                  (recur (next added-lines)
+                                         (conj! lines added-line)
+                                         (inc line-row)
+                                         (into regions (line-regions-fn line-row added-line)))))
                               [(persistent! lines) regions]))
         lines' (if (empty? lines') [""] lines')]
-    {:lines lines'
-     :regions regions'}))
+    (cond-> {:lines lines'
+             :regions regions'}
+
+            (empty? clean-lines)
+            (assoc :invalidated-row 0))))
 
 (defn delete-character-before-cursor [lines cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
         to (cursor-left lines from)]
     [(->CursorRange from to) [""]]))
 
+(defn delete-word-before-cursor [lines cursor-range]
+  (let [from (CursorRange->Cursor cursor-range)
+        to (cursor-prev-word lines from)]
+    [(->CursorRange from to) [""]]))
+
 (defn delete-character-after-cursor [lines cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
         to (cursor-right lines from)]
+    [(->CursorRange from to) [""]]))
+
+(defn delete-word-after-cursor [lines cursor-range]
+  (let [from (CursorRange->Cursor cursor-range)
+        to (cursor-next-word lines from)]
     [(->CursorRange from to) [""]]))
 
 (defn- delete-range [lines cursor-range]
@@ -2178,7 +2195,8 @@
                                           (some? scroll-x) (assoc :scroll-x scroll-x)
                                           (some? scroll-y) (assoc :scroll-y scroll-y))))]
         (cond-> scroll-properties
-                (not= cursor-ranges new-cursor-ranges) (merge {:cursor-ranges new-cursor-ranges})))
+                (not= cursor-ranges new-cursor-ranges) (merge {:cursor-ranges new-cursor-ranges
+                                                               :hovered-element nil})))
 
       ;; Drag selection.
       :cursor-range-selection
@@ -2206,11 +2224,12 @@
                                  :to (adjust-cursor lines (->Cursor (inc (.row mouse-cursor)) 0)))))
             new-cursor-ranges [cursor-range]]
         (when (not= cursor-ranges new-cursor-ranges)
-          (merge {:cursor-ranges new-cursor-ranges}
+          (merge {:cursor-ranges new-cursor-ranges
+                  :hovered-element nil}
                  (scroll-to-any-cursor layout lines new-cursor-ranges))))
       nil)))
 
-(defn- element-at-position [^LayoutInfo layout x y]
+(defn- element-at-position [lines visible-regions ^LayoutInfo layout x y]
   (cond
     ;; Horizontal scroll tab.
     (some-> (.scroll-tab-x layout) (rect-contains? x y))
@@ -2230,21 +2249,30 @@
     (when-some [^Rect r (.scroll-tab-y layout)]
       (and (<= (.x r) x (+ (.x r) (.w r)))
            (> ^double y (+ (.y r) (* 0.5 (.h r))))))
-    {:type :ui-element :ui-element :scroll-bar-y-down}))
+    {:type :ui-element :ui-element :scroll-bar-y-down}
 
-(defn- mouse-hover [^LayoutInfo layout hovered-element x y]
-  (let [new-hovered-element (element-at-position layout x y)]
+    :else
+    (when-some [clickable-region (some (fn [region]
+                                         (when (and (some? (:on-click! region))
+                                                    (some #(rect-contains? % x y)
+                                                          (cursor-range-rects layout lines region)))
+                                           region))
+                                       visible-regions)]
+      {:type :region :region clickable-region})))
+
+(defn- mouse-hover [lines visible-regions ^LayoutInfo layout hovered-element x y]
+  (let [new-hovered-element (element-at-position lines visible-regions layout x y)]
     (when (not= hovered-element new-hovered-element)
       {:hovered-element new-hovered-element})))
 
-(defn mouse-moved [lines cursor-ranges ^LayoutInfo layout ^GestureInfo gesture-start hovered-element x y]
+(defn mouse-moved [lines cursor-ranges visible-regions ^LayoutInfo layout ^GestureInfo gesture-start hovered-element x y]
   (if (some? gesture-start)
     (mouse-gesture lines cursor-ranges layout gesture-start x y)
-    (mouse-hover layout hovered-element x y)))
+    (mouse-hover lines visible-regions layout hovered-element x y)))
 
-(defn mouse-released [^LayoutInfo layout ^GestureInfo gesture-start button x y]
+(defn mouse-released [lines visible-regions ^LayoutInfo layout ^GestureInfo gesture-start button x y]
   (when (= button (some-> gesture-start :button))
-    (assoc (mouse-hover layout ::force-evaluation x y)
+    (assoc (mouse-hover lines visible-regions layout ::force-evaluation x y)
       :gesture-start nil)))
 
 (defn mouse-exited [^GestureInfo gesture-start hovered-element]

@@ -18,6 +18,7 @@
 
 #include "../gamesys.h"
 #include "../gamesys_private.h"
+#include "comp_private.h"
 
 #include "gamesys_ddf.h"
 #include "model_ddf.h"
@@ -28,6 +29,45 @@ namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
     using namespace dmGameSystemDDF;
+
+    struct ModelComponent
+    {
+        dmGameObject::HInstance     m_Instance;
+        dmTransform::Transform      m_Transform;
+        Matrix4                     m_World;
+        ModelResource*              m_Resource;
+        dmRig::HRigInstance         m_RigInstance;
+        uint32_t                    m_MixedHash;
+        dmMessage::URL              m_Listener;
+        CompRenderConstants         m_RenderConstants;
+        dmGraphics::HTexture        m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmRender::HMaterial         m_Material;
+
+        /// Node instances corresponding to the bones
+        dmArray<dmGameObject::HInstance> m_NodeInstances;
+        uint16_t                    m_ComponentIndex;
+        /// Component enablement
+        uint8_t                     m_Enabled : 1;
+        uint8_t                     m_DoRender : 1;
+        /// Added to update or not
+        uint8_t                     m_AddedToUpdate : 1;
+        uint8_t                     m_ReHash : 1;
+    };
+
+    struct ModelWorld
+    {
+        dmObjectPool<ModelComponent*>   m_Components;
+        dmArray<dmRender::RenderObject> m_RenderObjects;
+        dmGraphics::HVertexDeclaration  m_VertexDeclaration;
+        dmGraphics::HVertexBuffer*      m_VertexBuffers;
+        dmArray<dmRig::RigModelVertex>* m_VertexBufferData;
+        // Temporary scratch array for instances, only used during the creation phase of components
+        dmArray<dmGameObject::HInstance> m_ScratchInstances;
+        dmRig::HRigContext              m_RigContext;
+        uint32_t                        m_MaxElementsVertices;
+        uint32_t                        m_VertexBufferSwapChainIndex;
+        uint32_t                        m_VertexBufferSwapChainSize;
+    };
 
     static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
 
@@ -392,16 +432,60 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static void RenderBatch(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
+    static inline void RenderBatchLocalVS(ModelWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Model, "RenderBatch");
+        DM_PROFILE(Model, "RenderBatchLocal");
 
-        uint32_t batchIndex = buf[*begin].m_MinorOrder;
+        for (uint32_t *i=begin;i!=end;i++)
+        {
+            dmRender::RenderObject& ro = *world->m_RenderObjects.End();
+            world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
 
-        const ModelComponent* first = (ModelComponent*) buf[*begin].m_UserData;
-        const ModelResource* resource = first->m_Resource;
+            const ModelComponent* component = (ModelComponent*) buf[*i].m_UserData;
+            const ModelResource* mr = component->m_Resource;
+            assert(mr->m_VertexBuffer);
+
+            ro.Init();
+            ro.m_VertexDeclaration = world->m_VertexDeclaration;
+            ro.m_VertexBuffer = mr->m_VertexBuffer;
+            ro.m_Material = GetMaterial(component, mr);
+            ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+            ro.m_VertexStart = 0;
+            ro.m_VertexCount = mr->m_ElementCount;
+            ro.m_WorldTransform = component->m_World;
+
+            if(mr->m_IndexBuffer)
+            {
+                ro.m_IndexBuffer = mr->m_IndexBuffer;
+                ro.m_IndexType = mr->m_IndexBufferElementType;
+            }
+
+            for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
+            {
+                ro.m_Textures[i] = GetTexture(component, mr, i);
+            }
+
+            const CompRenderConstants& constants = component->m_RenderConstants;
+            for (uint32_t i = 0; i < constants.m_ConstantCount; ++i)
+            {
+                const dmRender::Constant& c = constants.m_RenderConstants[i];
+                dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
+            }
+
+            dmRender::AddToRender(render_context, &ro);
+        }
+    }
+
+    static inline void RenderBatchWorldVS(ModelWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
+    {
+        DM_PROFILE(Model, "RenderBatchWorld");
+
         uint32_t vertex_count = 0;
         uint32_t max_component_vertices = 0;
+        uint32_t batchIndex = buf[*begin].m_MinorOrder;
+        const ModelComponent* first = (ModelComponent*) buf[*begin].m_UserData;
+        const ModelResource* resource = first->m_Resource;
+
         for (uint32_t *i=begin;i!=end;i++)
         {
             const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
@@ -463,6 +547,28 @@ namespace dmGameSystem
         dmRender::AddToRender(render_context, &ro);
     }
 
+    static void RenderBatch(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
+    {
+        DM_PROFILE(Model, "RenderBatch");
+
+        const ModelComponent* first = (ModelComponent*) buf[*begin].m_UserData;
+        dmRender::HMaterial material = first->m_Resource->m_Material;
+        switch(dmRender::GetMaterialVertexSpace(material))
+        {
+            case dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD:
+                RenderBatchWorldVS(world, material, render_context, buf, begin, end);
+            break;
+
+            case dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL:
+                RenderBatchLocalVS(world, material, render_context, buf, begin, end);
+            break;
+
+            default:
+                assert(false);
+            break;
+        }
+    }
+
     void UpdateTransforms(ModelWorld* world)
     {
         DM_PROFILE(Model, "UpdateTransforms");
@@ -519,20 +625,7 @@ namespace dmGameSystem
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
 
-            bool rehash = component.m_ReHash;
-            if(!rehash)
-            {
-                uint32_t const_count = component.m_RenderConstants.m_ConstantCount;
-                for (uint32_t const_i = 0; const_i < const_count; ++const_i)
-                {
-                    if (lengthSqr(component.m_RenderConstants.m_RenderConstants[const_i].m_Value - component.m_RenderConstants.m_PrevRenderConstants[const_i]) > 0)
-                    {
-                        rehash = true;
-                        break;
-                    }
-                }
-            }
-            if(rehash)
+            if (component.m_ReHash || dmGameSystem::AreRenderConstantsUpdated(&component.m_RenderConstants))
             {
                 ReHash(&component);
             }
@@ -645,8 +738,13 @@ namespace dmGameSystem
     static void CompModelSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         ModelComponent* component = (ModelComponent*)user_data;
+
         SetRenderConstant(&component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, element_index, var);
         component->m_ReHash = 1;
+
+        // note for PR: do we need to do this now? it will get rehashed when rendered
+        //              this was called previously, but not sure it is needed now?
+        //ReHash(component);
     }
 
     dmGameObject::UpdateResult CompModelOnMessage(const dmGameObject::ComponentOnMessageParams& params)
@@ -695,18 +793,11 @@ namespace dmGameSystem
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
-                dmRender::Constant* constants = component->m_RenderConstants.m_RenderConstants;
-                uint32_t size = component->m_RenderConstants.m_ConstantCount;
-                for (uint32_t i = 0; i < size; ++i)
+                if (dmGameSystem::ClearRenderConstant(&component->m_RenderConstants, ddf->m_NameHash))
                 {
-                    if (constants[i].m_NameHash == ddf->m_NameHash)
-                    {
-                        constants[i] = constants[size - 1];
-                        component->m_RenderConstants.m_PrevRenderConstants[i] = component->m_RenderConstants.m_PrevRenderConstants[size - 1];
-                        component->m_RenderConstants.m_ConstantCount--;
-                        component->m_ReHash = 1;
-                        break;
-                    }
+                    component->m_ReHash = 1;
+                    // Note for PR: same here, either set m_ReHash or hash directly?
+                    // ReHash(component);
                 }
             }
         }
@@ -948,4 +1039,18 @@ namespace dmGameSystem
         return true;
     }
 
+    ModelResource* CompModelGetModelResource(ModelComponent* component)
+    {
+        return component->m_Resource;
+    }
+
+    dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index)
+    {
+        return component->m_NodeInstances[bone_index];
+    }
+
+    ModelComponent* CompModelGetComponent(ModelWorld* world, uintptr_t user_data)
+    {
+        return world->m_Components.Get(user_data);;
+    }
 }

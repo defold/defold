@@ -149,12 +149,11 @@ namespace dmGameObject
 
     HRegister g_Register = 0;
 
-    CompScriptWorld::CompScriptWorld()
+    CompScriptWorld::CompScriptWorld(uint32_t max_instance_count)
     : m_Instances()
     , m_ScriptWorld(0x0)
     {
-        // TODO: How to configure? It should correspond to collection instance count
-        m_Instances.SetCapacity(1024);
+        m_Instances.SetCapacity(max_instance_count);
     }
 
     static Script* GetScript(lua_State *L)
@@ -275,7 +274,7 @@ namespace dmGameObject
         lua_pop(L, 1);
         Instance* instance = i->m_Instance;
         out_url->m_FunctionRef = 0;
-        out_url->m_Socket = instance->m_Collection->m_ComponentSocket;
+        out_url->m_Socket = dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection);
         out_url->m_Path = instance->m_Identifier;
         out_url->m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
     }
@@ -298,7 +297,7 @@ namespace dmGameObject
         Instance* instance = i->m_Instance;
         dmMessage::URL url;
         url.m_FunctionRef = 0;
-        url.m_Socket = instance->m_Collection->m_ComponentSocket;
+        url.m_Socket = dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection);
         url.m_Path = instance->m_Identifier;
         url.m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
         dmScript::PushURL(L, url);
@@ -383,12 +382,12 @@ namespace dmGameObject
         if (lua_gettop(L) == instance_arg) {
             dmMessage::URL receiver;
             dmScript::ResolveURL(L, instance_arg, &receiver, 0x0);
-            if (receiver.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
+            if (receiver.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection->m_HCollection))
             {
                 luaL_error(L, "function called can only access instances within the same collection.");
             }
 
-            instance = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
+            instance = GetInstanceFromIdentifier(instance->m_Collection->m_HCollection, receiver.m_Path);
             if (!instance)
             {
                 luaL_error(L, "Instance %s not found", lua_tostring(L, instance_arg));
@@ -403,8 +402,8 @@ namespace dmGameObject
         // TODO: We should probably not store user-data sparse.
         // A lot of loops just to find user-data such as the code below
         assert(instance != 0x0);
-        const dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
-        uint32_t n = components.Size();
+        const Prototype::Component* components = instance->m_Prototype->m_Components;
+        uint32_t n = instance->m_Prototype->m_ComponentCount;
         uint32_t component_instance_data = 0;
         for (uint32_t i = 0; i < n; ++i)
         {
@@ -461,19 +460,19 @@ namespace dmGameObject
             }
 
             if (world != 0) {
-                *world = GetWorld(instance->m_Collection, component_type_index);
+                *world = GetWorld(instance->m_Collection->m_HCollection, component_type_index);
             }
 
             if (component_ext != 0x0)
             {
                 dmResource::ResourceType resource_type;
-                dmResource::Result resource_res = dmResource::GetTypeFromExtension(instance->m_Collection->m_Factory, component_ext, &resource_type);
+                dmResource::Result resource_res = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(instance->m_Collection->m_HCollection), component_ext, &resource_type);
                 if (resource_res != dmResource::RESULT_OK)
                 {
                     luaL_error(L, "Component type '%s' not found", component_ext);
                     return; // Actually never reached
                 }
-                ComponentType* type = &instance->m_Collection->m_Register->m_ComponentTypes[component_type_index];
+                ComponentType* type = &dmGameObject::GetRegister(instance->m_Collection->m_HCollection)->m_ComponentTypes[component_type_index];
                 if (type->m_ResourceType != resource_type)
                 {
                     luaL_error(L, "Component expected to be of type '%s' but was '%s'", component_ext, type->m_Name);
@@ -493,15 +492,15 @@ namespace dmGameObject
         }
     }
 
-    HCollection GetCollectionFromURL(const dmMessage::URL& url)
+    static Collection* GetCollectionFromURL(const dmMessage::URL& url)
     {
-        HCollection* collection = g_Register->m_SocketToCollection.Get(url.m_Socket);
-        return collection ? *collection : 0;
+        Collection** pcollection = g_Register->m_SocketToCollection.Get(url.m_Socket);
+        return pcollection ? *pcollection : 0;
     }
 
     void* GetComponentFromURL(const dmMessage::URL& url)
     {
-        HCollection collection = GetCollectionFromURL(url);
+        Collection* collection = GetCollectionFromURL(url);
         if (!collection) {
             return 0;
         }
@@ -563,7 +562,7 @@ namespace dmGameObject
         dmScript::GetURL(L, &sender);
         dmMessage::URL target;
         dmScript::ResolveURL(L, 1, &target, &sender);
-        if (target.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
+        if (target.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection->m_HCollection))
         {
             return luaL_error(L, "go.get can only access instances within the same collection.");
         }
@@ -656,7 +655,7 @@ namespace dmGameObject
         dmScript::GetURL(L, &sender);
         dmMessage::URL target;
         dmScript::ResolveURL(L, 1, &target, &sender);
-        if (target.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
+        if (target.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection->m_HCollection))
         {
             luaL_error(L, "go.set can only access instances within the same collection.");
         }
@@ -961,6 +960,103 @@ namespace dmGameObject
         return 0;
     }
 
+    /*# sets the parent for a specific game object instance
+     * Sets the parent for a game object instance. This means that the instance will exist in the geometrical space of its parent,
+     * like a basic transformation hierarchy or scene graph. If no parent is specified, the instance will be detached from any parent and exist in world space.
+     *
+     * @name go.set_parent
+     * @param [id] [type:string|hash|url] optional id of the game object instance to set parent for, defaults to the instance containing the calling script
+     * @param [parent_id] [type:string|hash|url] optional id of the new parent game object, defaults to detaching game object from its parent
+     * @param [keep_world_transform] [type:boolean] optional boolean, set to true to maintain the world transform when changing spaces. Defaults to false.
+     * @examples
+     *
+     * Attach myself to another instance "my_parent":
+     *
+     * ```lua
+     * go.set_parent(go.get_id(),go.get_id("my_parent"))
+     * ```
+     *
+     * Attach an instance "my_instance" to another instance "my_parent":
+     *
+     * ```lua
+     * go.set_parent(go.get_id("my_instance"),go.get_id("my_parent"))
+     * ```
+     *
+     * Detach an instance "my_instance" from its parent (if any):
+     *
+     * ```lua
+     * go.set_parent(go.get_id("my_instance"))
+     * ```
+     */
+    int Script_SetParent(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L,0);
+
+        ScriptInstance* i  = ScriptInstance_Check(L);
+        Instance* instance = i->m_Instance;
+
+        dmMessage::URL sender, target;
+        dmScript::GetURL(L, &sender);
+        dmScript::ResolveURL(L, 1, &target, &sender);
+
+        if (target.m_Socket != dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
+        {
+            return DM_LUA_ERROR("go.set_parent can only access instances within the same collection.");
+        }
+
+        HCollection collection    = dmGameObject::GetCollection(instance);
+        Instance* child_instance  = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
+        Instance* parent_instance = 0x0;
+
+        if (!child_instance)
+        {
+            return DM_LUA_ERROR("Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
+        }
+
+        if (lua_gettop(L) > 1 && !lua_isnil(L, 2))
+        {
+            dmScript::ResolveURL(L, 2, &target, &sender);
+            parent_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
+
+            if (!parent_instance)
+            {
+                return DM_LUA_ERROR("Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
+            }
+
+            if (target.m_Socket != dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
+            {
+                return DM_LUA_ERROR("go.set_parent can only access instances within the same collection.");
+            }
+        }
+
+        dmGameObjectDDF::SetParent ddf;
+
+        if (parent_instance)
+        {
+            ddf.m_ParentId           = dmGameObject::GetIdentifier(parent_instance);
+            ddf.m_KeepWorldTransform = lua_toboolean(L, 3);
+        }
+        else
+        {
+            ddf.m_ParentId           = 0;
+            ddf.m_KeepWorldTransform = 0;
+        }
+
+        dmMessage::URL receiver;
+        receiver.m_Socket   = dmGameObject::GetMessageSocket(child_instance->m_Collection->m_HCollection);
+        receiver.m_Path     = dmGameObject::GetIdentifier(child_instance);
+        receiver.m_Fragment = 0;
+
+        if (dmMessage::RESULT_OK != dmMessage::Post(0x0, &receiver, dmGameObjectDDF::SetParent::m_DDFDescriptor->m_NameHash,
+            (uintptr_t) child_instance, (uintptr_t) dmGameObjectDDF::SetParent::m_DDFDescriptor,
+            &ddf, sizeof(dmGameObjectDDF::SetParent), 0))
+        {
+            return DM_LUA_ERROR("Could not send parenting message!");
+        }
+
+        return 0;
+    }
+
     /*# gets the game object instance world position
      * Use [ref:go.get_position] to retrieve the position relative to the parent.
      *
@@ -1156,7 +1252,7 @@ namespace dmGameObject
         if (dmScript::IsValidCallback(cbk) && finished)
         {
             dmMessage::URL url;
-            url.m_Socket = instance->m_Collection->m_ComponentSocket;
+            url.m_Socket = dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection);
             url.m_Path = instance->m_Identifier;
             url.m_Fragment = component_id;
 
@@ -1192,7 +1288,7 @@ namespace dmGameObject
      * - `go.PLAYBACK_LOOP_PINGPONG`
      *
      * @param to [type:number|vector3|vector4|quaternion] target property value
-     * @param easing [type:constant|vector] easing to use during animation. Either specify a constant, see the <a href="/manuals/animation">animation guide</a> for a complete list, or a vmath.vector with a curve
+     * @param easing [type:constant|vector] easing to use during animation. Either specify a constant, see the <a href="/manuals/animation#_easing">animation guide</a> for a complete list, or a vmath.vector with a curve
      * @param duration [type:number] duration of the animation in seconds
      * @param [delay] [type:number] delay before the animation starts in seconds
      * @param [complete_function] [type:function(self, url, property)] optional function to call when the animation has completed
@@ -1288,7 +1384,7 @@ namespace dmGameObject
             lua_pushvalue(L, 5);
             curve.release_callback = LuaCurveRelease;
             curve.userdata1 = i;
-            curve.userdata2 = (void*)dmScript::Ref(L, LUA_REGISTRYINDEX);
+            curve.userdata2 = (void*)(uintptr_t)dmScript::Ref(L, LUA_REGISTRYINDEX);
         }
         else
         {
@@ -1437,7 +1533,7 @@ namespace dmGameObject
     static int DeleteGOTable(lua_State* L, bool recursive)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
-        Instance* instance = i->m_Instance;
+        HCollection hcollection = i->m_Instance->m_Collection->m_HCollection;
 
         // read table
         lua_pushnil(L);
@@ -1446,12 +1542,12 @@ namespace dmGameObject
             // value should be hashes
             dmMessage::URL receiver;
             dmScript::ResolveURL(L, -1, &receiver, 0x0);
-            if (receiver.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
+            if (receiver.m_Socket != dmGameObject::GetMessageSocket(hcollection))
             {
                 luaL_error(L, "Function called can only access instances within the same collection.");
             }
 
-            Instance *todelete = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
+            Instance *todelete = GetInstanceFromIdentifier(hcollection, receiver.m_Path);
             if (todelete)
             {
                 if(dmGameObject::IsBone(todelete))
@@ -1462,8 +1558,7 @@ namespace dmGameObject
                 {
                     dmScript::ReleaseHash(L, todelete->m_Identifier);
                 }
-                dmGameObject::HCollection collection = todelete->m_Collection;
-                dmGameObject::Delete(collection, todelete, recursive);
+                dmGameObject::Delete(hcollection, todelete, recursive);
             }
             else
             {
@@ -1477,8 +1572,11 @@ namespace dmGameObject
 
 
     /*# delete one or more game object instances
-     * Delete one or more game objects identified by id.
-     *
+     * Delete one or more game objects identified by id. Deletion is asynchronous meaning that 
+     * the game object(s) are scheduled for deletion which will happen at the end of the current
+     * frame. Note that game objects scheduled for deletion will be counted against 
+     * `max_instances` in "game.project" until they are actually removed.
+     * 
      * @name go.delete
      * @param [id] [type:string|hash|url|table] optional id or table of id's of the instance(s) to delete, the instance of the calling script is deleted by default
      * @param [recursive] [type:boolean] optional boolean, set to true to recursively delete child hiearchy in child to parent order
@@ -1579,15 +1677,14 @@ namespace dmGameObject
         {
             dmScript::ReleaseHash(L, instance->m_Identifier);
         }
-        dmGameObject::HCollection collection = instance->m_Collection;
+        dmGameObject::HCollection collection = instance->m_Collection->m_HCollection;
         dmGameObject::Delete(collection, instance, recursive);
         return 0;
     }
 
-    /* deletes a set of game object instance
+    /* DEPRECATED deletes a set of game object instance
      * Delete all game objects simultaneously as listed in table.
      * The table values (not keys) should be game object ids (hashes).
-     * Note: Deprecated, use go.delete instead.
      *
      * @name go.delete_all
      * @param [ids] [type:table] table with values of instance ids (hashes) to be deleted
@@ -1743,6 +1840,7 @@ namespace dmGameObject
         {"set_position",            Script_SetPosition},
         {"set_rotation",            Script_SetRotation},
         {"set_scale",               Script_SetScale},
+        {"set_parent",              Script_SetParent},
         {"get_world_position",      Script_GetWorldPosition},
         {"get_world_rotation",      Script_GetWorldRotation},
         {"get_world_scale",         Script_GetWorldScale},
@@ -2110,7 +2208,7 @@ bail:
 
     void DeleteScriptInstance(HScriptInstance script_instance)
     {
-        HCollection collection = script_instance->m_Instance->m_Collection;
+        HCollection collection = script_instance->m_Instance->m_Collection->m_HCollection;
         CancelAnimationCallbacks(collection, script_instance);
 
         lua_State* L = GetLuaState(script_instance);

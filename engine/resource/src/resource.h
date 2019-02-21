@@ -5,19 +5,14 @@
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/mutex.h>
-#include "manifest_ddf.h"
+#include "liveupdate_ddf.h"
 #include "resource_archive.h"
-
-namespace dmBuffer
-{
-    typedef uint32_t HBuffer;
-}
 
 namespace dmResource
 {
     const static uint32_t MANIFEST_MAGIC_NUMBER = 0x43cb6d06;
 
-    const static uint32_t MANIFEST_VERSION = 0x01;
+    const static uint32_t MANIFEST_VERSION = 0x03;
 
     const uint32_t MANIFEST_PROJ_ID_LEN = 41; // SHA1 + NULL terminator
 
@@ -65,6 +60,9 @@ namespace dmResource
         RESULT_RESOURCE_LOOP_ERROR       = -16,  //!< RESULT_RESOURCE_LOOP_ERROR
         RESULT_PENDING                   = -17,  //!< RESULT_PENDING
         RESULT_INVALID_FILE_EXTENSION    = -18,  //!< RESULT_INVALID_FILE_EXTENSION
+        RESULT_VERSION_MISMATCH          = -19,  //!< RESULT_VERSION_MISMATCH
+        RESULT_SIGNATURE_MISMATCH        = -20,  //!< RESULT_SIGNATURE_MISMATCH
+        RESULT_UNKNOWN_ERROR             = -21,  //!< RESULT_UNKNOWN_ERROR
     };
 
     /**
@@ -96,6 +94,7 @@ namespace dmResource
 
         dmResourceArchive::HArchiveIndexContainer   m_ArchiveIndex;
         dmLiveUpdateDDF::ManifestFile*              m_DDF;
+        dmLiveUpdateDDF::ManifestData*              m_DDFData;
     };
 
     /// Resource descriptor
@@ -457,7 +456,7 @@ namespace dmResource
      * @param buffer The buffer
      * @return RESULT_OK on success
      */
-    Result SetResource(HFactory factory, uint64_t hashed_name, dmBuffer::HBuffer buffer);
+    Result SetResource(HFactory factory, uint64_t hashed_name, void* buffer, uint32_t size);
 
     /**
      * Updates a preexisting resource with new data
@@ -604,11 +603,25 @@ namespace dmResource
 
     Manifest* GetManifest(HFactory factory);
 
-    Result LoadArchiveIndex(const char* manifestPath, HFactory factory);
+    Result LoadArchiveIndex(const char* bundle_dir, HFactory factory);
 
-    Result ParseManifestDDF(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile*& manifestFile);
+    Result ManifestLoadMessage(uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest);
 
-    Result LoadManifest(const char* manifestPath, HFactory factory);
+    Result StoreManifest(Manifest* manifest);
+
+    /**
+     * Verify that all resources the manifest expects to be bundled actually are bundled.
+     */
+    Result VerifyResourcesBundled(HFactory factory, Manifest* manifest);
+
+    /**
+     * Loads the public RSA key from the bundle.
+     * Uses the public key to decrypt the manifest signature to get the content hash.
+     * Compares the decrypted content hash to the expected content hash.
+     * Diagram of what to do; https://crypto.stackexchange.com/questions/12768/why-hash-the-message-before-signing-it-with-rsa
+     * Inspect asn1 key content; http://lapo.it/asn1js/#
+     */
+    Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len);
 
     /**
      * Create new archive index with resource.
@@ -642,7 +655,7 @@ namespace dmResource
      * @param factory Factory handle
      * @return Mutex pointer
     */
-    dmMutex::Mutex GetLoadMutex(const dmResource::HFactory factory);
+    dmMutex::HMutex GetLoadMutex(const dmResource::HFactory factory);
 
     /**
      * Releases the builtins manifest
@@ -650,14 +663,36 @@ namespace dmResource
      */
     void ReleaseBuiltinsManifest(HFactory factory);
 
+    /**
+     * Returns the length in bytes of the supplied hash algorithm
+     */
     uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm);
 
-    void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash, char* buf, uint32_t buflen);
+    /**
+     * Converts the supplied byte buffer to hexadecimal string representation
+     * @param byte_buf The byte buffer
+     * @param byte_buf_len The byte buffer length
+     * @param out_buf The output string buffer
+     * @param out_len The output buffer length
+     */
+    void BytesToHexString(const uint8_t* byte_buf, uint32_t byte_buf_len, char* out_buf, uint32_t out_len);
 
-    // Platform specific implementation of archive loading. Data written into mount_info must
-    // be provided when UnloadArchiveInternal and may contain information about memory mapping etc.
+    /**
+     * Byte-wise comparison of two hash buffers
+     * @param digest The hash digest to compare
+     * @param len The hash digest length
+     * @param buf The expected hash digest
+     * @param buflen The expected hash digest length
+     * @return RESULT_OK if the hashes are equal in length and content
+     */
+    Result HashCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_digest, uint32_t expected_len);
+
+    // Platform specific implementation of archive and manifest loading. Data written into mount_info must
+    // be provided for unloading and may contain information about memory mapping etc.
     Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info);
-    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer archive, void* mount_info);
+    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer &archive, void* mount_info);
+    Result MountManifest(const char* manifest_filename, void*& out_map, uint32_t& out_size);
+    Result UnmountManifest(void *& map, uint32_t size);
     // Files mapped with this function should be unmapped with UnmapFile(...)
     Result MapFile(const char* filename, void*& map, uint32_t& size);
     Result UnmapFile(void*& map, uint32_t size);

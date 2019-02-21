@@ -23,6 +23,7 @@
    [editor.resource :as resource]
    [editor.resource-node :as resource-node]
    [editor.scene :as scene]
+   [editor.scene-picking :as scene-picking]
    [editor.scene-tools :as scene-tools]
    [editor.tile-map-grid :as tile-map-grid]
    [editor.tile-source :as tile-source]
@@ -125,6 +126,29 @@
   (vec3 position)
   (vec2 texcoord0))
 
+(shader/defshader tile-map-id-vertex-shader
+  (uniform mat4 view_proj)
+  (uniform mat4 world)
+  (attribute vec4 position)
+  (attribute vec2 texcoord0)
+  (varying vec2 var_texcoord0)
+  (defn void main []
+    (setq mat4 mvp (* view_proj world))
+    (setq gl_Position (* mvp (vec4 position.xyz 1.0)))
+    (setq var_texcoord0 texcoord0)))
+
+(shader/defshader tile-map-id-fragment-shader
+  (varying vec2 var_texcoord0)
+  (uniform sampler2D DIFFUSE_TEXTURE)
+  (uniform vec4 id)
+  (defn void main []
+    (setq vec4 color (texture2D DIFFUSE_TEXTURE var_texcoord0))
+    (if (> color.a 0.05)
+      (setq gl_FragColor id)
+      (discard))))
+
+(def tile-map-id-shader (shader/make-shader ::tile-map-id-shader tile-map-id-vertex-shader tile-map-id-fragment-shader {"view_proj" :view-proj "world" :world "id" :id}))
+
 (defn render-layer
   [^GL2 gl render-args renderables n]
   (let [pass (:pass render-args)]
@@ -140,14 +164,15 @@
               #_(if selected
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 1.0))
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 0.5)))
-              (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
+              (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))
+              (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))
 
       pass/selection
       (let [{:keys [^Matrix4d world-transform user-data]} (first renderables)
-            {:keys [node-id vbuf shader]} user-data]
+            {:keys [node-id vbuf gpu-texture]} user-data]
         (when vbuf
-          (let [vertex-binding (vtx/use-with node-id vbuf shader)]
-            (gl/with-gl-bindings gl render-args [shader vertex-binding]
+          (let [vertex-binding (vtx/use-with node-id vbuf tile-map-id-shader)]
+            (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [gpu-texture tile-map-id-shader vertex-binding]
               (gl/gl-push-matrix gl
                 (gl/gl-mult-matrix-4d gl world-transform)
                 (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))))))
@@ -199,12 +224,14 @@
                    (geom/aabb-incorporate max-x max-y 0))}))))
 
 (g/defnk produce-layer-scene
-  [_node-id cell-map texture-set-data z gpu-texture shader blend-mode visible]
+  [_node-id id cell-map texture-set-data z gpu-texture shader blend-mode visible]
   (when visible
     (let [{:keys [aabb vbuf]} (gen-layer-render-data cell-map texture-set-data)]
       {:node-id _node-id
+       :node-outline-key id
        :aabb aabb
        :renderable {:render-fn render-layer
+                    :tags #{:tilemap}
                     :user-data {:node-id _node-id
                                 :vbuf vbuf
                                 :gpu-texture gpu-texture
@@ -214,9 +241,11 @@
                     :passes [pass/transparent pass/selection]}})))
 
 (g/defnk produce-layer-outline
-  [_node-id id]
+  [_node-id id z]
   {:node-id _node-id
+   :node-outline-key id
    :label id
+   :z z
    :icon tile-map-layer-icon})
 
 (g/defnk produce-layer-pb-msg
@@ -306,10 +335,11 @@
 
 (g/defnk produce-node-outline
   [_node-id child-outlines]
-  {:node-id  _node-id
-   :label    "Tile Map"
-   :icon     tile-map-icon
-   :children (vec (sort-by :label child-outlines))})
+  {:node-id          _node-id
+   :node-outline-key "Tile Map"
+   :label            "Tile Map"
+   :icon             tile-map-icon
+   :children         (vec (sort-by :z child-outlines))})
 
 (g/defnk produce-pb-msg
   [tile-source material blend-mode layer-msgs]
@@ -374,8 +404,8 @@
   ;; tile source
   (property tile-source resource/Resource
             (value (gu/passthrough tile-source-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :tile-source-resource]
                                             [:build-targets :dep-build-targets]
                                             [:tile-source-attributes :tile-source-attributes]
@@ -389,8 +419,8 @@
   ;; material
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
                                             [:build-targets :dep-build-targets]
                                             [:shader :material-shader]
@@ -543,7 +573,7 @@
     (gl/gl-push-matrix gl
                        (gl/gl-mult-matrix-4d gl brush-transform)
                        (gl/with-gl-bindings gl render-args [gpu-texture tex-shader vb]
-                         (shader/set-uniform tex-shader gl "texture" 0)
+                         (shader/set-uniform tex-shader gl "texture_sampler" 0)
                          (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
 
 
@@ -627,7 +657,7 @@
         vb (vtx/use-with ::palette-tiles vbuf tex-shader)
         gpu-texture (texture/set-params gpu-texture tile-source/texture-params)]
     (gl/with-gl-bindings gl render-args [gpu-texture tex-shader vb]
-      (shader/set-uniform tex-shader gl "texture" 0)
+      (shader/set-uniform tex-shader gl "texture_sampler" 0)
       (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
 
 
@@ -1064,7 +1094,7 @@
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext ["tilemap" "tilegrid"]
-    :build-ext "tilegridc"
+    :build-ext "tilemapc"
     :node-type TileMapNode
     :ddf-type Tile$TileGrid
     :load-fn load-tile-map

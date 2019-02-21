@@ -27,16 +27,16 @@
         id     (inc (count (:nodes g)))
         g      (ig/add-node g id v)
         g      (ig/graph-remove-node g id nil)]
-    (is (nil? (ig/graph->node g id)))
+    (is (nil? (ig/node-id->node g id)))
     (is (empty? (filter #(= "Any ig/node value" %) (ig/node-values g))))))
 
-(defn targets [g n l] (map gt/tail (get-in g [:sarcs n l])))
-(defn sources [g n l] (map gt/head (get-in g [:tarcs n l])))
+(defn targets [g n l] (map gt/target (get-in g [:sarcs n l])))
+(defn sources [g n l] (map gt/source (get-in g [:tarcs n l])))
 
 (defn- source-arcs-without-targets
   [g]
   (for [source                (ig/node-ids g)
-        source-label          (-> (ig/graph->node g source) g/node-type in/output-labels)
+        source-label          (-> (ig/node-id->node g source) g/node-type in/output-labels)
         [target target-label] (targets g source source-label)
         :when                 (not (some #(= % [source source-label]) (sources g target target-label)))]
     [source source-label]))
@@ -44,7 +44,7 @@
 (defn- target-arcs-without-sources
   [g]
   (for [target                (ig/node-ids g)
-        target-label          (-> (ig/graph->node g target) g/node-type in/input-labels)
+        target-label          (-> (ig/node-id->node g target) g/node-type in/input-labels)
         [source source-label] (sources g target target-label)
         :when                 (not (some #(= % [target target-label]) (targets g source source-label)))]
     [target target-label]))
@@ -64,8 +64,8 @@
         g      (ig/add-node g id {:number 0})
         g'     (ig/transform-node g id update-in [:number] inc)]
     (is (not= g g'))
-    (is (= 1 (:number (ig/graph->node g' id))))
-    (is (= 0 (:number (ig/graph->node g id))))))
+    (is (= 1 (:number (ig/node-id->node g' id))))
+    (is (= 0 (:number (ig/node-id->node g id))))))
 
 (g/deftype T1        String)
 (g/deftype T1-array  [String])
@@ -116,7 +116,7 @@
 (deftest graph-override-cleanup
   (with-clean-system
     (let [[original override] (tx-nodes (g/make-nodes world [n (TestNode :val "original")]
-                                                      (:tx-data (g/override n))))
+                                                      (g/override n)))
           basis (is/basis system)]
       (is (= override (first (ig/get-overrides basis original))))
       (g/transact (g/delete-node original))

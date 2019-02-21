@@ -47,7 +47,7 @@ public class LocalNotificationReceiver extends WakefulBroadcastReceiver {
 
                 ApplicationInfo info = context.getApplicationInfo();
 
-                NotificationCompat.Builder builder = new NotificationCompat.Builder(context)
+                NotificationCompat.Builder builder = new NotificationCompat.Builder(context, Push.NOTIFICATION_CHANNEL_ID)
                     .setContentTitle(extras.getString("title"))
                     .setContentText(extras.getString("message"))
                     .setWhen(System.currentTimeMillis())
@@ -59,9 +59,15 @@ public class LocalNotificationReceiver extends WakefulBroadcastReceiver {
                 int largeIconId = extras.getInt("largeIcon");
                 if (smallIconId == 0) {
                     smallIconId = info.icon;
+                    if (smallIconId == 0) {
+                        smallIconId = android.R.color.transparent;
+                    }
                 }
                 if (largeIconId == 0) {
                     largeIconId = info.icon;
+                    if (largeIconId == 0) {
+                        largeIconId = android.R.color.transparent;
+                    }
                 }
 
                 // Get bitmap for large icon resource

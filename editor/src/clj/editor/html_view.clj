@@ -143,13 +143,17 @@
       (catch java.net.URISyntaxException _
         nil))))
 
+(defn- anchor-href [^Element anchor-element]
+  (.getAttribute anchor-element "href"))
+
 (defn- anchor-url
   ^URI [^Element anchor-element]
-  (some-> anchor-element (.getAttribute "href") string->url))
+  (some-> anchor-element anchor-href string->url))
+
 
 (defn- handle-defold-click!
   [project ^Event ev]
-  (when-some [url (anchor-url (.getTarget ev))]
+  (when-some [url (anchor-url (.getCurrentTarget ev))]
     (dispatch-url! project url)))
 
 (defn- hijack-defold-links!
@@ -169,7 +173,8 @@
   (let [handler (reify EventListener
                   (handleEvent [_this ev]
                     (.preventDefault ev)
-                    (ui/open-url (anchor-url (.getTarget ev)))))]
+                    (when-some [url (anchor-url (.getCurrentTarget ev))]
+                      (ui/open-url url))))]
     (run! (fn [^Element anchor-element]
             (when-some [url (anchor-url anchor-element)]
               (when (and (not= "defold" (.getScheme url))
@@ -188,9 +193,9 @@
   [^WebEngine web-engine]
   (let [load-worker (.getLoadWorker web-engine)]
     (when-some [ex (.getException load-worker)]
-      (dialogs/make-alert-dialog (str (.getMessage load-worker)
-                                      ": "
-                                      (.getMessage ex))))))
+      (dialogs/make-error-dialog "Could not load page"
+                                 (.getMessage load-worker)
+                                 (.getMessage ex)))))
 
 (g/defnode WebViewNode
   (inherits view/WorkbenchView)

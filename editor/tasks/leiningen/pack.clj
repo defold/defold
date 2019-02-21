@@ -17,8 +17,6 @@
                     "lib" ["particle_shared.dll" "texc_shared.dll"]}
    "x86_64-win32"  {"bin" ["dmengine.exe" "dmengine_release.exe"]
                     "lib" ["particle_shared.dll" "texc_shared.dll"]}
-   "x86-linux"     {"bin" ["dmengine" "dmengine_release"]
-                    "lib" ["libparticle_shared.so" "libtexc_shared.so"]}
    "x86_64-linux"  {"bin" ["dmengine" "dmengine_release"]
                     "lib" ["libparticle_shared.so" "libtexc_shared.so"]}
    "armv7-darwin"  {"bin" ["dmengine" "dmengine_release"]
@@ -29,8 +27,6 @@
 (defn- platform->engine-src-dirname [platform]
   (assert (contains? engine-artifacts platform))
   (case platform
-    "x86-darwin" "darwin"
-    "x86-linux" "linux"
     "x86-win32" "win32"
     platform))
 
@@ -47,14 +43,21 @@
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/PVRTexLib.dll" "x86_64-win32/lib/PVRTexLib.dll"
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/msvcr120.dll"  "x86_64-win32/lib/msvcr120.dll"
 
-   "${DYNAMO-HOME}/ext/bin/linux/luajit"                      "x86-linux/bin/luajit"
-   "${DYNAMO-HOME}/ext/lib/linux/libPVRTexLib.so"             "x86-linux/lib/libPVRTexLib.so"
-
    "${DYNAMO-HOME}/ext/bin/x86_64-linux/luajit"               "x86_64-linux/bin/luajit"
    "${DYNAMO-HOME}/ext/lib/x86_64-linux/libPVRTexLib.so"      "x86_64-linux/lib/libPVRTexLib.so"
 
    "${DYNAMO-HOME}/ext/lib/x86_64-darwin/libPVRTexLib.dylib"  "x86_64-darwin/lib/libPVRTexLib.dylib"
    "${DYNAMO-HOME}/ext/bin/x86_64-darwin/luajit"              "x86_64-darwin/bin/luajit"
+
+   "$DYNAMO_HOME/ext/bin/x86_64-darwin/glslc"                 "x86_64-darwin/glslc"
+   "$DYNAMO_HOME/ext/bin/x86_64-linux/glslc"                  "x86_64-linux/glslc"
+   "$DYNAMO_HOME/ext/bin/x86_64-win32/glslc.exe"              "x86_64-win32/glslc.exe"
+   "$DYNAMO_HOME/ext/bin/win32/glslc.exe"                     "x86-win32/glslc.exe"
+
+   "$DYNAMO_HOME/ext/bin/x86_64-darwin/spirv-cross"           "x86_64-darwin/spirv-cross"
+   "$DYNAMO_HOME/ext/bin/x86_64-linux/spirv-cross"            "x86_64-linux/spirv-cross"
+   "$DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe"        "x86_64-win32/spirv-cross.exe"
+   "$DYNAMO_HOME/ext/bin/win32/spirv-cross.exe"               "x86-win32/spirv-cross.exe"
 
    "${DYNAMO-HOME}/ext/share/luajit"                  "shared/luajit"
 
@@ -86,7 +89,6 @@
 
 (def java-platform->platform
   {"linux-amd64"      "x86_64-linux"
-   "linux-i586"       "x86-linux"
    "macosx-universal" "x86_64-darwin"
    "windows-amd64"    "x86_64-win32"
    "windows-i586"     "x86-win32"
