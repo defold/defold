@@ -1080,9 +1080,9 @@ namespace dmProfileRender
             ResetStructure(render_profile);
             return;
         }
-        if (recorded_frame_index >= render_profile->m_RecordBuffer.Size())
+        if (recorded_frame_index >= (int)render_profile->m_RecordBuffer.Size())
         {
-            recorded_frame_index = render_profile->m_RecordBuffer.Size() - 1;
+            recorded_frame_index = (int)render_profile->m_RecordBuffer.Size() - 1;
         }
         else if (recorded_frame_index < 0)
         {
@@ -1831,21 +1831,17 @@ namespace dmProfileRender
     void AdjustShownFrame(HRenderProfile render_profile, int distance)
     {
         render_profile->m_Mode = PROFILER_MODE_PAUSE;
-        if (render_profile->m_PlaybackFrame + distance > 0)
-        {
-            GotoRecordedFrame(render_profile, render_profile->m_PlaybackFrame + distance);
-            SortStructure(render_profile);
-        }
+
+        GotoRecordedFrame(render_profile, render_profile->m_PlaybackFrame + distance);
+        SortStructure(render_profile);
     }
 
     void ShowRecordedFrame(HRenderProfile render_profile, int frame)
     {
         render_profile->m_Mode = PROFILER_MODE_PAUSE;
-        if (frame > 0)
-        {
-            GotoRecordedFrame(render_profile, frame);
-            SortStructure(render_profile);
-        }
+
+        GotoRecordedFrame(render_profile, frame);
+        SortStructure(render_profile);
     }
 
     int GetRecordedFrameCount(HRenderProfile render_profile)

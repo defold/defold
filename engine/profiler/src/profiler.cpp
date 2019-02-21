@@ -362,7 +362,11 @@ static int ProfilerUIViewRecordedFrame(lua_State* L)
         }
         dmProfileRender::ShowRecordedFrame(gRenderProfile, frame - 1);
     }
-    return DM_LUA_ERROR("'distance' or 'frame' must be given in properties table");
+    else
+    {
+        return DM_LUA_ERROR("'distance' or 'frame' must be given in properties table");
+    }
+    return 0;
 }
 
 } // dmProfiler
