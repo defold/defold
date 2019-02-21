@@ -41,9 +41,14 @@ import android.os.Build;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
-import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.GooglePlayServicesUtil;
-import com.google.android.gms.gcm.GoogleCloudMessaging;
+// import com.google.android.gms.common.ConnectionResult;
+// import com.google.android.gms.common.GooglePlayServicesUtil;
+// import com.google.android.gms.gcm.GoogleCloudMessaging;
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.iid.FirebaseInstanceId;
+import com.google.firebase.iid.InstanceIdResult;
+import com.google.android.gms.tasks.Task;
+import com.google.android.gms.tasks.OnCompleteListener;
 
 public class Push {
 
@@ -61,7 +66,7 @@ public class Push {
     private static AlarmManager am = null;
     private IPushListener listener = null;
 
-    private GoogleCloudMessaging gcm;
+    // private GoogleCloudMessaging gcm;
 
     private Activity activity;
 
@@ -120,12 +125,68 @@ public class Push {
         storedNotifications.clear();
     }
 
+    public void doSven()
+    {
+        // new Thread(new Runnable() {
+        //         @Override
+        //         public void run() {
+        //             // DO your work here
+        //             // get the data
+        //             if (activity_is_not_in_background) {
+        //                 runOnUiThread(new Runnable() {
+        //                     @Override
+        //                     public void run() {
+        //                         //uddate UI
+        //                         runInBackground();
+        //                     }
+        //                 });
+        //             } else {
+        //                 runInBackground();
+        //             }
+        //         }
+        //     }).start();
+
+        // new Thread(new Runnable() {
+        //         @Override
+        //         public void run() {
+                    FirebaseInstanceId instance = FirebaseInstanceId.getInstance();
+                    Log.d(TAG, "FirebaseInstanceId.getInstance(): " + instance);
+                    if (instance != null) {
+                        Task<InstanceIdResult> instanceId = instance.getInstanceId();
+                        Log.d(TAG, "instanceId: " + instanceId);
+
+                        if (instanceId != null) {
+                            instanceId.addOnCompleteListener(new OnCompleteListener<InstanceIdResult>() {
+                                    @Override
+                                    public void onComplete(Task<InstanceIdResult> task) {
+                                        if (!task.isSuccessful()) {
+                                            Log.w(TAG, "getInstanceId failed", task.getException());
+                                            return;
+                                        }
+
+                                        // Get new Instance ID token
+                                        String token = task.getResult().getToken();
+
+                                        // Log and toast
+                                        // String msg = getString(R.string.msg_token_fmt, token);
+                                        Log.d(TAG, token);
+                                        // Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show();
+                                    }
+                                });
+                        }
+                    }
+
+        //         } // run()
+        //     }).start(); // Runnable
+    }
+
     public void register(final Activity activity) {
         activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 try {
-                    startGooglePlay(activity);
+                    // startGooglePlay(activity);
+                    startFirebase(activity);
                     loadSavedLocalMessages(activity);
                     loadSavedMessages(activity);
                 } catch (Throwable e) {
@@ -284,14 +345,36 @@ public class Push {
         return instance;
     }
 
-    private void startGooglePlay(Activity activity) {
-        if (checkPlayServices(activity)) {
-            gcm = GoogleCloudMessaging.getInstance(activity);
-            registerInBackground(activity);
-        } else {
-            Log.w(TAG, "No valid Google Play Services APK found.");
-        }
+    private void startFirebase(Activity activity) {
+        // FirebaseApp.initializeApp(activity);
+        FirebaseInstanceId.getInstance().getInstanceId()
+                .addOnCompleteListener(new OnCompleteListener<InstanceIdResult>() {
+                    @Override
+                    public void onComplete(Task<InstanceIdResult> task) {
+                        if (!task.isSuccessful()) {
+                            Log.w(TAG, "getInstanceId failed", task.getException());
+                            return;
+                        }
+
+                        // Get new Instance ID token
+                        String token = task.getResult().getToken();
+
+                        // Log and toast
+                        // String msg = getString(R.string.msg_token_fmt, token);
+                        Log.d(TAG, token);
+                        // Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
+
+    // private void startGooglePlay(Activity activity) {
+    //     if (checkPlayServices(activity)) {
+    //         gcm = GoogleCloudMessaging.getInstance(activity);
+    //         registerInBackground(activity);
+    //     } else {
+    //         Log.w(TAG, "No valid Google Play Services APK found.");
+    //     }
+    // }
 
     private boolean checkPlayServices(Activity activity) {
         int resultCode = GooglePlayServicesUtil
@@ -316,28 +399,28 @@ public class Push {
         }
     }
 
-    private void registerInBackground(final Context context) {
-        new AsyncTask<Void, Void, Void>() {
-            @Override
-            protected Void doInBackground(Void... params) {
-                try {
-                    if (gcm == null) {
-                        gcm = GoogleCloudMessaging.getInstance(context);
-                    }
-                    String regid = gcm.register(senderId);
-                    sendRegistrationResult(regid, null);
-                } catch (IOException e) {
-                    Log.e(TAG, "Failed to register", e);
-                    sendRegistrationResult(null, e.getLocalizedMessage());
-                } catch (Throwable e) {
-                    Log.e(TAG, "Failed to register", e);
-                    sendRegistrationResult(null, e.getLocalizedMessage());
-                }
-                return null;
-            }
+    // private void registerInBackground(final Context context) {
+    //     new AsyncTask<Void, Void, Void>() {
+    //         @Override
+    //         protected Void doInBackground(Void... params) {
+    //             try {
+    //                 if (gcm == null) {
+    //                     gcm = GoogleCloudMessaging.getInstance(context);
+    //                 }
+    //                 String regid = gcm.register(senderId);
+    //                 sendRegistrationResult(regid, null);
+    //             } catch (IOException e) {
+    //                 Log.e(TAG, "Failed to register", e);
+    //                 sendRegistrationResult(null, e.getLocalizedMessage());
+    //             } catch (Throwable e) {
+    //                 Log.e(TAG, "Failed to register", e);
+    //                 sendRegistrationResult(null, e.getLocalizedMessage());
+    //             }
+    //             return null;
+    //         }
 
-        }.execute(null, null, null);
-    }
+    //     }.execute(null, null, null);
+    // }
 
     private void loadSavedMessages(Context context) {
         BufferedReader r = null;
@@ -477,39 +560,39 @@ public class Push {
 
     void onPush(Context context, Intent intent) {
         Bundle extras = intent.getExtras();
-        GoogleCloudMessaging gcm = GoogleCloudMessaging.getInstance(context);
-        String messageType = gcm.getMessageType(intent);
+        // GoogleCloudMessaging gcm = GoogleCloudMessaging.getInstance(context);
+        // String messageType = gcm.getMessageType(intent);
 
-        // Note in regards to the 'from' != "google.com/iid" check:
-        // - In mid/late 2015 Google updated their push service. During this
-        //   change "ghost" messages began popping up in Defold, some even
-        //   the first time the apps were run. The reason was Google sending
-        //   some of their own messages to the devices with "commands", for
-        //   example telling the GCM-library to request a new device token.
-        //   These commands where not handled in our GCM-library version,
-        //   thus we simply forwarded them below as normal pushes.
-        //   More info: JIRA issue DEF-1354
-        //              http://stackoverflow.com/questions/30479424/
-        if (!extras.isEmpty() &&
-            !extras.getString("from").equals("google.com/iid")) {
+        // // Note in regards to the 'from' != "google.com/iid" check:
+        // // - In mid/late 2015 Google updated their push service. During this
+        // //   change "ghost" messages began popping up in Defold, some even
+        // //   the first time the apps were run. The reason was Google sending
+        // //   some of their own messages to the devices with "commands", for
+        // //   example telling the GCM-library to request a new device token.
+        // //   These commands where not handled in our GCM-library version,
+        // //   thus we simply forwarded them below as normal pushes.
+        // //   More info: JIRA issue DEF-1354
+        // //              http://stackoverflow.com/questions/30479424/
+        // if (!extras.isEmpty() &&
+        //     !extras.getString("from").equals("google.com/iid")) {
 
-            if (GoogleCloudMessaging.MESSAGE_TYPE_MESSAGE.equals(messageType)) {
-                JSONObject o = toJson(extras);
-                String msg = o.toString();
-                boolean wasActivated = !DefoldActivity.isActivityVisible();
-                Log.d(TAG, "message received: " + msg);
-                if (listener != null) {
-                    Log.d(TAG, "forwarding message to application");
-                    listener.onMessage(msg, wasActivated);
-                }
+        //     if (GoogleCloudMessaging.MESSAGE_TYPE_MESSAGE.equals(messageType)) {
+        //         JSONObject o = toJson(extras);
+        //         String msg = o.toString();
+        //         boolean wasActivated = !DefoldActivity.isActivityVisible();
+        //         Log.d(TAG, "message received: " + msg);
+        //         if (listener != null) {
+        //             Log.d(TAG, "forwarding message to application");
+        //             listener.onMessage(msg, wasActivated);
+        //         }
 
-                Log.d(TAG, "creating notification for message");
-                sendNotification(context, extras, wasActivated);
-            } else {
-                Log.i(TAG, String.format("unhandled message type: %s",
-                        messageType));
-            }
-        }
+        //         Log.d(TAG, "creating notification for message");
+        //         sendNotification(context, extras, wasActivated);
+        //     } else {
+        //         Log.i(TAG, String.format("unhandled message type: %s",
+        //                 messageType));
+        //     }
+        // }
     }
 
     private void removeNotification(int id) {

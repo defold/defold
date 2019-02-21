@@ -90,6 +90,7 @@ struct Push
     jmethodID            m_Start;
     jmethodID            m_Stop;
     jmethodID            m_FlushStored;
+    jmethodID            m_Sven;
     jmethodID            m_Register;
     jmethodID            m_Schedule;
     jmethodID            m_Cancel;
@@ -130,6 +131,14 @@ static int Push_Register(lua_State* L)
     Detach();
 
     assert(top == lua_gettop(L));
+    return 0;
+}
+
+static int Push_Sven(lua_State* L)
+{
+    JNIEnv* env = Attach();
+    env->CallVoidMethod(g_Push.m_Push, g_Push.m_Sven);
+    Detach();
     return 0;
 }
 
@@ -406,6 +415,7 @@ static const luaL_reg Push_methods[] =
 {
     {"register", Push_Register},
     {"set_listener", Push_SetListener},
+    {"sven", Push_Sven},
 
     {"schedule", Push_Schedule},
     {"cancel", Push_Cancel},
@@ -730,6 +740,7 @@ static dmExtension::Result AppInitializePush(dmExtension::AppParams* params)
     g_Push.m_Start = env->GetMethodID(push_class, "start", "(Landroid/app/Activity;Lcom/defold/push/IPushListener;Ljava/lang/String;Ljava/lang/String;)V");
     g_Push.m_Stop = env->GetMethodID(push_class, "stop", "()V");
     g_Push.m_FlushStored = env->GetMethodID(push_class, "flushStoredNotifications", "()V");
+    g_Push.m_Sven = env->GetMethodID(push_class, "doSven", "()V");
     g_Push.m_Register = env->GetMethodID(push_class, "register", "(Landroid/app/Activity;)V");
     g_Push.m_Schedule = env->GetMethodID(push_class, "scheduleNotification", "(Landroid/app/Activity;IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V");
     g_Push.m_Cancel = env->GetMethodID(push_class, "cancelNotification", "(Landroid/app/Activity;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V");
