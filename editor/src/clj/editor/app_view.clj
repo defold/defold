@@ -1552,6 +1552,7 @@ If you do not specifically require different script states, consider changing th
     (search-results-view/show-search-in-files-dialog! search-results-view project prefs)))
 
 (defn- bundle! [changes-view build-errors-view project prefs platform bundle-options]
+  (g/user-data! project :last-bundle-options (assoc bundle-options :platform-key platform))
   (console/clear-console!)
   (let [output-directory ^File (:output-directory bundle-options)
         clear-errors! (make-clear-build-errors build-errors-view)
@@ -1566,14 +1567,10 @@ If you do not specifically require different script states, consider changing th
     (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress!
                            render-build-error! bob/bundle-bob-commands bob-args project changes-view
                            (fn [successful?]
-                             (if successful?
+                             (when successful?
                                (if (some-> output-directory .isDirectory)
-                                 (do
-                                   (g/user-data! project :last-bundle-options (assoc bundle-options :platform-key platform))
-                                   (ui/open-file output-directory))
-                                 (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again."))
-                               ;; Clear out the old options on failure or the user might be confused by the Rebundle command.
-                               (g/user-data! project :last-bundle-options nil))))))
+                                 (ui/open-file output-directory)
+                                 (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again.")))))))
 
 (handler/defhandler :bundle :global
   (run [user-data workspace project prefs app-view changes-view build-errors-view]
