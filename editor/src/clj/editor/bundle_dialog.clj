@@ -537,8 +537,6 @@
               platform-bundle-output-directory-exists? (.exists platform-bundle-output-directory)]
           (when (or (not platform-bundle-output-directory-exists?)
                     (query-overwrite! platform-bundle-output-directory stage))
-            (when (not platform-bundle-output-directory-exists?)
-              (fs/create-directories! platform-bundle-output-directory))
             (let [bundle-options (assoc bundle-options :output-directory platform-bundle-output-directory)]
               (ui/close! stage)
               (bundle! bundle-options))))))))
