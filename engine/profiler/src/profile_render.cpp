@@ -1382,6 +1382,11 @@ namespace dmProfileRender
 
                 y -= LINE_SPACING;
 
+                if ((display_mode == DISPLAYMODE_LANDSCAPE) && (y < (counters_area.p.y + counters_area.s.h + LINE_SPACING)))
+                {
+                    break;
+                }
+
                 double e = (double)(scope->m_Elapsed) / ticks_per_second;
 
                 params.m_WorldTransform.setElem(3, 1, y);
