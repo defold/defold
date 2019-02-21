@@ -4,7 +4,7 @@ def build(bld):
 
     null_test = bld.new_task_gen(features = 'cxx cprogram',
                                     source = 'test_profilerext_null.cpp',
-                                    uselib = 'DLIB GTEST PLATFORM_THREAD BULLET',
+                                    uselib = 'DLIB GTEST',
                                     uselib_local = 'profilerext_null',
                                     includes = ['../../../src'],
                                     target = 'test_profilerext_null')
