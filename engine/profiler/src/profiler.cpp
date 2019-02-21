@@ -65,15 +65,6 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
     }
 }
 
-void ShutdownRenderProfile()
-{
-    if (gRenderProfile)
-    {
-        dmProfileRender::DeleteRenderProfile(gRenderProfile);
-        gRenderProfile = 0;
-    }
-}
-
 /*# get current memory usage for app reported by OS
  * Get the amount of memory used (resident/working set) by the application in bytes, as reported by the OS.
  *
@@ -437,7 +428,11 @@ static dmExtension::Result UpdateProfiler(dmExtension::Params* params)
 
 static dmExtension::Result FinalizeProfiler(dmExtension::Params* params)
 {
-    dmProfiler::ShutdownRenderProfile();
+    if (dmProfiler::gRenderProfile)
+    {
+        dmProfileRender::DeleteRenderProfile(dmProfiler::gRenderProfile);
+        dmProfiler::gRenderProfile = 0;
+    }
     return dmExtension::RESULT_OK;
 }
 
