@@ -1560,35 +1560,34 @@ If you do not specifically require different script states, consider changing th
         render-save-progress! (make-render-task-progress :save-all)
         render-build-progress! (make-render-task-progress :build)
         bob-args (bob/bundle-bob-args prefs platform bundle-options)]
+    (when (not (.exists output-directory))
+      (fs/create-directories! output-directory))
     (clear-errors!)
     (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress!
                            render-build-error! bob/bundle-bob-commands bob-args project changes-view
                            (fn [successful?]
-                             (when successful?
+                             (if successful?
                                (if (some-> output-directory .isDirectory)
                                  (do
                                    (g/user-data! project :last-bundle-options (assoc bundle-options :platform-key platform))
                                    (ui/open-file output-directory))
-                                 (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again.")))))))
-
-(defn- do-bundle!
-  [user-data workspace project prefs app-view changes-view build-errors-view rebundle?]
-  (let [owner-window (g/node-value app-view :stage)
-        last-bundle-options (when rebundle? (g/user-data project :last-bundle-options))
-        platform (:platform user-data (:platform-key last-bundle-options))
-        bundle! (partial bundle! changes-view build-errors-view project prefs platform)]
-    (if last-bundle-options
-      (bundle! last-bundle-options)
-      (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
+                                 (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again."))
+                               ;; Clear out the old options on failure or the user might be confused by the Rebundle command.
+                               (g/user-data! project :last-bundle-options nil))))))
 
 (handler/defhandler :bundle :global
   (run [user-data workspace project prefs app-view changes-view build-errors-view]
-    (do-bundle! user-data workspace project prefs app-view changes-view build-errors-view false)))
+    (let [owner-window (g/node-value app-view :stage)
+          platform (:platform user-data)
+          bundle! (partial bundle! changes-view build-errors-view project prefs platform)]
+      (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
 
 (handler/defhandler :rebundle :global
   (enabled? [project] (some? (g/user-data project :last-bundle-options)))
   (run [workspace project prefs app-view changes-view build-errors-view]
-    (do-bundle! nil workspace project prefs app-view changes-view build-errors-view true)))
+    (let [last-bundle-options (g/user-data project :last-bundle-options)
+          platform (:platform-key last-bundle-options)]
+      (bundle! changes-view build-errors-view project prefs platform last-bundle-options))))
 
 (defn- fetch-libraries [workspace project dashboard-client changes-view]
   (let [library-uris (project/project-dependencies project)
