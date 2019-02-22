@@ -152,8 +152,8 @@
                                              :type  type}))
                               (:properties user-properties))
         modules         (:modules user-data)
-        bytecode        (script->bytecode (:lines user-data) (:proj-path user-data) "32")
-        bytecode-64     (script->bytecode (:lines user-data) (:proj-path user-data) "64")]
+        bytecode        (script->bytecode (:lines user-data) (:proj-path user-data) :32-bit)
+        bytecode-64     (script->bytecode (:lines user-data) (:proj-path user-data) :64-bit)]
     (g/precluding-errors
       [bytecode]
       {:resource resource

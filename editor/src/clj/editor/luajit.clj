@@ -19,7 +19,9 @@
 
 (defn- luajit-exec-path
   [arch]
-  (str (system/defold-unpack-path) "/" (.getPair (Platform/getJavaPlatform)) (str "/bin/luajit-" arch)))
+  (str (system/defold-unpack-path) "/" (.getPair (Platform/getJavaPlatform)) (str (case arch
+                                                                                        :32-bit "/bin/luajit-32"
+                                                                                        :64-bit "/bin/luajit-64"))))
 
 (defn- luajit-lua-path
   []
