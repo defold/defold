@@ -92,7 +92,7 @@
     (select-fn selection op-seq)))
 
 (def mac-toggle-modifiers #{:shift :meta})
-(def other-toggle-modifiers #{:control})
+(def other-toggle-modifiers #{:shift})
 (def toggle-modifiers (if system/mac? mac-toggle-modifiers other-toggle-modifiers))
 
 (def ^Integer min-pick-size 10)
