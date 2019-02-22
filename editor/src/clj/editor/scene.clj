@@ -1,58 +1,48 @@
 (ns editor.scene
   (:require [clojure.set :as set]
-            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.background :as background]
             [editor.camera :as c]
-            [editor.scene-selection :as selection]
             [editor.colors :as colors]
+            [editor.error-reporting :as error-reporting]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.pass :as pass]
+            [editor.graph-util :as gu]
             [editor.grid :as grid]
+            [editor.handler :as handler]
             [editor.input :as i]
             [editor.math :as math]
-            [editor.error-reporting :as error-reporting]
-            [util.profiler :as profiler]
+            [editor.properties :as properties]
             [editor.resource :as resource]
+            [editor.rulers :as rulers]
             [editor.scene-async :as scene-async]
             [editor.scene-cache :as scene-cache]
             [editor.scene-picking :as scene-picking]
+            [editor.scene-selection :as selection]
             [editor.scene-text :as scene-text]
             [editor.scene-tools :as scene-tools]
             [editor.system :as system]
             [editor.types :as types]
             [editor.ui :as ui]
-            [editor.handler :as handler]
+            [editor.view :as view]
             [editor.workspace :as workspace]
-            [editor.gl.pass :as pass]
-            [editor.ui :as ui]
-            [editor.rulers :as rulers]
             [service.log :as log]
-            [editor.graph-util :as gu]
-            [editor.properties :as properties]
-            [editor.view :as view])
-  (:import [com.defold.editor Start UIUtil]
+            [util.profiler :as profiler])
+  (:import [com.jogamp.opengl GL GL2 GLContext GLAutoDrawable GLOffscreenAutoDrawable]
+           [com.jogamp.opengl.glu GLU]
            [com.jogamp.opengl.util GLPixelStorageModes]
            [editor.types Camera AABB Region Rect]
-           [java.awt Font]
-           [java.awt.image BufferedImage DataBufferByte DataBufferInt]
-           [javafx.animation AnimationTimer]
-           [javafx.application Platform]
-           [javafx.beans.value ChangeListener]
-           [javafx.collections FXCollections ObservableList]
-           [javafx.embed.swing SwingFXUtils]
-           [javafx.event ActionEvent EventHandler]
-           [javafx.geometry BoundingBox Pos VPos HPos]
-           [javafx.scene Scene Group Node Parent]
-           [javafx.scene.control Tab Button]
-           [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input KeyCode KeyEvent]
-           [javafx.scene.layout AnchorPane Pane StackPane]
+           [java.awt.image BufferedImage]
            [java.lang Runnable Math]
-           [java.nio IntBuffer ByteBuffer ByteOrder]
-           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLAutoDrawable GLOffscreenAutoDrawable]
-           [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]
+           [java.nio IntBuffer]
+           [javafx.embed.swing SwingFXUtils]
+           [javafx.geometry VPos HPos]
+           [javafx.scene Node Parent]
+           [javafx.scene.image ImageView WritableImage]
+           [javafx.scene.input KeyCode KeyEvent]
+           [javafx.scene.layout AnchorPane Pane]
+           [javax.vecmath Point3d Quat4d Matrix4d Vector4d Vector3d]
            [sun.awt.image IntegerComponentRaster]))
 
 (set! *warn-on-reflection* true)
@@ -288,13 +278,27 @@
           pass-renderables
           passes))
 
-(defn- flatten-scene-renderables! [pass-renderables scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj node-id-path node-outline-key-path ^Quat4d parent-world-rotation ^Matrix4d parent-world-transform alloc-picking-id!]
+(defn- flatten-scene-renderables! [pass-renderables
+                                   scene
+                                   selection-set
+                                   hidden-renderable-tags
+                                   hidden-node-outline-key-paths
+                                   view-proj
+                                   node-id-path
+                                   node-outline-key-path
+                                   ^Quat4d parent-world-rotation
+                                   ^Matrix4d parent-world-transform
+                                   alloc-picking-id!
+                                   ^Matrix4d parent-world-scale]
   (let [renderable (:renderable scene)
         local-transform ^Matrix4d (:transform scene geom/Identity4d)
         world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))
         local-transform-unscaled (doto (Matrix4d. local-transform) (.setScale 1.0))
         local-rotation (doto (Quat4d.) (.set local-transform-unscaled))
         world-rotation (doto (Quat4d. parent-world-rotation) (.mul local-rotation))
+        world-scale (doto (Matrix4d. local-transform)
+                      (.setRotation geom/NoRotation)
+                      (.mul parent-world-scale))
         appear-selected? (some? (some selection-set node-id-path)) ; Child nodes appear selected if parent is.
         picking-node-id (or (:picking-node-id scene) (peek node-id-path))
         flat-renderable (-> scene
@@ -305,6 +309,7 @@
                                    :picking-id (alloc-picking-id! picking-node-id)
                                    :tags (:tags renderable)
                                    :render-fn (:render-fn renderable)
+                                   :world-scale world-scale
                                    :world-rotation world-rotation
                                    :world-transform world-transform
                                    :parent-world-transform parent-world-transform
@@ -343,7 +348,18 @@
                     child-node-outline-key-path (if (= parent-node-id child-node-id)
                                                   node-outline-key-path
                                                   (conj node-outline-key-path (:node-outline-key child-scene)))]
-                (flatten-scene-renderables! pass-renderables child-scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj child-node-id-path child-node-outline-key-path world-rotation world-transform alloc-picking-id!)))
+                (flatten-scene-renderables! pass-renderables
+                                            child-scene
+                                            selection-set
+                                            hidden-renderable-tags
+                                            hidden-node-outline-key-paths
+                                            view-proj
+                                            child-node-id-path
+                                            child-node-outline-key-path
+                                            world-rotation
+                                            world-transform
+                                            alloc-picking-id!
+                                            world-scale)))
             pass-renderables
             (:children scene))))
 
@@ -377,9 +393,20 @@
         node-id-path []
         node-outline-key-path [(:node-id scene)]
         parent-world-rotation geom/NoRotation
-        parent-world-transform geom/Identity4d]
+        parent-world-transform geom/Identity4d
+        parent-world-scale geom/Identity4d]
     (-> (make-pass-renderables)
-        (flatten-scene-renderables! scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj node-id-path node-outline-key-path parent-world-rotation parent-world-transform alloc-picking-id!)
+        (flatten-scene-renderables! scene
+                                    selection-set
+                                    hidden-renderable-tags
+                                    hidden-node-outline-key-paths
+                                    view-proj
+                                    node-id-path
+                                    node-outline-key-path
+                                    parent-world-rotation
+                                    parent-world-transform
+                                    alloc-picking-id!
+                                    parent-world-scale)
         (persist-pass-renderables!))))
 
 (defn- get-selection-pass-renderables-by-node-id
@@ -1329,8 +1356,8 @@
 
 (defmethod scene-tools/manip-move ::SceneNode [evaluation-context node-id delta]
   (let [orig-p ^Vector3d (doto (Vector3d.) (math/clj->vecmath (g/node-value node-id :position evaluation-context)))
-        p (doto (Vector3d. orig-p) (.add delta))]
-    (g/set-property node-id :position (properties/round-vec [(.x p) (.y p) (.z p)]))))
+        p (math/add-vector orig-p delta)]
+    (g/set-property node-id :position (properties/round-vec (math/vecmath->clj p)))))
 
 (defmethod scene-tools/manip-rotate ::SceneNode [evaluation-context node-id delta]
   (let [new-rotation (math/vecmath->clj

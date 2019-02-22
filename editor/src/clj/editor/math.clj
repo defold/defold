@@ -147,21 +147,34 @@
              (Math/round (.getY v))
              (Math/round (.getZ v))))
 
+(defn scale-vector ^Vector3d [^Vector3d v ^double n]
+  (doto (Vector3d. v)
+    (.scale n)))
+
+(defn add-vector ^Vector3d [^Vector3d v1 ^Vector3d v2]
+  (doto (Vector3d. v1)
+    (.add v2)))
+
+(defn translation ^Vector3d [^Matrix4d m]
+  (let [ret (Vector3d.)]
+    (.get m ret)
+    ret))
+
 (defn inv-transform
   ([^Point3d position ^Quat4d rotation ^Point3d p]
-    (let [q (doto (Quat4d. rotation) (.conjugate))
-          p1 (doto (Point3d. p) (.sub position))]
-      (rotate q p1)))
+   (let [q (doto (Quat4d. rotation) (.conjugate))
+         p1 (doto (Point3d. p) (.sub position))]
+     (rotate q p1)))
   ([^Quat4d rotation ^Quat4d q]
-    (let [q1 (doto (Quat4d. rotation) (.conjugate))]
-      (.mul q1 q)
-      q1)))
+   (let [q1 (doto (Quat4d. rotation) (.conjugate))]
+     (.mul q1 q)
+     q1)))
 
 (defn from-to->quat [^Vector3d unit-from ^Vector3d unit-to]
   (let [dot (.dot unit-from unit-to)]
     (let [cos-half (Math/sqrt (* 2.0 (+ 1.0 dot)))
           recip-cos-half (/ 1.0 cos-half)
-        axis (doto (Vector3d.) (.cross unit-from unit-to) (.scale recip-cos-half))]
+          axis (doto (Vector3d.) (.cross unit-from unit-to) (.scale recip-cos-half))]
       (doto (Quat4d. (.x axis) (.y axis) (.z axis) (* 0.5 cos-half))))))
 
 (defn unit-axis [^long dimension-index] ^Vector3d
