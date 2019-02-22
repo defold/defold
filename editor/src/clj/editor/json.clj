@@ -72,7 +72,7 @@
 (defn load-json [project self resource]
   (let [lines (r/read-fn resource)
         content (try
-                  (lines->json lines)
+                  (read-then-close (io/reader resource))
                   (catch Exception error
                     error))]
     (if (instance? Exception content)
