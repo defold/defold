@@ -344,6 +344,28 @@
         (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLE_FAN 0 (count vbuf)))))))
 
+(defn unify-scale [renderable]
+  (let [{:keys [^Matrix4d world-transform
+                ^Matrix4d world-scale
+                ^Matrix4d transform
+                ^Quat4d world-rotation
+                ^Matrix4d parent-world-transform]
+         :or {transform geom/Identity4d}} renderable
+        parent-world-translation (math/translation parent-world-transform)
+        local-translation (math/translation transform)
+        min-scale (min (.-m00 world-scale) (.-m11 world-scale) (.-m22 world-scale))
+        world-translation (-> (math/rotate world-rotation local-translation)
+                              (math/scale-vector min-scale)
+                              (math/add-vector parent-world-translation))
+        physics-world-transform (doto (Matrix4d. world-transform)
+                                  (.setScale min-scale)
+                                  (.setTranslation world-translation))]
+    (assoc renderable :world-transform physics-world-transform)))
+
+(defn wrap-uniform-scale [render-fn]
+  (fn [gl render-args renderables n]
+    (render-fn gl render-args (map unify-scale renderables) n)))
+
 (g/defnk produce-sphere-shape-scene
   [_node-id transform diameter color node-outline-key]
   {:node-id _node-id
@@ -354,7 +376,7 @@
                (geom/aabb-incorporate d d d)
                (geom/aabb-incorporate (- d) (- d) (- d))
                (geom/aabb-transform transform)))
-   :renderable {:render-fn render-sphere
+   :renderable {:render-fn (wrap-uniform-scale render-sphere)
                 :tags #{:collision-shape}
                 :user-data {:sphere-diameter diameter
                             :color color}
@@ -373,7 +395,7 @@
                  (geom/aabb-incorporate ext-x ext-y ext-z)
                  (geom/aabb-incorporate (- ext-x) (- ext-y) (- ext-z))
                  (geom/aabb-transform transform)))
-     :renderable {:render-fn render-box
+     :renderable {:render-fn (wrap-uniform-scale render-box)
                   :tags #{:collision-shape}
                   :user-data {:box-width w
                               :box-height h
@@ -391,7 +413,7 @@
                (geom/aabb-incorporate r ext-y r)
                (geom/aabb-incorporate (- r) (- ext-y) (- r))
                (geom/aabb-transform transform)))
-   :renderable {:render-fn render-capsule
+   :renderable {:render-fn (wrap-uniform-scale render-capsule)
                 :tags #{:collision-shape}
                 :user-data {:capsule-diameter diameter
                             :capsule-height height
