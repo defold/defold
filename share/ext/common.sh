@@ -25,7 +25,6 @@ function download() {
 }
 
 function cmi_make() {
-    echo "standard make"
     set -e
     make -f $MAKEFILE -j8
     make install

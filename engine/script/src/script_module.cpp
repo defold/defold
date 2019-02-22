@@ -27,12 +27,10 @@ namespace dmScript
     // Helper function where the decision is made if to load bytecode or source code.
     //
     // Currently the bytecode is only ever built with LuaJIT which means it cannot be loaded
-    // with vanilla lua runtime. The LUA_BYTECODE_ENABLE indicates if we can load bytecode,
+    // with vanilla lua runtime. The LUA_BYTECODE_ENABLE_(32/62) indicates if we can load bytecode,
     // and in reality, if linking happens against LuaJIT.
     static void GetLuaSource(dmLuaDDF::LuaSource *source, const char **buf, uint32_t *size)
     {
-#if defined(LUA_BYTECODE_ENABLE)
-
 #if defined(LUA_BYTECODE_ENABLE_32)
         if (source->m_Bytecode.m_Count > 0)
         {
@@ -47,8 +45,6 @@ namespace dmScript
             *size = source->m_Bytecode64.m_Count;
             return;
         }
-#endif
-
 #endif
     *buf = (const char*)source->m_Script.m_Data;
     *size = source->m_Script.m_Count;

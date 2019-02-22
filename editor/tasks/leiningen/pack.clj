@@ -31,8 +31,7 @@
     platform))
 
 (def artifacts
-  {"${DYNAMO-HOME}/ext/bin/win32/luajit-32.exe"       "x86-win32/bin/luajit-32.exe"
-   "${DYNAMO-HOME}/ext/lib/win32/OpenAL32.dll"        "x86-win32/bin/OpenAL32.dll"
+  {"${DYNAMO-HOME}/ext/lib/win32/OpenAL32.dll"        "x86-win32/bin/OpenAL32.dll"
    "${DYNAMO-HOME}/ext/lib/win32/wrap_oal.dll"        "x86-win32/bin/wrap_oal.dll"
    "${DYNAMO-HOME}/ext/lib/win32/PVRTexLib.dll"       "x86-win32/lib/PVRTexLib.dll"
    "${DYNAMO-HOME}/ext/lib/win32/msvcr120.dll"        "x86-win32/lib/msvcr120.dll"

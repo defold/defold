@@ -21,6 +21,9 @@ function luajit_configure() {
 	# these files.
 	export INSTALL_LJLIBD=$PREFIX/share/luajit
 
+	# Some architectures (e.g. PPC) can use either single-number (1) or
+	# dual-number (2) mode. For clarity we explicitly use LUAJIT_NUMMODE=2
+	# for mobile architectures.
 	case $CONF_TARGET in
 		armv7-darwin)
 			TAR_SKIP_BIN=1

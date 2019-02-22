@@ -41,7 +41,7 @@ import com.google.protobuf.Message;
  */
 public abstract class LuaBuilder extends Builder<Void> {
 
-    private static ArrayList<String> needsLuaSource = new ArrayList<String>(Arrays.asList("js-web", "wasm-web"));
+    private static ArrayList<Platform> needsLuaSource = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
@@ -167,19 +167,9 @@ public abstract class LuaBuilder extends Builder<Void> {
         builder.setProperties(propertiesMsg);
 
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
-
         srcBuilder.setFilename(task.input(0).getPath());
-
-        String[] platforms = project.getPlatformStrings();
-        boolean useLuaSource = false;
-        for (String platform : platforms) {
-            if (needsLuaSource.contains(platform)) {
-                useLuaSource = true;
-                break;
-            }
-        }
-
-        if (useLuaSource) {
+        
+        if (needsLuaSource.contains(project.getPlatform())) {
             srcBuilder.setScript(ByteString.copyFrom(scriptBytes));
         } else {
             byte[] bytecode = constructBytecode(task, "luajit-32");
