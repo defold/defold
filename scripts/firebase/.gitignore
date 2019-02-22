@@ -3,3 +3,5 @@
 .project
 .settings/
 build/
+share/
+*.tar.gz

@@ -11,6 +11,7 @@ public class LocalPushDispatchActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Log.d(Push.TAG, "LocalPushDispatchActivity.onCreate");
 
         PrintStream os = null;
         try {

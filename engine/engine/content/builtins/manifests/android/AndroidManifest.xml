@@ -107,6 +107,7 @@
     <!-- For GCM (push) -->
     <!-- NOTE: Package name from actual app here! -->
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- NOTE: Package name from actual app here! -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
