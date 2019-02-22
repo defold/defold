@@ -1580,10 +1580,8 @@ def detect(conf):
     conf.env['LUA_BYTECODE_ENABLE_64'] = 'no'
     if use_vanilla:
         conf.env['STATICLIB_LUA'] = 'lua'
-        conf.env['LUA_BYTECODE_ENABLE'] = 'no'
     else:
         conf.env['STATICLIB_LUA'] = 'luajit-5.1'
-        conf.env['LUA_BYTECODE_ENABLE'] = 'yes'
         if build_util.get_target_platform() == 'x86_64-linux' or build_util.get_target_platform() == 'x86_64-win32' or build_util.get_target_platform() == 'x86_64-darwin' or build_util.get_target_platform() == 'arm64-android' or build_util.get_target_platform() == 'arm64-darwin':
             conf.env['LUA_BYTECODE_ENABLE_64'] = 'yes'
         else:

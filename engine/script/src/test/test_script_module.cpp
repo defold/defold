@@ -37,6 +37,8 @@ protected:
     lua_State* L;
 };
 
+// NOTE: we don't generate actual bytecode for this test-data, so
+// just pass in regular lua source instead.
 static dmLuaDDF::LuaSource* LuaSourceFromText(const char *text)
 {
     static dmLuaDDF::LuaSource tmp;

@@ -13,6 +13,8 @@ using namespace Vectormath::Aos;
 
 namespace
 {
+    // NOTE: we don't generate actual bytecode for this test-data, so
+    // just pass in regular lua source instead.
     dmLuaDDF::LuaSource *LuaSourceFromString(const char *source)
     {
         static dmLuaDDF::LuaSource tmp;
