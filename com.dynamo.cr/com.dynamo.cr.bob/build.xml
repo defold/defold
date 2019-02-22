@@ -138,6 +138,7 @@
                     <globmapper from="x86_64-darwin/luajit-2.1.0-beta3-64" to="x86_64-darwin/luajit-64"/>
                     <globmapper from="x86_64-linux/luajit-2.1.0-beta3-32" to="x86_64-linux/luajit-32"/>
                     <globmapper from="x86_64-linux/luajit-2.1.0-beta3-64" to="x86_64-linux/luajit-64"/>
+                    <globmapper from="win32/luajit-32.exe" to="x86-win32/luajit-32.exe"/>
                     <globmapper from="x86_64-win32/luajit-32.exe" to="x86_64-win32/luajit-32.exe"/>
                     <globmapper from="x86_64-win32/luajit-64.exe" to="x86_64-win32/luajit-64.exe"/>
                 </compositemapper>
@@ -145,6 +146,11 @@
             <tarfileset includes="bin/x86_64-linux/**">
                 <gzipresource>
                     <file file="../../packages/luajit-2.1.0-beta3-x86_64-linux.tar.gz" />
+                </gzipresource>
+            </tarfileset>
+            <tarfileset includes="bin/win32/**">
+                <gzipresource>
+                    <file file="../../packages/luajit-2.1.0-beta3-win32.tar.gz" />
                 </gzipresource>
             </tarfileset>
             <tarfileset includes="bin/x86_64-win32/**">
