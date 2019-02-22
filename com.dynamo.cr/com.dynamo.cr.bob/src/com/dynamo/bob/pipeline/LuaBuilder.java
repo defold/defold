@@ -5,6 +5,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -39,6 +41,8 @@ import com.google.protobuf.Message;
  */
 public abstract class LuaBuilder extends Builder<Void> {
 
+    private static ArrayList<Platform> needsLuaSource = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
+
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         Task<Void> task = Task.<Void>newBuilder(this)
@@ -49,7 +53,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         return task;
     }
 
-    public byte[] constructBytecode(Task<Void> task) throws IOException, CompileExceptionError {
+    public byte[] constructBytecode(Task<Void> task, String luajitExe) throws IOException, CompileExceptionError {
 
         java.io.FileOutputStream fo = null;
         RandomAccessFile rdr = null;
@@ -83,7 +87,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                 chunkName = chunkName.substring(chunkName.length() - 59);
             }
             chunkName = "=" + chunkName;
-            ProcessBuilder pb = new ProcessBuilder(new String[] { Bob.getExe(Platform.getHostPlatform(), "luajit"), "-bgf", chunkName, inputFile.getAbsolutePath(), outputFile.getAbsolutePath() }).redirectErrorStream(true);
+            ProcessBuilder pb = new ProcessBuilder(new String[] { Bob.getExe(Platform.getHostPlatform(), luajitExe), "-bgf", chunkName, inputFile.getAbsolutePath(), outputFile.getAbsolutePath() }).redirectErrorStream(true);
 
             java.util.Map<String, String> env = pb.environment();
             env.put("LUA_PATH", Bob.getPath("share/luajit/") + "/?.lua");
@@ -119,7 +123,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                         }
                     }
                     // Since parsing out the actual error failed, as a backup just
-                    // spit out whatever jualit said.
+                    // spit out whatever luajit said.
                     inputFile.delete();
                     throw new CompileExceptionError(task.input(0), 1, cmdOutput);
                 }
@@ -163,16 +167,21 @@ public abstract class LuaBuilder extends Builder<Void> {
         builder.setProperties(propertiesMsg);
 
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
-
-        srcBuilder.setScript(ByteString.copyFrom(scriptBytes));
         srcBuilder.setFilename(task.input(0).getPath());
-
-        // For now it will always return, or throw an exception. This leaves the possibility of
-        // disabling bytecode generation.
-        byte[] bytecode = constructBytecode(task);
-        if (bytecode != null)
-            srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
-
+        
+        if (needsLuaSource.contains(project.getPlatform())) {
+            srcBuilder.setScript(ByteString.copyFrom(scriptBytes));
+        } else {
+            byte[] bytecode = constructBytecode(task, "luajit-32");
+            if (bytecode != null) {
+                srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
+            }
+            byte[] bytecode64 = constructBytecode(task, "luajit-64");
+            if (bytecode64 != null) {
+                srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
+            }
+        }
+        
         builder.setSource(srcBuilder);
 
         Message msg = builder.build();
