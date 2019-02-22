@@ -7,7 +7,6 @@
 #include <rig/rig.h>
 
 #include "../resources/res_model.h"
-#include "comp_private.h"
 
 namespace dmGameSystem
 {

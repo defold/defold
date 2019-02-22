@@ -741,10 +741,6 @@ namespace dmGameSystem
 
         SetRenderConstant(&component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, element_index, var);
         component->m_ReHash = 1;
-
-        // note for PR: do we need to do this now? it will get rehashed when rendered
-        //              this was called previously, but not sure it is needed now?
-        //ReHash(component);
     }
 
     dmGameObject::UpdateResult CompModelOnMessage(const dmGameObject::ComponentOnMessageParams& params)
@@ -796,8 +792,6 @@ namespace dmGameSystem
                 if (dmGameSystem::ClearRenderConstant(&component->m_RenderConstants, ddf->m_NameHash))
                 {
                     component->m_ReHash = 1;
-                    // Note for PR: same here, either set m_ReHash or hash directly?
-                    // ReHash(component);
                 }
             }
         }

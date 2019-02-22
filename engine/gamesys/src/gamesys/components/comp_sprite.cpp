@@ -784,9 +784,6 @@ namespace dmGameSystem
                 if (dmGameSystem::ClearRenderConstant(&component->m_RenderConstants, ddf->m_NameHash))
                 {
                     component->m_ReHash = 1;
-                    // note for PR: do we need to do this now? it will get rehashed when rendered
-                    //              this was called previously, but not sure it is needed now?
-                    // ReHash(component);
                 }
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::SetScale::m_DDFDescriptor->m_NameHash)

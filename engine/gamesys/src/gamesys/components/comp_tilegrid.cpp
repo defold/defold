@@ -133,7 +133,6 @@ namespace dmGameSystem
 
     static void CreateRenderObjects(TileGridWorld* world, TileGridComponent* component, TileGridResource* resource, uint32_t region_count)
     {
-        dmRender::HMaterial material = resource->m_Material;
         dmGraphics::BlendFactor source_blend_factor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
         dmGraphics::BlendFactor destination_blend_factor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         dmGameSystemDDF::TileGrid::BlendMode blend_mode = resource->m_TileGrid->m_BlendMode;
