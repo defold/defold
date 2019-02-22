@@ -145,7 +145,7 @@
    ["Shortcut+S"            :save-all]
    ["Shortcut+Slash"        :toggle-comment]
    ["Shortcut+T"            :scene-stop]
-   ["Shortcut+U"            :synchronize]
+   ["Shortcut+U"            :rebundle]
    ["Shortcut+Up"           :beginning-of-file]
    ["Shortcut+V"            :paste]
    ["Shortcut+W"            :close]
