@@ -346,14 +346,14 @@
 
 (defn unify-scale [renderable]
   (let [{:keys [^Matrix4d world-transform
-                ^Matrix4d world-scale
+                ^Vector3d world-scale
                 ^Matrix4d transform
                 ^Quat4d world-rotation
                 ^Matrix4d parent-world-transform]
          :or {transform geom/Identity4d}} renderable
         parent-world-translation (math/translation parent-world-transform)
         local-translation (math/translation transform)
-        min-scale (min (.-m00 world-scale) (.-m11 world-scale) (.-m22 world-scale))
+        min-scale (min (.-x world-scale) (.-y world-scale) (.-z world-scale))
         world-translation (-> (math/rotate world-rotation local-translation)
                               (math/scale-vector min-scale)
                               (math/add-vector parent-world-translation))

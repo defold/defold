@@ -29,20 +29,20 @@
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.profiler :as profiler])
-  (:import [com.jogamp.opengl GL GL2 GLContext GLAutoDrawable GLOffscreenAutoDrawable]
+  (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
            [com.jogamp.opengl.glu GLU]
            [com.jogamp.opengl.util GLPixelStorageModes]
-           [editor.types Camera AABB Region Rect]
+           [editor.types AABB Camera Rect Region]
            [java.awt.image BufferedImage]
            [java.lang Runnable Math]
            [java.nio IntBuffer]
            [javafx.embed.swing SwingFXUtils]
-           [javafx.geometry VPos HPos]
+           [javafx.geometry HPos VPos]
            [javafx.scene Node Parent]
            [javafx.scene.image ImageView WritableImage]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
-           [javax.vecmath Point3d Quat4d Matrix4d Vector4d Vector3d]
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
            [sun.awt.image IntegerComponentRaster]))
 
 (set! *warn-on-reflection* true)
@@ -287,18 +287,17 @@
                                    node-id-path
                                    node-outline-key-path
                                    ^Quat4d parent-world-rotation
+                                   ^Vector3d parent-world-scale
                                    ^Matrix4d parent-world-transform
-                                   alloc-picking-id!
-                                   ^Matrix4d parent-world-scale]
+                                   alloc-picking-id!]
   (let [renderable (:renderable scene)
         local-transform ^Matrix4d (:transform scene geom/Identity4d)
         world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))
         local-transform-unscaled (doto (Matrix4d. local-transform) (.setScale 1.0))
         local-rotation (doto (Quat4d.) (.set local-transform-unscaled))
         world-rotation (doto (Quat4d. parent-world-rotation) (.mul local-rotation))
-        world-scale (doto (Matrix4d. local-transform)
-                      (.setRotation geom/NoRotation)
-                      (.mul parent-world-scale))
+        world-scale (math/multiply-vector parent-world-scale
+                                          (math/scale local-transform))
         appear-selected? (some? (some selection-set node-id-path)) ; Child nodes appear selected if parent is.
         picking-node-id (or (:picking-node-id scene) (peek node-id-path))
         flat-renderable (-> scene
@@ -357,9 +356,9 @@
                                             child-node-id-path
                                             child-node-outline-key-path
                                             world-rotation
+                                            world-scale
                                             world-transform
-                                            alloc-picking-id!
-                                            world-scale)))
+                                            alloc-picking-id!)))
             pass-renderables
             (:children scene))))
 
@@ -394,7 +393,7 @@
         node-outline-key-path [(:node-id scene)]
         parent-world-rotation geom/NoRotation
         parent-world-transform geom/Identity4d
-        parent-world-scale geom/Identity4d]
+        parent-world-scale (Vector3d. 1 1 1)]
     (-> (make-pass-renderables)
         (flatten-scene-renderables! scene
                                     selection-set
@@ -404,9 +403,9 @@
                                     node-id-path
                                     node-outline-key-path
                                     parent-world-rotation
+                                    parent-world-scale
                                     parent-world-transform
-                                    alloc-picking-id!
-                                    parent-world-scale)
+                                    alloc-picking-id!)
         (persist-pass-renderables!))))
 
 (defn- get-selection-pass-renderables-by-node-id
@@ -552,7 +551,8 @@
   (or (> (.width picking-rect) selection/min-pick-size)
       (> (.height picking-rect) selection/min-pick-size)))
 
-(defn- picking-rect->clamped-view-rect ^Rect [^Region viewport ^Rect picking-rect]
+(defn- picking-rect->clamped-view-rect
+  ^Rect [^Region viewport ^Rect picking-rect]
   (let [view-width (.width picking-rect)
         view-height (.height picking-rect)
         view-left (- (.x picking-rect) (/ view-width 2))
@@ -756,7 +756,8 @@
         (g/set-property node-id :picking-drawable nil)
         (g/set-property node-id :async-copy-state nil)))))
 
-(defn- screen->world ^Vector3d [camera viewport ^Vector3d screen-pos]
+(defn- screen->world
+  ^Vector3d [camera viewport ^Vector3d screen-pos]
   (let [w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
     (Vector3d. (.x w4) (.y w4) (.z w4))))
 

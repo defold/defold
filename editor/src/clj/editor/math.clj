@@ -73,7 +73,8 @@
         (doto (Point3d. line-dir) (.scaleAdd (- (Math/sqrt (- radius-sq dist-sq))) closest))
         (Point3d. (doto (Vector3d. closest) (.sub circle-pos) (.normalize) (.scaleAdd (Math/sqrt radius-sq) circle-pos)))))))
 
-(defn euler->quat ^Quat4d [euler]
+(defn euler->quat
+  ^Quat4d [euler]
   ; Implementation based on:
   ; http://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19770024290.pdf
   ; Rotation sequence: 231 (YZX)
@@ -130,13 +131,15 @@
 (defn quat->euler [^Quat4d quat]
   (quat-components->euler (.getX quat) (.getY quat) (.getZ quat) (.getW quat)))
 
-(defn rotate ^Vector3d [^Quat4d rotation ^Vector3d v]
+(defn rotate
+  ^Vector3d [^Quat4d rotation ^Vector3d v]
   (let [q (doto (Quat4d.) (.set (Vector4d. v)))
         _ (.mul q rotation q)
         _ (.mulInverse q rotation)]
     (Vector3d. (.getX q) (.getY q) (.getZ q))))
 
-(defn transform-vector ^Vector3d [^Matrix4d mat ^Vector3d v]
+(defn transform-vector
+  ^Vector3d [^Matrix4d mat ^Vector3d v]
   (let [v' (Vector3d. v)]
     (.transform mat v')
     v'))
@@ -147,18 +150,33 @@
              (Math/round (.getY v))
              (Math/round (.getZ v))))
 
-(defn scale-vector ^Vector3d [^Vector3d v ^double n]
+(defn scale-vector
+  ^Vector3d [^Vector3d v ^double n]
   (doto (Vector3d. v)
     (.scale n)))
 
-(defn add-vector ^Vector3d [^Vector3d v1 ^Vector3d v2]
+(defn add-vector
+  ^Vector3d [^Vector3d v1 ^Vector3d v2]
   (doto (Vector3d. v1)
     (.add v2)))
 
-(defn translation ^Vector3d [^Matrix4d m]
+(defn multiply-vector
+  ^Vector3d [^Vector3d v1 ^Vector3d v2]
+  (Vector3d. (* (.-x v1) (.-x v2))
+             (* (.-y v1) (.-y v2))
+             (* (.-z v1) (.-z v2))))
+
+(defn translation
+  ^Vector3d [^Matrix4d m]
   (let [ret (Vector3d.)]
     (.get m ret)
     ret))
+
+(defn scale
+  ^Vector3d [^Matrix4d m]
+  (let [unrotated (doto (Matrix4d. m)
+                    (.setRotation (Quat4d. 0.0 0.0 0.0 1.0)))]
+    (Vector3d. (.-m00 unrotated) (.-m11 unrotated) (.-m22 unrotated))))
 
 (defn inv-transform
   ([^Point3d position ^Quat4d rotation ^Point3d p]
@@ -183,13 +201,16 @@
     1 (Vector3d. 0 1 0)
     2 (Vector3d. 0 0 1)))
 
-(defn ->mat4 ^Matrix4d []
+(defn ->mat4
+  ^Matrix4d []
   (doto (Matrix4d.) (.setIdentity)))
 
-(defn ->mat4-uniform ^Matrix4d [^Vector3d position ^Quat4d rotation ^double scale]
+(defn ->mat4-uniform
+  ^Matrix4d [^Vector3d position ^Quat4d rotation ^double scale]
   (Matrix4d. rotation position scale))
 
-(defn ->mat4-non-uniform ^Matrix4d [^Vector3d position ^Quat4d rotation ^Vector3d scale]
+(defn ->mat4-non-uniform
+  ^Matrix4d [^Vector3d position ^Quat4d rotation ^Vector3d scale]
   (let [s (doto (Matrix3d.)
             (.setElement 0 0 (.x scale))
             (.setElement 1 1 (.y scale))
