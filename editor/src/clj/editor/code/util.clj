@@ -1,8 +1,8 @@
 (ns editor.code.util
   (:require [clojure.string :as string])
-  (:import (clojure.lang MapEntry)
-           (java.util Collections Comparator List)
-           (java.util.regex Matcher Pattern)))
+  (:import [clojure.lang MapEntry]
+           [java.util ArrayList Collections Comparator List]
+           [java.util.regex Matcher Pattern]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -99,5 +99,22 @@
 
 (defn split-lines
   "Splits s on \\n or \\r\\n. Contrary to string/split-lines, keeps trailing newlines."
-  [text]
-  (string/split text #"\r?\n" -1))
+  [^String text]
+  ;; This is basically java code, for speed. This function is used a lot when
+  ;; loading projects so it needs to be fast. String.split with regex is very
+  ;; slow in comparison. I read that modern jvms are good at optimizing out the
+  ;; .charAt call so this *should* be like a loop over a char array...
+  (let [arr (ArrayList. 1000)
+        len (.length text)]
+     (loop [i 0
+           lastIndex 0]
+      (if (= i len)
+        (into [] arr)
+        (let [c (.charAt text i)
+              i (inc i)]
+          (if (= c \newline)
+            (do
+              (.add arr (.substring text lastIndex i))
+              (recur i i))
+            (recur i lastIndex)))))))
+
