@@ -580,17 +580,17 @@ namespace dmGraphics
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
 
-    HVertexProgram NewVertexProgram(HContext context, const void* program, uint32_t program_size);
-    HFragmentProgram NewFragmentProgram(HContext context, const void* program, uint32_t program_size);
+    HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf);
+    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf);
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
     void DeleteProgram(HContext context, HProgram program);
 
-    bool ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size);
-    bool ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size);
+    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf);
+    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf);
     void DeleteVertexProgram(HVertexProgram prog);
     void DeleteFragmentProgram(HFragmentProgram prog);
     ShaderDesc::Language GetShaderProgramLanguage(HContext context);
-    void* GetShaderProgramData(HContext context, dmGraphics::ShaderDesc* ddf, uint32_t& data_len);
+    ShaderDesc::Shader* GetShaderProgramData(HContext context, dmGraphics::ShaderDesc* ddf);
 
     void EnableProgram(HContext context, HProgram program);
     void DisableProgram(HContext context);

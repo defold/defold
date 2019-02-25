@@ -651,9 +651,11 @@ namespace dmGraphics
         delete (Program*) program;
     }
 
-    HVertexProgram NewVertexProgram(HContext context, const void* program, uint32_t program_size)
+    HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        assert(program);
+        assert(ddf);
+        size_t program_size = ddf->m_Source.m_Count;
+        const void* program = ddf->m_Source.m_Data;
         VertexProgram* p = new VertexProgram();
         p->m_Data = new char[program_size+1];
         memcpy(p->m_Data, program, program_size);
@@ -661,9 +663,11 @@ namespace dmGraphics
         return (uintptr_t)p;
     }
 
-    HFragmentProgram NewFragmentProgram(HContext context, const void* program, uint32_t program_size)
+    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        assert(program);
+        assert(ddf);
+        size_t program_size = ddf->m_Source.m_Count;
+        const void* program = ddf->m_Source.m_Data;
         FragmentProgram* p = new FragmentProgram();
         p->m_Data = new char[program_size+1];
         memcpy(p->m_Data, program, program_size);
@@ -671,9 +675,11 @@ namespace dmGraphics
         return (uintptr_t)p;
     }
 
-    bool ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size)
+    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
     {
-        assert(program);
+        assert(ddf);
+        size_t program_size = ddf->m_Source.m_Count;
+        const void* program = ddf->m_Source.m_Data;
         VertexProgram* p = (VertexProgram*)prog;
         delete [] (char*)p->m_Data;
         p->m_Data = new char[program_size];
@@ -681,9 +687,11 @@ namespace dmGraphics
         return !g_ForceVertexReloadFail;
     }
 
-    bool ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size)
+    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
     {
-        assert(program);
+        assert(ddf);
+        size_t program_size = ddf->m_Source.m_Count;
+        const void* program = ddf->m_Source.m_Data;
         FragmentProgram* p = (FragmentProgram*)prog;
         delete [] (char*)p->m_Data;
         p->m_Data = new char[program_size];

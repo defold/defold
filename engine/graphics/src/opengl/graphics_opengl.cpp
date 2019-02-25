@@ -1223,18 +1223,18 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return s;
     }
 
-    HVertexProgram NewVertexProgram(HContext context, const void* program, uint32_t program_size)
+    HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        assert(program);
+        assert(ddf);
 
-        return CreateShader(GL_VERTEX_SHADER, program, program_size);
+        return CreateShader(GL_VERTEX_SHADER, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
     }
 
-    HFragmentProgram NewFragmentProgram(HContext context, const void* program, uint32_t program_size)
+    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        assert(program);
+        assert(ddf);
 
-        return CreateShader(GL_FRAGMENT_SHADER, program, program_size);
+        return CreateShader(GL_FRAGMENT_SHADER, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
     }
 
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
@@ -1312,10 +1312,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return true;
     }
 
-    bool ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size)
+    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
     {
-        assert(program);
-        GLint size = program_size;
+        assert(ddf);
+        GLint size = ddf->m_Source.m_Count;
+        const void* program = ddf->m_Source.m_Data;
 
         GLuint tmp_shader = glCreateShader(GL_VERTEX_SHADER);
         bool success = TryCompileShader(tmp_shader, program, size);
@@ -1333,10 +1334,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return success;
     }
 
-    bool ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size)
+    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
     {
-        assert(program);
-        GLint size = program_size;
+        assert(ddf);
+        GLint size = ddf->m_Source.m_Count;
+        const void* program = ddf->m_Source.m_Data;
 
         GLuint tmp_shader = glCreateShader(GL_FRAGMENT_SHADER);
         bool success = TryCompileShader(tmp_shader, program, size);

@@ -80,7 +80,7 @@ namespace dmGraphics
         return GetRenderTargetTexture(render_target, GetAttachmentBufferType(attachment));
     }
 
-    void* GetShaderProgramData(HContext context, dmGraphics::ShaderDesc* shader_desc, uint32_t& data_len)
+    ShaderDesc::Shader* GetShaderProgramData(HContext context, dmGraphics::ShaderDesc* shader_desc)
     {
         ShaderDesc::Language language = GetShaderProgramLanguage(context);
         assert(shader_desc);
@@ -90,19 +90,9 @@ namespace dmGraphics
 
             if(shader->m_Language == language)
             {
-                if (shader->m_Source.m_Count && shader->m_Source.m_Data)
-                {
-                    data_len = shader->m_Source.m_Count;
-                    return shader->m_Source.m_Data;
-                }
-                else if (shader->m_Binary.m_Count && shader->m_Binary.m_Data)
-                {
-                    data_len = shader->m_Binary.m_Count;
-                    return shader->m_Binary.m_Data;
-                }
+                return shader;
             }
         }
-        data_len = 0;
         return 0x0;
     }
 

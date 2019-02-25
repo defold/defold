@@ -161,11 +161,41 @@ message ShaderDesc
         LANGUAGE_MSL    = 3;
     }
 
+    enum UniformType
+    {
+        UNIFORM_TYPE_UNKNOWN   = 1;
+        UNIFORM_TYPE_VEC2      = 2;
+        UNIFORM_TYPE_VEC3      = 3;
+        UNIFORM_TYPE_VEC4      = 4;
+        UNIFORM_TYPE_MAT2      = 5;
+        UNIFORM_TYPE_MAT3      = 6;
+        UNIFORM_TYPE_MAT4      = 7;
+        UNIFORM_TYPE_SAMPLER2D = 8;
+    }
+
+    message UniformBlock
+    {
+        required uint32 set     = 1;
+        required uint32 binding = 2;
+        required string name    = 3;
+    }
+
+    message Uniform
+    {
+        optional uint32 set       = 1 [default = 0];
+        optional uint32 binding   = 2 [default = 0];
+        optional uint32 offset    = 3 [default = 0];
+        required string name      = 4;
+        required UniformType type = 5;
+    }
+
     message Shader
     {
-        required Language language  = 1;
-        optional bytes source       = 2;
-        optional bytes binary       = 3;
+        required Language language = 1;
+        optional bytes source      = 2;
+        optional bytes binary      = 3;
+        repeated Uniform uniforms            = 4;
+        repeated UniformBlock uniform_blocks = 5;
     }
 
     repeated Shader shaders	= 1;

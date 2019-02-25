@@ -2614,16 +2614,16 @@ namespace dmGraphics
         // TODO
     }
 
-    HVertexProgram NewVertexProgram(HContext context, const void* program, uint32_t program_size)
+    HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        assert(program);
-        return (HVertexProgram) Vulkan::CreateShaderProgram(program,program_size);
+        assert(ddf);
+        return (HVertexProgram) Vulkan::CreateShaderProgram(ddf->m_Binary.m_Data,ddf->m_Binary.m_Count);
     }
 
-    HFragmentProgram NewFragmentProgram(HContext context, const void* program, uint32_t program_size)
+    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        assert(program);
-        return (HVertexProgram) Vulkan::CreateShaderProgram(program,program_size);
+        assert(ddf);
+        return (HVertexProgram) Vulkan::CreateShaderProgram(ddf->m_Binary.m_Data,ddf->m_Binary.m_Count);
     }
 
     ShaderDesc::Language GetShaderProgramLanguage(HContext context)
@@ -2631,24 +2631,16 @@ namespace dmGraphics
         return ShaderDesc::LANGUAGE_SPIRV;
     }
 
-    bool ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size)
+    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
     {
-        assert(program);
-        VertexProgram* p = (VertexProgram*)prog;
-        delete [] (char*)p->m_Data;
-        p->m_Data = new char[program_size];
-        memcpy((char*)p->m_Data, program, program_size);
-        return !g_ForceVertexReloadFail;
+        // TODO: fixme
+        return true;
     }
 
-    bool ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size)
+    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
     {
-        assert(program);
-        FragmentProgram* p = (FragmentProgram*)prog;
-        delete [] (char*)p->m_Data;
-        p->m_Data = new char[program_size];
-        memcpy((char*)p->m_Data, program, program_size);
-        return !g_ForceFragmentReloadFail;
+        // TODO: fixme
+        return true;
     }
 
     void DeleteVertexProgram(HVertexProgram program)
