@@ -625,6 +625,7 @@ namespace dmRender
 
         const char* required_keys[] = { "format", "width", "height" };
         uint32_t buffer_type_flags = 0;
+        uint32_t max_tex_size = dmGraphics::GetMaxTextureSize(i->m_RenderContext->m_GraphicsContext);
         luaL_checktype(L, 2, LUA_TTABLE);
         dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
         dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
@@ -731,6 +732,14 @@ namespace dmRender
                 lua_pop(L, 1);
             }
             lua_pop(L, 1);
+
+            if (creation_params[index].m_Width > max_tex_size || creation_params[index].m_Height > max_tex_size)
+            {
+                lua_pop(L, 1);
+                assert(top == lua_gettop(L));
+                return luaL_error(L, "Render target (type %s) of width %d and height %d is greater than max supported texture size %d for this platform.",
+                    dmGraphics::GetBufferTypeLiteral((dmGraphics::BufferType)buffer_type), creation_params[index].m_Width, creation_params[index].m_Height, max_tex_size);
+            }
         }
 
         dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);

@@ -120,8 +120,8 @@ namespace dmGameObject
             if (result) {
                 // Set properties
                 uint32_t component_instance_data_index = 0;
-                dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
-                uint32_t comp_count = components.Size();
+                Prototype::Component* components = instance->m_Prototype->m_Components;
+                uint32_t comp_count = instance->m_Prototype->m_ComponentCount;
                 for (uint32_t comp_i = 0; comp_i < comp_count; ++comp_i)
                 {
                     Prototype::Component& component = components[comp_i];

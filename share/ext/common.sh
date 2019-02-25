@@ -1,8 +1,8 @@
 # config
 
-IOS_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain
+IOS_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault10.1.xctoolchain
 ARM_DARWIN_ROOT=${DYNAMO_HOME}/ext
-IOS_SDK_VERSION=11.2
+IOS_SDK_VERSION=12.1
 
 IOS_MIN_SDK_VERSION=6.0
 OSX_MIN_SDK_VERSION=10.7
@@ -80,10 +80,12 @@ function cmi_package_common() {
 function cmi_package_platform() {
     local TGZ="$PRODUCT-$VERSION-$1.tar.gz"
     pushd $PREFIX  >/dev/null
-    if [ -z ${TAR_INCLUDES+x} ]; then
-        tar cfvz $TGZ lib bin
-    else
+    if [ ${TAR_SKIP_BIN} -eq "1" ]; then
+        tar cfvz $TGZ lib
+    elif [ ${TAR_INCLUDES} -eq "1" ]; then
         tar cfvz $TGZ lib bin include
+    else
+        tar cfvz $TGZ lib bin
     fi
     popd >/dev/null
 
@@ -134,7 +136,7 @@ function cmi_setup_vs2015_env() {
 
     # These lines will be installation-dependent.
     export VSINSTALLDIR='C:\Program Files (x86)\Microsoft Visual Studio 14.0\'
-    export WindowsSdkDir='C:\Program Files\Microsoft SDKs\Windows\v7.0A\'
+    export WindowsSdkDir='C:\Program Files (x86)\Windows Kits\8.0'
     export FrameworkDir='C:\WINDOWS\Microsoft.NET\Framework\'
     export FrameworkVersion=v4.0.30319
     export Framework35Version=v3.5
@@ -180,9 +182,7 @@ function cmi() {
             # Otherwise we get the following error "malformed object (unknown load command 1)"
             export PATH=$IOS_TOOLCHAIN_ROOT/usr/bin:$PATH
             export CPPFLAGS="-arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
-            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-            # Force libstdc++ for now
-            export CXXFLAGS="${CXXFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libstdc++ -arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
+            export CXXFLAGS="${CXXFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++ -arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             export CFLAGS="${CPPFLAGS}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
@@ -204,7 +204,7 @@ function cmi() {
             export CPPFLAGS="-arch arm64 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
-            export CXXFLAGS="${CXXFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libstdc++ -arch arm64 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
+            export CXXFLAGS="${CXXFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++ -arch arm64 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             export CFLAGS="${CPPFLAGS}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
