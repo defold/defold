@@ -106,15 +106,18 @@
   ;; .charAt call so this *should* be like a loop over a char array...
   (let [arr (ArrayList. 1000)
         len (.length text)]
-     (loop [i 0
+    (loop [i 0
            lastIndex 0]
-      (if (= i len)
-        (into [] arr)
+      (if (< i len)
         (let [c (.charAt text i)
               i (inc i)]
           (if (= c \newline)
             (do
               (.add arr (.substring text lastIndex i))
               (recur i i))
-            (recur i lastIndex)))))))
+            (recur i lastIndex)))
+        (do ;; else
+          (when (not= i lastIndex)
+            (.add arr (.substring text lastIndex)))
+          (into [] arr))))))
 
