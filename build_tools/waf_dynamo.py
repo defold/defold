@@ -298,7 +298,7 @@ def default_flags(self):
             # -mthumb, -mfloat-abi, -mfpu are implicit on aarch64, removed from flags
             self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
                                       '-fpic', '-ffunction-sections', '-fstack-protector',
-                                      '-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI',
+                                      '-D__aarch64__', '-DGOOGLE_PROTOBUF_NO_RTTI',
                                       '-Wno-psabi', '-march=armv8-a', '-fvisibility=hidden',
                                       '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions', '-funwind-tables',
                                       '-I%s/android-ndk-r%s/sources/android/native_app_glue' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
