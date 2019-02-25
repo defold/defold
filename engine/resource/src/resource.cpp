@@ -91,7 +91,7 @@ struct SResourceFactory
     // Guard for anything that touches anything that could be shared
     // with GetRaw (used for async threaded loading). Liveupdate, HttpClient, m_Buffer
     // m_BuiltinsManifest, m_Manifest
-    dmMutex::Mutex                               m_LoadMutex;
+    dmMutex::HMutex                              m_LoadMutex;
 
     // dmResource::Get recursion depth
     uint32_t                                     m_RecursionDepth;
@@ -2000,7 +2000,7 @@ Result GetPath(HFactory factory, const void* resource, uint64_t* hash)
 }
 
 
-dmMutex::Mutex GetLoadMutex(const dmResource::HFactory factory)
+dmMutex::HMutex GetLoadMutex(const dmResource::HFactory factory)
 {
     return factory->m_LoadMutex;
 }

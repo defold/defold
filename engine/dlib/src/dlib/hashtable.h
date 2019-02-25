@@ -384,7 +384,7 @@ private:
         ht->Put(*key, *value);
     }
 
-    Entry* FindEntry(KEY key)
+    Entry* FindEntry(KEY key) const
     {
         // Avoid module division by zero
         if (!m_HashTableSize)

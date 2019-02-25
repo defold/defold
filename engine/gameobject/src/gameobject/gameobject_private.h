@@ -25,6 +25,12 @@ namespace dmGameObject
 
     struct Prototype
     {
+        Prototype()
+            : m_Components(0)
+            , m_ComponentCount(0)
+        {
+        }
+        ~Prototype();
         struct Component
         {
             Component(void* resource,
@@ -58,7 +64,8 @@ namespace dmGameObject
             PropertySet     m_PropertySet;
         };
 
-        dmArray<Component>     m_Components;
+        Component*  m_Components;
+        uint32_t    m_ComponentCount;
     };
 
     // Invalid instance index. Implies that maximum number of instances is 32766 (ie 0x7fff - 1)
@@ -183,7 +190,7 @@ namespace dmGameObject
         ComponentType               m_ComponentTypes[MAX_COMPONENT_TYPES];
         uint16_t                    m_ComponentTypesOrder[MAX_COMPONENT_TYPES];
         uint32_t                    m_ComponentNameHash[MAX_COMPONENT_TYPES];
-        dmMutex::Mutex              m_Mutex;
+        dmMutex::HMutex             m_Mutex;
 
         // All collections. Protected by m_Mutex
         dmArray<Collection*>        m_Collections;
@@ -253,7 +260,7 @@ namespace dmGameObject
         // Socket for sending to instances, dispatched once each update
         dmMessage::HSocket       m_FrameSocket;
 
-        dmMutex::Mutex           m_Mutex;
+        dmMutex::HMutex          m_Mutex;
 
         // Counter for generating instance ids, protected by m_Mutex
         uint32_t                 m_GenInstanceCounter;

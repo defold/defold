@@ -625,6 +625,7 @@ namespace dmRender
 
         const char* required_keys[] = { "format", "width", "height" };
         uint32_t buffer_type_flags = 0;
+        uint32_t max_tex_size = dmGraphics::GetMaxTextureSize(i->m_RenderContext->m_GraphicsContext);
         luaL_checktype(L, 2, LUA_TTABLE);
         dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
         dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
@@ -731,6 +732,14 @@ namespace dmRender
                 lua_pop(L, 1);
             }
             lua_pop(L, 1);
+
+            if (creation_params[index].m_Width > max_tex_size || creation_params[index].m_Height > max_tex_size)
+            {
+                lua_pop(L, 1);
+                assert(top == lua_gettop(L));
+                return luaL_error(L, "Render target (type %s) of width %d and height %d is greater than max supported texture size %d for this platform.",
+                    dmGraphics::GetBufferTypeLiteral((dmGraphics::BufferType)buffer_type), creation_params[index].m_Width, creation_params[index].m_Height, max_tex_size);
+            }
         }
 
         dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
@@ -1355,7 +1364,7 @@ namespace dmRender
      */
     int RenderScript_DrawDebug2d(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        RenderScriptInstance_Check(L);
         dmLogOnceWarning("render.draw_debug2d is deprecated and will be removed in future versions, please use render.draw_debug3d instead.");
         return 0;
     }
@@ -1549,9 +1558,9 @@ namespace dmRender
      * The blended RGBA values of a pixel comes from the following equations:
      *
      * - R<sub>d</sub> = min(k<sub>R</sub>, R<sub>s</sub> * s<sub>R</sub> + R<sub>d</sub> * d<sub>R</sub>)
-     * - G<sub>d</sub> = min(k<sub>G</sub>, G<sub>s</sub> * s<sub>G</sub> + G<sub>d</sub> * d<sub>R</sub>)
+     * - G<sub>d</sub> = min(k<sub>G</sub>, G<sub>s</sub> * s<sub>G</sub> + G<sub>d</sub> * d<sub>G</sub>)
      * - B<sub>d</sub> = min(k<sub>B</sub>, B<sub>s</sub> * s<sub>B</sub> + B<sub>d</sub> * d<sub>B</sub>)
-     * - A<sub>d</sub> = min(k<sub>A</sub>, A<sub>s</sub> * s<sub>B</sub> + A<sub>d</sub> * d<sub>A</sub>)
+     * - A<sub>d</sub> = min(k<sub>A</sub>, A<sub>s</sub> * s<sub>A</sub> + A<sub>d</sub> * d<sub>A</sub>)
      *
      * Blend function `(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA)` is useful for
      * drawing with transparency when the drawn objects are sorted from farthest to nearest.

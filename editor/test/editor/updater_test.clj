@@ -1,183 +1,156 @@
 (ns editor.updater-test
- (:require [clojure.test :refer :all]
-           [clojure.java.io :as io]
-           [ring.adapter.jetty :as jetty]
-           [clojure.data.json :as json]
-           [editor.fs :as fs]
-           [editor.updater :as updater])
- (:import [com.defold.editor Updater]
-          [org.slf4j LoggerFactory]
-          [ch.qos.logback.classic Level]
-          [ch.qos.logback.classic Logger]))
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
+            [clojure.test :refer :all]
+            [editor.fs :as fs]
+            [editor.updater :as updater]
+            [ring.adapter.jetty :as jetty]
+            [ring.util.response :as response])
+  (:import [ch.qos.logback.classic Level Logger]
+           [com.defold.editor Platform]
+           [java.io File]
+           [java.util Timer]
+           [org.slf4j LoggerFactory]))
+
+(set! *warn-on-reflection* true)
+
+(def ^:private test-port
+  23232)
 
 (defn- error-log-level-fixture [f]
-  (let [root-logger (LoggerFactory/getLogger Logger/ROOT_LOGGER_NAME)
+  (let [root-logger ^Logger (LoggerFactory/getLogger Logger/ROOT_LOGGER_NAME)
         level (.getLevel root-logger)]
     (.setLevel root-logger Level/ERROR)
     (f)
     (.setLevel root-logger level)))
 
+(defn- test-urls-fixture [f]
+  (with-redefs [updater/download-url
+                (fn [sha1 ^Platform platform]
+                  (format "http://localhost:%s/editor2/%s/editor2/Defold-%s.zip"
+                          test-port sha1 (.getPair platform)))
+
+                updater/update-url
+                (fn [channel]
+                  (format "http://localhost:%s/editor2/channels/%s/update-v2.json"
+                          test-port channel))]
+    (f)))
+
 (use-fixtures :once error-log-level-fixture)
 
-(defn- temp-dir []
-  (-> (fs/create-temp-directory!)))
+(use-fixtures :once test-urls-fixture)
 
-(defn- make-manifest [sha1]
-  (json/write-str {"version" "2.0.1",
-                   "sha1" sha1,
-                   "config" "config",
-                   "packages" [{"platform" "*",
-                                "url" (format "defold-%s.jar" sha1),
-                                "type" "jar",
-                                "action" "copy"}]}))
+(defn make-handler-resources [channel sha1]
+  {(format "/editor2/channels/%s/update-v2.json" channel)
+   (response/response (json/write-str {:sha1 sha1}))
 
-(defn make-handler [resources]
-  (fn [request]
-    (let [uri (:uri request)]
-    (if-let [r (get @resources uri)]
-      {:status 200
-       :body (if (fn? r) (r) r)}
-      {:status 404
-       :body "404"}))))
+   (format "/editor2/%s/editor2/Defold-%s.zip" sha1 (.getPair (Platform/getHostPlatform)))
+   (response/resource-response "test-update.zip")})
 
-(defn make-handler-resources [port sha1 jar-sha1]
-  {(format "/%s/manifest.json" sha1)
-                 (make-manifest sha1)
-
-                 "/update.json"
-                 (fn [] (json/write-str {"url" (format "http://localhost:%d/%s" @port sha1)}))
-
-                 (format "/%s/config" sha1)
-                 "config"
-
-                 (format "/%s/defold-%s.jar" sha1 jar-sha1)
-                 "a jar"})
-
-(defn- make-resource-handler [port sha1 jar-sha1]
-  (make-handler (atom (make-handler-resources port sha1 jar-sha1))))
+(defn- make-resource-handler [channel sha1]
+  (let [resources (make-handler-resources channel sha1)]
+    (fn [request]
+      (get resources (:uri request) (response/not-found "404")))))
 
 (defn- list-files [dir]
   (->> (file-seq (io/file dir))
-    (filter #(.isFile %))
-    (map #(.getName %))
-    (apply hash-set)))
+       (filter #(.isFile ^File %))
+       (map #(.getName ^File %))
+       (apply hash-set)))
 
-(defn- update-url [port]
-  (format "http://localhost:%d" port))
+(defmacro with-server [channel sha1 & body]
+  `(let [server# (jetty/run-jetty (make-resource-handler ~channel ~sha1)
+                                  {:port ~test-port :join? false})]
+     (try
+       ~@body
+       (finally
+         (.stop server#)))))
 
-(deftest raw-updater-test
-  ; no update
-  (let [port (atom nil)
-        server (jetty/run-jetty (make-resource-handler port "1" "1")
-                                {:port 0 :join? false})
-        _ (reset! port (-> server .getConnectors first .getLocalPort))
-        updater (Updater. (format "http://localhost:%d" @port))]
+(defn make-updater [channel sha1]
+  (#'updater/make-updater
+    channel
+    sha1
+    sha1
+    (Platform/getHostPlatform)
+    (io/file ".")
+    (io/file "no-launcher")))
 
-    (let [pending-update (.check updater "1")]
-      (is (= nil pending-update)))
-    (let [pending-update (.check updater "1")]
-      (is (= nil pending-update)))
-   (.stop server))
+(deftest no-update-on-client-when-no-update-on-server
+  (with-server "test" "1"
+    (let [updater (make-updater "test" "1")]
+      (#'updater/check! updater)
+      (is (false? (updater/can-download-update? updater)))
+      (#'updater/check! updater)
+      (is (false? (updater/can-download-update? updater))))))
 
-  ; update from 1 -> 2, installed
-  (let [port (atom nil)
-        server (jetty/run-jetty (make-resource-handler port "2" "2")
-                                {:port 0 :join? false})
-        _ (reset! port (-> server .getConnectors first .getLocalPort))
-        res-dir (temp-dir)
-        updater (Updater. (format "http://localhost:%d" @port))]
-    (let [pending-update (.check updater "1")]
-      (is (some? pending-update))
-      (is (= "2" (.sha1 pending-update)))
-      (is (= #{} (list-files res-dir)))
-      (.install pending-update res-dir)
-      (is (= #{"config" "defold-2.jar"} (list-files res-dir))))
-    (let [pending-update (.check updater "2")]
-      (is (= nil pending-update))
-      (is (= #{"config" "defold-2.jar"} (list-files res-dir))))
-    (.stop server))
+(deftest has-update-on-client-when-has-update-on-server
+  (with-server "test" "2"
+    (let [updater (make-updater "test" "1")]
+      (#'updater/check! updater)
+      (is (true? (updater/can-download-update? updater))))))
 
-  ; update from 1 -> 2, not installed
-  (let [port (atom nil)
-        server (jetty/run-jetty (make-resource-handler port "2" "2")
-                 {:port 0 :join? false})
-        _ (reset! port (-> server .getConnectors first .getLocalPort))
-        updater (Updater. (format "http://localhost:%d" @port))]
-    (let [pending-update (.check updater "1")]
-      (is (some? pending-update))
-      (is (= "2" (.sha1 pending-update))))
-    (let [pending-update (.check updater "2")]
-      (is (= nil pending-update)))
-   (.stop server))
+(deftest no-update-on-client-when-server-has-update-on-different-channel
+  (with-server "alpha" "2"
+    (let [updater (make-updater "beta" "1")]
+      (#'updater/check! updater)
+      (is (false? (updater/can-download-update? updater))))))
 
-  ; jar is missing
-  (let [port (atom nil)
-        server (jetty/run-jetty (make-resource-handler port "2" "XXXXX") {:port 0 :join? false})
-        _ (reset! port (-> server .getConnectors first .getLocalPort))
-        updater (Updater. (format "http://localhost:%d" @port))]
-    (is (thrown? Exception (.check updater "1")))
-    (.stop server)))
+(deftest can-download-and-extract-update
+  (with-server "test" "2"
+    (let [updater (make-updater "test" "1")
+          ^File update-sha1-file @#'updater/update-sha1-file
+          ^File update-dir @#'updater/update-dir]
+      (fs/delete-directory! update-dir)
+      (fs/delete! update-sha1-file)
+      (#'updater/check! updater)
+      @(updater/download-and-extract! updater)
+      (is (.exists update-dir))
+      (is (.exists update-sha1-file))
+      (is (= #{"extracted-file.txt"} (list-files update-dir)))
+      (fs/delete-directory! update-dir)
+      (fs/delete! update-sha1-file))))
 
-(defmacro test-updater [initial-sha1 sha1 jar-sha1 & body]
-  `(let [port# (atom nil)
-         resources# (atom (make-handler-resources port# ~sha1 ~jar-sha1))
-         server# (jetty/run-jetty (make-handler resources#)
-                                  {:port 0 :join? false})
-         ~'_ (reset! port# (-> server# .getConnectors first .getLocalPort))
-         ~'res-dir (temp-dir)
-         ~'set-update-version! (fn [sha1'# jar-sha1'#] (reset! resources# (make-handler-resources port# sha1'# jar-sha1'#)))
-         ~'ctxt (updater/make-update-context (update-url @port#) ~initial-sha1)]
-     ~@body
-     (.stop server#)))
+(deftest throws-if-zip-is-missing-on-server
+  (with-server "test" "2"
+    (let [updater (#'updater/make-updater
+                    "test"
+                    "1"
+                    "1"
+                    Platform/JsWeb
+                    (io/file ".")
+                    (io/file "no-launcher"))]
+      (#'updater/check! updater)
+      (is (true? (updater/can-download-update? updater)))
+      (is (false? @(updater/download-and-extract! updater))))))
 
-(deftest updater-test
-  (test-updater "1" "1" "1"
-                (updater/check! ctxt)
-                (is (= nil (updater/pending-update ctxt)))
-                (updater/check! ctxt)
-                (is (= nil (updater/pending-update ctxt))))
-  (test-updater "1" "2" "2"
-    (updater/check! ctxt)
-    (is (= "2" (updater/pending-update ctxt)))
-    (is (= #{} (list-files res-dir)))
-    (updater/install-pending-update! ctxt res-dir)
-    (is (= #{"config" "defold-2.jar"} (list-files res-dir)))
-    (is (= nil (updater/pending-update ctxt)))
-    (updater/check! ctxt)
-    (is (= nil (updater/pending-update ctxt))))
+(deftest client-has-update-after-check-when-update-appears-on-server
+  (let [updater (make-updater "test" "1")]
+    (with-server "test" "1"
+      (#'updater/check! updater)
+      (is (false? (updater/can-download-update? updater))))
+    (with-server "test" "2"
+      (#'updater/check! updater)
+      (is (true? (updater/can-download-update? updater))))))
 
-  (test-updater "1" "2" "2"
-                (is (some? (updater/check! ctxt)))
-                (is (= "2" (updater/pending-update ctxt)))
-                (is (nil? (updater/check! ctxt))))
+(deftest no-new-update-is-reported-after-extracting
+  (let [updater (make-updater "test" "1")]
+    (with-server "test" "2"
+      (#'updater/check! updater)
+      (is (true? (updater/can-download-update? updater)))
+      @(updater/download-and-extract! updater)
+      (#'updater/check! updater)
+      (is (false? (updater/can-download-update? updater))))))
 
-  (test-updater "1" "2" "missing-jar-sha1"
-                (is (thrown? Exception (updater/check! ctxt))))
-
-  (test-updater "1" "2" "2"
-                (updater/check! ctxt)
-                (is (= "2" (updater/pending-update ctxt)))
-
-                (set-update-version! "3" "3")
-                (updater/check! ctxt)
-                (is (= "3" (updater/pending-update ctxt)))
-
-                (set-update-version! "2" "2")
-                (updater/check! ctxt)
-                (is (= "2" (updater/pending-update ctxt)))
-
-                (set-update-version! "1" "1")
-                (updater/check! ctxt)
-                (is (= "1" (updater/pending-update ctxt)))))
-
-(deftest updater-timer-test
-  (test-updater "1" "2" "2"
-                (let [timer (updater/start-update-timer! ctxt 10 10)] ; damn fast!
-                  (try
-                    (Thread/sleep 1000)
-                    (is (= "2" (updater/pending-update ctxt)))
-                    (set-update-version! "3" "3")
-                    (Thread/sleep 1000)
-                    (is (= "3" (updater/pending-update ctxt)))
-                    (finally
-                      (updater/stop-update-timer! timer))))))
+(deftest update-timer-performs-checks-automatically
+  (let [updater (make-updater "test" "1")
+        timer ^Timer (#'updater/start-timer! updater 10 10)]
+    (try
+      (with-server "test" "1"
+        (Thread/sleep 1000)
+        (is (false? (updater/can-download-update? updater))))
+      (with-server "test" "2"
+        (Thread/sleep 1000)
+        (is (true? (updater/can-download-update? updater))))
+      (finally
+        (.cancel timer)
+        (.purge timer)))))

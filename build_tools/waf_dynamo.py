@@ -24,16 +24,17 @@ ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 ANDROID_64_GCC_VERSION='4.9'
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
-DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault.xctoolchain')
-IOS_SDK_VERSION="11.2"
+IOS_SDK_VERSION="12.1"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
-# Need 5.1 as minimum for fat/universal binaries (armv7 + arm64) to work
-MIN_IOS_SDK_VERSION="6.0"
+MIN_IOS_SDK_VERSION="8.0"
 
 OSX_SDK_VERSION="10.13"
 MIN_OSX_SDK_VERSION="10.7"
 
+XCODE_VERSION="10.1"
+
+DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault%s.xctoolchain' % XCODE_VERSION)
 
 # TODO: HACK
 FLASCC_ROOT=os.path.join(HOME, 'local', 'FlasCC1.0', 'sdk')
@@ -233,8 +234,6 @@ def default_flags(self):
                 # tr1/tuple isn't available on clang/darwin and gtest 1.5.0 assumes that
                 # see corresponding flag in build_gtest.sh
                 self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
-                # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-                # Force libstdc++ for now
                 self.env.append_value(f, ['-stdlib=libstdc++'])
                 self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
                 self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION)])
@@ -251,12 +250,10 @@ def default_flags(self):
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
-            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-            # Force libstdc++ for now
-            self.env.append_value(f, ['-g', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
-                                        '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION,
+            self.env.append_value(f, ['-g', '-stdlib=libc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
+                                        '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-stdlib=libc++',
                                         '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)])
-        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-fobjc-link-runtime', '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
 
     elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
         sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION)
@@ -1215,9 +1212,9 @@ def run_gtests(valgrind = False, configfile = None):
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
         return
 
-# TODO: Add something similar to this
-# http://code.google.com/p/v8/source/browse/trunk/tools/run-valgrind.py
-# to find leaks and set error code
+    # TODO: Add something similar to this
+    # http://code.google.com/p/v8/source/browse/trunk/tools/run-valgrind.py
+    # to find leaks and set error code
 
     if not Build.bld.env['VALGRIND']:
         valgrind = False
@@ -1230,7 +1227,7 @@ def run_gtests(valgrind = False, configfile = None):
         return
 
     for t in Build.bld.all_task_gen:
-        if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
+        if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1 and 'test' in t.features:
             output = t.path
             cmd = "%s %s" % (os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target), configfile)
             if 'web' in Build.bld.env.PLATFORM:
@@ -1454,6 +1451,16 @@ def detect(conf):
     if not platform:
         platform = build_platform
 
+    if platform == "win32":
+        bob_build_platform = "x86-win32"
+    elif platform == "linux":
+        bob_build_platform = "x86-linux"
+    elif platform == "darwin":
+        bob_build_platform = "x86-darwin"
+    else:
+        bob_build_platform = platform
+
+    conf.env['BOB_BUILD_PLATFORM'] = bob_build_platform
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = build_platform
 
@@ -1642,28 +1649,17 @@ def detect(conf):
     use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
     if build_util.get_target_os() == 'web':
         use_vanilla = True
-    ## TODO verify luajit in x86_64-linux --jbnn
-    # if build_util.get_target_platform() == 'x86_64-linux':
-        # TODO: LuaJIT is currently broken on x86_64-linux
-        # use_vanilla = True
 
     conf.env['LUA_BYTECODE_ENABLE_32'] = 'no'
     conf.env['LUA_BYTECODE_ENABLE_64'] = 'no'
     if use_vanilla:
         conf.env['STATICLIB_LUA'] = 'lua'
-        conf.env['LUA_BYTECODE_ENABLE'] = 'no'
     else:
         conf.env['STATICLIB_LUA'] = 'luajit-5.1'
-        conf.env['LUA_BYTECODE_ENABLE'] = 'yes'
         if build_util.get_target_platform() == 'x86_64-linux' or build_util.get_target_platform() == 'x86_64-win32' or build_util.get_target_platform() == 'x86_64-darwin' or build_util.get_target_platform() == 'arm64-android' or build_util.get_target_platform() == 'arm64-darwin':
             conf.env['LUA_BYTECODE_ENABLE_64'] = 'yes'
         else:
             conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
-
-    print("build_util.get_target_platform(): " + build_util.get_target_platform())
-    print("conf.env['LUA_BYTECODE_ENABLE']: " + conf.env['LUA_BYTECODE_ENABLE'])
-    print("conf.env['LUA_BYTECODE_ENABLE_32']: " + conf.env['LUA_BYTECODE_ENABLE_32'])
-    print("conf.env['LUA_BYTECODE_ENABLE_64']: " + conf.env['LUA_BYTECODE_ENABLE_64'])
 
 def configure(conf):
     detect(conf)
