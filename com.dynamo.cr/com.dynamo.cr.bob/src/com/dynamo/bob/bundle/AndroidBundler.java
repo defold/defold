@@ -188,8 +188,6 @@ public class AndroidBundler implements IBundler {
         args.add("package");
         args.add("--no-crunch");
         args.add("-f");
-        args.add("--extra-packages");
-        args.add("com.facebook:com.google.android.gms");
         args.add("-m");
         args.add("--auto-add-overlay");
 
@@ -201,7 +199,6 @@ public class AndroidBundler implements IBundler {
         args.add("-S"); args.add(tmpResourceDir.getAbsolutePath());
 
         args.add("-S"); args.add(resDir.getAbsolutePath());
-        args.add("-S"); args.add(Bob.getPath("res/facebook"));
         args.add("-S"); args.add(Bob.getPath("res/google-play-services"));
 
         args.add("-M"); args.add(manifestFile.getAbsolutePath());

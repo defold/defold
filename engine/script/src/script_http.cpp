@@ -42,9 +42,9 @@ namespace dmScript
 
     /*# perform a HTTP/HTTPS request
      * Perform a HTTP/HTTPS request.
-     * 
+     *
      * The following cipher suites are supported for HTTPS requests:
-     * 
+     *
      * - TLS_RSA_WITH_AES_128_CBC_SHA
      * - TLS_RSA_WITH_AES_256_CBC_SHA
      * - TLS_RSA_WITH_AES_128_CBC_SHA256
@@ -53,7 +53,6 @@ namespace dmScript
      * [icon:attention] If no timeout value is passed, the configuration value "network.http_timeout" is used. If that is not set, the timeout value is `0` (which blocks indefinitely).
      *
      * @name http.request
-     * @replaces facebook.me
      * @param url [type:string] target url
      * @param method [type:string] HTTP/HTTPS method, e.g. "GET", "PUT", "POST" etc.
      * @param callback [type:function(self, id, response)] response callback function

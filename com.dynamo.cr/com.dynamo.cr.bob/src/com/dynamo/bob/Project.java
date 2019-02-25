@@ -507,9 +507,7 @@ public class Project {
 
         try {
             // Include built-in/default facebook and gms resources
-            resourceDirectories.add(Bob.getPath("res/facebook"));
             resourceDirectories.add(Bob.getPath("res/google-play-services"));
-            extraPackages.add("com.facebook");
             extraPackages.add("com.google.android.gms");
 
             Map<String, String> aaptEnv = new HashMap<String, String>();
