@@ -14,6 +14,7 @@ import java.io.PrintWriter;
 import java.nio.CharBuffer;
 import java.util.Locale;
 import java.util.regex.Pattern;
+import java.util.Iterator;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -34,6 +35,9 @@ import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.google.protobuf.ByteString;
+
+import org.codehaus.jackson.JsonNode;
+import org.codehaus.jackson.map.ObjectMapper;
 
 public abstract class ShaderProgramBuilder extends Builder<Void> {
 
@@ -158,6 +162,16 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         builder.setSource(ByteString.copyFrom(msl_data));
     }
 
+    private String prettyPrintJsonString(JsonNode jsonNode) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            Object json = mapper.readValue(jsonNode.toString(), Object.class);
+            return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(json);
+        } catch (Exception e) {
+            return "Sorry, pretty print didn't work";
+        }
+    }
+
     private ShaderDesc.Shader.Builder compileGLSLToSPIRV(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language targetLanguage, IResource resource, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
         InputStreamReader isr = new InputStreamReader(is);
 
@@ -187,6 +201,9 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
         File file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
         file_out_spv.deleteOnExit();
+
+        File file_out_refl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".relf");
+        file_out_refl.deleteOnExit();
 
         String spirvShaderStage = (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER ? "vert" : "frag");
 
@@ -229,6 +246,79 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
 			default:
                 throw new CompileExceptionError("Unknown compiler target languge", null);
+        }
+
+        // Get reflection data
+        // TODO: error on fail?
+        result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
+            file_out_spv.getAbsolutePath(),
+            "--output",file_out_refl.getAbsolutePath(),
+            "--reflect");
+
+        ObjectMapper om = new ObjectMapper();
+        JsonNode tree = om.readTree(file_out_refl);
+        JsonNode uboNode = tree.get("ubos");
+        JsonNode typesNode = tree.get("types");
+
+        // System.out.println(prettyPrintJsonString(tree));
+        int uniformIndex = 0;
+
+        if (uboNode != null) {
+            Iterator<JsonNode> uniformBlockIt = uboNode.getElements();
+            while (uniformBlockIt.hasNext()) {
+                JsonNode uniformBlock = uniformBlockIt.next();
+
+                System.out.println("UBO [" + uniformBlock.get("name").asText() + "]");
+                System.out.println(" type       : " + uniformBlock.get("type").asText());
+                System.out.println(" block_size : " + uniformBlock.get("block_size").asInt());
+                System.out.println(" set        : " + uniformBlock.get("set").asInt());
+                System.out.println(" binding    : " + uniformBlock.get("binding").asInt());
+
+                ShaderDesc.UniformBlock.Builder uniformBlockBuilder = ShaderDesc.UniformBlock.newBuilder();
+
+                uniformBlockBuilder.setName(uniformBlock.get("name").asText());
+                uniformBlockBuilder.setSet(uniformBlock.get("set").asInt());
+                uniformBlockBuilder.setBinding(uniformBlock.get("binding").asInt());
+
+                JsonNode typeNode = typesNode.get(uniformBlock.get("type").asText());
+                JsonNode membersNode = typeNode.get("members");
+
+                for (Iterator<JsonNode> iter = membersNode.getElements(); iter.hasNext(); uniformIndex++) {
+                    JsonNode uniformNode = iter.next();
+                    String uniformNodeName = uniformNode.get("name").asText();
+                    String uniformNodeType = uniformNode.get("type").asText();
+                    int uniformNodeOffset  = uniformNode.get("offset").asInt();
+
+                    System.out.println("  Uniform [" + uniformNodeName + "]");
+                    System.out.println("    Type   :" + uniformNodeType);
+                    System.out.println("    Offset :" + Integer.toString(uniformNodeOffset));
+
+                    ShaderDesc.Uniform.Builder uniformBuilder = ShaderDesc.Uniform.newBuilder();
+                    ShaderDesc.UniformType uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_UNKNOWN;
+
+                    if (uniformNodeType.equals("vec2")) {
+                        uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_VEC2;
+                    } else if (uniformNodeType.equals("vec3")) {
+                        uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_VEC3;
+                    } else if (uniformNodeType.equals("vec4")) {
+                        uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_VEC4;
+                    } else if (uniformNodeType.equals("mat2")) {
+                        uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_MAT2;
+                    } else if (uniformNodeType.equals("mat3")) {
+                        uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_MAT3;
+                    } else if (uniformNodeType.equals("mat4")) {
+                        uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_MAT4;
+                    }
+
+                    uniformBlockBuilder.addUniformIndices(uniformIndex);
+                    uniformBuilder.setName(uniformNodeName);
+                    uniformBuilder.setType(uniformType);
+                    uniformBuilder.setOffset(uniformNodeOffset);
+                    builder.addUniforms(uniformBuilder);
+                }
+
+                builder.addUniformBlocks(uniformBlockBuilder);
+            }
         }
 
         return builder;

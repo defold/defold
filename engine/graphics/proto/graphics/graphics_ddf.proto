@@ -175,9 +175,10 @@ message ShaderDesc
 
     message UniformBlock
     {
-        required uint32 set     = 1;
-        required uint32 binding = 2;
-        required string name    = 3;
+        required uint32 set             = 1;
+        required uint32 binding         = 2;
+        required string name            = 3;
+        repeated uint32 uniform_indices = 4;
     }
 
     message Uniform
