@@ -8,7 +8,7 @@
             [editor.graph-util :as gu]
             [editor.resource :as resource]
             [editor.workspace :as workspace])
-  (:import [java.io PushbackReader]))
+  (:import [java.io PushbackReader StringReader]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -73,7 +73,7 @@
 (defn load-json [project self resource]
   (let [text (slurp resource)
         content (try
-                  (read-then-close (io/reader text))
+                  (read-then-close (StringReader. text))
                   (catch Exception error
                     error))
         lines (util/split-lines text)
