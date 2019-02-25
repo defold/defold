@@ -15,9 +15,7 @@
             [editor.gl.texture :as texture]
             [editor.gui-clipping :as clipping]
             [editor.defold-project :as project]
-            [editor.progress :as progress]
             [editor.scene :as scene]
-            [editor.scene-cache :as scene-cache]
             [editor.scene-picking :as scene-picking]
             [editor.workspace :as workspace]
             [editor.math :as math]
@@ -38,16 +36,12 @@
             [editor.validation :as validation])
   (:import [com.dynamo.gui.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$Type Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
             Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$SizeMode]
+           [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.texture TextureLifecycle]
-           [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
            [java.awt.image BufferedImage]
-           [com.defold.editor.pipeline TextureSetGenerator$UVTransform]
-           [org.apache.commons.io FilenameUtils]))
-
+           [javax.vecmath Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -1445,7 +1439,7 @@
       (let [user-data (-> spine-scene-scene
                           (get-in [:renderable :user-data])
                           (assoc :renderable-tags #{:gui-spine})
-                          (assoc :color (premul color+alpha))
+                          (assoc :color color+alpha)
                           (assoc :skin spine-skin))]
         (cond-> user-data
           (not= :clipping-mode-none clipping-mode)
