@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "static_assert.h"
 #include "json.h"
 #include "math.h"
 #include "utf8.h"
@@ -178,6 +179,11 @@ namespace dmJson
 
     Result Parse(const char* buffer, uint32_t buffer_length, Document* doc)
     {
+        DM_STATIC_ASSERT(TYPE_PRIMITIVE == JSMN_PRIMITIVE, Type_mismatch);
+        DM_STATIC_ASSERT(TYPE_OBJECT == JSMN_OBJECT, Type_mismatch);
+        DM_STATIC_ASSERT(TYPE_ARRAY == JSMN_ARRAY, Type_mismatch);
+        DM_STATIC_ASSERT(TYPE_STRING == JSMN_STRING, Type_mismatch);
+
         memset(doc, 0, sizeof(Document));
         jsmn_parser parser;
         // NOTE: count may be increased in do-while, at a higher cost because of extra malloc/free and parsing
@@ -247,8 +253,7 @@ namespace dmJson
         memset(doc, 0, sizeof(Document));
     }
 
-    const char* CStringArrayToJsonString(const char** array,
-        unsigned int length)
+    const char* CStringArrayToJsonString(const char** array, unsigned int length)
     {
         // Calculate the memory required to store the JSON string.
         unsigned int data_length = 2 + length * 2 + (length - 1);
