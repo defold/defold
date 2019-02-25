@@ -4,6 +4,7 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
+            [editor.code.util :as util]
             [editor.graph-util :as gu]
             [editor.resource :as resource]
             [editor.workspace :as workspace])
@@ -70,11 +71,13 @@
       (g/connect self :save-data project :save-data))))
 
 (defn load-json [project self resource]
-  (let [lines (r/read-fn resource)
+  (let [text (slurp resource)
         content (try
-                  (read-then-close (io/reader resource))
+                  (read-then-close (io/reader text))
                   (catch Exception error
-                    error))]
+                    error))
+        lines (util/split-lines text)
+        text nil] ;; Don't need this any more and might be large.
     (if (instance? Exception content)
       (make-code-editable project self resource lines)
       (let [[load-fn accept-fn new-content] (some (fn [[_loader-id {:keys [accept-fn load-fn]}]]
