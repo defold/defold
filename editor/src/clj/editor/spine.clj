@@ -724,8 +724,8 @@
                              skin-color (:slot-color mesh)
                              mesh-color (:mesh-color mesh)
                              final-color (mapv * skin-color tint-color mesh-color)
-                             alpha (nth final-color 3)
-                             final-color (assoc (mapv #(* % alpha) final-color) 1 alpha)]
+                             alpha (final-color 3)
+                             final-color (assoc (mapv (partial * alpha) final-color) 3 alpha)]
                          (assoc mesh :color final-color)))))
           (:mesh-slots skin))))
 
