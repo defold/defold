@@ -54,8 +54,7 @@ def build(bld):
 
     if 'android' in bld.env['PLATFORM']:
         classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME,
-                     # '%s/ext/share/java/google-play-services.jar' % bld.env.DYNAMO_HOME,
-                     '%s/ext/share/java/firebase-14.3.4_fixed2.jar' % bld.env.DYNAMO_HOME];
+                     '%s/ext/share/java/android-support-v4.jar' % bld.env.DYNAMO_HOME];
         classpath = os.pathsep.join(classpath)
 
         bld.new_task_gen(features='javac seq',
