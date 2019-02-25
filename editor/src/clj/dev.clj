@@ -141,9 +141,9 @@
         [:input :property :output]))
 
 (defn successor-tree
-  "Returns a tree of all upstream inputs and outputs affected by a change to the
-  specified node id and label. The result is a map of target node id to affected
-  labels, recursively."
+  "Returns a tree of all downstream inputs and outputs affected by a change to
+  the specified node id and label. The result is a map of target node id to
+  affected labels, recursively."
   ([node-id label]
    (let [basis (ig/update-successors (g/now) {node-id #{label}})]
      (successor-tree basis node-id label)))
@@ -151,21 +151,21 @@
    (let [graph-id (g/node-id->graph-id node-id)
          successors-by-node-id (get-in basis [:graphs graph-id :successors])]
      (into (sorted-map)
-           (comp (map (fn [[successor-node-id successor-labels]]
-                        (pair successor-node-id
-                              (into (sorted-map)
-                                    (keep (fn [successor-label]
-                                            (when-not (and (= node-id successor-node-id)
-                                                           (= label successor-label))
-                                              (pair successor-label
-                                                    (not-empty (successor-tree basis successor-node-id successor-label))))))
-                                    successor-labels)))))
+           (map (fn [[successor-node-id successor-labels]]
+                  (pair successor-node-id
+                        (into (sorted-map)
+                              (keep (fn [successor-label]
+                                      (when-not (and (= node-id successor-node-id)
+                                                     (= label successor-label))
+                                        (pair successor-label
+                                              (not-empty (successor-tree basis successor-node-id successor-label))))))
+                              successor-labels))))
            (get-in successors-by-node-id [node-id label])))))
 
 (defn successor-types
-  "Returns a map of all upstream inputs and outputs affected by a change to the
-  specified node id and label, recursively. The result is a flat map of target
-  node types to the set of affected labels in that node type."
+  "Returns a map of all downstream inputs and outputs affected by a change to
+  the specified node id and label, recursively. The result is a flat map of
+  target node types to the set of affected labels in that node type."
   ([node-id label]
    (let [basis (ig/update-successors (g/now) {node-id #{label}})]
      (successor-types basis node-id label)))
@@ -196,7 +196,7 @@
              (successor-types basis node-id label)))))
 
 (defn direct-successor-types
-  "Returns a map of all upstream inputs and outputs immediately affected by a
+  "Returns a map of all downstream inputs and outputs immediately affected by a
   change to the specified node id and label. The result is a flat map of target
   node types to the set of affected labels in that node type."
   ([node-id label]
