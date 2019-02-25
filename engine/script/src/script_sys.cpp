@@ -358,7 +358,7 @@ union SaveLoadBuffer
      *
      * In order for the engine to include custom resources in the build process, you need
      * to specify them in the "custom_resources" key in your "game.project" settings file.
-     * You can specify single resource files or directories. If a directory is is included
+     * You can specify single resource files or directories. If a directory is included
      * in the resource list, all files and directories in that directory is recursively
      * included:
      *

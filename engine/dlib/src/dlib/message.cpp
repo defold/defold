@@ -99,8 +99,8 @@ namespace dmMessage
         Message*        m_Header;
         Message*        m_Tail;
         const char*     m_Name;
-        dmMutex::Mutex  m_Mutex;
-        dmConditionVariable::ConditionVariable m_Condition;
+        dmMutex::HMutex m_Mutex;
+        dmConditionVariable::HConditionVariable m_Condition;
         MemoryAllocator m_Allocator;
     };
 
@@ -109,7 +109,7 @@ namespace dmMessage
     struct MessageContext
     {
         dmHashTable64<MessageSocket> m_Sockets;
-        dmMutex::Mutex  m_Mutex;
+        dmMutex::HMutex  m_Mutex;
     };
 
     MessageContext* g_MessageContext = 0;
@@ -189,7 +189,7 @@ namespace dmMessage
         MessageSocket* s = g_MessageContext->m_Sockets.Get(socket);
         if (s != 0x0)
         {
-            dmMutex::Mutex mutex = s->m_Mutex;
+            dmMutex::HMutex mutex = s->m_Mutex;
             dmMutex::Lock(mutex);
 
             Message *message_object = s->m_Header;
@@ -342,6 +342,8 @@ namespace dmMessage
         new_message->m_DestroyCallback = destroy_callback;
         memcpy(&new_message->m_Data[0], message_data, message_data_size);
 
+        bool is_first_message = !s->m_Header;
+
         if (!s->m_Header)
         {
             s->m_Header = new_message;
@@ -353,7 +355,10 @@ namespace dmMessage
             s->m_Tail = new_message;
         }
 
-        dmConditionVariable::Signal(s->m_Condition);
+        if (is_first_message)
+        {
+            dmConditionVariable::Signal(s->m_Condition);
+        }
         dmMutex::Unlock(s->m_Mutex);
         return RESULT_OK;
     }
@@ -372,8 +377,6 @@ namespace dmMessage
         dmMutex::Lock(s->m_Mutex);
         dmMutex::Unlock(g_MessageContext->m_Mutex);
 
-        DM_PROFILE_FMT(Message, "Dispatch %s", s->m_Name);
-
         MemoryAllocator* allocator = &s->m_Allocator;
 
         if (!s->m_Header)
@@ -385,6 +388,9 @@ namespace dmMessage
                 return 0;
             }
         }
+
+        DM_PROFILE_FMT(Message, "Dispatch %s", s->m_Name);
+
         uint32_t dispatch_count = 0;
 
         Message *message_object = s->m_Header;
@@ -454,25 +460,38 @@ namespace dmMessage
         uint32_t path_size = 0;
         const char* fragment = 0x0;
         uint32_t fragment_size = 0;
-        const char* socket_end = strchr(uri, ':');
-        const char* fragment_start = strchr(uri, '#');
-        if (fragment_start != 0x0)
+
+        const char* socket_end = 0;
+        const char* fragment_start = 0;
+        const char* scan = uri;
+        while (*scan)
         {
-            if (fragment_start < socket_end)
+            switch(*scan)
             {
-                return RESULT_MALFORMED_URL;
+                case ':':
+                    if (socket_end != 0)
+                    {
+                        return RESULT_MALFORMED_URL;
+                    }
+                    if (fragment_start != 0)
+                    {
+                        return RESULT_MALFORMED_URL;
+                    }
+                    socket_end = scan;
+                    break;
+                case '#':
+                    if (fragment_start != 0)
+                    {
+                        return RESULT_MALFORMED_URL;
+                    }
+                    fragment_start = scan;
+                    break;
             }
-            if (fragment_start != strrchr(uri, '#'))
-            {
-                return RESULT_MALFORMED_URL;
-            }
-        }
+            ++scan;
+        };
+
         if (socket_end != 0x0)
         {
-            if (socket_end != strrchr(uri, ':'))
-            {
-                return RESULT_MALFORMED_URL;
-            }
             socket_size = socket_end - uri;
             if (socket_size >= 64)
             {
@@ -481,15 +500,17 @@ namespace dmMessage
             socket = uri;
             path = socket_end + 1;
         }
+
+        uint32_t uri_length = (uint32_t)(scan - uri);
         if (fragment_start != 0x0)
         {
             fragment = fragment_start + 1;
-            fragment_size = strlen(uri) - (fragment - uri);
+            fragment_size = uri_length - (fragment - uri);
             path_size = fragment_start - path;
         }
         else
         {
-            path_size = strlen(uri) - (path - uri);
+            path_size = uri_length - (path - uri);
         }
         out_url->m_Socket = socket;
         out_url->m_SocketSize = socket_size;

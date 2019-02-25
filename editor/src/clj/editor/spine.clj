@@ -16,6 +16,7 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
+            [editor.scene-picking :as scene-picking]
             [editor.render :as render]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -412,7 +413,7 @@
                                              [(.x p) (.y p) (.z p) (.x uv) (.y uv)])))]
                    {:positions (flatten (partition 3 5 vertices))
                     :texcoord0 (flatten (partition 2 5 (drop 3 vertices)))
-                    :indices [0 1 2 2 1 3]
+                    :position-indices [0 1 2 2 1 3]
                     :weights (take 16 (cycle [1 0 0 0]))
                     :bone-indices (take 16 (cycle [(:bone-index slot-data) 0 0 0]))
                     :mesh-color (hex->color (get attachment "color" "ffffffff"))})
@@ -458,7 +459,7 @@
                                                (.apply uv-trans uv)
                                                [(.x uv) (.y uv)]))
                                            (partition 2 uvs))
-                        :indices (get attachment "triangles")
+                        :position-indices (get attachment "triangles")
                         :weights bone-weights
                         :bone-indices bone-indices
                         :mesh-color (hex->color (get attachment "color" "ffffffff"))})
@@ -473,7 +474,7 @@
                                                (.apply uv-trans uv)
                                                [(.x uv) (.y uv)]))
                                            (partition 2 uvs))
-                        :indices (get attachment "triangles")
+                        :position-indices (get attachment "triangles")
                         :weights (take weight-count (cycle [1 0 0 0]))
                         :bone-indices (take weight-count (cycle [(:bone-index slot-data) 0 0 0]))
                         :mesh-color (hex->color (get attachment "color" "ffffffff"))})))
@@ -750,11 +751,11 @@
 
 (defn- mesh->verts [mesh]
   (let [verts (mapv concat (partition 3 (:positions mesh)) (partition 2 (:texcoord0 mesh)) (repeat (:color mesh)))]
-    (map (partial get verts) (:indices mesh))))
+    (map (partial get verts) (:position-indices mesh))))
 
 (defn gen-vb [renderables]
   (let [meshes (mapcat renderable->meshes renderables)
-        vcount (reduce + 0 (map (comp count :indices) meshes))]
+        vcount (reduce + 0 (map (comp count :position-indices) meshes))]
     (when (> vcount 0)
       (let [vb (render/->vtx-pos-tex-col vcount)
             verts (mapcat mesh->verts meshes)]
@@ -785,6 +786,26 @@
       (let [vb (render/->vtx-pos-col vcount)]
         (persistent! (reduce conj! vb vs))))))
 
+(shader/defshader spine-id-vertex-shader
+  (attribute vec4 position)
+  (attribute vec2 texcoord0)
+  (varying vec2 var_texcoord0)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq var_texcoord0 texcoord0)))
+
+(shader/defshader spine-id-fragment-shader
+  (varying vec2 var_texcoord0)
+  (uniform sampler2D texture)
+  (uniform vec4 id)
+  (defn void main []
+    (setq vec4 color (texture2D texture var_texcoord0.xy))
+    (if (> color.a 0.05)
+      (setq gl_FragColor id)
+      (discard))))
+
+(def spine-id-shader (shader/make-shader ::id-shader spine-id-vertex-shader spine-id-fragment-shader {"id" :id}))
+
 (defn- render-spine-scenes [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)]
     (condp = pass
@@ -802,8 +823,9 @@
 
       pass/selection
       (when-let [vb (gen-vb renderables)]
-        (let [vertex-binding (vtx/use-with ::spine-selection vb render/shader-tex-tint)]
-          (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
+        (let [gpu-texture (:gpu-texture (:user-data (first renderables)))
+              vertex-binding (vtx/use-with ::spine-selection vb spine-id-shader)]
+          (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [gpu-texture spine-id-shader vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
 
 (defn- render-spine-skeletons [^GL2 gl render-args renderables rcount]

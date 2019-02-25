@@ -115,7 +115,7 @@ namespace dmRender
         void ClearConstants();
 
         static const uint32_t MAX_TEXTURE_COUNT = 32;
-        static const uint32_t MAX_CONSTANT_COUNT = 4;
+        static const uint32_t MAX_CONSTANT_COUNT = 16;
         Constant                        m_Constants[MAX_CONSTANT_COUNT];
         Matrix4                         m_WorldTransform;
         Matrix4                         m_TextureTransform;
@@ -143,13 +143,13 @@ namespace dmRender
 
         dmScript::HContext              m_ScriptContext;
         HFontMap                        m_SystemFontMap;
-        void*                           m_VertexProgramData;
-        void*                           m_FragmentProgramData;
+        void*                           m_VertexShaderDesc;
+        void*                           m_FragmentShaderDesc;
         uint32_t                        m_MaxRenderTypes;
         uint32_t                        m_MaxInstances;
         uint32_t                        m_MaxRenderTargets;
-        uint32_t                        m_VertexProgramDataSize;
-        uint32_t                        m_FragmentProgramDataSize;
+        uint32_t                        m_VertexShaderDescSize;
+        uint32_t                        m_FragmentShaderDescSize;
         uint32_t                        m_MaxCharacters;
         uint32_t                        m_CommandBufferSize;
         /// Max debug vertex count
@@ -329,6 +329,8 @@ namespace dmRender
     int32_t                         GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
     void                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
+    dmRenderDDF::MaterialDesc::VertexSpace GetMaterialVertexSpace(HMaterial material);
+    void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);
 
     uint64_t                        GetMaterialUserData1(HMaterial material);
     void                            SetMaterialUserData1(HMaterial material, uint64_t user_data);

@@ -1897,9 +1897,19 @@
         to (cursor-left lines from)]
     [(->CursorRange from to) [""]]))
 
+(defn delete-word-before-cursor [lines cursor-range]
+  (let [from (CursorRange->Cursor cursor-range)
+        to (cursor-prev-word lines from)]
+    [(->CursorRange from to) [""]]))
+
 (defn delete-character-after-cursor [lines cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
         to (cursor-right lines from)]
+    [(->CursorRange from to) [""]]))
+
+(defn delete-word-after-cursor [lines cursor-range]
+  (let [from (CursorRange->Cursor cursor-range)
+        to (cursor-next-word lines from)]
     [(->CursorRange from to) [""]]))
 
 (defn- delete-range [lines cursor-range]

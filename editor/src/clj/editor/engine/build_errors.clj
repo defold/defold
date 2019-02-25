@@ -2,13 +2,15 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [editor.defold-project :as project]
+            [editor.field-expression :as field-expression]
             [editor.resource :as resource]
+            [editor.workspace :as workspace]
             [dynamo.graph :as g])
-  (:import (clojure.lang IExceptionInfo)
-           (com.dynamo.bob CompileExceptionError LibraryException MultipleCompileException MultipleCompileException$Info Task TaskResult)
-           (com.dynamo.bob.bundle BundleHelper BundleHelper$ResourceInfo)
-           (com.dynamo.bob.fs IResource)
-           (java.util ArrayList)))
+  (:import [clojure.lang IExceptionInfo]
+           [com.dynamo.bob CompileExceptionError LibraryException MultipleCompileException MultipleCompileException$Info Task TaskResult]
+           [com.dynamo.bob.bundle BundleHelper$ResourceInfo]
+           [com.dynamo.bob.fs IResource]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -69,7 +71,7 @@
         value (when (and (integer? line) (pos? line))
                 (reify IExceptionInfo
                   (getData [_]
-                    {:line (error-line e)})))
+                    {:line line})))
         message (error-message e)
         adjusted-message (if (string/ends-with? (string/lower-case message) "internal server error")
                            no-information-message
@@ -120,15 +122,271 @@
     (let [manifest-ext-resources-by-name (get-manifest-ext-resources-by-name project evaluation-context)]
       (mapv #(invalid-lib-match->cause project evaluation-context % manifest-ext-resources-by-name) matches))))
 
-(defn- try-parse-compiler-error-causes [project evaluation-context platform log]
-  (let [issue-resource-infos (ArrayList.)]
-    (BundleHelper/parseLog platform log issue-resource-infos)
-    (not-empty (mapv (partial error-info-provider->cause project evaluation-context)
-                     issue-resource-infos))))
+(def ^:private compilation-line-patterns
+  "Regular expressions for matching different types of output from native code
+  compilation."
+  [[:note-warning-error
+    ;; Group 1: File name
+    ;; Group 2: Line number
+    ;; Group 3: Column number
+    ;; Group 4: warning/error
+    ;; Group 5: Message
+    #"^([^:]+)[:\(](\d+)[\):](\d+)?:?\s*(?:fatal)?\s*(warning|error|note):?\s*(.*)$"]
+   [:undefined-reference
+    ;; Group 1: File name
+    ;; Group 2: Line number
+    ;; Group 3: Message
+    #"^([^:]+):(\d+):\s*(undefined reference.*)$"]
+   [:undefined-symbols
+    #"^Undefined symbols.*:$"]
+   [:included-from
+    ;; Group 1: In file included from/from
+    ;; Group 2: File name
+    ;; Group 3: Line number
+    #"^(In file included from|\s+from)\s+(.*):(\d+).*$"]
+   [:in-function
+    #"^.*:\sIn [function|constructor|destructor|member].*:$"]
+   [:marker
+    #"^\s*~*\s*\^\s*~*\s*$"]
+   [:summary
+    ;; Group 1: The word warning/warnings
+    ;; Group 2: The word error/errors
+    #"^\d+\s(warnings?)?\s?(?:and)?(?:\s\d+\s)?(errors?)?.*$"]
+   [:tool-output
+    ;; Group 1: error:/warning:
+    ;; Group 2: Rest of line after program name or error:/warning:.
+    #"^(?:(?!:\/| |\\).)*: (error|warning)?:?\s*(.*)$"]
+   [:javac
+    #"^javac\s.*$"]
+   [:empty
+    #"^$"]])
 
-(defn- try-get-multiple-compile-exception-error-causes [project evaluation-context ^MultipleCompileException exception]
-  (not-empty (mapv (partial error-info-provider->cause project evaluation-context)
-                   (.issues exception))))
+(defn- buildpath->projpath
+  "First path will be converted to use Unix separators, then this function
+  looks for upload/ or build/ in path and removes everything up to and including
+  the first occurrence, leaving the slash.
+  Eg. upload/myproj/myfile.file would become /myproj/myfile.file
+  If upload/ or build/ are not found the path will be returned as is if it
+  starts with a slash, otherwise it will be returned with a slash prepended."
+  [^String path]
+  (let [unix-path (FilenameUtils/separatorsToUnix path)
+        idx (.indexOf unix-path "upload/")
+        [idx word-len] (if (= -1 idx)
+                         [(.indexOf unix-path "build/") (count "build")]
+                         [idx (count "upload")])]
+    (if-not (= -1 idx)
+      (subs path (+ idx word-len))
+      (if (string/starts-with? unix-path "/")
+        unix-path
+        (str "/" unix-path)))))
+
+(defn- try-match-compilation-regexes
+  "Returns a pair [name match] for the first regex match in
+  `compilation-line-patterns` where name is the keyword naming the pattern and
+  match is the output from re-matches. Returns nil if no pattern matches."
+  [line]
+  (some (fn [[name pattern]]
+          (when-let [match (re-matches pattern line)]
+            [name match]))
+        compilation-line-patterns))
+
+(defn- parse-compilation-line
+  "Parse a single line of gcc/clang compiler output. Produces a map containing at
+  least the keys :type and :message. Other possible keys are :file, :line
+  and :column.
+  Full example:
+  {:type :warning
+   :file \"/hello/world.cpp\"
+   :line 10
+   :column 2
+   :message \"Something error happens!\"}
+  Possible values for :type are :error, :warning, :note, :included-from, :marker,
+  :summary, :in-function, :javac, :empty and :unknown.
+  The :file value, if it represents a project resource, will be a project root
+  relative Unix style path starting with a forward slash."
+  [line ext-manifest-file]
+  (let [[name match] (or (try-match-compilation-regexes line)
+                         [:unknown line])]
+    (case name
+      :note-warning-error {:type (keyword (match 4))
+                           :file (buildpath->projpath (match 1))
+                           :line (field-expression/to-int (match 2))
+                           :column (field-expression/to-int (match 3))
+                           :message (match 5)}
+      :included-from {:type :included-from
+                      :file (buildpath->projpath (match 2))
+                      :line (field-expression/to-int (match 3))
+                      :message line}
+      :tool-output {:type (if (match 1)
+                            (keyword (match 1))
+                            :note)
+                    :file ext-manifest-file
+                    :message line}
+      :undefined-reference {:type :error ;; Undefined references break the build.
+                            :file (buildpath->projpath (match 1))
+                            :line (field-expression/to-int (match 2))
+                            :message (match 3)}
+      :undefined-symbols {:type :error
+                          :message line}
+      {:type name :message line})))
+
+(defn- merge-compilation-messages
+  "Add the message from line to the end of the message of current."
+  [current line]
+  (if (empty? current)
+    line
+    (update current :message str \newline (:message line))))
+
+(defn- conj-compilation-entry
+  "Conjoin current to acc (accumulator) if current is not empty and is not of
+  type :unknown."
+  [acc current]
+  (if (and (not-empty current)
+           (not= :unknown (:type current)))
+    (conj acc current)
+    acc))
+
+(defn- next-compilation-line
+  "Helper function for applying actions in the loop of `parse-compilation-log`."
+  [{:keys [lines current acc] :as state} line & actions]
+  (let [next-state (merge state {:current line
+                                 :lines (next lines)
+                                 :included-from? false})]
+    (reduce
+     (fn [state action]
+       (case action
+         :conj-message (assoc state :current (merge-compilation-messages current line))
+         :conj-message-to-previous (merge state {:current (merge-compilation-messages (last acc) (merge-compilation-messages current line))
+                                                 :acc (pop acc)})
+         :included-from (assoc state :included-from? true)
+         :replace-file (assoc state :current (merge (:current state) (select-keys line [:file :line])))
+         :replace-type (assoc state :current (assoc (:current state) :type (:type line)))
+         :conj-entry (assoc state :acc (conj-compilation-entry acc current))))
+     next-state
+     actions)))
+
+(defn- ignore-line-and-start-next-entry
+  [state original-ext-manifest-file]
+  (-> (next-compilation-line state {} :conj-entry)
+      (assoc :ext-manifest-file original-ext-manifest-file)))
+
+(defn find-ext-manifest-relative-to-resource
+  "Find the ext.manifest file for the native extension that proj-path belongs to."
+  [project ^String proj-path evaluation-context]
+  (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)
+        find-resource (fn [path] (g/node-value (nodes-by-resource-path path) :resource evaluation-context))]
+    (->> proj-path
+         (iterate resource/parent-proj-path)
+         (take-while not-empty)
+         (map find-resource)
+         (some (fn [resource]
+                 (when resource
+                   (->> (resource/children resource)
+                        (some (fn [child]
+                                (when (= (resource/resource-name child) "ext.manifest")
+                                  (resource/proj-path child)))))))))))
+
+(defn parse-compilation-log
+  "Parse the output from native extension compilation and produce a vector of maps
+  describing each entry. See the documentation of `parse-compilation-line` for
+  an explanation of the keys that can be present in the maps. Any message in the
+  log that cannot be attributed to a line in a specific file will either be
+  attributed to ext.manifest or to no resource. The ext.manifest file used for
+  this attribution is the one supplied, or the one nearest the current resource
+  being parsed if none was supplied. If no ext.manifest file is supplied and
+  none can be found then such entries will not receive a resource attribution."
+  [text project ext-manifest-file]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [original-ext-manifest-file ext-manifest-file
+          nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)]
+      (loop [{:keys [lines current acc included-from? ext-manifest-file] :as state}
+             {:lines (string/split-lines text)
+              :current {}
+              :acc []
+              :included-from? false
+              :ext-manifest-file original-ext-manifest-file}]
+        (if-not lines
+          (if (= :included-from (:type current))
+            (conj (pop acc) (merge-compilation-messages (last acc) current))
+            (conj-compilation-entry acc current))
+          (let [line (parse-compilation-line (first lines) ext-manifest-file)
+                project-resource? (contains? nodes-by-resource-path (:file line))
+                ;; Make sure we point to a project file always. For errors that
+                ;; manifest in included files that live on the build server, this
+                ;; means that we will point at the include statement. Not strictly
+                ;; correct but it is the best we can do in the confines of the
+                ;; project. Also find the most relevant ext.manifest file for the
+                ;; current resource so we have something to associate for example
+                ;; link errors with.
+                [line ext-manifest-file] (if-not project-resource?
+                                           [(merge line (select-keys current [:file :line :column]))
+                                            (or ext-manifest-file (find-ext-manifest-relative-to-resource project (:file current) evaluation-context))]
+                                           [line
+                                            (or ext-manifest-file (find-ext-manifest-relative-to-resource project (:file line) evaluation-context))])
+                state (assoc state :ext-manifest-file ext-manifest-file)
+                next-state (case (:type line)
+                             :included-from (if included-from?
+                                              (if project-resource?
+                                                ;; Each successive included-from gets more
+                                                ;; specific so if it refers to a project file,
+                                                ;; use that.
+                                                (next-compilation-line state line :conj-message :replace-file :included-from)
+                                                (next-compilation-line state line :conj-message :included-from))
+                                              (if (= :included-from (:type current))
+                                                ;; If we have not found a warning, error or note yet we merge this entry into previous.
+                                                (next-compilation-line state line :conj-message-to-previous :included-from)
+                                                ;; New entry if "included from" does not follow another "included from".
+                                                (next-compilation-line state line :conj-entry :included-from)))
+                             ;; Unknown are a catch-all for informational messages without a category. Eg. source code lines.
+                             :unknown (next-compilation-line state line :conj-message)
+                             ;; Marker is the ^ pointing at the column where the error manifests.
+                             :marker (next-compilation-line state line :conj-message)
+                             ;; Summary line marks the end of current entry.
+                             ;; Next batch of errors could be from another native extension so we reset the ext.manifest reference.
+                             :summary (ignore-line-and-start-next-entry state original-ext-manifest-file)
+                             ;; Start of new entry with some extra information from gcc that we don't need. Do same as for summary line.
+                             :in-function (ignore-line-and-start-next-entry state original-ext-manifest-file)
+                             ;; Empty lines separate entries for some compilers/tools
+                             :empty (ignore-line-and-start-next-entry state original-ext-manifest-file)
+                             ;; javac invocation line, ignore.
+                             :javac (ignore-line-and-start-next-entry state original-ext-manifest-file)
+                             ;; Error/warning/note
+                             (if included-from?
+                               ;; If the last line was an "included from" line and we encounter a
+                               ;; note, warning or error that means the previous lines were
+                               ;; information belonging to the note/warning/error message. So we
+                               ;; attach the message from this line and change the type of the
+                               ;; previous to the type of this one.
+                               (if project-resource?
+                                 ;; If the note/warning/error refers to a project file, let that take precedence.
+                                 (next-compilation-line state line :conj-message :replace-type :replace-file)
+                                 (next-compilation-line state line :conj-message :replace-type))
+                               ;; New entry.
+                               (next-compilation-line state line :conj-entry)))]
+            (recur next-state)))))))
+
+(defn- parsed-compilation-entry->ErrorInfoProvider
+  "Convert a log entry produced by `parse-compilation-log` into to an
+  ErrorInfoProvider."
+  [error]
+  (reify ErrorInfoProvider
+    (error-message [_] (:message error))
+    (error-path [_] (:file error))
+    (error-line [_] (:line error))
+    (error-severity [_]
+      (case (:type error)
+        :warning :warning
+        :error :fatal
+        :note :info
+        :info))))
+
+(defn- try-parse-compiler-error-causes
+  [project evaluation-context log ext-manifest-file]
+  (->> (parse-compilation-log log project ext-manifest-file)
+       (distinct)
+       (map parsed-compilation-entry->ErrorInfoProvider)
+       (map (partial error-info-provider->cause project evaluation-context))
+       (not-empty)))
 
 (defn- generic-extension-error-causes [project evaluation-context log]
   ;; This is a catch-all that simply dumps the entire log output into the Build
@@ -189,18 +447,24 @@
 
 (defn- build-error-causes [project evaluation-context exception]
   (let [log (:log (ex-data exception))
-        platform (:platform (ex-data exception))]
+        ext-manifest-seq (get-manifest-ext-resources-by-name project evaluation-context)
+        ext-manifest-file (when (= 1 (count ext-manifest-seq)) ;; If we have more than one, better not to pick one at random to avoid misinformation.
+                            (resource/proj-path (second (first ext-manifest-seq))))]
     (or (try-parse-invalid-lib-error-causes project evaluation-context log)
-        (try-parse-compiler-error-causes project evaluation-context platform log)
+        (try-parse-compiler-error-causes project evaluation-context log ext-manifest-file)
         (generic-extension-error-causes project evaluation-context log))))
 
 (defn- compile-exception-error-causes [project evaluation-context exception]
   [(error-info-provider->cause project evaluation-context exception)])
 
 (defn- multiple-compile-exception-error-causes [project evaluation-context ^MultipleCompileException exception]
-  (let [log (.getRawLog exception)]
+  (let [log (.getRawLog exception)
+        ext-manifest-file (find-ext-manifest-relative-to-resource
+                           project
+                           (buildpath->projpath (.getPath (.getContextResource exception)))
+                           evaluation-context)]
     (or (try-parse-invalid-lib-error-causes project evaluation-context log)
-        (try-get-multiple-compile-exception-error-causes project evaluation-context exception)
+        (try-parse-compiler-error-causes project evaluation-context log ext-manifest-file)
         (generic-extension-error-causes project evaluation-context log))))
 
 (defn- library-exception-error-causes [project evaluation-context ^Throwable exception]
