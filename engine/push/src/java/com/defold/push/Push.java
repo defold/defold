@@ -127,11 +127,6 @@ public class Push {
         storedNotifications.clear();
     }
 
-    public void doSven()
-    {
-        // nop
-    }
-
     public void register(final Activity activity) {
         activity.runOnUiThread(new Runnable() {
             @Override
@@ -309,12 +304,7 @@ public class Push {
 
                         // Get new Instance ID token
                         String token = task.getResult().getToken();
-
-                        // Log and toast
-                        // String msg = getString(R.string.msg_token_fmt, token);
-                        Log.d(TAG, token);
                         sendRegistrationResult(token, null);
-                        // Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show();
                     }
                 });
     }
@@ -344,29 +334,6 @@ public class Push {
             Log.e(TAG, "No listener callback set");
         }
     }
-
-    // private void registerInBackground(final Context context) {
-    //     new AsyncTask<Void, Void, Void>() {
-    //         @Override
-    //         protected Void doInBackground(Void... params) {
-    //             try {
-    //                 if (gcm == null) {
-    //                     gcm = GoogleCloudMessaging.getInstance(context);
-    //                 }
-    //                 String regid = gcm.register(senderId);
-    //                 sendRegistrationResult(regid, null);
-    //             } catch (IOException e) {
-    //                 Log.e(TAG, "Failed to register", e);
-    //                 sendRegistrationResult(null, e.getLocalizedMessage());
-    //             } catch (Throwable e) {
-    //                 Log.e(TAG, "Failed to register", e);
-    //                 sendRegistrationResult(null, e.getLocalizedMessage());
-    //             }
-    //             return null;
-    //         }
-
-    //     }.execute(null, null, null);
-    // }
 
     private void loadSavedMessages(Context context) {
         BufferedReader r = null;
@@ -516,10 +483,10 @@ public class Push {
         return result;
     }
 
-    void onPush(String payload, boolean wasActivated) {
-        Log.d(TAG, "triggering onMessage: " + payload);
-        Log.d(TAG, "wasActivated: " + wasActivated);
-        listener.onMessage(payload, wasActivated);
+    void onRemotePush(String payload, boolean wasActivated) {
+        if (listener != null) {
+            listener.onMessage(payload, wasActivated);
+        }
     }
 
     private void removeNotification(int id) {
@@ -532,7 +499,7 @@ public class Push {
         removeNotification(id);
 
         if (listener != null) {
-            this.listener.onLocalMessage(msg, id, wasActivated);
+            listener.onLocalMessage(msg, id, wasActivated);
         }
     }
 
@@ -542,20 +509,26 @@ public class Push {
                 .setAction(ACTION_FORWARD_PUSH);
         intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
 
-        for (Map.Entry<String, String> entry : extras.entrySet()) {
-            intent.putExtra(entry.getKey(), entry.getValue());
-        }
+        JSONObject payloadJson = toJson(extras);
+        String payloadString = payloadJson.toString();
+        intent.putExtra("payload", payloadString);
 
-        // TMP(sven):
-        // App is visible, try to trigger listener directly.
-        // If there is no listener available, store it!
+        Bundle extrasBundle = intent.getExtras();
+        extrasBundle.putByte("remote", (byte)1);
+
+        // App is visible, trigger the intent directly.
         if (DefoldActivity.isActivityVisible()) {
+            extrasBundle.putByte("wasActivated", (byte)0);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(intent);
             return;
         }
 
-        Log.d(TAG, "showNotification called while activity wasn't visible!");
+        // App is not visible, this means that we need to display a notification.
+        // This means that when the intent is triggered next time it will be
+        // from an interaction of the notification popup, and thus we can set
+        // wasActivated to 1.
+        extrasBundle.putByte("wasActivated", (byte)1);
 
         int id = (int) (System.currentTimeMillis() % Integer.MAX_VALUE);
         PendingIntent contentIntent = PendingIntent.getActivity(context, id,
