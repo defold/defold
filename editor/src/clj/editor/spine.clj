@@ -508,26 +508,6 @@
                                       dep-build-targets
                                       [:texture-set])))
 
-(defn- connect-atlas [project node-id atlas]
-  (if-let [atlas-node (project/get-resource-node project atlas)]
-    (let [outputs (-> atlas-node g/node-type* g/output-labels)]
-      (if (every? #(contains? outputs %) [:anim-data :gpu-texture :build-targets])
-        [(g/connect atlas-node :anim-data     node-id :anim-data)
-         (g/connect atlas-node :gpu-texture   node-id :gpu-texture)
-         (g/connect atlas-node :build-targets node-id :dep-build-targets)]
-        []))
-    []))
-
-(defn reconnect [transaction graph self label kind labels]
-  (when (some #{:atlas} labels)
-    (let [atlas (g/node-value self :atlas)
-          project (project/get-project self)]
-      (concat
-        (gu/disconnect-all self :anim-data)
-        (gu/disconnect-all self :gpu-texture)
-        (gu/disconnect-all self :dep-build-targets)
-        (connect-atlas project self atlas)))))
-
 (defn- read-bones
   [spine-scene]
   (mapv (fn [b]
@@ -744,8 +724,8 @@
                              skin-color (:slot-color mesh)
                              mesh-color (:mesh-color mesh)
                              final-color (mapv * skin-color tint-color mesh-color)
-                             alpha (nth final-color 3)
-                             final-color (assoc (mapv #(* % alpha) final-color) 1 alpha)]
+                             alpha (final-color 3)
+                             final-color (assoc (mapv (partial * alpha) final-color) 3 alpha)]
                          (assoc mesh :color final-color)))))
           (:mesh-slots skin))))
 
@@ -764,11 +744,9 @@
 (def color [1.0 1.0 1.0 1.0])
 
 (defn- skeleton-vs [parent-pos bone vs ^Matrix4d wt]
-  (let [pos (Vector3d.)
-        t (doto (Matrix4d.)
+  (let [t (doto (Matrix4d.)
             (.mul wt ^Matrix4d (:transform bone)))
-        _ (.get ^Matrix4d t pos)
-        pos [(.x pos) (.y pos) (.z pos)]
+        pos (math/vecmath->clj (math/translation t))
         vs (if parent-pos
              (conj vs (into parent-pos color) (into pos color))
              vs)]
