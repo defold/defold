@@ -9,7 +9,6 @@ readonly VERSION=2.1.0-beta3
 TAR_SKIP_BIN=0
 
 function luajit_configure() {
-	echo "************** begin luajit_configure"
 	export MAKEFLAGS="-e"
 	export BUILDMODE=static
 	export PREFIX=`pwd`/build
@@ -78,9 +77,6 @@ function luajit_configure() {
 	# These will be used for the cross compiling
 	export TARGET_TCFLAGS="$CFLAGS $XFLAGS"
 	export TARGET_CFLAGS="$CFLAGS $XFLAGS"
-	# export TARGET_LDFLAGS="$CFLAGS"
-	# export TARGET_AR="$AR rcus"
-	# export TARGET_AR="ar"
 	export TARGET_LD="$CC $CFLAGS"
 
 	# These are used for host compiling
@@ -91,8 +87,6 @@ function luajit_configure() {
 	# Disable
 	export TARGET_STRIP=true
 	export CCOPTIONS=
-
-	echo "************** end luajit_configure"
 }
 
 # Use above function instead of shell scripts

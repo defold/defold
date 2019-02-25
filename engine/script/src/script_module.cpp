@@ -29,7 +29,6 @@ namespace dmScript
     // Currently the bytecode is only ever built with LuaJIT which means it cannot be loaded
     // with vanilla lua runtime. The LUA_BYTECODE_ENABLE_(32/62) indicates if we can load bytecode,
     // and in reality, if linking happens against LuaJIT.
-    // True if bytecode
     static void GetLuaSource(dmLuaDDF::LuaSource *source, const char **buf, uint32_t *size)
     {
 #if defined(LUA_BYTECODE_ENABLE_32)
