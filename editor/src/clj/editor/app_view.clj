@@ -1599,9 +1599,10 @@ If you do not specifically require different script states, consider changing th
        (let [game-project (project/get-resource-node project "/game.project")
              dependencies (game-project/get-setting game-project ["project" "dependencies"])
              dependency-uri (.toURI (URL. (:dep-url user-data)))]
-             (if (or (nil? dependencies) (not (some #(= dependency-uri %) dependencies)))
-                (do (game-project/set-setting! game-project ["project" "dependencies"] (concat dependencies [dependency-uri]))
-                  (fetch-libraries workspace project dashboard-client changes-view))))))
+         (when (not-any? (partial = dependency-uri) dependencies)
+           (game-project/set-setting! game-project ["project" "dependencies"]
+                                      (conj (vec dependencies) dependency-uri))
+           (fetch-libraries workspace project dashboard-client changes-view)))))
 
 (handler/defhandler :fetch-libraries :global
   (enabled? [] (disk-availability/available?))
