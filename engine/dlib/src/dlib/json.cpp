@@ -177,12 +177,12 @@ namespace dmJson
         }
     }
 
-    Result Parse(const char* buffer, uint32_t buffer_length, Document* doc)
+    Result Parse(const char* buffer, unsigned int buffer_length, Document* doc)
     {
-        DM_STATIC_ASSERT(TYPE_PRIMITIVE == JSMN_PRIMITIVE, Type_mismatch);
-        DM_STATIC_ASSERT(TYPE_OBJECT == JSMN_OBJECT, Type_mismatch);
-        DM_STATIC_ASSERT(TYPE_ARRAY == JSMN_ARRAY, Type_mismatch);
-        DM_STATIC_ASSERT(TYPE_STRING == JSMN_STRING, Type_mismatch);
+        DM_STATIC_ASSERT((int)TYPE_PRIMITIVE == (int)JSMN_PRIMITIVE, Type_mismatch);
+        DM_STATIC_ASSERT((int)TYPE_OBJECT == (int)JSMN_OBJECT, Type_mismatch);
+        DM_STATIC_ASSERT((int)TYPE_ARRAY == (int)JSMN_ARRAY, Type_mismatch);
+        DM_STATIC_ASSERT((int)TYPE_STRING == (int)JSMN_STRING, Type_mismatch);
 
         memset(doc, 0, sizeof(Document));
         jsmn_parser parser;

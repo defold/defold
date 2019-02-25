@@ -51,7 +51,7 @@ namespace dmJson
         int     m_End;
         /// Size. Only applicable for arrays and objects
         int     m_Size;
-        /// Sibling index
+        /// Sibling index. -1 if no sibling
         int     m_Sibling;
     };
 
@@ -78,7 +78,7 @@ namespace dmJson
      * @param doc document
      * @return RESULT_OK on success
      */
-    Result Parse(const char* buffer, uint32_t buffer_length, Document* doc);
+    Result Parse(const char* buffer, unsigned int buffer_length, Document* doc);
 
     /**
      * Parse json data
