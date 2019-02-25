@@ -70,7 +70,8 @@
    (let [group-transient? (instance? IEditableCollection empty-group)
          group-prepare (if group-transient? transient identity)
          group-conj (if group-transient? conj! conj)
-         group-finish (when group-transient?
+         group-finish (if-not group-transient?
+                        identity
                         (fn [transient-group]
                           (with-meta (persistent! transient-group)
                                      (meta empty-group))))
@@ -78,7 +79,7 @@
          groups-container-prepare (if groups-container-transient? transient identity)
          groups-container-assoc (if groups-container-transient? assoc! assoc)
          groups-container-finish (cond
-                                   (and groups-container-transient? (some? group-finish))
+                                   (and groups-container-transient? group-transient?)
                                    (fn [transient-groups-container]
                                      (with-meta (persistent!
                                                   (reduce-kv (fn [transient-groups-container key value]
@@ -92,7 +93,7 @@
                                      (with-meta (persistent! transient-groups-container)
                                                 (meta groups-container)))
 
-                                   (some? group-finish)
+                                   group-transient?
                                    (fn [groups-container]
                                      (reduce-kv (fn [groups-container key value]
                                                   (assoc groups-container key (group-finish value)))
