@@ -1436,11 +1436,10 @@
   (output gpu-texture TextureLifecycle (g/constantly nil))
   (output scene-renderable-user-data g/Any :cached
     (g/fnk [spine-scene-scene spine-skin color+alpha clipping-mode clipping-inverted clipping-visible]
-      (let [user-data (-> spine-scene-scene
-                          (get-in [:renderable :user-data])
-                          (assoc :renderable-tags #{:gui-spine})
-                          (assoc :color color+alpha)
-                          (assoc :skin spine-skin))]
+      (let [user-data (assoc (get-in spine-scene-scene [:renderable :user-data])
+                        :color color+alpha
+                        :renderable-tags #{:gui-spine}
+                        :skin spine-skin)]
         (cond-> user-data
           (not= :clipping-mode-none clipping-mode)
           (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
