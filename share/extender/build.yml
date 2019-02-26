@@ -76,6 +76,7 @@ platforms:
         libPaths:   ["{{dynamo_home}}/lib/x86_64-darwin", "{{dynamo_home}}/ext/lib/x86_64-darwin"]
         defines:    ["DM_PLATFORM_OSX", "LUA_BYTECODE_ENABLE_64"]
         flags:      ["-fno-exceptions", "-fvisibility=hidden"]
+        linkFlags:  ["-Wl,-rpath,@loader_path/."]
         libs:       []
         dynamicLibs: []
         symbols:    ["AudioDecoderTremolo"]
