@@ -26,8 +26,8 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.tile.proto Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer]
-           [editor.gl.shader ShaderLifecycle]
            [com.jogamp.opengl GL GL2]
+           [editor.gl.shader ShaderLifecycle]
            [javax.vecmath Matrix4d Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -581,11 +581,11 @@
 
 ;; palette
 
-(def ^:private ^:const tile-border-size 0.5)
+(def ^:private tile-border-size 1)
 
-(def ^:private ^:const ideal-tile-size 64)
+(def ^:private ideal-tile-size 32)
 
-(def ^:private ^:const edge-offset 100)
+(def ^:private edge-offset 100)
 
 (def ^:private clamp-palette-mouse-offset (geom/clamper -0.5 0.5))
 
@@ -712,21 +712,29 @@
         th (:height tile-source-attributes)
         rows (:tiles-per-column tile-source-attributes)
         cols (:tiles-per-row tile-source-attributes)
-        w (+ (:visual-width tile-source-attributes) (* cols tile-border-size))
+        w (+ (:visual-width tile-source-attributes) (* (inc cols) tile-border-size))
         h (+ (:visual-height tile-source-attributes) (* rows tile-border-size))]
-    (as-> (->color-vtx (+ (* (+ 1 rows) 2)
-                          (* (+ 1 cols) 2)))
+    (as-> (->color-vtx (+ (* (+ 1 rows) 4)
+                          (* (+ 1 cols) 4)))
         vbuf
       (reduce (fn [vbuf y]
                 (let [y0 (* y (+ th tile-border-size))]
                   (-> vbuf
                       (color-vtx-put! 0 y0 0 0.3 0.3 0.3 1.0)
-                      (color-vtx-put! w y0 0 0.3 0.3 0.3 1.0)))) vbuf (range (inc rows)))
+                      (color-vtx-put! w y0 0 0.3 0.3 0.3 1.0)
+                      (color-vtx-put! w (+ tile-border-size y0) 0 0.3 0.3 0.3 1.0)
+                      (color-vtx-put! 0 (+ tile-border-size y0) 0 0.3 0.3 0.3 1.0))))
+              vbuf
+              (range (inc rows)))
       (reduce (fn [vbuf x]
                 (let [x0 (* x (+ tw tile-border-size))]
                   (-> vbuf
                       (color-vtx-put! x0 0 0 0.3 0.3 0.3 1.0)
-                      (color-vtx-put! x0 h 0 0.3 0.3 0.3 1.0)))) vbuf (range (inc cols)))
+                      (color-vtx-put! x0 h 0 0.3 0.3 0.3 1.0)
+                      (color-vtx-put! (+ tile-border-size x0) h 0 0.3 0.3 0.3 1.0)
+                      (color-vtx-put! (+ tile-border-size x0) 0 0 0.3 0.3 0.3 1.0))))
+              vbuf
+              (range (inc cols)))
       (vtx/flip! vbuf))))
 
 (defn- render-palette-grid
@@ -734,7 +742,7 @@
   (let [vbuf (gen-palette-grid-vbuf tile-source-attributes)
         vb (vtx/use-with ::palette-grid vbuf color-shader)]
     (gl/with-gl-bindings gl render-args [color-shader vb]
-      (gl/gl-draw-arrays gl GL2/GL_LINES 0 (count vbuf)))))
+      (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
 
 (defn- render-palette-active
   [^GL2 gl render-args tile-source-attributes palette-tile]
@@ -748,15 +756,31 @@
           x1 (+ x0 w tile-border-size)
           y0 (* y (+ tile-border-size h))
           y1 (+ y0 h tile-border-size)
-          vbuf (-> (->color-vtx 4)
+          vbuf (-> (->color-vtx 16)
+                   ;; left edge
                    (color-vtx-put! x0 y0 0 1.0 1.0 1.0 1.0)
                    (color-vtx-put! x0 y1 0 1.0 1.0 1.0 1.0)
-                   (color-vtx-put! x1 y1 0 1.0 1.0 1.0 1.0)
+                   (color-vtx-put! (+ x0 tile-border-size) y1 0 1.0 1.0 1.0 1.0)
+                   (color-vtx-put! (+ x0 tile-border-size) y0 0 1.0 1.0 1.0 1.0)
+                   ;; right edge
                    (color-vtx-put! x1 y0 0 1.0 1.0 1.0 1.0)
+                   (color-vtx-put! x1 y1 0 1.0 1.0 1.0 1.0)
+                   (color-vtx-put! (+ x1 tile-border-size) y1 0 1.0 1.0 1.0 1.0)
+                   (color-vtx-put! (+ x1 tile-border-size) y0 0 1.0 1.0 1.0 1.0)
+                   ;; bottom edge
+                   (color-vtx-put! x0 y0 0 1.0 1.0 1.0 1.0)
+                   (color-vtx-put! x1 y0 0 1.0 1.0 1.0 1.0)
+                   (color-vtx-put! x1 (+ y0 tile-border-size) 0 1.0 1.0 1.0 1.0)
+                   (color-vtx-put! x0 (+ y0 tile-border-size) 0 1.0 1.0 1.0 1.0)
+                   ;; top edge
+                   (color-vtx-put! x0 y1 0 1.0 1.0 1.0 1.0)
+                   (color-vtx-put! (+ x1 tile-border-size) y1 0 1.0 1.0 1.0 1.0)
+                   (color-vtx-put! (+ x1 tile-border-size) (+ y1 tile-border-size) 0 1.0 1.0 1.0 1.0)
+                   (color-vtx-put! x0 (+ y1 tile-border-size) 0 1.0 1.0 1.0 1.0)
                    (vtx/flip!))
           vb (vtx/use-with ::palette-active vbuf color-shader)]
       (gl/with-gl-bindings gl render-args [color-shader vb]
-        (gl/gl-draw-arrays gl GL2/GL_LINE_LOOP 0 (count vbuf))))))
+        (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
 
 (defn render-palette-background
   [^GL2 gl viewport]
@@ -933,44 +957,52 @@
   [self action state evaluation-context]
   (let [op (g/node-value self :op evaluation-context)
         tx (case (:type action)
-             :mouse-pressed  (when-not (some? op)
-                               (let [op (if (true? (:shift action))
-                                          :select
-                                          :paint)
-                                     op-tx (begin-op op self action state evaluation-context)]
-                                 (when (seq op-tx)
-                                   (concat
-                                     (g/set-property self :op op)
-                                     op-tx))))
+             :mouse-pressed
+             (when-not (some? op)
+               (let [op (if (true? (:shift action))
+                          :select
+                          :paint)
+                     op-tx (begin-op op self action state evaluation-context)]
+                 (when (seq op-tx)
+                   (concat
+                     (g/set-property self :op op)
+                     op-tx))))
 
-             :mouse-moved    (concat
-                              (g/set-property self :cursor-world-pos (:world-pos action))
-                              (when (some? op)
-                                (update-op op self action state evaluation-context)))
+             :mouse-moved
+             (concat
+               (g/set-property self :cursor-world-pos (:world-pos action))
+               (g/set-property self :cursor-screen-pos (:screen-pos action))
+               (when (some? op)
+                 (update-op op self action state evaluation-context)))
 
-             :mouse-released (when (some? op)
-                               (concat
-                                (g/set-property self :op nil)
-                                (end-op op self action state evaluation-context)))
+             :mouse-released
+             (when (some? op)
+               (concat
+                 (g/set-property self :op nil)
+                 (end-op op self action state evaluation-context)))
+
              nil)]
     (when (seq tx)
       (g/transact tx)
       true)))
 
-
-
 (defn- handle-input-palette
   [self action state evaluation-context]
   (let [^Point3d screen-pos (:screen-pos action)]
     (case (:type action)
-      :mouse-pressed  true
-      :mouse-moved    (g/transact
-                       (g/set-property self :cursor-screen-pos screen-pos))
-      :mouse-released (let [palette-tile (g/node-value self :palette-tile evaluation-context)]
-                        (g/transact
-                         (concat
-                          (g/set-property self :brush (make-brush palette-tile))
-                          (g/set-property self :mode :editor))))
+      :mouse-pressed
+      true
+
+      :mouse-moved
+      (g/transact
+        (g/set-property self :cursor-screen-pos screen-pos))
+
+      :mouse-released
+      (let [palette-tile (g/node-value self :palette-tile evaluation-context)]
+        (g/transact
+          (concat
+            (g/set-property self :brush (make-brush palette-tile))
+            (g/set-property self :mode :editor))))
 
       action)))
 
