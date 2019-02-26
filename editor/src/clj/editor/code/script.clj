@@ -152,13 +152,15 @@
                                              :type  type}))
                               (:properties user-properties))
         modules         (:modules user-data)
+        bytecode        (script->bytecode (:lines user-data) (:proj-path user-data) :32-bit)
         bytecode-64     (script->bytecode (:lines user-data) (:proj-path user-data) :64-bit)]
     (g/precluding-errors
-      [bytecode-64]
+      [bytecode]
       {:resource resource
        :content  (protobuf/map->bytes Lua$LuaModule
                                       {:source     {:script   (ByteString/copyFromUtf8 (slurp (data/lines-reader (:lines user-data))))
                                                     :filename (resource/proj-path (:resource resource))
+                                                    :bytecode (ByteString/copyFrom ^bytes bytecode)
                                                     :bytecode-64 (ByteString/copyFrom ^bytes bytecode-64)}
                                        :modules    modules
                                        :resources  (mapv lua/lua-module->build-path modules)
