@@ -128,10 +128,34 @@ namespace dmGraphics
             GPUMemory                m_GPUBuffer;
         };
 
+        struct ShaderUniform
+        {
+            uint16_t    m_Set;
+            uint16_t    m_Binding;
+            uint16_t    m_BlockOffset;
+            uint16_t    m_DataSize;
+            Type        m_DataType;
+            const char* m_Name;
+        };
+
+        struct ShaderUniformBlock
+        {
+            uint16_t          m_Set;
+            uint16_t          m_Binding;
+            uint16_t          m_UniformIndicesCount; // Nested dmArray not allowed?
+            const char*       m_Name;
+            void*             m_UniformData;
+            uint16_t*         m_UniformIndices;
+            VkBuffer          m_Handle;
+            GPUMemory         m_GPUBuffer;
+        };
+
         struct ShaderProgram
         {
-            VkShaderModule    m_Handle;
-            uint64_t          m_Hash;
+            uint64_t                    m_Hash;
+            VkShaderModule              m_Handle;
+            dmArray<ShaderUniform>      m_Uniforms; // Note: need to hash constants?
+            dmArray<ShaderUniformBlock> m_UniformBlocks;
         };
 
         struct Program
@@ -143,6 +167,7 @@ namespace dmGraphics
             const ShaderProgram*            m_VertexProgram;
             const ShaderProgram*            m_FragmentProgram;
             VkPipelineShaderStageCreateInfo m_ShaderStages[2];
+            VkDescriptorSet                 m_DescriptorSet;
             dmArray<uint16_t>               m_LayoutBindingsIndices;
         };
 
@@ -159,6 +184,7 @@ namespace dmGraphics
         {
             uint8_t                        m_CurrentFrameImageIx;
             uint8_t                        m_CurrentFrameInFlight;
+            uint32                         m_MaxDescriptorSets;
 
             VkInstance                     m_Instance;
             VkPhysicalDevice               m_PhysicalDevice;
@@ -224,7 +250,7 @@ namespace dmGraphics
             return false;
         }
 
-        void SetInstanceExtensionList()
+        static void SetInstanceExtensionList()
         {
             uint32_t extension_count             = 0;
             VkExtensionProperties* extension_ptr = 0;
@@ -244,7 +270,7 @@ namespace dmGraphics
             }
         }
 
-        bool GetValidationSupport()
+        static bool GetValidationSupport()
         {
             uint32_t layer_count          = 0;
             VkLayerProperties* layer_list = 0;
@@ -287,7 +313,7 @@ namespace dmGraphics
             return all_layers_found;
         }
 
-        bool GetRequiredInstanceExtensions(dmArray<const char*>& extensionListOut)
+        static bool GetRequiredInstanceExtensions(dmArray<const char*>& extensionListOut)
         {
             uint32_t extension_count                 = 0;
             VkExtensionProperties* vk_extension_list = 0;
@@ -342,7 +368,7 @@ namespace dmGraphics
         // queues with different properties supported, so we need to find a combination of queues
         // that will work for our needs. Note that the present queue might not be the same queue as the
         // graphics queue. The graphics queue support is needed to do graphics operations at all.
-        QueueFamily GetQueueFamily(VkPhysicalDevice device)
+        static QueueFamily GetQueueFamily(VkPhysicalDevice device)
         {
             QueueFamily vk_family_selected = { QUEUE_FAMILY_INVALID, QUEUE_FAMILY_INVALID };
             uint32_t queue_family_count    = 0;
@@ -385,7 +411,7 @@ namespace dmGraphics
             return vk_family_selected;
         }
 
-        bool IsExtensionsSupported(VkPhysicalDevice device)
+        static bool IsExtensionsSupported(VkPhysicalDevice device)
         {
             uint32_t ext_available_count = 0;
             int32_t  ext_to_enable_count = 0;
@@ -413,7 +439,7 @@ namespace dmGraphics
             return ext_to_enable_count == 0;
         }
 
-        bool SetLogicalDevice()
+        static bool SetLogicalDevice()
         {
             QueueFamily vk_queue_family = GetQueueFamily(g_vk_context.m_PhysicalDevice);
 
@@ -486,7 +512,7 @@ namespace dmGraphics
         }
 
         // Extract all swap chain formats and present modes. We use these tables to select the most suitable modes later.
-        void GetSwapChainSupport(VkPhysicalDevice device, SwapChainSupport& swapChain)
+        static void GetSwapChainSupport(VkPhysicalDevice device, SwapChainSupport& swapChain)
         {
             uint32_t format_count        = 0;
             uint32_t present_modes_count = 0;
@@ -510,7 +536,7 @@ namespace dmGraphics
             }
         }
 
-        bool IsDeviceCompatible(VkPhysicalDevice device)
+        static bool IsDeviceCompatible(VkPhysicalDevice device)
         {
             QueueFamily vk_queue_family  = GetQueueFamily(device);
             bool is_extensions_supported = IsExtensionsSupported(device);
@@ -530,7 +556,7 @@ namespace dmGraphics
                    is_extensions_supported && is_swap_chain_supported;
         }
 
-        bool SetPhysicalDevice()
+        static bool SetPhysicalDevice()
         {
             VkPhysicalDevice vk_selected_device = VK_NULL_HANDLE;
             uint32_t device_count               = 0;
@@ -572,7 +598,7 @@ namespace dmGraphics
             return true;
         }
 
-        VkSurfaceFormatKHR GetSuitableSwapChainFormat(dmArray<VkSurfaceFormatKHR>& availableFormats)
+        static VkSurfaceFormatKHR GetSuitableSwapChainFormat(dmArray<VkSurfaceFormatKHR>& availableFormats)
         {
             if (availableFormats.Size() > 0)
             {
@@ -614,7 +640,7 @@ namespace dmGraphics
         }
 
         // Present modes: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPresentModeKHR.html
-        VkPresentModeKHR GetSuitablePresentMode(dmArray<VkPresentModeKHR>& presentModes)
+        static VkPresentModeKHR GetSuitablePresentMode(dmArray<VkPresentModeKHR>& presentModes)
         {
             VkPresentModeKHR mode_most_suitable = VK_PRESENT_MODE_FIFO_KHR;
 
@@ -635,7 +661,7 @@ namespace dmGraphics
             return mode_most_suitable;
         }
 
-        VkExtent2D GetSwapChainExtent(VkSurfaceCapabilitiesKHR capabilities, uint32_t wantedWidth, uint32_t wantedHeight)
+        static VkExtent2D GetSwapChainExtent(VkSurfaceCapabilitiesKHR capabilities, uint32_t wantedWidth, uint32_t wantedHeight)
         {
             VkExtent2D extent_current = capabilities.currentExtent;
 
@@ -660,7 +686,7 @@ namespace dmGraphics
             return g_vk_context.m_SwapChainImageExtent;
         }
 
-        bool CreateSwapChain(uint32_t wantedWidth, uint32_t wantedHeight)
+        static bool CreateSwapChain(uint32_t wantedWidth, uint32_t wantedHeight)
         {
             SwapChainSupport swap_chain_support;
             GetSwapChainSupport(g_vk_context.m_PhysicalDevice, swap_chain_support);
@@ -753,7 +779,7 @@ namespace dmGraphics
             return true;
         }
 
-        bool CreateSwapChainImageViews()
+        static bool CreateSwapChainImageViews()
         {
             uint32_t num_views = g_vk_context.m_SwapChainImages.Size();
 
@@ -792,7 +818,7 @@ namespace dmGraphics
             return true;
         }
 
-        VkFormat GetSupportedFormat(VkFormat* formatCandidates, uint32_t numFormatCandidates,
+        static VkFormat GetSupportedFormat(VkFormat* formatCandidates, uint32_t numFormatCandidates,
             VkImageTiling tilingType, VkFormatFeatureFlags formatFlags)
         {
             #define HAS_FLAG(v,flag) ((v & flag) == flag)
@@ -816,7 +842,7 @@ namespace dmGraphics
             return VK_FORMAT_UNDEFINED;
         }
 
-        VkFormat GetSuitableDepthFormat()
+        static VkFormat GetSuitableDepthFormat()
         {
             // Depth formats are optional, so we need to query
             // what available formats we have.
@@ -833,7 +859,7 @@ namespace dmGraphics
                 VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
         }
 
-        RenderPass CreateRenderPass(RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment)
+        static RenderPass CreateRenderPass(RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment)
         {
             RenderPass rp;
 
@@ -914,7 +940,7 @@ namespace dmGraphics
             return rp;
         }
 
-        void CreateMainRenderPass()
+        static void CreateMainRenderPass()
         {
             VkFormat format_color = g_vk_context.m_SwapChainImageFormat;
             VkFormat format_depth = GetSuitableDepthFormat();
@@ -930,7 +956,7 @@ namespace dmGraphics
             g_vk_context.m_MainRenderPass = CreateRenderPass(attachments,1,&attachments[1]);
         }
 
-        void CreateCommandBuffer(VkCommandBuffer* commandBuffersOut, uint8_t numBuffersToCreate, VkCommandPool commandPool)
+        static void CreateCommandBuffer(VkCommandBuffer* commandBuffersOut, uint8_t numBuffersToCreate, VkCommandPool commandPool)
         {
             VkCommandBufferAllocateInfo buffers_allocate_info;
             VK_ZERO_MEMORY(&buffers_allocate_info,sizeof(VkCommandBufferAllocateInfo));
@@ -943,7 +969,7 @@ namespace dmGraphics
             VK_CHECK(vkAllocateCommandBuffers(g_vk_context.m_LogicalDevice, &buffers_allocate_info, commandBuffersOut));
         }
 
-        int32_t FindMemoryTypeIndex(uint32_t typeFilter, VkMemoryPropertyFlags propertyFlag)
+        static int32_t FindMemoryTypeIndex(uint32_t typeFilter, VkMemoryPropertyFlags propertyFlag)
         {
             #define HAS_FLAG(v,flag) ((v & flag) == flag)
 
@@ -963,7 +989,7 @@ namespace dmGraphics
             return -1;
         }
 
-        void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
+        static void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
         {
             VkCommandBuffer vk_command_buffer;
             CreateCommandBuffer(&vk_command_buffer, 1, g_vk_context.m_MainCommandPool);
@@ -1076,7 +1102,7 @@ namespace dmGraphics
             }
         }
 
-        Pipeline CreatePipeline(Program* program, VertexBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration)
+        static Pipeline CreatePipeline(Program* program, VertexBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration)
         {
             Pipeline new_pipeline;
 
@@ -1248,7 +1274,7 @@ namespace dmGraphics
             return new_pipeline;
         }
 
-        Pipeline* GetPipeline(Program* program, VertexBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration)
+        static Pipeline* GetPipeline(Program* program, VertexBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration)
         {
             HashState64 pipeline_hash_state;
             dmHashInit64(&pipeline_hash_state, false);
@@ -1269,7 +1295,7 @@ namespace dmGraphics
             return cached_pipeline;
         }
 
-        bool CreateImage2D(unsigned int imageWidth, unsigned int imageHeight,
+        static bool CreateImage2D(unsigned int imageWidth, unsigned int imageHeight,
             VkFormat imageFormat, VkImageTiling imageTiling,
             VkImageUsageFlags imageUsage, VkMemoryPropertyFlags memoryProperties,
             VkImage* imagePtr, GPUMemory* memoryPtr)
@@ -1336,7 +1362,7 @@ namespace dmGraphics
             return true;
         }
 
-        Texture CreateDepthTexture(uint32_t width, uint32_t height, VkFormat format)
+        static Texture CreateDepthTexture(uint32_t width, uint32_t height, VkFormat format)
         {
             Texture depth_texture;
             VK_ZERO_MEMORY(&depth_texture,sizeof(depth_texture));
@@ -1371,7 +1397,7 @@ namespace dmGraphics
             return depth_texture;
         }
 
-        void CreateMainDepthBuffer()
+        static void CreateMainDepthBuffer()
         {
             g_vk_context.m_MainDepthBuffer = CreateDepthTexture(
                 g_vk_context.m_SwapChainImageExtent.width,
@@ -1379,7 +1405,7 @@ namespace dmGraphics
                 GetSuitableDepthFormat());
         }
 
-        void CreateMainFrameBuffers()
+        static void CreateMainFrameBuffers()
         {
             // We need to create a framebuffer per swap chain image
             // so that they can be used in different states in the rendering pipeline
@@ -1410,7 +1436,7 @@ namespace dmGraphics
             }
         }
 
-        void CreateMainCommandPool()
+        static void CreateMainCommandPool()
         {
             QueueFamily vk_queue_family = GetQueueFamily(g_vk_context.m_PhysicalDevice);
 
@@ -1424,7 +1450,7 @@ namespace dmGraphics
             VK_CHECK(vkCreateCommandPool(g_vk_context.m_LogicalDevice, &vk_create_pool_info, 0, &g_vk_context.m_MainCommandPool));
         }
 
-        void CreateMainCommandBuffer()
+        static void CreateMainCommandBuffer()
         {
             g_vk_context.m_MainCommandBuffers.SetCapacity(g_vk_context.m_SwapChainImages.Size());
             g_vk_context.m_MainCommandBuffers.SetSize(g_vk_context.m_SwapChainImages.Size());
@@ -1434,17 +1460,20 @@ namespace dmGraphics
                 g_vk_context.m_MainCommandPool);
         }
 
-        void CreateMainDescriptorPool()
+        static void CreateMainDescriptorPool()
         {
             // NOTE: This needs further investigation! Not sure how to deal with descriptor pools correctly..
-            VkDescriptorPoolSize vk_pool_size[2];
+            VkDescriptorPoolSize vk_pool_size[3];
             VK_ZERO_MEMORY(vk_pool_size, sizeof(vk_pool_size));
 
             vk_pool_size[0].type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             vk_pool_size[0].descriptorCount = g_vk_context.m_SwapChainImages.Size();
 
-            vk_pool_size[1].type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            vk_pool_size[1].type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
             vk_pool_size[1].descriptorCount = g_vk_context.m_SwapChainImages.Size();
+
+            vk_pool_size[2].type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            vk_pool_size[2].descriptorCount = g_vk_context.m_SwapChainImages.Size();
 
             VkDescriptorPoolCreateInfo vk_pool_create_info;
             VK_ZERO_MEMORY(&vk_pool_create_info, sizeof(VkDescriptorPoolCreateInfo));
@@ -1452,12 +1481,12 @@ namespace dmGraphics
             vk_pool_create_info.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
             vk_pool_create_info.poolSizeCount = sizeof(vk_pool_size) / sizeof(VkDescriptorPoolSize);
             vk_pool_create_info.pPoolSizes    = vk_pool_size;
-            vk_pool_create_info.maxSets       = g_vk_context.m_SwapChainImages.Size();
+            vk_pool_create_info.maxSets       = g_vk_context.m_MaxDescriptorSets;
 
             VK_CHECK(vkCreateDescriptorPool(g_vk_context.m_LogicalDevice, &vk_pool_create_info, 0, &g_vk_context.m_DescriptorPool) != VK_SUCCESS)
         }
 
-        bool Initialize()
+        static bool Initialize()
         {
             g_vk_context.m_ApplicationInfo;
             VK_ZERO_MEMORY(&g_vk_context.m_ApplicationInfo, sizeof(g_vk_context.m_ApplicationInfo));
@@ -1480,6 +1509,8 @@ namespace dmGraphics
 
             // Just set some default value to hold stream descriptors..
             g_vk_context.m_VertexStreamDescriptors.SetCapacity(4);
+            g_vk_context.m_DescriptorSetLayoutBindings.SetCapacity(4);
+            g_vk_context.m_MaxDescriptorSets = 1024; // Note: this should be related to actual uniform count somehow..
 
             // No idea about these numbers!
             g_vk_context.m_PipelineCache.SetCapacity(32,64);
@@ -1557,7 +1588,7 @@ namespace dmGraphics
             return true;
         }
 
-        void CreateMainFrameResources()
+        static void CreateMainFrameResources()
         {
             VkSemaphoreCreateInfo vk_create_semaphore_info;
             VK_ZERO_MEMORY(&vk_create_semaphore_info,sizeof(vk_create_semaphore_info));
@@ -1570,7 +1601,7 @@ namespace dmGraphics
             }
         }
 
-        bool CreateGPUBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
+        static bool CreateGPUBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
             VkMemoryPropertyFlags properties, VkBuffer* bufferObject, GPUMemory* bufferMemory)
         {
             assert(size);
@@ -1614,10 +1645,12 @@ namespace dmGraphics
 
             vkBindBufferMemory(g_vk_context.m_LogicalDevice, *bufferObject, bufferMemory->m_DeviceMemory, 0);
 
+            bufferMemory->m_MemorySize = size;
+
             return true;
         }
 
-        void UploadBufferData(GeometryBuffer* buffer, const void* data, size_t dataSize, size_t dataOffset)
+        static void UploadBufferData(GeometryBuffer* buffer, const void* data, size_t dataSize, size_t dataOffset)
         {
             assert(buffer);
             assert(dataSize);
@@ -1646,7 +1679,7 @@ namespace dmGraphics
             vkUnmapMemory(g_vk_context.m_LogicalDevice, buffer->m_GPUBuffer.m_DeviceMemory);
         }
 
-        ShaderProgram* CreateShaderProgram(const void* source, size_t sourceSize)
+        static ShaderProgram* CreateShaderProgram(const void* source, size_t sourceSize)
         {
             ShaderProgram* program = new ShaderProgram();
 
@@ -1667,35 +1700,43 @@ namespace dmGraphics
             return program;
         }
 
-        void LinkProgram(Program* program)
-        {
-            assert(program);
-
-            VkPipelineShaderStageCreateInfo vk_vertex_shader_create_info;
-            VK_ZERO_MEMORY(&vk_vertex_shader_create_info,sizeof(vk_vertex_shader_create_info));
-
-            vk_vertex_shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-            vk_vertex_shader_create_info.stage  = VK_SHADER_STAGE_VERTEX_BIT;
-            vk_vertex_shader_create_info.module = program->m_VertexProgram->m_Handle;
-            vk_vertex_shader_create_info.pName  = "main";
-
-            VkPipelineShaderStageCreateInfo vk_fragment_shader_create_info;
-            VK_ZERO_MEMORY(&vk_fragment_shader_create_info,sizeof(VkPipelineShaderStageCreateInfo));
-
-            vk_fragment_shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-            vk_fragment_shader_create_info.stage  = VK_SHADER_STAGE_FRAGMENT_BIT;
-            vk_fragment_shader_create_info.module = program->m_FragmentProgram->m_Handle;
-            vk_fragment_shader_create_info.pName  = "main";
-
-            program->m_ShaderStages[0] = vk_vertex_shader_create_info;
-            program->m_ShaderStages[1] = vk_fragment_shader_create_info;
-        }
-
-        uint16_t GetVertexStreamDescriptorIndex(uint32_t location, VkFormat format, uint32_t offset)
+        static uint16_t GetDescriptorSetLayoutBindingIndex(uint32_t binding, VkDescriptorType type, VkShaderStageFlags stageFlags)
         {
             int32_t index = -1;
 
-            for (uint32_t i=0; i < g_vk_context.m_VertexStreamDescriptors.Size(); i++)
+            for (uint16_t i=0; i < g_vk_context.m_DescriptorSetLayoutBindings.Size(); i++)
+            {
+                VkDescriptorSetLayoutBinding& desc = g_vk_context.m_DescriptorSetLayoutBindings[i];
+
+                if (desc.binding == binding && desc.descriptorType == type && desc.stageFlags == stageFlags)
+                {
+                    index = (int32_t) i;
+                }
+            }
+
+            if (index == -1)
+            {
+                VkDescriptorSetLayoutBinding vk_desc;
+                vk_desc.binding            = binding;
+                vk_desc.descriptorType     = type;
+                vk_desc.descriptorCount    = 1;
+                vk_desc.stageFlags         = stageFlags;
+                vk_desc.pImmutableSamplers = 0;
+
+                index = g_vk_context.m_DescriptorSetLayoutBindings.Size();
+
+                g_vk_context.m_DescriptorSetLayoutBindings.SetCapacity(g_vk_context.m_DescriptorSetLayoutBindings.Capacity() * 2);
+                g_vk_context.m_DescriptorSetLayoutBindings.Push(vk_desc);
+            }
+
+            return index;
+        }
+
+        static uint16_t GetVertexStreamDescriptorIndex(uint32_t location, VkFormat format, uint32_t offset)
+        {
+            int32_t index = -1;
+
+            for (uint16_t i=0; i < g_vk_context.m_VertexStreamDescriptors.Size(); i++)
             {
                 VkVertexInputAttributeDescription& desc = g_vk_context.m_VertexStreamDescriptors[i];
 
@@ -1723,7 +1764,127 @@ namespace dmGraphics
             return (uint16_t) index;
         }
 
-        VertexBuffer* CreateVertexBuffer(const void* data, size_t dataSize)
+        static void InitializeUniforms(Program* program, const ShaderProgram* shader, VkShaderStageFlags stageFlags)
+        {
+            for (uint16_t i=0; i < shader->m_UniformBlocks.Size(); i++)
+            {
+                uint16_t block_size = 0;
+
+                const ShaderUniformBlock& block = shader->m_UniformBlocks[i];
+
+                for (uint16_t u=0; u < block.m_UniformIndicesCount; u++)
+                {
+                    const ShaderUniform& uniform = shader->m_Uniforms[block.m_UniformIndices[u]];
+
+                    uint16_t layout_index = GetDescriptorSetLayoutBindingIndex(uniform.m_Binding,
+                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, stageFlags);
+
+                    program->m_LayoutBindingsIndices.Push(layout_index);
+
+                    block_size += uniform.m_DataSize;
+                }
+
+                CreateGPUBuffer(block_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    (VkBuffer*) &block.m_Handle, (GPUMemory*) &block.m_GPUBuffer);
+
+                // Note: This cast is for the const qualifier, need to fix this..
+                ((ShaderUniformBlock*) &shader->m_UniformBlocks[i])->m_UniformData = malloc(block_size);
+            }
+        }
+
+        static void CommitUniforms(Program* program, const ShaderProgram* shader)
+        {
+            for (uint16_t i=0; i < shader->m_UniformBlocks.Size(); i++)
+            {
+                const ShaderUniformBlock& block = shader->m_UniformBlocks[i];
+
+                VkDescriptorBufferInfo vk_buffer_info;
+                vk_buffer_info.buffer = block.m_Handle;
+                vk_buffer_info.offset = 0;
+                vk_buffer_info.range  = block.m_GPUBuffer.m_MemorySize;
+
+                VkWriteDescriptorSet vk_write_desc_info;
+
+                VK_ZERO_MEMORY(&vk_write_desc_info, sizeof(vk_write_desc_info));
+
+                vk_write_desc_info.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                vk_write_desc_info.dstSet          = program->m_DescriptorSet;
+                vk_write_desc_info.dstBinding      = block.m_Binding;
+                vk_write_desc_info.dstArrayElement = 0;
+                vk_write_desc_info.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                vk_write_desc_info.descriptorCount = 1;
+                vk_write_desc_info.pBufferInfo     = &vk_buffer_info;
+
+                vkUpdateDescriptorSets(g_vk_context.m_LogicalDevice, 1, &vk_write_desc_info, 0, 0);
+            }
+        }
+
+        static void InitializeProgram(Program* program)
+        {
+            program->m_LayoutBindingsIndices.SetCapacity(
+                program->m_VertexProgram->m_UniformBlocks.Size() +
+                program->m_FragmentProgram->m_UniformBlocks.Size());
+
+            InitializeUniforms(program, program->m_VertexProgram, VK_SHADER_STAGE_VERTEX_BIT);
+            InitializeUniforms(program, program->m_FragmentProgram, VK_SHADER_STAGE_FRAGMENT_BIT);
+
+            VkDescriptorSetLayoutBinding* vk_layout_bindings = new VkDescriptorSetLayoutBinding[program->m_LayoutBindingsIndices.Size()];
+            FillDescriptorSetLayoutBindings(vk_layout_bindings, program);
+
+            // create descriptor layouts
+            VkDescriptorSetLayout vk_descriptor_set_layout;
+            VK_ZERO_MEMORY(&vk_descriptor_set_layout, sizeof(vk_descriptor_set_layout));
+
+            VkDescriptorSetLayoutCreateInfo vk_descriptor_layout_create_info;
+            VK_ZERO_MEMORY(&vk_descriptor_layout_create_info,sizeof(VkDescriptorSetLayoutCreateInfo));
+
+            vk_descriptor_layout_create_info.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            vk_descriptor_layout_create_info.bindingCount = program->m_LayoutBindingsIndices.Size();
+            vk_descriptor_layout_create_info.pBindings    = vk_layout_bindings;
+
+            VK_CHECK(vkCreateDescriptorSetLayout(g_vk_context.m_LogicalDevice, &vk_descriptor_layout_create_info, 0, &vk_descriptor_set_layout))
+
+            VkPipelineLayoutCreateInfo vk_pipeline_create_info;
+            VK_ZERO_MEMORY(&vk_pipeline_create_info,sizeof(vk_pipeline_create_info));
+
+            // Create actual descriptor sets
+            VkDescriptorSetAllocateInfo vk_descriptor_set_allocate_layout;
+            VK_ZERO_MEMORY(&vk_descriptor_set_allocate_layout, sizeof(vk_descriptor_set_layout));
+
+            vk_descriptor_set_allocate_layout.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+            vk_descriptor_set_allocate_layout.descriptorPool     = g_vk_context.m_DescriptorPool;
+            vk_descriptor_set_allocate_layout.descriptorSetCount = 1;
+            vk_descriptor_set_allocate_layout.pSetLayouts        = &vk_descriptor_set_layout;
+            VK_CHECK(vkAllocateDescriptorSets(g_vk_context.m_LogicalDevice, &vk_descriptor_set_allocate_layout, &program->m_DescriptorSet));
+
+            CommitUniforms(program, program->m_VertexProgram);
+            CommitUniforms(program, program->m_FragmentProgram);
+
+            // Set pipeline creation info
+            VkPipelineShaderStageCreateInfo vk_vertex_shader_create_info;
+            VK_ZERO_MEMORY(&vk_vertex_shader_create_info,sizeof(vk_vertex_shader_create_info));
+
+            vk_vertex_shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            vk_vertex_shader_create_info.stage  = VK_SHADER_STAGE_VERTEX_BIT;
+            vk_vertex_shader_create_info.module = program->m_VertexProgram->m_Handle;
+            vk_vertex_shader_create_info.pName  = "main";
+
+            VkPipelineShaderStageCreateInfo vk_fragment_shader_create_info;
+            VK_ZERO_MEMORY(&vk_fragment_shader_create_info,sizeof(VkPipelineShaderStageCreateInfo));
+
+            vk_fragment_shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            vk_fragment_shader_create_info.stage  = VK_SHADER_STAGE_FRAGMENT_BIT;
+            vk_fragment_shader_create_info.module = program->m_FragmentProgram->m_Handle;
+            vk_fragment_shader_create_info.pName  = "main";
+
+            program->m_ShaderStages[0] = vk_vertex_shader_create_info;
+            program->m_ShaderStages[1] = vk_fragment_shader_create_info;
+
+            delete[] vk_layout_bindings;
+        }
+
+        static inline VertexBuffer* CreateVertexBuffer(const void* data, size_t dataSize)
         {
             VertexBuffer* new_buffer = new VertexBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
@@ -1735,7 +1896,7 @@ namespace dmGraphics
             return new_buffer;
         }
 
-        void DeleteVertexBuffer(VertexBuffer* vxb)
+        static inline void DeleteVertexBuffer(VertexBuffer* vxb)
         {
             assert(vxb);
             vkDestroyBuffer(g_vk_context.m_LogicalDevice, vxb->m_Handle, 0);
@@ -1744,7 +1905,7 @@ namespace dmGraphics
             delete vxb;
         }
 
-        IndexBuffer* CreateIndexBuffer(const void* data, size_t dataSize)
+        static inline IndexBuffer* CreateIndexBuffer(const void* data, size_t dataSize)
         {
             IndexBuffer* new_buffer = new IndexBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
@@ -1753,7 +1914,7 @@ namespace dmGraphics
             return new_buffer;
         }
 
-        void DeleteIndexBuffer(IndexBuffer* ixb)
+        static inline void DeleteIndexBuffer(IndexBuffer* ixb)
         {
             assert(ixb);
             vkDestroyBuffer(g_vk_context.m_LogicalDevice, ixb->m_Handle, 0);
@@ -1762,10 +1923,37 @@ namespace dmGraphics
             delete ixb;
         }
 
+        static inline void SetUniformValue(const ShaderProgram* shader, uint16_t uniformIndex, void* data, size_t data_size)
+        {
+            const dmArray<ShaderUniformBlock>& blocks = shader->m_UniformBlocks;
+            const ShaderUniform& u                    = shader->m_Uniforms[uniformIndex];
+
+            // Find the uniform blocks that hold the data for a specific uniform
+            // Note: We might want to rearrange this relationship later..
+            for (uint32_t i=0; i < blocks.Size(); i++)
+            {
+                for (uint32_t u=0; u < blocks[i].m_UniformIndicesCount; u++)
+                {
+                    uint16_t block_index = blocks[i].m_UniformIndices[u];
+
+                    if (block_index == uniformIndex)
+                    {
+                        memcpy(blocks[i].m_UniformData, data, data_size);
+                    }
+                }
+            }
+        }
+
         static inline void BindPipeline(Pipeline* pipeline)
         {
             vkCmdBindPipeline(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx],
                 VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->m_Handle);
+        }
+
+        static inline void BindDescriptorSet(Pipeline* pipeline, Program* program)
+        {
+            vkCmdBindDescriptorSets(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx],
+                VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->m_Layout, 0, 1, &program->m_DescriptorSet, 0, 0);
         }
 
         static inline void BindVertexBuffer(VertexBuffer* vertexBuffer)
@@ -1803,7 +1991,7 @@ namespace dmGraphics
             g_vk_context.m_MainViewport.height = height;
         }
 
-        bool OpenWindow(WindowParams* params)
+        static bool OpenWindow(WindowParams* params)
         {
             if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, GLFW_WINDOW))
             {
@@ -1864,7 +2052,7 @@ namespace dmGraphics
             return true;
         }
 
-        void Clear(float r, float g, float b, float a, float d, float s)
+        static void Clear(float r, float g, float b, float a, float d, float s)
         {
         	VkClearRect vk_clear_rect;
         	vk_clear_rect.rect.offset.x      = 0;
@@ -1896,7 +2084,7 @@ namespace dmGraphics
 			    2, vk_clear_attachments, 1, &vk_clear_rect);
         }
 
-        void BeginFrame()
+        static void BeginFrame()
         {
         	uint32_t* vk_frame_image_ptr = (uint32_t*) &g_vk_context.m_CurrentFrameImageIx;
         	uint32_t  vk_frame_image     = 0;
@@ -1930,7 +2118,7 @@ namespace dmGraphics
 		    vkCmdBeginRenderPass(g_vk_context.m_MainCommandBuffers[vk_frame_image], &vk_render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
         }
 
-        void EndFrame()
+        static void EndFrame()
         {
             FrameResource& current_frame_resource = g_vk_context.m_FrameResources[g_vk_context.m_CurrentFrameInFlight];
 
@@ -2459,7 +2647,7 @@ namespace dmGraphics
             vd->m_Streams[i].m_Size         = element[i].m_Size;
             vd->m_Streams[i].m_Type         = element[i].m_Type;
             vd->m_Streams[i].m_Offset       = vd->m_Stride;
-            vd->m_Stride += element[i].m_Size * GetTypeSize(element[i].m_Type);
+            vd->m_Stride += element[i].m_Size * GetTypeSize(element[i].m_Type); //TYPE_SIZE[element[i].m_Type];
 
             VkFormat vk_format = GetVulkanFormatFromTypeAndSize(vd->m_Streams[i].m_Type,vd->m_Streams[i].m_Size);
 
@@ -2503,6 +2691,8 @@ namespace dmGraphics
 
         Vulkan::BindPipeline(pipeline);
 
+        Vulkan::BindDescriptorSet(pipeline, (Vulkan::Program*) context->m_CurrentProgram);
+
         Vulkan::BindVertexBuffer((Vulkan::VertexBuffer*) context->m_CurrentVertexBuffer);
 
         // Note: Do we need to defer index binding or can we bind in-place?
@@ -2521,6 +2711,12 @@ namespace dmGraphics
                 assert(0 && "Invalid index buffer type");
             }
         }
+        /*
+        else
+        {
+            Vulkan::BindIndexBuffer(0);
+        }
+        */
     }
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
@@ -2604,7 +2800,7 @@ namespace dmGraphics
         Vulkan::Program* new_program = new Vulkan::Program(
             (const Vulkan::ShaderProgram*) vertex_program,
             (const Vulkan::ShaderProgram*) fragment_program);
-        Vulkan::LinkProgram(new_program);
+        Vulkan::InitializeProgram(new_program);
 
         return (HProgram) new_program;
     }
@@ -2614,16 +2810,116 @@ namespace dmGraphics
         // TODO
     }
 
+    static inline uint8_t GetSizeFromUniformType(ShaderDesc::UniformType type)
+    {
+        switch(type)
+        {
+            case(ShaderDesc::UNIFORM_TYPE_VEC2):
+                return sizeof(float) * 2;
+            case(ShaderDesc::UNIFORM_TYPE_VEC3):
+                return sizeof(float) * 3;
+            case(ShaderDesc::UNIFORM_TYPE_VEC4):
+                return sizeof(float) * 4;
+            case(ShaderDesc::UNIFORM_TYPE_MAT2):
+                return sizeof(float) * 4;
+            case(ShaderDesc::UNIFORM_TYPE_MAT3):
+                return sizeof(float) * 9;
+            case(ShaderDesc::UNIFORM_TYPE_MAT4):
+                return sizeof(float) * 16;
+            case(ShaderDesc::UNIFORM_TYPE_SAMPLER2D):
+                return sizeof(uint32_t);
+            default:
+                assert(0 && "Invalid uniform type");
+        }
+        return 0;
+    }
+
+    static inline Type GetGraphicsTypeFromUniformType(ShaderDesc::UniformType type)
+    {
+        switch(type)
+        {
+            case(ShaderDesc::UNIFORM_TYPE_VEC4):
+                return TYPE_FLOAT_VEC4;
+            case(ShaderDesc::UNIFORM_TYPE_MAT4):
+                return TYPE_FLOAT_MAT4;
+            case(ShaderDesc::UNIFORM_TYPE_SAMPLER2D):
+                return TYPE_SAMPLER_2D;
+            default:break;
+        }
+
+        // Note: Not that great mapping of uniform types. Very limiting.
+        return TYPE_FLOAT;
+    }
+
     HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
     {
         assert(ddf);
-        return (HVertexProgram) Vulkan::CreateShaderProgram(ddf->m_Binary.m_Data,ddf->m_Binary.m_Count);
+        Vulkan::ShaderProgram* new_shader = Vulkan::CreateShaderProgram(ddf->m_Binary.m_Data,ddf->m_Binary.m_Count);
+
+        new_shader->m_Uniforms.SetCapacity(ddf->m_Uniforms.m_Count);
+        new_shader->m_Uniforms.SetSize(ddf->m_Uniforms.m_Count);
+        new_shader->m_UniformBlocks.SetCapacity(ddf->m_UniformBlocks.m_Count);
+        new_shader->m_UniformBlocks.SetSize(ddf->m_UniformBlocks.m_Count);
+
+        for (uint32_t i=0; i < ddf->m_Uniforms.m_Count; i++)
+        {
+            new_shader->m_Uniforms[i].m_Set         = ddf->m_Uniforms[i].m_Set;
+            new_shader->m_Uniforms[i].m_Binding     = ddf->m_Uniforms[i].m_Binding;
+            new_shader->m_Uniforms[i].m_BlockOffset = ddf->m_Uniforms[i].m_Offset;
+            new_shader->m_Uniforms[i].m_Name        = ddf->m_Uniforms[i].m_Name;
+            new_shader->m_Uniforms[i].m_DataType    = GetGraphicsTypeFromUniformType(ddf->m_Uniforms[i].m_Type);
+            new_shader->m_Uniforms[i].m_DataSize    = GetSizeFromUniformType(ddf->m_Uniforms[i].m_Type);
+        }
+
+        for (uint32_t i=0; i < ddf->m_UniformBlocks.m_Count; i++)
+        {
+            new_shader->m_UniformBlocks[i].m_Set     = ddf->m_UniformBlocks[i].m_Set;
+            new_shader->m_UniformBlocks[i].m_Binding = ddf->m_UniformBlocks[i].m_Binding;
+            new_shader->m_UniformBlocks[i].m_Name    = ddf->m_UniformBlocks[i].m_Name;
+
+            new_shader->m_UniformBlocks[i].m_UniformIndicesCount = ddf->m_UniformBlocks[i].m_UniformIndices.m_Count;
+            new_shader->m_UniformBlocks[i].m_UniformIndices = new uint16_t[ddf->m_UniformBlocks[i].m_UniformIndices.m_Count];
+
+            memcpy(new_shader->m_UniformBlocks[i].m_UniformIndices,ddf->m_UniformBlocks[i].m_UniformIndices.m_Data,sizeof(uint16_t) * ddf->m_UniformBlocks[i].m_UniformIndices.m_Count);
+        }
+
+        return (HVertexProgram) new_shader;
     }
 
     HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
     {
         assert(ddf);
-        return (HVertexProgram) Vulkan::CreateShaderProgram(ddf->m_Binary.m_Data,ddf->m_Binary.m_Count);
+
+        Vulkan::ShaderProgram* new_shader = Vulkan::CreateShaderProgram(ddf->m_Binary.m_Data,ddf->m_Binary.m_Count);
+
+        new_shader->m_Uniforms.SetCapacity(ddf->m_Uniforms.m_Count);
+        new_shader->m_Uniforms.SetSize(ddf->m_Uniforms.m_Count);
+        new_shader->m_UniformBlocks.SetCapacity(ddf->m_UniformBlocks.m_Count);
+        new_shader->m_UniformBlocks.SetSize(ddf->m_UniformBlocks.m_Count);
+
+        for (uint32_t i=0; i < ddf->m_Uniforms.m_Count; i++)
+        {
+            new_shader->m_Uniforms[i].m_Set         = ddf->m_Uniforms[i].m_Set;
+            new_shader->m_Uniforms[i].m_Binding     = ddf->m_Uniforms[i].m_Binding;
+            new_shader->m_Uniforms[i].m_BlockOffset = ddf->m_Uniforms[i].m_Offset;
+            new_shader->m_Uniforms[i].m_Name        = ddf->m_Uniforms[i].m_Name;
+            new_shader->m_Uniforms[i].m_DataType    = GetGraphicsTypeFromUniformType(ddf->m_Uniforms[i].m_Type);
+            new_shader->m_Uniforms[i].m_DataSize    = GetSizeFromUniformType(ddf->m_Uniforms[i].m_Type);
+        }
+
+        for (uint32_t i=0; i < ddf->m_UniformBlocks.m_Count; i++)
+        {
+            new_shader->m_UniformBlocks[i].m_Set     = ddf->m_UniformBlocks[i].m_Set;
+            new_shader->m_UniformBlocks[i].m_Binding = ddf->m_UniformBlocks[i].m_Binding;
+            new_shader->m_UniformBlocks[i].m_Name    = ddf->m_UniformBlocks[i].m_Name;
+
+            new_shader->m_UniformBlocks[i].m_UniformIndicesCount = ddf->m_UniformBlocks[i].m_UniformIndices.m_Count;
+            new_shader->m_UniformBlocks[i].m_UniformIndices = new uint16_t[ddf->m_UniformBlocks[i].m_UniformIndices.m_Count];
+
+            memcpy(new_shader->m_UniformBlocks[i].m_UniformIndices,ddf->m_UniformBlocks[i].m_UniformIndices.m_Data,sizeof(uint16_t) * ddf->m_UniformBlocks[i].m_UniformIndices.m_Count);
+        }
+
+        return (HFragmentProgram) new_shader;
     }
 
     ShaderDesc::Language GetShaderProgramLanguage(HContext context)
@@ -2681,16 +2977,88 @@ namespace dmGraphics
 
     uint32_t GetUniformCount(HProgram prog)
     {
-        return 0;
+        assert(prog);
+        Vulkan::Program* p = (Vulkan::Program*) prog;
+        return p->m_VertexProgram->m_Uniforms.Size() + p->m_FragmentProgram->m_Uniforms.Size();
     }
 
     void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
-        *type = TYPE_FLOAT_VEC4;
+        Vulkan::Program* p = (Vulkan::Program*) prog;
+        const Vulkan::ShaderProgram* shader;
+
+        if (index < p->m_VertexProgram->m_Uniforms.Size())
+        {
+            shader = p->m_VertexProgram;
+        }
+        else
+        {
+            index -= p->m_VertexProgram->m_Uniforms.Size();
+            shader = p->m_FragmentProgram;
+        }
+
+        Vulkan::ShaderUniform u = shader->m_Uniforms[index];
+        size_t bytes_to_take = dmMath::Min<size_t>(strlen(u.m_Name),buffer_size-1);
+        memcpy(buffer,u.m_Name, bytes_to_take);
+        buffer[bytes_to_take] = '\0';
+        *type = u.m_DataType;
+    }
+
+    /*
+    inline int32_t GetUniformLocationInUniformBlock(const Vulkan::ShaderProgram* shader, const char* name)
+    {
+        const dmArray<Vulkan::ShaderUniformBlock>& blocks = shader->m_UniformBlocks;
+        const dmArray<Vulkan::ShaderUniform>& uniforms = shader->m_Uniforms;
+
+        for (uint32_t i=0; i < blocks.Size(); i++)
+        {
+            for (uint32_t u=0; u < blocks[i].m_UniformIndicesCount; u++)
+            {
+                uint16_t block_index = blocks[i].m_UniformIndices[u];
+
+                if (strcmp(name, uniforms[block_index].m_Name) == 0)
+                {
+                    return i;
+                }
+            }
+        }
+
+        return -1;
+    }
+    */
+
+    inline int32_t GetUniformLocation(const Vulkan::ShaderProgram* shader, const char* name)
+    {
+        const dmArray<Vulkan::ShaderUniform>& uniforms = shader->m_Uniforms;
+
+        for (uint32_t i=0; i < uniforms.Size(); i++)
+        {
+            if (strcmp(name, uniforms[i].m_Name) == 0)
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     int32_t GetUniformLocation(HProgram prog, const char* name)
     {
+        assert(prog);
+        Vulkan::Program* p = (Vulkan::Program*) prog;
+
+        int32_t vx_loc = GetUniformLocation(p->m_VertexProgram, name);
+        int32_t fs_loc = GetUniformLocation(p->m_FragmentProgram, name);
+
+        if (vx_loc >= 0)
+        {
+            return vx_loc;
+        }
+        else if (fs_loc >= 0)
+        {
+            return fs_loc + p->m_VertexProgram->m_Uniforms.Size();
+        }
+
         return -1;
     }
 
@@ -2707,18 +3075,37 @@ namespace dmGraphics
         return context->m_ProgramRegisters[base_register];
     }
 
+    inline void SetConstantValue(void* program, int base_register, void* data, size_t data_size)
+    {
+        Vulkan::Program* p = (Vulkan::Program*) program;
+        const Vulkan::ShaderProgram* shader;
+        uint16_t uniform_index = base_register;
+
+        if (base_register < p->m_VertexProgram->m_Uniforms.Size())
+        {
+            shader = p->m_VertexProgram;
+        }
+        else
+        {
+            shader = p->m_FragmentProgram;
+            uniform_index -= (uint16_t) p->m_VertexProgram->m_Uniforms.Size();
+        }
+
+        Vulkan::SetUniformValue(shader, uniform_index, data, data_size);
+    }
+
     void SetConstantV4(HContext context, const Vector4* data, int base_register)
     {
         assert(context);
         assert(context->m_CurrentProgram != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4));
+        SetConstantValue(context->m_CurrentProgram, base_register, (void*) data, sizeof(Vector4));
     }
 
     void SetConstantM4(HContext context, const Vector4* data, int base_register)
     {
         assert(context);
         assert(context->m_CurrentProgram != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * 4);
+        SetConstantValue(context->m_CurrentProgram, base_register, (void*) data, sizeof(Vector4));
     }
 
     void SetSampler(HContext context, int32_t location, int32_t unit)
