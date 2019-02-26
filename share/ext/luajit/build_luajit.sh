@@ -174,9 +174,23 @@ case $1 in
 			cp -r jit $PREFIX/share/luajit
 			cp ../etc/luajit.1 $PREFIX/share/man/man1
 
+			rm -rf tmp/build
+
 			export DEFOLD_ARCH="64"
 			cmd "/C msvcbuild.bat static gc64 ${CONF_TARGET} "
+			mkdir -p $PREFIX/lib/$CONF_TARGET
+			mkdir -p $PREFIX/bin/$CONF_TARGET
+			mkdir -p $PREFIX/include/luajit-2.0
+			mkdir -p $PREFIX/share
+			mkdir -p $PREFIX/share/lua/5.1
+			mkdir -p $PREFIX/share/luajit/jit
+			mkdir -p $PREFIX/share/man/man1
+			cp libluajit*.lib $PREFIX/lib/$CONF_TARGET
 			cp luajit-${DEFOLD_ARCH}.exe $PREFIX/bin/$CONF_TARGET
+			cp luajit.h lauxlib.h lua.h lua.hpp luaconf.h lualib.h $PREFIX/include/luajit-2.0
+			cp lj.supp $PREFIX/share/luajit
+			cp -r jit $PREFIX/share/luajit
+			cp ../etc/luajit.1 $PREFIX/share/man/man1
 		}
 		;;
 esac
