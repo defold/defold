@@ -1,50 +1,52 @@
 (ns editor.tile-map
-  (:require
-    ;; switch to released version once https://dev.clojure.org/jira/browse/DIMAP-15 has been fixed
-   [clojure.data.int-map-fixed :as int-map]
-   [clojure.string :as s]
-   [dynamo.graph :as g]
-   [editor.colors :as colors]
-   [editor.core :as core]
-   [editor.defold-project :as project]
-   [editor.geom :as geom]
-   [editor.gl :as gl]
-   [editor.gl.pass :as pass]
-   [editor.gl.shader :as shader]
-   [editor.gl.texture :as texture]
-   [editor.gl.vertex2 :as vtx]
-   [editor.graph-util :as gu]
-   [editor.handler :as handler]
-   [editor.material :as material]
-   [editor.math :as math]
-   [editor.outline :as outline]
-   [editor.properties :as properties]
-   [editor.protobuf :as protobuf]
-   [editor.resource :as resource]
-   [editor.resource-node :as resource-node]
-   [editor.scene :as scene]
-   [editor.scene-picking :as scene-picking]
-   [editor.scene-tools :as scene-tools]
-   [editor.tile-map-grid :as tile-map-grid]
-   [editor.tile-source :as tile-source]
-   [editor.types :as types]
-   [editor.ui :as ui]
-   [editor.util :as util]
-   [editor.validation :as validation]
-   [editor.workspace :as workspace]
-   [plumbing.core :as pc])
-  (:import
-   (com.dynamo.tile.proto Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer)
-   (editor.gl.shader ShaderLifecycle)
-   (com.jogamp.opengl GL GL2)
-   (javax.vecmath Point3d Matrix4d Quat4d Vector3d Vector4d)))
+  ;; switch to released version once https://dev.clojure.org/jira/browse/DIMAP-15 has been fixed
+  (:require [clojure.data.int-map-fixed :as int-map]
+            [dynamo.graph :as g]
+            [editor.core :as core]
+            [editor.defold-project :as project]
+            [editor.geom :as geom]
+            [editor.gl :as gl]
+            [editor.gl.pass :as pass]
+            [editor.gl.shader :as shader]
+            [editor.gl.texture :as texture]
+            [editor.gl.vertex2 :as vtx]
+            [editor.graph-util :as gu]
+            [editor.handler :as handler]
+            [editor.material :as material]
+            [editor.outline :as outline]
+            [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.scene :as scene]
+            [editor.scene-picking :as scene-picking]
+            [editor.tile-map-grid :as tile-map-grid]
+            [editor.tile-source :as tile-source]
+            [editor.ui :as ui]
+            [editor.validation :as validation]
+            [editor.workspace :as workspace])
+  (:import [com.dynamo.tile.proto Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer]
+           [editor.gl.shader ShaderLifecycle]
+           [com.jogamp.opengl GL GL2]
+           [javax.vecmath Matrix4d Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
-(defn min-l ^long [^long a ^long b] (Math/min a b))
-(defn max-l ^long [^long a ^long b] (Math/max a b))
-(defn min-d ^double [^double a ^double b] (Math/min a b))
-(defn max-d ^double [^double a ^double b] (Math/max a b))
+(defn- min-l
+  ^long [^long a ^long b]
+  (Math/min a b))
+
+(defn- max-l
+  ^long [^long a ^long b]
+  (Math/max a b))
+
+(defn- max-d
+  ^double [^double a ^double b]
+  (Math/max a b))
+
+(defn- floor-d
+  ^double [^double n]
+  (Math/floor n))
 
 (defn single
   [coll]
@@ -369,21 +371,21 @@
 
 (g/defnk produce-build-targets
   [_node-id resource tile-source material pb-msg dep-build-targets tile-count max-tile-index]
-    (g/precluding-errors
-      [(prop-resource-error :fatal _node-id :tile-source tile-source "Tile Source")
-       (prop-tile-source-range-error _node-id tile-source tile-count max-tile-index)]
-      (let [dep-build-targets (flatten dep-build-targets)
-            deps-by-resource (into {} (map (juxt (comp :resource :resource) :resource) dep-build-targets))
-            dep-resources (map (fn [[label resource]]
-                                 [label (get deps-by-resource resource)])
-                               [[:tile-set tile-source]
-                                [:material material]])]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-tile-map
-          :user-data {:pb-msg pb-msg
-                      :dep-resources dep-resources}
-          :deps dep-build-targets}])))
+  (g/precluding-errors
+    [(prop-resource-error :fatal _node-id :tile-source tile-source "Tile Source")
+     (prop-tile-source-range-error _node-id tile-source tile-count max-tile-index)]
+    (let [dep-build-targets (flatten dep-build-targets)
+          deps-by-resource (into {} (map (juxt (comp :resource :resource) :resource) dep-build-targets))
+          dep-resources (map (fn [[label resource]]
+                               [label (get deps-by-resource resource)])
+                             [[:tile-set tile-source]
+                              [:material material]])]
+      [{:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-tile-map
+        :user-data {:pb-msg pb-msg
+                    :dep-resources dep-resources}
+        :deps dep-build-targets}])))
 
 (g/defnode TileMapNode
   (inherits resource-node/ResourceNode)
@@ -579,18 +581,55 @@
 
 ;; palette
 
-(def ^:const tile-border-size 0.5)
-(def ^:const ideal-tile-size 64)
+(def ^:private ^:const tile-border-size 0.5)
+
+(def ^:private ^:const ideal-tile-size 64)
+
+(def ^:private ^:const edge-offset 100)
+
+(def ^:private clamp-palette-mouse-offset (geom/clamper -0.5 0.5))
 
 (defn- make-palette-transform
-  [tile-source-attributes viewport]
-  (let [{:keys [width height visual-width visual-height]} tile-source-attributes
+  [tile-source-attributes viewport ^Vector3d cursor-screen-pos]
+  (let [{:keys [width
+                height
+                visual-width
+                visual-height
+                tiles-per-row
+                tiles-per-column]} tile-source-attributes
         {:keys [bottom right]} viewport
-        ratio (max-d (/ visual-width right)
-                     (/ visual-height bottom))
-        zoom (+ ratio 0.2)
-        max-zoom (max-d 1.0 (/ ideal-tile-size (max-l width height)))
-        scale (min-d (/ 1.0 zoom) max-zoom)
+        cursor-pos (or cursor-screen-pos
+                       (Vector3d. (* right 0.5) (* height 0.5) 0))
+        scale (-> ideal-tile-size
+                  (/ (max-l width height))
+                  floor-d
+                  (max-d 1.0))
+        palette-width (-> tile-border-size
+                          (* (dec tiles-per-row))
+                          (+ visual-width)
+                          (* scale))
+        palette-height (-> tile-border-size
+                           (* (dec tiles-per-column))
+                           (+ visual-height)
+                           (* scale))
+        max-offset-x (-> palette-width
+                         (- right)
+                         (+ (* 2 edge-offset))
+                         (max-d 0))
+        max-offset-y (-> palette-height
+                         (- bottom)
+                         (+ (* 2 edge-offset))
+                         (max-d 0))
+        mouse-offset-ratio-x (-> (.-x cursor-pos)
+                                 (- edge-offset)
+                                 (/ (- right (* 2 edge-offset)))
+                                 (- 0.5)
+                                 clamp-palette-mouse-offset)
+        mouse-offset-ratio-y (-> (.-y cursor-pos)
+                                 (- edge-offset)
+                                 (/ (- bottom (* 2 edge-offset)))
+                                 (- 0.5)
+                                 clamp-palette-mouse-offset)
         scale-m (doto (Matrix4d.)
                   (.setIdentity)
                   (.set (Vector3d. (* 0.5 right)
@@ -598,8 +637,14 @@
                                    0.0))
                   (.setScale scale))
         trans-m (doto (Matrix4d.)
-                  (.set (Vector3d. (- (* 0.5 visual-width))
-                                   (- (* 0.5 visual-height))
+                  (.set (Vector3d. (-> 0
+                                       (- (* max-offset-x mouse-offset-ratio-x))
+                                       (- (* 0.5 palette-width))
+                                       (/ scale))
+                                   (-> 0
+                                       (- (* max-offset-y mouse-offset-ratio-y))
+                                       (- (* 0.5 palette-height))
+                                       (/ scale))
                                    0.0)))]
     (doto scale-m
       (.mul trans-m))))
@@ -983,9 +1028,9 @@
                 (world-pos->tile cursor-world-pos w h)))))
 
   (output palette-transform g/Any
-          (g/fnk [tile-source-attributes viewport]
+          (g/fnk [tile-source-attributes viewport cursor-screen-pos]
             (when tile-source-attributes
-              (make-palette-transform tile-source-attributes viewport))))
+              (make-palette-transform tile-source-attributes viewport cursor-screen-pos))))
 
   (output palette-tile g/Any produce-palette-tile)
   (output editor-renderables pass/RenderData produce-editor-renderables)
