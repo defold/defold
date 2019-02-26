@@ -207,7 +207,7 @@ platforms:
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
         flags:      ["-fno-exceptions"]
         linkFlags:  ["--pre-js {{dynamo_home}}/share/js-web-pre.js", "--emit-symbol-map", "--llvm-lto", "0", "--memory-init-file", "0"]
-        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "LEGACY_VM_SUPPORT=1", "WASM=0", "BINARYEN_METHOD=\"asmjs\"", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stringToUTF8\",\"ccall\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]"]
+        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "LEGACY_VM_SUPPORT=1", "WASM=0", "BINARYEN_METHOD=\"asmjs\"", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stringToUTF8\",\"ccall\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1"]
         libs:       []
 
     exePrefix:      ''
@@ -240,7 +240,7 @@ platforms:
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
         flags:      ["-fno-exceptions"]
         linkFlags:  ["--pre-js {{dynamo_home}}/share/js-web-pre.js", "--emit-symbol-map", "--llvm-lto", "0", "--memory-init-file", "0"]
-        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "WASM=1", "BINARYEN_METHOD=\"native-wasm\"", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stringToUTF8\",\"ccall\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]", "-s", "BINARYEN_TRAP_MODE='clamp'"]
+        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "WASM=1", "BINARYEN_METHOD=\"native-wasm\"", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stringToUTF8\",\"ccall\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]", "-s", "BINARYEN_TRAP_MODE='clamp'", "ERROR_ON_UNDEFINED_SYMBOLS=1"]
         libs:       []
 
     exePrefix:      ''
