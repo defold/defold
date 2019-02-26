@@ -31,9 +31,9 @@
 (shader/defshader shader-frag-tex-tint
   (varying vec2 var_texcoord0)
   (varying vec4 var_color)
-  (uniform sampler2D texture)
+  (uniform sampler2D texture_sampler)
   (defn void main []
-    (setq gl_FragColor (* var_color (texture2D texture var_texcoord0.xy)))))
+    (setq gl_FragColor (* var_color (texture2D texture_sampler var_texcoord0.xy)))))
 
 (def shader-tex-tint (shader/make-shader ::shader shader-ver-tex-col shader-frag-tex-tint))
 

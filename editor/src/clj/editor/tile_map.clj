@@ -475,9 +475,9 @@
 
 (shader/defshader pos-uv-frag
   (varying vec2 var_texcoord0)
-  (uniform sampler2D texture)
+  (uniform sampler2D texture_sampler)
   (defn void main []
-    (setq gl_FragColor (texture2D texture var_texcoord0.xy))))
+    (setq gl_FragColor (texture2D texture_sampler var_texcoord0.xy))))
 
 (def tex-shader (shader/make-shader ::tex-shader pos-uv-vert pos-uv-frag))
 
