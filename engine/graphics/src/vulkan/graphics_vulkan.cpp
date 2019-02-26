@@ -103,7 +103,7 @@ namespace dmGraphics
         struct GPUMemory
         {
             VkDeviceMemory m_DeviceMemory;
-            size_t         m_MemorySize;
+            size_t         m_DataSize;
         };
 
         struct Texture
@@ -120,7 +120,7 @@ namespace dmGraphics
             , m_Handle(0)
             {
                 m_GPUBuffer.m_DeviceMemory = 0;
-                m_GPUBuffer.m_MemorySize   = 0;
+                m_GPUBuffer.m_DataSize   = 0;
             }
 
             const VkBufferUsageFlags m_Usage;
@@ -143,6 +143,7 @@ namespace dmGraphics
             uint16_t          m_Set;
             uint16_t          m_Binding;
             uint16_t          m_UniformIndicesCount; // Nested dmArray not allowed?
+            uint16_t          m_IsDirty;
             const char*       m_Name;
             void*             m_UniformData;
             uint16_t*         m_UniformIndices;
@@ -733,7 +734,7 @@ namespace dmGraphics
             QueueFamily queue_family = GetQueueFamily(g_vk_context.m_PhysicalDevice);
 
             // Move queue indices over to uint32_t array
-            uint32_t queue_family_indices[2] = {queue_family.m_GraphicsFamily, queue_family.m_PresentFamily};
+            uint32_t queue_family_indices[2] = {(uint32_t) queue_family.m_GraphicsFamily,(uint32_t) queue_family.m_PresentFamily};
 
             // If we have different queues for the different types, we just stick with
             // concurrent mode. An option here would be to do ownership transfers:
@@ -1300,7 +1301,7 @@ namespace dmGraphics
             VkImageUsageFlags imageUsage, VkMemoryPropertyFlags memoryProperties,
             VkImage* imagePtr, GPUMemory* memoryPtr)
         {
-            assert(memoryPtr->m_MemorySize == 0);
+            assert(memoryPtr->m_DataSize == 0);
 
             VkImageFormatProperties vk_format_properties;
 
@@ -1357,7 +1358,7 @@ namespace dmGraphics
 
             vkBindImageMemory(g_vk_context.m_LogicalDevice, *imagePtr, memoryPtr->m_DeviceMemory, 0);
 
-            memoryPtr->m_MemorySize = vk_memory_req.size;
+            memoryPtr->m_DataSize = vk_memory_req.size;
 
             return true;
         }
@@ -1645,7 +1646,7 @@ namespace dmGraphics
 
             vkBindBufferMemory(g_vk_context.m_LogicalDevice, *bufferObject, bufferMemory->m_DeviceMemory, 0);
 
-            bufferMemory->m_MemorySize = size;
+            bufferMemory->m_DataSize = size;
 
             return true;
         }
@@ -1656,7 +1657,7 @@ namespace dmGraphics
             assert(dataSize);
 
             // TODO: Updating data to exisiting buffer is not supported yet..
-            assert(buffer->m_GPUBuffer.m_MemorySize == 0 || buffer->m_GPUBuffer.m_MemorySize == dataSize);
+            assert(buffer->m_GPUBuffer.m_DataSize == 0 || buffer->m_GPUBuffer.m_DataSize == dataSize);
 
             if (buffer->m_Handle == NULL)
             {
@@ -1764,6 +1765,43 @@ namespace dmGraphics
             return (uint16_t) index;
         }
 
+        static void CommitUniforms(Program* program, const ShaderProgram* shader)
+        {
+            for (uint16_t i=0; i < shader->m_UniformBlocks.Size(); i++)
+            {
+                const ShaderUniformBlock& block = shader->m_UniformBlocks[i];
+
+                if (block.m_IsDirty)
+                {
+                    void* gpu_data_ptr;
+                    vkMapMemory(g_vk_context.m_LogicalDevice, block.m_GPUBuffer.m_DeviceMemory, 0, block.m_GPUBuffer.m_DataSize, 0, &gpu_data_ptr);
+                    memcpy(gpu_data_ptr, block.m_UniformData, block.m_GPUBuffer.m_DataSize);
+                    vkUnmapMemory(g_vk_context.m_LogicalDevice, block.m_GPUBuffer.m_DeviceMemory);
+
+                    VkDescriptorBufferInfo vk_buffer_info;
+                    vk_buffer_info.buffer = block.m_Handle;
+                    vk_buffer_info.offset = 0;
+                    vk_buffer_info.range  = block.m_GPUBuffer.m_DataSize;
+
+                    VkWriteDescriptorSet vk_write_desc_info;
+
+                    VK_ZERO_MEMORY(&vk_write_desc_info, sizeof(vk_write_desc_info));
+
+                    vk_write_desc_info.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                    vk_write_desc_info.dstSet          = program->m_DescriptorSet;
+                    vk_write_desc_info.dstBinding      = block.m_Binding;
+                    vk_write_desc_info.dstArrayElement = 0;
+                    vk_write_desc_info.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                    vk_write_desc_info.descriptorCount = 1;
+                    vk_write_desc_info.pBufferInfo     = &vk_buffer_info;
+
+                    vkUpdateDescriptorSets(g_vk_context.m_LogicalDevice, 1, &vk_write_desc_info, 0, 0);
+
+                    ((ShaderUniformBlock*) &shader->m_UniformBlocks[i])->m_IsDirty = 0;
+                }
+            }
+        }
+
         static void InitializeUniforms(Program* program, const ShaderProgram* shader, VkShaderStageFlags stageFlags)
         {
             for (uint16_t i=0; i < shader->m_UniformBlocks.Size(); i++)
@@ -1790,33 +1828,7 @@ namespace dmGraphics
 
                 // Note: This cast is for the const qualifier, need to fix this..
                 ((ShaderUniformBlock*) &shader->m_UniformBlocks[i])->m_UniformData = malloc(block_size);
-            }
-        }
-
-        static void CommitUniforms(Program* program, const ShaderProgram* shader)
-        {
-            for (uint16_t i=0; i < shader->m_UniformBlocks.Size(); i++)
-            {
-                const ShaderUniformBlock& block = shader->m_UniformBlocks[i];
-
-                VkDescriptorBufferInfo vk_buffer_info;
-                vk_buffer_info.buffer = block.m_Handle;
-                vk_buffer_info.offset = 0;
-                vk_buffer_info.range  = block.m_GPUBuffer.m_MemorySize;
-
-                VkWriteDescriptorSet vk_write_desc_info;
-
-                VK_ZERO_MEMORY(&vk_write_desc_info, sizeof(vk_write_desc_info));
-
-                vk_write_desc_info.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-                vk_write_desc_info.dstSet          = program->m_DescriptorSet;
-                vk_write_desc_info.dstBinding      = block.m_Binding;
-                vk_write_desc_info.dstArrayElement = 0;
-                vk_write_desc_info.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-                vk_write_desc_info.descriptorCount = 1;
-                vk_write_desc_info.pBufferInfo     = &vk_buffer_info;
-
-                vkUpdateDescriptorSets(g_vk_context.m_LogicalDevice, 1, &vk_write_desc_info, 0, 0);
+                ((ShaderUniformBlock*) &shader->m_UniformBlocks[i])->m_IsDirty = 1;
             }
         }
 
@@ -1923,6 +1935,12 @@ namespace dmGraphics
             delete ixb;
         }
 
+        static inline void UpdateUniforms(Program* program)
+        {
+            CommitUniforms(program,program->m_VertexProgram);
+            CommitUniforms(program,program->m_FragmentProgram);
+        }
+
         static inline void SetUniformValue(const ShaderProgram* shader, uint16_t uniformIndex, void* data, size_t data_size)
         {
             const dmArray<ShaderUniformBlock>& blocks = shader->m_UniformBlocks;
@@ -1939,6 +1957,8 @@ namespace dmGraphics
                     if (block_index == uniformIndex)
                     {
                         memcpy(blocks[i].m_UniformData, data, data_size);
+
+                        ((ShaderUniformBlock*) &blocks[i])->m_IsDirty = 1;
                     }
                 }
             }
@@ -2684,14 +2704,18 @@ namespace dmGraphics
 
     static inline void DrawSetup(HContext context)
     {
+        Vulkan::Program* program = (Vulkan::Program*) context->m_CurrentProgram;
+
         Vulkan::Pipeline* pipeline = Vulkan::GetPipeline(
             (Vulkan::Program*) context->m_CurrentProgram,
             (Vulkan::VertexBuffer*) context->m_CurrentVertexBuffer,
             (HVertexDeclaration) context->m_CurrentVertexDeclaration);
 
+        Vulkan::UpdateUniforms(program);
+
         Vulkan::BindPipeline(pipeline);
 
-        Vulkan::BindDescriptorSet(pipeline, (Vulkan::Program*) context->m_CurrentProgram);
+        Vulkan::BindDescriptorSet(pipeline, program);
 
         Vulkan::BindVertexBuffer((Vulkan::VertexBuffer*) context->m_CurrentVertexBuffer);
 
@@ -2711,12 +2735,6 @@ namespace dmGraphics
                 assert(0 && "Invalid index buffer type");
             }
         }
-        /*
-        else
-        {
-            Vulkan::BindIndexBuffer(0);
-        }
-        */
     }
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
@@ -2732,64 +2750,6 @@ namespace dmGraphics
         context->m_CurrentIndexBuffer = 0;
         DrawSetup(context);
         Vulkan::Draw(first,count);
-    }
-
-    struct VertexProgram
-    {
-        char* m_Data;
-    };
-
-    struct FragmentProgram
-    {
-        char* m_Data;
-    };
-
-    static void NullUniformCallback(const char* name, uint32_t name_length, dmGraphics::Type type, uintptr_t userdata);
-
-    struct Uniform
-    {
-        Uniform() : m_Name(0) {};
-        char* m_Name;
-        uint32_t m_Index;
-        Type m_Type;
-    };
-
-    struct Program
-    {
-        Program(VertexProgram* vp, FragmentProgram* fp)
-        {
-            m_Uniforms.SetCapacity(16);
-            m_VP = vp;
-            m_FP = fp;
-            if (m_VP != 0x0)
-                GLSLUniformParse(m_VP->m_Data, NullUniformCallback, (uintptr_t)this);
-            if (m_FP != 0x0)
-                GLSLUniformParse(m_FP->m_Data, NullUniformCallback, (uintptr_t)this);
-        }
-
-        ~Program()
-        {
-            for(uint32_t i = 0; i < m_Uniforms.Size(); ++i)
-                delete[] m_Uniforms[i].m_Name;
-        }
-
-        VertexProgram* m_VP;
-        FragmentProgram* m_FP;
-        dmArray<Uniform> m_Uniforms;
-    };
-
-    static void NullUniformCallback(const char* name, uint32_t name_length, dmGraphics::Type type, uintptr_t userdata)
-    {
-        Program* program = (Program*) userdata;
-        if(program->m_Uniforms.Full())
-            program->m_Uniforms.OffsetCapacity(16);
-        Uniform uniform;
-        name_length++;
-        uniform.m_Name = new char[name_length];
-        dmStrlCpy(uniform.m_Name, name, name_length);
-        uniform.m_Index = program->m_Uniforms.Size();
-        uniform.m_Type = type;
-        program->m_Uniforms.Push(uniform);
     }
 
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
@@ -2942,17 +2902,13 @@ namespace dmGraphics
     void DeleteVertexProgram(HVertexProgram program)
     {
         assert(program);
-        VertexProgram* p = (VertexProgram*)program;
-        delete [] (char*)p->m_Data;
-        delete p;
+        // TODO: fixme
     }
 
     void DeleteFragmentProgram(HFragmentProgram program)
     {
         assert(program);
-        FragmentProgram* p = (FragmentProgram*)program;
-        delete [] (char*)p->m_Data;
-        delete p;
+        // TODO: fixme
     }
 
     void EnableProgram(HContext context, HProgram program)
@@ -3003,29 +2959,6 @@ namespace dmGraphics
         buffer[bytes_to_take] = '\0';
         *type = u.m_DataType;
     }
-
-    /*
-    inline int32_t GetUniformLocationInUniformBlock(const Vulkan::ShaderProgram* shader, const char* name)
-    {
-        const dmArray<Vulkan::ShaderUniformBlock>& blocks = shader->m_UniformBlocks;
-        const dmArray<Vulkan::ShaderUniform>& uniforms = shader->m_Uniforms;
-
-        for (uint32_t i=0; i < blocks.Size(); i++)
-        {
-            for (uint32_t u=0; u < blocks[i].m_UniformIndicesCount; u++)
-            {
-                uint16_t block_index = blocks[i].m_UniformIndices[u];
-
-                if (strcmp(name, uniforms[block_index].m_Name) == 0)
-                {
-                    return i;
-                }
-            }
-        }
-
-        return -1;
-    }
-    */
 
     inline int32_t GetUniformLocation(const Vulkan::ShaderProgram* shader, const char* name)
     {
