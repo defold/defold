@@ -42,12 +42,10 @@
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/PVRTexLib.dll" "x86_64-win32/lib/PVRTexLib.dll"
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/msvcr120.dll"  "x86_64-win32/lib/msvcr120.dll"
 
-   "${DYNAMO-HOME}/ext/bin/x86_64-linux/luajit-32"            "x86_64-linux/bin/luajit-32"
    "${DYNAMO-HOME}/ext/bin/x86_64-linux/luajit-64"            "x86_64-linux/bin/luajit-64"
    "${DYNAMO-HOME}/ext/lib/x86_64-linux/libPVRTexLib.so"      "x86_64-linux/lib/libPVRTexLib.so"
 
    "${DYNAMO-HOME}/ext/lib/x86_64-darwin/libPVRTexLib.dylib"  "x86_64-darwin/lib/libPVRTexLib.dylib"
-   "${DYNAMO-HOME}/ext/bin/x86_64-darwin/luajit-32"           "x86_64-darwin/bin/luajit-32"
    "${DYNAMO-HOME}/ext/bin/x86_64-darwin/luajit-64"           "x86_64-darwin/bin/luajit-64"
 
    "$DYNAMO_HOME/ext/bin/x86_64-darwin/glslc"                 "x86_64-darwin/glslc"
