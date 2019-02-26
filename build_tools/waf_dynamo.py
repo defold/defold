@@ -303,7 +303,7 @@ def default_flags(self):
                                       '-I%s/system/lib/libcxxabi/include' % EMSCRIPTEN_ROOT]) # gtest uses cxxabi.h and for some reason, emscripten doesn't find it (https://github.com/kripken/emscripten/issues/3484)
 
         # NOTE: Disabled lto for when upgrading to 1.35.23, see https://github.com/kripken/emscripten/issues/3616
-        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]'])
+        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]', '-s','ERROR_ON_UNDEFINED_SYMBOLS=1'])
 
     elif 'as3' == build_util.get_target_architecture() and 'web' == build_util.get_target_os():
         # NOTE: -g set on both C*FLAGS and LINKFLAGS
