@@ -207,8 +207,8 @@ diff -u -r -w LuaJIT-2.1.0-beta3/src/lj_obj.h LuaJIT-2.1.0-beta3b/src/lj_obj.h
  /* Userdata types. */
 diff -u -r -w LuaJIT-2.1.0-beta3/src/msvcbuild.bat LuaJIT-2.1.0-beta3b/src/msvcbuild.bat
 --- LuaJIT-2.1.0-beta3/src/msvcbuild.bat	2017-05-01 21:05:00.000000000 +0200
-+++ LuaJIT-2.1.0-beta3b/src/msvcbuild.bat	2019-02-22 13:51:50.000000000 +0100
-@@ -11,7 +11,62 @@
++++ LuaJIT-2.1.0-beta3b/src/msvcbuild.bat	2019-02-26 17:03:41.000000000 +0100
+@@ -11,7 +11,64 @@
  @rem
  @rem Then cd to this directory and run this script.
  
@@ -259,6 +259,7 @@ diff -u -r -w LuaJIT-2.1.0-beta3/src/msvcbuild.bat LuaJIT-2.1.0-beta3b/src/msvcb
 +@set LIB=%VCINSTALLDIR%\LIB;%VCINSTALLDIR%\ATLMFC\LIB;%WindowsKits%\10\lib\10.0.10240.0\ucrt\x86;%WindowsKits%\NETFXSDK\4.6.1\lib\um\x86;%WindowsSdkDir%\lib\winv6.3\um\x86;
 +@set LIBPATH=C:\WINDOWS\Microsoft.NET\Framework\v4.0.30319;%VCINSTALLDIR%\LIB;%VCINSTALLDIR%\ATLMFC\LIB;%WindowsSdkDir%\References\CommonConfiguration\Neutral;\Microsoft.VCLibs\14.0\References\CommonConfiguration\neutral;
 +@set PATH=%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\TestWindow;C:\Program Files (x86)\MSBuild\14.0\bin;%VSINSTALLDIR%\Common7\IDE\;%VCINSTALLDIR%\BIN;%VSINSTALLDIR%\Common7\Tools;C:\WINDOWS\Microsoft.NET\Framework\v4.0.30319;%VCINSTALLDIR%\VCPackages;
++@set DASC=vm_x86.dasc
 +goto SETUP_VC_DONE
 +
 +:SETUP_VC_64
@@ -267,14 +268,17 @@ diff -u -r -w LuaJIT-2.1.0-beta3/src/msvcbuild.bat LuaJIT-2.1.0-beta3b/src/msvcb
 +@set LIB=%VCINSTALLDIR%\LIB\amd64;%VCINSTALLDIR%\ATLMFC\LIB\amd64;%WindowsKits%\10\lib\10.0.10240.0\ucrt\x64;%WindowsKits%\NETFXSDK\4.6.1\lib\um\x64;%WindowsSdkDir%\lib\winv6.3\um\x64;
 +@set LIBPATH=C:\WINDOWS\Microsoft.NET\Framework64\v4.0.30319;%VCINSTALLDIR%\LIB\amd64;%VCINSTALLDIR%\ATLMFC\LIB\amd64;%WindowsSdkDir%\References\CommonConfiguration\Neutral;\Microsoft.VCLibs\14.0\References\CommonConfiguration\neutral;
 +@set PATH=%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\TestWindow;C:\Program Files (x86)\MSBuild\14.0\bin\amd64;%VSINSTALLDIR%\VC\BIN\amd64;C:\WINDOWS\Microsoft.NET\Framework64\v4.0.30319;%VSINSTALLDIR%\VC\VCPackages;%VSINSTALLDIR%\Common7\IDE;%VSINSTALLDIR%\Common7\Tools;%WindowsSdkDir%\bin\x64;%WindowsSdkDir%\bin\x86;C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\x64\
++@set DASC=vm_x64.dasc
 +goto SETUP_VC_DONE
 +:SETUP_VC_DONE
  
  @setlocal
  @set LJCOMPILE=cl /nologo /c /O2 /W3 /D_CRT_SECURE_NO_DEPRECATE /D_CRT_STDIO_INLINE=__declspec(dllexport)__inline
-@@ -22,87 +77,87 @@
+@@ -20,89 +77,90 @@
+ @set LJLIB=lib /nologo /nodefaultlib
+ @set DASMDIR=..\dynasm
  @set DASM=%DASMDIR%\dynasm.lua
- @set DASC=vm_x86.dasc
+-@set DASC=vm_x86.dasc
  @set LJDLLNAME=lua51.dll
 -@set LJLIBNAME=lua51.lib
 +@set LJLIBNAME=libluajit-5.1.lib
@@ -291,17 +295,20 @@ diff -u -r -w LuaJIT-2.1.0-beta3/src/msvcbuild.bat LuaJIT-2.1.0-beta3b/src/msvcb
  
  @set DASMFLAGS=-D WIN -D JIT -D FFI -D P64
  @set LJARCH=x64
++
++@rem Check for 64 bit host compiler.
  @minilua
 -@if errorlevel 8 goto :X64
 +@if errorlevel 8 goto X64
  @set DASMFLAGS=-D WIN -D JIT -D FFI
  @set LJARCH=x86
  @set LJCOMPILE=%LJCOMPILE% /arch:SSE2
++
  :X64
 -@if "%1" neq "gc64" goto :NOGC64
 +@if "%2" neq "gc64" goto :NOGC64
  @shift
- @set DASC=vm_x64.dasc
+-@set DASC=vm_x64.dasc
  @set LJCOMPILE=%LJCOMPILE% /DLUAJIT_ENABLE_GC64
  :NOGC64
  minilua %DASM% -LN %DASMFLAGS% -o host\buildvm_arch.h %DASC%
@@ -393,7 +400,7 @@ diff -u -r -w LuaJIT-2.1.0-beta3/src/msvcbuild.bat LuaJIT-2.1.0-beta3b/src/msvcb
  
  @del *.obj *.manifest minilua.exe buildvm.exe
  @del host\buildvm_arch.h
-@@ -110,13 +165,13 @@
+@@ -110,13 +168,13 @@
  @echo.
  @echo === Successfully built LuaJIT for Windows/%LJARCH% ===
  
