@@ -1458,6 +1458,7 @@
                                       (get-property view-node :scroll-x)
                                       (get-property view-node :scroll-y)
                                       (get-property view-node :layout)
+                                      (get-property view-node :gesture-start)
                                       (.getDeltaX event)
                                       (.getDeltaY event)))
     (hide-suggestions! view-node)))
