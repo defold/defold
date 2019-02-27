@@ -155,7 +155,7 @@ namespace dmGraphics
             uint16_t  m_Binding;
             uint16_t  m_UniformIndicesCount;
             uint16_t  m_IsDirty;
-            void*     m_UniformData;
+            uint8_t*  m_UniformData;
             uint16_t* m_UniformIndices;
             dmhash_t  m_NameHash;
             VkBuffer  m_Handle;
@@ -1697,7 +1697,7 @@ namespace dmGraphics
 
         static ShaderProgram* CreateShaderProgram(const void* source, size_t sourceSize)
         {
-            ShaderProgram* program = new ShaderProgram();
+            ShaderProgram* shader = new ShaderProgram();
 
             VkShaderModuleCreateInfo vk_create_info_shader;
             VK_ZERO_MEMORY(&vk_create_info_shader, sizeof(vk_create_info_shader));
@@ -1706,14 +1706,37 @@ namespace dmGraphics
             vk_create_info_shader.codeSize = sourceSize;
             vk_create_info_shader.pCode    = (unsigned int*) source;
 
-            VK_CHECK(vkCreateShaderModule( g_vk_context.m_LogicalDevice, &vk_create_info_shader, 0, &program->m_Handle));
+            VK_CHECK(vkCreateShaderModule( g_vk_context.m_LogicalDevice, &vk_create_info_shader, 0, &shader->m_Handle));
 
             HashState64 shader_hash_state;
             dmHashInit64(&shader_hash_state, false);
             dmHashUpdateBuffer64(&shader_hash_state, source, sourceSize);
-            program->m_Hash = dmHashFinal64(&shader_hash_state);
+            shader->m_Hash = dmHashFinal64(&shader_hash_state);
 
-            return program;
+            return shader;
+        }
+
+        static void DeleteShaderProgram(ShaderProgram* shader)
+        {
+            for (uint16_t i=0; i < shader->m_UniformBlocks.Size(); i++)
+            {
+                delete shader->m_UniformBlocks[i].m_UniformIndices;
+            }
+
+            delete shader;
+        }
+
+        static void DeleteProgram(Program* program)
+        {
+            for (uint16_t i=0; i < program->m_UniformBlocks.Size(); i++)
+            {
+                delete program->m_UniformBlocks[i].m_UniformIndices;
+                delete program->m_UniformBlocks[i].m_UniformData;
+                vkDestroyBuffer(g_vk_context.m_LogicalDevice, program->m_UniformBlocks[i].m_Handle, 0);
+                vkFreeMemory(g_vk_context.m_LogicalDevice, program->m_UniformBlocks[i].m_GPUBuffer.m_DeviceMemory, 0);
+            }
+
+            delete program;           
         }
 
         static uint16_t GetDescriptorSetLayoutBindingIndex(uint32_t binding, VkDescriptorType type, VkShaderStageFlags stageFlags)
@@ -1905,7 +1928,7 @@ namespace dmGraphics
                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                     (VkBuffer*) &block.m_Handle, (GPUMemory*) &block.m_GPUBuffer);
 
-                block.m_UniformData = malloc(block_size);
+                block.m_UniformData = new uint8_t[block_size];
                 block.m_IsDirty     = 1;
             }
         }
@@ -1970,14 +1993,14 @@ namespace dmGraphics
 
         static inline VertexBuffer* CreateVertexBuffer(const void* data, size_t dataSize)
         {
-            VertexBuffer* new_buffer = new VertexBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+            GeometryBuffer* new_buffer = new GeometryBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
             if (dataSize)
             {
-                UploadBufferData((GeometryBuffer*) new_buffer, data, dataSize, 0);
+                UploadBufferData(new_buffer, data, dataSize, 0);
             }
 
-            return new_buffer;
+            return (VertexBuffer*)new_buffer;
         }
 
         static inline void DeleteVertexBuffer(VertexBuffer* vxb)
@@ -1991,11 +2014,11 @@ namespace dmGraphics
 
         static inline IndexBuffer* CreateIndexBuffer(const void* data, size_t dataSize)
         {
-            IndexBuffer* new_buffer = new IndexBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+            GeometryBuffer* new_buffer = new GeometryBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
-            UploadBufferData((GeometryBuffer*) new_buffer, data, dataSize, 0);
+            UploadBufferData(new_buffer, data, dataSize, 0);
 
-            return new_buffer;
+            return (IndexBuffer*)new_buffer;
         }
 
         static inline void DeleteIndexBuffer(IndexBuffer* ixb)
@@ -2010,7 +2033,6 @@ namespace dmGraphics
         static inline void SetUniformValue(Program* program, uint16_t uniformIndex, void* data, size_t data_size)
         {
             dmArray<ProgramUniformBlock>& blocks = program->m_UniformBlocks;
-            ShaderUniform& u                     = program->m_Uniforms[uniformIndex];
 
             // Find the uniform blocks that hold the data for a specific uniform
             // Note: We might want to rearrange this relationship later..
@@ -2832,7 +2854,9 @@ namespace dmGraphics
 
     void DeleteProgram(HContext context, HProgram program)
     {
-        // TODO
+        assert(program);
+        Vulkan::Program* p = (Vulkan::Program*) program;
+        Vulkan::DeleteProgram(p);
     }
 
     static inline uint8_t GetSizeFromUniformType(ShaderDesc::UniformType type)
@@ -2947,13 +2971,15 @@ namespace dmGraphics
     void DeleteVertexProgram(HVertexProgram program)
     {
         assert(program);
-        // TODO: fixme
+        Vulkan::ShaderProgram* shader = (Vulkan::ShaderProgram*) program;
+        Vulkan::DeleteShaderProgram(shader);
     }
 
     void DeleteFragmentProgram(HFragmentProgram program)
     {
         assert(program);
-        // TODO: fixme
+        Vulkan::ShaderProgram* shader = (Vulkan::ShaderProgram*) program;
+        Vulkan::DeleteShaderProgram(shader);
     }
 
     void EnableProgram(HContext context, HProgram program)
