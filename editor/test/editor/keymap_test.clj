@@ -9,10 +9,11 @@
                     :meta-down?    "Meta"})
 
 (deftest default-bindings-are-valid
-  (doseq [[shortcut-key _] shortcut-keys]
-    (is (keymap/make-keymap keymap/default-key-bindings {:valid-command?        (constantly true)
-                                                         :platform-shortcut-key shortcut-key
-                                                         :throw-on-error?       true}))))
+  (doseq [[shortcut-key _] shortcut-keys
+          [_ key-bindings] keymap/platform->default-key-bindings]
+    (is (keymap/make-keymap key-bindings {:valid-command?        (constantly true)
+                                          :platform-shortcut-key shortcut-key
+                                          :throw-on-error?       true}))))
 
 (defn- make-keymap-errors [key-bindings shortcut-key]
   (try
