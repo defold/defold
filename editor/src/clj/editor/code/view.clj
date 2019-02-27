@@ -2083,20 +2083,26 @@
     (.setFill gc Color/WHITE)
     (.fillText gc (format "%.3f fps" fps) (- right 5.0) (+ top 16.0))))
 
-(defn repaint-view! [view-node elapsed-time]
+(defn repaint-view! [view-node elapsed-time {:keys [cursor-visible?] :as _opts}]
+  (assert (or (true? cursor-visible?) (false? cursor-visible?)))
+
   ;; Since the elapsed time updates at 60 fps, we store it as user-data to avoid transaction churn.
   (g/user-data! view-node :elapsed-time elapsed-time)
 
   ;; Perform necessary property updates in preparation for repaint.
   (g/with-auto-evaluation-context evaluation-context
-    (let [elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action evaluation-context)
-          old-cursor-opacity (g/node-value view-node :cursor-opacity evaluation-context)
-          new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
-      (set-properties! view-node nil
-                       (cond-> (data/tick (g/node-value view-node :lines evaluation-context)
-                                          (g/node-value view-node :layout evaluation-context)
-                                          (g/node-value view-node :gesture-start evaluation-context))
-                               (not= old-cursor-opacity new-cursor-opacity) (assoc :cursor-opacity new-cursor-opacity)))))
+    (let [tick-props (data/tick (g/node-value view-node :lines evaluation-context)
+                                (g/node-value view-node :layout evaluation-context)
+                                (g/node-value view-node :gesture-start evaluation-context))
+          props (if-not cursor-visible?
+                  tick-props
+                  (let [elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action evaluation-context)
+                        old-cursor-opacity (g/node-value view-node :cursor-opacity evaluation-context)
+                        new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
+                    (cond-> tick-props
+                            (not= old-cursor-opacity new-cursor-opacity)
+                            (assoc :cursor-opacity new-cursor-opacity))))]
+      (set-properties! view-node nil props)))
 
   ;; Repaint the view.
   (let [prev-canvas-repaint-info (g/user-data view-node :canvas-repaint-info)
@@ -2311,7 +2317,7 @@
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
         repainter (ui/->timer "repaint-code-editor-view" (fn [_ elapsed-time]
                                                            (when (and (.isSelected tab) (not (ui/ui-disabled?)))
-                                                             (repaint-view! view-node elapsed-time))))
+                                                             (repaint-view! view-node elapsed-time {:cursor-visible? true}))))
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :goto-line-bar goto-line-bar
                      :find-bar find-bar
