@@ -52,9 +52,9 @@
 
 (shader/defshader fragment-shader
   (varying vec2 var_texcoord0)
-  (uniform sampler2D texture)
+  (uniform sampler2D texture_sampler)
   (defn void main []
-    (setq gl_FragColor (texture2D texture var_texcoord0.xy))))
+    (setq gl_FragColor (texture2D texture_sampler var_texcoord0.xy))))
 
 ; TODO - macro of this
 (def shader (shader/make-shader ::shader vertex-shader fragment-shader))
