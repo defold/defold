@@ -1,11 +1,8 @@
 (ns editor.keymap
-  (:require
-   [editor.ui :as ui]
-   [editor.util :as util])
-  (:import
-   (com.defold.editor Platform)
-   (javafx.scene Scene)
-   (javafx.scene.input KeyEvent KeyCombination KeyCombination$ModifierValue)))
+  (:require [editor.ui :as ui]
+            [editor.util :as util])
+  (:import [javafx.scene Scene]
+           [javafx.scene.input KeyCombination KeyCombination$ModifierValue KeyEvent KeyCodeCombination KeyCharacterCombination]))
 
 (set! *warn-on-reflection* true)
 
@@ -16,7 +13,7 @@
 
 (def host-platform-shortcut-key (platform-shortcut-keys (util/os)))
 
-(def default-key-bindings
+(def platform->default-key-bindings
   ;; We should generally avoid adding shortcuts that can also be
   ;; interpreted as typable text. This includes "A", "Shift+E" but
   ;; also combinations like Alt+Shortcut+2 because on windows Shortcut means
@@ -27,179 +24,445 @@
   ;; of mistake.
   ;; Note that specifying both Ctrl+Shortcut will map the modifier to just
   ;; Ctrl on platforms where Shortcut means Ctrl.
-  [["A"                     :add]
-   ["Alt+Backspace"         :delete-prev-word]
-   ["Alt+Delete"            :delete-next-word]
-   ["Alt+Down"              :end-of-line]
-   ["Alt+Down"              :move-down]
-   ["Alt+Left"              :prev-word]
-   ["Alt+Right"             :next-word]
-   ["Shortcut+'-'"          :zoom-out]
-   ;; disabled because of above
-   #_["Alt+Shortcut+1"        :show-console]
-   #_["Alt+Shortcut+2"        :show-curve-editor]
-   #_["Alt+Shortcut+3"        :show-build-errors]
-   #_["Alt+Shortcut+4"        :show-search-results]
-   #_["Alt+Shortcut+X"        :profile]
-   ["Alt+Up"                :beginning-of-line]
-   ["Alt+Up"                :move-up]
-   ["Backspace"             :delete-backward]
-   ["Ctrl+A"                :beginning-of-line]
-   ["Ctrl+D"                :delete-line]
-   ["Ctrl+E"                :end-of-line]
-   ["Ctrl+K"                :cut-to-end-of-line]
-   ["Ctrl+Left"             :prev-word]
-   ["Ctrl+Right"            :next-word]
-   ["Ctrl+Shortcut+H"       :toggle-component-guides] ; Mirrors the View > Extras shortcut in Photoshop. Maps to Ctrl+H on non-Mac platforms.
-   ["Ctrl+Space"            :proposals]
-   ["Delete"                :delete]
-   ["Down"                  :down]
-   ["E"                     :rotate-tool]
-   ["End"                   :end-of-line]
-   ["Enter"                 :enter]
-   ["Esc"                   :escape]
-   ["F"                     :frame-selection]
-   ["F1"                    :documentation]
-   ["F10"                   :step-over]
-   ["F11"                   :step-into]
-   ["Shift+F11"             :step-out]
-   ["F2"                    :rename]
-   ["F5"                    :start-debugger]
-   ["F6"                    :continue]
-   ["F7"                    :break]
-   ["Shift+F5"              :stop-debugger]
-   ["Ctrl+R"                :reload-stylesheet]
-   ["F9"                    :toggle-breakpoint]
-   ["Home"                  :beginning-of-line-text]
-   ["Left"                  :left]
-   ["Page Down"             :page-down]
-   ["Page Up"               :page-up]
-   ["Period"                :realign-camera]
-   ["R"                     :scale-tool]
-   ["Right"                 :right]
-   ["Shift+A"               :add-secondary]
-   ["Shift+Alt+Down"        :select-end-of-line]
-   ["Shift+Alt+Left"        :select-prev-word]
-   ["Shift+Alt+Right"       :select-next-word]
-   ["Shift+Alt+Up"          :select-beginning-of-line]
-   #_["Shift+Alt+Shortcut+X"  :profile-show]
-   ["Shift+Ctrl+A"          :select-beginning-of-line]
-   ["Shift+Ctrl+E"          :select-end-of-line]
-   ["Shift+Ctrl+Left"       :select-prev-word]
-   ["Shift+Ctrl+Right"      :select-next-word]
-   ["Shift+Down"            :down-major]
-   ["Shift+Down"            :select-down]
-   ["Shift+E"               :erase-tool]
-   ["Shift+End"             :select-end-of-line]
-   ["Shift+Home"            :select-beginning-of-line-text]
-   ["Shift+Left"            :left-major]
-   ["Shift+Left"            :select-left]
-   ["Shift+Page Down"       :select-page-down]
-   ["Shift+Page Up"         :select-page-up]
-   ["Shift+Right"           :right-major]
-   ["Shift+Right"           :select-right]
-   ["Shift+Shortcut+B"      :rebuild]
-   ["Shift+Shortcut+Delete" :delete-to-end-of-line]
-   ["Shift+Shortcut+Down"   :select-end-of-file]
-   ["Shift+Shortcut+End"    :select-end-of-file]
-   ["Shift+Shortcut+E"      :replace-next]
-   ["Shift+Shortcut+E"      :show-last-hidden]
-   ["Shift+Shortcut+F"      :search-in-files]
-   ["Shift+Shortcut+G"      :find-prev]
-   ["Shift+Shortcut+I"      :toggle-visibility-filters]
-   ["Shift+Shortcut+Home"   :select-beginning-of-file]
-   ["Shift+Shortcut+L"      :split-selection-into-lines]
-   ["Shift+Shortcut+Left"   :select-beginning-of-line-text]
-   ["Shift+Shortcut+R"      :open-asset]
-   ["Shift+Shortcut+Right"  :select-end-of-line]
-   ["Shift+Shortcut+Up"     :select-beginning-of-file]
-   ["Shift+Shortcut+W"      :close-all]
-   ["Shift+Shortcut+Z"      :redo]
-   ["Shift+Tab"             :backwards-tab-trigger]
-   ["Shift+Up"              :up-major]
-   ["Shift+Up"              :select-up]
-   ["Shortcut+'+'"          :zoom-in]
-   ["Shortcut+A"            :select-all]
-   ["Shortcut+B"            :build]
-   ["Shortcut+C"            :copy]
-   ["Shortcut+Comma"        :preferences]
-   ["Shortcut+D"            :select-next-occurrence]
-   ["Shortcut+Delete"       :delete-to-beginning-of-line]
-   ["Shortcut+Down"         :end-of-file]
-   ["Shortcut+E"            :replace-text]
-   ["Shortcut+E"            :hide-selected]
-   ["Shortcut+End"          :end-of-file]
-   ["Shortcut+F"            :find-text]
-   ["Shortcut+G"            :find-next]
-   #_["Shortcut+H"            :toggle-component-guides] ; This is actually taken on non-Mac platforms due to "Ctrl+Shortcut+H" above, and on Mac by the system-wide Hide Application shortcut.
-   ["Shortcut+Home"         :beginning-of-file]
-   ["Shortcut+I"            :reindent]
-   ["Shortcut+L"            :goto-line]
-   ["Shortcut+Left"         :beginning-of-line-text]
-   ["Shortcut+N"            :new-file]
-   ["Shortcut+O"            :open]
-   ["Shortcut+P"            :open-asset]
-   ["Shortcut+Q"            :quit]
-   ["Shortcut+R"            :hot-reload]
-   ["Shortcut+Right"        :end-of-line]
-   ["Shortcut+S"            :save-all]
-   ["Shortcut+Slash"        :toggle-comment]
-   ["Shortcut+T"            :scene-stop]
-   ["Shortcut+U"            :rebundle]
-   ["Shortcut+Up"           :beginning-of-file]
-   ["Shortcut+V"            :paste]
-   ["Shortcut+W"            :close]
-   ["Shortcut+X"            :cut]
-   ["Shortcut+Z"            :undo]
-   ["Space"                 :scene-play]
-   ["Space"                 :show-palette]
-   ["Tab"                   :tab]
-   ["Up"                    :up]
-   ["W"                     :move-tool]])
+  {:darwin [["A" :add]
+            ["Alt+Backspace" :delete-prev-word]
+            ["Alt+Delete" :delete-next-word]
+            ["Alt+Down" :end-of-line]
+            ["Alt+Down" :move-down]
+            ["Alt+Left" :prev-word]
+            ["Alt+Right" :next-word]
+            ["Shortcut+'-'" :zoom-out]
+            ;; disabled because of above
+            #_["Alt+Shortcut+1" :show-console]
+            #_["Alt+Shortcut+2" :show-curve-editor]
+            #_["Alt+Shortcut+3" :show-build-errors]
+            #_["Alt+Shortcut+4" :show-search-results]
+            #_["Alt+Shortcut+X" :profile]
+            ["Alt+Up" :beginning-of-line]
+            ["Alt+Up" :move-up]
+            ["Backspace" :delete-backward]
+            ["Ctrl+A" :beginning-of-line]
+            ["Ctrl+D" :delete-line]
+            ["Ctrl+E" :end-of-line]
+            ["Ctrl+K" :cut-to-end-of-line]
+            ["Ctrl+Left" :prev-word]
+            ["Ctrl+Right" :next-word]
+            ["Ctrl+Shortcut+H" :toggle-component-guides]    ; Mirrors the View > Extras shortcut in Photoshop. Maps to Ctrl+H on non-Mac platforms.
+            ["Ctrl+Space" :proposals]
+            ["Delete" :delete]
+            ["Down" :down]
+            ["E" :rotate-tool]
+            ["End" :end-of-line]
+            ["Enter" :enter]
+            ["Esc" :escape]
+            ["F" :frame-selection]
+            ["F1" :documentation]
+            ["F10" :step-over]
+            ["F11" :step-into]
+            ["Shift+F11" :step-out]
+            ["F2" :rename]
+            ["F5" :start-debugger]
+            ["F6" :continue]
+            ["F7" :break]
+            ["Shift+F5" :stop-debugger]
+            ["Ctrl+R" :reload-stylesheet]
+            ["F9" :toggle-breakpoint]
+            ["Home" :beginning-of-line-text]
+            ["Left" :left]
+            ["Page Down" :page-down]
+            ["Page Up" :page-up]
+            ["Period" :realign-camera]
+            ["R" :scale-tool]
+            ["Right" :right]
+            ["Shift+A" :add-secondary]
+            ["Shift+Alt+Down" :select-end-of-line]
+            ["Shift+Alt+Left" :select-prev-word]
+            ["Shift+Alt+Right" :select-next-word]
+            ["Shift+Alt+Up" :select-beginning-of-line]
+            #_["Shift+Alt+Shortcut+X" :profile-show]
+            ["Shift+Ctrl+A" :select-beginning-of-line]
+            ["Shift+Ctrl+E" :select-end-of-line]
+            ["Shift+Ctrl+Left" :select-prev-word]
+            ["Shift+Ctrl+Right" :select-next-word]
+            ["Shift+Down" :down-major]
+            ["Shift+Down" :select-down]
+            ["Shift+E" :erase-tool]
+            ["Shift+End" :select-end-of-line]
+            ["Shift+Home" :select-beginning-of-line-text]
+            ["Shift+Left" :left-major]
+            ["Shift+Left" :select-left]
+            ["Shift+Page Down" :select-page-down]
+            ["Shift+Page Up" :select-page-up]
+            ["Shift+Right" :right-major]
+            ["Shift+Right" :select-right]
+            ["Shift+Shortcut+B" :rebuild]
+            ["Shift+Shortcut+Delete" :delete-to-end-of-line]
+            ["Shift+Shortcut+Down" :select-end-of-file]
+            ["Shift+Shortcut+End" :select-end-of-file]
+            ["Shift+Shortcut+E" :replace-next]
+            ["Shift+Shortcut+E" :show-last-hidden]
+            ["Shift+Shortcut+F" :search-in-files]
+            ["Shift+Shortcut+G" :find-prev]
+            ["Shift+Shortcut+I" :toggle-visibility-filters]
+            ["Shift+Shortcut+Home" :select-beginning-of-file]
+            ["Shift+Shortcut+L" :split-selection-into-lines]
+            ["Shift+Shortcut+Left" :select-beginning-of-line-text]
+            ["Shift+Shortcut+R" :open-asset]
+            ["Shift+Shortcut+Right" :select-end-of-line]
+            ["Shift+Shortcut+Up" :select-beginning-of-file]
+            ["Shift+Shortcut+W" :close-all]
+            ["Shift+Shortcut+Z" :redo]
+            ["Shift+Tab" :backwards-tab-trigger]
+            ["Shift+Up" :up-major]
+            ["Shift+Up" :select-up]
+            ["Shortcut+'+'" :zoom-in]
+            ["Shortcut+A" :select-all]
+            ["Shortcut+B" :build]
+            ["Shortcut+C" :copy]
+            ["Shortcut+Comma" :preferences]
+            ["Shortcut+D" :select-next-occurrence]
+            ["Shortcut+Delete" :delete-to-beginning-of-line]
+            ["Shortcut+Down" :end-of-file]
+            ["Shortcut+E" :replace-text]
+            ["Shortcut+E" :hide-selected]
+            ["Shortcut+End" :end-of-file]
+            ["Shortcut+F" :find-text]
+            ["Shortcut+G" :find-next]
+            #_["Shortcut+H" :toggle-component-guides]       ; This is actually taken on non-Mac platforms due to "Ctrl+Shortcut+H" above, and on Mac by the system-wide Hide Application shortcut.
+            ["Shortcut+Home" :beginning-of-file]
+            ["Shortcut+I" :reindent]
+            ["Shortcut+L" :goto-line]
+            ["Shortcut+Left" :beginning-of-line-text]
+            ["Shortcut+N" :new-file]
+            ["Shortcut+O" :open]
+            ["Shortcut+P" :open-asset]
+            ["Shortcut+Q" :quit]
+            ["Shortcut+R" :hot-reload]
+            ["Shortcut+Right" :end-of-line]
+            ["Shortcut+S" :save-all]
+            ["Shortcut+Slash" :toggle-comment]
+            ["Shortcut+T" :scene-stop]
+            ["Shortcut+U" :rebundle]
+            ["Shortcut+Up" :beginning-of-file]
+            ["Shortcut+V" :paste]
+            ["Shortcut+W" :close]
+            ["Shortcut+X" :cut]
+            ["Shortcut+Z" :undo]
+            ["Space" :scene-play]
+            ["Space" :show-palette]
+            ["Tab" :tab]
+            ["Up" :up]
+            ["W" :move-tool]]
+   :win32 [["A" :add]
+           ["Alt+Backspace" :delete-prev-word]
+           ["Alt+Delete" :delete-next-word]
+           ["Alt+Down" :end-of-line]
+           ["Alt+Down" :move-down]
+           ["Alt+Left" :prev-word]
+           ["Alt+Right" :next-word]
+           ["Shortcut+'-'" :zoom-out]
+           ;; disabled because of above
+           #_["Alt+Shortcut+1" :show-console]
+           #_["Alt+Shortcut+2" :show-curve-editor]
+           #_["Alt+Shortcut+3" :show-build-errors]
+           #_["Alt+Shortcut+4" :show-search-results]
+           #_["Alt+Shortcut+X" :profile]
+           ["Alt+Up" :beginning-of-line]
+           ["Alt+Up" :move-up]
+           ["Backspace" :delete-backward]
+           ["Ctrl+A" :beginning-of-line]
+           ["Ctrl+D" :delete-line]
+           ["Ctrl+E" :end-of-line]
+           ["Ctrl+K" :cut-to-end-of-line]
+           ["Ctrl+Left" :prev-word]
+           ["Ctrl+Right" :next-word]
+           ["Ctrl+Shortcut+H" :toggle-component-guides]    ; Mirrors the View > Extras shortcut in Photoshop. Maps to Ctrl+H on non-Mac platforms.
+           ["Ctrl+Space" :proposals]
+           ["Delete" :delete]
+           ["Down" :down]
+           ["E" :rotate-tool]
+           ["End" :end-of-line]
+           ["Enter" :enter]
+           ["Esc" :escape]
+           ["F" :frame-selection]
+           ["F1" :documentation]
+           ["F10" :step-over]
+           ["F11" :step-into]
+           ["Shift+F11" :step-out]
+           ["F2" :rename]
+           ["F5" :start-debugger]
+           ["F6" :continue]
+           ["F7" :break]
+           ["Shift+F5" :stop-debugger]
+           ["Ctrl+R" :reload-stylesheet]
+           ["F9" :toggle-breakpoint]
+           ["Home" :beginning-of-line-text]
+           ["Left" :left]
+           ["Page Down" :page-down]
+           ["Page Up" :page-up]
+           ["Period" :realign-camera]
+           ["R" :scale-tool]
+           ["Right" :right]
+           ["Shift+A" :add-secondary]
+           ["Shift+Alt+Down" :select-end-of-line]
+           ["Shift+Alt+Left" :select-prev-word]
+           ["Shift+Alt+Right" :select-next-word]
+           ["Shift+Alt+Up" :select-beginning-of-line]
+           #_["Shift+Alt+Shortcut+X" :profile-show]
+           ["Shift+Ctrl+A" :select-beginning-of-line]
+           ["Shift+Ctrl+E" :select-end-of-line]
+           ["Shift+Ctrl+Left" :select-prev-word]
+           ["Shift+Ctrl+Right" :select-next-word]
+           ["Shift+Down" :down-major]
+           ["Shift+Down" :select-down]
+           ["Shift+E" :erase-tool]
+           ["Shift+End" :select-end-of-line]
+           ["Shift+Home" :select-beginning-of-line-text]
+           ["Shift+Left" :left-major]
+           ["Shift+Left" :select-left]
+           ["Shift+Page Down" :select-page-down]
+           ["Shift+Page Up" :select-page-up]
+           ["Shift+Right" :right-major]
+           ["Shift+Right" :select-right]
+           ["Shift+Shortcut+B" :rebuild]
+           ["Shift+Shortcut+Delete" :delete-to-end-of-line]
+           ["Shift+Shortcut+Down" :select-end-of-file]
+           ["Shift+Shortcut+End" :select-end-of-file]
+           ["Shift+Shortcut+E" :replace-next]
+           ["Shift+Shortcut+E" :show-last-hidden]
+           ["Shift+Shortcut+F" :search-in-files]
+           ["Shift+Shortcut+G" :find-prev]
+           ["Shift+Shortcut+I" :toggle-visibility-filters]
+           ["Shift+Shortcut+Home" :select-beginning-of-file]
+           ["Shift+Shortcut+L" :split-selection-into-lines]
+           ["Shift+Shortcut+Left" :select-beginning-of-line-text]
+           ["Shift+Shortcut+R" :open-asset]
+           ["Shift+Shortcut+Right" :select-end-of-line]
+           ["Shift+Shortcut+Up" :select-beginning-of-file]
+           ["Shift+Shortcut+W" :close-all]
+           ["Shift+Shortcut+Z" :redo]
+           ["Shift+Tab" :backwards-tab-trigger]
+           ["Shift+Up" :up-major]
+           ["Shift+Up" :select-up]
+           ["Shortcut+'+'" :zoom-in]
+           ["Shortcut+A" :select-all]
+           ["Shortcut+B" :build]
+           ["Shortcut+C" :copy]
+           ["Shortcut+Comma" :preferences]
+           ["Shortcut+D" :select-next-occurrence]
+           ["Shortcut+Delete" :delete-to-beginning-of-line]
+           ["Shortcut+Down" :end-of-file]
+           ["Shortcut+E" :replace-text]
+           ["Shortcut+E" :hide-selected]
+           ["Shortcut+End" :end-of-file]
+           ["Shortcut+F" :find-text]
+           ["Shortcut+G" :find-next]
+           #_["Shortcut+H" :toggle-component-guides]       ; This is actually taken on non-Mac platforms due to "Ctrl+Shortcut+H" above, and on Mac by the system-wide Hide Application shortcut.
+           ["Shortcut+Home" :beginning-of-file]
+           ["Shortcut+I" :reindent]
+           ["Shortcut+L" :goto-line]
+           ["Shortcut+Left" :beginning-of-line-text]
+           ["Shortcut+N" :new-file]
+           ["Shortcut+O" :open]
+           ["Shortcut+P" :open-asset]
+           ["Shortcut+Q" :quit]
+           ["Shortcut+R" :hot-reload]
+           ["Shortcut+Right" :end-of-line]
+           ["Shortcut+S" :save-all]
+           ["Shortcut+Slash" :toggle-comment]
+           ["Shortcut+T" :scene-stop]
+           ["Shortcut+U" :rebundle]
+           ["Shortcut+Up" :beginning-of-file]
+           ["Shortcut+V" :paste]
+           ["Shortcut+W" :close]
+           ["Shortcut+X" :cut]
+           ["Shortcut+Z" :undo]
+           ["Space" :scene-play]
+           ["Space" :show-palette]
+           ["Tab" :tab]
+           ["Up" :up]
+           ["W" :move-tool]]
+   :linux [["A" :add]
+           ["Alt+Backspace" :delete-prev-word]
+           ["Alt+Delete" :delete-next-word]
+           ["Alt+Down" :end-of-line]
+           ["Alt+Down" :move-down]
+           ["Alt+Left" :prev-word]
+           ["Alt+Right" :next-word]
+           ["Shortcut+'-'" :zoom-out]
+           ;; disabled because of above
+           #_["Alt+Shortcut+1" :show-console]
+           #_["Alt+Shortcut+2" :show-curve-editor]
+           #_["Alt+Shortcut+3" :show-build-errors]
+           #_["Alt+Shortcut+4" :show-search-results]
+           #_["Alt+Shortcut+X" :profile]
+           ["Alt+Up" :beginning-of-line]
+           ["Alt+Up" :move-up]
+           ["Backspace" :delete-backward]
+           ["Ctrl+A" :beginning-of-line]
+           ["Ctrl+D" :delete-line]
+           ["Ctrl+E" :end-of-line]
+           ["Ctrl+K" :cut-to-end-of-line]
+           ["Ctrl+Left" :prev-word]
+           ["Ctrl+Right" :next-word]
+           ["Ctrl+Shortcut+H" :toggle-component-guides]    ; Mirrors the View > Extras shortcut in Photoshop. Maps to Ctrl+H on non-Mac platforms.
+           ["Ctrl+Space" :proposals]
+           ["Delete" :delete]
+           ["Down" :down]
+           ["E" :rotate-tool]
+           ["End" :end-of-line]
+           ["Enter" :enter]
+           ["Esc" :escape]
+           ["F" :frame-selection]
+           ["F1" :documentation]
+           ["F10" :step-over]
+           ["F11" :step-into]
+           ["Shift+F11" :step-out]
+           ["F2" :rename]
+           ["F5" :start-debugger]
+           ["F6" :continue]
+           ["F7" :break]
+           ["Shift+F5" :stop-debugger]
+           ["Ctrl+R" :reload-stylesheet]
+           ["F9" :toggle-breakpoint]
+           ["Home" :beginning-of-line-text]
+           ["Left" :left]
+           ["Page Down" :page-down]
+           ["Page Up" :page-up]
+           ["Period" :realign-camera]
+           ["R" :scale-tool]
+           ["Right" :right]
+           ["Shift+A" :add-secondary]
+           ["Shift+Alt+Down" :select-end-of-line]
+           ["Shift+Alt+Left" :select-prev-word]
+           ["Shift+Alt+Right" :select-next-word]
+           ["Shift+Alt+Up" :select-beginning-of-line]
+           #_["Shift+Alt+Shortcut+X" :profile-show]
+           ["Shift+Ctrl+A" :select-beginning-of-line]
+           ["Shift+Ctrl+E" :select-end-of-line]
+           ["Shift+Ctrl+Left" :select-prev-word]
+           ["Shift+Ctrl+Right" :select-next-word]
+           ["Shift+Down" :down-major]
+           ["Shift+Down" :select-down]
+           ["Shift+E" :erase-tool]
+           ["Shift+End" :select-end-of-line]
+           ["Shift+Home" :select-beginning-of-line-text]
+           ["Shift+Left" :left-major]
+           ["Shift+Left" :select-left]
+           ["Shift+Page Down" :select-page-down]
+           ["Shift+Page Up" :select-page-up]
+           ["Shift+Right" :right-major]
+           ["Shift+Right" :select-right]
+           ["Shift+Shortcut+B" :rebuild]
+           ["Shift+Shortcut+Delete" :delete-to-end-of-line]
+           ["Shift+Shortcut+Down" :select-end-of-file]
+           ["Shift+Shortcut+End" :select-end-of-file]
+           ["Shift+Shortcut+E" :replace-next]
+           ["Shift+Shortcut+E" :show-last-hidden]
+           ["Shift+Shortcut+F" :search-in-files]
+           ["Shift+Shortcut+G" :find-prev]
+           ["Shift+Shortcut+I" :toggle-visibility-filters]
+           ["Shift+Shortcut+Home" :select-beginning-of-file]
+           ["Shift+Shortcut+L" :split-selection-into-lines]
+           ["Shift+Shortcut+Left" :select-beginning-of-line-text]
+           ["Shift+Shortcut+R" :open-asset]
+           ["Shift+Shortcut+Right" :select-end-of-line]
+           ["Shift+Shortcut+Up" :select-beginning-of-file]
+           ["Shift+Shortcut+W" :close-all]
+           ["Shift+Shortcut+Z" :redo]
+           ["Shift+Tab" :backwards-tab-trigger]
+           ["Shift+Up" :up-major]
+           ["Shift+Up" :select-up]
+           ["Shortcut+'+'" :zoom-in]
+           ["Shortcut+A" :select-all]
+           ["Shortcut+B" :build]
+           ["Shortcut+C" :copy]
+           ["Shortcut+Comma" :preferences]
+           ["Shortcut+D" :select-next-occurrence]
+           ["Shortcut+Delete" :delete-to-beginning-of-line]
+           ["Shortcut+Down" :end-of-file]
+           ["Shortcut+E" :replace-text]
+           ["Shortcut+E" :hide-selected]
+           ["Shortcut+End" :end-of-file]
+           ["Shortcut+F" :find-text]
+           ["Shortcut+G" :find-next]
+           #_["Shortcut+H" :toggle-component-guides]       ; This is actually taken on non-Mac platforms due to "Ctrl+Shortcut+H" above, and on Mac by the system-wide Hide Application shortcut.
+           ["Shortcut+Home" :beginning-of-file]
+           ["Shortcut+I" :reindent]
+           ["Shortcut+L" :goto-line]
+           ["Shortcut+Left" :beginning-of-line-text]
+           ["Shortcut+N" :new-file]
+           ["Shortcut+O" :open]
+           ["Shortcut+P" :open-asset]
+           ["Shortcut+Q" :quit]
+           ["Shortcut+R" :hot-reload]
+           ["Shortcut+Right" :end-of-line]
+           ["Shortcut+S" :save-all]
+           ["Shortcut+Slash" :toggle-comment]
+           ["Shortcut+T" :scene-stop]
+           ["Shortcut+U" :rebundle]
+           ["Shortcut+Up" :beginning-of-file]
+           ["Shortcut+V" :paste]
+           ["Shortcut+W" :close]
+           ["Shortcut+X" :cut]
+           ["Shortcut+Z" :undo]
+           ["Space" :scene-play]
+           ["Space" :show-palette]
+           ["Tab" :tab]
+           ["Up" :up]
+           ["W" :move-tool]]})
 
-(def ^:private default-allowed-duplicate-shortcuts #{"Alt+Down"
-                                                     "Alt+Up"
-                                                     "Shift+Down"
-                                                     "Shift+Left"
-                                                     "Shift+Right"
-                                                     "Shift+Up"
-                                                     "Shortcut+E"
-                                                     "Shift+Shortcut+E"
-                                                     "Space"
-                                                     "F5"})
+(def default-host-key-bindings
+  (platform->default-key-bindings (util/os)))
+
+(def ^:private default-allowed-duplicate-shortcuts
+  #{"Alt+Down"
+    "Alt+Up"
+    "Shift+Down"
+    "Shift+Left"
+    "Shift+Right"
+    "Shift+Up"
+    "Shortcut+E"
+    "Shift+Shortcut+E"
+    "Space"
+    "F5"})
 
 ;; These are only (?) used in contexts where there is no text field
 ;; interested in the actual typable input.
-(def ^:private default-allowed-typable-shortcuts #{"A"       ; :add
-                                                   "E"       ; :rotate-tool
-                                                   "F"       ; :frame-selection
-                                                   "R"       ; :scale-tool
-                                                   "W"       ; :move-tool
-                                                   "Shift+A" ; :add-secondary
-                                                   "Shift+E" ; :erase-tool
-                                                   })
+(def ^:private default-allowed-typable-shortcuts
+  #{"A"         ; :add
+    "E"         ; :rotate-tool
+    "F"         ; :frame-selection
+    "R"         ; :scale-tool
+    "W"         ; :move-tool
+    "Shift+A"   ; :add-secondary
+    "Shift+E"}) ; :erase-tool
 
 (defprotocol KeyComboData
-  (key-combo->map* [this] "returns a data representation of a KeyCombination."))
+  (key-combo->map [this] "returns a data representation of a KeyCombination."))
 
 (extend-protocol KeyComboData
-  javafx.scene.input.KeyCodeCombination
-  (key-combo->map* [key-combo]
-    {:key            (.. key-combo getCode getName)
-     :alt-down?      (= KeyCombination$ModifierValue/DOWN (.getAlt key-combo))
-     :control-down?  (= KeyCombination$ModifierValue/DOWN (.getControl key-combo))
-     :meta-down?     (= KeyCombination$ModifierValue/DOWN (.getMeta key-combo))
-     :shift-down?    (= KeyCombination$ModifierValue/DOWN (.getShift key-combo))
+  KeyCodeCombination
+  (key-combo->map [this]
+    {:key (.getName (.getCode this))
+     :alt-down? (= KeyCombination$ModifierValue/DOWN (.getAlt this))
+     :control-down? (= KeyCombination$ModifierValue/DOWN (.getControl this))
+     :meta-down? (= KeyCombination$ModifierValue/DOWN (.getMeta this))
+     :shift-down? (= KeyCombination$ModifierValue/DOWN (.getShift this))
+     :shortcut-down? (= KeyCombination$ModifierValue/DOWN (.getShortcut this))})
+
+  KeyCharacterCombination
+  (key-combo->map [key-combo]
+    {:key (.getCharacter key-combo)
+     :alt-down? (= KeyCombination$ModifierValue/DOWN (.getAlt key-combo))
+     :control-down? (= KeyCombination$ModifierValue/DOWN (.getControl key-combo))
+     :meta-down? (= KeyCombination$ModifierValue/DOWN (.getMeta key-combo))
+     :shift-down? (= KeyCombination$ModifierValue/DOWN (.getShift key-combo))
      :shortcut-down? (= KeyCombination$ModifierValue/DOWN (.getShortcut key-combo))})
 
-  javafx.scene.input.KeyCharacterCombination
-  (key-combo->map* [key-combo]
-    {:key            (.getCharacter key-combo)
-     :alt-down?      (= KeyCombination$ModifierValue/DOWN (.getAlt key-combo))
-     :control-down?  (= KeyCombination$ModifierValue/DOWN (.getControl key-combo))
-     :meta-down?     (= KeyCombination$ModifierValue/DOWN (.getMeta key-combo))
-     :shift-down?    (= KeyCombination$ModifierValue/DOWN (.getShift key-combo))
-     :shortcut-down? (= KeyCombination$ModifierValue/DOWN (.getShortcut key-combo))})  )
+  String
+  (key-combo->map [this]
+    (key-combo->map (KeyCombination/keyCombination this))))
 
 (defn key-event->map [^KeyEvent e]
   {:key              (.getCharacter e)
@@ -208,10 +471,6 @@
    :meta-down?       (.isMetaDown e)
    :shift-down?      (.isShiftDown e)
    :shortcut-down?   (.isShortcutDown e)})
-
-(defn- key-combo->map [s]
-  (let [key-combo (KeyCombination/keyCombination s)]
-    (key-combo->map* key-combo)))
 
 (defn key-combo->display-text [s]
   (.getDisplayText (KeyCombination/keyCombination s)))
