@@ -392,7 +392,8 @@
                              (not-empty))]
         (g/error-aggregate errors))
       (cond-> {:node-id _node-id
-               :aabb aabb}
+               :aabb aabb
+               :transform geom/Identity4d}
 
               (and (some? font-map) (not-empty preview-text))
               (assoc :renderable {:render-fn render-font
@@ -659,10 +660,10 @@
                            (if font-map
                              (let [[w h] (measure font-map preview-text true (:cache-width font-map) 0 1)
                                    h-offset (:max-ascent font-map)]
-                               (-> (geom/null-aabb)
+                               (-> geom/null-aabb
                                  (geom/aabb-incorporate (Point3d. 0 h-offset 0))
                                  (geom/aabb-incorporate (Point3d. w (- h-offset h) 0))))
-                             (geom/null-aabb))))
+                             geom/null-aabb)))
   (output gpu-texture g/Any :cached (g/fnk [_node-id font-map material-samplers]
                                            (when font-map
                                              (let [w (:cache-width font-map)

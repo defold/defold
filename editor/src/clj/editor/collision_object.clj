@@ -366,10 +366,9 @@
    :node-outline-key node-outline-key
    :transform transform
    :aabb (let [d (* 0.5 diameter)]
-           (-> (geom/null-aabb)
+           (-> geom/null-aabb
                (geom/aabb-incorporate d d d)
-               (geom/aabb-incorporate (- d) (- d) (- d))
-               (geom/aabb-transform transform)))
+               (geom/aabb-incorporate (- d) (- d) (- d))))
    :renderable {:render-fn (wrap-uniform-scale render-sphere)
                 :tags #{:collision-shape}
                 :user-data {:sphere-diameter diameter
@@ -385,10 +384,9 @@
      :aabb (let [ext-x (* 0.5 w)
                  ext-y (* 0.5 h)
                  ext-z (* 0.5 d)]
-             (-> (geom/null-aabb)
+             (-> geom/null-aabb
                  (geom/aabb-incorporate ext-x ext-y ext-z)
-                 (geom/aabb-incorporate (- ext-x) (- ext-y) (- ext-z))
-                 (geom/aabb-transform transform)))
+                 (geom/aabb-incorporate (- ext-x) (- ext-y) (- ext-z))))
      :renderable {:render-fn (wrap-uniform-scale render-box)
                   :tags #{:collision-shape}
                   :user-data {:box-width w
@@ -403,10 +401,9 @@
    :transform transform
    :aabb (let [r (* 0.5 diameter)
                ext-y (+ (* 0.5 height) r)]
-           (-> (geom/null-aabb)
+           (-> geom/null-aabb
                (geom/aabb-incorporate r ext-y r)
-               (geom/aabb-incorporate (- r) (- ext-y) (- r))
-               (geom/aabb-transform transform)))
+               (geom/aabb-incorporate (- r) (- ext-y) (- r))))
    :renderable {:render-fn (wrap-uniform-scale render-capsule)
                 :tags #{:collision-shape}
                 :user-data {:capsule-diameter diameter
@@ -569,7 +566,8 @@
 (g/defnk produce-scene
   [_node-id child-scenes]
   {:node-id _node-id
-   :aabb (reduce geom/aabb-union (geom/null-aabb) (keep :aabb child-scenes))
+   :aabb geom/null-aabb
+   :transform geom/Identity4d
    :renderable {:passes [pass/selection]}
    :children child-scenes})
 

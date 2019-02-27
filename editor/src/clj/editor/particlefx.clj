@@ -326,7 +326,7 @@
          :node-outline-key node-outline-key
          :label (:label mod-type)
          :icon modifier-icon})))
-  (output aabb AABB (g/constantly (geom/aabb-incorporate (geom/null-aabb) 0 0 0)))
+  (output aabb AABB (g/constantly (geom/aabb-incorporate geom/null-aabb 0 0 0)))
   (output scene g/Any :cached produce-modifier-scene))
 
 (def ^:private circle-steps 32)
@@ -409,6 +409,7 @@
                   :passes [pass/selection pass/transparent]}
      :children (into [{:node-id _node-id
                        :node-outline-key id
+                       :transform geom/Identity4d
                        :aabb aabb
                        :renderable {:render-fn render-lines
                                     :batch-key nil
@@ -627,7 +628,7 @@
                                            :emitter-type-sphere [x x x]
                                            :emitter-type-cone [x y x]
                                            :emitter-type-2dcone [x y x])]
-                             (-> (geom/null-aabb)
+                             (-> geom/null-aabb
                                (geom/aabb-incorporate (- w) (- h) (- d))
                                (geom/aabb-incorporate w h d)))))
   (output emitter-sim-data g/Any :cached
@@ -679,8 +680,9 @@
   (let [scene {:node-id _node-id
                :renderable {:render-fn render-pfx
                             :batch-key nil
-                            :passes [pass/transparent]}
-               :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
+                            :passes [pass/transparent pass/selection]}
+               :aabb geom/unit-bounding-box
+               :transform geom/Identity4d
                :children child-scenes}]
     (scene/map-scene #(assoc % :updatable scene-updatable) scene)))
 

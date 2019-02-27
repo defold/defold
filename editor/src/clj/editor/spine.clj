@@ -819,7 +819,8 @@
 
 (g/defnk produce-scene [_node-id aabb gpu-texture default-tex-params spine-scene-pb scene-structure]
   (let [scene {:node-id _node-id
-               :aabb aabb}]
+               :aabb aabb
+               :transform geom/Identity4d}]
     (if (and gpu-texture scene-structure)
       (let [blend-mode :blend-mode-alpha]
         (assoc scene
@@ -834,6 +835,7 @@
                                         :blend-mode blend-mode}
                             :passes [pass/transparent pass/selection]}
                :children [{:aabb aabb
+                           :transform geom/Identity4d
                            :node-id _node-id
                            :renderable {:render-fn render-spine-skeletons
                                         :tags #{:spine :skeleton :outline}
@@ -841,6 +843,7 @@
                                         :user-data {:scene-structure scene-structure}
                                         :passes [pass/transparent]}}
                           {:aabb aabb
+                           :transform geom/Identity4d
                            :node-id _node-id
                            :renderable {:render-fn render-spine-outlines
                                         :tags #{:spine :outline}
@@ -896,7 +899,7 @@
   (output build-targets g/Any :cached produce-scene-build-targets)
   (output spine-scene-pb g/Any :cached produce-spine-scene-pb)
   (output scene g/Any :cached produce-scene)
-  (output aabb AABB :cached (g/fnk [spine-scene-pb] (reduce mesh->aabb (geom/null-aabb) (get-in spine-scene-pb [:mesh-set :mesh-attachments]))))
+  (output aabb AABB :cached (g/fnk [spine-scene-pb] (reduce mesh->aabb geom/null-aabb (get-in spine-scene-pb [:mesh-set :mesh-attachments]))))
   (output anim-data g/Any (gu/passthrough anim-data))
   (output scene-structure g/Any (gu/passthrough scene-structure))
   (output spine-anim-ids g/Any (g/fnk [scene-structure] (:animations scene-structure))))
@@ -1031,14 +1034,17 @@
                                  default-tex-params)))
   (output anim-ids g/Any :cached (g/fnk [anim-data] (vec (sort (keys anim-data)))))
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
-  (output scene g/Any :cached (g/fnk [spine-scene-scene material-shader tex-params skin]
-                                (when (some? material-shader)
-                                  (if (:renderable spine-scene-scene)
-                                    (-> spine-scene-scene
-                                        (assoc-in [:renderable :user-data :shader] material-shader)
-                                        (update-in [:renderable :user-data :gpu-texture] texture/set-params tex-params)
-                                        (assoc-in [:renderable :user-data :skin] skin))
-                                    spine-scene-scene))))
+  (output scene g/Any :cached (g/fnk [_node-id spine-scene-scene material-shader tex-params skin]
+                                (if (and (some? material-shader) (some? (:renderable spine-scene-scene)))
+                                  (-> spine-scene-scene
+                                      (assoc-in [:renderable :user-data :shader] material-shader)
+                                      (update-in [:renderable :user-data :gpu-texture] texture/set-params tex-params)
+                                      (assoc-in [:renderable :user-data :skin] skin))
+                                  (merge {:node-id _node-id
+                                          :renderable {:passes [pass/selection]}
+                                          :aabb geom/unit-bounding-box
+                                          :transform geom/Identity4d}
+                                         spine-scene-scene))))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id own-build-errors spine-scene]
                                                      (cond-> {:node-id _node-id
                                                               :node-outline-key "Spine Model"

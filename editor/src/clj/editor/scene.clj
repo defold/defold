@@ -83,7 +83,8 @@
                    :batch-key ::error}]}])
 
 (defn substitute-scene [error]
-  {:aabb       (geom/null-aabb)
+  {:aabb       geom/null-aabb
+   :transform  geom/Identity4d
    :renderable {:render-fn render-error
                 :user-data {:error error}
                 :batch-key ::error
@@ -316,7 +317,7 @@
                                    :selected appear-selected?
                                    :user-data (:user-data renderable)
                                    :batch-key (:batch-key renderable)
-                                   :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world-transform)
+                                   :aabb (geom/aabb-transform ^AABB (:aabb scene geom/null-aabb) world-transform)
                                    :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable))
                                    :pass-overrides {pass/outline {:render-key (outline-render-key view-proj world-transform (:index renderable) (:topmost? renderable) appear-selected?)}}))
         visible? (and (not (contains? hidden-node-outline-key-paths node-outline-key-path))
@@ -446,27 +447,29 @@
         pass/all-passes))
 
 (g/defnk produce-renderables-screen-aabb+picking-node-id [scene-render-data ^Region viewport camera]
-  (into []
-        (comp
-          cat
-          (keep (fn [renderable]
-                  (when-some [aabb (:aabb renderable)]
-                    (when-not (= aabb (geom/null-aabb))
-                      (let [picking-node-id (:picking-node-id renderable)
-                            corners (geom/aabb->corners aabb)
-                            projected-corners (mapv (partial c/camera-project camera viewport) corners)
-                            projected-aabb ^AABB (reduce (fn [aabb ^Point3d pt]
-                                                           (geom/aabb-incorporate aabb pt))
-                                                         (geom/null-aabb)
-                                                         projected-corners)
-                            aabb-min ^Point3d (.min projected-aabb)
-                            aabb-max ^Point3d (.max projected-aabb)
-                            aabb-rect (types/rect (.x aabb-min)
-                                                  (.y aabb-min)
-                                                  (- (.x aabb-max) (.x aabb-min))
-                                                  (- (.y aabb-max) (.y aabb-min)))]
-                        [aabb-rect picking-node-id]))))))
-        (vals (:renderables scene-render-data))))
+  (let [renderables-by-pass (:renderables scene-render-data)]
+    (into []
+          (comp
+            cat
+            (keep (fn [renderable]
+                    (when-some [aabb (:aabb renderable)]
+                      (when-not (geom/null-aabb? aabb)
+                        (let [picking-node-id (:picking-node-id renderable)
+                              corners (geom/aabb->corners aabb)
+                              projected-corners (mapv (partial c/camera-project camera viewport) corners)
+                              projected-aabb ^AABB (reduce (fn [aabb ^Point3d pt]
+                                                             (geom/aabb-incorporate aabb pt))
+                                                           geom/null-aabb
+                                                           projected-corners)
+                              aabb-min ^Point3d (.min projected-aabb)
+                              aabb-max ^Point3d (.max projected-aabb)
+                              aabb-rect (types/rect (.x aabb-min)
+                                                    (.y aabb-min)
+                                                    (- (.x aabb-max) (.x aabb-min))
+                                                    (- (.y aabb-max) (.y aabb-min)))]
+                          [aabb-rect picking-node-id]))))))
+          [(get renderables-by-pass pass/selection)
+           (get renderables-by-pass pass/opaque-selection)])))
 
 (g/defnode SceneRenderer
   (input active-view g/NodeID)
@@ -484,10 +487,18 @@
   (output aux-render-data g/Any :cached produce-aux-render-data)
 
   (output selected-renderables g/Any :cached (g/fnk [scene-render-data] (:selected-renderables scene-render-data)))
-  (output selected-aabb AABB :cached (g/fnk [selected-renderables scene]
-                                       (if (empty? selected-renderables)
-                                         (:aabb scene)
-                                         (reduce geom/aabb-union (geom/null-aabb) (map :aabb selected-renderables)))))
+  (output selected-aabb AABB :cached (g/fnk [scene-render-data scene]
+                                       (let [aabbs (or (not-empty (into []
+                                                                        (comp cat
+                                                                              (filter :selected)
+                                                                              (map :aabb))
+                                                                        (vals (:renderables scene-render-data))))
+                                                       (into []
+                                                             (comp cat
+                                                                   (map :aabb))
+                                                             (vals (:renderables scene-render-data))))]
+                                         (reduce geom/aabb-union geom/null-aabb aabbs))))
+
   (output renderables-screen-aabb+picking-node-id g/Any :cached produce-renderables-screen-aabb+picking-node-id)
   (output selected-updatables g/Any :cached (g/fnk [selected-renderables]
                                               (into {}
@@ -837,22 +848,20 @@
     (g/transact (g/set-property camera-node :local-camera end-camera))))
 
 (defn frame-selection [view animate?]
-  (when-let [aabb (g/node-value view :selected-aabb)]
-    (let [graph (g/node-id->graph-id view)
-          camera (view->camera view)
-          viewport (g/node-value view :viewport)
-          local-cam (g/node-value camera :local-camera)
-          end-camera (c/camera-orthographic-frame-aabb local-cam viewport aabb)]
-      (set-camera! camera local-cam end-camera animate?))))
+  (let [aabb (g/node-value view :selected-aabb)
+        camera (view->camera view)
+        viewport (g/node-value view :viewport)
+        local-cam (g/node-value camera :local-camera)
+        end-camera (c/camera-orthographic-frame-aabb local-cam viewport aabb)]
+    (set-camera! camera local-cam end-camera animate?)))
 
 (defn realign-camera [view animate?]
-  (when-let [aabb (g/node-value view :selected-aabb)]
-    (let [graph (g/node-id->graph-id view)
-          camera (view->camera view)
-          viewport (g/node-value view :viewport)
-          local-cam (g/node-value camera :local-camera)
-          end-camera (c/camera-orthographic-realign local-cam viewport aabb)]
-      (set-camera! camera local-cam end-camera animate?))))
+  (let [aabb (g/node-value view :selected-aabb)
+        camera (view->camera view)
+        viewport (g/node-value view :viewport)
+        local-cam (g/node-value camera :local-camera)
+        end-camera (c/camera-orthographic-realign local-cam viewport aabb)]
+    (set-camera! camera local-cam end-camera animate?)))
 
 (handler/defhandler :frame-selection :global
   (active? [app-view] (active-scene-view app-view))
@@ -1345,7 +1354,7 @@
   (output transform-properties g/Any :abstract)
   (output transform Matrix4d :cached produce-transform)
   (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform}))
-  (output aabb AABB :cached (g/constantly (geom/null-aabb))))
+  (output aabb AABB :cached (g/constantly geom/null-aabb)))
 
 (defmethod scene-tools/manip-movable? ::SceneNode [node-id]
   (contains? (g/node-value node-id :transform-properties) :position))
