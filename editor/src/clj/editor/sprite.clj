@@ -186,7 +186,10 @@
 
 (g/defnk produce-scene
   [_node-id aabb gpu-texture material-shader animation blend-mode]
-  (cond-> {:node-id _node-id :aabb aabb}
+  (cond-> {:node-id _node-id
+           :aabb aabb
+           :transform geom/Identity4d
+           :renderable {:passes [pass/selection]}}
     (seq (:frames animation))
     (assoc :renderable {:render-fn render-sprites
                         :batch-key [gpu-texture blend-mode material-shader]
@@ -201,6 +204,7 @@
     (and (:width animation) (:height animation))
     (assoc :children [{:node-id _node-id
                        :aabb aabb
+                       :transform geom/Identity4d
                        :renderable {:render-fn render-sprite-outlines
                                     :batch-key [outline-shader]
                                     :tags #{:sprite :outline}
@@ -293,10 +297,10 @@
   (output aabb AABB (g/fnk [animation] (if animation
                                          (let [hw (* 0.5 (:width animation))
                                                hh (* 0.5 (:height animation))]
-                                           (-> (geom/null-aabb)
+                                           (-> geom/null-aabb
                                              (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
                                              (geom/aabb-incorporate (Point3d. hw hh 0))))
-                                         (geom/null-aabb))))
+                                         geom/unit-bounding-box-2d)))
   (output save-value g/Any produce-save-value)
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))

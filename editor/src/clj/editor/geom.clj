@@ -230,10 +230,11 @@
 ; -------------------------------------
 ; 3D geometry
 ; -------------------------------------
-(s/defn null-aabb :- AABB
-  []
-  (types/->AABB (Point3d. Integer/MAX_VALUE Integer/MAX_VALUE Integer/MAX_VALUE)
-             (Point3d. Integer/MIN_VALUE Integer/MIN_VALUE Integer/MIN_VALUE)))
+(def ^AABB null-aabb (types/->AABB (Point3d. Integer/MAX_VALUE Integer/MAX_VALUE Integer/MAX_VALUE)
+                                   (Point3d. Integer/MIN_VALUE Integer/MIN_VALUE Integer/MIN_VALUE)))
+
+(defn null-aabb? [^AABB aabb]
+  (= aabb null-aabb))
 
 (s/defn aabb-incorporate :- AABB
   ([^AABB aabb :- AABB
@@ -255,15 +256,14 @@
 (s/defn aabb-union :- AABB
   ([aabb1 :- AABB] aabb1)
   ([aabb1 :- AABB aabb2 :- AABB]
-    (let [null (null-aabb)]
-      (cond
-        (= aabb1 null) aabb2
-        (= aabb2 null) aabb1
-        true (-> aabb1
-                (aabb-incorporate (types/min-p aabb2))
-                (aabb-incorporate (types/max-p aabb2))))))
+   (cond
+     (null-aabb? aabb1) aabb2
+     (null-aabb? aabb2) aabb1
+     true (-> aabb1
+              (aabb-incorporate (types/min-p aabb2))
+              (aabb-incorporate (types/max-p aabb2)))))
   ([aabb1 :- AABB aabb2 :- AABB & aabbs :- [AABB]]
-    (aabb-union (aabb-union aabb1 aabb2) aabbs)))
+   (aabb-union (aabb-union aabb1 aabb2) aabbs)))
 
 (s/defn aabb-contains?
   [^AABB aabb :- AABB ^Point3d p :- Point3d]
@@ -291,7 +291,7 @@
         y0 (.y bounds)
         x1 (+ x0 (.width bounds))
         y1 (+ y0 (.height bounds))]
-    (-> (null-aabb)
+    (-> null-aabb
         (aabb-incorporate (Point3d. x0 y0 0))
         (aabb-incorporate (Point3d. x1 y1 0)))))
 
@@ -303,19 +303,24 @@
         y2 (+ y1 (* 0.5 (.height centered-rect)))
         x1 (- x1 (* 0.5 (.width centered-rect)))
         y1 (- y1 (* 0.5 (.height centered-rect)))]
-    (-> (null-aabb)
+    (-> null-aabb
         (aabb-incorporate (Point3d. x1 y1 0))
         (aabb-incorporate (Point3d. x2 y2 0)))))
 
 (def unit-bounding-box
-  (-> (null-aabb)
+  (-> null-aabb
     (aabb-incorporate  1  1  1)
     (aabb-incorporate -1 -1 -1)))
+
+(def unit-bounding-box-2d
+  (-> null-aabb
+      (aabb-incorporate  1  1  0)
+      (aabb-incorporate -1 -1  0)))
 
 ;; From Graphics Gems:
 ;; https://github.com/erich666/GraphicsGems/blob/master/gems/TransBox.c
 (defn aabb-transform [^AABB aabb ^Matrix4d transform]
-  (if (= aabb (null-aabb))
+  (if (null-aabb? aabb)
     aabb
     (let [min-p  (as-array (.min aabb))
           max-p  (as-array (.max aabb))

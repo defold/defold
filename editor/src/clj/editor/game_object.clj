@@ -1,24 +1,25 @@
 (ns editor.game-object
   (:require [clojure.set :as set]
             [clojure.string :as str]
-            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
-            [editor.graph-util :as gu]
+            [editor.code.script :as script]
+            [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.geom :as geom]
+            [editor.gl.pass :as pass]
+            [editor.graph-util :as gu]
             [editor.handler :as handler]
-            [editor.defold-project :as project]
+            [editor.outline :as outline]
+            [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
             [editor.sound :as sound]
-            [editor.code.script :as script]
-            [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
-            [editor.workspace :as workspace]
-            [editor.properties :as properties]
             [editor.validation :as validation]
-            [editor.outline :as outline]
+            [editor.workspace :as workspace]
             [service.log :as log])
   (:import [clojure.lang MapEntry]
            [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
@@ -179,17 +180,27 @@
   (output ddf-message g/Any (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
   (output rt-ddf-message g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id id transform scene]
-                                (let [transform (if-let [local-transform (:transform scene)]
-                                                  (doto (Matrix4d. ^Matrix4d transform)
-                                                    (.mul ^Matrix4d local-transform))
-                                                  transform)
-                                      updatable (some-> (:updatable scene)
-                                                  (assoc :node-id _node-id))]
-                                  (cond-> scene
-                                    true (scene/claim-scene _node-id id)
-                                    true (assoc :transform transform
-                                           :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))
-                                    updatable ((partial scene/map-scene #(assoc % :updatable updatable)))))))
+                                (if (some? scene)
+                                  (let [transform (if-let [local-transform (:transform scene)]
+                                                    (doto (Matrix4d. ^Matrix4d transform)
+                                                      (.mul ^Matrix4d local-transform))
+                                                    transform)
+                                        updatable (some-> (:updatable scene)
+                                                          (assoc :node-id _node-id))]
+                                    ;; label has scale and thus transform, others have identity transform
+                                    (cond-> (assoc (scene/claim-scene scene _node-id id)
+                                                   :transform transform
+                                                   :aabb (:aabb scene))
+                                            updatable ((partial scene/map-scene #(assoc % :updatable updatable)))))
+                                  ;; This handles the case of no scene
+                                  ;; from actual component - typically
+                                  ;; bad data. Covered by for instance
+                                  ;; unknown_components.go in the test
+                                  ;; project.
+                                  {:node-id _node-id
+                                   :transform transform
+                                   :aabb geom/unit-bounding-box
+                                   :renderable {:passes [pass/selection]}})))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
   (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
                                              (if-let [target (first source-build-targets)]
@@ -348,7 +359,8 @@
 
 (g/defnk produce-scene [_node-id child-scenes]
   {:node-id _node-id
-   :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
+   :aabb geom/null-aabb
+   :transform geom/Identity4d
    :children child-scenes})
 
 (defn- attach-component [self-id comp-id ddf-input resolve-id?]

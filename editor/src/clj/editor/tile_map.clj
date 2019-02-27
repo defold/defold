@@ -221,7 +221,7 @@
                  (max-l max-x x1)
                  (max-l max-y y1)))
         {:vbuf (vtx/flip! vbuf)
-         :aabb (-> (geom/null-aabb)
+         :aabb (-> geom/null-aabb
                    (geom/aabb-incorporate min-x min-y 0)
                    (geom/aabb-incorporate max-x max-y 0))}))))
 
@@ -232,6 +232,7 @@
       {:node-id _node-id
        :node-outline-key id
        :aabb aabb
+       :transform geom/Identity4d
        :renderable {:render-fn render-layer
                     :tags #{:tilemap}
                     :user-data {:node-id _node-id
@@ -328,11 +329,12 @@
       (for [tile-layer (:layers tile-grid)]
         (make-layer-node self tile-layer)))))
 
-
 (g/defnk produce-scene
   [_node-id child-scenes]
   {:node-id  _node-id
-   :aabb     (reduce geom/aabb-union (geom/null-aabb) (keep :aabb child-scenes))
+   :aabb     geom/null-aabb
+   :transform geom/Identity4d
+   :renderable {:passes [pass/selection]}
    :children child-scenes})
 
 (g/defnk produce-node-outline
