@@ -49,11 +49,12 @@
             [editor.disk-availability :as disk-availability]
             [editor.scene-visibility :as scene-visibility]
             [editor.scene-cache :as scene-cache]
-            [editor.types :as types])
+            [editor.types :as types]
+            [editor.game-project :as game-project])
   (:import [com.defold.control TabPaneBehavior]
            [com.defold.editor Editor EditorApplication]
            [com.defold.editor Start]
-           [java.net URI Socket]
+           [java.net URI Socket URL]
            [java.util Collection]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
@@ -1552,6 +1553,7 @@ If you do not specifically require different script states, consider changing th
     (search-results-view/show-search-in-files-dialog! search-results-view project prefs)))
 
 (defn- bundle! [changes-view build-errors-view project prefs platform bundle-options]
+  (g/user-data! project :last-bundle-options (assoc bundle-options :platform-key platform))
   (console/clear-console!)
   (let [output-directory ^File (:output-directory bundle-options)
         clear-errors! (make-clear-build-errors build-errors-view)
@@ -1560,6 +1562,8 @@ If you do not specifically require different script states, consider changing th
         render-save-progress! (make-render-task-progress :save-all)
         render-build-progress! (make-render-task-progress :build)
         bob-args (bob/bundle-bob-args prefs platform bundle-options)]
+    (when (not (.exists output-directory))
+      (fs/create-directories! output-directory))
     (clear-errors!)
     (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress!
                            render-build-error! bob/bundle-bob-commands bob-args project changes-view
@@ -1571,10 +1575,17 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :bundle :global
   (run [user-data workspace project prefs app-view changes-view build-errors-view]
-       (let [owner-window (g/node-value app-view :stage)
-             platform (:platform user-data)
-             bundle! (partial bundle! changes-view build-errors-view project prefs platform)]
-         (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
+    (let [owner-window (g/node-value app-view :stage)
+          platform (:platform user-data)
+          bundle! (partial bundle! changes-view build-errors-view project prefs platform)]
+      (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
+
+(handler/defhandler :rebundle :global
+  (enabled? [project] (some? (g/user-data project :last-bundle-options)))
+  (run [workspace project prefs app-view changes-view build-errors-view]
+    (let [last-bundle-options (g/user-data project :last-bundle-options)
+          platform (:platform-key last-bundle-options)]
+      (bundle! changes-view build-errors-view project prefs platform last-bundle-options))))
 
 (defn- fetch-libraries [workspace project dashboard-client changes-view]
   (let [library-uris (project/project-dependencies project)
@@ -1594,6 +1605,17 @@ If you do not specifically require different script states, consider changing th
                 (ui/run-later
                   (workspace/install-validated-libraries! workspace library-uris lib-states)
                   (disk/async-reload! render-install-progress! workspace [] changes-view))))))))))
+
+(handler/defhandler :add-dependency :global
+  (enabled? [] (disk-availability/available?))
+  (run [selection app-view prefs workspace dashboard-client project changes-view user-data]
+       (let [game-project (project/get-resource-node project "/game.project")
+             dependencies (game-project/get-setting game-project ["project" "dependencies"])
+             dependency-uri (.toURI (URL. (:dep-url user-data)))]
+         (when (not-any? (partial = dependency-uri) dependencies)
+           (game-project/set-setting! game-project ["project" "dependencies"]
+                                      (conj (vec dependencies) dependency-uri))
+           (fetch-libraries workspace project dashboard-client changes-view)))))
 
 (handler/defhandler :fetch-libraries :global
   (enabled? [] (disk-availability/available?))

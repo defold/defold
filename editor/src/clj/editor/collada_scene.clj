@@ -51,9 +51,9 @@
 (shader/defshader shader-frag-pos-nrm-tex
   (varying vec3 var_normal)
   (varying vec2 var_texcoord0)
-  (uniform sampler2D texture)
+  (uniform sampler2D texture_sampler)
   (defn void main []
-    (setq gl_FragColor (vec4 (* (.xyz (texture2D texture var_texcoord0.xy)) var_normal.z) 1.0))))
+    (setq gl_FragColor (vec4 (* (.xyz (texture2D texture_sampler var_texcoord0.xy)) var_normal.z) 1.0))))
 
 (def shader-pos-nrm-tex (shader/make-shader ::shader shader-ver-pos-nrm-tex shader-frag-pos-nrm-tex))
 
@@ -67,10 +67,10 @@
 
 (shader/defshader model-id-fragment-shader
   (varying vec2 var_texcoord0)
-  (uniform sampler2D texture)
+  (uniform sampler2D texture_sampler)
   (uniform vec4 id)
   (defn void main []
-    (setq vec4 color (texture2D texture var_texcoord0.xy))
+    (setq vec4 color (texture2D texture_sampler var_texcoord0.xy))
     (if (> color.a 0.05)
       (setq gl_FragColor id)
       (discard))))

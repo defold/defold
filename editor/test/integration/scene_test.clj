@@ -43,8 +43,7 @@
                         (fn [node-id]
                           (let [scene (g/node-value node-id :scene)
                                 aabb (make-aabb [0 0] [2048 1024])]
-                            (is (= (:aabb scene) aabb))))
-                        }]
+                            (is (= (:aabb scene) aabb))))}]
              (test-util/with-loaded-project
                (doseq [[path test-fn] cases]
                  (let [[node view] (test-util/open-scene-view! project app-view path 128 128)]
@@ -245,6 +244,7 @@
            :tags
            :user-data
            :world-rotation
+           :world-scale
            :world-transform} (set (keys renderable))))
   (is (instance? AABB (:aabb renderable)))
   (is (some? (:node-id renderable)))
@@ -295,7 +295,7 @@
                           {:node-id :house-node-id
                            :node-outline-key "house-node-outline-key"
                            :renderable {:render-fn :house-render-fn
-                                       :passes passes}
+                                        :passes passes}
                            :children [{:node-id :door-node-id
                                        :node-outline-key "door-node-outline-key"
                                        :renderable {:render-fn :door-render-fn
