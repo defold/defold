@@ -162,16 +162,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         builder.setSource(ByteString.copyFrom(msl_data));
     }
 
-    private String prettyPrintJsonString(JsonNode jsonNode) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            Object json = mapper.readValue(jsonNode.toString(), Object.class);
-            return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(json);
-        } catch (Exception e) {
-            return "Sorry, pretty print didn't work";
-        }
-    }
-
     private ShaderDesc.Shader.Builder compileGLSLToSPIRV(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language targetLanguage, IResource resource, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
         InputStreamReader isr = new InputStreamReader(is);
 
@@ -260,7 +250,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         JsonNode uboNode = tree.get("ubos");
         JsonNode typesNode = tree.get("types");
 
-        // System.out.println(prettyPrintJsonString(tree));
         int uniformIndex = 0;
 
         if (uboNode != null) {
