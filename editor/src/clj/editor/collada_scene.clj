@@ -320,6 +320,7 @@
   (or (validate-meshes meshes)
       {:node-id _node-id
        :aabb aabb
+       :transform geom/Identity4d
        :renderable {:render-fn render-scene
                     :tags #{:model}
                     :batch-key _node-id
@@ -331,6 +332,7 @@
                     :passes [pass/opaque pass/opaque-selection]}
        :children [{:node-id _node-id
                    :aabb aabb
+                   :transform geom/Identity4d
                    :renderable {:render-fn render-outline
                                 :tags #{:model :outline}
                                 :batch-key _node-id
@@ -342,7 +344,7 @@
 
   (output content g/Any :cached produce-content)
   (output aabb AABB :cached (g/fnk [meshes]
-                              (loop [aabb (geom/null-aabb)
+                              (loop [aabb geom/null-aabb
                                      meshes meshes]
                                 (if-let [m (first meshes)]
                                   (let [^floats ps (:positions m)

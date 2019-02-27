@@ -61,8 +61,7 @@
 
   (output form-data g/Any :cached produce-form-data)
   (output save-value g/Any (gu/passthrough pb))
-  (output build-targets g/Any :cached produce-build-targets)
-  (output scene g/Any (g/constantly {})))
+  (output build-targets g/Any :cached produce-build-targets))
 
 (defn load-pb [def project self resource pb]
   (concat
