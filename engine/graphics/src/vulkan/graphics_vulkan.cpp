@@ -135,20 +135,31 @@ namespace dmGraphics
             uint16_t    m_BlockOffset;
             uint16_t    m_DataSize;
             Type        m_DataType;
-            const char* m_Name;
+            dmhash_t    m_NameHash;
         };
 
         struct ShaderUniformBlock
         {
-            uint16_t          m_Set;
-            uint16_t          m_Binding;
-            uint16_t          m_UniformIndicesCount; // Nested dmArray not allowed?
-            uint16_t          m_IsDirty;
-            const char*       m_Name;
-            void*             m_UniformData;
-            uint16_t*         m_UniformIndices;
-            VkBuffer          m_Handle;
-            GPUMemory         m_GPUBuffer;
+            uint16_t    m_Set;
+            uint16_t    m_Binding;
+            uint16_t    m_UniformIndicesCount; // Nested dmArray not allowed?
+            uint16_t*   m_UniformIndices;
+            dmhash_t    m_NameHash;
+        };
+
+        // Note: Nearly identical as ShaderUniformBlock, but we need to maintain
+        //       a merged list of uniforms per Program due to shader binding.
+        struct ProgramUniformBlock
+        {
+            uint16_t  m_Set;
+            uint16_t  m_Binding;
+            uint16_t  m_UniformIndicesCount;
+            uint16_t  m_IsDirty;
+            void*     m_UniformData;
+            uint16_t* m_UniformIndices;
+            dmhash_t  m_NameHash;
+            VkBuffer  m_Handle;
+            GPUMemory m_GPUBuffer;
         };
 
         struct ShaderProgram
@@ -167,9 +178,11 @@ namespace dmGraphics
 
             const ShaderProgram*            m_VertexProgram;
             const ShaderProgram*            m_FragmentProgram;
-            VkPipelineShaderStageCreateInfo m_ShaderStages[2];
+            VkPipelineShaderStageCreateInfo m_ShaderStages[2]; // Note: Consider moving into ShaderProgram struct
             VkDescriptorSet                 m_DescriptorSet;
             dmArray<uint16_t>               m_LayoutBindingsIndices;
+            dmArray<ShaderUniform>          m_Uniforms;
+            dmArray<ProgramUniformBlock>    m_UniformBlocks;
         };
 
         struct Pipeline
@@ -1099,7 +1112,9 @@ namespace dmGraphics
         {
             for (uint16_t i = 0; i < program->m_LayoutBindingsIndices.Size(); i++)
             {
-                input[i] = g_vk_context.m_DescriptorSetLayoutBindings[program->m_LayoutBindingsIndices[i]];
+                uint16_t ix = program->m_LayoutBindingsIndices[i];
+                VkDescriptorSetLayoutBinding desc = g_vk_context.m_DescriptorSetLayoutBindings[ix];
+                input[i] = desc;
             }
         }
 
@@ -1765,11 +1780,11 @@ namespace dmGraphics
             return (uint16_t) index;
         }
 
-        static void CommitUniforms(Program* program, const ShaderProgram* shader)
+        static void CommitUniforms(Program* program)
         {
-            for (uint16_t i=0; i < shader->m_UniformBlocks.Size(); i++)
+            for (uint16_t i=0; i < program->m_UniformBlocks.Size(); i++)
             {
-                const ShaderUniformBlock& block = shader->m_UniformBlocks[i];
+                ProgramUniformBlock& block = program->m_UniformBlocks[i];
 
                 if (block.m_IsDirty)
                 {
@@ -1797,49 +1812,107 @@ namespace dmGraphics
 
                     vkUpdateDescriptorSets(g_vk_context.m_LogicalDevice, 1, &vk_write_desc_info, 0, 0);
 
-                    ((ShaderUniformBlock*) &shader->m_UniformBlocks[i])->m_IsDirty = 0;
+                    program->m_UniformBlocks[i].m_IsDirty = 0;
                 }
             }
         }
 
-        static void InitializeUniforms(Program* program, const ShaderProgram* shader, VkShaderStageFlags stageFlags)
+        static void InitializeUniforms(Program* program)
         {
-            for (uint16_t i=0; i < shader->m_UniformBlocks.Size(); i++)
-            {
-                uint16_t block_size = 0;
+            program->m_UniformBlocks.SetCapacity(
+                program->m_VertexProgram->m_UniformBlocks.Size() +
+                program->m_FragmentProgram->m_UniformBlocks.Size());
 
-                const ShaderUniformBlock& block = shader->m_UniformBlocks[i];
+            program->m_Uniforms.SetCapacity(
+                program->m_VertexProgram->m_Uniforms.Size() +
+                program->m_FragmentProgram->m_Uniforms.Size());
+
+            // Merge uniform blocks and uniforms
+            for (uint16_t i=0; i < program->m_VertexProgram->m_UniformBlocks.Size(); i++)
+            {
+                ShaderUniformBlock vpblock = program->m_VertexProgram->m_UniformBlocks[i];
+                ProgramUniformBlock pblock;
+                pblock.m_Set                 = vpblock.m_Set;
+                pblock.m_Binding             = vpblock.m_Binding;
+                pblock.m_UniformIndicesCount = vpblock.m_UniformIndicesCount;
+                pblock.m_NameHash            = vpblock.m_NameHash;
+                pblock.m_UniformIndices      = new uint16_t[pblock.m_UniformIndicesCount];
+                memcpy(pblock.m_UniformIndices, vpblock.m_UniformIndices, sizeof(uint16_t));
+                program->m_UniformBlocks.Push(pblock);
+            }
+
+            for (uint16_t i=0; i < program->m_VertexProgram->m_Uniforms.Size(); i++)
+            {
+                program->m_Uniforms.Push(program->m_VertexProgram->m_Uniforms[i]);
+            }
+
+            uint16_t block_binding_offset   = program->m_VertexProgram->m_UniformBlocks.Size();
+            uint16_t uniform_binding_offset = program->m_VertexProgram->m_Uniforms.Size();
+
+            for (uint16_t i=0; i < program->m_FragmentProgram->m_UniformBlocks.Size(); i++)
+            {
+                ShaderUniformBlock fsblock = program->m_FragmentProgram->m_UniformBlocks[i];
+                ProgramUniformBlock pblock;
+                pblock.m_Set                 = fsblock.m_Set;
+                pblock.m_Binding             = fsblock.m_Binding + block_binding_offset;
+                pblock.m_UniformIndicesCount = fsblock.m_UniformIndicesCount;
+                pblock.m_NameHash            = fsblock.m_NameHash;
+                pblock.m_UniformIndices      = new uint16_t[pblock.m_UniformIndicesCount];
+
+                memcpy(pblock.m_UniformIndices, fsblock.m_UniformIndices, sizeof(uint16_t));
+
+                for (uint16_t u=0; u < pblock.m_UniformIndicesCount; u++)
+                {
+                    pblock.m_UniformIndices[u] = fsblock.m_UniformIndices[u] + uniform_binding_offset;
+                }
+
+                program->m_UniformBlocks.Push(pblock);
+            }
+
+            for (uint16_t i=0; i < program->m_FragmentProgram->m_Uniforms.Size(); i++)
+            {
+                program->m_Uniforms.Push(program->m_FragmentProgram->m_Uniforms[i]);
+            }
+
+            program->m_LayoutBindingsIndices.SetCapacity(program->m_UniformBlocks.Size());
+            program->m_LayoutBindingsIndices.SetSize(0);
+
+            for (uint16_t i=0; i < program->m_UniformBlocks.Size(); i++)
+            {
+                uint16_t block_size         = 0;
+                uint16_t block_layout_index = 0;
+                ProgramUniformBlock& block  = program->m_UniformBlocks[i];
 
                 for (uint16_t u=0; u < block.m_UniformIndicesCount; u++)
                 {
-                    const ShaderUniform& uniform = shader->m_Uniforms[block.m_UniformIndices[u]];
-
-                    uint16_t layout_index = GetDescriptorSetLayoutBindingIndex(uniform.m_Binding,
-                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, stageFlags);
-
-                    program->m_LayoutBindingsIndices.Push(layout_index);
-
-                    block_size += uniform.m_DataSize;
+                    block_size += program->m_Uniforms[block.m_UniformIndices[u]].m_DataSize;
                 }
+
+                if (i < block_binding_offset)
+                {
+                    block_layout_index = GetDescriptorSetLayoutBindingIndex(block.m_Binding,
+                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
+                }
+                else
+                {
+                    block_layout_index = GetDescriptorSetLayoutBindingIndex(block.m_Binding,
+                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT);
+                }
+
+                program->m_LayoutBindingsIndices.Push(block_layout_index);
 
                 CreateGPUBuffer(block_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                     (VkBuffer*) &block.m_Handle, (GPUMemory*) &block.m_GPUBuffer);
 
-                // Note: This cast is for the const qualifier, need to fix this..
-                ((ShaderUniformBlock*) &shader->m_UniformBlocks[i])->m_UniformData = malloc(block_size);
-                ((ShaderUniformBlock*) &shader->m_UniformBlocks[i])->m_IsDirty = 1;
+                block.m_UniformData = malloc(block_size);
+                block.m_IsDirty     = 1;
             }
         }
 
         static void InitializeProgram(Program* program)
         {
-            program->m_LayoutBindingsIndices.SetCapacity(
-                program->m_VertexProgram->m_UniformBlocks.Size() +
-                program->m_FragmentProgram->m_UniformBlocks.Size());
-
-            InitializeUniforms(program, program->m_VertexProgram, VK_SHADER_STAGE_VERTEX_BIT);
-            InitializeUniforms(program, program->m_FragmentProgram, VK_SHADER_STAGE_FRAGMENT_BIT);
+            InitializeUniforms(program);
 
             VkDescriptorSetLayoutBinding* vk_layout_bindings = new VkDescriptorSetLayoutBinding[program->m_LayoutBindingsIndices.Size()];
             FillDescriptorSetLayoutBindings(vk_layout_bindings, program);
@@ -1870,8 +1943,7 @@ namespace dmGraphics
             vk_descriptor_set_allocate_layout.pSetLayouts        = &vk_descriptor_set_layout;
             VK_CHECK(vkAllocateDescriptorSets(g_vk_context.m_LogicalDevice, &vk_descriptor_set_allocate_layout, &program->m_DescriptorSet));
 
-            CommitUniforms(program, program->m_VertexProgram);
-            CommitUniforms(program, program->m_FragmentProgram);
+            CommitUniforms(program);
 
             // Set pipeline creation info
             VkPipelineShaderStageCreateInfo vk_vertex_shader_create_info;
@@ -1935,16 +2007,10 @@ namespace dmGraphics
             delete ixb;
         }
 
-        static inline void UpdateUniforms(Program* program)
+        static inline void SetUniformValue(Program* program, uint16_t uniformIndex, void* data, size_t data_size)
         {
-            CommitUniforms(program,program->m_VertexProgram);
-            CommitUniforms(program,program->m_FragmentProgram);
-        }
-
-        static inline void SetUniformValue(const ShaderProgram* shader, uint16_t uniformIndex, void* data, size_t data_size)
-        {
-            const dmArray<ShaderUniformBlock>& blocks = shader->m_UniformBlocks;
-            const ShaderUniform& u                    = shader->m_Uniforms[uniformIndex];
+            dmArray<ProgramUniformBlock>& blocks = program->m_UniformBlocks;
+            ShaderUniform& u                     = program->m_Uniforms[uniformIndex];
 
             // Find the uniform blocks that hold the data for a specific uniform
             // Note: We might want to rearrange this relationship later..
@@ -1957,8 +2023,7 @@ namespace dmGraphics
                     if (block_index == uniformIndex)
                     {
                         memcpy(blocks[i].m_UniformData, data, data_size);
-
-                        ((ShaderUniformBlock*) &blocks[i])->m_IsDirty = 1;
+                        blocks[i].m_IsDirty = 1;
                     }
                 }
             }
@@ -2711,7 +2776,7 @@ namespace dmGraphics
             (Vulkan::VertexBuffer*) context->m_CurrentVertexBuffer,
             (HVertexDeclaration) context->m_CurrentVertexDeclaration);
 
-        Vulkan::UpdateUniforms(program);
+        Vulkan::CommitUniforms(program);
 
         Vulkan::BindPipeline(pipeline);
 
@@ -2811,37 +2876,42 @@ namespace dmGraphics
         return TYPE_FLOAT;
     }
 
+    static void TransferUniformsFromDDF(Vulkan::ShaderProgram* shader, ShaderDesc::Shader* ddf)
+    {
+        shader->m_Uniforms.SetCapacity(ddf->m_Uniforms.m_Count);
+        shader->m_Uniforms.SetSize(ddf->m_Uniforms.m_Count);
+        shader->m_UniformBlocks.SetCapacity(ddf->m_UniformBlocks.m_Count);
+        shader->m_UniformBlocks.SetSize(ddf->m_UniformBlocks.m_Count);
+
+        for (uint32_t i=0; i < ddf->m_Uniforms.m_Count; i++)
+        {
+            shader->m_Uniforms[i].m_Set         = ddf->m_Uniforms[i].m_Set;
+            shader->m_Uniforms[i].m_Binding     = ddf->m_Uniforms[i].m_Binding;
+            shader->m_Uniforms[i].m_BlockOffset = ddf->m_Uniforms[i].m_Offset;
+            shader->m_Uniforms[i].m_NameHash    = dmHashString64(ddf->m_Uniforms[i].m_Name);
+            shader->m_Uniforms[i].m_DataType    = GetGraphicsTypeFromUniformType(ddf->m_Uniforms[i].m_Type);
+            shader->m_Uniforms[i].m_DataSize    = GetSizeFromUniformType(ddf->m_Uniforms[i].m_Type);
+        }
+
+        for (uint32_t i=0; i < ddf->m_UniformBlocks.m_Count; i++)
+        {
+            shader->m_UniformBlocks[i].m_Set      = ddf->m_UniformBlocks[i].m_Set;
+            shader->m_UniformBlocks[i].m_Binding  = ddf->m_UniformBlocks[i].m_Binding;
+            shader->m_UniformBlocks[i].m_NameHash = dmHashString64(ddf->m_UniformBlocks[i].m_Name);
+
+            shader->m_UniformBlocks[i].m_UniformIndicesCount = ddf->m_UniformBlocks[i].m_UniformIndices.m_Count;
+            shader->m_UniformBlocks[i].m_UniformIndices = new uint16_t[ddf->m_UniformBlocks[i].m_UniformIndices.m_Count];
+
+            memcpy(shader->m_UniformBlocks[i].m_UniformIndices,ddf->m_UniformBlocks[i].m_UniformIndices.m_Data,sizeof(uint16_t) * ddf->m_UniformBlocks[i].m_UniformIndices.m_Count);
+        }
+    }
+
     HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
     {
         assert(ddf);
         Vulkan::ShaderProgram* new_shader = Vulkan::CreateShaderProgram(ddf->m_Binary.m_Data,ddf->m_Binary.m_Count);
 
-        new_shader->m_Uniforms.SetCapacity(ddf->m_Uniforms.m_Count);
-        new_shader->m_Uniforms.SetSize(ddf->m_Uniforms.m_Count);
-        new_shader->m_UniformBlocks.SetCapacity(ddf->m_UniformBlocks.m_Count);
-        new_shader->m_UniformBlocks.SetSize(ddf->m_UniformBlocks.m_Count);
-
-        for (uint32_t i=0; i < ddf->m_Uniforms.m_Count; i++)
-        {
-            new_shader->m_Uniforms[i].m_Set         = ddf->m_Uniforms[i].m_Set;
-            new_shader->m_Uniforms[i].m_Binding     = ddf->m_Uniforms[i].m_Binding;
-            new_shader->m_Uniforms[i].m_BlockOffset = ddf->m_Uniforms[i].m_Offset;
-            new_shader->m_Uniforms[i].m_Name        = ddf->m_Uniforms[i].m_Name;
-            new_shader->m_Uniforms[i].m_DataType    = GetGraphicsTypeFromUniformType(ddf->m_Uniforms[i].m_Type);
-            new_shader->m_Uniforms[i].m_DataSize    = GetSizeFromUniformType(ddf->m_Uniforms[i].m_Type);
-        }
-
-        for (uint32_t i=0; i < ddf->m_UniformBlocks.m_Count; i++)
-        {
-            new_shader->m_UniformBlocks[i].m_Set     = ddf->m_UniformBlocks[i].m_Set;
-            new_shader->m_UniformBlocks[i].m_Binding = ddf->m_UniformBlocks[i].m_Binding;
-            new_shader->m_UniformBlocks[i].m_Name    = ddf->m_UniformBlocks[i].m_Name;
-
-            new_shader->m_UniformBlocks[i].m_UniformIndicesCount = ddf->m_UniformBlocks[i].m_UniformIndices.m_Count;
-            new_shader->m_UniformBlocks[i].m_UniformIndices = new uint16_t[ddf->m_UniformBlocks[i].m_UniformIndices.m_Count];
-
-            memcpy(new_shader->m_UniformBlocks[i].m_UniformIndices,ddf->m_UniformBlocks[i].m_UniformIndices.m_Data,sizeof(uint16_t) * ddf->m_UniformBlocks[i].m_UniformIndices.m_Count);
-        }
+        TransferUniformsFromDDF(new_shader,ddf);
 
         return (HVertexProgram) new_shader;
     }
@@ -2852,32 +2922,7 @@ namespace dmGraphics
 
         Vulkan::ShaderProgram* new_shader = Vulkan::CreateShaderProgram(ddf->m_Binary.m_Data,ddf->m_Binary.m_Count);
 
-        new_shader->m_Uniforms.SetCapacity(ddf->m_Uniforms.m_Count);
-        new_shader->m_Uniforms.SetSize(ddf->m_Uniforms.m_Count);
-        new_shader->m_UniformBlocks.SetCapacity(ddf->m_UniformBlocks.m_Count);
-        new_shader->m_UniformBlocks.SetSize(ddf->m_UniformBlocks.m_Count);
-
-        for (uint32_t i=0; i < ddf->m_Uniforms.m_Count; i++)
-        {
-            new_shader->m_Uniforms[i].m_Set         = ddf->m_Uniforms[i].m_Set;
-            new_shader->m_Uniforms[i].m_Binding     = ddf->m_Uniforms[i].m_Binding;
-            new_shader->m_Uniforms[i].m_BlockOffset = ddf->m_Uniforms[i].m_Offset;
-            new_shader->m_Uniforms[i].m_Name        = ddf->m_Uniforms[i].m_Name;
-            new_shader->m_Uniforms[i].m_DataType    = GetGraphicsTypeFromUniformType(ddf->m_Uniforms[i].m_Type);
-            new_shader->m_Uniforms[i].m_DataSize    = GetSizeFromUniformType(ddf->m_Uniforms[i].m_Type);
-        }
-
-        for (uint32_t i=0; i < ddf->m_UniformBlocks.m_Count; i++)
-        {
-            new_shader->m_UniformBlocks[i].m_Set     = ddf->m_UniformBlocks[i].m_Set;
-            new_shader->m_UniformBlocks[i].m_Binding = ddf->m_UniformBlocks[i].m_Binding;
-            new_shader->m_UniformBlocks[i].m_Name    = ddf->m_UniformBlocks[i].m_Name;
-
-            new_shader->m_UniformBlocks[i].m_UniformIndicesCount = ddf->m_UniformBlocks[i].m_UniformIndices.m_Count;
-            new_shader->m_UniformBlocks[i].m_UniformIndices = new uint16_t[ddf->m_UniformBlocks[i].m_UniformIndices.m_Count];
-
-            memcpy(new_shader->m_UniformBlocks[i].m_UniformIndices,ddf->m_UniformBlocks[i].m_UniformIndices.m_Data,sizeof(uint16_t) * ddf->m_UniformBlocks[i].m_UniformIndices.m_Count);
-        }
+        TransferUniformsFromDDF(new_shader,ddf);
 
         return (HFragmentProgram) new_shader;
     }
@@ -2935,61 +2980,41 @@ namespace dmGraphics
     {
         assert(prog);
         Vulkan::Program* p = (Vulkan::Program*) prog;
-        return p->m_VertexProgram->m_Uniforms.Size() + p->m_FragmentProgram->m_Uniforms.Size();
+        return p->m_Uniforms.Size();
     }
 
-    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    bool GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type)
     {
-        Vulkan::Program* p = (Vulkan::Program*) prog;
-        const Vulkan::ShaderProgram* shader;
+        Vulkan::Program* p      = (Vulkan::Program*) prog;
+        Vulkan::ShaderUniform u = p->m_Uniforms[index];
 
-        if (index < p->m_VertexProgram->m_Uniforms.Size())
-        {
-            shader = p->m_VertexProgram;
-        }
-        else
-        {
-            index -= p->m_VertexProgram->m_Uniforms.Size();
-            shader = p->m_FragmentProgram;
-        }
-
-        Vulkan::ShaderUniform u = shader->m_Uniforms[index];
-        size_t bytes_to_take = dmMath::Min<size_t>(strlen(u.m_Name),buffer_size-1);
-        memcpy(buffer,u.m_Name, bytes_to_take);
-        buffer[bytes_to_take] = '\0';
+        *hash = u.m_NameHash;
         *type = u.m_DataType;
+
+        return true;
     }
 
-    inline int32_t GetUniformLocation(const Vulkan::ShaderProgram* shader, const char* name)
+    bool GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
-        const dmArray<Vulkan::ShaderUniform>& uniforms = shader->m_Uniforms;
-
-        for (uint32_t i=0; i < uniforms.Size(); i++)
-        {
-            if (strcmp(name, uniforms[i].m_Name) == 0)
-            {
-                return i;
-            }
-        }
-
-        return -1;
+        return false;
     }
 
     int32_t GetUniformLocation(HProgram prog, const char* name)
     {
+        return -1;
+    }
+
+    int32_t GetUniformLocation(HProgram prog, dmhash_t name)
+    {
         assert(prog);
         Vulkan::Program* p = (Vulkan::Program*) prog;
 
-        int32_t vx_loc = GetUniformLocation(p->m_VertexProgram, name);
-        int32_t fs_loc = GetUniformLocation(p->m_FragmentProgram, name);
-
-        if (vx_loc >= 0)
+        for (uint32_t i=0; i < p->m_Uniforms.Size(); i++)
         {
-            return vx_loc;
-        }
-        else if (fs_loc >= 0)
-        {
-            return fs_loc + p->m_VertexProgram->m_Uniforms.Size();
+            if (name == p->m_Uniforms[i].m_NameHash)
+            {
+                return i;
+            }
         }
 
         return -1;
@@ -3001,30 +3026,9 @@ namespace dmGraphics
         Vulkan::SetViewport(x,y,width,height);
     }
 
-    const Vector4& GetConstantV4Ptr(HContext context, int base_register)
-    {
-        assert(context);
-        assert(context->m_CurrentProgram != 0x0);
-        return context->m_ProgramRegisters[base_register];
-    }
-
     inline void SetConstantValue(void* program, int base_register, void* data, size_t data_size)
     {
-        Vulkan::Program* p = (Vulkan::Program*) program;
-        const Vulkan::ShaderProgram* shader;
-        uint16_t uniform_index = base_register;
-
-        if (base_register < p->m_VertexProgram->m_Uniforms.Size())
-        {
-            shader = p->m_VertexProgram;
-        }
-        else
-        {
-            shader = p->m_FragmentProgram;
-            uniform_index -= (uint16_t) p->m_VertexProgram->m_Uniforms.Size();
-        }
-
-        Vulkan::SetUniformValue(shader, uniform_index, data, data_size);
+        Vulkan::SetUniformValue((Vulkan::Program*) program, base_register, data, data_size);
     }
 
     void SetConstantV4(HContext context, const Vector4* data, int base_register)
@@ -3373,15 +3377,15 @@ namespace dmGraphics
         return TEXTURE_STATUS_OK;
     }
 
+    // Nop functions, exist in graphics_private.h but only used for tests.
     void SetForceFragmentReloadFail(bool should_fail)
     {
-        g_ForceFragmentReloadFail = should_fail;
+        // nop
     }
 
     void SetForceVertexReloadFail(bool should_fail)
     {
-        g_ForceVertexReloadFail = should_fail;
+        // nop
     }
-
 }
 

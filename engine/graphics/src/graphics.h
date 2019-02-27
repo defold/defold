@@ -597,8 +597,10 @@ namespace dmGraphics
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
 
     uint32_t GetUniformCount(HProgram prog);
-    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type);
+    bool GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type);
+    bool GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type);
     int32_t GetUniformLocation(HProgram prog, const char* name);
+    int32_t GetUniformLocation(HProgram prog, dmhash_t hash);
 
     void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
     void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int base_register);

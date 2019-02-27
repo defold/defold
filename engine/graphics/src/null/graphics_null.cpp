@@ -745,7 +745,7 @@ namespace dmGraphics
         return ((Program*)prog)->m_Uniforms.Size();
     }
 
-    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    bool GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         Program* program = (Program*)prog;
         assert(index < program->m_Uniforms.Size());
@@ -753,6 +753,17 @@ namespace dmGraphics
         *buffer = '\0';
         dmStrlCat(buffer, uniform.m_Name, buffer_size);
         *type = uniform.m_Type;
+        return true;
+    }
+
+    bool GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type)
+    {
+        return false;
+    }
+
+    int32_t GetUniformLocation(HProgram prog, dmhash_t hash)
+    {
+        return -1;
     }
 
     int32_t GetUniformLocation(HProgram prog, const char* name)

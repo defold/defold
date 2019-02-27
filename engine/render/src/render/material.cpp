@@ -44,7 +44,11 @@ namespace dmRender
         uint32_t samplers_count = 0;
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
-            dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type);
+            if (!dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type))
+            {
+                dmhash_t name_hash;
+                dmGraphics::GetUniformName(m->m_Program, i, &name_hash, &type);
+            }
 
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
             {
@@ -77,8 +81,19 @@ namespace dmRender
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
-            dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type);
-            int32_t location = dmGraphics::GetUniformLocation(m->m_Program, buffer);
+            dmhash_t name_hash;
+            int32_t location = -1;
+
+            if(dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type))
+            {
+                name_hash = dmHashString64(buffer);
+                location  = dmGraphics::GetUniformLocation(m->m_Program, buffer);
+            }
+            else
+            {
+                dmGraphics::GetUniformName(m->m_Program, i, &name_hash, &type);
+                location = dmGraphics::GetUniformLocation(m->m_Program, name_hash);
+            }
 
             // DEF-2971-hotfix
             // Previously this check was an assert. In Emscripten 1.38.3 they made changes
@@ -90,7 +105,6 @@ namespace dmRender
             if (location == -1) {
                 continue;
             }
-            dmhash_t name_hash = dmHashString64(buffer);
 
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
             {
