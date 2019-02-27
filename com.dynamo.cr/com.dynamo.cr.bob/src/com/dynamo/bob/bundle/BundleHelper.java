@@ -210,17 +210,17 @@ public class BundleHelper {
                 largestIcon = resource;
             }
         }
-        File largetIconFile = File.createTempFile("temp", "default_icon.png");
+        File largestIconFile = File.createTempFile("temp", "default_icon.png");
 
         if (largestIcon != null) {
             IResource largestIconRes = project.getResource(largestIcon);
-            FileUtils.writeByteArrayToFile(largetIconFile, largestIconRes.getContent());
+            FileUtils.writeByteArrayToFile(largestIconFile, largestIconRes.getContent());
         } else {
             URL defaultIconURL = getClass().getResource("resources/ios/default_icon.png");
-            FileUtils.writeByteArrayToFile(largetIconFile, IOUtils.toByteArray(defaultIconURL));
+            FileUtils.writeByteArrayToFile(largestIconFile, IOUtils.toByteArray(defaultIconURL));
         }
 
-        return ImageIO.read(largetIconFile);
+        return ImageIO.read(largestIconFile);
     }
 
     public void copyIosIcons() throws IOException
