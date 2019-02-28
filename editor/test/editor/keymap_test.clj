@@ -3,8 +3,9 @@
             [editor.keymap :as keymap]))
 
 (deftest default-bindings-are-valid
-  (doseq [[_ key-bindings] keymap/platform->default-key-bindings]
+  (doseq [[platform key-bindings] keymap/platform->default-key-bindings]
     (is (keymap/make-keymap key-bindings {:valid-command? (constantly true)
+                                          :platform platform
                                           :throw-on-error? true}))))
 
 (defn- make-keymap-errors [key-bindings]
