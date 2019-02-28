@@ -96,7 +96,6 @@
 (g/defnode CodeEditorResourceNode
   (inherits resource-node/ResourceNode)
 
-  (property cursor-ranges CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows InvalidatedRows (default []) (dynamic visible (g/constantly false)))
   (property modified-indent-type IndentType (dynamic visible (g/constantly false)))
   (property modified-lines Lines (dynamic visible (g/constantly false))

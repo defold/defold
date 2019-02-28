@@ -801,8 +801,11 @@
   (let [w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
     (Vector3d. (.x w4) (.y w4) (.z w4))))
 
-(defn- view->camera [view]
-  (g/node-feeding-into view :camera))
+(defn- view->camera
+  ([view]
+   (g/node-feeding-into view :camera))
+  ([basis view]
+   (g/node-feeding-into basis view :camera)))
 
 (defn augment-action [view action]
   (let [x          (:x action)
@@ -1370,6 +1373,18 @@
   (when-let [image-view ^ImageView (g/node-value view-id :image-view)]
     (.requestFocus image-view)))
 
+(defn- view-state [view-node evaluation-context]
+  (let [basis (:basis evaluation-context)
+        camera-node (view->camera basis view-node)
+        local-camera (g/node-value camera-node :local-camera evaluation-context)]
+    {:local-camera local-camera}))
+
+(defn- set-view-state [view-node view-state evaluation-context]
+  (let [basis (:basis evaluation-context)
+        camera-node (view->camera basis view-node)
+        local-camera (:local-camera view-state)]
+    (g/set-property camera-node :local-camera local-camera)))
+
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :scene
@@ -1377,7 +1392,9 @@
                                 :make-view-fn make-view
                                 :make-preview-fn make-preview
                                 :dispose-preview-fn dispose-preview
-                                :focus-fn focus-view))
+                                :focus-fn focus-view
+                                :state-fn view-state
+                                :set-state-fn set-view-state))
 
 (g/defnk produce-transform [position rotation scale]
   (let [position-v3 (doto (Vector3d.) (math/clj->vecmath position))

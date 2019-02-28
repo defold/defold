@@ -828,6 +828,7 @@
                                                                                :top scroll-y))]
                      (when (not= scroll-y new-scroll-y)
                        (g/set-property self :scroll-y new-scroll-y))))))
+  (property cursor-ranges r/CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property document-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property color-scheme ColorScheme (dynamic visible (g/constantly false)))
   (property elapsed-time-at-last-action g/Num (default 0.0) (dynamic visible (g/constantly false)))
@@ -855,7 +856,6 @@
   (property visible-whitespace VisibleWhitespace (default :none))
 
   (input completions g/Any)
-  (input cursor-ranges r/CursorRanges)
   (input indent-type r/IndentType)
   (input invalidated-rows r/InvalidatedRows)
   (input lines r/Lines :substitute [""])
@@ -896,10 +896,10 @@
     MouseButton/SECONDARY :secondary
     MouseButton/MIDDLE :middle))
 
-(defn- operation-sequence-tx-data [view-node undo-grouping]
+(defn- operation-sequence-tx-data [evaluation-context view-node undo-grouping]
   (if (nil? undo-grouping)
     []
-    (let [[prev-undo-grouping prev-opseq] (g/node-value view-node :undo-grouping-info)]
+    (let [[prev-undo-grouping prev-opseq] (g/node-value view-node :undo-grouping-info evaluation-context)]
       (assert (contains? undo-groupings undo-grouping))
       (cond
         (= undo-grouping prev-undo-grouping)
@@ -915,14 +915,50 @@
           [(g/operation-sequence opseq)
            (g/set-property view-node :undo-grouping-info [undo-grouping opseq])])))))
 
-(defn- prelude-tx-data [view-node undo-grouping values-by-prop-kw]
+(defn- prelude-tx-data [evaluation-context view-node undo-grouping values-by-prop-kw]
   ;; Along with undo grouping info, we also keep track of when an action was
   ;; last performed in the document. We use this to stop the cursor from
   ;; blinking while typing or navigating.
-  (into (operation-sequence-tx-data view-node undo-grouping)
+  (into (operation-sequence-tx-data evaluation-context view-node undo-grouping)
         (when (or (contains? values-by-prop-kw :cursor-ranges)
                   (contains? values-by-prop-kw :lines))
           (g/set-property view-node :elapsed-time-at-last-action (or (g/user-data view-node :elapsed-time) 0.0)))))
+
+(defn- set-properties-tx-data [evaluation-context view-node undo-grouping values-by-prop-kw]
+  (let [resource-node (g/node-value view-node :resource-node evaluation-context)]
+    (into (prelude-tx-data evaluation-context view-node undo-grouping values-by-prop-kw)
+          (mapcat (fn [[prop-kw value]]
+                    (case prop-kw
+                      ;; These are stored in the resource node.
+                      :regions
+                      (g/set-property resource-node prop-kw value)
+
+                      ;; Several actions might have invalidated rows since
+                      ;; we last produced syntax-info. We keep an ever-
+                      ;; growing history of invalidated-rows. Then when
+                      ;; producing syntax-info we find the first invalidated
+                      ;; row by comparing the history of invalidated rows to
+                      ;; what it was at the time of the last call. See the
+                      ;; invalidated-row function for details.
+                      :invalidated-row
+                      (g/update-property resource-node :invalidated-rows conj value)
+
+                      ;; The :indent-type output in the resource node is
+                      ;; cached, but reads from disk unless a value exists
+                      ;; for the :modified-indent-type property.
+                      :indent-type
+                      (g/set-property resource-node :modified-indent-type value)
+
+                      ;; The :lines output in the resource node is uncached.
+                      ;; It reads from disk unless a value exists for the
+                      ;; :modified-lines property. This means only modified
+                      ;; or currently open files are kept in memory.
+                      :lines
+                      (g/set-property resource-node :modified-lines value)
+
+                      ;; All other properties are set on the view node.
+                      (g/set-property view-node prop-kw value))))
+          values-by-prop-kw)))
 
 ;; -----------------------------------------------------------------------------
 
@@ -952,40 +988,9 @@
   [view-node undo-grouping values-by-prop-kw]
   (if (empty? values-by-prop-kw)
     false
-    (let [resource-node (g/node-value view-node :resource-node)]
-      (g/transact
-        (into (prelude-tx-data view-node undo-grouping values-by-prop-kw)
-              (mapcat (fn [[prop-kw value]]
-                        (case prop-kw
-                          (:cursor-ranges :regions)
-                          (g/set-property resource-node prop-kw value)
-
-                          ;; Several actions might have invalidated rows since
-                          ;; we last produced syntax-info. We keep an ever-
-                          ;; growing history of invalidated-rows. Then when
-                          ;; producing syntax-info we find the first invalidated
-                          ;; row by comparing the history of invalidated rows to
-                          ;; what it was at the time of the last call. See the
-                          ;; invalidated-row function for details.
-                          :invalidated-row
-                          (g/update-property resource-node :invalidated-rows conj value)
-
-                          ;; The :indent-type output in the resource node is
-                          ;; cached, but reads from disk unless a value exists
-                          ;; for the :modified-indent-type property.
-                          :indent-type
-                          (g/set-property resource-node :modified-indent-type value)
-
-                          ;; The :lines output in the resource node is uncached.
-                          ;; It reads from disk unless a value exists for the
-                          ;; :modified-lines property. This means only modified
-                          ;; or currently open files are kept in memory.
-                          :lines
-                          (g/set-property resource-node :modified-lines value)
-
-                          ;; All other properties are set on the view node.
-                          (g/set-property view-node prop-kw value))))
-              values-by-prop-kw))
+    (let [tx-data (g/with-auto-evaluation-context evaluation-context
+                    (set-properties-tx-data evaluation-context view-node undo-grouping values-by-prop-kw))]
+      (g/transact tx-data)
       true)))
 
 ;; -----------------------------------------------------------------------------
@@ -2103,8 +2108,8 @@
   ;; file. Otherwise this will happen on the first edit. If a
   ;; background process has modified (or even deleted) the file
   ;; without the editor knowing, the "original" unmodified lines
-  ;; reached after a series of undo's could be something else entirely
-  ;; than what the user saw.
+  ;; reached after a series of undo operations could be something
+  ;; else entirely than what the user saw.
   (g/with-auto-evaluation-context ec
     (r/ensure-unmodified-lines! resource-node ec))
   (let [glyph-metrics (g/node-value view-node :glyph-metrics)
@@ -2116,7 +2121,6 @@
       (concat
         (g/set-property view-node :document-width document-width)
         (g/connect resource-node :completions view-node :completions)
-        (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
         (g/connect resource-node :indent-type view-node :indent-type)
         (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
         (g/connect resource-node :lines view-node :lines)
@@ -2504,10 +2508,30 @@
                                             (get-property view-node :layout)
                                             (data/Cursor->CursorRange (data/->Cursor row 0))))))
 
+(defn- view-state [view-node evaluation-context]
+  (let [cursor-ranges (g/node-value view-node :cursor-ranges evaluation-context)]
+    {:cursor-ranges cursor-ranges}))
+
+(defn- set-view-state [view-node view-state evaluation-context]
+  (let [lines (g/node-value view-node :lines evaluation-context)
+        old-layout (g/node-value view-node :layout evaluation-context)
+        glyph-metrics (g/node-value view-node :glyph-metrics evaluation-context)
+        tab-spaces (g/node-value view-node :tab-spaces evaluation-context)
+        tab-stops (data/tab-stops glyph-metrics tab-spaces)
+        cursor-ranges (data/adjust-cursor-ranges-to-lines (:cursor-ranges view-state) lines)
+        document-width (data/max-line-width glyph-metrics tab-stops lines)
+        new-layout (assoc old-layout :document-width document-width)
+        props (into {:cursor-ranges cursor-ranges
+                     :document-width document-width}
+                    (data/scroll-to-any-cursor-range new-layout lines cursor-ranges))]
+    (set-properties-tx-data evaluation-context view-node :navigation props)))
+
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :code
                                 :label "Code"
                                 :make-view-fn (fn [graph parent resource-node opts] (make-view! graph parent resource-node opts))
                                 :focus-fn (fn [view-node opts] (focus-view! view-node opts))
-                                :text-selection-fn non-empty-single-selection-text))
+                                :text-selection-fn non-empty-single-selection-text
+                                :state-fn view-state
+                                :set-state-fn set-view-state))

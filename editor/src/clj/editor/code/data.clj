@@ -1010,15 +1010,28 @@
     (compare (scroll-distance (.scroll-x layout) (:scroll-x a))
              (scroll-distance (.scroll-x layout) (:scroll-x b)))))
 
+(defn- make-shortest-scroll-reducing-step-fn [^LayoutInfo layout]
+  (fn shortest-scroll-reducing-step-fn
+    ([] nil)
+    ([shortest-scroll] shortest-scroll)
+    ([shortest-scroll scroll]
+     (cond (nil? scroll) (reduced nil) ;; Early-out: No scroll required.
+           (nil? shortest-scroll) scroll
+           (neg? (compare-scroll-severity layout scroll shortest-scroll)) scroll
+           :else shortest-scroll))))
+
 (defn scroll-to-any-cursor [^LayoutInfo layout lines cursor-ranges]
-  (reduce (fn [shortest-scroll scroll]
-            (cond (nil? scroll) (reduced nil) ;; Early-out: No scroll required.
-                  (neg? (compare-scroll-severity layout scroll shortest-scroll)) scroll
-                  :else shortest-scroll))
-          (sequence (comp (map CursorRange->Cursor)
-                          (map (partial adjust-cursor lines))
-                          (map (partial scroll-to-cursor scroll-shortest scroll-shortest layout lines)))
-                    cursor-ranges)))
+  (transduce (comp (map CursorRange->Cursor)
+                   (map (partial adjust-cursor lines))
+                   (map (partial scroll-to-cursor scroll-shortest scroll-shortest layout lines)))
+             (make-shortest-scroll-reducing-step-fn layout)
+             cursor-ranges))
+
+(defn scroll-to-any-cursor-range [^LayoutInfo layout lines cursor-ranges]
+  (transduce (comp (map (partial adjust-cursor-range lines))
+                   (map (partial scroll-to-cursor-range scroll-shortest scroll-center layout lines)))
+             (make-shortest-scroll-reducing-step-fn layout)
+             cursor-ranges))
 
 (defn- update-layout-from-props
   ^LayoutInfo [^LayoutInfo layout {:keys [document-width] :as _props}]
@@ -1319,6 +1332,10 @@
               (conj merged-cursor-ranges cursor-range)))
           []
           ascending-cursor-ranges))
+
+(defn adjust-cursor-ranges-to-lines [ascending-cursor-ranges lines]
+  (merge-cursor-ranges (map (partial adjust-cursor-range lines)
+                            ascending-cursor-ranges)))
 
 (def ^:private concat-cursor-ranges (comp merge-cursor-ranges sort concat))
 

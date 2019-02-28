@@ -163,6 +163,13 @@
             nil))
         (flatten txs)))
 
+(defn tx-data-flatten
+  "Returns a flattened and fully realized sequence of transaction steps from a
+  (possibly unflattened) series of transaction steps. Useful inside an auto
+  evaluation context block."
+  [& txs]
+  (doall (flatten txs)))
+
 ;; ---------------------------------------------------------------------------
 ;; Using transaction values
 ;; ---------------------------------------------------------------------------

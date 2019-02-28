@@ -109,25 +109,33 @@
         selection (get (g/node-value app-view :selected-node-ids-by-resource-node evaluation-context) resource-node)
         sub-selection (get (g/node-value app-view :sub-selections-by-resource-node evaluation-context) resource-node)
         view-state (when-some [view-state-fn (:state-fn view-type)]
-                     (view-state-fn evaluation-context))]
+                     (view-state-fn view-node evaluation-context))]
     (HistoryContext. resource selection sub-selection view-state)))
 
 (defn- history-context-pred [active-resource ^HistoryContext history-context]
   (= active-resource (.resource history-context)))
 
-(defn- set-view-state-from-history-context! [app-view prefs project {:keys [resource selection sub-selection] :as _history-context}]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [selection-node (g/node-value app-view :selection-node evaluation-context)
-          resource-node (project/get-resource-node project resource evaluation-context)
-          view-type (resource-view-type resource)
-          workspace (resource/workspace resource)]
+(defn- set-view-state-from-history-context! [app-view prefs project {:keys [resource selection sub-selection view-state] :as _history-context}]
+  (when-some [resource-node (project/get-resource-node project resource)]
+    (when-not (resource-node/defective? resource-node)
+
+      ;; Restore selection.
       (g/transact
-        (concat
-          (selection/select evaluation-context selection-node resource-node selection)
-          (selection/sub-select selection-node resource-node sub-selection)))
-      (when (and (some? resource-node)
-                 (not (resource-node/defective? resource-node)))
-        (open-resource-node-tab! app-view prefs workspace project resource resource-node view-type {} evaluation-context)))))
+        (g/with-auto-evaluation-context evaluation-context
+          (let [selection-node (g/node-value app-view :selection-node evaluation-context)]
+            (g/tx-data-flatten
+              (selection/select evaluation-context selection-node resource-node selection)
+              (selection/sub-select selection-node resource-node sub-selection)))))
+
+      ;; Restore view state.
+      (let [workspace (resource/workspace resource)
+            view-type (resource-view-type resource)
+            view-node (open-resource-node-tab! app-view prefs workspace project resource resource-node view-type {})]
+        (when-some [set-view-state-fn (:set-state-fn view-type)]
+          (g/transact
+            (g/with-auto-evaluation-context evaluation-context
+              (g/tx-data-flatten
+                (set-view-state-fn view-node view-state evaluation-context)))))))))
 
 (g/defnode AppView
   (property stage Stage)
@@ -1334,8 +1342,8 @@ If you do not specifically require different script states, consider changing th
             (string/replace tmpl (format "{%s}" (name key)) (str val)))
     tmpl args))
 
-(defn- open-resource-node-tab! [app-view prefs workspace project resource resource-node view-type opts evaluation-context]
-  (let [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split evaluation-context)
+(defn- open-resource-node-tab! [app-view prefs workspace project resource resource-node view-type opts]
+  (let [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split)
         tab-panes (.getItems editor-tabs-split)
         open-tabs (mapcat #(.getTabs ^TabPane %) tab-panes)
         ^Tab tab (or (some (fn [^Tab existing-tab]
@@ -1343,7 +1351,7 @@ If you do not specifically require different script states, consider changing th
                                         (= view-type (ui/user-data existing-tab ::view-type)))
                                existing-tab))
                            open-tabs)
-                     (let [^TabPane active-tab-pane (g/node-value app-view :active-tab-pane evaluation-context)
+                     (let [^TabPane active-tab-pane (g/node-value app-view :active-tab-pane)
                            active-tab-pane-tabs (.getTabs active-tab-pane)]
                        (make-tab! app-view prefs workspace project resource resource-node view-type active-tab-pane-tabs opts)))]
     (.select (.getSelectionModel (.getTabPane tab)) tab)
@@ -1352,7 +1360,10 @@ If you do not specifically require different script states, consider changing th
         ;; We run-later so JavaFX has time to squeeze in a layout pass. The
         ;; focus function of some views needs proper width + height (for
         ;; instance the code view for scrolling to the selected line).
-        (focus (ui/user-data tab ::view) opts)))))
+        (focus (ui/user-data tab ::view) opts)))
+
+    ;; Return the view-node.
+    (ui/user-data tab ::view)))
 
 (defn open-resource
   ([app-view prefs workspace project resource]
@@ -1385,8 +1396,8 @@ If you do not specifically require different script states, consider changing th
              (.start))
            false)
          (if (contains? view-type :make-view-fn)
-           (g/with-auto-evaluation-context evaluation-context
-             (open-resource-node-tab! app-view prefs workspace project resource resource-node view-type opts evaluation-context)
+           (do
+             (open-resource-node-tab! app-view prefs workspace project resource resource-node view-type opts)
              true)
            (let [^String path (or (resource/abs-path resource)
                                   (resource/temp-path resource))
