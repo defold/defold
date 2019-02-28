@@ -1247,9 +1247,6 @@
                      #(contains? % :renderable)
                      #(update-in % [:renderable :tags] (fn [tags] (set (map (fn [tag] (get replacements tag tag)) tags))))))
 
-(defn- transformed-child-aabb [{:keys [aabb transform] :as _child-scene}]
-  (geom/aabb-transform aabb transform))
-
 (g/defnode TemplateNode
   (inherits GuiNode)
 
@@ -1359,7 +1356,7 @@
                                                 (merge template-overrides))))
   (output aabb g/Any (g/fnk [template-scene]
                        (if (some? template-scene)
-                         (transformed-child-aabb template-scene)
+                         (:aabb template-scene)
                          geom/unit-bounding-box)))
   (output scene-children g/Any (g/fnk [_node-id id template-scene]
                                  (if-let [child-scenes (:children (add-renderable-tags template-scene #{:gui}))]
@@ -1532,7 +1529,7 @@
   (output gpu-texture TextureLifecycle (g/constantly nil))
   (output aabb g/Any :cached (g/fnk [source-scene]
                                (if (some? source-scene)
-                                 (transformed-child-aabb source-scene)
+                                 (:aabb source-scene)
                                  geom/unit-bounding-box)))
   (output scene g/Any :cached (g/fnk [_node-id id aabb transform source-scene scene-children color+alpha inherit-alpha]
                                      (let [scene (if source-scene
