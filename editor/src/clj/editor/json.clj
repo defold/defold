@@ -4,10 +4,11 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
+            [editor.code.util :as util]
             [editor.graph-util :as gu]
             [editor.resource :as resource]
             [editor.workspace :as workspace])
-  (:import [java.io PushbackReader]))
+  (:import [java.io PushbackReader StringReader]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -70,11 +71,12 @@
       (g/connect self :save-data project :save-data))))
 
 (defn load-json [project self resource]
-  (let [lines (r/read-fn resource)
+  (let [text (slurp resource)
         content (try
-                  (lines->json lines)
+                  (read-then-close (StringReader. text))
                   (catch Exception error
-                    error))]
+                    error))
+        lines (util/split-lines text)]
     (if (instance? Exception content)
       (make-code-editable project self resource lines)
       (let [[load-fn accept-fn new-content] (some (fn [[_loader-id {:keys [accept-fn load-fn]}]]
