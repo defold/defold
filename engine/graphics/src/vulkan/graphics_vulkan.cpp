@@ -198,7 +198,7 @@ namespace dmGraphics
         {
             uint8_t                        m_CurrentFrameImageIx;
             uint8_t                        m_CurrentFrameInFlight;
-            uint32                         m_MaxDescriptorSets;
+            uint32_t                       m_MaxDescriptorSets;
 
             VkInstance                     m_Instance;
             VkPhysicalDevice               m_PhysicalDevice;
@@ -2946,14 +2946,14 @@ namespace dmGraphics
 
     void DeleteVertexProgram(HVertexProgram program)
     {
-        assert(program);
         // TODO: fixme
+        assert(program);
     }
 
     void DeleteFragmentProgram(HFragmentProgram program)
     {
-        assert(program);
         // TODO: fixme
+        assert(program);
     }
 
     void EnableProgram(HContext context, HProgram program)
