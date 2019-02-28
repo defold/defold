@@ -108,8 +108,11 @@ namespace dmGraphics
 
         struct Texture
         {
+            uint16_t    m_Width;
+            uint16_t    m_Height;
             VkImage     m_Image;
             VkImageView m_View;
+            VkFormat    m_Format;
             GPUMemory   m_GPUBuffer;
         };
 
@@ -1311,6 +1314,55 @@ namespace dmGraphics
             return cached_pipeline;
         }
 
+        static bool CreateGPUBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
+            VkMemoryPropertyFlags properties, VkBuffer* bufferObject, GPUMemory* bufferMemory)
+        {
+            assert(size);
+
+            VkBufferCreateInfo vk_create_buffer_info;
+            VK_ZERO_MEMORY(&vk_create_buffer_info,sizeof(vk_create_buffer_info));
+
+            vk_create_buffer_info.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+            vk_create_buffer_info.size        = size;
+            vk_create_buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            vk_create_buffer_info.usage       = usage;
+
+            if (vkCreateBuffer(g_vk_context.m_LogicalDevice, &vk_create_buffer_info, 0, bufferObject) != VK_SUCCESS)
+            {
+                return false;
+            }
+
+            VkMemoryRequirements vk_buffer_memory_req;
+            vkGetBufferMemoryRequirements(g_vk_context.m_LogicalDevice, *bufferObject, &vk_buffer_memory_req);
+
+            VkMemoryAllocateInfo vk_memory_allocate_info;
+            VK_ZERO_MEMORY(&vk_memory_allocate_info, sizeof(VkMemoryAllocateInfo));
+
+            vk_memory_allocate_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            vk_memory_allocate_info.allocationSize  = vk_buffer_memory_req.size;
+            vk_memory_allocate_info.memoryTypeIndex = 0;
+
+            int memory_type_index = FindMemoryTypeIndex(vk_buffer_memory_req.memoryTypeBits, properties);
+
+            if (memory_type_index < 0)
+            {
+                return false;
+            }
+
+            vk_memory_allocate_info.memoryTypeIndex = memory_type_index;
+
+            if (vkAllocateMemory(g_vk_context.m_LogicalDevice, &vk_memory_allocate_info, 0, &bufferMemory->m_DeviceMemory) != VK_SUCCESS)
+            {
+                return false;
+            }
+
+            vkBindBufferMemory(g_vk_context.m_LogicalDevice, *bufferObject, bufferMemory->m_DeviceMemory, 0);
+
+            bufferMemory->m_DataSize = size;
+
+            return true;
+        }
+
         static bool CreateImage2D(unsigned int imageWidth, unsigned int imageHeight,
             VkFormat imageFormat, VkImageTiling imageTiling,
             VkImageUsageFlags imageUsage, VkMemoryPropertyFlags memoryProperties,
@@ -1378,6 +1430,183 @@ namespace dmGraphics
             return true;
         }
 
+        static void CopyBufferToImage(VkBuffer buffer, Texture* texture, const TextureParams params)
+        {
+            VkCommandBuffer vk_command_buffer;
+            CreateCommandBuffer(&vk_command_buffer, 1, g_vk_context.m_MainCommandPool);
+
+            VkCommandBufferBeginInfo vk_command_buffer_begin_info;
+            VK_ZERO_MEMORY(&vk_command_buffer_begin_info, sizeof(VkCommandBufferBeginInfo));
+
+            vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+            VK_CHECK(vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info));
+
+            VkBufferImageCopy vk_copy_region;
+            VK_ZERO_MEMORY(&vk_copy_region, sizeof(vk_copy_region));
+
+            vk_copy_region.bufferOffset      = 0;
+            vk_copy_region.bufferRowLength   = 0;
+            vk_copy_region.bufferImageHeight = 0;
+
+            vk_copy_region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            vk_copy_region.imageSubresource.mipLevel       = 0;
+            vk_copy_region.imageSubresource.baseArrayLayer = 0;
+            vk_copy_region.imageSubresource.layerCount     = 1;
+
+            vk_copy_region.imageOffset.x = 0;
+            vk_copy_region.imageOffset.y = 0;
+            vk_copy_region.imageOffset.z = 0;
+
+            vk_copy_region.imageExtent.width  = params.m_Width;
+            vk_copy_region.imageExtent.height = params.m_Height;
+            vk_copy_region.imageExtent.depth  = 1;
+
+            vkCmdCopyBufferToImage(
+                vk_command_buffer,
+                buffer,
+                texture->m_Image,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1,
+                &vk_copy_region
+            );
+
+            VK_CHECK(vkEndCommandBuffer(vk_command_buffer));
+
+            VkSubmitInfo vk_submit_info;
+            VK_ZERO_MEMORY(&vk_submit_info, sizeof(VkSubmitInfo));
+
+            vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            vk_submit_info.commandBufferCount = 1;
+            vk_submit_info.pCommandBuffers    = &vk_command_buffer;
+
+            vkQueueSubmit(g_vk_context.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE);
+            vkQueueWaitIdle(g_vk_context.m_GraphicsQueue);
+
+            vkFreeCommandBuffers(g_vk_context.m_LogicalDevice, g_vk_context.m_MainCommandPool, 1, &vk_command_buffer);
+        }
+
+        static const VkFormat g_vulkan_texture_format_table[] = {
+            VK_FORMAT_R8_UINT,   //TEXTURE_FORMAT_LUMINANCE
+            VK_FORMAT_R8G8_UINT, //TEXTURE_FORMAT_LUMINANCE_ALPHA
+            VK_FORMAT_R8G8B8_UINT, //TEXTURE_FORMAT_RGB
+            VK_FORMAT_R8G8B8A8_UINT, //TEXTURE_FORMAT_RGBA
+            VK_FORMAT_R16G16B16_UINT, //TEXTURE_FORMAT_RGB_16BPP
+            VK_FORMAT_R16G16B16A16_UINT, //TEXTURE_FORMAT_RGBA_16BPP
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGB_DXT1
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGBA_DXT1
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGBA_DXT3
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGBA_DXT5
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_DEPTH
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_STENCIL
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGB_PVRTC_2BPPV1
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGB_ETC1
+            VK_FORMAT_R16G16B16_SFLOAT, //TEXTURE_FORMAT_RGB16F
+            VK_FORMAT_R32G32B32_SFLOAT, //TEXTURE_FORMAT_RGB32F
+            VK_FORMAT_R16G16B16A16_SFLOAT, //TEXTURE_FORMAT_RGBA16F
+            VK_FORMAT_R32G32B32A32_SFLOAT, //TEXTURE_FORMAT_RGBA32F
+            VK_FORMAT_R16_SFLOAT, //TEXTURE_FORMAT_R16F
+            VK_FORMAT_R16G16_SFLOAT, //TEXTURE_FORMAT_RG16F
+            VK_FORMAT_R32_SFLOAT, //TEXTURE_FORMAT_R32F
+            VK_FORMAT_R32G32_SFLOAT, //TEXTURE_FORMAT_RG32F
+            VK_FORMAT_UNDEFINED  //TEXTURE_FORMAT_COUNT
+        };
+
+        static void UploadTexture(Texture* texture, const TextureParams params)
+        {
+            // Todo: support sub-updates
+            assert(!params.m_SubUpdate);
+
+            VkFormat vk_format = g_vulkan_texture_format_table[params.m_Format];
+            uint16_t vk_width  = params.m_Width;
+            uint16_t vk_height = params.m_Height;
+
+            if (texture->m_Format != vk_format || texture->m_Width != vk_width || texture->m_Height != vk_height)
+            {
+                if (texture->m_Image != VK_NULL_HANDLE)
+                {
+                    // Todo: Move this somewhere applicable..
+                    vkDestroyImage(g_vk_context.m_LogicalDevice, texture->m_Image, 0);
+                    vkFreeMemory(g_vk_context.m_LogicalDevice, texture->m_GPUBuffer.m_DeviceMemory, 0);
+                    vkDestroyImageView(g_vk_context.m_LogicalDevice, texture->m_View, 0);
+                    texture->m_Image = VK_NULL_HANDLE;
+                    texture->m_View  = VK_NULL_HANDLE;
+                    texture->m_GPUBuffer.m_DeviceMemory = VK_NULL_HANDLE;
+                    texture->m_GPUBuffer.m_DataSize     = 0;
+                }
+
+                texture->m_Format = vk_format;
+                texture->m_Height = vk_height;
+                texture->m_Width  = vk_width;
+            }
+
+            if (texture->m_Image == VK_NULL_HANDLE)
+            {
+                // Todo: Check support for tiling_optimal!
+                if(!CreateImage2D(texture->m_Width, texture->m_Height, texture->m_Format,
+                    VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    &texture->m_Image, &texture->m_GPUBuffer))
+                {
+                    dmLogError("Failed to create color texture");
+                    return;
+                }
+
+                VkImageViewCreateInfo vk_view_create_info;
+                VK_ZERO_MEMORY(&vk_view_create_info, sizeof(vk_view_create_info));
+
+                vk_view_create_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+                vk_view_create_info.image                           = texture->m_Image;
+                vk_view_create_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+                vk_view_create_info.format                          = texture->m_Format;
+                vk_view_create_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+                vk_view_create_info.subresourceRange.baseMipLevel   = 0;
+                vk_view_create_info.subresourceRange.levelCount     = 1;
+                vk_view_create_info.subresourceRange.baseArrayLayer = 0;
+                vk_view_create_info.subresourceRange.layerCount     = 1;
+
+                VK_CHECK(vkCreateImageView(g_vk_context.m_LogicalDevice, &vk_view_create_info, 0, &texture->m_View));
+            }
+
+            // Todo: support real metrics
+            uint8_t bpp = 32; // GetTextureFormatBPP(texture->m_Params.m_Format)
+
+            GPUMemory staging_buffer_memory;
+            VkBuffer  staging_buffer_handle;
+
+            CreateGPUBuffer(params.m_DataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                &staging_buffer_handle, &staging_buffer_memory);
+
+            void* mapped_data_ptr;
+            vkMapMemory(g_vk_context.m_LogicalDevice, staging_buffer_memory.m_DeviceMemory, 0, params.m_DataSize, 0, &mapped_data_ptr);
+            memcpy(mapped_data_ptr, params.m_Data, params.m_DataSize);
+            vkUnmapMemory(g_vk_context.m_LogicalDevice, staging_buffer_memory.m_DeviceMemory);
+
+            TransitionImageLayout(texture->m_Image, texture->m_Format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+            CopyBufferToImage(staging_buffer_handle, texture, params);
+
+            TransitionImageLayout(texture->m_Image, texture->m_Format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+            vkDestroyBuffer(g_vk_context.m_LogicalDevice, staging_buffer_handle, 0);
+            vkFreeMemory(g_vk_context.m_LogicalDevice, staging_buffer_memory.m_DeviceMemory, 0);
+        }
+
+        static Texture* CreateColorTexture(uint32_t width, uint32_t height, VkFormat format)
+        {
+            Texture* texture  = new Texture();
+            texture->m_Width  = width;
+            texture->m_Height = height;
+            texture->m_Format = format;
+
+            return texture;
+        }
+
         static Texture CreateDepthTexture(uint32_t width, uint32_t height, VkFormat format)
         {
             Texture depth_texture;
@@ -1409,6 +1638,8 @@ namespace dmGraphics
             VK_CHECK(vkCreateImageView(g_vk_context.m_LogicalDevice, &vk_view_create_info, 0, &depth_texture.m_View));
 
             TransitionImageLayout(depth_texture.m_Image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+            depth_texture.m_Format = format;
 
             return depth_texture;
         }
@@ -1615,55 +1846,6 @@ namespace dmGraphics
                 VK_CHECK(vkCreateSemaphore(g_vk_context.m_LogicalDevice, &vk_create_semaphore_info, 0, &g_vk_context.m_FrameResources[i].m_ImageAvailable));
                 VK_CHECK(vkCreateSemaphore(g_vk_context.m_LogicalDevice, &vk_create_semaphore_info, 0, &g_vk_context.m_FrameResources[i].m_RenderFinished));
             }
-        }
-
-        static bool CreateGPUBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
-            VkMemoryPropertyFlags properties, VkBuffer* bufferObject, GPUMemory* bufferMemory)
-        {
-            assert(size);
-
-            VkBufferCreateInfo vk_create_buffer_info;
-            VK_ZERO_MEMORY(&vk_create_buffer_info,sizeof(vk_create_buffer_info));
-
-            vk_create_buffer_info.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-            vk_create_buffer_info.size        = size;
-            vk_create_buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-            vk_create_buffer_info.usage       = usage;
-
-            if (vkCreateBuffer(g_vk_context.m_LogicalDevice, &vk_create_buffer_info, 0, bufferObject) != VK_SUCCESS)
-            {
-                return false;
-            }
-
-            VkMemoryRequirements vk_buffer_memory_req;
-            vkGetBufferMemoryRequirements(g_vk_context.m_LogicalDevice, *bufferObject, &vk_buffer_memory_req);
-
-            VkMemoryAllocateInfo vk_memory_allocate_info;
-            VK_ZERO_MEMORY(&vk_memory_allocate_info, sizeof(VkMemoryAllocateInfo));
-
-            vk_memory_allocate_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-            vk_memory_allocate_info.allocationSize  = vk_buffer_memory_req.size;
-            vk_memory_allocate_info.memoryTypeIndex = 0;
-
-            int memory_type_index = FindMemoryTypeIndex(vk_buffer_memory_req.memoryTypeBits, properties);
-
-            if (memory_type_index < 0)
-            {
-                return false;
-            }
-
-            vk_memory_allocate_info.memoryTypeIndex = memory_type_index;
-
-            if (vkAllocateMemory(g_vk_context.m_LogicalDevice, &vk_memory_allocate_info, 0, &bufferMemory->m_DeviceMemory) != VK_SUCCESS)
-            {
-                return false;
-            }
-
-            vkBindBufferMemory(g_vk_context.m_LogicalDevice, *bufferObject, bufferMemory->m_DeviceMemory, 0);
-
-            bufferMemory->m_DataSize = size;
-
-            return true;
         }
 
         static void UploadBufferData(GeometryBuffer* buffer, const void* data, size_t dataSize, size_t dataOffset)
@@ -2382,10 +2564,10 @@ namespace dmGraphics
         context->m_WindowFocusCallback          = params->m_FocusCallback;
         context->m_WindowFocusCallbackUserData  = params->m_FocusCallbackUserData;
 
-        context->m_Width        = Vulkan::GetContextExtent().width;
-        context->m_Height       = Vulkan::GetContextExtent().height;
-        context->m_WindowWidth  = context->m_Width;
-        context->m_WindowHeight = context->m_Height;
+        context->m_WindowWidth  = Vulkan::GetContextExtent().width;
+        context->m_WindowHeight = Vulkan::GetContextExtent().height;
+        context->m_Width        = params->m_Width;
+        context->m_Height       = params->m_Height;
         context->m_Dpi          = 0;
         context->m_WindowOpened = 1;
 
@@ -3068,7 +3250,7 @@ namespace dmGraphics
     {
         assert(context);
         assert(context->m_CurrentProgram != 0x0);
-        SetConstantValue(context->m_CurrentProgram, base_register, (void*) data, sizeof(Vector4));
+        SetConstantValue(context->m_CurrentProgram, base_register, (void*) data, sizeof(Vector4) * 4);
     }
 
     void SetSampler(HContext context, int32_t location, int32_t unit)
@@ -3077,45 +3259,13 @@ namespace dmGraphics
 
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
-        RenderTarget* rt = new RenderTarget();
-        memset(rt, 0, sizeof(RenderTarget));
-
-        void** buffers[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBuffer, &rt->m_FrameBuffer.m_DepthBuffer, &rt->m_FrameBuffer.m_StencilBuffer};
-        uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBufferSize, &rt->m_FrameBuffer.m_DepthBufferSize, &rt->m_FrameBuffer.m_StencilBufferSize};
-        BufferType buffer_types[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};
-        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
-        {
-            assert(GetBufferTypeIndex(buffer_types[i]) == i);
-            if (buffer_type_flags & buffer_types[i])
-            {
-                uint32_t buffer_size = sizeof(uint32_t) * params[i].m_Width * params[i].m_Height;
-                *(buffer_sizes[i]) = buffer_size;
-                rt->m_BufferTextureParams[i] = params[i];
-                rt->m_BufferTextureParams[i].m_Data = 0x0;
-                rt->m_BufferTextureParams[i].m_DataSize = 0;
-
-                if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT))
-                {
-                    rt->m_BufferTextureParams[i].m_DataSize = buffer_size;
-                    rt->m_ColorBufferTexture = NewTexture(context, creation_params[i]);
-                    SetTexture(rt->m_ColorBufferTexture, rt->m_BufferTextureParams[i]);
-                    *(buffers[i]) = rt->m_ColorBufferTexture->m_Data;
-                } else {
-                    *(buffers[i]) = new char[buffer_size];
-                }
-            }
-        }
-
-        return rt;
+        assert(0 && "Not implemented");
+        return 0;
     }
 
     void DeleteRenderTarget(HRenderTarget rt)
     {
-        if (rt->m_ColorBufferTexture)
-            DeleteTexture(rt->m_ColorBufferTexture);
-        delete [] (char*)rt->m_FrameBuffer.m_DepthBuffer;
-        delete [] (char*)rt->m_FrameBuffer.m_StencilBuffer;
-        delete rt;
+        assert(0 && "Not implemented");
     }
 
     void SetRenderTarget(HContext context, HRenderTarget rendertarget, uint32_t transient_buffer_types)
@@ -3127,44 +3277,17 @@ namespace dmGraphics
 
     HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type)
     {
-        if(buffer_type != BUFFER_TYPE_COLOR_BIT)
-            return 0;
-        return rendertarget->m_ColorBufferTexture;
+        assert(0 && "Not implemented");
     }
 
     void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
-        assert(render_target);
-        uint32_t i = GetBufferTypeIndex(buffer_type);
-        assert(i < MAX_BUFFER_TYPE_COUNT);
-        width = render_target->m_BufferTextureParams[i].m_Width;
-        height = render_target->m_BufferTextureParams[i].m_Height;
+        assert(0 && "Not implemented");
     }
 
     void SetRenderTargetSize(HRenderTarget rt, uint32_t width, uint32_t height)
     {
-        uint32_t buffer_size = sizeof(uint32_t) * width * height;
-
-        void** buffers[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBuffer, &rt->m_FrameBuffer.m_DepthBuffer, &rt->m_FrameBuffer.m_StencilBuffer};
-        uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBufferSize, &rt->m_FrameBuffer.m_DepthBufferSize, &rt->m_FrameBuffer.m_StencilBufferSize};
-        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
-        {
-            if (buffers[i])
-            {
-                *(buffer_sizes[i]) = buffer_size;
-                rt->m_BufferTextureParams[i].m_Width = width;
-                rt->m_BufferTextureParams[i].m_Height = height;
-                if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT))
-                {
-                    rt->m_BufferTextureParams[i].m_DataSize = buffer_size;
-                    SetTexture(rt->m_ColorBufferTexture, rt->m_BufferTextureParams[i]);
-                    *(buffers[i]) = rt->m_ColorBufferTexture->m_Data;
-                } else {
-                    delete [] (char*)*(buffers[i]);
-                    *(buffers[i]) = new char[buffer_size];
-                }
-            }
-        }
+        assert(0 && "Not implemented");
     }
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format)
@@ -3179,43 +3302,46 @@ namespace dmGraphics
 
     HTexture NewTexture(HContext context, const TextureCreationParams& params)
     {
-        Texture* tex = new Texture();
+        Texture* tex   = new Texture;
+        tex->m_Type    = params.m_Type;
+        tex->m_Width   = params.m_Width;
+        tex->m_Height  = params.m_Height;
 
-        tex->m_Width = params.m_Width;
-        tex->m_Height = params.m_Height;
-        tex->m_MipMapCount = 0;
-        tex->m_Data = 0;
-
-        if (params.m_OriginalWidth == 0) {
-            tex->m_OriginalWidth = params.m_Width;
+        if (params.m_OriginalWidth == 0)
+        {
+            tex->m_OriginalWidth  = params.m_Width;
             tex->m_OriginalHeight = params.m_Height;
-        } else {
-            tex->m_OriginalWidth = params.m_OriginalWidth;
+        }
+        else
+        {
+            tex->m_OriginalWidth  = params.m_OriginalWidth;
             tex->m_OriginalHeight = params.m_OriginalHeight;
         }
 
-        return tex;
+        // Use real metrics instead
+        VkFormat vk_format = VK_FORMAT_R8G8B8A8_UINT;
+
+        tex->m_Texture     = Vulkan::CreateColorTexture(params.m_Width, params.m_Height, vk_format);
+        tex->m_MipMapCount = 0;
+        //tex->m_DataState   = 0;
+        return (HTexture) tex;
     }
 
     void DeleteTexture(HTexture t)
     {
         assert(t);
-        if (t->m_Data != 0x0)
-            delete [] (char*)t->m_Data;
+
+        // TODO: add a Vulkan::DeleteTexture or such..
+        if (t->m_Texture)
+        {
+            delete t->m_Texture;
+        }
         delete t;
     }
 
     HandleResult GetTextureHandle(HTexture texture, void** out_handle)
     {
-        *out_handle = 0x0;
-
-        if (!texture) {
-            return HANDLE_RESULT_ERROR;
-        }
-
-        *out_handle = texture->m_Data;
-
-        return HANDLE_RESULT_OK;
+        return HANDLE_RESULT_ERROR;
     }
 
     void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
@@ -3229,14 +3355,7 @@ namespace dmGraphics
         assert(!params.m_SubUpdate || params.m_SubUpdate && (params.m_X + params.m_Width <= texture->m_Width));
         assert(!params.m_SubUpdate || params.m_SubUpdate && (params.m_Y + params.m_Height <= texture->m_Height));
 
-        if (texture->m_Data != 0x0)
-            delete [] (char*)texture->m_Data;
-        texture->m_Format = params.m_Format;
-        // Allocate even for 0x0 size so that the rendertarget dummies will work.
-        texture->m_Data = new char[params.m_DataSize];
-        if (params.m_Data != 0x0)
-            memcpy(texture->m_Data, params.m_Data, params.m_DataSize);
-        texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
+        Vulkan::UploadTexture((Vulkan::Texture*) texture->m_Texture, params);
     }
 
     uint8_t* GetTextureData(HTexture texture) {
@@ -3253,12 +3372,16 @@ namespace dmGraphics
     uint32_t GetTextureResourceSize(HTexture texture)
     {
         uint32_t size_total = 0;
-        uint32_t size = (texture->m_Width * texture->m_Height * GetTextureFormatBPP(texture->m_Format)) >> 3;
+        uint32_t size = (texture->m_Width * texture->m_Height * GetTextureFormatBPP(texture->m_Params.m_Format)) >> 3;
+            
+        /*
         for(uint32_t i = 0; i < texture->m_MipMapCount; ++i)
         {
             size_total += size;
             size >>= 2;
         }
+        */
+
         return size_total + sizeof(Texture);
     }
 
@@ -3287,7 +3410,7 @@ namespace dmGraphics
         assert(context);
         assert(unit < MAX_TEXTURE_COUNT);
         assert(texture);
-        assert(texture->m_Data);
+        assert(texture->m_Texture);
         context->m_Textures[unit] = texture;
     }
 

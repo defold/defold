@@ -5,13 +5,14 @@ namespace dmGraphics
 {
     struct Texture
     {
-        void* m_Data;
-        TextureFormat m_Format;
-        uint32_t m_Width;
-        uint32_t m_Height;
-        uint32_t m_OriginalWidth;
-        uint32_t m_OriginalHeight;
-        uint16_t m_MipMapCount;
+    	uint16_t      m_MipMapCount;
+        uint32_t      m_Width;
+        uint32_t      m_Height;
+        uint32_t      m_OriginalWidth;
+        uint32_t      m_OriginalHeight;
+        TextureType   m_Type;
+        void*         m_Texture;
+        TextureParams m_Params;
     };
 
     const static uint32_t MAX_VERTEX_STREAM_COUNT = 8;
@@ -44,20 +45,6 @@ namespace dmGraphics
         Stream      m_Streams[MAX_VERTEX_STREAM_COUNT];
         uint16_t    m_StreamCount;
         uint16_t    m_Stride;
-    };
-
-    struct VertexBuffer
-    {
-        char* m_Buffer;
-        char* m_Copy;
-        uint32_t m_Size;
-    };
-
-    struct IndexBuffer
-    {
-        char* m_Buffer;
-        char* m_Copy;
-        uint32_t m_Size;
     };
 
     struct RenderTarget
