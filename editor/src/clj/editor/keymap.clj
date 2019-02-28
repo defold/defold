@@ -359,17 +359,17 @@
     "Shift+E"}) ; :erase-tool
 
 (defprotocol KeyComboData
-  (key-combo->map [this] "returns a data representation of a KeyCombination-like object"))
+  (key-combo->map [this] "returns a data representation of a KeyCombination."))
 
 (extend-protocol KeyComboData
   KeyCodeCombination
-  (key-combo->map [this]
-    {:key (.getName (.getCode this))
-     :alt-down? (= KeyCombination$ModifierValue/DOWN (.getAlt this))
-     :control-down? (= KeyCombination$ModifierValue/DOWN (.getControl this))
-     :meta-down? (= KeyCombination$ModifierValue/DOWN (.getMeta this))
-     :shift-down? (= KeyCombination$ModifierValue/DOWN (.getShift this))
-     :shortcut-down? (= KeyCombination$ModifierValue/DOWN (.getShortcut this))})
+  (key-combo->map [key-combo]
+    {:key (.getName (.getCode key-combo))
+     :alt-down? (= KeyCombination$ModifierValue/DOWN (.getAlt key-combo))
+     :control-down? (= KeyCombination$ModifierValue/DOWN (.getControl key-combo))
+     :meta-down? (= KeyCombination$ModifierValue/DOWN (.getMeta key-combo))
+     :shift-down? (= KeyCombination$ModifierValue/DOWN (.getShift key-combo))
+     :shortcut-down? (= KeyCombination$ModifierValue/DOWN (.getShortcut key-combo))})
 
   KeyCharacterCombination
   (key-combo->map [key-combo]
@@ -437,25 +437,25 @@
   yes  yes  yes  no   => typable  -- As above
   yes  yes  yes  yes  => typable  -- As above
 
-  This does not seem right. We probably something like that:
+  This does not seem right. We probably want something like that:
 
     MAC   CTRL  ALT   META  RESULT"
   {[:no   :no   :no   :no ] :typable
-   [:no   :no   :no   :yes] :shortcut
+   [:no   :no   :no   :yes] :shortcut  ;; Now treated as possibly shortcut
    [:no   :no   :yes  :no ] :shortcut
    [:no   :no   :yes  :yes] :shortcut
    [:no   :yes  :no   :no ] :shortcut
    [:no   :yes  :no   :yes] :shortcut
    [:no   :yes  :yes  :no ] :typable
-   [:no   :yes  :yes  :yes] :shortcut
+   [:no   :yes  :yes  :yes] :shortcut  ;; As above
    [:yes  :no   :no   :no ] :typable
    [:yes  :no   :no   :yes] :shortcut
    [:yes  :no   :yes  :no ] :typable
    [:yes  :no   :yes  :yes] :shortcut
    [:yes  :yes  :no   :no ] :shortcut
    [:yes  :yes  :no   :yes] :shortcut
-   [:yes  :yes  :yes  :no ] :typable
-   [:yes  :yes  :yes  :yes] :typable})
+   [:yes  :yes  :yes  :no ] :typable   ;; As above
+   [:yes  :yes  :yes  :yes] :typable}) ;; As above
 
 (defn- boolean->kw [b]
   (if b :yes :no))
@@ -545,7 +545,7 @@
                          allowed-typable-shortcuts   default-allowed-typable-shortcuts}}]
    (let [{:keys [errors keymap]} (make-keymap* key-bindings platform valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts)]
      (if (and (seq errors) throw-on-error?)
-       (throw (ex-info (str "Keymap has errors\n" (clojure.string/join "\n" errors))
+       (throw (ex-info "Keymap has errors"
                        {:errors       errors
                         :key-bindings key-bindings}))
        keymap))))
