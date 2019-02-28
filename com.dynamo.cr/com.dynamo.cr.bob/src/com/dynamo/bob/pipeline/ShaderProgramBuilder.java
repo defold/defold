@@ -278,7 +278,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
      			break;
 
         		case Armv7Android:
-                case Arm64Android:
+        		case Arm64Android:
         			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
                     ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "", isDebug, soft_fail);
