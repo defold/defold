@@ -76,8 +76,7 @@
                   (read-then-close (StringReader. text))
                   (catch Exception error
                     error))
-        lines (util/split-lines text)
-        text nil] ;; Don't need this any more and might be large.
+        lines (util/split-lines text)]
     (if (instance? Exception content)
       (make-code-editable project self resource lines)
       (let [[load-fn accept-fn new-content] (some (fn [[_loader-id {:keys [accept-fn load-fn]}]]
