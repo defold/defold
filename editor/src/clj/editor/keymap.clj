@@ -22,6 +22,8 @@
             ["Alt+Down" :end-of-line]
             ["Alt+Down" :move-down]
             ["Alt+Left" :prev-word]
+            ["Alt+Meta+E" :select-next-occurrence]
+            ["Alt+Meta+F" :replace-text]
             ["Alt+Right" :next-word]
             ["Alt+Up" :beginning-of-line]
             ["Alt+Up" :move-up]
@@ -29,11 +31,10 @@
             ["Ctrl+A" :beginning-of-line]
             ["Ctrl+D" :delete-line]
             ["Ctrl+E" :end-of-line]
-            ["Ctrl+K" :cut-to-end-of-line]
-            ["Ctrl+Left" :prev-word]
+            ["Ctrl+I" :reindent]
+            ["Ctrl+K" :delete-to-end-of-line]
             ["Ctrl+Meta+H" :toggle-component-guides]
             ["Ctrl+R" :reload-stylesheet]
-            ["Ctrl+Right" :next-word]
             ["Ctrl+Space" :proposals]
             ["Delete" :delete]
             ["Down" :down]
@@ -59,15 +60,11 @@
             ["Meta+C" :copy]
             ["Meta+Comma" :preferences]
             ["Meta+D" :select-next-occurrence]
-            ["Meta+Delete" :delete-to-beginning-of-line]
+            ["Meta+Delete" :delete-to-end-of-line]
             ["Meta+Down" :end-of-file]
             ["Meta+E" :hide-selected]
-            ["Meta+E" :replace-text]
-            ["Meta+End" :end-of-file]
             ["Meta+F" :find-text]
             ["Meta+G" :find-next]
-            ["Meta+Home" :beginning-of-file]
-            ["Meta+I" :reindent]
             ["Meta+L" :goto-line]
             ["Meta+Left" :beginning-of-line-text]
             ["Meta+N" :new-file]
@@ -113,10 +110,8 @@
             ["Shift+Meta+Down" :select-end-of-file]
             ["Shift+Meta+E" :replace-next]
             ["Shift+Meta+E" :show-last-hidden]
-            ["Shift+Meta+End" :select-end-of-file]
             ["Shift+Meta+F" :search-in-files]
             ["Shift+Meta+G" :find-prev]
-            ["Shift+Meta+Home" :select-beginning-of-file]
             ["Shift+Meta+I" :toggle-visibility-filters]
             ["Shift+Meta+L" :split-selection-into-lines]
             ["Shift+Meta+Left" :select-beginning-of-line-text]
@@ -151,10 +146,10 @@
            ["Ctrl+D" :select-next-occurrence]
            ["Ctrl+Delete" :delete-next-word]
            ["Ctrl+E" :hide-selected]
-           ["Ctrl+E" :replace-text]
            ["Ctrl+End" :end-of-file]
            ["Ctrl+F" :find-text]
            ["Ctrl+G" :find-next]
+           ["Ctrl+H" :replace-text]
            ["Ctrl+H" :toggle-component-guides]
            ["Ctrl+Home" :beginning-of-file]
            ["Ctrl+I" :reindent]
@@ -249,10 +244,10 @@
            ["Ctrl+D" :select-next-occurrence]
            ["Ctrl+Delete" :delete-next-word]
            ["Ctrl+E" :hide-selected]
-           ["Ctrl+E" :replace-text]
            ["Ctrl+End" :end-of-file]
            ["Ctrl+F" :find-text]
            ["Ctrl+G" :find-next]
+           ["Ctrl+H" :replace-text]
            ["Ctrl+H" :toggle-component-guides]
            ["Ctrl+Home" :beginning-of-file]
            ["Ctrl+I" :reindent]
@@ -345,6 +340,7 @@
     "Shift+Right"
     "Shift+Up"
     "Ctrl+E"
+    "Ctrl+H"
     "Meta+E"
     "Shift+Ctrl+E"
     "Shift+Meta+E"
@@ -395,7 +391,7 @@
 (defn key-combo->display-text [s]
   (.getDisplayText (KeyCombination/keyCombination s)))
 
-(defn typable?
+(def ^:private typable-truth-table
   "Only act on key pressed events that look like textual input, and
   skip what is likely shortcut combinations.
 
@@ -441,43 +437,41 @@
   yes  yes  yes  no   => typable  -- As above
   yes  yes  yes  yes  => typable  -- As above
 
-  This does not seem right. We probably want:
+  This does not seem right. We probably something like that:
 
-  MAC  CTRL ALT  META    RESULT
-  no   no   no   no   => typable
-  no   no   no   yes  => shortcut <-- Now treated as possibly shortcut
-  no   no   yes  no   => shortcut
-  no   no   yes  yes  => shortcut
-  no   yes  no   no   => shortcut
-  no   yes  no   yes  => shortcut
-  no   yes  yes  no   => typable
-  no   yes  yes  yes  => shortcut <-- As above
-  yes  no   no   no   => typable
-  yes  no   no   yes  => shortcut
-  yes  no   yes  no   => typable
-  yes  no   yes  yes  => typable  <-- Let it be for now
-  yes  yes  no   no   => shortcut
-  yes  yes  no   yes  => shortcut
-  yes  yes  yes  no   => typable  <-- As above
-  yes  yes  yes  yes  => typable  <-- As above
+    MAC   CTRL  ALT   META  RESULT"
+  {[:no   :no   :no   :no ] :typable
+   [:no   :no   :no   :yes] :shortcut
+   [:no   :no   :yes  :no ] :shortcut
+   [:no   :no   :yes  :yes] :shortcut
+   [:no   :yes  :no   :no ] :shortcut
+   [:no   :yes  :no   :yes] :shortcut
+   [:no   :yes  :yes  :no ] :typable
+   [:no   :yes  :yes  :yes] :shortcut
+   [:yes  :no   :no   :no ] :typable
+   [:yes  :no   :no   :yes] :shortcut
+   [:yes  :no   :yes  :no ] :typable
+   [:yes  :no   :yes  :yes] :shortcut
+   [:yes  :yes  :no   :no ] :shortcut
+   [:yes  :yes  :no   :yes] :shortcut
+   [:yes  :yes  :yes  :no ] :typable
+   [:yes  :yes  :yes  :yes] :typable})
 
-  So that's what we use below."
+(defn- boolean->kw [b]
+  (if b :yes :no))
+
+(defn typable?
   ([key-combo-data]
    (typable? key-combo-data (util/os)))
   ([{:keys [alt-down? control-down? meta-down?]} os]
    (let [mac? (= os :darwin)]
-     (or (and mac? alt-down?)
-         (not (or control-down? alt-down? meta-down?))
-         (and control-down? alt-down? (not meta-down?))))))
+     (-> typable-truth-table
+         (get (mapv boolean->kw [mac? control-down? alt-down? meta-down?]))
+         (= :typable)))))
 
 (defn- platform-typable-shortcut? [key-combo-data os]
   (and (typable? key-combo-data os)
        (= 1 (count (:key key-combo-data)))))
-
-(defn- any-platform-typable-shortcut? [key-combo-data]
-  (or (platform-typable-shortcut? key-combo-data :darwin)
-      (platform-typable-shortcut? key-combo-data :win32)
-      (platform-typable-shortcut? key-combo-data :linux)))
 
 (defn- key-binding-data [key-bindings]
   (map (fn [[shortcut command]]
@@ -490,7 +484,7 @@
        key-bindings))
 
 (defn- key-binding-data->keymap
-  [key-bindings-data valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts]
+  [key-bindings-data platform valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts]
   (reduce (fn [ret {:keys [key-combo-data shortcut command ^KeyCombination key-combo]}]
             (cond
               (not (valid-command? command))
@@ -508,7 +502,7 @@
                                         :command command
                                         :shortcut shortcut})
 
-              (and (any-platform-typable-shortcut? key-combo-data)
+              (and (platform-typable-shortcut? key-combo-data platform)
                    (not (allowed-typable-shortcuts shortcut)))
               (update ret :errors conj {:type :typable-shortcut
                                         :command command
@@ -532,22 +526,24 @@
           key-bindings-data))
 
 (defn- make-keymap*
-  [key-bindings valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts]
+  [key-bindings platform valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts]
   (-> (key-binding-data key-bindings)
-      (key-binding-data->keymap valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts)))
+      (key-binding-data->keymap platform valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts)))
 
 (defn make-keymap
   ([key-bindings]
    (make-keymap key-bindings nil))
   ([key-bindings {:keys [valid-command?
+                         platform
                          throw-on-error?
                          allowed-duplicate-shortcuts
                          allowed-typable-shortcuts]
                   :or   {valid-command?              (constantly true)
+                         platform                    (util/os)
                          throw-on-error?             false
                          allowed-duplicate-shortcuts default-allowed-duplicate-shortcuts
                          allowed-typable-shortcuts   default-allowed-typable-shortcuts}}]
-   (let [{:keys [errors keymap]} (make-keymap* key-bindings valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts)]
+   (let [{:keys [errors keymap]} (make-keymap* key-bindings platform valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts)]
      (if (and (seq errors) throw-on-error?)
        (throw (ex-info (str "Keymap has errors\n" (clojure.string/join "\n" errors))
                        {:errors       errors
