@@ -35,7 +35,7 @@ namespace dmJson
 
     /*# token type enumeration
      *
-     * Topen type enumeration.
+     * Token type enumeration.
      *
      * @enum
      * @name dmJson::Type
