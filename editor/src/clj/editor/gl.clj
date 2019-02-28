@@ -248,19 +248,17 @@
        (finally
          (.glPopMatrix gl#)))))
 
+(defn matrix->floats [^Matrix4d mat]
+  (float-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
+                (.m01 mat) (.m11 mat) (.m21 mat) (.m31 mat)
+                (.m02 mat) (.m12 mat) (.m22 mat) (.m32 mat)
+                (.m03 mat) (.m13 mat) (.m23 mat) (.m33 mat)]))
+
 (defn gl-load-matrix-4d [^GL2 gl ^Matrix4d mat]
-  (let [fbuf (float-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
-                           (.m01 mat) (.m11 mat) (.m21 mat) (.m31 mat)
-                           (.m02 mat) (.m12 mat) (.m22 mat) (.m32 mat)
-                           (.m03 mat) (.m13 mat) (.m23 mat) (.m33 mat)])]
-    (.glLoadMatrixf gl fbuf 0)))
+  (.glLoadMatrixf gl (matrix->floats mat) 0))
 
 (defn gl-mult-matrix-4d [^GL2 gl ^Matrix4d mat]
-  (let [fbuf (float-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
-                           (.m01 mat) (.m11 mat) (.m21 mat) (.m31 mat)
-                           (.m02 mat) (.m12 mat) (.m22 mat) (.m32 mat)
-                           (.m03 mat) (.m13 mat) (.m23 mat) (.m33 mat)])]
-    (.glMultMatrixf gl fbuf 0)))
+  (.glMultMatrixf gl (matrix->floats mat) 0))
 
 (defmacro color
   ([r g b]        `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0)]))
@@ -314,7 +312,7 @@
 (def nearest-mipmap-linear  GL2/GL_NEAREST_MIPMAP_LINEAR)
 (def linear-mipmap-linear   GL2/GL_LINEAR_MIPMAP_LINEAR)
 
-(defn ^"[I" viewport-array [viewport]
+(defn viewport-array ^"[I" [viewport]
   (int-array [(:left viewport)
               (:top viewport)
               (:right viewport)
@@ -344,26 +342,6 @@
                    (.begin3DRendering text-renderer)
                    (.draw3D text-renderer chars 0.0 0.0 1.0 1.0)
                    (.end3DRendering text-renderer))))
-
-(defn select-buffer-names
-  "Returns a collection of names from a GL_SELECT buffer.
-   Names are integers assigned during rendering with glPushName and glPopName.
-   The select-buffer contains a series of 'hits' where each hit
-   is [name-count min-z max-z & names+]. In our usage, names may not be
-   nested so name-count must always be one."
-  [hit-count ^IntBuffer select-buffer]
-  (loop [i 0
-         ptr 0
-         names []]
-    (if (< i hit-count)
-      (let [name-count (.get select-buffer ptr)
-            name (.get select-buffer (+ ptr 3))]
-        (assert (>= 1 name-count) (str "Count of names in a hit record must be no more than one, was " name-count))
-        (when (< 0 name-count)
-          (recur (inc i)
-            (+ ptr 3 name-count)
-            (conj names name))))
-      names)))
 
 (defn set-blend-mode [^GL gl blend-mode]
   ;; Assumes pre-multiplied source/destination

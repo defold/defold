@@ -10,7 +10,8 @@
             [editor.math :as math]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util])
+  (:import [editor.types Region]))
 
 (deftest label-validation
   (test-util/with-loaded-project
@@ -48,17 +49,19 @@
 
 (defn- get-render-calls-by-pass
   [scene camera selection key-fn]
-  (let [render-data (scene/produce-render-data scene selection [] #{} #{} camera)
+  (let [scene-render-data (scene/produce-scene-render-data {:scene scene :selection selection :hidden-renderable-args [] :hidden-node-outline-key-paths [] :camera camera})
+        render-data scene-render-data
         renderables (:renderables render-data)
         old-render-lines label/render-lines
         old-render-tris label/render-tris]
     (into {}
           (keep (fn [pass]
-                  (let [calls (test-util/with-logged-calls [label/render-lines label/render-tris]
+                  (let [render-args (scene/pass-render-args (Region. 0 100 0 100) camera pass)
+                        calls (test-util/with-logged-calls [label/render-lines label/render-tris]
                                 (let [patched-renderables (walk/postwalk-replace {old-render-lines label/render-lines
                                                                                   old-render-tris label/render-tris}
                                                                                  renderables)]
-                                  (scene/batch-render nil {:pass pass} (get patched-renderables pass) false key-fn)))]
+                                  (scene/batch-render nil render-args (get patched-renderables pass) key-fn)))]
                     (when (seq calls)
                       [pass calls]))))
           pass/render-passes)))
