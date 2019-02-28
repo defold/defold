@@ -31,13 +31,13 @@
             ["Alt+Down" :move-down]
             ["Alt+Left" :prev-word]
             ["Alt+Right" :next-word]
-            ["Shortcut+'-'" :zoom-out]
+            ["Meta+'-'" :zoom-out]
             ;; disabled because of above
-            #_["Alt+Shortcut+1" :show-console]
-            #_["Alt+Shortcut+2" :show-curve-editor]
-            #_["Alt+Shortcut+3" :show-build-errors]
-            #_["Alt+Shortcut+4" :show-search-results]
-            #_["Alt+Shortcut+X" :profile]
+            #_["Alt+Meta+1" :show-console]
+            #_["Alt+Meta+2" :show-curve-editor]
+            #_["Alt+Meta+3" :show-build-errors]
+            #_["Alt+Meta+4" :show-search-results]
+            #_["Alt+Meta+X" :profile]
             ["Alt+Up" :beginning-of-line]
             ["Alt+Up" :move-up]
             ["Backspace" :delete-backward]
@@ -47,7 +47,7 @@
             ["Ctrl+K" :cut-to-end-of-line]
             ["Ctrl+Left" :prev-word]
             ["Ctrl+Right" :next-word]
-            ["Ctrl+Shortcut+H" :toggle-component-guides]    ; Mirrors the View > Extras shortcut in Photoshop. Maps to Ctrl+H on non-Mac platforms.
+            ["Ctrl+Meta+H" :toggle-component-guides]    ; Mirrors the View > Extras shortcut in Photoshop. Maps to Ctrl+H on non-Mac platforms.
             ["Ctrl+Space" :proposals]
             ["Delete" :delete]
             ["Down" :down]
@@ -79,7 +79,7 @@
             ["Shift+Alt+Left" :select-prev-word]
             ["Shift+Alt+Right" :select-next-word]
             ["Shift+Alt+Up" :select-beginning-of-line]
-            #_["Shift+Alt+Shortcut+X" :profile-show]
+            #_["Shift+Alt+Meta+X" :profile-show]
             ["Shift+Ctrl+A" :select-beginning-of-line]
             ["Shift+Ctrl+E" :select-end-of-line]
             ["Shift+Ctrl+Left" :select-prev-word]
@@ -95,59 +95,59 @@
             ["Shift+Page Up" :select-page-up]
             ["Shift+Right" :right-major]
             ["Shift+Right" :select-right]
-            ["Shift+Shortcut+B" :rebuild]
-            ["Shift+Shortcut+Delete" :delete-to-end-of-line]
-            ["Shift+Shortcut+Down" :select-end-of-file]
-            ["Shift+Shortcut+End" :select-end-of-file]
-            ["Shift+Shortcut+E" :replace-next]
-            ["Shift+Shortcut+E" :show-last-hidden]
-            ["Shift+Shortcut+F" :search-in-files]
-            ["Shift+Shortcut+G" :find-prev]
-            ["Shift+Shortcut+I" :toggle-visibility-filters]
-            ["Shift+Shortcut+Home" :select-beginning-of-file]
-            ["Shift+Shortcut+L" :split-selection-into-lines]
-            ["Shift+Shortcut+Left" :select-beginning-of-line-text]
-            ["Shift+Shortcut+R" :open-asset]
-            ["Shift+Shortcut+Right" :select-end-of-line]
-            ["Shift+Shortcut+Up" :select-beginning-of-file]
-            ["Shift+Shortcut+W" :close-all]
-            ["Shift+Shortcut+Z" :redo]
+            ["Shift+Meta+B" :rebuild]
+            ["Shift+Meta+Delete" :delete-to-end-of-line]
+            ["Shift+Meta+Down" :select-end-of-file]
+            ["Shift+Meta+End" :select-end-of-file]
+            ["Shift+Meta+E" :replace-next]
+            ["Shift+Meta+E" :show-last-hidden]
+            ["Shift+Meta+F" :search-in-files]
+            ["Shift+Meta+G" :find-prev]
+            ["Shift+Meta+I" :toggle-visibility-filters]
+            ["Shift+Meta+Home" :select-beginning-of-file]
+            ["Shift+Meta+L" :split-selection-into-lines]
+            ["Shift+Meta+Left" :select-beginning-of-line-text]
+            ["Shift+Meta+R" :open-asset]
+            ["Shift+Meta+Right" :select-end-of-line]
+            ["Shift+Meta+Up" :select-beginning-of-file]
+            ["Shift+Meta+W" :close-all]
+            ["Shift+Meta+Z" :redo]
             ["Shift+Tab" :backwards-tab-trigger]
             ["Shift+Up" :up-major]
             ["Shift+Up" :select-up]
-            ["Shortcut+'+'" :zoom-in]
-            ["Shortcut+A" :select-all]
-            ["Shortcut+B" :build]
-            ["Shortcut+C" :copy]
-            ["Shortcut+Comma" :preferences]
-            ["Shortcut+D" :select-next-occurrence]
-            ["Shortcut+Delete" :delete-to-beginning-of-line]
-            ["Shortcut+Down" :end-of-file]
-            ["Shortcut+E" :replace-text]
-            ["Shortcut+E" :hide-selected]
-            ["Shortcut+End" :end-of-file]
-            ["Shortcut+F" :find-text]
-            ["Shortcut+G" :find-next]
-            #_["Shortcut+H" :toggle-component-guides]       ; This is actually taken on non-Mac platforms due to "Ctrl+Shortcut+H" above, and on Mac by the system-wide Hide Application shortcut.
-            ["Shortcut+Home" :beginning-of-file]
-            ["Shortcut+I" :reindent]
-            ["Shortcut+L" :goto-line]
-            ["Shortcut+Left" :beginning-of-line-text]
-            ["Shortcut+N" :new-file]
-            ["Shortcut+O" :open]
-            ["Shortcut+P" :open-asset]
-            ["Shortcut+Q" :quit]
-            ["Shortcut+R" :hot-reload]
-            ["Shortcut+Right" :end-of-line]
-            ["Shortcut+S" :save-all]
-            ["Shortcut+Slash" :toggle-comment]
-            ["Shortcut+T" :scene-stop]
-            ["Shortcut+U" :rebundle]
-            ["Shortcut+Up" :beginning-of-file]
-            ["Shortcut+V" :paste]
-            ["Shortcut+W" :close]
-            ["Shortcut+X" :cut]
-            ["Shortcut+Z" :undo]
+            ["Meta+'+'" :zoom-in]
+            ["Meta+A" :select-all]
+            ["Meta+B" :build]
+            ["Meta+C" :copy]
+            ["Meta+Comma" :preferences]
+            ["Meta+D" :select-next-occurrence]
+            ["Meta+Delete" :delete-to-beginning-of-line]
+            ["Meta+Down" :end-of-file]
+            ["Meta+E" :replace-text]
+            ["Meta+E" :hide-selected]
+            ["Meta+End" :end-of-file]
+            ["Meta+F" :find-text]
+            ["Meta+G" :find-next]
+            #_["Meta+H" :toggle-component-guides]       ; This is actually taken on non-Mac platforms due to "Ctrl+Shortcut+H" above, and on Mac by the system-wide Hide Application shortcut.
+            ["Meta+Home" :beginning-of-file]
+            ["Meta+I" :reindent]
+            ["Meta+L" :goto-line]
+            ["Meta+Left" :beginning-of-line-text]
+            ["Meta+N" :new-file]
+            ["Meta+O" :open]
+            ["Meta+P" :open-asset]
+            ["Meta+Q" :quit]
+            ["Meta+R" :hot-reload]
+            ["Meta+Right" :end-of-line]
+            ["Meta+S" :save-all]
+            ["Meta+Slash" :toggle-comment]
+            ["Meta+T" :scene-stop]
+            ["Meta+U" :rebundle]
+            ["Meta+Up" :beginning-of-file]
+            ["Meta+V" :paste]
+            ["Meta+W" :close]
+            ["Meta+X" :cut]
+            ["Meta+Z" :undo]
             ["Space" :scene-play]
             ["Space" :show-palette]
             ["Tab" :tab]
@@ -160,13 +160,13 @@
            ["Alt+Down" :move-down]
            ["Alt+Left" :prev-word]
            ["Alt+Right" :next-word]
-           ["Shortcut+'-'" :zoom-out]
+           ["Ctrl+'-'" :zoom-out]
            ;; disabled because of above
-           #_["Alt+Shortcut+1" :show-console]
-           #_["Alt+Shortcut+2" :show-curve-editor]
-           #_["Alt+Shortcut+3" :show-build-errors]
-           #_["Alt+Shortcut+4" :show-search-results]
-           #_["Alt+Shortcut+X" :profile]
+           #_["Alt+Ctrl+1" :show-console]
+           #_["Alt+Ctrl+2" :show-curve-editor]
+           #_["Alt+Ctrl+3" :show-build-errors]
+           #_["Alt+Ctrl+4" :show-search-results]
+           #_["Alt+Ctrl+X" :profile]
            ["Alt+Up" :beginning-of-line]
            ["Alt+Up" :move-up]
            ["Backspace" :delete-backward]
@@ -176,7 +176,7 @@
            ["Ctrl+K" :cut-to-end-of-line]
            ["Ctrl+Left" :prev-word]
            ["Ctrl+Right" :next-word]
-           ["Ctrl+Shortcut+H" :toggle-component-guides]    ; Mirrors the View > Extras shortcut in Photoshop. Maps to Ctrl+H on non-Mac platforms.
+           ["Ctrl+H" :toggle-component-guides]    ; Mirrors the View > Extras shortcut in Photoshop. Maps to Ctrl+H on non-Mac platforms.
            ["Ctrl+Space" :proposals]
            ["Delete" :delete]
            ["Down" :down]
@@ -208,7 +208,7 @@
            ["Shift+Alt+Left" :select-prev-word]
            ["Shift+Alt+Right" :select-next-word]
            ["Shift+Alt+Up" :select-beginning-of-line]
-           #_["Shift+Alt+Shortcut+X" :profile-show]
+           #_["Shift+Alt+Ctrl+X" :profile-show]
            ["Shift+Ctrl+A" :select-beginning-of-line]
            ["Shift+Ctrl+E" :select-end-of-line]
            ["Shift+Ctrl+Left" :select-prev-word]
@@ -224,59 +224,59 @@
            ["Shift+Page Up" :select-page-up]
            ["Shift+Right" :right-major]
            ["Shift+Right" :select-right]
-           ["Shift+Shortcut+B" :rebuild]
-           ["Shift+Shortcut+Delete" :delete-to-end-of-line]
-           ["Shift+Shortcut+Down" :select-end-of-file]
-           ["Shift+Shortcut+End" :select-end-of-file]
-           ["Shift+Shortcut+E" :replace-next]
-           ["Shift+Shortcut+E" :show-last-hidden]
-           ["Shift+Shortcut+F" :search-in-files]
-           ["Shift+Shortcut+G" :find-prev]
-           ["Shift+Shortcut+I" :toggle-visibility-filters]
-           ["Shift+Shortcut+Home" :select-beginning-of-file]
-           ["Shift+Shortcut+L" :split-selection-into-lines]
-           ["Shift+Shortcut+Left" :select-beginning-of-line-text]
-           ["Shift+Shortcut+R" :open-asset]
-           ["Shift+Shortcut+Right" :select-end-of-line]
-           ["Shift+Shortcut+Up" :select-beginning-of-file]
-           ["Shift+Shortcut+W" :close-all]
-           ["Shift+Shortcut+Z" :redo]
+           ["Shift+Ctrl+B" :rebuild]
+           ["Shift+Ctrl+Delete" :delete-to-end-of-line]
+           ["Shift+Ctrl+Down" :select-end-of-file]
+           ["Shift+Ctrl+End" :select-end-of-file]
+           ["Shift+Ctrl+E" :replace-next]
+           ["Shift+Ctrl+E" :show-last-hidden]
+           ["Shift+Ctrl+F" :search-in-files]
+           ["Shift+Ctrl+G" :find-prev]
+           ["Shift+Ctrl+I" :toggle-visibility-filters]
+           ["Shift+Ctrl+Home" :select-beginning-of-file]
+           ["Shift+Ctrl+L" :split-selection-into-lines]
+           ["Shift+Ctrl+Left" :select-beginning-of-line-text]
+           ["Shift+Ctrl+R" :open-asset]
+           ["Shift+Ctrl+Right" :select-end-of-line]
+           ["Shift+Ctrl+Up" :select-beginning-of-file]
+           ["Shift+Ctrl+W" :close-all]
+           ["Shift+Ctrl+Z" :redo]
            ["Shift+Tab" :backwards-tab-trigger]
            ["Shift+Up" :up-major]
            ["Shift+Up" :select-up]
-           ["Shortcut+'+'" :zoom-in]
-           ["Shortcut+A" :select-all]
-           ["Shortcut+B" :build]
-           ["Shortcut+C" :copy]
-           ["Shortcut+Comma" :preferences]
-           ["Shortcut+D" :select-next-occurrence]
-           ["Shortcut+Delete" :delete-to-beginning-of-line]
-           ["Shortcut+Down" :end-of-file]
-           ["Shortcut+E" :replace-text]
-           ["Shortcut+E" :hide-selected]
-           ["Shortcut+End" :end-of-file]
-           ["Shortcut+F" :find-text]
-           ["Shortcut+G" :find-next]
-           #_["Shortcut+H" :toggle-component-guides]       ; This is actually taken on non-Mac platforms due to "Ctrl+Shortcut+H" above, and on Mac by the system-wide Hide Application shortcut.
-           ["Shortcut+Home" :beginning-of-file]
-           ["Shortcut+I" :reindent]
-           ["Shortcut+L" :goto-line]
-           ["Shortcut+Left" :beginning-of-line-text]
-           ["Shortcut+N" :new-file]
-           ["Shortcut+O" :open]
-           ["Shortcut+P" :open-asset]
-           ["Shortcut+Q" :quit]
-           ["Shortcut+R" :hot-reload]
-           ["Shortcut+Right" :end-of-line]
-           ["Shortcut+S" :save-all]
-           ["Shortcut+Slash" :toggle-comment]
-           ["Shortcut+T" :scene-stop]
-           ["Shortcut+U" :rebundle]
-           ["Shortcut+Up" :beginning-of-file]
-           ["Shortcut+V" :paste]
-           ["Shortcut+W" :close]
-           ["Shortcut+X" :cut]
-           ["Shortcut+Z" :undo]
+           ["Ctrl+'+'" :zoom-in]
+           ["Ctrl+A" :select-all]
+           ["Ctrl+B" :build]
+           ["Ctrl+C" :copy]
+           ["Ctrl+Comma" :preferences]
+           ["Ctrl+D" :select-next-occurrence]
+           ["Ctrl+Delete" :delete-to-beginning-of-line]
+           ["Ctrl+Down" :end-of-file]
+           ["Ctrl+E" :replace-text]
+           ["Ctrl+E" :hide-selected]
+           ["Ctrl+End" :end-of-file]
+           ["Ctrl+F" :find-text]
+           ["Ctrl+G" :find-next]
+           #_["Ctrl+H" :toggle-component-guides]       ; This is actually taken on non-Mac platforms due to "Ctrl+Shortcut+H" above, and on Mac by the system-wide Hide Application shortcut.
+           ["Ctrl+Home" :beginning-of-file]
+           ["Ctrl+I" :reindent]
+           ["Ctrl+L" :goto-line]
+           ["Ctrl+Left" :beginning-of-line-text]
+           ["Ctrl+N" :new-file]
+           ["Ctrl+O" :open]
+           ["Ctrl+P" :open-asset]
+           ["Ctrl+Q" :quit]
+           ["Ctrl+R" :hot-reload]
+           ["Ctrl+Right" :end-of-line]
+           ["Ctrl+S" :save-all]
+           ["Ctrl+Slash" :toggle-comment]
+           ["Ctrl+T" :scene-stop]
+           ["Ctrl+U" :rebundle]
+           ["Ctrl+Up" :beginning-of-file]
+           ["Ctrl+V" :paste]
+           ["Ctrl+W" :close]
+           ["Ctrl+X" :cut]
+           ["Ctrl+Z" :undo]
            ["Space" :scene-play]
            ["Space" :show-palette]
            ["Tab" :tab]
@@ -289,13 +289,13 @@
            ["Alt+Down" :move-down]
            ["Alt+Left" :prev-word]
            ["Alt+Right" :next-word]
-           ["Shortcut+'-'" :zoom-out]
+           ["Ctrl+'-'" :zoom-out]
            ;; disabled because of above
-           #_["Alt+Shortcut+1" :show-console]
-           #_["Alt+Shortcut+2" :show-curve-editor]
-           #_["Alt+Shortcut+3" :show-build-errors]
-           #_["Alt+Shortcut+4" :show-search-results]
-           #_["Alt+Shortcut+X" :profile]
+           #_["Alt+Ctrl+1" :show-console]
+           #_["Alt+Ctrl+2" :show-curve-editor]
+           #_["Alt+Ctrl+3" :show-build-errors]
+           #_["Alt+Ctrl+4" :show-search-results]
+           #_["Alt+Ctrl+X" :profile]
            ["Alt+Up" :beginning-of-line]
            ["Alt+Up" :move-up]
            ["Backspace" :delete-backward]
@@ -305,7 +305,7 @@
            ["Ctrl+K" :cut-to-end-of-line]
            ["Ctrl+Left" :prev-word]
            ["Ctrl+Right" :next-word]
-           ["Ctrl+Shortcut+H" :toggle-component-guides]    ; Mirrors the View > Extras shortcut in Photoshop. Maps to Ctrl+H on non-Mac platforms.
+           ["Ctrl+H" :toggle-component-guides]    ; Mirrors the View > Extras shortcut in Photoshop. Maps to Ctrl+H on non-Mac platforms.
            ["Ctrl+Space" :proposals]
            ["Delete" :delete]
            ["Down" :down]
@@ -337,7 +337,7 @@
            ["Shift+Alt+Left" :select-prev-word]
            ["Shift+Alt+Right" :select-next-word]
            ["Shift+Alt+Up" :select-beginning-of-line]
-           #_["Shift+Alt+Shortcut+X" :profile-show]
+           #_["Shift+Alt+Ctrl+X" :profile-show]
            ["Shift+Ctrl+A" :select-beginning-of-line]
            ["Shift+Ctrl+E" :select-end-of-line]
            ["Shift+Ctrl+Left" :select-prev-word]
@@ -353,59 +353,59 @@
            ["Shift+Page Up" :select-page-up]
            ["Shift+Right" :right-major]
            ["Shift+Right" :select-right]
-           ["Shift+Shortcut+B" :rebuild]
-           ["Shift+Shortcut+Delete" :delete-to-end-of-line]
-           ["Shift+Shortcut+Down" :select-end-of-file]
-           ["Shift+Shortcut+End" :select-end-of-file]
-           ["Shift+Shortcut+E" :replace-next]
-           ["Shift+Shortcut+E" :show-last-hidden]
-           ["Shift+Shortcut+F" :search-in-files]
-           ["Shift+Shortcut+G" :find-prev]
-           ["Shift+Shortcut+I" :toggle-visibility-filters]
-           ["Shift+Shortcut+Home" :select-beginning-of-file]
-           ["Shift+Shortcut+L" :split-selection-into-lines]
-           ["Shift+Shortcut+Left" :select-beginning-of-line-text]
-           ["Shift+Shortcut+R" :open-asset]
-           ["Shift+Shortcut+Right" :select-end-of-line]
-           ["Shift+Shortcut+Up" :select-beginning-of-file]
-           ["Shift+Shortcut+W" :close-all]
-           ["Shift+Shortcut+Z" :redo]
+           ["Shift+Ctrl+B" :rebuild]
+           ["Shift+Ctrl+Delete" :delete-to-end-of-line]
+           ["Shift+Ctrl+Down" :select-end-of-file]
+           ["Shift+Ctrl+End" :select-end-of-file]
+           ["Shift+Ctrl+E" :replace-next]
+           ["Shift+Ctrl+E" :show-last-hidden]
+           ["Shift+Ctrl+F" :search-in-files]
+           ["Shift+Ctrl+G" :find-prev]
+           ["Shift+Ctrl+I" :toggle-visibility-filters]
+           ["Shift+Ctrl+Home" :select-beginning-of-file]
+           ["Shift+Ctrl+L" :split-selection-into-lines]
+           ["Shift+Ctrl+Left" :select-beginning-of-line-text]
+           ["Shift+Ctrl+R" :open-asset]
+           ["Shift+Ctrl+Right" :select-end-of-line]
+           ["Shift+Ctrl+Up" :select-beginning-of-file]
+           ["Shift+Ctrl+W" :close-all]
+           ["Shift+Ctrl+Z" :redo]
            ["Shift+Tab" :backwards-tab-trigger]
            ["Shift+Up" :up-major]
            ["Shift+Up" :select-up]
-           ["Shortcut+'+'" :zoom-in]
-           ["Shortcut+A" :select-all]
-           ["Shortcut+B" :build]
-           ["Shortcut+C" :copy]
-           ["Shortcut+Comma" :preferences]
-           ["Shortcut+D" :select-next-occurrence]
-           ["Shortcut+Delete" :delete-to-beginning-of-line]
-           ["Shortcut+Down" :end-of-file]
-           ["Shortcut+E" :replace-text]
-           ["Shortcut+E" :hide-selected]
-           ["Shortcut+End" :end-of-file]
-           ["Shortcut+F" :find-text]
-           ["Shortcut+G" :find-next]
-           #_["Shortcut+H" :toggle-component-guides]       ; This is actually taken on non-Mac platforms due to "Ctrl+Shortcut+H" above, and on Mac by the system-wide Hide Application shortcut.
-           ["Shortcut+Home" :beginning-of-file]
-           ["Shortcut+I" :reindent]
-           ["Shortcut+L" :goto-line]
-           ["Shortcut+Left" :beginning-of-line-text]
-           ["Shortcut+N" :new-file]
-           ["Shortcut+O" :open]
-           ["Shortcut+P" :open-asset]
-           ["Shortcut+Q" :quit]
-           ["Shortcut+R" :hot-reload]
-           ["Shortcut+Right" :end-of-line]
-           ["Shortcut+S" :save-all]
-           ["Shortcut+Slash" :toggle-comment]
-           ["Shortcut+T" :scene-stop]
-           ["Shortcut+U" :rebundle]
-           ["Shortcut+Up" :beginning-of-file]
-           ["Shortcut+V" :paste]
-           ["Shortcut+W" :close]
-           ["Shortcut+X" :cut]
-           ["Shortcut+Z" :undo]
+           ["Ctrl+'+'" :zoom-in]
+           ["Ctrl+A" :select-all]
+           ["Ctrl+B" :build]
+           ["Ctrl+C" :copy]
+           ["Ctrl+Comma" :preferences]
+           ["Ctrl+D" :select-next-occurrence]
+           ["Ctrl+Delete" :delete-to-beginning-of-line]
+           ["Ctrl+Down" :end-of-file]
+           ["Ctrl+E" :replace-text]
+           ["Ctrl+E" :hide-selected]
+           ["Ctrl+End" :end-of-file]
+           ["Ctrl+F" :find-text]
+           ["Ctrl+G" :find-next]
+           #_["Ctrl+H" :toggle-component-guides]       ; This is actually taken on non-Mac platforms due to "Ctrl+Shortcut+H" above, and on Mac by the system-wide Hide Application shortcut.
+           ["Ctrl+Home" :beginning-of-file]
+           ["Ctrl+I" :reindent]
+           ["Ctrl+L" :goto-line]
+           ["Ctrl+Left" :beginning-of-line-text]
+           ["Ctrl+N" :new-file]
+           ["Ctrl+O" :open]
+           ["Ctrl+P" :open-asset]
+           ["Ctrl+Q" :quit]
+           ["Ctrl+R" :hot-reload]
+           ["Ctrl+Right" :end-of-line]
+           ["Ctrl+S" :save-all]
+           ["Ctrl+Slash" :toggle-comment]
+           ["Ctrl+T" :scene-stop]
+           ["Ctrl+U" :rebundle]
+           ["Ctrl+Up" :beginning-of-file]
+           ["Ctrl+V" :paste]
+           ["Ctrl+W" :close]
+           ["Ctrl+X" :cut]
+           ["Ctrl+Z" :undo]
            ["Space" :scene-play]
            ["Space" :show-palette]
            ["Tab" :tab]
@@ -422,8 +422,10 @@
     "Shift+Left"
     "Shift+Right"
     "Shift+Up"
-    "Shortcut+E"
-    "Shift+Shortcut+E"
+    "Ctrl+E"
+    "Meta+E"
+    "Shift+Ctrl+E"
+    "Shift+Meta+E"
     "Space"
     "F5"})
 
@@ -439,7 +441,7 @@
     "Shift+E"}) ; :erase-tool
 
 (defprotocol KeyComboData
-  (key-combo->map [this] "returns a data representation of a KeyCombination."))
+  (key-combo->map [this] "returns a data representation of a KeyCombination-like object"))
 
 (extend-protocol KeyComboData
   KeyCodeCombination
@@ -458,11 +460,7 @@
      :control-down? (= KeyCombination$ModifierValue/DOWN (.getControl key-combo))
      :meta-down? (= KeyCombination$ModifierValue/DOWN (.getMeta key-combo))
      :shift-down? (= KeyCombination$ModifierValue/DOWN (.getShift key-combo))
-     :shortcut-down? (= KeyCombination$ModifierValue/DOWN (.getShortcut key-combo))})
-
-  String
-  (key-combo->map [this]
-    (key-combo->map (KeyCombination/keyCombination this))))
+     :shortcut-down? (= KeyCombination$ModifierValue/DOWN (.getShortcut key-combo))}))
 
 (defn key-event->map [^KeyEvent e]
   {:key              (.getCharacter e)
@@ -474,11 +472,6 @@
 
 (defn key-combo->display-text [s]
   (.getDisplayText (KeyCombination/keyCombination s)))
-
-(defn- convert-shortcut-key [platform-shortcut-key key-combo-data]
-  (-> key-combo-data
-      (update platform-shortcut-key #(or % (:shortcut-down? key-combo-data)))
-      (dissoc :shortcut-down?)))
 
 (defn typable?
   "Only act on key pressed events that look like textual input, and
@@ -549,53 +542,34 @@
   So that's what we use below."
   ([key-combo-data]
    (typable? key-combo-data (util/os)))
-  ([{:keys [alt-down? control-down? meta-down?] :as _key-combo-data} os]
+  ([{:keys [alt-down? control-down? meta-down?]} os]
    (let [mac? (= os :darwin)]
      (or (and mac? alt-down?)
          (not (or control-down? alt-down? meta-down?))
          (and control-down? alt-down? (not meta-down?))))))
 
-(defn- platform-typable-shortcut?
-  [os key-combo-data]
-  (let [canonical-key-combo-data (convert-shortcut-key (platform-shortcut-keys os) key-combo-data)]
-    (and (typable? canonical-key-combo-data os)
-         (= 1 (count (:key canonical-key-combo-data))))))
+(defn- platform-typable-shortcut? [key-combo-data os]
+  (and (typable? key-combo-data os)
+       (= 1 (count (:key key-combo-data)))))
 
-(defn- any-platform-typable-shortcut?
-  [key-combo-data]
-  (or (platform-typable-shortcut? :darwin key-combo-data)
-      (platform-typable-shortcut? :win32 key-combo-data)
-      (platform-typable-shortcut? :linux key-combo-data)))
+(defn- any-platform-typable-shortcut? [key-combo-data]
+  (or (platform-typable-shortcut? key-combo-data :darwin)
+      (platform-typable-shortcut? key-combo-data :win32)
+      (platform-typable-shortcut? key-combo-data :linux)))
 
-(defn- key-binding-data
-  [key-bindings platform-shortcut-key]
+(defn- key-binding-data [key-bindings]
   (map (fn [[shortcut command]]
          (let [key-combo (KeyCombination/keyCombination shortcut)
-               key-combo-data (key-combo->map shortcut)
-               canonical-key-combo-data (convert-shortcut-key platform-shortcut-key key-combo-data)]
+               key-combo-data (key-combo->map key-combo)]
            {:shortcut shortcut
             :command command
             :key-combo key-combo
-            :key-combo-data key-combo-data
-            :canonical-key-combo-data canonical-key-combo-data}))
+            :key-combo-data key-combo-data}))
        key-bindings))
-
-(defn- remove-shortcut-key-overlaps
-  "Given a sequence of key-binding data, find all bindings where the modifiers
-  used are in conflict with the `Shortcut` key, and remove them. For example, on
-  platforms where the shortcut key is `Ctrl`, the bindings `Ctrl+A` and
-  `Shortcut+A` are in conflict as they would resolve to the same binding. In
-  such cases, we prefer the binding with the `Shortcut` key."
-  [key-bindings-data]
-  (->> (group-by :canonical-key-combo-data key-bindings-data)
-       (vals)
-       (mapcat (fn [overlapping-key-bindings]
-                 (or (seq (filter (comp :shortcut-down? :key-combo-data) overlapping-key-bindings))
-                     overlapping-key-bindings)))))
 
 (defn- key-binding-data->keymap
   [key-bindings-data valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts]
-  (reduce (fn [ret {:keys [canonical-key-combo-data key-combo-data shortcut command ^KeyCombination key-combo]}]
+  (reduce (fn [ret {:keys [key-combo-data shortcut command ^KeyCombination key-combo]}]
             (cond
               (not (valid-command? command))
               (update ret :errors conj {:type :unknown-command
@@ -607,52 +581,53 @@
                                         :command command
                                         :shortcut shortcut})
 
+              (:shortcut-down? key-combo-data)
+              (update ret :errors conj {:type :shortcut-key
+                                        :command command
+                                        :shortcut shortcut})
+
               (and (any-platform-typable-shortcut? key-combo-data)
                    (not (allowed-typable-shortcuts shortcut)))
-              (update ret :errors into [{:type :typable-shortcut
-                                         :command command
-                                         :shortcut shortcut}])
+              (update ret :errors conj {:type :typable-shortcut
+                                        :command command
+                                        :shortcut shortcut})
 
-              (and (some? (get-in ret [:keymap canonical-key-combo-data]))
+              (and (some? (get-in ret [:keymap key-combo-data]))
                    (not (allowed-duplicate-shortcuts shortcut)))
               (update ret :errors into [{:type :duplicate-shortcut
                                          :command command
                                          :shortcut shortcut}
                                         {:type :duplicate-shortcut
-                                         :command (get-in ret [:keymap canonical-key-combo-data])
+                                         :command (get-in ret [:keymap key-combo-data])
                                          :shortcut shortcut}])
 
               :else
-              (update-in ret [:keymap canonical-key-combo-data] (fnil conj []) {:command command
-                                                                                :shortcut shortcut
-                                                                                :key-combo key-combo})))
+              (update-in ret [:keymap key-combo-data] (fnil conj []) {:command command
+                                                                      :shortcut shortcut
+                                                                      :key-combo key-combo})))
           {:keymap {}
            :errors #{}}
           key-bindings-data))
 
 (defn- make-keymap*
-  [key-bindings platform-shortcut-key valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts]
-  (-> (key-binding-data key-bindings platform-shortcut-key)
-      (remove-shortcut-key-overlaps)
+  [key-bindings valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts]
+  (-> (key-binding-data key-bindings)
       (key-binding-data->keymap valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts)))
 
 (defn make-keymap
   ([key-bindings]
    (make-keymap key-bindings nil))
   ([key-bindings {:keys [valid-command?
-                         platform-shortcut-key
                          throw-on-error?
                          allowed-duplicate-shortcuts
                          allowed-typable-shortcuts]
                   :or   {valid-command?              (constantly true)
-                         platform-shortcut-key       host-platform-shortcut-key
                          throw-on-error?             false
                          allowed-duplicate-shortcuts default-allowed-duplicate-shortcuts
-                         allowed-typable-shortcuts   default-allowed-typable-shortcuts}
-                  :as   opts}]
-   (let [{:keys [errors keymap]} (make-keymap* key-bindings platform-shortcut-key valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts)]
+                         allowed-typable-shortcuts   default-allowed-typable-shortcuts}}]
+   (let [{:keys [errors keymap]} (make-keymap* key-bindings valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts)]
      (if (and (seq errors) throw-on-error?)
-       (throw (ex-info "Keymap has errors"
+       (throw (ex-info (str "Keymap has errors\n" (clojure.string/join "\n" errors))
                        {:errors       errors
                         :key-bindings key-bindings}))
        keymap))))
