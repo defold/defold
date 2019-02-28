@@ -105,6 +105,9 @@ public class AndroidBundler implements IBundler {
         // If a custom engine was built we need to copy it
 
         ArrayList<File> classesDex = new ArrayList<File>();
+        ArrayList<String> classesDexFilenames = new ArrayList<String>();
+        ArrayList<String> classesDex64Filenames = new ArrayList<String>();
+
         classesDex.add(new File(Bob.getPath("lib/classes.dex")));
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
         List<File> bundleExes = null;
@@ -129,6 +132,7 @@ public class AndroidBundler implements IBundler {
                     if (!f.exists())
                         break;
                     classesDex.add(f);
+                    classesDexFilenames.add(f.getAbsolutePath());
                 }
             }
         }
@@ -157,12 +161,26 @@ public class AndroidBundler implements IBundler {
                     if (!f.exists())
                         break;
                     classesDex.add(f);
+                    classesDex64Filenames.add(f.getAbsolutePath());
                 }
             }
         }
         if (bundleArm64Exes.size() > 1) {
             throw new IOException("Invalid number of arm64-v8a binaries for Android when bundling: " + bundleArm64Exes.size());
         }
+        
+        System.out.println("-----------------------------------------");
+        System.out.println("armv7 classes.dex files:");
+        for (String filename : classesDexFilenames) {
+			System.out.println("armv7: " + filename);
+		}
+        System.out.println("-----------------------------------------");
+        System.out.println("arm64 classes.dex files:");
+        for (String filename : classesDex64Filenames) {
+			System.out.println("arm64: " + filename);
+		}
+        System.out.println("-----------------------------------------");
+        
         File bundleArm64Exe = bundleArm64Exes.get(0);
 
         File appDir = new File(bundleDir, title);

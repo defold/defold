@@ -176,6 +176,36 @@ def dmsdk_add_files(bld, target, source):
             bld.install_files(os.path.join(target, sdk_dir), f)
     apidoc_extract_task(bld, doc_files)
 
+def getAndroidNDKArch(target_arch):
+    return 'arm64' if 'arm64' == target_arch else 'arm'
+
+def getAndroidArch(target_arch):
+    return 'arm64-v8a' if 'arm64' == target_arch else 'armeabi-v7a'
+
+def getAndroidBuildtoolName(target_arch):
+    return 'aarch64-linux-android' if 'arm64' == target_arch else 'arm-linux-androideabi'
+
+def getAndroidGCCVersion(target_arch):
+    return ANDROID_64_GCC_VERSION if 'arm64' == target_arch else ANDROID_GCC_VERSION
+
+def getAndroidNDKAPIVersion(target_arch):
+    return ANDROID_64_NDK_API_VERSION if 'arm64' == target_arch else ANDROID_NDK_API_VERSION
+
+def getAndroidCompileFlags(target_arch):
+    # NOTE compared to armv7-android:
+    # -mthumb, -mfloat-abi, -mfpu are implicit on aarch64, removed from flags
+    if 'arm64' == target_arch:
+        return ['-D__aarch64__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wno-psabi', '-march=armv8-a', '-fvisibility=hidden']
+    # NOTE:
+    # -fno-exceptions added
+    else:
+        return ['-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp', '-fvisibility=hidden']
+
+def getAndroidLinkFlags(target_arch):
+    if 'arm64' == target_arch:
+        return ['-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text']
+    else:
+        return ['-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text']
 
 @feature('cc', 'cxx')
 # We must apply this before the objc_hook below
@@ -255,28 +285,24 @@ def default_flags(self):
                                         '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)])
         self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-fobjc-link-runtime', '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
 
-    elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
-        sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION)
-        stl="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/include" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION)
-        stl_lib="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/libs/armeabi-v7a" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION)
+    elif 'android' == build_util.get_target_os(): # and 'armv7' == build_util.get_target_architecture():
+        target_arch = build_util.get_target_architecture()
+        sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-%s' % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidNDKAPIVersion(target_arch), getAndroidNDKArch(target_arch))
+        stl="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/include" % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidGCCVersion(target_arch))
+        stl_lib="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/libs/%s" % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidGCCVersion(target_arch), getAndroidArch(target_arch))
         stl_arch="%s/include" % stl_lib
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            # NOTE:
-            # -mthumb and -funwind-tables removed from default flags
-            # -fno-exceptions added
             self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
                                       '-fpic', '-ffunction-sections', '-fstack-protector',
-                                      '-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI',
-                                      '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp', '-fvisibility=hidden',
                                       '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions', '-funwind-tables',
                                       '-I%s/android-ndk-r%s/sources/android/native_app_glue' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
                                       '-I%s/android-ndk-r%s/sources/android/cpufeatures' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
-                                      '-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-arm/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION),
+                                      '-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-%s/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidNDKAPIVersion(target_arch), getAndroidNDKArch(target_arch)),
                                       '-I%s' % stl,
                                       '-I%s' % stl_arch,
                                       '--sysroot=%s' % sysroot,
-                                      '-DANDROID', '-Wa,--noexecstack'])
+                                      '-DANDROID', '-Wa,--noexecstack'] + getAndroidCompileFlags(target_arch))
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
 
@@ -285,39 +311,7 @@ def default_flags(self):
         # -lgnustl_static -lsupc++
         self.env.append_value('LINKFLAGS', [
                 '--sysroot=%s' % sysroot,
-                '-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text',
-                '-L%s' % stl_lib])
-    elif 'android' == build_util.get_target_os() and 'arm64' == build_util.get_target_architecture():
-        sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm64' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_64_NDK_API_VERSION)
-        stl="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/include" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_64_GCC_VERSION)
-        stl_lib="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/libs/arm64-v8a" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_64_GCC_VERSION)
-        stl_arch="%s/include" % stl_lib
-
-        for f in ['CCFLAGS', 'CXXFLAGS']:
-            # NOTE compared to armv7-android:
-            # -mthumb, -mfloat-abi, -mfpu are implicit on aarch64, removed from flags
-            self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
-                                      '-fpic', '-ffunction-sections', '-fstack-protector',
-                                      '-D__aarch64__', '-DGOOGLE_PROTOBUF_NO_RTTI',
-                                      '-Wno-psabi', '-march=armv8-a', '-fvisibility=hidden',
-                                      '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions', '-funwind-tables',
-                                      '-I%s/android-ndk-r%s/sources/android/native_app_glue' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
-                                      '-I%s/android-ndk-r%s/sources/android/cpufeatures' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
-                                      '-I%s/android-ndk-r%s/platforms/android-%s/arch-arm64/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_64_NDK_API_VERSION),
-                                      '-I%s' % stl,
-                                      '-I%s' % stl_arch,
-                                      '--sysroot=%s' % sysroot,
-                                      '-DANDROID', '-Wa,--noexecstack'])
-            if f == 'CXXFLAGS':
-                self.env.append_value(f, ['-fno-rtti'])
-
-        # TODO: Should be part of shared libraries
-        # -Wl,-soname,libnative-activity.so -shared
-        # -lgnustl_static -lsupc++
-        self.env.append_value('LINKFLAGS', [
-                '--sysroot=%s' % sysroot,
-                '-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text',
-                '-L%s' % stl_lib])
+                '-L%s' % stl_lib] + getAndroidLinkFlags(target_arch))
     elif 'web' == build_util.get_target_os():
 
         # Default to asmjs output
@@ -995,10 +989,7 @@ def android_package(task):
         return 1
 
     with open(task.android_mk.abspath(task.env), 'wb') as f:
-        if 'arm64' == build_util.get_target_architecture():
-            print >>f, 'APP_ABI := arm64-v8a'
-        else:
-            print >>f, 'APP_ABI := armeabi-v7a'
+        print >>f, 'APP_ABI := %s' % getAndroidArch(build_util.get_target_architecture)
 
     with open(task.application_mk.abspath(task.env), 'wb') as f:
         print >>f, ''
@@ -1532,32 +1523,18 @@ def detect(conf):
         conf.env['AR'] = '%s/usr/bin/ar' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['LD'] = '%s/usr/bin/ld' % (DARWIN_TOOLCHAIN_ROOT)
-    elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
+    elif 'android' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64'):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
         arch = 'x86_64'
-
-        bin='%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, build_platform, arch)
-        conf.env['CC'] = '%s/arm-linux-androideabi-gcc' % (bin)
-        conf.env['CXX'] = '%s/arm-linux-androideabi-g++' % (bin)
-        conf.env['LINK_CXX'] = '%s/arm-linux-androideabi-g++' % (bin)
-        conf.env['CPP'] = '%s/arm-linux-androideabi-cpp' % (bin)
-        conf.env['AR'] = '%s/arm-linux-androideabi-ar' % (bin)
-        conf.env['RANLIB'] = '%s/arm-linux-androideabi-ranlib' % (bin)
-        conf.env['LD'] = '%s/arm-linux-androideabi-ld' % (bin)
-
-        conf.env['DX'] =  '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
-    elif 'android' == build_util.get_target_os() and 'arm64' == build_util.get_target_architecture():
-        # TODO: No windows support yet (unknown path to compiler when wrote this)
-        arch = 'x86_64'
-
-        bin='%s/android-ndk-r%s/toolchains/aarch64-linux-android-%s/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_64_GCC_VERSION, build_platform, arch)
-        conf.env['CC'] = '%s/aarch64-linux-android-gcc' % (bin)
-        conf.env['CXX'] = '%s/aarch64-linux-android-g++' % (bin)
-        conf.env['LINK_CXX'] = '%s/aarch64-linux-android-g++' % (bin)
-        conf.env['CPP'] = '%s/aarch64-linux-android-cpp' % (bin)
-        conf.env['AR'] = '%s/aarch64-linux-android-ar' % (bin)
-        conf.env['RANLIB'] = '%s/aarch64-linux-android-ranlib' % (bin)
-        conf.env['LD'] = '%s/aarch64-linux-android-ld' % (bin)
+        target_arch = build_util.get_target_architecture()
+        bin='%s/android-ndk-r%s/toolchains/%s-%s/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidBuildtoolName(target_arch), getAndroidGCCVersion(target_arch), build_platform, arch)
+        conf.env['CC'] = '%s/%s-gcc' % (bin, getAndroidBuildtoolName(target_arch))
+        conf.env['CXX'] = '%s/%s-g++' % (bin, getAndroidBuildtoolName(target_arch))
+        conf.env['LINK_CXX'] = '%s/%s-g++' % (bin, getAndroidBuildtoolName(target_arch))
+        conf.env['CPP'] = '%s/%s-cpp' % (bin, getAndroidBuildtoolName(target_arch))
+        conf.env['AR'] = '%s/%s-ar' % (bin, getAndroidBuildtoolName(target_arch))
+        conf.env['RANLIB'] = '%s/%s-ranlib' % (bin, getAndroidBuildtoolName(target_arch))
+        conf.env['LD'] = '%s/%s-ld' % (bin, getAndroidBuildtoolName(target_arch))
 
         conf.env['DX'] =  '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
 

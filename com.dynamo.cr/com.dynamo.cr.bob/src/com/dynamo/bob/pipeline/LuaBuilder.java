@@ -172,6 +172,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         if (needsLuaSource.contains(project.getPlatform())) {
             srcBuilder.setScript(ByteString.copyFrom(scriptBytes));
         } else {
+            System.out.println("Generation bytecode for filename: " + task.input(0).getPath());
             byte[] bytecode = constructBytecode(task, "luajit-32");
             if (bytecode != null) {
                 srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
@@ -179,6 +180,13 @@ public abstract class LuaBuilder extends Builder<Void> {
             byte[] bytecode64 = constructBytecode(task, "luajit-64");
             if (bytecode64 != null) {
                 srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
+            }
+
+            for (int i = 0; i < bytecode.length; ++i) {
+                if (bytecode[i] != bytecode64[i]) {
+                    System.out.println("Bytecode differs between 32 and 64!");
+                    break;
+                }
             }
         }
         builder.setSource(srcBuilder);
