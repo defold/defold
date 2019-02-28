@@ -1,99 +1,139 @@
 #ifndef DMSDK_JSON
 #define DMSDK_JSON
 
-/**
- * Json parsing
+/*# SDK Json Parser API documentation
+ * [file:<dmsdk/dlib/json.h>]
+ *
+ * API for platform independent parsing of json files
+ *
+ * @document
+ * @name Json
+ * @namespace dmJson
  */
+
 namespace dmJson
 {
-    /**
-     * Result
+    /*# result enumeration
+     *
+     * Result enumeration.
+     *
+     * @enum
+     * @name dmJson::Result
+     * @member dmJson::RESULT_OK
+     * @member dmJson::RESULT_SYNTAX_ERROR
+     * @member dmJson::RESULT_INCOMPLETE
+     * @member dmJson::RESULT_UNKNOWN
+     *
      */
     enum Result
     {
-        RESULT_OK = 0,           //!< RESULT_OK
-        RESULT_SYNTAX_ERROR = -1,//!< RESULT_SYNTAX_ERROR
-        RESULT_INCOMPLETE = -2,  //!< RESULT_INCOMPLETE
-        RESULT_UNKNOWN = -1000,  //!< RESULT_UNKNOWN
+        RESULT_OK = 0,
+        RESULT_SYNTAX_ERROR = -1,
+        RESULT_INCOMPLETE = -2,
+        RESULT_UNKNOWN = -1000,
     };
 
-    /**
-     * Token type
+    /*# token type enumeration
+     *
+     * Topen type enumeration.
+     *
+     * @enum
+     * @name dmJson::Type
+     * @member dmJson::TYPE_PRIMITIVE Number or boolean
+     * @member dmJson::TYPE_OBJECT Json object
+     * @member dmJson::TYPE_ARRAY Json array
+     * @member dmJson::TYPE_STRING String
+     *
      */
     enum Type
     {
-        /// Number or boolean
         TYPE_PRIMITIVE = 0,
-        /// Json object
         TYPE_OBJECT = 1,
-        /// Json array
         TYPE_ARRAY = 2,
-        /// String
         TYPE_STRING = 3
     };
 
-    /**
-     * Json node representation. Nodes
-     * are in depth-first order with sibling
+    /*# Json node representation.
+     * Nodes are in depth-first order with sibling
      * links for simplified traversal.
      *
      * NOTE: Siblings were added to support a read-only
      * lua-view of json-data. It's currently not used and
      * could potentially be removed for increased performance.
+     *
+     * @struct
+     * @name dmJson::Node
+     * @member m_Type [type:dmJson::Type] Node type
+     * @member m_Start [type:int] Start index inclusive into document json-data
+     * @member m_End [type:int] End index exclusive into document json-data
+     * @member m_Size [type:int] Size. Only applicable for arrays and objects
+     * @member m_Sibling [type:int] Sibling index. -1 if no sibling
      */
     struct Node
     {
-        /// Node type
         Type    m_Type;
-        /// Start index inclusive into document json-data
         int     m_Start;
-        /// End index exclusive into document json-data
         int     m_End;
-        /// Size. Only applicable for arrays and objects
         int     m_Size;
-        /// Sibling index. -1 if no sibling
         int     m_Sibling;
     };
 
-    /**
-     * Json document
+    /*# Json document
+     * Holds a full json document
+     *
+     * @struct
+     * @name dmJson::Document
+     * @member m_Nodes [type:dmJson::Node] Array of nodes. First node is root
+     * @member m_NodeCount [type:int] Total number of nodes
+     * @member m_Json [type:char*] Json-data (unescaped)
+     * @member m_UserData [type:void*] User-data
      */
     struct Document
     {
-        /// Array of nodes. First node is root
-        Node*  m_Nodes;
-        /// Total number of nodes
-        int    m_NodeCount;
-        /// Json-data (unescaped)
-        char* m_Json;
-        /// User-data
-        void*  m_UserData;
+        Node*   m_Nodes;
+        int     m_NodeCount;
+        char*   m_Json;
+        void*   m_UserData;
     };
 
-    /**
-     * Parse json data
+    /*# parse json data
+     *
+     * Parses an (utf-8) string into a dmJson::Document
+     * The document must later be freed with dmJson::Free()
+     *
      * @note The returned nodes index into document json-data.
-     * @param buffer json buffer
-     * @param buffer_length the size of the json buffer
-     * @param doc document
-     * @return RESULT_OK on success
+     *
+     * @name Parse
+     * @param buffer [type:const char*] The input data (Utf-8)
+     * @param buffer_length [type:uint32_t] The size of the json buffer (in bytes)
+     * @param document [type:dmJson::Document*] The output document
+     * @return dmJson::RESULT_OK on success
      */
     Result Parse(const char* buffer, unsigned int buffer_length, Document* doc);
 
-    /**
-     * Parse json data
+    /*# parse json data
+     *
+     * Parses a null terminated (utf-8) string into a dmJson::Document
+     * The document must later be freed with dmJson::Free()
+     *
      * @note Uses strlen() to figure out the length of the buffer
      * @note The returned nodes index into document json-data.
-     * @param buffer json buffer
-     * @param doc document
-     * @return RESULT_OK on success
+     *
+     * @name Parse
+     * @param buffer [type:const char*] The input data (Utf-8)
+     * @param document [type:dmJson::Document*] The output document
+     * @return dmJson::RESULT_OK on success
      */
     Result Parse(const char* buffer, Document* doc);
 
-    /**
-     * Free json document nodes
+    /*# deallocates json document
+     *
+     * Deallocates a previously created dmJson::Document
+     *
      * @note The original json-data is not freed (const)
-     * @param doc document
+     *
+     * @name Free
+     * @param document [type:dmJson::Document*] The document
      */
     void   Free(Document* doc);
 }
