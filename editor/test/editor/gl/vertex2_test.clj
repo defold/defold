@@ -44,7 +44,7 @@
                          (contents-of vertex-buffer))))
 
     (testing "once flipped, the data is still there"
-             (let [final (flip! vertex-buffer)]
+             (let [final (v/flip! vertex-buffer)]
                (is (= 1    (count final)))
                (is (array= (byte-array [42])
                            (contents-of final)))))))

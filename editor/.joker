@@ -29,8 +29,11 @@
                              benchmark.graph-benchmark
                              util.profiler-test
                              editor.system
-                             clojure.tools.nrepl.server]
+                             clojure.tools.nrepl.server
+                             clojure.test]
  :known-macros [clojure.core.cache/defcache
+                potemkin.namespaces/import-macro
+                potemkin.namespaces/import-fn
                 [dynamo.graph/defnode [_node-id]]
                 dynamo.graph/deftype
                 dynamo.graph/defnk
