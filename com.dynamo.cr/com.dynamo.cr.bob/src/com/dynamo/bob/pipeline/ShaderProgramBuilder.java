@@ -248,6 +248,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         ObjectMapper om = new ObjectMapper();
         JsonNode tree = om.readTree(file_out_refl);
         JsonNode uboNode = tree.get("ubos");
+        JsonNode texturesNode = tree.get("textures");
         JsonNode typesNode = tree.get("types");
 
         int uniformIndex = 0;
@@ -307,6 +308,35 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 }
 
                 builder.addUniformBlocks(uniformBlockBuilder);
+            }
+        }
+
+        if (texturesNode != null) {
+            for (Iterator<JsonNode> iter = texturesNode.getElements(); iter.hasNext();) {
+                JsonNode textureNode   = iter.next();
+                String textureNodeType = textureNode.get("type").asText();
+                String textureNodeName = textureNode.get("name").asText();
+                int textureNodeSet     = textureNode.get("set").asInt();
+                int textureNodeBinding = textureNode.get("binding").asInt();
+
+                System.out.println("  Texture [" + textureNodeName + "]");
+                System.out.println("    Type    :" + textureNodeType);
+                System.out.println("    Set     :" + Integer.toString(textureNodeSet));
+                System.out.println("    Binding :" + Integer.toString(textureNodeBinding));
+
+                ShaderDesc.Uniform.Builder uniformBuilder = ShaderDesc.Uniform.newBuilder();
+                ShaderDesc.UniformType uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_SAMPLER2D;
+
+                if (!textureNodeType.equals("sampler2D"))
+                {
+                    throw new CompileExceptionError("Unsupported texture type: " + textureNodeType, null);
+                }
+
+                uniformBuilder.setName(textureNodeName);
+                uniformBuilder.setType(uniformType);
+                uniformBuilder.setSet(textureNodeSet);
+                uniformBuilder.setBinding(textureNodeBinding);
+                builder.addUniforms(uniformBuilder);
             }
         }
 
