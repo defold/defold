@@ -2805,6 +2805,12 @@ bail:
                 }
                 dmScript::PushURL(L, message->m_Sender);
             }
+            else if (script_function == RENDER_SCRIPT_FUNCTION_UPDATE)
+            {
+                float* dt = (float*)args;
+                lua_pushnumber(L, (lua_Number) *dt);
+                arg_count += 1;
+            }
 
             {
                 DM_PROFILE_FMT(Script, "%s%s%s%s@%s", RENDER_SCRIPT_FUNCTION_NAMES[script_function], message_name ? "[" : "", message_name ? message_name : "", message_name ? "]" : "", script->m_SourceFileName);
@@ -2888,7 +2894,7 @@ bail:
 
         dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
 
-        RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, 0x0);
+        RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, (void*)&dt);
 
         if (instance->m_CommandBuffer.Size() > 0)
             ParseCommands(instance->m_RenderContext, &instance->m_CommandBuffer.Front(), instance->m_CommandBuffer.Size());
