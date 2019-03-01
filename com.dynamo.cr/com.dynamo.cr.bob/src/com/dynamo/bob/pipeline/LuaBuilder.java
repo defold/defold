@@ -168,10 +168,16 @@ public abstract class LuaBuilder extends Builder<Void> {
 
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
         srcBuilder.setFilename(task.input(0).getPath());
+
+        System.out.println("-----------");
+        System.out.println("### project.getPlatform(): " + project.getPlatform());
+        System.out.println("### Platform.getHostPlatform(): " + Platform.getHostPlatform());
         
         if (needsLuaSource.contains(project.getPlatform())) {
+        	System.out.println("Writing lua-source for filename: " + task.input(0).getPath());
             srcBuilder.setScript(ByteString.copyFrom(scriptBytes));
         } else {
+            System.out.println("Generating bytecode for filename: " + task.input(0).getPath());
             byte[] bytecode = constructBytecode(task, "luajit-32");
             if (bytecode != null) {
                 srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
@@ -180,8 +186,20 @@ public abstract class LuaBuilder extends Builder<Void> {
             if (bytecode64 != null) {
                 srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
             }
+
+            Boolean differs = false;
+            for (int i = 0; i < bytecode.length; ++i) {
+                if (bytecode[i] != bytecode64[i]) {
+                    System.out.println("###### Bytecode differs between 32 and 64!");
+                    differs = true;
+                    break;
+                }
+            }
+
+            if (differs == false) {
+                System.out.println("###### Bytecode DESO NOT DIFFER between 32 and 64!");
+            }
         }
-        
         builder.setSource(srcBuilder);
 
         Message msg = builder.build();
