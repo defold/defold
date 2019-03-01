@@ -604,7 +604,7 @@ namespace dmRender
      *     self.my_render_target = render.render_target("my_target", {[render.BUFFER_COLOR_BIT] = color_params, [render.BUFFER_DEPTH_BIT] = depth_params })
      * end
      *
-     * function update(self)
+     * function update(self, dt)
      *     -- enable target so all drawing is done to it
      *     render.enable_render_target(self.my_render_target)
      *
@@ -811,7 +811,7 @@ namespace dmRender
      * The render target defines the depth/stencil buffers as transient, when set_render_target is called the next time the buffers may be invalidated and allow for optimisations depending on driver support
      * 
      * ```lua
-     * function update(self)
+     * function update(self, dt)
      *     -- set render target so all drawing is done to it
      *     render.set_render_target(self.my_render_target, { transient = [render.BUFFER_DEPTH_BIT, render.BUFFER_STENCIL_BIT] } )
      *
@@ -886,7 +886,7 @@ namespace dmRender
      * How to enable a render target and draw to it:
      *
      * ```lua
-     * function update(self)
+     * function update(self, dt)
      *     -- enable target so all drawing is done to it
      *     render.enable_render_target(self.my_render_target)
      *
@@ -931,7 +931,7 @@ namespace dmRender
      * How to disable a render target so we can draw to the screen:
      *
      * ```lua
-     * function update(self)
+     * function update(self, dt)
      *     -- enable target so all drawing is done to it
      *     render.enable_render_target(self.my_render_target)
      *
@@ -1009,7 +1009,7 @@ namespace dmRender
      * @examples
      *
      * ```lua
-     * function update(self)
+     * function update(self, dt)
      *     -- enable target so all drawing is done to it
      *     render.enable_render_target(self.my_render_target)
      *
@@ -1061,7 +1061,7 @@ namespace dmRender
      * @examples
      *
      * ```lua
-     * function update(self)
+     * function update(self, dt)
      *     render.enable_texture(0, self.my_render_target, render.BUFFER_COLOR_BIT)
      *     -- draw a predicate with the render target available as texture 0 in the predicate
      *     -- material shader.
@@ -1293,7 +1293,7 @@ namespace dmRender
      *     self.my_pred = render.predicate({hash("my_tag")})
      * end
      *
-     * function update(self)
+     * function update(self, dt)
      *     -- draw everything in the my_pred predicate
      *     render.draw(self.my_pred)
      * end
@@ -1341,7 +1341,7 @@ namespace dmRender
      * @examples
      *
      * ```lua
-     * function update(self)
+     * function update(self, dt)
      *     -- draw debug visualization
      *     render.draw_debug3d()
      * end
@@ -1386,7 +1386,7 @@ namespace dmRender
      *   self.projection = vmath.matrix4()
      * end
      *
-     * function update(self)
+     * function update(self, dt)
      *   -- set the view to the stored view value
      *   render.set_view(self.view)
      *   -- now we can draw with this view
