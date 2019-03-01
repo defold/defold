@@ -2,7 +2,7 @@
   (:require [editor.ui :as ui]
             [editor.util :as util])
   (:import [javafx.scene Scene]
-           [javafx.scene.input KeyCombination KeyCombination$ModifierValue KeyEvent KeyCodeCombination KeyCharacterCombination]))
+           [javafx.scene.input KeyCharacterCombination KeyCodeCombination KeyCombination KeyCombination$ModifierValue KeyEvent]))
 
 (set! *warn-on-reflection* true)
 
@@ -11,7 +11,7 @@
   ;; interpreted as typable text. This includes "A", "Shift+E" but
   ;; also combinations like Alt+Ctrl+2 because on windows Alt+Ctrl is
   ;; an alternative way to enter AltGR and AltGR+2 is @ on some layouts -
-  ;; something you may want to type in the code editor
+  ;; something you may want to type in the code editor.
   ;; The function key-binding-data->keymap attempts to catch this type
   ;; of mistake.
   ;; Note that specifying Shortcut key (which is Meta on mac and Ctrl on windows
@@ -24,6 +24,7 @@
             ["Alt+Left" :prev-word]
             ["Alt+Meta+E" :select-next-occurrence]
             ["Alt+Meta+F" :replace-text]
+            ["Alt+Meta+G" :replace-next]
             ["Alt+Right" :next-word]
             ["Alt+Up" :beginning-of-line]
             ["Alt+Up" :move-up]
@@ -108,7 +109,6 @@
             ["Shift+Meta+B" :rebuild]
             ["Shift+Meta+Delete" :delete-to-end-of-line]
             ["Shift+Meta+Down" :select-end-of-file]
-            ["Shift+Meta+E" :replace-next]
             ["Shift+Meta+E" :show-last-hidden]
             ["Shift+Meta+F" :search-in-files]
             ["Shift+Meta+G" :find-prev]
@@ -153,7 +153,7 @@
            ["Ctrl+H" :toggle-component-guides]
            ["Ctrl+Home" :beginning-of-file]
            ["Ctrl+I" :reindent]
-           ["Ctrl+K" :cut-to-end-of-line]
+           ["Ctrl+K" :delete-to-end-of-line]
            ["Ctrl+L" :goto-line]
            ["Ctrl+Left" :prev-word]
            ["Ctrl+N" :new-file]
@@ -196,11 +196,11 @@
            ["Shift+A" :add-secondary]
            ["Shift+Ctrl+B" :rebuild]
            ["Shift+Ctrl+Delete" :delete-to-end-of-line]
-           ["Shift+Ctrl+E" :replace-next]
            ["Shift+Ctrl+E" :show-last-hidden]
            ["Shift+Ctrl+End" :select-end-of-file]
            ["Shift+Ctrl+F" :search-in-files]
            ["Shift+Ctrl+G" :find-prev]
+           ["Shift+Ctrl+H" :replace-next]
            ["Shift+Ctrl+Home" :select-beginning-of-file]
            ["Shift+Ctrl+I" :toggle-visibility-filters]
            ["Shift+Ctrl+L" :split-selection-into-lines]
@@ -251,7 +251,7 @@
            ["Ctrl+H" :toggle-component-guides]
            ["Ctrl+Home" :beginning-of-file]
            ["Ctrl+I" :reindent]
-           ["Ctrl+K" :cut-to-end-of-line]
+           ["Ctrl+K" :delete-to-end-of-line]
            ["Ctrl+L" :goto-line]
            ["Ctrl+Left" :prev-word]
            ["Ctrl+N" :new-file]
@@ -294,11 +294,11 @@
            ["Shift+A" :add-secondary]
            ["Shift+Ctrl+B" :rebuild]
            ["Shift+Ctrl+Delete" :delete-to-end-of-line]
-           ["Shift+Ctrl+E" :replace-next]
            ["Shift+Ctrl+E" :show-last-hidden]
            ["Shift+Ctrl+End" :select-end-of-file]
            ["Shift+Ctrl+F" :search-in-files]
            ["Shift+Ctrl+G" :find-prev]
+           ["Shift+Ctrl+H" :replace-next]
            ["Shift+Ctrl+Home" :select-beginning-of-file]
            ["Shift+Ctrl+I" :toggle-visibility-filters]
            ["Shift+Ctrl+L" :split-selection-into-lines]
@@ -339,11 +339,7 @@
     "Shift+Left"
     "Shift+Right"
     "Shift+Up"
-    "Ctrl+E"
     "Ctrl+H"
-    "Meta+E"
-    "Shift+Ctrl+E"
-    "Shift+Meta+E"
     "Space"
     "F5"})
 
@@ -441,21 +437,21 @@
 
     MAC   CTRL  ALT   META  RESULT"
   {[:no   :no   :no   :no ] :typable
-   [:no   :no   :no   :yes] :shortcut  ;; Now treated as possibly shortcut
+   [:no   :no   :no   :yes] :shortcut   ;; Now treated as possibly shortcut
    [:no   :no   :yes  :no ] :shortcut
    [:no   :no   :yes  :yes] :shortcut
    [:no   :yes  :no   :no ] :shortcut
    [:no   :yes  :no   :yes] :shortcut
    [:no   :yes  :yes  :no ] :typable
-   [:no   :yes  :yes  :yes] :shortcut  ;; As above
+   [:no   :yes  :yes  :yes] :shortcut   ;; As above
    [:yes  :no   :no   :no ] :typable
    [:yes  :no   :no   :yes] :shortcut
    [:yes  :no   :yes  :no ] :typable
-   [:yes  :no   :yes  :yes] :shortcut
+   [:yes  :no   :yes  :yes] :shortcut   ;; Now treated as possibly shortcut
    [:yes  :yes  :no   :no ] :shortcut
    [:yes  :yes  :no   :yes] :shortcut
-   [:yes  :yes  :yes  :no ] :typable   ;; As above
-   [:yes  :yes  :yes  :yes] :typable}) ;; As above
+   [:yes  :yes  :yes  :no ] :typable    ;; As above
+   [:yes  :yes  :yes  :yes] :shortcut}) ;; Now treated as possibly shortcut
 
 (defn- boolean->kw [b]
   (if b :yes :no))
