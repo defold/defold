@@ -106,10 +106,17 @@ namespace dmGraphics
             size_t         m_DataSize;
         };
 
+        struct TextureSampler
+        {
+            VkSampler           m_Sampler;
+            VkSamplerCreateInfo m_Info;
+        };
+
         struct Texture
         {
             uint16_t    m_Width;
             uint16_t    m_Height;
+            uint16_t    m_SamplerIndex;
             VkImage     m_Image;
             VkImageView m_View;
             VkFormat    m_Format;
@@ -150,8 +157,17 @@ namespace dmGraphics
             dmhash_t    m_NameHash;
         };
 
-        // Note: Nearly identical as ShaderUniformBlock, but we need to maintain
-        //       a merged list of uniforms per Program due to shader binding.
+        struct ShaderImageSampler
+        {
+            uint16_t m_Set;
+            uint16_t m_Binding;
+            uint16_t m_UniformIndex;
+            uint16_t m_IsDirty;
+            uint16_t m_TextureUnit;
+        };
+
+        // Note: This struct is nearly identical as above, but we need to maintain
+        //       a merged list of uniform blocks per Program with extra bookkeeping
         struct ProgramUniformBlock
         {
             uint16_t  m_Set;
@@ -186,6 +202,7 @@ namespace dmGraphics
             dmArray<uint16_t>               m_LayoutBindingsIndices;
             dmArray<ShaderUniform>          m_Uniforms;
             dmArray<ProgramUniformBlock>    m_UniformBlocks;
+            dmArray<ShaderImageSampler>     m_ImageSamplers;
         };
 
         struct Pipeline
@@ -220,7 +237,9 @@ namespace dmGraphics
 
             RenderPass                     m_MainRenderPass;
             Texture                        m_MainDepthBuffer;
+            Texture*                       m_NullTexture;
             FrameResource                  m_FrameResources[g_vk_max_frames_in_flight];
+            Texture*                       m_Textures[MAX_TEXTURE_COUNT];
 
             dmArray<VkCommandBuffer>                   m_MainCommandBuffers;
             dmArray<VkFramebuffer>                     m_MainFramebuffers;
@@ -229,6 +248,7 @@ namespace dmGraphics
             dmArray<VkExtensionProperties>             m_Extensions;
             dmArray<VkVertexInputAttributeDescription> m_VertexStreamDescriptors;
             dmArray<VkDescriptorSetLayoutBinding>      m_DescriptorSetLayoutBindings;
+            dmArray<TextureSampler>                    m_TextureSamplers;
 
             dmHashTable64<Pipeline>      m_PipelineCache;
         } g_vk_context;
@@ -1488,12 +1508,12 @@ namespace dmGraphics
         }
 
         static const VkFormat g_vulkan_texture_format_table[] = {
-            VK_FORMAT_R8_UINT,   //TEXTURE_FORMAT_LUMINANCE
-            VK_FORMAT_R8G8_UINT, //TEXTURE_FORMAT_LUMINANCE_ALPHA
-            VK_FORMAT_R8G8B8_UINT, //TEXTURE_FORMAT_RGB
-            VK_FORMAT_R8G8B8A8_UINT, //TEXTURE_FORMAT_RGBA
-            VK_FORMAT_R16G16B16_UINT, //TEXTURE_FORMAT_RGB_16BPP
-            VK_FORMAT_R16G16B16A16_UINT, //TEXTURE_FORMAT_RGBA_16BPP
+            VK_FORMAT_R8_UNORM,   //TEXTURE_FORMAT_LUMINANCE
+            VK_FORMAT_R8G8_UNORM, //TEXTURE_FORMAT_LUMINANCE_ALPHA
+            VK_FORMAT_R8G8B8_UNORM, //TEXTURE_FORMAT_RGB
+            VK_FORMAT_R8G8B8A8_UNORM, //TEXTURE_FORMAT_RGBA
+            VK_FORMAT_R16G16B16_UNORM, //TEXTURE_FORMAT_RGB_16BPP
+            VK_FORMAT_R16G16B16A16_UNORM, //TEXTURE_FORMAT_RGBA_16BPP
             VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGB_DXT1
             VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGBA_DXT1
             VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGBA_DXT3
@@ -1516,10 +1536,55 @@ namespace dmGraphics
             VK_FORMAT_UNDEFINED  //TEXTURE_FORMAT_COUNT
         };
 
+        static uint16_t GetTextureSamplerIndex(VkFilter minFilter, VkFilter magFilter, VkSamplerAddressMode wrapU, VkSamplerAddressMode wrapV)
+        {
+            for (uint16_t i=0; i < g_vk_context.m_TextureSamplers.Size(); i++)
+            {
+                TextureSampler& sampler = g_vk_context.m_TextureSamplers[i];
+                if (sampler.m_Info.magFilter     == magFilter &&
+                    sampler.m_Info.minFilter     == minFilter &&
+                    sampler.m_Info.addressModeU  == wrapU &&
+                    sampler.m_Info.addressModeV  == wrapV)
+                {
+                    return i;
+                }
+            }
+
+            TextureSampler new_sampler;
+            VK_ZERO_MEMORY(&new_sampler,sizeof(new_sampler));
+
+            new_sampler.m_Info.sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+            new_sampler.m_Info.magFilter               = magFilter;
+            new_sampler.m_Info.minFilter               = minFilter;
+            new_sampler.m_Info.addressModeU            = wrapU;
+            new_sampler.m_Info.addressModeV            = wrapV;
+            new_sampler.m_Info.addressModeW            = wrapU;
+            new_sampler.m_Info.maxAnisotropy           = 0;
+            new_sampler.m_Info.borderColor             = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+            new_sampler.m_Info.unnormalizedCoordinates = VK_FALSE;
+            new_sampler.m_Info.compareEnable           = VK_FALSE;
+            new_sampler.m_Info.compareOp               = VK_COMPARE_OP_ALWAYS;
+            new_sampler.m_Info.mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+            new_sampler.m_Info.mipLodBias              = 0.0f;
+            new_sampler.m_Info.minLod                  = 0.0f;
+            new_sampler.m_Info.maxLod                  = 0.0f;
+
+            uint16_t sampler_index = g_vk_context.m_TextureSamplers.Size();
+            VK_CHECK(vkCreateSampler(g_vk_context.m_LogicalDevice, &new_sampler.m_Info, 0, &new_sampler.m_Sampler))
+
+            g_vk_context.m_TextureSamplers.Push(new_sampler);
+            return sampler_index;
+        }
+
         static void UploadTexture(Texture* texture, const TextureParams params)
         {
             // Todo: support sub-updates
             assert(!params.m_SubUpdate);
+
+            if (params.m_MipMap > 0)
+            {
+                return;
+            }
 
             VkFormat vk_format = g_vulkan_texture_format_table[params.m_Format];
             uint16_t vk_width  = params.m_Width;
@@ -1597,12 +1662,12 @@ namespace dmGraphics
             vkFreeMemory(g_vk_context.m_LogicalDevice, staging_buffer_memory.m_DeviceMemory, 0);
         }
 
-        static Texture* CreateColorTexture(uint32_t width, uint32_t height, VkFormat format)
+        static Texture* CreateColorTexture(uint32_t width, uint32_t height)
         {
             Texture* texture  = new Texture();
             texture->m_Width  = width;
             texture->m_Height = height;
-            texture->m_Format = format;
+            texture->m_Format = VK_FORMAT_UNDEFINED;
 
             return texture;
         }
@@ -1754,12 +1819,11 @@ namespace dmGraphics
             // Populate the extension list with available API extensions (and print them)
             SetInstanceExtensionList();
 
-            // Just set some default value to hold stream descriptors..
+            // Note: These values are guesstimated.
             g_vk_context.m_VertexStreamDescriptors.SetCapacity(4);
             g_vk_context.m_DescriptorSetLayoutBindings.SetCapacity(4);
             g_vk_context.m_MaxDescriptorSets = 1024; // Note: this should be related to actual uniform count somehow..
-
-            // No idea about these numbers!
+            g_vk_context.m_TextureSamplers.SetCapacity(16);
             g_vk_context.m_PipelineCache.SetCapacity(32,64);
 
             if (g_enable_validation_layers && GetValidationSupport())
@@ -1918,7 +1982,7 @@ namespace dmGraphics
                 vkFreeMemory(g_vk_context.m_LogicalDevice, program->m_UniformBlocks[i].m_GPUBuffer.m_DeviceMemory, 0);
             }
 
-            delete program;           
+            delete program;
         }
 
         static uint16_t GetDescriptorSetLayoutBindingIndex(uint32_t binding, VkDescriptorType type, VkShaderStageFlags stageFlags)
@@ -1987,6 +2051,34 @@ namespace dmGraphics
 
         static void CommitUniforms(Program* program)
         {
+            for (uint16_t i=0; i < program->m_ImageSamplers.Size(); i++)
+            {
+                ShaderImageSampler& sampler_uniform = program->m_ImageSamplers[i];
+
+                if (sampler_uniform.m_IsDirty)
+                {
+                    Texture* texture = g_vk_context.m_Textures[sampler_uniform.m_TextureUnit];
+
+                    VkDescriptorImageInfo vk_image_info;
+                    vk_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                    vk_image_info.imageView   = texture->m_View;
+                    vk_image_info.sampler     = g_vk_context.m_TextureSamplers[texture->m_SamplerIndex].m_Sampler;
+
+                    VkWriteDescriptorSet vk_descriptor_write;
+                    VK_ZERO_MEMORY(&vk_descriptor_write, sizeof(vk_descriptor_write));
+
+                    vk_descriptor_write.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                    vk_descriptor_write.dstSet          = program->m_DescriptorSet;
+                    vk_descriptor_write.dstBinding      = sampler_uniform.m_Binding;
+                    vk_descriptor_write.dstArrayElement = 0;
+                    vk_descriptor_write.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                    vk_descriptor_write.descriptorCount = 1;
+                    vk_descriptor_write.pImageInfo      = &vk_image_info;
+
+                    vkUpdateDescriptorSets(g_vk_context.m_LogicalDevice, 1, &vk_descriptor_write, 0, 0);
+                }
+            }
+
             for (uint16_t i=0; i < program->m_UniformBlocks.Size(); i++)
             {
                 ProgramUniformBlock& block = program->m_UniformBlocks[i];
@@ -2032,6 +2124,11 @@ namespace dmGraphics
                 program->m_VertexProgram->m_Uniforms.Size() +
                 program->m_FragmentProgram->m_Uniforms.Size());
 
+            // Todo: Move the constant somewhere or get the value from vulkan somehow
+            program->m_ImageSamplers.SetCapacity(16);
+
+            uint16_t next_binding = 0;
+
             // Merge uniform blocks and uniforms
             for (uint16_t i=0; i < program->m_VertexProgram->m_UniformBlocks.Size(); i++)
             {
@@ -2044,15 +2141,32 @@ namespace dmGraphics
                 pblock.m_UniformIndices      = new uint16_t[pblock.m_UniformIndicesCount];
                 memcpy(pblock.m_UniformIndices, vpblock.m_UniformIndices, sizeof(uint16_t));
                 program->m_UniformBlocks.Push(pblock);
+
+                next_binding++;
             }
 
             for (uint16_t i=0; i < program->m_VertexProgram->m_Uniforms.Size(); i++)
             {
-                program->m_Uniforms.Push(program->m_VertexProgram->m_Uniforms[i]);
+                ShaderUniform u = program->m_VertexProgram->m_Uniforms[i];
+                program->m_Uniforms.Push(u);
+
+                if (u.m_DataType == TYPE_SAMPLER_2D)
+                {
+                    ShaderImageSampler vsampler;
+                    vsampler.m_Set          = u.m_Set;
+                    vsampler.m_Binding      = u.m_Binding;
+                    vsampler.m_UniformIndex = i;
+                    vsampler.m_IsDirty      = 1;
+
+                    program->m_ImageSamplers.Push(vsampler);
+
+                    next_binding++;
+                }
             }
 
             uint16_t block_binding_offset   = program->m_VertexProgram->m_UniformBlocks.Size();
             uint16_t uniform_binding_offset = program->m_VertexProgram->m_Uniforms.Size();
+            uint16_t sampler_binding_offset = program->m_ImageSamplers.Size();
 
             for (uint16_t i=0; i < program->m_FragmentProgram->m_UniformBlocks.Size(); i++)
             {
@@ -2072,14 +2186,30 @@ namespace dmGraphics
                 }
 
                 program->m_UniformBlocks.Push(pblock);
+
+                next_binding++;
             }
 
             for (uint16_t i=0; i < program->m_FragmentProgram->m_Uniforms.Size(); i++)
             {
-                program->m_Uniforms.Push(program->m_FragmentProgram->m_Uniforms[i]);
+                ShaderUniform u = program->m_FragmentProgram->m_Uniforms[i];
+                program->m_Uniforms.Push(u);
+
+                if (u.m_DataType == TYPE_SAMPLER_2D)
+                {
+                    ShaderImageSampler fsampler;
+                    fsampler.m_Set          = u.m_Set;
+                    fsampler.m_Binding      = next_binding; // u.m_Binding; // maybe + sampler_binding_offset
+                    fsampler.m_UniformIndex = i + uniform_binding_offset;
+                    fsampler.m_IsDirty      = 1;
+                    program->m_ImageSamplers.Push(fsampler);
+
+                    next_binding++;
+                }
             }
 
-            program->m_LayoutBindingsIndices.SetCapacity(program->m_UniformBlocks.Size());
+            // Create layout bindings for all resources that we can bind with this shader
+            program->m_LayoutBindingsIndices.SetCapacity(program->m_UniformBlocks.Size() + program->m_ImageSamplers.Size());
             program->m_LayoutBindingsIndices.SetSize(0);
 
             for (uint16_t i=0; i < program->m_UniformBlocks.Size(); i++)
@@ -2112,6 +2242,26 @@ namespace dmGraphics
 
                 block.m_UniformData = new uint8_t[block_size];
                 block.m_IsDirty     = 1;
+            }
+
+            for (uint16_t i=0; i < program->m_ImageSamplers.Size(); i++)
+            {
+                ShaderImageSampler& sampler   = program->m_ImageSamplers[i];
+                uint16_t sampler_layout_index = 0;
+                sampler.m_TextureUnit         = 0;
+
+                if (i < sampler_binding_offset)
+                {
+                    sampler_layout_index = GetDescriptorSetLayoutBindingIndex(sampler.m_Binding,
+                        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT);
+                }
+                else
+                {
+                    sampler_layout_index = GetDescriptorSetLayoutBindingIndex(sampler.m_Binding,
+                        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
+                }
+
+                program->m_LayoutBindingsIndices.Push(sampler_layout_index);
             }
         }
 
@@ -2148,7 +2298,10 @@ namespace dmGraphics
             vk_descriptor_set_allocate_layout.pSetLayouts        = &vk_descriptor_set_layout;
             VK_CHECK(vkAllocateDescriptorSets(g_vk_context.m_LogicalDevice, &vk_descriptor_set_allocate_layout, &program->m_DescriptorSet));
 
+            Texture* tmp = g_vk_context.m_Textures[0];
+            g_vk_context.m_Textures[0] = g_vk_context.m_NullTexture;
             CommitUniforms(program);
+            g_vk_context.m_Textures[0] = tmp;
 
             // Set pipeline creation info
             VkPipelineShaderStageCreateInfo vk_vertex_shader_create_info;
@@ -2171,6 +2324,45 @@ namespace dmGraphics
             program->m_ShaderStages[1] = vk_fragment_shader_create_info;
 
             delete[] vk_layout_bindings;
+        }
+
+        static void CreateMainRenderResources()
+        {
+            const uint8_t pixels[64] = {
+                0,255,0,255,
+                255,255,0,255,
+                0,0,0,255,
+                255,0,0,255,
+                0,255,0,255,
+                255,255,0,255,
+                0,0,0,255,
+                255,0,0,255,
+                0,255,0,255,
+                255,255,0,255,
+                0,0,0,255,
+                255,0,0,255,
+                0,255,0,255,
+                255,255,0,255,
+                0,0,0,255,
+                255,0,0,255
+            };
+
+            TextureParams params;
+            params.m_Format = TEXTURE_FORMAT_RGBA;
+            params.m_MinFilter = TEXTURE_FILTER_LINEAR;
+            params.m_MagFilter = TEXTURE_FILTER_LINEAR;
+            params.m_UWrap = TEXTURE_WRAP_REPEAT;
+            params.m_VWrap = TEXTURE_WRAP_REPEAT;
+            params.m_Data = (const void*)pixels;
+            params.m_DataSize = sizeof(pixels);
+            params.m_Width  = 4;
+            params.m_Height = 4;
+
+            GetTextureSamplerIndex(VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+
+            g_vk_context.m_NullTexture = CreateColorTexture(4,4);
+
+            UploadTexture(g_vk_context.m_NullTexture, params);
         }
 
         static inline VertexBuffer* CreateVertexBuffer(const void* data, size_t dataSize)
@@ -2337,6 +2529,7 @@ namespace dmGraphics
             CreateMainCommandBuffer();
             CreateMainDescriptorPool();
             CreateMainFrameResources();
+            CreateMainRenderResources();
 
             return true;
         }
@@ -3221,6 +3414,18 @@ namespace dmGraphics
         {
             if (name == p->m_Uniforms[i].m_NameHash)
             {
+                // Life, uh.. Finds a way.
+                if (p->m_Uniforms[i].m_DataType == TYPE_SAMPLER_2D)
+                {
+                    for (uint16_t u=0; u < p->m_ImageSamplers.Size(); u++)
+                    {
+                        if (p->m_ImageSamplers[u].m_UniformIndex == i)
+                        {
+                            return u;
+                        }
+                    }
+                }
+
                 return i;
             }
         }
@@ -3255,6 +3460,9 @@ namespace dmGraphics
 
     void SetSampler(HContext context, int32_t location, int32_t unit)
     {
+        Vulkan::Program* p            = (Vulkan::Program*) context->m_CurrentProgram;
+        Vulkan::ShaderImageSampler& s = p->m_ImageSamplers[location];
+        s.m_TextureUnit               = unit;
     }
 
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
@@ -3318,10 +3526,7 @@ namespace dmGraphics
             tex->m_OriginalHeight = params.m_OriginalHeight;
         }
 
-        // Use real metrics instead
-        VkFormat vk_format = VK_FORMAT_R8G8B8A8_UINT;
-
-        tex->m_Texture     = Vulkan::CreateColorTexture(params.m_Width, params.m_Height, vk_format);
+        tex->m_Texture     = Vulkan::CreateColorTexture(params.m_Width, params.m_Height);
         tex->m_MipMapCount = 0;
         //tex->m_DataState   = 0;
         return (HTexture) tex;
@@ -3334,7 +3539,7 @@ namespace dmGraphics
         // TODO: add a Vulkan::DeleteTexture or such..
         if (t->m_Texture)
         {
-            delete t->m_Texture;
+            delete (Vulkan::Texture*)t->m_Texture;
         }
         delete t;
     }
@@ -3344,9 +3549,57 @@ namespace dmGraphics
         return HANDLE_RESULT_ERROR;
     }
 
-    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
+    static inline VkFilter GetVulkanTextureFilter(TextureFilter filter)
+    {
+        switch(filter)
+        {
+            case(TEXTURE_FILTER_NEAREST):
+            case(TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST):
+            case(TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR):
+                return VK_FILTER_NEAREST;
+            case(TEXTURE_FILTER_LINEAR):
+            case(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST):
+            case(TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR):
+                return VK_FILTER_LINEAR;
+            default:break;
+        }
+
+        return VK_FILTER_NEAREST;
+    }
+
+    static inline VkSamplerAddressMode GetVulkanAddressMode(TextureWrap wrapMode)
+    {
+        switch(wrapMode)
+        {
+            case(TEXTURE_WRAP_REPEAT):          return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            case(TEXTURE_WRAP_MIRRORED_REPEAT): return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+            case(TEXTURE_WRAP_CLAMP_TO_EDGE):   return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            case(TEXTURE_WRAP_CLAMP_TO_BORDER): return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+            default:break;
+        }
+
+        return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    }
+
+    void SetTextureParams(HTexture texture, TextureFilter minFilter, TextureFilter magFilter, TextureWrap wrapU, TextureWrap wrapV)
     {
         assert(texture);
+        Vulkan::Texture* t        = (Vulkan::Texture*) texture->m_Texture;
+        Vulkan::TextureSampler& s = Vulkan::g_vk_context.m_TextureSamplers[t->m_SamplerIndex];
+
+        VkFilter mag_filter         = GetVulkanTextureFilter(magFilter);
+        VkFilter min_filter         = GetVulkanTextureFilter(minFilter);
+        VkSamplerAddressMode wrap_u = GetVulkanAddressMode(wrapU);
+        VkSamplerAddressMode wrap_v = GetVulkanAddressMode(wrapV);
+
+
+        if (s.m_Info.minFilter    != min_filter ||
+            s.m_Info.magFilter    != mag_filter ||
+            s.m_Info.addressModeU != wrap_u ||
+            s.m_Info.addressModeV != wrap_v)
+        {
+            t->m_SamplerIndex = Vulkan::GetTextureSamplerIndex(min_filter, mag_filter, wrap_u, wrap_v);
+        }
     }
 
     void SetTexture(HTexture texture, const TextureParams& params)
@@ -3356,6 +3609,9 @@ namespace dmGraphics
         assert(!params.m_SubUpdate || params.m_SubUpdate && (params.m_Y + params.m_Height <= texture->m_Height));
 
         Vulkan::UploadTexture((Vulkan::Texture*) texture->m_Texture, params);
+
+        texture->m_Params = params;
+        SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
     }
 
     uint8_t* GetTextureData(HTexture texture) {
@@ -3373,7 +3629,7 @@ namespace dmGraphics
     {
         uint32_t size_total = 0;
         uint32_t size = (texture->m_Width * texture->m_Height * GetTextureFormatBPP(texture->m_Params.m_Format)) >> 3;
-            
+
         /*
         for(uint32_t i = 0; i < texture->m_MipMapCount; ++i)
         {
@@ -3411,14 +3667,14 @@ namespace dmGraphics
         assert(unit < MAX_TEXTURE_COUNT);
         assert(texture);
         assert(texture->m_Texture);
-        context->m_Textures[unit] = texture;
+        Vulkan::g_vk_context.m_Textures[unit] = (Vulkan::Texture*)texture->m_Texture;
     }
 
     void DisableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         assert(context);
         assert(unit < MAX_TEXTURE_COUNT);
-        context->m_Textures[unit] = 0;
+        Vulkan::g_vk_context.m_Textures[unit] = 0;
     }
 
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size)

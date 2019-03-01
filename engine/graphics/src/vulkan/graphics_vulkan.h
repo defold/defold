@@ -59,7 +59,6 @@ namespace dmGraphics
         Context(const ContextParams& params);
 
         Vectormath::Aos::Vector4    m_ProgramRegisters[MAX_REGISTER_COUNT];
-        HTexture                    m_Textures[MAX_TEXTURE_COUNT];
         FrameBuffer*                m_CurrentFrameBuffer;
         void*                       m_CurrentProgram;
         void*                       m_CurrentVertexBuffer;
