@@ -681,6 +681,7 @@ class Configuration(object):
             strip = "%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-x86_64/bin/arm-linux-androideabi-strip" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, ANDROID_HOST)
 
         self.exec_shell_command("%s %s" % (strip, path))
+        return True
 
     def archive_engine(self):
         sha1 = self._git_sha1()
