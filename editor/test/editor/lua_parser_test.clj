@@ -2,7 +2,7 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [clojure.java.io :as io]
-            [editor.lua-parser :refer :all]
+            [editor.lua-parser :as lp]
             [clojure.string :as string])
   (:import [org.apache.commons.lang RandomStringUtils]))
 
@@ -246,7 +246,7 @@
     (is (= #{} (:local-vars result)))))
 
 (defn- src->properties [src]
-  (:script-properties (lua-info src)))
+  (:script-properties (lp/lua-info src)))
 
 (deftest test-properties
   (is (= [{:name "test"
