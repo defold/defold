@@ -3,7 +3,7 @@
             [clojure.test :refer :all]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
-            [editor.git-test :refer :all]
+            [editor.git-test :as gt]
             [editor.git :as git]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
@@ -354,9 +354,9 @@
   (string/join (repeatedly 40 #(rand-nth "0123456789abcdef"))))
 
 (defn- setup-flow-in-progress! [git]
-  (create-file git "src/existing.txt" "A file that already existed in the repo.")
-  (commit-src git)
-  (create-file git "src/existing.txt" "A file that already existed in the repo, with unstaged changes.")
+  (gt/create-file git "src/existing.txt" "A file that already existed in the repo.")
+  (gt/commit-src git)
+  (gt/create-file git "src/existing.txt" "A file that already existed in the repo, with unstaged changes.")
   (let [!flow (sync/begin-flow! git (git/credentials (make-prefs)))]
     (is (true? (sync/flow-in-progress? git)))
     !flow))
@@ -503,8 +503,8 @@
     (into {} (comp (filter visible-file?) (map file->pair)) files)))
 
 (defn- test-conflict-resolution [resolve! expected-status expected-contents-by-file-path]
-  (with-git [remote-git (init-git)
-             local-git (create-conflict-zoo! remote-git [".internal"] false)]
+  (gt/with-git [remote-git (init-git)]
+             local-git (create-conflict-zoo! remote-git [".internal"] false)
     (git/stage-all! remote-git)
     (-> remote-git .commit (.setMessage "Remote commit with conflicting changes") .call)
     (let [prefs (make-prefs)
@@ -518,7 +518,7 @@
         (is (= :pull/conflicts (:state @!flow)))
         (is (resumable?)))
 
-      (let [status-before (simple-status local-git)]
+      (let [status-before (gt/simple-status local-git)]
         (testing "Conflicts match expectations"
           (is (= (:conflicting-stage-state expected-status) (:conflicting-stage-state status-before))))
 

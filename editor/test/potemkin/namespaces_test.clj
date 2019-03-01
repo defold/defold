@@ -1,20 +1,18 @@
 (ns potemkin.namespaces-test
-  (:use
-    potemkin
-    clojure.test
-    clojure.repl)
   (:require
-    [clojure.repl :as repl]
-    [clojure.string :as str]
-    [potemkin.imports-test :as i]))
+   [potemkin :as p]
+   [clojure.test :refer :all]
+   [clojure.repl :as repl]
+   [clojure.string :as str]
+   [potemkin.imports-test :as i]))
 
-(import-macro i/multi-arity-macro)
-(import-macro i/multi-arity-macro alt-macro-name)
-(import-fn i/multi-arity-fn)
-(import-fn i/multi-arity-fn alt-name)
-(import-fn i/protocol-function)
-(import-fn i/inlined-fn)
-(import-def i/some-value)
+(p/import-macro i/multi-arity-macro)
+(p/import-macro i/multi-arity-macro p/alt-macro-name)
+(p/import-fn i/multi-arity-fn)
+(p/import-fn i/multi-arity-fn p/alt-name)
+(p/import-fn i/protocol-function)
+(p/import-fn i/inlined-fn)
+(p/import-def i/some-value)
 
 (defn drop-lines [n s]
   (->> s str/split-lines (drop n) (interpose "\n") (apply str)))

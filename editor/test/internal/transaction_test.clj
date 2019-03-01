@@ -1,8 +1,8 @@
 (ns internal.transaction-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer :all]
-            [internal.util :refer :all]
+            [support.test-support :as ts]
+            [internal.util :as util]
             [internal.transaction :as it]))
 
 (g/defnk upcase-a [a] (.toUpperCase a))
@@ -130,7 +130,7 @@
                :formal-greeter    (g/make-node world Receiver)
                :calculator        (g/make-node world Receiver)
                :multi-node-target (g/make-node world FocalNode)}
-        nodes (zipmap (keys nodes) (apply tx-nodes (vals nodes)))]
+        nodes (zipmap (keys nodes) (apply ts/tx-nodes (vals nodes)))]
     (g/transact
      (for [[from from-l to to-l]
            [[:first-name-cell :name          :person            :first-name]

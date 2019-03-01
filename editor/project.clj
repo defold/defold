@@ -6,7 +6,8 @@
 
   :plugins          [[lein-protobuf-minimal-mg "0.4.5" :hooks false]
                      [lein-sass "0.4.0"]
-                     [codox "0.9.3"]]
+                     [codox "0.9.3"]
+                     [lein-shell "0.5.0"]]
 
   :dependencies     [[org.clojure/clojure                         "1.8.0"]
                      [org.clojure/core.cache                      "0.6.5"]
@@ -67,6 +68,8 @@
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]]
 
   :source-paths      ["src/clj"]
+
+  :test-paths        ["test"]
 
   :java-source-paths ["src/java"]
 
@@ -134,6 +137,7 @@
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
+                                :injections        [(require 'clj-async-profiler.core)]
                                 :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.log.dir="
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
@@ -141,6 +145,7 @@
                                                     ;;"-XX:+UnlockCommercialFeatures"
                                                     ;;"-XX:+FlightRecorder"
                                                     "-XX:-OmitStackTraceInFastThrow"
+                                                    "-Djdk.attach.allowAttachSelf"
                                                     "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005"]}}
   :eastwood {:continue-on-exception true
              :add-linters [:unused-fn-args
@@ -242,4 +247,3 @@
 
                                   ;; internal.util-test
                                   ]})
-

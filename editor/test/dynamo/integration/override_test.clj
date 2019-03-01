@@ -8,9 +8,9 @@
             [editor.util :as util]
             [integration.test-util :as test-util]
             [internal.graph.types :as gt]
-            [internal.util :refer :all]
+            [internal.util]
             [schema.core :as s]
-            [support.test-support :refer :all])
+            [support.test-support :as ts])
   (:import  [javax.vecmath Vector3d]))
 
 (g/defnode BaseNode
@@ -39,15 +39,15 @@
 
 (defn- override [node-id]
   (-> (g/override node-id {})
-    tx-nodes))
+      ts/tx-nodes))
 
 (defn- setup
   ([world]
    (setup world 0))
   ([world count]
-   (let [nodes (tx-nodes (g/make-nodes world [main [MainNode :a-property "main" :b-property "main"]
-                                              sub SubNode]
-                                       (g/connect sub :_node-id main :sub-nodes)))]
+   (let [nodes (ts/tx-nodes (g/make-nodes world [main [MainNode :a-property "main" :b-property "main"]
+                                                sub SubNode]
+                                         (g/connect sub :_node-id main :sub-nodes)))]
      (loop [result [nodes]
             counter count]
        (if (> counter 0)
@@ -532,7 +532,7 @@
 (defn- make-scene! [graph path nodes]
   (when (nil? (g/graph-value graph :resources))
     (g/set-graph-value! graph :resources {}))
-  (tx-nodes (load-scene graph path nodes)))
+  (ts/tx-nodes (load-scene graph path nodes)))
 
 (defn- has-node? [scene node-id]
   (contains? (g/node-value scene :node-ids) node-id))
@@ -779,7 +779,7 @@
          (not (contains? (into #{} (gt/targets basis src src-label)) [tgt tgt-label])))))
 
 (defn- deps [tgts]
-  (graph-dependencies tgts))
+  (ts/graph-dependencies tgts))
 
 (g/defnode TargetNode
   (input in-value g/Str)

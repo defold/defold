@@ -6,7 +6,7 @@
             [clojure.test.check.properties :as prop]
             [dynamo.graph :as g]
             [integration.test-util :as test-util]
-            [internal.util :refer :all]))
+            [internal.util :as util]))
 
 (deftest test-parse-number-parse-int
   (are [input expected-number expected-int]
@@ -34,10 +34,11 @@
 
 (def gen-set (gen/fmap set (gen/vector gen/nat)))
 
+
 (defspec apply-deltas-invariants
   100
   (prop/for-all [[oldset newset] (gen/tuple gen-set gen-set)]
-    (let [[removal-ops addition-ops] (apply-deltas oldset newset (fn [out] (reduce conj [] out)) (fn [in] (reduce conj [] in)))
+    (let [[removal-ops addition-ops] (util/apply-deltas oldset newset (fn [out] (reduce conj [] out)) (fn [in] (reduce conj [] in)))
           old-minus-new              (set/difference oldset newset)
           new-minus-old              (set/difference newset oldset)]
       (and

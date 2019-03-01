@@ -1,0 +1,58 @@
+{:rules {:if-without-else true}
+ ;; See linter.clj for why this is here.
+ :ignored-unused-namespaces [javafx.scene.Cursor
+                             clojure.set
+                             editor.atlas
+                             editor.code.data
+                             editor.collada-scene
+                             editor.cubemap
+                             editor.curve-view
+                             editor.font
+                             editor.gl
+                             editor.gl.pass
+                             editor.gl.shader
+                             editor.gui
+                             editor.render
+                             editor.rulers
+                             editor.sprite
+                             editor.spine
+                             editor.tile-map
+                             editor.tile-source
+                             editor.ui
+                             com.sun.javafx.css.StyleManager
+                             javafx.application.Platform
+                             Thread$State
+                             editor.particlefx
+                             editor.label
+                             editor.scene-tools
+                             editor.collision-object
+                             benchmark.graph-benchmark
+                             util.profiler-test
+                             editor.system
+                             clojure.tools.nrepl.server]
+ :known-macros [clojure.core.cache/defcache
+                [dynamo.graph/defnode [_node-id]]
+                dynamo.graph/deftype
+                dynamo.graph/defnk
+                dynamo.graph/fnk
+                dynamo.graph/make-nodes
+                dynamo.graph/with-auto-evaluation-context
+                [editor.gl/with-drawable-as-current [gl gl-context]]
+                editor.gl.vertex/defvertex
+                editor.gl.vertex2/defvertex
+                editor.graph-util/passthrough
+                [editor.handler/defhandler [control]]
+                editor.ui/with-controls
+                editor.ui/event-handler
+                editor.ui/with-progress
+                editor.ui/invalidation-listener
+                editor.ui/change-listener
+                potemkin.namespaces/import-vars
+                schema.core/defn
+                [schema.core/defrecord [this]]
+                clojure.test/deftest
+                clojure.test.check.clojure-test/defspec
+                clojure.test.check.properties/for-all
+                [support.test-support/with-clean-system [world]]
+                [integration.test-util/with-loaded-project [project workspace]]
+                editor.git-test/with-git]}

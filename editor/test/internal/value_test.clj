@@ -4,7 +4,7 @@
             [internal.util :as util]
             [internal.node :as in]
             [internal.transaction :as it]
-            [support.test-support :refer :all]
+            [support.test-support :as ts]
             [internal.graph.error-values :as ie])
   (:import [internal.graph.error_values ErrorValue]))
 
@@ -155,7 +155,7 @@
 
 (defn build-override-project
   [world]
-  (let [nodes (tx-nodes
+  (let [nodes (ts/tx-nodes
                (g/make-node world OverrideValueNode)
                (g/make-node world CacheTestNode :scalar "Jane"))
         [override jane]  nodes]
@@ -305,13 +305,13 @@
 
 (defn arrange-sv-error
   [label connected? source-label]
-  (with-clean-system
-    (let [[receiver const] (tx-nodes (g/make-node world SubstitutingInputsNode)
-                                     (g/make-node world ConstantNode))]
-     (when connected?
-       (g/transact (g/connect const source-label receiver label)))
-     (def sv-val (g/node-value receiver label))
-     (g/node-value receiver label))))
+  (ts/with-clean-system
+    (let [[receiver const] (ts/tx-nodes (g/make-node world SubstitutingInputsNode)
+                                        (g/make-node world ConstantNode))]
+      (when connected?
+        (g/transact (g/connect const source-label receiver label)))
+      (def sv-val (g/node-value receiver label))
+      (g/node-value receiver label))))
 
 (deftest error-value-replacement
   (testing "source doesn't send errors"
