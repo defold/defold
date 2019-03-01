@@ -44,6 +44,19 @@
     (.addAll (.getChildren resource-item) ^Collection match-items)
     resource-item))
 
+(defn- results->tree-items+done? [results]
+  (loop [[result & more] results
+         tree-items (transient [])]
+    (cond
+      (nil? result)
+      [(persistent! tree-items) false]
+
+      (= ::project-search/done result)
+      [(persistent! tree-items) true]
+
+      :else
+      (recur more (conj! tree-items (make-result-tree-item result))))))
+
 (defn- start-tree-update-timer! [tree-views search-in-progress results-fn]
   (let [timer (ui/->timer 5 "tree-update-timer"
                           (fn [^AnimationTimer timer elapsed-time]
@@ -52,28 +65,17 @@
                             (when (< 0.2 elapsed-time)
                               (ui/visible! search-in-progress true))
 
-                            (when-some [results (results-fn)]
-                              (let [search-results (loop [[result & more] results
-                                                          xs (transient [])]
-                                                     (cond
-                                                       (nil? result)
-                                                       (persistent! xs)
-
-                                                       (= ::project-search/done result)
-                                                       (do
-                                                         (.stop timer)
-                                                         (ui/visible! search-in-progress false)
-                                                         (persistent! xs))
-
-                                                       :else
-                                                       (recur more (conj! xs result))))]
-                                (when-not (empty? search-results)
-                                  (doseq [^TreeView tree-view tree-views
-                                          :let [tree-items (.getChildren (.getRoot tree-view))
-                                                first-match? (.isEmpty tree-items)]]
-                                    (.addAll tree-items ^Collection (mapv make-result-tree-item search-results))
-                                    (when first-match?
-                                      (.clearAndSelect (.getSelectionModel tree-view) 1))))))))]
+                            (let [[tree-items done?] (results->tree-items+done? (results-fn))]
+                              (when done?
+                                (.stop timer)
+                                (ui/visible! search-in-progress false))
+                              (when-not (empty? tree-items)
+                                (doseq [^TreeView tree-view tree-views
+                                        :let [tree-children (.getChildren (.getRoot tree-view))
+                                              first-match? (.isEmpty tree-children)]]
+                                  (.addAll tree-children ^Collection tree-items)
+                                  (when first-match?
+                                    (.clearAndSelect (.getSelectionModel tree-view) 1)))))))]
     (doseq [^TreeView tree-view tree-views]
       (.clear (.getChildren (.getRoot tree-view))))
     (ui/timer-start! timer)
