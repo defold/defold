@@ -145,8 +145,7 @@
                                                     ;;"-XX:+UnlockCommercialFeatures"
                                                     ;;"-XX:+FlightRecorder"
                                                     "-XX:-OmitStackTraceInFastThrow"
-                                                    "-Djdk.attach.allowAttachSelf"
-                                                    "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005"]}}
+                                                    "-Djdk.attach.allowAttachSelf"]}}
   :eastwood {:continue-on-exception true
              :add-linters [:unused-fn-args
                            :unused-locals

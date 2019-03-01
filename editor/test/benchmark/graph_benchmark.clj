@@ -3,7 +3,7 @@
             [clojure.test :refer :all]
             [criterium.core :as cc]
             [dynamo.graph :as g]
-            [support.test-support :refer [tx-nodes]]
+            [support.test-support :refer [tx-nodes with-clean-system]]
             [editor.core :as core]
             [integration.test-util :as test-util]
             [internal.graph :as ig]
