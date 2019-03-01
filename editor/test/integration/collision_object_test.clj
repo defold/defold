@@ -2,16 +2,8 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
-            [editor.collection :as collection]
-            [editor.collision-object :as collision-object]
-            [editor.handler :as handler]
-            [editor.defold-project :as project]
             [editor.workspace :as workspace]
-            [editor.types :as types]
-            [editor.properties :as properties]
-            [integration.test-util :as test-util])
-  (:import [editor.types Region]
-           [javax.vecmath Point3d Matrix4d]))
+            [integration.test-util :as test-util]))
 
 (defn- outline-seq
   [outline]
@@ -39,7 +31,8 @@
 (deftest add-shapes
   (testing "Adding a sphere"
     (test-util/with-loaded-project
-      (let [node-id   (test-util/resource-node project "/collision_object/three_shapes.collisionobject")]
+      (test-util/open-tab! project app-view "/collision_object/three_shapes.collisionobject")
+      (let [node-id (test-util/resource-node project "/collision_object/three_shapes.collisionobject")]
         (app-view/select! app-view [node-id])
         (test-util/handler-run :add [{:name :workbench :env {:selection [node-id] :app-view app-view}}] {:shape-type :type-sphere})
         (let [outline (g/node-value node-id :node-outline)]
@@ -48,7 +41,7 @@
 
 (deftest validation
   (test-util/with-loaded-project
-    (let [node-id   (test-util/resource-node project "/collision_object/three_shapes.collisionobject")]
+    (let [node-id (test-util/resource-node project "/collision_object/three_shapes.collisionobject")]
       (testing "collision object"
                (test-util/with-prop [node-id :mass 0]
                  (is (g/error? (test-util/prop-error node-id :mass))))

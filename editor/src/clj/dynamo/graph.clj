@@ -123,8 +123,7 @@
   history entry, and later given to the context predicate function you provide
   in calls g/undo! and its ilk."
   [history-context-fn]
-  (assert (ifn? history-context-fn))
-  (reset! history-context-fn-atom history-context-fn))
+  (swap! *the-system* is/set-history-context-fn history-context-fn))
 
 (defn transact
   "Provides a way to run a transaction against the graph system.  It takes a list of transaction steps.
@@ -145,10 +144,9 @@
   (let [basis (is/basis @*the-system*)
         id-generators (is/id-generators @*the-system*)
         override-id-generator (is/override-id-generator @*the-system*)
-        tx-result (it/transact* (it/new-transaction-context basis id-generators override-id-generator) txs)
-        history-context-fn @history-context-fn-atom]
+        tx-result (it/transact* (it/new-transaction-context basis id-generators override-id-generator) txs)]
     (when (= :ok (:status tx-result))
-      (swap! *the-system* is/merge-graphs history-context-fn txs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
+      (swap! *the-system* is/merge-graphs txs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
     tx-result))
 
 ;; ---------------------------------------------------------------------------
@@ -1331,14 +1329,23 @@
     (swap! *the-system* is/detach-graph graph-id)
     nil))
 
+(defn- alter-history! [graph-id alter-fn]
+  (let [alter-results-volatile (volatile! nil)
+        wrapped-alter-fn (fn wrapped-alter-fn [system basis history]
+                           (let [alter-results (alter-fn system basis history)]
+                             (vreset! alter-results-volatile alter-results)
+                             alter-results))]
+    (swap! *the-system* #(is/alter-history % graph-id wrapped-alter-fn))
+    (deref alter-results-volatile)))
+
 (defn undo!
   "Undoes the last performed action matching the provided context predicate."
   [graph-id context-pred]
-  (swap! *the-system*
-         (fn [system]
-           (is/update-history system graph-id
-                              (fn [history basis]
-                                (history/undo history context-pred basis (is/id-generators system) (is/override-id-generator system)))))))
+  (alter-history! graph-id
+                  (fn [system basis history]
+                    (let [node-id-generators (is/id-generators system)
+                          override-id-generator (is/override-id-generator system)]
+                      (history/undo history context-pred basis node-id-generators override-id-generator)))))
 
 (defn can-undo?
   "Returns true if the specified graph has an undoable action matching the
@@ -1351,11 +1358,11 @@
 (defn redo!
   "Redoes the previously undone action matching the provided context predicate."
   [graph-id context-pred]
-  (swap! *the-system*
-         (fn [system]
-           (is/update-history system graph-id
-                              (fn [history basis]
-                                (history/redo history context-pred basis (is/id-generators system) (is/override-id-generator system)))))))
+  (alter-history! graph-id
+                  (fn [system basis history]
+                    (let [node-id-generators (is/id-generators system)
+                          override-id-generator (is/override-id-generator system)]
+                      (history/redo history context-pred basis node-id-generators override-id-generator)))))
 
 (defn can-redo?
   "Returns true if the specified graph has a redoable action matching the
@@ -1379,6 +1386,6 @@
   "Given a `graph-id` and a `sequence-id` _cancels_ any sequence of undos on the
   graph as if they had never happened in the history."
   [graph-id sequence-id]
-  (swap! *the-system* is/update-history graph-id
-         (fn [history basis]
-           (history/cancel history basis sequence-id))))
+  (alter-history! graph-id
+                  (fn [_system basis history]
+                    (history/cancel history basis sequence-id))))

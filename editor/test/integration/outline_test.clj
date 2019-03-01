@@ -1,14 +1,14 @@
 (ns integration.outline-test
   (:require [clojure.test :refer :all]
-            [service.log :as log]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
             [editor.app-view :as app-view]
             [editor.collection :as collection]
             [editor.defold-project :as project]
             [editor.game-object :as game-object]
             [editor.outline :as outline]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [service.log :as log]
+            [support.test-support :refer [with-clean-system]]))
 
 (defn- outline
   ([node]
@@ -102,6 +102,7 @@
 
 (deftest copy-paste-ref-component
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/logic/main.go")
     (let [root (test-util/resource-node project "/logic/main.go")]
       (is (= 5 (child-count root)))
       (copy-paste! project app-view root [0])
@@ -109,6 +110,7 @@
 
 (deftest copy-paste-double-embed
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/collection/embedded_embedded_sounds.collection")
     (let [root (test-util/resource-node project "/collection/embedded_embedded_sounds.collection")]
       ; 2 go instance
       (is (= 2 (child-count root)))
@@ -119,6 +121,7 @@
 
 (deftest copy-paste-component-onto-go-instance
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/collection/embedded_embedded_sounds.collection")
     (let [root (test-util/resource-node project "/collection/embedded_embedded_sounds.collection")]
       ; 1 comp instance
       (is (= 1 (child-count root [0])))
@@ -129,6 +132,7 @@
 
 (deftest copy-paste-game-object
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/logic/atlas_sprite.go")
     (let [root (test-util/resource-node project "/logic/atlas_sprite.go")]
       ; 1 comp instance
       (is (= 1 (child-count root)))
@@ -152,6 +156,7 @@
 
 (deftest copy-paste-collection
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/logic/atlas_sprite.collection")
     (let [root (test-util/resource-node project "/logic/atlas_sprite.collection")]
       ; * Collection
       ;   * main (ref-game-object)
@@ -177,6 +182,7 @@
 
 (deftest copy-paste-between-collections
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/collection/test.collection")
     (let [;; * Collection
           ;;   * main (ref-game-object)
           ;;     * sprite (component)
@@ -192,6 +198,7 @@
 
 (deftest copy-paste-collection-instance
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/collection/sub_props.collection")
     (let [root (test-util/resource-node project "/collection/sub_props.collection")]
       ; Original tree
       ; + Collection (root)
@@ -225,6 +232,7 @@
 
 (deftest dnd-collection
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/logic/atlas_sprite.collection")
     (let [root (test-util/resource-node project "/logic/atlas_sprite.collection")]
       (is (= 1 (child-count root)))
       (let [first-id (get (outline root [0]) :label)]
@@ -248,6 +256,7 @@
 
 (deftest copy-paste-dnd-collection
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/logic/atlas_sprite.collection")
     (let [root (test-util/resource-node project "/logic/atlas_sprite.collection")]
       (copy-paste! project app-view root [0])
       (drag! root [0])
@@ -263,6 +272,7 @@
 
 (deftest dnd-gui
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/logic/main.gui")
     (let [root (test-util/resource-node project "/logic/main.gui")]
       (let [first-id (get (outline root [0 1]) :label)
             next-id (get (outline root [0 2]) :label)]
@@ -281,6 +291,7 @@
 
 (deftest copy-paste-gui-box
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/gui/simple.gui")
     (let [root (test-util/resource-node project "/gui/simple.gui")
           path [0 0]
           texture (prop root path :texture)]
@@ -289,6 +300,7 @@
 
 (deftest copy-paste-gui-text-utf-16
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/gui/simple.gui")
     (let [root (test-util/resource-node project "/gui/simple.gui")
           path [0 1]
           text (prop root path :text)]
@@ -297,6 +309,7 @@
 
 (deftest copy-paste-gui-template
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/gui/scene.gui")
     (let [root (test-util/resource-node project "/gui/scene.gui")
           path [0 1]
           orig-sub-id (prop root (conj path 0) :generated-id)]
@@ -310,6 +323,7 @@
         (is (= "sub_scene/sub_box" (:label (outline root [0 1 0]))))
         (is (= "sub_scene1/sub_box" (:label (outline root [0 4 0])))))))
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/gui/super_scene.gui")
     (let [root (test-util/resource-node project "/gui/super_scene.gui")
           tmpl-path [0 0]]
       (g/transact (g/set-property (:node-id (outline root (conj tmpl-path 0))) :position [-100.0 0.0 0.0]))
@@ -319,6 +333,7 @@
 
 (deftest copy-paste-gui-template-delete-repeat
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/gui/scene.gui")
     (let [root (test-util/resource-node project "/gui/scene.gui")
           path [0 1]]
       (dotimes [i 5]
@@ -332,6 +347,7 @@
 
 (deftest dnd-gui-template
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/gui/scene.gui")
     (let [root (test-util/resource-node project "/gui/scene.gui")
           tmpl-path [0 1]
           new-pos [-100.0 0.0 0.0]
@@ -425,6 +441,7 @@
 
 (deftest copy-paste-particlefx
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
     (let [root (test-util/resource-node project "/particlefx/fireworks_big.particlefx")]
       ; Original tree
       ; Root (particlefx)
@@ -481,6 +498,7 @@
 
 (deftest drag-drop-between-referenced-collections
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/collection/sub_sub_props.collection")
     (let [root (test-util/resource-node project "/collection/sub_sub_props.collection")]
       ;; Original tree
       ;; Collection (collection "/collection/sub_sub_props.collection")
@@ -538,6 +556,7 @@
 
 (deftest cut-paste-between-referenced-collections
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/collection/sub_sub_props.collection")
     (let [root (test-util/resource-node project "/collection/sub_sub_props.collection")
           sub-props (test-util/resource-node project "/collection/sub_props.collection")]
       ;; Original tree
@@ -601,6 +620,7 @@
 
 (deftest cut-paste-between-referenced-gui-scenes
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/gui/super_scene.gui")
     (let [root (test-util/resource-node project "/gui/super_scene.gui")
           sub-scene (test-util/resource-node project "/gui/sub_scene.gui")]
       ;; Original tree
@@ -677,6 +697,7 @@
 
 (deftest cut-paste-multiple
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/collection/go_hierarchy.collection")
     (let [root (test-util/resource-node project "/collection/go_hierarchy.collection")]
       ; Original tree
       ; Collection
@@ -717,51 +738,53 @@
 (deftest dnd-collision-shape
   (test-util/with-loaded-project
     (testing "dnd between two embedded"
-             (let [root (test-util/resource-node project "/logic/one_embedded.go")
-                   collision-object (-> (test-util/outline root [0]) :alt-outline :node-id)]
-               ; Original tree:
-               ; Game Object
-               ; + collisionobject
-               (copy-paste! project app-view root [0])
-               (add-collision-shape app-view collision-object :type-sphere)
-               ; Game Object
-               ; + collisionobject
-               ;   + sphere
-               ; + collisionobject1
-               (is (= 1 (child-count root [0])))
-               (is (= 0 (child-count root [1])))
-               (drag! root [0 0])
-               (drop! project app-view root [1])
-               ; Game Object
-               ; + collisionobject
-               ; + collisionobject1
-               ;   + sphere
-               (is (= 0 (child-count root [0])))
-               (is (= 1 (child-count root [1])))))
+      (test-util/open-tab! project app-view "/logic/one_embedded.go")
+      (let [root (test-util/resource-node project "/logic/one_embedded.go")
+            collision-object (-> (test-util/outline root [0]) :alt-outline :node-id)]
+        ;; Original tree:
+        ;; Game Object
+        ;; + collisionobject
+        (copy-paste! project app-view root [0])
+        (add-collision-shape app-view collision-object :type-sphere)
+        ;; Game Object
+        ;; + collisionobject
+        ;;   + sphere
+        ;; + collisionobject1
+        (is (= 1 (child-count root [0])))
+        (is (= 0 (child-count root [1])))
+        (drag! root [0 0])
+        (drop! project app-view root [1])
+        ;; Game Object
+        ;; + collisionobject
+        ;; + collisionobject1
+        ;;   + sphere
+        (is (= 0 (child-count root [0])))
+        (is (= 1 (child-count root [1])))))
     (testing "dnd between two references of the same file"
-             (let [root (test-util/resource-node project "/game_object/sprite_with_collision.go")]
-               ; Original tree:
-               ; Game Object
-               ; + collisionobject - ref
-               ;   + Sphere (shape)
-               ;   + Box (shape)
-               ;   + Capsule (shape)
-               ; + sprite
-               (copy-paste! project app-view root [0])
-               ; Current tree:
-               ; Game Object
-               ; + collisionobject - ref
-               ;   + Sphere (shape)
-               ;   + Box (shape)
-               ;   + Capsule (shape)
-               ; + collisionobject1 - ref
-               ;   + Sphere (shape)
-               ;   + Box (shape)
-               ;   + Capsule (shape)
-               ; + sprite
-               (drag! root [0 0])
-               ;; Not possible to drag to the second collisionobject1 since they are references to the same file
-               (is (not (drop? project root [1])))))))
+      (test-util/open-tab! project app-view "/game_object/sprite_with_collision.go")
+      (let [root (test-util/resource-node project "/game_object/sprite_with_collision.go")]
+        ;; Original tree:
+        ;; Game Object
+        ;; + collisionobject - ref
+        ;;   + Sphere (shape)
+        ;;   + Box (shape)
+        ;;   + Capsule (shape)
+        ;; + sprite
+        (copy-paste! project app-view root [0])
+        ;; Current tree:
+        ;; Game Object
+        ;; + collisionobject - ref
+        ;;   + Sphere (shape)
+        ;;   + Box (shape)
+        ;;   + Capsule (shape)
+        ;; + collisionobject1 - ref
+        ;;   + Sphere (shape)
+        ;;   + Box (shape)
+        ;;   + Capsule (shape)
+        ;; + sprite
+        (drag! root [0 0])
+        ;; Not possible to drag to the second collisionobject1 since they are references to the same file
+        (is (not (drop? project root [1])))))))
 
 (deftest alt-outlines
   (test-util/with-loaded-project
@@ -796,6 +819,7 @@
 
 (deftest add-to-referenced-collection
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/collection/sub_sub_props.collection")
     (let [root (test-util/resource-node project "/collection/sub_sub_props.collection")
           run-handler! (fn [command user-data root path]
                         (let [parent (:node-id (outline root path))

@@ -13,6 +13,7 @@ ordinary paths."
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
             [editor.url :as url]
+            [schema.core :as s]
             [service.log :as log])
   (:import [java.io File PushbackReader]
            [java.net URI]
@@ -327,8 +328,13 @@ ordinary paths."
 (defn add-resource-listener! [workspace progress-span listener]
   (swap! (g/node-value workspace :resource-listeners) conj [progress-span listener]))
 
+(def TViewType {:id s/Keyword
+                :label s/Str
+                (s/optional-key :make-view-fn) (s/pred ifn?)
+                s/Keyword s/Any})
 
 (g/deftype UriVec [URI])
+(g/deftype ViewTypes {s/Keyword TViewType})
 
 (g/defnode Workspace
   (property root g/Str)
@@ -336,7 +342,7 @@ ordinary paths."
   (property opened-files g/Any (default (atom #{})))
   (property resource-snapshot g/Any)
   (property resource-listeners g/Any (default (atom [])))
-  (property view-types g/Any)
+  (property view-types ViewTypes)
   (property resource-types g/Any)
   (property snapshot-cache g/Any (default {}))
   (property build-settings g/Any)
@@ -415,7 +421,7 @@ ordinary paths."
   (g/make-node! graph Workspace
                 :root project-path
                 :resource-snapshot (resource-watch/empty-snapshot)
-                :view-types {:default {:id :default}}
+                :view-types {:default {:id :default :label "Default"}}
                 :resource-listeners (atom [])
                 :build-settings build-settings))
 

@@ -3,7 +3,7 @@
             [clojure.string :as str]
             [clojure.set :as set]
             [dynamo.graph :as g]
-            [support.test-support :refer [undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime with-clean-system]]
+            [support.test-support :refer [with-clean-system] :as ts]
             [editor.defold-project :as project]
             [editor.disk :as disk]
             [editor.fs :as fs]
@@ -101,7 +101,7 @@
   ([workspace name sync?]
    (let [f (File. (workspace/project-path workspace) name)]
      (fs/create-parent-directories! f)
-     (touch-until-new-mtime f))
+     (ts/touch-until-new-mtime f))
    (when sync?
      (sync! workspace))))
 
@@ -113,7 +113,7 @@
 (defn- write-file [workspace name content]
   (let [f (File. (workspace/project-path workspace) name)]
     (fs/create-parent-directories! f)
-    (spit-until-new-mtime f content))
+    (ts/spit-until-new-mtime f content))
   (sync! workspace))
 
 (defn- read-file [workspace name]
@@ -146,14 +146,11 @@
   (let [img (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
         type (FilenameUtils/getExtension name)
         f (File. (workspace/project-path workspace) name)]
-    (write-until-new-mtime (fn [f] (ImageIO/write img type f)) f)
+    (ts/write-until-new-mtime (fn [f] (ImageIO/write img type f)) f)
     (sync! workspace)))
 
-(defn- has-undo? [project]
-  (g/has-undo? (g/node-id->graph-id project)))
-
-(defn- no-undo? [project]
-  (not (has-undo? project)))
+(defn- can-undo? [project]
+  (ts/can-undo? (g/node-id->graph-id project)))
 
 (defn- graph-nodes [node-id] (set (g/node-ids (g/graph (g/node-id->graph-id node-id)))))
 
@@ -168,7 +165,7 @@
           (is (= (inc initial-node-count) (node-count)))
           (is (not (nil? initial-node)))
           (is (= "default" (g/node-value initial-node :name)))
-          (is (no-undo? project))
+          (is (not (can-undo? project)))
           (testing "Change internal file"
             (write-file workspace "/test.collection" "name: \"test_name\"")
             (let [changed-node (project/get-resource-node project "/test.collection")]
@@ -176,7 +173,7 @@
               (is (not (nil? changed-node)))
               (is (not= initial-node changed-node))
               (is (= "test_name" (g/node-value changed-node :name)))
-              (is (no-undo? project))
+              (is (not (can-undo? project)))
               (testing "Delete internal file"
                 (delete-file workspace "/test.collection")
                 (let [node (project/get-resource-node project "/test.collection")
@@ -185,7 +182,7 @@
                   (is (nil? node))
                   (is (= defective-node changed-node))
                   (is (seq (g/node-value defective-node :_output-jammers)))
-                  (is (no-undo? project)))))))))))
+                  (is (not (can-undo? project))))))))))))
 
 (deftest external-file
  (with-clean-system
@@ -198,20 +195,20 @@
        (add-img workspace img-path 64 64)
        (let [initial-node (project/get-resource-node project img-path)]
          (is (some? initial-node))
-         (is (no-undo? project))
+         (is (not (can-undo? project)))
          (testing "Reference it, node added and linked"
            (g/transact
              (atlas/add-images atlas-node-id [(workspace/resolve-resource (g/node-value atlas-node-id :resource) img-path)]))
-           (is (has-undo? project))
-           (let [undo-count (count (undo-stack (g/node-id->graph-id project)))
-                 anim-data (g/node-value atlas-node-id :anim-data)
+           (is (can-undo? project))
+           (let [anim-data (g/node-value atlas-node-id :anim-data)
                  anim (get anim-data anim-id)]
              (is (and (= 64 (:width anim)) (= 64 (:height anim))))
              (testing "Modify image, anim data updated"
                (add-img workspace img-path 128 128)
-               ;; undo count should be unchanged as this is a modification of an external (non-loadable) resource
-               ;; which should only invalidate the outputs of the resource node
-               (is (= undo-count (count (undo-stack (g/node-id->graph-id project)))))
+               ;; Undo should still be available as this is a modification of an
+               ;; external (non-loadable) resource which should only invalidate
+               ;; the outputs of the resource node.
+               (is (can-undo? project))
                (let [changed-node (project/get-resource-node project img-path)
                      anim-data (g/node-value atlas-node-id :anim-data)
                      anim (get anim-data anim-id)]
@@ -224,8 +221,9 @@
                      (is (nil? node))
                      (is (= initial-node invalidated-node))
                      (is (= nil (g/node-value invalidated-node :_output-jammers)))
-                     ;; as above, undo count should be unchanged - just invalidate the outputs of the resource node
-                     (is (= undo-count (count (undo-stack (g/node-id->graph-id project)))))
+                     ;; As above, undo should still be available as this should
+                     ;; just invalidate the outputs of the resource node.
+                     (is (can-undo? project))
                      ;; TODO - fix node pollution
                      (log/without-logging
                        (is (g/error? (g/node-value atlas-node-id :anim-data)))))))))))))))
@@ -240,12 +238,12 @@
             (let [node (project/get-resource-node project "/test.collection")]
               (g/transact
                 (g/set-property node :name "new_name"))
-              (is (has-undo? project))
+              (is (can-undo? project))
               (disk/async-save! progress/null-render-progress! progress/null-render-progress! project nil
                                 (fn [successful?]
                                   (when (is successful?)
                                     (sync! workspace)
-                                    (is (has-undo? project)))
+                                    (is (can-undo? project)))
                                   (exit-event-loop!))))))))))
 
 (defn- find-error [type v]

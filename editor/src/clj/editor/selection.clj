@@ -3,7 +3,7 @@
             [schema.core :as s]))
 
 (def ^:private TResourceNodeID (s/named g/TNodeID "resource-node-id"))
-(def ^:private TSubSelection [(s/one g/TNodeID "selected-node-id") (s/one s/Keyword "property-label") s/Any])
+(def ^:private TSubSelection [(s/one g/TNodeID "selected-node-id") s/Any])
 (g/deftype NodeIDsByResourceNodeID {TResourceNodeID [(s/named g/TNodeID "selected-node-id")]})
 (g/deftype PropertiesByResourceNodeID {TResourceNodeID [(s/named g/TProperties "selected-node-properties")]})
 (g/deftype SubSelectionsByResourceNodeID {TResourceNodeID [(s/named TSubSelection "sub-selection-entry")]})
@@ -80,7 +80,8 @@
    (g/with-auto-evaluation-context evaluation-context
      (select evaluation-context selection-node resource-node node-ids)))
   ([evaluation-context selection-node resource-node node-ids]
-   (assert (every? some? node-ids) "Attempting to select nil values")
+   (assert (g/node-id? resource-node))
+   (assert (every? g/node-id? node-ids))
    (let [basis (:basis evaluation-context)
          new-selected-node-ids (if (seq node-ids)
                                  (into [] (distinct) node-ids)
@@ -91,6 +92,7 @@
        (set-all-selections basis selection-node new-all-selections)))))
 
 (defn sub-select [selection-node resource-node sub-selection]
+  (assert (g/node-id? resource-node))
   (g/update-property selection-node :all-sub-selections update-selection-in-resource resource-node sub-selection))
 
 (defn remap-selection

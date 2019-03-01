@@ -4,7 +4,7 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
+            [support.test-support :refer [with-clean-system] :as ts]
             [editor.math :as math]
             [editor.fs :as fs]
             [editor.game-project :as game-project]
@@ -369,7 +369,7 @@
                                                      build-artifacts))]
                  (is (= 2 (count-exts (keys content-by-target) "goc")))
                  (is (= 1 (count-exts (keys content-by-target) "spritec")))))
-      (g/undo! (g/node-id->graph-id project))
+      (ts/undo! (g/node-id->graph-id project))
       (testing "Verify equivalent sprites are not merged after being changed in memory"
                (let [sprite (test-util/prop-node-id comp-node :blend-mode)]
                  (test-util/prop! sprite :blend-mode :blend-mode-add)

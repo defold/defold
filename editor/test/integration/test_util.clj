@@ -3,7 +3,6 @@
             [clojure.string :as string]
             [clojure.test :refer [is testing]]
             [dynamo.graph :as g]
-            [editor.graph-util :as gu]
             [editor.app-view :as app-view]
             [editor.ui :as ui]
             [editor.fs :as fs]
@@ -20,7 +19,7 @@
             [editor.handler :as handler]
             [editor.view :as view]
             [internal.system :as is]
-            [support.test-support :as test-support]
+            [support.test-support :as ts]
             [util.http-server :as http-server]
             [util.thread-util :as thread-util])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
@@ -175,15 +174,26 @@
 
 (defn selected? [app-view tgt-node-id]
   (let [sel (g/node-value app-view :selected-node-ids)]
-    (not (nil? (some #{tgt-node-id} sel)))))
+    (true? (some (partial = tgt-node-id) sel))))
 
 (g/defnode MockView
   (inherits view/WorkbenchView))
 
+(g/deftype ActiveViewInfoHistory
+  [{:view-id g/TNodeID
+    :view-type workspace/TViewType}])
+
 (g/defnode MockAppView
   (inherits app-view/AppView)
-  (property active-view g/NodeID)
-  (output active-view g/NodeID (gu/passthrough active-view)))
+  (property active-view-info-history ActiveViewInfoHistory)
+  (output active-view-info g/Any (g/fnk [active-view-info-history] (peek active-view-info-history)))
+  (output active-view g/NodeID (g/fnk [active-view-info] (:view-id active-view-info))))
+
+(defn- activate-view [active-view-info-history view-id view-type]
+  (conj (filterv (comp (partial not= view-id) :view-id)
+                 active-view-info-history)
+        {:view-id view-id
+         :view-type view-type}))
 
 (defn make-view-graph! []
   (g/make-graph! :history false :volatility 2))
@@ -202,16 +212,19 @@
                           (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
                             (g/connect selection-node label app-view label)))))]
     (project/add-resource-node-listener! project (partial selection/remap-selection selection-node))
+    (g/set-history-context-fn! (partial app-view/history-context app-view))
     app-view))
 
 (defn- make-tab! [project app-view path make-view-fn!]
   (let [node-id (project/get-resource-node project path)
+        resource (g/node-value node-id :resource)
         views-by-node-id (let [views (g/node-value app-view :open-views)]
                            (zipmap (map :resource-node (vals views)) (keys views)))
-        view (get views-by-node-id node-id)]
+        view (get views-by-node-id node-id)
+        view-type (app-view/resource-view-type resource)]
     (if view
       (do
-        (g/set-property! app-view :active-view view)
+        (g/update-property! app-view :active-view-info-history activate-view view view-type)
         [node-id view])
       (let [view-graph (g/make-graph! :history false :volatility 2)
             view (make-view-fn! view-graph node-id)]
@@ -220,7 +233,7 @@
             (g/connect node-id :_node-id view :resource-node)
             (g/connect node-id :valid-node-id+resource view :node-id+resource)
             (g/connect view :view-data app-view :open-views)
-            (g/set-property app-view :active-view view)))
+            (g/update-property app-view :active-view-info-history activate-view view view-type)))
         (app-view/select! app-view [node-id])
         [node-id view]))))
 
@@ -239,8 +252,11 @@
 (defn close-tab! [project app-view path]
   (let [node-id (project/get-resource-node project path)
         view (some (fn [[view-id {:keys [resource-node]}]]
-                     (when (= resource-node node-id) view-id)) (g/node-value app-view :open-views))]
+                     (when (= resource-node node-id)
+                       view-id))
+                   (g/node-value app-view :open-views))]
     (when view
+      (g/update-property! app-view :active-view-history pop)
       (g/delete-graph! (g/node-id->graph-id view)))))
 
 (defn setup!
@@ -253,7 +269,7 @@
      [workspace project app-view])))
 
 (defn- load-system-and-project-raw [path]
-  (test-support/with-clean-system
+  (ts/with-clean-system
     (let [workspace (setup-workspace! world path)
           project (setup-project! workspace)]
       [@g/*the-system* workspace project])))
@@ -519,18 +535,21 @@
                        [(deref var#) calls#]))))
            binding-map#)))
 
+(defn- history-length [graph-id]
+  (count (some-> @g/*the-system* (is/graph-history graph-id))))
+
 (defn make-graph-reverter
   "Returns an AutoCloseable that reverts the specified graph to
   the state it was at construction time when its close method
   is invoked. Suitable for use with the (with-open) macro."
   [graph-id]
-  (let [initial-undo-stack-count (g/undo-stack-count graph-id)]
+  (let [initial-history-length (history-length graph-id)]
     (reify java.lang.AutoCloseable
       (close [_]
-        (loop [undo-stack-count (g/undo-stack-count graph-id)]
-          (when (< initial-undo-stack-count undo-stack-count)
-            (g/undo! graph-id)
-            (recur (g/undo-stack-count graph-id))))))))
+        (loop [history-length (history-length graph-id)]
+          (when (< initial-history-length history-length)
+            (ts/undo! graph-id)
+            (recur (dec history-length))))))))
 
 (defn add-embedded-component!
   "Adds a new instance of an embedded component to the specified

@@ -48,23 +48,28 @@
         (update :cache c/cache-invalidate cache-entries)
         (update :invalidate-counters bump-invalidate-counters cache-entries))))
 
-(defn update-history [system graph-id update-fn]
-  (let [history (graph-history system graph-id)
-        graphs (graphs system)
+(defn alter-history
+  "Alters history for a graph in the system. The supplied alter-fn is called
+  with a snapshot of the system, its basis, and the history for the specified
+  graph-id. It should return nil to leave the system unaltered, or a map
+  containing :basis, :history and :outputs-to-refresh."
+  [system graph-id alter-fn]
+  (let [graphs (graphs system)
         basis (ig/multigraph-basis graphs)
-        update-results (update-fn history basis)]
-    (if (nil? update-results)
+        history (graph-history system graph-id)
+        alter-results (alter-fn system basis history)]
+    (if (nil? alter-results)
       system
-      (let [context-before (:context-before update-results)
-            context-after (:context-after update-results)
-            updated-basis (:basis update-results)
-            updated-history (:history update-results)
-            updated-outputs (:outputs-to-refresh update-results)
-            updated-graph (-> updated-basis :graphs (get graph-id))]
+      (let [altered-basis (:basis alter-results)
+            altered-history (:history alter-results)
+            altered-outputs (:outputs-to-refresh alter-results)
+            altered-graph (-> altered-basis :graphs (get graph-id))]
+        (assert (gt/basis? altered-basis))
+        (assert (history/history? altered-history))
         (-> system
-            (assoc-in [:graphs graph-id] updated-graph)
-            (assoc-in [:history graph-id] updated-history)
-            (invalidate-outputs updated-outputs))))))
+            (assoc-in [:graphs graph-id] altered-graph)
+            (assoc-in [:history graph-id] altered-history)
+            (invalidate-outputs altered-outputs))))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -101,8 +106,8 @@
   [system graph-id graph]
   (-> system
       (assoc :last-graph graph-id)
-      (update-in [:id-generators] assoc graph-id (id-gen/make-id-generator))
-      (update-in [:graphs] assoc graph-id graph)))
+      (assoc-in [:id-generators graph-id] (id-gen/make-id-generator))
+      (assoc-in [:graphs graph-id] (assoc graph :_graph-id graph-id))))
 
 (defn attach-graph
   [system graph]
@@ -123,6 +128,22 @@
         (update :graphs dissoc graph-id)
         (update :history dissoc graph-id))))
 
+(defn system?
+  [value]
+  (and (map? value)
+       (map? (:graphs value))
+       (map? (:id-generators value))
+       (id-gen/id-generator? (:override-id-generator value))
+       (c/cache? (:cache value))
+       (map? (:invalidate-counters value))
+       (map? (:user-data value))
+       (if-some [history (:history value)]
+         (map? history)
+         true)
+       (if-some [history-context-fn (:history-context-fn value)]
+         (ifn? history-context-fn)
+         true)))
+
 (defn make-system
   [configuration]
   (let [initial-graph (make-initial-graph configuration)
@@ -135,8 +156,20 @@
          :user-data {}}
         (attach-graph initial-graph))))
 
+(defn set-history-context-fn
+  "Set the function that will be called to obtain context for written history
+  entries. The function should take an evaluation-context as its sole argument.
+  The context value returned by the function will be associated with the written
+  history entry, and later given to the context predicate function you provide
+  in calls g/undo! and its ilk."
+  [system history-context-fn]
+  (assert (ifn? history-context-fn))
+  (assoc system :history-context-fn history-context-fn))
+
+(declare default-evaluation-context update-cache-from-evaluation-context)
+
 (defn merge-graphs
-  [system history-context-fn tx-data post-tx-graphs significantly-modified-graphs outputs-modified nodes-deleted]
+  [system tx-data post-tx-graphs significantly-modified-graphs outputs-modified nodes-deleted]
   (let [outputs-modified-by-graph-id (util/group-into {} #{}
                                                       (comp gt/node-id->graph-id first)
                                                       outputs-modified)
@@ -157,7 +190,9 @@
                                     (let [outputs-modified (outputs-modified-by-graph-id graph-id)]
                                       [graph-id graph-after outputs-modified]))))
                           graphs-after-by-graph-id)
-        history-context-before (when (seq history-updates)
+        history-context-fn (:history-context-fn system)
+        history-context-before (when (and (some? history-context-fn)
+                                          (seq history-updates))
                                  (let [evaluation-context (default-evaluation-context system)]
                                    (history-context-fn evaluation-context)))
         post-system (-> system
@@ -172,7 +207,8 @@
     (if (empty? history-updates)
       post-system
       (let [evaluation-context (default-evaluation-context post-system)
-            history-context-after (history-context-fn evaluation-context)]
+            history-context-after (when (some? history-context-fn)
+                                    (history-context-fn evaluation-context))]
         (-> post-system
             (update-cache-from-evaluation-context evaluation-context)
             (update :history (fn [history-by-graph-id]

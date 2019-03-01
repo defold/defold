@@ -403,8 +403,7 @@
 
 (defn- perform-resource-change-plan [plan project render-progress!]
   (binding [*load-cache* (atom (into #{} (g/node-value project :nodes)))]
-    (let [resource-node-listeners (resource-node-listeners project)
-          resource-path->old-node (g/node-value project :nodes-by-resource-path)
+    (let [resource-path->old-node (g/node-value project :nodes-by-resource-path)
           rn-dependencies-evaluation-context (g/make-evaluation-context)
           old-resource-node-dependencies (memoize
                                            (fn [node-id]
@@ -423,7 +422,22 @@
           ;; created or already (still!) existing node.
           resource->node (fn [resource]
                            (or (resource->new-node resource)
-                               (resource->old-node resource)))]
+                               (resource->old-node resource)))
+
+          ;; The changes we're about to make can affect things like selection.
+          ;; Generate transaction steps from listeners before we alter things.
+          resource-node-listeners (resource-node-listeners project)
+          listener-tx-data (when (seq resource-node-listeners)
+                             (let [deleted-node? (set (:delete plan))
+                                   new-resource-nodes-by-old (into {}
+                                                                   (map (fn [[resource-path old-node-id]]
+                                                                          [old-node-id (or (resource-path->new-node resource-path)
+                                                                                           (when-not (deleted-node? old-node-id)
+                                                                                             old-node-id))]))
+                                                                   resource-path->old-node)]
+                               (g/tx-data-flatten
+                                 (for [handle-resource-node-changes resource-node-listeners]
+                                   (handle-resource-node-changes new-resource-nodes-by-old)))))]
       ;; Transfer of overrides must happen before we delete the original nodes below.
       ;; The new target nodes do not need to be loaded. When loading the new targets,
       ;; corresponding override-nodes for the incoming connections will be created in the
@@ -468,25 +482,14 @@
           (let [flaw (resource-io/file-not-found-error node nil :fatal (g/node-value node :resource))]
             (g/mark-defective node flaw))))
 
+      (when (seq listener-tx-data)
+        (g/transact
+          listener-tx-data))
+
       (let [all-outputs (mapcat (fn [node]
                                   (map (fn [[output _]] [node output]) (gu/explicit-outputs node)))
                                 (:invalidate-outputs plan))]
         (g/invalidate-outputs! all-outputs))
-
-      (when (seq resource-node-listeners)
-        (let [new-resource-nodes-by-old (into {}
-                                              (map (fn [[resource-path old-node-id]]
-                                                     (let [new-node-id-or-nil (resource-path->new-node resource-path)]
-                                                       [old-node-id new-node-id-or-nil])))
-                                              resource-path->old-node)
-              transaction-steps (flatten
-                                  (doall
-                                    (for [handle-resource-node-changes resource-node-listeners
-                                          :let [tx-data (handle-resource-node-changes new-resource-nodes-by-old)]]
-                                      tx-data)))]
-          (when (seq transaction-steps)
-            (g/transact
-              transaction-steps))))
 
       ;; invalidating outputs is the only change that does not reset the undo history
       (when (some seq (vals (dissoc plan :invalidate-outputs)))

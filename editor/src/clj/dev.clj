@@ -133,10 +133,9 @@
 (defn console-view []
   (-> (view-of-type console/ConsoleNode) (g/targets-of :lines) ffirst))
 
-(defn history-ref []
-  (is/graph-history (system) (project-graph)))
-
-(def history (comp deref history-ref))
+(defn history []
+  (is/graph-history (system)
+                    (project-graph)))
 
 (defn- significant-history-context [history-context]
   (not-empty
@@ -152,13 +151,13 @@
               (update :context-after significant-history-context)))
         (history)))
 
-(defn update-history! [update-fn]
-  (is/update-history! (system) (project-graph) update-fn)
+(defn alter-history! [alter-fn]
+  (g/alter-history! (project-graph) alter-fn)
   nil)
 
 (defn revert-history! []
-  (update-history! (fn [history basis]
-                     (#'history/rewind-history history basis 0))))
+  (alter-history! (fn [_system basis history]
+                    (#'history/rewind-history history basis 0))))
 
 (defn- node-value-type-symbol [node-value-type]
   (symbol (if-some [^Class class (:class (deref node-value-type))]

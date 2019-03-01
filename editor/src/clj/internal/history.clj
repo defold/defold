@@ -187,6 +187,11 @@
 ;; Public interface
 ;; -----------------------------------------------------------------------------
 
+(defn history? [value]
+  (and (vector? value)
+       (not-empty value)
+       (instance? HistoryEntry (first value))))
+
 (defn make-history [graph label]
   (assert (ig/graph? graph))
   (assert (string? label))
@@ -205,6 +210,7 @@
       (let [last-history-entry-index (dec (count history))
             last-history-entry (history last-history-entry-index)
             merged-history-entry (cond-> (assoc last-history-entry :context-after context-after)
+                                         (some? label) (assoc :label label)
                                          (seq outputs-modified) (update :outputs-modified into outputs-modified)
                                          (seq transaction-steps) (update :transaction-steps into transaction-steps))]
         (assert (zero? (:undo-group last-history-entry)))

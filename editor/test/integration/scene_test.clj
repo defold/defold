@@ -9,7 +9,8 @@
             [editor.system :as system]
             [editor.types :as types]
             [editor.math :as math]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [support.test-support :as ts])
   (:import [editor.types AABB]
            [javax.vecmath Point3d Matrix4d Quat4d Vector3d]))
 
@@ -126,14 +127,14 @@
                (is (= 0.0 (.x (pos go-node))))
                (test-util/mouse-drag! view 64 64 68 64)
                (is (not= 0.0 (.x (pos go-node))))
-               (g/undo! project-graph)
+               (ts/undo! project-graph)
                ;; Rotate tool
                (test-util/set-active-tool! app-view :rotate)
                (is (= 0.0 (.x (rot go-node))))
                ;; begin drag at y = 80 to hit y axis (for x rotation)
                (test-util/mouse-drag! view 64 80 64 84)
                (is (not= 0.0 (.x (rot go-node))))
-               (g/undo! project-graph)
+               (ts/undo! project-graph)
                ;; Scale tool
                (test-util/set-active-tool! app-view :scale)
                (is (= 1.0 (.x (scale go-node))))
@@ -155,7 +156,7 @@
                (g/transact (g/delete-node go-node))
                (is (test-util/empty-selection? app-view))
                ;; Undo
-               (g/undo! project-graph)
+               (ts/undo! project-graph)
                (is (test-util/selected? app-view go-node))
                ;; Select again
                (test-util/mouse-click! view 32 32)

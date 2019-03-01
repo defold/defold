@@ -28,13 +28,19 @@
   []
   (Thread/sleep 1))
 
-(defn undo-stack
-  [graph]
-  (is/undo-stack (is/graph-history @g/*the-system* graph)))
+(def global-history-context-pred (constantly true))
 
-(defn redo-stack
-  [graph]
-  (is/redo-stack (is/graph-history @g/*the-system* graph)))
+(defn can-undo? [graph-id]
+  (g/can-undo? graph-id global-history-context-pred))
+
+(defn undo! [graph-id]
+  (g/undo! graph-id global-history-context-pred))
+
+(defn can-redo? [graph-id]
+  (g/can-redo? graph-id global-history-context-pred))
+
+(defn redo! [graph-id]
+  (g/redo! graph-id global-history-context-pred))
 
 ;; These *-until-new-mtime fns are hacks to support the resource-watch sync, which checks mtime
 

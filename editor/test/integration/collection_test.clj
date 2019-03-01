@@ -1,22 +1,16 @@
 (ns integration.collection-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system graph-dependencies]]
             [editor.app-view :as app-view]
             [editor.collection :as collection]
             [editor.game-object :as game-object]
             [editor.geom :as geom]
-            [editor.handler :as handler]
-            [editor.defold-project :as project]
-            [editor.workspace :as workspace]
-            [editor.types :as types]
             [editor.properties :as properties]
-            [integration.test-util :as test-util])
-  (:import [editor.types Region]
-           [java.awt.image BufferedImage]
-           [java.io File]
-           [javax.imageio ImageIO]
-           [javax.vecmath Point3d Matrix4d]))
+            [editor.types :as types]
+            [editor.workspace :as workspace]
+            [integration.test-util :as test-util]
+            [support.test-support :refer [graph-dependencies with-clean-system]])
+  (:import [javax.vecmath Point3d]))
 
 (deftest hierarchical-outline
   (testing "Hierarchical outline"
@@ -64,6 +58,7 @@
 (deftest add-embedded-instance
   (testing "Hierarchical scene"
            (test-util/with-loaded-project
+             (test-util/open-tab! project app-view "/logic/hierarchy.collection")
              (let [node-id   (test-util/resource-node project "/logic/hierarchy.collection")]
                ; Two game objects under the collection
                (is (= 2 (count (:children (g/node-value node-id :node-outline)))))
@@ -78,8 +73,7 @@
   (testing "Collection with a single empty game object"
            (test-util/with-loaded-project
              (let [node-id   (test-util/resource-node project "/collection/empty_go.collection")
-                   outline   (g/node-value node-id :node-outline)
-                   scene     (g/node-value node-id :scene)]
+                   outline   (g/node-value node-id :node-outline)]
                ;; Verify outline labels
                (is (= (list "Collection" "go") (map :label (tree-seq :children :children outline))))
                ;; Verify AABBs
@@ -130,6 +124,7 @@
 
 (deftest add-script-properties
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/collection/parent.collection")
     (let [parent-id (test-util/resource-node project "/collection/parent.collection")
           coll-id   (test-util/resource-node project "/collection/test.collection")
           go-id     (test-util/resource-node project "/game_object/test.go")
@@ -174,10 +169,10 @@
 
 (deftest read-only-id-property
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/collection/parent.collection")
     (let [parent-id (test-util/resource-node project "/collection/parent.collection")
           coll-id   (test-util/resource-node project "/collection/test.collection")
           go-id     (test-util/resource-node project "/game_object/test.go")
-          script-id (test-util/resource-node project "/script/props.script")
           select-fn (fn [node-ids] (app-view/select app-view node-ids))]
       (g/transact (collection/add-collection-instance parent-id (test-util/resource workspace "/collection/test.collection") "child" [0 0 0] [0 0 0 1] [1 1 1] []))
       (collection/add-game-object-file coll-id coll-id (test-util/resource workspace "/game_object/test.go") select-fn)

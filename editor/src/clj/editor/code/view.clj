@@ -2327,7 +2327,7 @@
   (^ChangeListener [node-id prop-kw]
    (make-property-change-setter node-id prop-kw identity))
   (^ChangeListener [node-id prop-kw observable-value->node-value]
-   (assert (integer? node-id))
+   (assert (g/node-id? node-id))
    (assert (keyword? prop-kw))
    (reify ChangeListener
      (changed [_this _observable _old new]
@@ -2335,7 +2335,7 @@
 
 (defn make-focus-change-listener
   ^ChangeListener [view-node parent canvas]
-  (assert (integer? view-node))
+  (assert (g/node-id? view-node))
   (assert (instance? Parent parent))
   (assert (instance? Canvas canvas))
   (reify ChangeListener

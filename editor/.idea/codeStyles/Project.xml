@@ -4,6 +4,7 @@
     <ClojureCodeStyleSettings>{
   :clojure.core/defmulti :only-indent
   :clojure.core/defonce :only-indent
+  :clojure.test/are 2
   :cursive.formatting/align-conditionals false
   :cursive.formatting/align-maps false
   :cursive.formatting/imports-use-vectors true

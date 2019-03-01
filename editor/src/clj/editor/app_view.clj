@@ -93,7 +93,7 @@
           (fire-tab-closed-event! tab))
         (.removeAll (.getTabs tab-pane) closed-tabs)))))
 
-(defn- resource-view-type [resource]
+(defn resource-view-type [resource]
   (let [workspace (resource/workspace resource)
         resource-type (resource/resource-type resource)]
     (or (first (:view-types resource-type))
@@ -168,12 +168,12 @@
   (output active-outline g/Any (gu/passthrough active-outline))
   (output active-scene g/Any (gu/passthrough active-scene))
   (output active-view g/NodeID (g/fnk [^Tab active-tab]
-                                   (when active-tab
-                                     (ui/user-data active-tab ::view))))
+                                 (when active-tab
+                                   (ui/user-data active-tab ::view))))
   (output active-view-info g/Any (g/fnk [^Tab active-tab]
-                                        (when active-tab
-                                          {:view-id (ui/user-data active-tab ::view)
-                                           :view-type (ui/user-data active-tab ::view-type)})))
+                                   (when active-tab
+                                     {:view-id (ui/user-data active-tab ::view)
+                                      :view-type (ui/user-data active-tab ::view-type)})))
 
   (output active-resource-node g/NodeID (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
   (output active-resource resource/Resource (g/fnk [active-view open-views] (:resource (get open-views active-view))))
@@ -1327,14 +1327,13 @@ If you do not specifically require different script states, consider changing th
     (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)
     (let [close-handler (.getOnClosed tab)]
-      (.setOnClosed tab (ui/event-handler
-                         event
-                         (doto tab
-                           (ui/user-data! ::view-type nil)
-                           (ui/user-data! ::view nil))
-                         (g/delete-graph! view-graph)
-                         (when close-handler
-                           (.handle close-handler event)))))
+      (.setOnClosed tab (ui/event-handler event
+                          (doto tab
+                            (ui/user-data! ::view-type nil)
+                            (ui/user-data! ::view nil))
+                          (g/delete-graph! view-graph)
+                          (when close-handler
+                            (.handle close-handler event)))))
     tab))
 
 (defn- substitute-args [tmpl args]

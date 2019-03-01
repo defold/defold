@@ -1,5 +1,6 @@
 (ns internal.id-gen
-  (:require [internal.graph.types :as gt]))
+  (:require [internal.graph.types :as gt])
+  (:import [clojure.lang Atom]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -8,6 +9,10 @@
 (def ^:dynamic *allow-generated-ids* true)
 
 (defrecord ^:private State [^long next-id claimed-ids])
+
+(defn id-generator? [value]
+  (and (instance? Atom value)
+       (instance? State (deref value))))
 
 (defn make-id-generator
   "Returns a new id generator that starts at zero."

@@ -13,16 +13,29 @@
 (defn graphs        []    (is/graphs        @g/*the-system*))
 (defn graph         [gid] (is/graph         @g/*the-system* gid))
 
-(defn history-states
-  [gid]
-  (let [history (is/graph-history @g/*the-system* gid)]
-    (concat (is/undo-stack history) (is/redo-stack history))))
+(defn- undo-stack [graph-id]
+  (filterv (every-pred (comp zero? :undo-group)
+                       (comp ts/global-history-context-pred :context-after))
+           (some-> @g/*the-system*
+                   (is/graph-history graph-id)
+                   (subvec 1)))) ; Initial entry cannot be altered.
 
-(defn undo-redo-states
-  [graph]
-  (let [history (is/graph-history @g/*the-system* graph)]
-    [(map :label (is/undo-stack history))
-     (map :label (is/redo-stack history))]))
+(defn- redo-stack [graph-id]
+  (let [history-entry-in-context? (comp ts/global-history-context-pred :context-after)
+        history (some-> @g/*the-system* (is/graph-history graph-id) (subvec 1) rseq)
+        current-undo-group (:undo-group (first (filter history-entry-in-context? history)))]
+    (if (or (nil? current-undo-group)
+            (zero? current-undo-group))
+      []
+      (into []
+            (comp (filter #(= current-undo-group (:undo-group %)))
+                  (filter history-entry-in-context?))
+            history))))
+
+(defn- undo-redo-states
+  [graph-id]
+  [(map :label (undo-stack graph-id))
+   (map :label (redo-stack graph-id))])
 
 (deftest graph-registration
   (testing "a fresh system has a graph"
@@ -65,10 +78,10 @@
     (ts/with-clean-system
       (let [pgraph-id      (g/make-graph! :history true)
             before         (is/graph-time @g/*the-system* pgraph-id)
-            history-before (history-states pgraph-id)
+            history-before (is/graph-history @g/*the-system* pgraph-id)
             tx-report      (g/transact (g/make-node pgraph-id Root))
             after          (is/graph-time @g/*the-system* pgraph-id)
-            history-after  (history-states pgraph-id)]
+            history-after  (is/graph-history @g/*the-system* pgraph-id)]
         (is (= :ok (:status tx-report)))
         (is (< before after))
         (is (< (count history-before) (count history-after))))))
@@ -76,71 +89,70 @@
   (testing "transaction labels appear in the history"
     (ts/with-clean-system
       (let [pgraph-id    (g/make-graph! :history true)
-            undos-before (is/undo-stack (is/graph-history @g/*the-system* pgraph-id))
             tx-report    (g/transact [(g/make-node pgraph-id Root)
                                       (g/operation-label "Build root")])
             root         (first (g/tx-nodes-added tx-report))
             tx-report    (g/transact [(g/set-property root :touched 1)
                                       (g/operation-label "Increment touch count")])
-            undos-after  (is/undo-stack (is/graph-history @g/*the-system* pgraph-id))
-            redos-after  (is/redo-stack (is/graph-history @g/*the-system* pgraph-id))
-            snapshot     @g/*the-system*]
+            undos-after  (undo-stack pgraph-id)
+            redos-after  (redo-stack pgraph-id)]
         (is (= ["Build root" "Increment touch count"] (mapv :label undos-after)))
         (is (= []                                     (mapv :label redos-after)))
-        (let [system-after-undo (is/undo-history snapshot pgraph-id)
-              undos-after-undo  (is/undo-stack (is/graph-history system-after-undo pgraph-id))
-              redos-after-undo  (is/redo-stack (is/graph-history system-after-undo pgraph-id))]
+        (ts/undo! pgraph-id)
+
+        (let [undos-after-undo (undo-stack pgraph-id)
+              redos-after-undo (redo-stack pgraph-id)]
           (is (= ["Build root"]            (mapv :label undos-after-undo)))
           (is (= ["Increment touch count"] (mapv :label redos-after-undo)))))))
 
-  (testing "has-undo? and has-redo?"
+  (testing "can-undo? and can-redo?"
     (ts/with-clean-system
       (let [pgraph-id (g/make-graph! :history true)]
 
-        (is (not (g/has-undo? pgraph-id)))
-        (is (not (g/has-redo? pgraph-id)))
+        (is (not (ts/can-undo? pgraph-id)))
+        (is (not (ts/can-redo? pgraph-id)))
 
         (let [root (g/make-node! pgraph-id Root)]
 
-          (is      (g/has-undo? pgraph-id))
-          (is (not (g/has-redo? pgraph-id)))
+          (is      (ts/can-undo? pgraph-id))
+          (is (not (ts/can-redo? pgraph-id)))
 
           (g/transact (g/set-property root :touched 1))
 
-          (is      (g/has-undo? pgraph-id))
-          (is (not (g/has-redo? pgraph-id)))
+          (is      (ts/can-undo? pgraph-id))
+          (is (not (ts/can-redo? pgraph-id)))
 
-          (g/undo! pgraph-id)
+          (ts/undo! pgraph-id)
 
-          (is (g/has-undo? pgraph-id))
-          (is (g/has-redo? pgraph-id))))))
+          (is (ts/can-undo? pgraph-id))
+          (is (ts/can-redo? pgraph-id))))))
 
   (testing "history can be cleared"
     (ts/with-clean-system
       (let [pgraph-id (g/make-graph! :history true)]
 
-        (is (not (g/has-undo? pgraph-id)))
-        (is (not (g/has-redo? pgraph-id)))
+        (is (not (ts/can-undo? pgraph-id)))
+        (is (not (ts/can-redo? pgraph-id)))
 
         (let [[root] (ts/tx-nodes (g/make-node pgraph-id Root))]
 
-          (is      (g/has-undo? pgraph-id))
-          (is (not (g/has-redo? pgraph-id)))
+          (is      (ts/can-undo? pgraph-id))
+          (is (not (ts/can-redo? pgraph-id)))
 
           (g/transact (g/set-property root :touched 1))
 
-          (is      (g/has-undo? pgraph-id))
-          (is (not (g/has-redo? pgraph-id)))
+          (is      (ts/can-undo? pgraph-id))
+          (is (not (ts/can-redo? pgraph-id)))
 
-          (g/undo! pgraph-id)
+          (ts/undo! pgraph-id)
 
-          (is (g/has-undo? pgraph-id))
-          (is (g/has-redo? pgraph-id))
+          (is (ts/can-undo? pgraph-id))
+          (is (ts/can-redo? pgraph-id))
 
           (g/reset-undo! pgraph-id "Reload From Disk")
 
-          (is (not (g/has-undo? pgraph-id)))
-          (is (not (g/has-redo? pgraph-id))))))))
+          (is (not (ts/can-undo? pgraph-id)))
+          (is (not (ts/can-redo? pgraph-id))))))))
 
 (defn touch
   [node label & [seq-id]]
@@ -167,7 +179,7 @@
 
           (is (= (undo-redo-states pgraph-id) [[nil 1 2 3] []]))
 
-          (g/undo! pgraph-id)
+          (ts/undo! pgraph-id)
 
           (is (= (undo-redo-states pgraph-id) [[nil 1 2] [3]]))))))
 
@@ -187,7 +199,7 @@
 
           (is (= (undo-redo-states pgraph-id) [[nil 1 2 3] []]))
 
-          (g/undo! pgraph-id)
+          (ts/undo! pgraph-id)
 
           (is (= (undo-redo-states pgraph-id) [[nil 1 2] [3]]))))))
 
@@ -216,11 +228,11 @@
 
           (is (= (undo-redo-states pgraph-id) [[nil 2 3] []]))
 
-          (g/undo! pgraph-id)
+          (ts/undo! pgraph-id)
 
           (is (= (undo-redo-states pgraph-id) [[nil 2] [3]]))
 
-          (g/undo! pgraph-id)
+          (ts/undo! pgraph-id)
 
           (is (= (undo-redo-states pgraph-id) [[nil] [3 2]]))))))
 
@@ -254,11 +266,11 @@
 
           (is (= (undo-redo-states pgraph-id) [[nil 1 3] []]))
 
-          (g/undo! pgraph-id)
+          (ts/undo! pgraph-id)
 
           (is (= (undo-redo-states pgraph-id) [[nil 1] [3]]))
 
-          (g/undo! pgraph-id)
+          (ts/undo! pgraph-id)
 
           (is (= (undo-redo-states pgraph-id) [[nil] [3 1]]))))))
 
@@ -311,12 +323,12 @@
           (is (= (undo-redo-states pgraph-id) [[nil 2 3] []]))
           (is (= (undo-redo-states agraph-id) [[nil 2] []]))
 
-          (g/undo! pgraph-id)
+          (ts/undo! pgraph-id)
 
           (is (= (undo-redo-states pgraph-id) [[nil 2] [3]]))
           (is (= (undo-redo-states agraph-id) [[nil 2] []]))
 
-          (g/undo! pgraph-id)
+          (ts/undo! pgraph-id)
 
           (is (= (undo-redo-states pgraph-id) [[nil] [3 2]]))
           (is (= (undo-redo-states agraph-id) [[nil 2] []])))))))
@@ -394,7 +406,7 @@
         (g/delete-node! source)
         (is (= nil (g/node-value sink :loud)))
 
-        (g/undo! project-graph)
+        (ts/undo! project-graph)
         (is (= "AFTER CHANGE" (g/node-value sink :loud)))
 
         (g/delete-node! source)
@@ -419,7 +431,7 @@
                                           (g/make-node project-graph Source)
                                           (g/make-node view-graph Sink))]
 
-        (is (= 1 (count (ts/undo-stack project-graph))))
+        (is (= 1 (count (undo-stack project-graph))))
         
         ;; This creates a dummy history step (that only touches p-source2) after the setup transaction.
         ;; If we don't do this, the make-node's transaction will cause p-source + source-label to end up in
@@ -428,7 +440,7 @@
         (g/transact
           (g/set-property p-source2 :source-label "dummy"))
 
-        (is (= 2 (count (ts/undo-stack project-graph))))        
+        (is (= 2 (count (undo-stack project-graph))))
 
         (is (= {p-source #{:_declared-properties :source-label :_properties}} (successors p-source :source-label)))
         (is (= nil (sarcs p-source :source-label)))
@@ -438,7 +450,7 @@
           [(g/set-property p-source2 :source-label "whateverzzzzz") ; we include this action to ensure a history entry is created
            (g/connect p-source :source-label v-sink :target-label)]) ; this alone will not create a history entry since the target graph does not have history
 
-        (is (= 3 (count (ts/undo-stack project-graph))))
+        (is (= 3 (count (undo-stack project-graph))))
 
         (is (= {p-source #{:_declared-properties :source-label :_properties} v-sink #{:loud}} (successors p-source :source-label)))
         (is (= [[p-source :source-label v-sink :target-label]] (g/arcs->tuples (sarcs p-source :source-label))))
@@ -446,9 +458,9 @@
 
         (is (= "INITIAL VALUE" (g/node-value v-sink :loud)))
 
-        (g/undo! project-graph)
+        (ts/undo! project-graph)
 
-        (is (= 2 (count (ts/undo-stack project-graph))))
+        (is (= 2 (count (undo-stack project-graph))))
 
         ;; check hydrated after undo, v-sink :loud used to be missing from successors
         (is (= {p-source #{:_declared-properties :source-label :_properties} v-sink #{:loud}} (successors p-source :source-label)))

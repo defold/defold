@@ -372,6 +372,7 @@
 
 (deftest gui-template-add
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/gui/scene.gui")
     (let [node-id (test-util/resource-node project "/gui/scene.gui")
           super (test-util/resource-node project "/gui/super_scene.gui")
           parent (:node-id (test-util/outline node-id [0]))
@@ -421,6 +422,7 @@
 
 (deftest gui-layout-add
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/gui/layouts.gui")
     (let [node-id (test-util/resource-node project "/gui/layouts.gui")
           box (gui-node node-id "box")]
       (add-layout! project app-view node-id "Portrait")
@@ -429,6 +431,7 @@
 
 (deftest gui-layout-add-node
   (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/gui/scene.gui")
     (let [scene (test-util/resource-node project "/gui/layouts.gui")]
       (add-layout! project app-view scene "Portrait")
       (set-visible-layout! scene "Portrait")
