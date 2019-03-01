@@ -18,12 +18,12 @@
   (is (= (make-keymap-errors [["S" :s]
                               ["Alt+T" :t]
                               ["Ctrl+Alt+U" :u]
-                              ["Ctrl+Alt+Meta+V" :v]]
+                              ["Shift+Alt+X" :x]]
                              :darwin)
          #{{:type :typable-shortcut :command :s :shortcut "S"}
            {:type :typable-shortcut :command :t :shortcut "Alt+T"}
            {:type :typable-shortcut :command :u :shortcut "Ctrl+Alt+U"}
-           {:type :typable-shortcut :command :v :shortcut "Ctrl+Alt+Meta+V"}}))
+           {:type :typable-shortcut :command :x :shortcut "Shift+Alt+X"}}))
   (doseq [platform [:linux :win32]]
     (is (= (make-keymap-errors [["S" :s] ["Ctrl+Alt+U" :u]] platform)
            #{{:type :typable-shortcut, :command :u, :shortcut "Ctrl+Alt+U"}
