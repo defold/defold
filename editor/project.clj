@@ -102,7 +102,7 @@
                       :source-maps false}
 
   :aliases           {"benchmark"     ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
-                      "lint" ["with-profile" "+test" "eastwood"]}
+                      "lint" ["with-profile" "+test" "lint"]}
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"}
