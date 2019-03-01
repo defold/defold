@@ -310,8 +310,8 @@ public class Push {
     }
 
     private void startFirebase(Activity activity) {
-        // if (checkPlayServices(activity)) {
-        if (true || checkPlayServices(activity)) {
+        if (checkPlayServices(activity)) {
+        // if (true || checkPlayServices(activity)) {
             registerFirebase(activity);
         } else {
             Log.w(TAG, "No valid Google Play Services APK found.");

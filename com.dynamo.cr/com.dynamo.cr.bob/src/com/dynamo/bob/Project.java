@@ -508,12 +508,9 @@ public class Project {
         try {
             // Include built-in/default facebook and gms resources
             resourceDirectories.add(Bob.getPath("res/facebook"));
-            // resourceDirectories.add(Bob.getPath("res/google-play-services"));
-
-            resourceDirectories.add(Bob.getPath("res/firebase-hack"));
-
-            resourceDirectories.add(Bob.getPath("res/com.android.support.support-compat-26.1.0"));
-            resourceDirectories.add(Bob.getPath("res/com.android.support.support-media-compat-26.1.0"));
+            resourceDirectories.add(Bob.getPath("res/com.android.support.support-compat-27.1.1"));
+            resourceDirectories.add(Bob.getPath("res/com.android.support.support-core-ui-27.1.1"));
+            resourceDirectories.add(Bob.getPath("res/com.android.support.support-media-compat-27.1.1"));
             resourceDirectories.add(Bob.getPath("res/com.google.android.gms.play-services-base-16.0.1"));
             resourceDirectories.add(Bob.getPath("res/com.google.android.gms.play-services-basement-16.0.1"));
             resourceDirectories.add(Bob.getPath("res/com.google.firebase.firebase-messaging-17.3.4"));

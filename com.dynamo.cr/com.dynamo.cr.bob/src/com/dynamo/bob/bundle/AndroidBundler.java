@@ -202,12 +202,9 @@ public class AndroidBundler implements IBundler {
 
         args.add("-S"); args.add(resDir.getAbsolutePath());
         args.add("-S"); args.add(Bob.getPath("res/facebook"));
-        // args.add("-S"); args.add(Bob.getPath("res/google-play-services"));
-
-        args.add("-S"); args.add(Bob.getPath("res/firebase-hack"));
-
-        args.add("-S"); args.add(Bob.getPath("res/com.android.support.support-compat-26.1.0"));
-        args.add("-S"); args.add(Bob.getPath("res/com.android.support.support-media-compat-26.1.0"));
+        args.add("-S"); args.add(Bob.getPath("res/com.android.support.support-compat-27.1.1"));
+        args.add("-S"); args.add(Bob.getPath("res/com.android.support.support-core-ui-27.1.1"));
+        args.add("-S"); args.add(Bob.getPath("res/com.android.support.support-media-compat-27.1.1"));
         args.add("-S"); args.add(Bob.getPath("res/com.google.android.gms.play-services-base-16.0.1"));
         args.add("-S"); args.add(Bob.getPath("res/com.google.android.gms.play-services-basement-16.0.1"));
         args.add("-S"); args.add(Bob.getPath("res/com.google.firebase.firebase-messaging-17.3.4"));
