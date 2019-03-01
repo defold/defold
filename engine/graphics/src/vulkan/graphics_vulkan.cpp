@@ -218,7 +218,7 @@ namespace dmGraphics
         {
             uint8_t                        m_CurrentFrameImageIx;
             uint8_t                        m_CurrentFrameInFlight;
-            uint32                         m_MaxDescriptorSets;
+            uint32_t                       m_MaxDescriptorSets;
 
             VkInstance                     m_Instance;
             VkPhysicalDevice               m_PhysicalDevice;

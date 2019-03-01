@@ -370,7 +370,15 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
         		case X86Linux:
         		case X86_64Linux:
-        			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
+                {
+                    shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
+                    is.reset();
+                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "", isDebug, soft_fail);
+                    if (builder != null)
+                    {
+                        shaderDescBuilder.addShaders(builder);
+                    }
+                }
         		break;
 
         		case Armv7Darwin:
