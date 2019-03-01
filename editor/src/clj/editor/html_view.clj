@@ -124,6 +124,13 @@
     {:command   :open
      :user-data {:resources [resource]}}))
 
+(defmethod url->command "add-dependency"
+  [^URI uri {:keys [project]}]
+  (let [params (query-params->map (.getQuery uri))
+        dep-url (:url params)]
+    {:command   :add-dependency
+     :user-data {:dep-url dep-url}}))
+
 (defmethod url->command :default
   [^URI uri _]
   {:command (keyword (.getHost uri))})
