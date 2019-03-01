@@ -309,22 +309,22 @@ public class Push {
                 });
     }
 
-    private void startFirebase(Activity activity) {
-        if (checkPlayServices(activity)) {
-        // if (true || checkPlayServices(activity)) {
-            registerFirebase(activity);
-        } else {
-            Log.w(TAG, "No valid Google Play Services APK found.");
-        }
-    }
-
     private boolean checkPlayServices(Activity activity) {
         int resultCode = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(activity);
         if (resultCode != ConnectionResult.SUCCESS) {
-            Log.i(TAG, "This device is not supported. Push notifications are not supported");
+            Log.i(TAG, "This device is not supported. Remote push notifications are not supported");
             return false;
         }
         return true;
+    }
+
+    private void startFirebase(Activity activity) {
+        if (checkPlayServices(activity)) {
+            registerFirebase(activity);
+        } else {
+            Log.w(TAG, "No valid Google Play Services APK found.");
+            sendRegistrationResult(null, "Google Play Services not available.");
+        }
     }
 
     private void sendRegistrationResult(String regid, String errorMessage) {
