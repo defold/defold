@@ -55,13 +55,13 @@
          result)))))
 
 (deftest test-sanity
-  (with-clean-system
+  (ts/with-clean-system
     (let [[[main sub]] (setup world)]
       (testing "Original graph connections"
                (is (= [sub] (g/node-value main :sub-nodes)))))))
 
 (deftest default-behaviour
-   (with-clean-system
+   (ts/with-clean-system
      (let [[[main sub] [or-main or-sub]] (setup world 1)]
        (testing "Connection is overridden from start"
                (is (= [or-sub] (g/node-value or-main :sub-nodes)))
@@ -74,7 +74,7 @@
                 (is (= "new main" (g/node-value or-main :cached-output)))))))
 
 (deftest property-dynamics
-   (with-clean-system
+   (ts/with-clean-system
      (let [[[main sub] [or-main or-sub]] (setup world 1)]
        (testing "Property dynamics"
                 (let [f (fn [n]
@@ -84,7 +84,7 @@
                   (is (true? (f or-main))))))))
 
 (deftest delete
-  (with-clean-system
+  (ts/with-clean-system
     (let [[[main sub] [or-main or-sub]] (setup world 1)]
       (testing "Overrides can be removed"
                (g/transact (g/delete-node or-main))
@@ -104,7 +104,7 @@
                  (is (nil? (g/node-by-id nid))))
                (is (empty? (g/overrides main)))))
     (let [[[main sub] [or-main or-sub]] (setup world 1)
-          [stray] (tx-nodes (g/make-nodes world
+          [stray] (ts/tx-nodes (g/make-nodes world
                                           [stray BaseNode]
                                           (g/connect stray :_node-id or-main :sub-nodes)))]
       (testing "Delete stray node attached to override :cascade-delete"
@@ -114,7 +114,7 @@
                (is (empty? (g/overrides main)))))))
 
 (deftest override-property
-  (with-clean-system
+  (ts/with-clean-system
     (let [[[main sub] [or-main or-sub]] (setup world 1)]
       (testing "Overriding property"
                (g/transact (g/set-property or-main :a-property "overridden main"))
@@ -145,15 +145,15 @@
                (is (= "main_changed" (g/node-value or-main :a-property)))))))
 
 (deftest inherited-property
-  (with-clean-system
+  (ts/with-clean-system
     (let [prop :base-property
-          [main or-main] (tx-nodes (g/make-nodes world [main [MainNode prop "inherited"]]
+          [main or-main] (ts/tx-nodes (g/make-nodes world [main [MainNode prop "inherited"]]
                                                  (g/override main {})))]
       (is (= "inherited" (g/node-value or-main prop))))))
 
 (deftest new-node-created
-  (with-clean-system
-    (let [[main or-main sub] (tx-nodes (g/make-nodes world [main MainNode]
+  (ts/with-clean-system
+    (let [[main or-main sub] (ts/tx-nodes (g/make-nodes world [main MainNode]
                                                      (g/override main {})
                                                      (g/make-nodes world [sub SubNode]
                                                                    (g/connect sub :_node-id main :sub-nodes))))]
@@ -164,11 +164,11 @@
       (is (empty? (g/node-value or-main :sub-nodes))))))
 
 (deftest new-node-created-cache-invalidation
-  (with-clean-system
-    (let [[main or-main] (tx-nodes (g/make-nodes world [main MainNode]
+  (ts/with-clean-system
+    (let [[main or-main] (ts/tx-nodes (g/make-nodes world [main MainNode]
                                                  (g/override main {})))
           _ (is (= [] (g/node-value or-main :cached-values)))
-          [sub] (tx-nodes (g/make-nodes world [sub [SubNode :value "sub"]]
+          [sub] (ts/tx-nodes (g/make-nodes world [sub [SubNode :value "sub"]]
                                         (for [[from to] [[:_node-id :sub-nodes]
                                                          [:value :cached-values]]]
                                           (g/connect sub from main to))))]
@@ -187,19 +187,19 @@
 
 (deftest inherit-targets []
   (testing "missing override"
-           (with-clean-system
-             (let [[main cache-node or-main] (tx-nodes (g/make-nodes world [main [SubNode :value "test"]
+           (ts/with-clean-system
+             (let [[main cache-node or-main] (ts/tx-nodes (g/make-nodes world [main [SubNode :value "test"]
                                                                             cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
                                                                      (g/connect main :value cache :value)
                                                                      (g/override main {})))]
                (is (= cache-node (ffirst (g/targets-of main :value))))
                (is (empty? (g/targets-of or-main :value))))))
   (testing "existing override"
-           (with-clean-system
-             (let [[main cache-node] (tx-nodes (g/make-nodes world [main [SubNode :value "test"]
+           (ts/with-clean-system
+             (let [[main cache-node] (ts/tx-nodes (g/make-nodes world [main [SubNode :value "test"]
                                                                     cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
                                                              (g/connect main :value cache :value)))
-                   [or-cache-node or-main] (tx-nodes (g/override cache-node {}))]
+                   [or-cache-node or-main] (ts/tx-nodes (g/override cache-node {}))]
                (is (= cache-node (ffirst (g/targets-of main :value))))
                (is (= or-cache-node (ffirst (g/targets-of or-main :value))))))))
 
@@ -211,25 +211,25 @@
     ;; After making g/override perform the bulk of its work in the
     ;; transaction step (after the g/connect has happened/is
     ;; observable) this test is less relevant.
-    (with-clean-system
-      (let [[main cache-node or-main] (tx-nodes (g/make-nodes world [main StringInput
+    (ts/with-clean-system
+      (let [[main cache-node or-main] (ts/tx-nodes (g/make-nodes world [main StringInput
                                                                      cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
                                                               (g/connect cache :cached-value main :value)
                                                               (g/override main {:traverse? (constantly false)})))]
         (is (= cache-node (ffirst (g/sources-of main :value))))
         (is (= cache-node (ffirst (g/sources-of or-main :value)))))))
   (testing "existing override"
-    (with-clean-system
-      (let [[main cache-node] (tx-nodes (g/make-nodes world [main StringInput
+    (ts/with-clean-system
+      (let [[main cache-node] (ts/tx-nodes (g/make-nodes world [main StringInput
                                                              cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
                                                       (g/connect cache :cached-value main :value)))
-            [or-main or-cache-node] (tx-nodes (g/override cache-node {}))]
+            [or-main or-cache-node] (ts/tx-nodes (g/override cache-node {}))]
         (is (= cache-node (ffirst (g/sources-of main :value))))
         (is (= or-cache-node (ffirst (g/sources-of or-main :value))))))))
 
 (deftest lonely-override-leaves-cache []
-  (with-clean-system
-    (let [[main cache-node or-main] (tx-nodes (g/make-nodes world [main [SubNode :value "test"]
+  (ts/with-clean-system
+    (let [[main cache-node or-main] (ts/tx-nodes (g/make-nodes world [main [SubNode :value "test"]
                                                                    cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
                                                             (g/connect main :value cache :value)
                                                             (g/override main {})))]
@@ -242,7 +242,7 @@
       (is (= 1 @(g/node-value cache-node :invalid-cache))))))
 
 (deftest multi-override
-  (with-clean-system
+  (ts/with-clean-system
     (let [[[main sub]
            [or-main or-sub]
            [or2-main or2-sub]] (setup world 2)]
@@ -268,7 +268,7 @@
 
 (deftest multi-override-with-dynamic-properties
   (testing "property value is propagated through all override nodes"
-    (with-clean-system
+    (ts/with-clean-system
       (let [[[main sub]
              [or1-main or1-sub]
              [or2-main or2-sub]
@@ -315,7 +315,7 @@
         (is (= nil (prop-map-original-value or3-main :c-property)))))))
 
 (deftest mark-defective
-  (with-clean-system
+  (ts/with-clean-system
     (let [[[main sub]
            [or-main or-sub]] (setup world 1)]
       (testing "defective base"
@@ -331,7 +331,7 @@
                                           (g/mark-defective or-main error)))))))))
 
 (deftest copy-paste
-  (with-clean-system
+  (ts/with-clean-system
     (let [[[main sub]
            [or-main or-sub]] (setup world 1)]
       (g/transact (g/set-property or-main :a-property "override"))
@@ -359,8 +359,8 @@
   (input in-reference g/Keyword))
 
 (deftest connection-property
-  (with-clean-system
-    (let [[res a b] (tx-nodes (g/make-nodes world [res ResourceNode
+  (ts/with-clean-system
+    (let [[res a b] (ts/tx-nodes (g/make-nodes world [res ResourceNode
                                                   a [ExternalNode :value :node-a]
                                                   b [ExternalNode :value :node-b]]
                                            (g/set-graph-value world :node-store {:node-a a :node-b b})))]
@@ -544,7 +544,7 @@
   (ffirst (g/targets-of n label)))
 
 (deftest scene-loading
-  (with-clean-system
+  (ts/with-clean-system
     (let [[scene _ node] (make-scene! world "my-scene" [[VisualNode {:id "my-node" :value "initial"}]])
           overrides {"my-template/my-node" {:value "new value"}}
           [super-scene _ template] (make-scene! world "my-super-scene" [[Template {:id "my-template" :template {:path "my-scene" :overrides overrides}}]])]
@@ -554,7 +554,7 @@
       (is (= overrides (select-keys (g/node-value template :node-overrides) (keys overrides)))))))
 
 (deftest scene-loading-with-override-values
-  (with-clean-system
+  (ts/with-clean-system
     (let [scene-overrides {"template/my-node" {:value "scene-override"}}
           super-overrides {"super-template/template/my-node" {:value "super-override"}}]
       (g/transact (concat
@@ -571,7 +571,7 @@
       (is (= expected (select-keys actual (keys expected))))))))
 
 (deftest hierarchical-ids
-  (with-clean-system
+  (ts/with-clean-system
     (let [[sub-scene] (make-scene! world "sub-scene" [[VisualNode {:id "my-node" :value ""}]])
           [scene] (make-scene! world "scene" [[Template {:id "template" :template {:path "sub-scene" :overrides {}}}]])
           [super-scene] (make-scene! world "super-scene" [[Template {:id "super-template" :template {:path "scene" :overrides {}}}]])]
@@ -583,7 +583,7 @@
         (is (= "sub-scene2" (get-in (g/node-value tmp :template) [:resource :path])))))))
 
 (deftest delete-middle
-  (with-clean-system
+  (ts/with-clean-system
     (let [[sub-scene] (make-scene! world "sub-scene" [[VisualNode {:id "my-node" :value ""}]])
           [scene] (make-scene! world "scene" [[Template {:id "template" :template {:path "sub-scene" :overrides {}}}]])
           [super-scene] (make-scene! world "super-scene" [[Template {:id "super-template" :template {:path "scene" :overrides {}}}]])
@@ -595,7 +595,7 @@
       (is (nil? (g/node-by-id super-middle))))))
 
 (deftest sibling-templates
-  (with-clean-system
+  (ts/with-clean-system
     (let [[sub-scene] (make-scene! world "sub-scene" [[VisualNode {:id "my-node" :value ""}]])
           [scene] (make-scene! world "scene" [[Template {:id "template" :template {:path "sub-scene" :overrides {}}}]
                                               [Template {:id "template1" :template {:path "sub-scene" :overrides {}}}]])
@@ -606,17 +606,17 @@
       (is (has-node? super-scene "super-template/template1/my-node")))))
 
 (deftest new-sibling-delete-repeat
-  (with-clean-system
+  (ts/with-clean-system
     (let [[sub-scene] (make-scene! world "sub-scene" [[VisualNode {:id "my-node" :value ""}]])
           [scene scene-tree] (make-scene! world "scene" [[Template {:id "template" :template {:path "sub-scene" :overrides {}}}]])
           [super-scene] (make-scene! world "super-scene" [[Template {:id "super-template" :template {:path "scene" :overrides {}}}]])]
       (dotimes [i 5]
-        (let [[new-tmpl] (tx-nodes (add-node world scene scene-tree Template {:id "new-template" :template {:path "sub-scene" :overrides {}}}))]
+        (let [[new-tmpl] (ts/tx-nodes (add-node world scene scene-tree Template {:id "new-template" :template {:path "sub-scene" :overrides {}}}))]
           (is (contains? (g/node-value (node-by-id scene "new-template") :node-overrides) "new-template/my-node"))
           (g/transact (g/delete-node new-tmpl)))))))
 
 (deftest change-override
-  (with-clean-system
+  (ts/with-clean-system
     (let [[sub-scene] (make-scene! world "sub-scene" [[VisualNode {:id "my-node" :value ""}]])
           [scene] (make-scene! world "scene" [[Template {:id "template" :template {:path "sub-scene" :overrides {}}}]])
           [super-scene] (make-scene! world "super-scene" [[Template {:id "super-template" :template {:path "scene" :overrides {}}}]])
@@ -626,7 +626,7 @@
       (is (has-node? super-scene "super-template/template/my-node2")))))
 
 (deftest new-node-deep-override
-  (with-clean-system
+  (ts/with-clean-system
     (let [[sub-scene sub-tree] (make-scene! world "sub-scene" [[VisualNode {:id "my-node" :value ""}]])
           [scene] (make-scene! world "scene" [[Template {:id "template" :template {:path "sub-scene" :overrides {}}}]])
           [super-scene] (make-scene! world "super-scene" [[Template {:id "super-template" :template {:path "scene" :overrides {}}}]])
@@ -637,7 +637,7 @@
 ;; Bug occurring in properties in overloads
 
 (deftest scene-paths
-  (with-clean-system
+  (ts/with-clean-system
     (let [[sub-scene] (make-scene! world "sub-scene" [[VisualNode {:id "my-node" :value ""}]])
           [scene] (make-scene! world "scene" [[Template {:id "template" :template {:path "sub-scene" :overrides {}}}]])
           [super-scene] (make-scene! world "super-scene" [[Template {:id "super-template" :template {:path "scene" :overrides {}}}]])
@@ -648,10 +648,10 @@
 ;; Simulated layout problem
 
 (deftest template-layouts
-  (with-clean-system
+  (ts/with-clean-system
     (let [[sub-scene] (make-scene! world "sub-scene" [[VisualNode {:id "my-node" :value ""}]])
           [scene] (make-scene! world "scene" [[Template {:id "template" :template {:path "sub-scene" :overrides {}}}]])
-          [sub-layout] (tx-nodes (add-layout world sub-scene "Portrait"))]
+          [sub-layout] (ts/tx-nodes (add-layout world sub-scene "Portrait"))]
       (is (nil? (g/node-value sub-layout :id-prefix)))
       (is (not (nil? (g/node-value (first (g/overrides sub-layout)) :id-prefix)))))))
 
@@ -698,8 +698,8 @@
                                             (update :display-order concat (:display-order script-properties))))))
 
 (deftest custom-properties
-  (with-clean-system
-    (let [[script comp] (tx-nodes (g/make-nodes world [script [Script :script-properties {:speed 0}]]
+  (ts/with-clean-system
+    (let [[script comp] (ts/tx-nodes (g/make-nodes world [script [Script :script-properties {:speed 0}]]
                                                (g/set-graph-value world :resources {"script.script" script}))
                                   (g/make-nodes world [comp [Component :component {:path "script.script" :overrides {:speed 10}}]]))]
       (let [p (get-in (g/node-value comp :_properties) [:properties :speed])]
@@ -726,8 +726,8 @@
   (output complex Complex (g/fnk [value] {:value value})))
 
 (deftest overloaded-outputs-and-types
-  (with-clean-system
-    (let [[a b] (tx-nodes (g/make-nodes world [n [TypedOutputNode :value [1 2 3]]]
+  (ts/with-clean-system
+    (let [[a b] (ts/tx-nodes (g/make-nodes world [n [TypedOutputNode :value [1 2 3]]]
                                         (g/override n)))]
       (g/transact (g/set-property b :value [2 3 4]))
       (is (not= (g/node-value b :complex) (g/node-value a :complex))))))
@@ -739,8 +739,8 @@
   (property id g/Str (value (g/fnk [_node-id super-id id] (if super-id (str super-id "/" id) id)))))
 
 (deftest dynamic-id-in-properties
-  (with-clean-system
-    (let [[node parent sub] (tx-nodes (g/make-nodes world [node [IDNode :id "child-id"]
+  (ts/with-clean-system
+    (let [[node parent sub] (ts/tx-nodes (g/make-nodes world [node [IDNode :id "child-id"]
                                                            parent [IDNode :id "parent-id"]]
                                                     (g/override node {}
                                                                 (fn [evaluation-context id-mapping]
@@ -752,8 +752,8 @@
 ;; Reload supported for overrides
 
 (deftest reload-overrides
-  (with-clean-system
-     (let [[node or-node] (tx-nodes (g/make-nodes world [node [support/ReloadNode :my-value "reload-test"]]
+  (ts/with-clean-system
+     (let [[node or-node] (ts/tx-nodes (g/make-nodes world [node [support/ReloadNode :my-value "reload-test"]]
                                                   (g/override node)))]
        (g/transact (g/set-property or-node :my-value "new-value"))
        (is (= "new-value" (get-in (g/node-value or-node :_properties) [:properties :my-value :value])))
@@ -786,7 +786,7 @@
   (output out-value g/Str (g/fnk [in-value] in-value)))
 
 (deftest dep-rules
-  (with-clean-system
+  (ts/with-clean-system
     (let [all (setup world 2)
           [[main-0 sub-0]
            [main-1 sub-1]
@@ -806,8 +806,8 @@
                                          :let [m (nth mains mi)
                                                s (nth subs si)]]
                                      [s :_node-id m :sub-nodes]))))))
-  (with-clean-system
-    (let [[src tgt src-1] (tx-nodes (g/make-nodes world [src [MainNode :a-property "reload-test"]
+  (ts/with-clean-system
+    (let [[src tgt src-1] (ts/tx-nodes (g/make-nodes world [src [MainNode :a-property "reload-test"]
                                                          tgt TargetNode]
                                                   (g/connect src :a-property tgt :in-value)
                                                   (g/override src)))]
@@ -818,8 +818,8 @@
       (testing "connections"
               (is (conn? [src :a-property tgt :in-value]))
               (is (no-conn? [src-1 :a-property tgt :in-value])))))
-  (with-clean-system
-    (let [[src tgt tgt-1] (tx-nodes (g/make-nodes world [src [MainNode :a-property "reload-test"]
+  (ts/with-clean-system
+    (let [[src tgt tgt-1] (ts/tx-nodes (g/make-nodes world [src [MainNode :a-property "reload-test"]
                                                          tgt TargetNode]
                                                   (g/connect src :a-property tgt :in-value)
                                                   (g/override tgt)))]
@@ -828,7 +828,7 @@
       (testing "connections"
                (is (conn? [src :a-property tgt :in-value]))
                (is (conn? [src :a-property tgt-1 :in-value])))))
-  (with-clean-system
+  (ts/with-clean-system
     (let [[sub-scene] (make-scene! world "sub-scene" [[VisualNode {:id "my-node" :value ""}]])
           [scene] (make-scene! world "scene" [[Template {:id "template" :template {:path "sub-scene" :overrides {}}}]
                                               [Template {:id "template1" :template {:path "sub-scene" :overrides {}}}]])
@@ -851,9 +851,9 @@
   (input instances g/NodeID :array :cascade-delete))
 
 (deftest override-created-on-connect
-  (with-clean-system
-    (let [[script] (tx-nodes (g/make-nodes world [script Script]))
-          [go comp or-script] (tx-nodes (g/make-nodes world [go GameObject
+  (ts/with-clean-system
+    (let [[script] (ts/tx-nodes (g/make-nodes world [script Script]))
+          [go comp or-script] (ts/tx-nodes (g/make-nodes world [go GameObject
                                                              comp Component]
                                                       (g/override script {:traverse? (constantly true)}
                                                                   (fn [evaluation-context id-mapping]
@@ -861,7 +861,7 @@
                                                                       (concat
                                                                         (g/connect comp :_node-id go :components)
                                                                         (g/connect or-script :_node-id comp :instance)))))))
-          [coll inst or-go] (tx-nodes (g/make-nodes world [coll Collection
+          [coll inst or-go] (ts/tx-nodes (g/make-nodes world [coll Collection
                                                            inst GameObjectInstance]
                                                     (g/override go {:traverse? (constantly true)}
                                                                 (fn [evaluation-context id-mapping]
@@ -869,19 +869,19 @@
                                                                     (concat
                                                                       (g/connect inst :_node-id coll :instances)
                                                                       (g/connect or-go :_node-id inst :source)))))))
-          [comp-2 or-script-2] (tx-nodes (g/make-nodes world [comp Component]
+          [comp-2 or-script-2] (ts/tx-nodes (g/make-nodes world [comp Component]
                                                        (g/override script {:traverse? (constantly true)}
                                                                    (fn [evaluation-context id-mapping]
                                                                      (let [or-script (id-mapping script)]
                                                                        (g/connect or-script :_node-id comp :instance))))))
-          nodes-on-connect (tx-nodes (g/connect comp-2 :_node-id go :components))]
+          nodes-on-connect (ts/tx-nodes (g/connect comp-2 :_node-id go :components))]
       ;; 1 override for the component node and one for the script, w.r.t the collection
       (is (= 2 (count nodes-on-connect))))))
 
 (deftest cascade-delete-avoided
-  (with-clean-system
-    (let [[script] (tx-nodes (g/make-nodes world [script Script]))
-          [go comp or-script] (tx-nodes (g/make-nodes world [go GameObject
+  (ts/with-clean-system
+    (let [[script] (ts/tx-nodes (g/make-nodes world [script Script]))
+          [go comp or-script] (ts/tx-nodes (g/make-nodes world [go GameObject
                                                              comp Component]
                                                       (g/override script {:traverse? (constantly true)}
                                                                   (fn [evaluation-context id-mapping]
@@ -889,7 +889,7 @@
                                                                       (concat
                                                                         (g/connect comp :_node-id go :components)
                                                                         (g/connect or-script :_node-id comp :instance)))))))
-          [coll inst or-go] (tx-nodes (g/make-nodes world [coll Collection
+          [coll inst or-go] (ts/tx-nodes (g/make-nodes world [coll Collection
                                                            inst GameObjectInstance]
                                                     (g/override go {:traverse? (constantly false)}
                                                                 (fn [evaluation-context id-mapping]
@@ -908,19 +908,19 @@
       (is (every? nil? (map g/node-by-id [coll inst or-go go comp or-script script]))))))
 
 (deftest auto-add-and-delete
-  (with-clean-system
-    (let [[script] (tx-nodes (g/make-nodes world [script Script]))
-          [go] (tx-nodes (g/make-nodes world [go GameObject]))
+  (ts/with-clean-system
+    (let [[script] (ts/tx-nodes (g/make-nodes world [script Script]))
+          [go] (ts/tx-nodes (g/make-nodes world [go GameObject]))
           [[coll0 go-inst0 or-go0]
            [coll1 go-inst1 or-go1]] (for [i (range 2)]
-                                      (tx-nodes (g/make-nodes world [coll Collection
+                                      (ts/tx-nodes (g/make-nodes world [coll Collection
                                                                      go-inst GameObjectInstance]
                                                               (g/connect go-inst :_node-id coll :instances)
                                                               (g/override go {:traverse? (constantly true)}
                                                                           (fn [evaluation-context id-mapping]
                                                                             (let [or-go (id-mapping go)]
                                                                               (g/connect or-go :_node-id go-inst :source)))))))
-          [comp or-script] (tx-nodes (g/make-nodes world [comp Component]
+          [comp or-script] (ts/tx-nodes (g/make-nodes world [comp Component]
                                                    (g/override script {:traverse? (constantly true)}
                                                                (fn [evaluation-context id-mapping]
                                                                  (let [or-script (id-mapping script)]

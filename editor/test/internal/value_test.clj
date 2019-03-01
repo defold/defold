@@ -87,14 +87,14 @@
 (use-fixtures :each with-function-counts)
 
 (deftest project-cache
-  (with-clean-system
+  (ts/with-clean-system
     (let [[name1 name2 combiner expensive] (build-sample-project world)]
       (testing "uncached values are unaffected"
         (is (= "Jane" (g/node-value name1 :uncached-value)))))))
 
 (deftest caching-avoids-computation
   (testing "cached values are only computed once"
-    (with-clean-system
+    (ts/with-clean-system
       (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane Doe" (g/node-value combiner :derived-value)))
         (expect-no-call-when combiner 'compute-derived-value
@@ -102,7 +102,7 @@
                                (g/node-value combiner :derived-value))))))
 
   (testing "cached nil values are only computed once"
-    (with-clean-system
+    (ts/with-clean-system
       (let [[name1 name2 combiner expensive nil-value] (build-sample-project world)]
         (is (nil? (g/node-value nil-value :nil-value)))
         (expect-no-call-when nil-value 'compute-nil-value
@@ -112,7 +112,7 @@
           (is (cached? cache nil-value :nil-value))))))
 
   (testing "modifying inputs invalidates the cached value"
-    (with-clean-system
+    (ts/with-clean-system
       (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane Doe" (g/node-value combiner :derived-value)))
         (expect-call-when combiner 'compute-derived-value
@@ -120,7 +120,7 @@
                           (is (= "John Doe" (g/node-value combiner :derived-value)))))))
 
   (testing "transmogrifying a node invalidates its cached value"
-    (with-clean-system
+    (ts/with-clean-system
       (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane Doe" (g/node-value combiner :derived-value)))
         (expect-call-when combiner 'compute-derived-value
@@ -128,13 +128,13 @@
                           (is (= "Jane Doe" (g/node-value combiner :derived-value)))))))
 
   (testing "cached values are distinct"
-    (with-clean-system
+    (ts/with-clean-system
       (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "this is distinct from the other outputs" (g/node-value combiner :another-value)))
         (is (not= (g/node-value combiner :another-value) (g/node-value combiner :expensive-value))))))
 
   (testing "cache invalidation only hits dependent outputs"
-    (with-clean-system
+    (ts/with-clean-system
       (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane" (g/node-value combiner :nickname)))
         (expect-call-when combiner 'passthrough-first-name
@@ -164,14 +164,14 @@
     nodes))
 
 (deftest invalid-resource-values
-  (with-clean-system
+  (ts/with-clean-system
     (let [[override jane] (build-override-project world)]
       (testing "requesting a non-existent label throws"
         (is (thrown? AssertionError (g/node-value override :aint-no-thang)))))))
 
 (deftest update-sees-in-transaction-value
-  (with-clean-system
-    (let [[node]            (tx-nodes (g/make-node world OverrideValueNode :name "a project" :int-prop 0))
+  (ts/with-clean-system
+    (let [[node]            (ts/tx-nodes (g/make-node world OverrideValueNode :name "a project" :int-prop 0))
           after-transaction (g/transact
                              (concat
                               (g/update-property node :int-prop inc)
@@ -188,8 +188,8 @@
                  (inc a-property))))
 
 (deftest output-caching-does-not-accidentally-cache-inputs
-  (with-clean-system
-    (let [[node-id]       (tx-nodes (g/make-node world OutputChaining))]
+  (ts/with-clean-system
+    (let [[node-id]       (ts/tx-nodes (g/make-node world OutputChaining))]
       (g/node-value node-id :chained-output)
       (let [cache (g/cache)]
         (is (cached? cache node-id :chained-output))
@@ -223,8 +223,8 @@
 
 
 (deftest node-value-precedence
-  (with-clean-system
-    (let [[node s1] (tx-nodes (g/make-node world ValuePrecedence)
+  (ts/with-clean-system
+    (let [[node s1] (ts/tx-nodes (g/make-node world ValuePrecedence)
                               (g/make-node world Source :constant :input))]
       (g/transact
        (concat
@@ -238,8 +238,8 @@
       (is (= "position-property" (g/node-value node :transform)))))
 
   (testing "output uses another output, which is a function of an input with the same name"
-    (with-clean-system
-      (let [[combiner s1 s2 s3] (tx-nodes (g/make-node world ValuePrecedence)
+    (ts/with-clean-system
+      (let [[combiner s1 s2 s3] (ts/tx-nodes (g/make-node world ValuePrecedence)
                                           (g/make-node world Source :constant :source-1)
                                           (g/make-node world Source :constant :source-2)
                                           (g/make-node world Source :constant :source-3))]
@@ -251,12 +251,12 @@
        (is (= "source-1source-2source-3" (g/node-value combiner :transform-renderables)))))))
 
 (deftest invalidation-across-graphs
-  (with-clean-system
+  (ts/with-clean-system
     (let [project-graph (g/make-graph! :history true)
           view-graph    (g/make-graph! :volatility 100)
-          [content-node aux-node] (tx-nodes (g/make-node project-graph CacheTestNode :scalar "Snake")
+          [content-node aux-node] (ts/tx-nodes (g/make-node project-graph CacheTestNode :scalar "Snake")
                                             (g/make-node project-graph CacheTestNode :scalar "Plissken"))
-          [view-node]    (tx-nodes (g/make-node view-graph CacheTestNode))]
+          [view-node]    (ts/tx-nodes (g/make-node view-graph CacheTestNode))]
       (g/transact
        [(g/connect content-node :scalar view-node :first-name)
         (g/connect aux-node     :scalar view-node :last-name)])
@@ -315,7 +315,7 @@
 
 (deftest error-value-replacement
   (testing "source doesn't send errors"
-    (with-clean-system
+    (ts/with-clean-system
       (are [label connected? source-label expected-pfn-val]
           (= expected-pfn-val (arrange-sv-error label connected? source-label))
         ;; output-label connected? source-label  expected-pfn
@@ -336,8 +336,8 @@
   (binding [in/*suppress-schema-warnings* true]
     (testing "source sends errors"
       (testing "unary inputs"
-        (with-clean-system
-         (let [[receiver const] (tx-nodes
+        (ts/with-clean-system
+         (let [[receiver const] (ts/tx-nodes
                                  (g/make-nodes world
                                                [receiver SubstitutingInputsNode
                                                 const    ConstantNode]
@@ -346,8 +346,8 @@
            (is (g/error? (g/node-value receiver :unary-no-sub)))
            (is (= 99     (g/node-value receiver :unary-with-sub))))))
       (testing "multivalued inputs"
-        (with-clean-system
-          (let [[receiver const] (tx-nodes
+        (ts/with-clean-system
+          (let [[receiver const] (ts/tx-nodes
                                  (g/make-nodes world
                                                [receiver SubstitutingInputsNode
                                                 const    ConstantNode]
@@ -372,8 +372,8 @@
 (deftest input-schema-validation-warnings
   (binding [in/*suppress-schema-warnings* true]
     (testing "schema validations on inputs"
-     (with-clean-system
-       (let [[node1] (tx-nodes (g/make-node world StringInputIntOutputNode))]
+     (ts/with-clean-system
+       (let [[node1] (ts/tx-nodes (g/make-node world StringInputIntOutputNode))]
          (g/transact (g/connect node1 :int-output node1 :string-input))
          (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value node1 :combined))))))))
 
@@ -385,8 +385,8 @@
     (first (:causes ev))))
 
 (deftest error-values-are-not-wrapped-from-properties
-  (with-clean-system
-    (let [[node]      (tx-nodes (g/make-node world ConstantPropertyNode))
+  (ts/with-clean-system
+    (let [[node]      (ts/tx-nodes (g/make-node world ConstantPropertyNode))
           _           (g/mark-defective! node (g/error-fatal "bad"))
           error-value (g/node-value node :a-property)]
       (is (g/error?      error-value))
@@ -404,8 +404,8 @@
 
 (deftest error-values-are-aggregated
   (testing "single-valued input with an error results in single error out."
-    (with-clean-system
-      (let [[sender receiver] (tx-nodes
+    (ts/with-clean-system
+      (let [[sender receiver] (ts/tx-nodes
                                (g/make-nodes world
                                              [sender   ConstantPropertyNode
                                               receiver ErrorReceiverNode]
@@ -418,8 +418,8 @@
           sender   :a-property    :fatal   (cause (cause error-value))))))
 
   (testing "multi-valued input with an error results in a single error out."
-    (with-clean-system
-      (let [[sender1 sender2 sender3 receiver] (tx-nodes
+    (ts/with-clean-system
+      (let [[sender1 sender2 sender3 receiver] (ts/tx-nodes
                                                 (g/make-nodes world
                                                               [sender1 [ConstantPropertyNode :a-property 1]
                                                                sender2 [ConstantPropertyNode :a-property 2]
@@ -456,9 +456,9 @@
   (input inner-vec-input g/Any))
 
 (deftest list-values-are-preserved
-  (with-clean-system
+  (ts/with-clean-system
     (let [list-type      (type (list 1))
-          [output input] (tx-nodes
+          [output input] (ts/tx-nodes
                           (g/make-nodes world
                                         [output ListOutput
                                          input  ListInput]
@@ -470,9 +470,9 @@
       (is (= list-type (type (first (g/node-value input :inner-list-input))))))))
 
 (deftest vec-values-are-preserved
-  (with-clean-system
+  (ts/with-clean-system
     (let [vec-type       (type (vector 1))
-          [output input] (tx-nodes
+          [output input] (ts/tx-nodes
                           (g/make-nodes world
                                         [output VecOutput
                                          input  VecInput]
@@ -488,8 +488,8 @@
   (output val g/Any (g/fnk [real-val] real-val)))
 
 (deftest values-are-not-reconstructed-on-happy-path
-  (with-clean-system
-    (let [[const input] (tx-nodes
+  (ts/with-clean-system
+    (let [[const input] (ts/tx-nodes
                          (g/make-nodes world
                                        [const  ConstantOutputNode
                                         input  ListInput]
