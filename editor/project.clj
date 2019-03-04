@@ -102,7 +102,7 @@
                       :source-maps false}
 
   :aliases           {"benchmark"     ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
-                      "lint" ["with-profile" "+test" "lint"]}
+                      "lint" ["with-profile" "+test" "eastwood"]}
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"}
@@ -146,7 +146,8 @@
                                                     ;;"-XX:+FlightRecorder"
                                                     "-XX:-OmitStackTraceInFastThrow"
                                                     "-Djdk.attach.allowAttachSelf"]}}
-  :eastwood {:continue-on-exception true
+  :eastwood {:out "eastwood-warnings.txt"
+             :continue-on-exception true
              :add-linters [:unused-fn-args
                            :unused-locals
                            :unused-namespaces
