@@ -1365,8 +1365,7 @@
 
   (output transform-properties g/Any :abstract)
   (output transform Matrix4d :cached produce-transform)
-  (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform}))
-  (output aabb AABB :cached (g/constantly geom/null-aabb)))
+  (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform})))
 
 (defmethod scene-tools/manip-movable? ::SceneNode [node-id]
   (contains? (g/node-value node-id :transform-properties) :position))
