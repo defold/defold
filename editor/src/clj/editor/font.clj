@@ -276,7 +276,7 @@
                                                         (update (:shadow entry) 3 (partial * shadow-alpha))
                                                         unpacked-layer-mask)
                   text-layout (:text-layout entry)
-                  text-tracking (* line-height ^long (:text-tracking text-layout 0))
+                  text-tracking (* line-height ^double (:text-tracking text-layout 0))
                   text-cursor-offset (if (nil? text-cursor-offset)
                                        {:x 0, :y 0}
                                        text-cursor-offset)

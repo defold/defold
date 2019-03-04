@@ -36,9 +36,7 @@
                           test-port channel))]
     (f)))
 
-(use-fixtures :once error-log-level-fixture)
-
-(use-fixtures :once test-urls-fixture)
+(use-fixtures :once error-log-level-fixture test-urls-fixture)
 
 (defn make-handler-resources [channel sha1]
   {(format "/editor2/channels/%s/update-v2.json" channel)

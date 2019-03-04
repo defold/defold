@@ -183,7 +183,7 @@
   (let [root ^Parent (ui/load-fxml "update-or-restart-alert.fxml")
         stage (ui/make-dialog-stage owner)
         scene (Scene. root)
-        result-atom (atom nil)
+        result-atom (atom :cancel)
         make-action-fn (fn action! [result]
                          (fn [_]
                            (reset! result-atom result)

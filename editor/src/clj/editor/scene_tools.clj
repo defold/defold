@@ -9,7 +9,8 @@
             [editor.gl.vertex :as vtx]
             [editor.gl.pass :as pass]
             [editor.math :as math]
-            [editor.prefs :as prefs])
+            [editor.prefs :as prefs]
+            [editor.scene-picking :as scene-picking])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Camera AABB Region Rect]
@@ -61,12 +62,6 @@
   [node-id]
   [:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz :scale-uniform])
 
-(defn- transform->translation
-  ^Vector3d [^Matrix4d transform]
-  (let [translation (Vector3d.)]
-    (.get transform translation)
-    translation))
-
 ; Render assets
 
 (vtx/defvertex pos-vtx
@@ -78,7 +73,7 @@
     (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
 
 (shader/defshader fragment-shader
-  (uniform vec4 color)
+  (uniform vec4 color) ; `color` also used in selection pass to render picking id
   (defn void main []
     (setq gl_FragColor color)))
 
@@ -143,21 +138,25 @@
     :local manip-world-rotation
     :world geom/NoRotation))
 
-(defn render-manips [^GL2 gl render-args renderables count]
+(defn render-manips [^GL2 gl render-args renderables n]
   (let [camera (:camera render-args)
         renderable (first renderables)
         world-transform (:world-transform renderable)
         user-data (:user-data renderable)
         manip (:manip user-data)
         manip-rotation (:manip-rotation user-data)
-        color (:color user-data)
+        color (if (= (:pass render-args) pass/manipulator-selection)
+                (scene-picking/picking-id->color (:picking-id renderable))
+                (:color user-data))
         vertex-buffers (:vertex-buffers user-data)]
     (when (manip-visible? manip manip-rotation (c/camera-view-matrix camera))
       (gl/gl-push-matrix gl
         (gl/gl-mult-matrix-4d gl world-transform)
         (doseq [[mode vertex-buffer vertex-count] vertex-buffers
                 :let [vertex-binding (vtx/use-with mode vertex-buffer shader)
-                      color (if (#{GL/GL_LINES GL/GL_POINTS} mode) (float-array (assoc color 3 1.0)) (float-array color))]
+                      color (if (#{GL/GL_LINES GL/GL_POINTS} mode)
+                              (float-array (assoc color 3 1.0))
+                              (float-array color))]
                 :when (> vertex-count 0)]
           (gl/with-gl-bindings gl render-args [shader vertex-binding]
             (shader/set-uniform shader gl "color" color)
@@ -386,7 +385,7 @@
   (get-in transform-tools [active-tool :manip-spaces]))
 
 (defn- manip-world-transform [reference-renderable manip-space ^double scale-factor]
-  (let [world-position (transform->translation (:world-transform reference-renderable))
+  (let [world-position (math/translation (:world-transform reference-renderable))
         world-rotation ^Matrix3d (case manip-space
                                    :local (doto (Matrix3d.) (.set ^Quat4d (:world-rotation reference-renderable)))
                                    :world geom/Identity3d)]
@@ -422,12 +421,11 @@
   (case manip
     :scale-uniform (:screen-pos action)
     (let [manip-dir (manip->normal manip manip-rotation)
-         _ (.transform lead-transform manip-dir)
-         _ (.normalize manip-dir)
-         manip-pos (Vector3d.)
-         _ (.get lead-transform manip-pos)
-         [action-pos action-dir] (action->line action)]
-     (proj-fn action-pos action-dir (Point3d. manip-pos) manip-dir))))
+          _ (.transform lead-transform manip-dir)
+          _ (.normalize manip-dir)
+          manip-pos (math/translation lead-transform)
+          [action-pos action-dir] (action->line action)]
+      (proj-fn action-pos action-dir (Point3d. manip-pos) manip-dir))))
 
 (defn- manip->project-fn [manip camera viewport]
   (case manip
@@ -489,7 +487,7 @@
 
 (defn- apply-manipulator [manip-opts evaluation-context original-values manip manip-space start-action prev-action action camera viewport]
   (let [{:keys [world-rotation world-transform]} (peek original-values)
-        manip-origin (transform->translation world-transform)
+        manip-origin (math/translation world-transform)
         manip-rotation (get-manip-rotation manip-space world-rotation)
         lead-transform (if (or (manip->screen? manip) (= manip :scale-uniform))
                          (doto (c/camera-view-matrix camera) (.invert) (.setTranslation manip-origin))
