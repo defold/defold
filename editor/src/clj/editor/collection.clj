@@ -190,7 +190,7 @@
   (output scene g/Any :cached (g/fnk [_node-id id transform scene child-scenes]
                                      (-> (scene/claim-scene scene _node-id id)
                                          (assoc :transform transform
-                                                :aabb geom/unit-bounding-box
+                                                :aabb geom/empty-bounding-box
                                                 :renderable {:passes [pass/selection]})
                                          (update :children (fn [s] (reduce conj (or s []) child-scenes))))))
   (output go-inst-ids g/Any :cached (g/fnk [_node-id id]
@@ -574,7 +574,7 @@
   (output scene g/Any :cached (g/fnk [_node-id id transform scene]
                                      (assoc (scene/claim-scene scene _node-id id)
                                             :transform transform
-                                            :aabb geom/unit-bounding-box
+                                            :aabb geom/empty-bounding-box
                                             :renderable {:passes [pass/selection]})))
   (output build-targets g/Any :cached produce-coll-inst-build-targets)
   (output sub-ddf-properties g/Any :cached (g/fnk [id ddf-properties]

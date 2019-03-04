@@ -322,9 +322,8 @@
                                     (let [offset-fn (partial mapv + (pivot-offset pivot aabb-size))
                                           [min-x min-y _] (offset-fn [0 0 0])
                                           [max-x max-y _] (offset-fn aabb-size)]
-                                      (-> geom/null-aabb
-                                        (geom/aabb-incorporate min-x min-y 0)
-                                        (geom/aabb-incorporate max-x max-y 0)))))
+                                      (geom/coords->aabb [min-x min-y 0]
+                                                         [max-x max-y 0]))))
   (output save-value g/Any (gu/passthrough pb-msg))
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets)

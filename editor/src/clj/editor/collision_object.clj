@@ -365,10 +365,9 @@
   {:node-id _node-id
    :node-outline-key node-outline-key
    :transform transform
-   :aabb (let [d (* 0.5 diameter)]
-           (-> geom/null-aabb
-               (geom/aabb-incorporate d d d)
-               (geom/aabb-incorporate (- d) (- d) (- d))))
+   :aabb (let [radius (* 0.5 diameter)]
+           (geom/coords->aabb [radius radius radius]
+                              [(- radius) (- radius) (- radius)]))
    :renderable {:render-fn (wrap-uniform-scale render-sphere)
                 :tags #{:collision-shape}
                 :user-data {:sphere-diameter diameter
@@ -384,9 +383,8 @@
      :aabb (let [ext-x (* 0.5 w)
                  ext-y (* 0.5 h)
                  ext-z (* 0.5 d)]
-             (-> geom/null-aabb
-                 (geom/aabb-incorporate ext-x ext-y ext-z)
-                 (geom/aabb-incorporate (- ext-x) (- ext-y) (- ext-z))))
+             (geom/coords->aabb [ext-x ext-y ext-z]
+                                [(- ext-x) (- ext-y) (- ext-z)]))
      :renderable {:render-fn (wrap-uniform-scale render-box)
                   :tags #{:collision-shape}
                   :user-data {:box-width w
@@ -399,11 +397,10 @@
   {:node-id _node-id
    :node-outline-key node-outline-key
    :transform transform
-   :aabb (let [r (* 0.5 diameter)
-               ext-y (+ (* 0.5 height) r)]
-           (-> geom/null-aabb
-               (geom/aabb-incorporate r ext-y r)
-               (geom/aabb-incorporate (- r) (- ext-y) (- r))))
+   :aabb (let [radius (* 0.5 diameter)
+               ext-y (+ (* 0.5 height) radius)]
+           (geom/coords->aabb [radius ext-y radius]
+                              [(- radius) (- ext-y) (- radius)]))
    :renderable {:render-fn (wrap-uniform-scale render-capsule)
                 :tags #{:collision-shape}
                 :user-data {:capsule-diameter diameter

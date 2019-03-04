@@ -493,6 +493,7 @@
                                                                               (filter :selected)
                                                                               (map :aabb))
                                                                         (vals (:renderables scene-render-data))))
+                                                       (some-> (:default-aabb scene) vector)
                                                        (into []
                                                              (comp cat
                                                                    (map :aabb))
@@ -847,8 +848,20 @@
                     (g/set-property camera-node :local-camera end-camera)))))
     (g/transact (g/set-property camera-node :local-camera end-camera))))
 
+(defn- fudge-empty-aabb [^AABB aabb]
+  (if-not (geom/empty-aabb? aabb)
+    aabb
+    (let [min-p ^Point3d (.min aabb)
+          max-p ^Point3d (.max aabb)]
+      (geom/coords->aabb [(- (.x min-p) 1.0)
+                          (- (.y min-p) 1.0)
+                          (- (.z min-p) 1.0)]
+                         [(+ (.x max-p) 1.0)
+                          (+ (.y max-p) 1.0)
+                          (+ (.z max-p) 1.0)]))))
+
 (defn frame-selection [view animate?]
-  (let [aabb (g/node-value view :selected-aabb)
+  (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))
         camera (view->camera view)
         viewport (g/node-value view :viewport)
         local-cam (g/node-value camera :local-camera)
@@ -856,7 +869,7 @@
     (set-camera! camera local-cam end-camera animate?)))
 
 (defn realign-camera [view animate?]
-  (let [aabb (g/node-value view :selected-aabb)
+  (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))
         camera (view->camera view)
         viewport (g/node-value view :viewport)
         local-cam (g/node-value camera :local-camera)

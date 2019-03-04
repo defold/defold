@@ -179,6 +179,8 @@
             (or (validation/prop-error :fatal ~'_node-id ~prop-kw validation/prop-resource-missing? ~property ~prop-name)
                 (cubemap-image-sizes-error ~'_node-id ~'cubemap-image-sizes)))))
 
+(def ^:private cubemap-aabb (geom/coords->aabb [1 1 1] [-1 -1 -1]))
+
 (g/defnode CubemapNode
   (inherits resource-node/ResourceNode)
   (inherits scene/SceneNode)
@@ -275,7 +277,7 @@
   (output transform-properties g/Any scene/produce-no-transform-properties)
   (output gpu-texture g/Any :cached produce-gpu-texture)
   (output save-value  g/Any :cached produce-save-value)
-  (output aabb        AABB  :cached (g/constantly geom/unit-bounding-box))
+  (output aabb        AABB  :cached (g/constantly cubemap-aabb))
   (output scene       g/Any :cached produce-scene))
 
 (defn load-cubemap [project self resource cubemap-message]

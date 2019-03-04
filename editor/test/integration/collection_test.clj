@@ -83,7 +83,7 @@
                ;; Verify outline labels
                (is (= (list "Collection" "go") (map :label (tree-seq :children :children outline))))
                ;; Verify AABBs
-               (is (= [geom/null-aabb geom/unit-bounding-box]
+               (is (= [geom/null-aabb geom/empty-bounding-box]
                       (map :aabb (tree-seq :children :children (g/node-value node-id :scene)))))))))
 
 (deftest unknown-components
@@ -96,7 +96,7 @@
                (is (= (list "Collection" "my_instance" "unknown")
                       (map :label (tree-seq :children :children outline))))
                ;; Verify AABBs
-               (is (= [geom/null-aabb geom/unit-bounding-box geom/unit-bounding-box]
+               (is (= [geom/null-aabb geom/empty-bounding-box geom/empty-bounding-box]
                       (map :aabb (tree-seq :children :children (g/node-value node-id :scene)))))))))
 
 (defn- prop [node-id path prop]
