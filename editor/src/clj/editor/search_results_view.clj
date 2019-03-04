@@ -74,7 +74,7 @@
                                         :let [tree-children (.getChildren (.getRoot tree-view))
                                               first-match? (.isEmpty tree-children)
                                               focus-model (.getFocusModel tree-view)
-                                              ;; focus model slows adding childrend drastically
+                                              ;; focus model slows adding children drastically
                                               ;; if there is a focused item
                                               ;; removing focus before adding and then
                                               ;; restoring it results in same behavior
