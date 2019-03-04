@@ -218,7 +218,7 @@
      (is (some? (g/node-value text-node :text-data))))))
 
 (defn- render-order [view]
-  (let [renderables (g/node-value view :renderables)]
+  (let [renderables (g/node-value view :all-renderables)]
     (->> (get renderables pass/transparent)
       (map :node-id)
       (filter #(and (some? %) (g/node-instance? gui/GuiNode %)))
