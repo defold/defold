@@ -188,7 +188,6 @@
   [_node-id aabb gpu-texture material-shader animation blend-mode]
   (cond-> {:node-id _node-id
            :aabb aabb
-           :transform geom/Identity4d
            :renderable {:passes [pass/selection]}}
     (seq (:frames animation))
     (assoc :renderable {:render-fn render-sprites
@@ -204,7 +203,6 @@
     (and (:width animation) (:height animation))
     (assoc :children [{:node-id _node-id
                        :aabb aabb
-                       :transform geom/Identity4d
                        :renderable {:render-fn render-sprite-outlines
                                     :batch-key [outline-shader]
                                     :tags #{:sprite :outline}

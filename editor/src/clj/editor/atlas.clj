@@ -113,7 +113,6 @@
         rect (get image-path->rect path)
         aabb (geom/rect->aabb rect)]
     {:node-id _node-id
-     :transform geom/Identity4d
      :aabb aabb
      :renderable {:render-fn render-image-outlines
                   :tags #{:atlas :outline}
@@ -122,7 +121,6 @@
                               :order order}
                   :passes [pass/outline]}
      :children [{:aabb aabb
-                 :transform geom/Identity4d
                  :node-id _node-id
                  :renderable {:render-fn render-image-selection
                               :tags #{:atlas}
@@ -290,7 +288,6 @@
   [_node-id id child-scenes gpu-texture updatable anim-data]
   {:node-id    _node-id
    :aabb       geom/null-aabb
-   :transform  geom/Identity4d
    :renderable {:render-fn render-animation
                 :tags #{:atlas}
                 :batch-key nil
@@ -441,14 +438,12 @@
   [_node-id aabb layout-size gpu-texture child-scenes]
   (let [[width height] layout-size]
     {:aabb aabb
-     :transform geom/Identity4d
      :renderable {:render-fn render-atlas
                   :user-data {:gpu-texture gpu-texture
                               :vbuf        (gen-renderable-vertex-buffer width height)}
                   :tags #{:atlas}
                   :passes [pass/transparent]}
      :children (into [{:aabb aabb
-                       :transform geom/Identity4d
                        :renderable {:render-fn render-atlas-outline
                                     :tags #{:atlas :outline}
                                     :passes [pass/outline]}}]

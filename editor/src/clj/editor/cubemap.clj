@@ -94,7 +94,6 @@
   (let [vertex-binding (vtx/use-with _node-id unit-sphere cubemap-shader)]
     {:node-id    _node-id
      :aabb       aabb
-     :transform  geom/Identity4d
      :renderable {:render-fn (fn [gl render-args _renderables _count]
                                (let [camera (:camera render-args)]
                                  (render-cubemap gl render-args camera gpu-texture vertex-binding)))

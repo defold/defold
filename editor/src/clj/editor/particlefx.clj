@@ -409,7 +409,6 @@
                   :passes [pass/selection pass/transparent]}
      :children (into [{:node-id _node-id
                        :node-outline-key id
-                       :transform geom/Identity4d
                        :aabb aabb
                        :renderable {:render-fn render-lines
                                     :batch-key nil
@@ -681,7 +680,6 @@
                             :batch-key nil
                             :passes [pass/transparent pass/selection]}
                :aabb geom/empty-bounding-box
-               :transform geom/Identity4d
                :children child-scenes}]
     (scene/map-scene #(assoc % :updatable scene-updatable) scene)))
 

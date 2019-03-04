@@ -564,7 +564,6 @@
   [_node-id child-scenes]
   {:node-id _node-id
    :aabb geom/null-aabb
-   :transform geom/Identity4d
    :renderable {:passes [pass/selection]}
    :children child-scenes})
 
