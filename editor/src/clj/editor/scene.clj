@@ -84,7 +84,6 @@
 
 (defn substitute-scene [error]
   {:aabb       geom/null-aabb
-   :transform  geom/Identity4d
    :renderable {:render-fn render-error
                 :user-data {:error error}
                 :batch-key ::error

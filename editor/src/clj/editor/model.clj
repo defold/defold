@@ -114,8 +114,7 @@
                                                                                                  :vertex-space-local _node-id
                                                                                                  :vertex-space-world :vertex-space-world)])))))
     {:aabb geom/empty-bounding-box
-     :renderable {:passes [pass/selection]}
-     :transform geom/Identity4d}))
+     :renderable {:passes [pass/selection]}}))
 
 (defn- vset [v i value]
   (let [c (count v)

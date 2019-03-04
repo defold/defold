@@ -320,7 +320,6 @@
   (or (validate-meshes meshes)
       {:node-id _node-id
        :aabb aabb
-       :transform geom/Identity4d
        :renderable {:render-fn render-scene
                     :tags #{:model}
                     :batch-key _node-id
@@ -332,7 +331,6 @@
                     :passes [pass/opaque pass/opaque-selection]}
        :children [{:node-id _node-id
                    :aabb aabb
-                   :transform geom/Identity4d
                    :renderable {:render-fn render-outline
                                 :tags #{:model :outline}
                                 :batch-key _node-id

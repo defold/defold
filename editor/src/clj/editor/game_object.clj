@@ -360,7 +360,6 @@
 (g/defnk produce-scene [_node-id child-scenes]
   {:node-id _node-id
    :aabb geom/null-aabb
-   :transform geom/Identity4d
    :children child-scenes})
 
 (defn- attach-component [self-id comp-id ddf-input resolve-id?]

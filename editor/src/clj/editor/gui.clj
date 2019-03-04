@@ -1930,10 +1930,9 @@
   (output node-outline outline/OutlineData :cached
           (gen-outline-fnk "Nodes" nil 0 true (mapv (fn [[nt kw]] {:node-type nt :tx-attach-fn (gen-gui-node-attach-fn kw)}) node-type->kw)))
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
-                                     {:node-id _node-id
-                                      :aabb geom/null-aabb
-                                      :transform geom/Identity4d
-                                      :children child-scenes}))
+                                {:node-id _node-id
+                                 :aabb geom/null-aabb
+                                 :children child-scenes}))
   (input ids g/Str :array)
   (output id-counts NameCounts :cached (g/fnk [ids] (frequencies ids)))
   (input node-msgs g/Any :array)
@@ -2087,7 +2086,6 @@
         scene {:node-id _node-id
                :aabb geom/null-aabb
                :default-aabb (geom/coords->aabb [0 0 0] [w h 0])
-               :transform geom/Identity4d
                :renderable {:render-fn render-lines
                             :tags #{:gui :gui-bounds}
                             :passes [pass/transparent]
