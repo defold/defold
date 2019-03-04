@@ -1,15 +1,18 @@
 (ns dev
-  (:require [dynamo.graph :as g]
+  (:require [clj-async-profiler.core :as prof]
+            [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
             [editor.changes-view :as changes-view]
             [editor.console :as console]
             [editor.outline-view :as outline-view]
             [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
+            [editor.ui :as ui]
             [internal.graph :as ig]
             [internal.util :as util])
   (:import [clojure.lang MapEntry]
            [com.sun.javafx.stage StageHelper]
+           [java.io File]
            [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
@@ -226,3 +229,70 @@
            (for [[node-id labels] label-seqs-by-node-id
                  label labels]
              (direct-successor-types basis node-id label)))))
+
+;; -----------------------------------------------------------------------------
+;; Helpers for clj-async-profiler
+;; -----------------------------------------------------------------------------
+
+(defn profile-event-types
+  "Print all event types that can be sampled by the profiler. Available options:
+
+  :pid - process to attach to (default: current process)"
+  ([] (prof/list-event-types))
+  ([options] (prof/list-event-types options)))
+
+(defn profile-start
+  "Start the profiler. Available options:
+
+  :pid - process to attach to (default: current process)
+  :interval - sampling interval in nanoseconds (default: 1000000 - 1ms)
+  :threads - profile each thread separately
+  :event - event to profile, see `profile-event-types` (default: :cpu)"
+  ([] (profile-start {}))
+  ([options] (print (prof/start options))))
+
+(defn profile-stop
+  "Stop the currently running profiler and and open the resulting flamegraph in
+  the system-configured browser. Available options:
+
+  :pid - process to attach to (default: current process)
+  :min-width - minimum width in pixels for a frame to be shown on a flamegraph.
+               Use this if the resulting flamegraph is too big and hangs your
+               browser (default: nil, recommended: 1-5)
+  :reverse? - if true, generate the reverse flamegraph which grows from callees
+              up to callers (default: false)
+  :icicle? - if true, invert the flamegraph upside down (default: false for
+             regular flamegraph, true for reverse)"
+  ([] (profile-stop {}))
+  ([options]
+   (let [augmented-options (assoc options :generate-flamegraph? true)
+         ^File flamegraph-svg-file (prof/stop augmented-options)]
+     (println "Stopped profiling")
+     (ui/open-url (.toURI flamegraph-svg-file))
+     nil)))
+
+(defn profile-for
+  "Run the profiler for the specified duration. Open the resulting flamegraph in
+  the system-configured browser. For available options, see `profile-start` and
+  `profile-stop`."
+  ([duration-in-seconds]
+   (profile-for duration-in-seconds {}))
+  ([duration-in-seconds options]
+   (profile-start options)
+   (Thread/sleep (* duration-in-seconds 1000))
+   (profile-stop options)))
+
+(defmacro profile
+  "Profile the execution of `body`. If the first argument is a map, treat it as
+  options. For available options, see `profile-start` and `profile-stop`. `:pid`
+  option is ignored, current process is always profiled."
+  [options? & body]
+  (let [[options body] (if (map? options?)
+                         [(dissoc options? :pid) body]
+                         [{} (cons options? body)])]
+    `(let [options# ~options]
+       (profile-start options#)
+       (try
+         ~@body
+         (finally
+           (profile-stop options#))))))
