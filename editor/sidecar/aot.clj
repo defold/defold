@@ -8,7 +8,8 @@
             [clojure.walk :as walk]))
 
 (def excluded-sources-by-build-type
-  {"release" ["src/clj/dev.clj"]})
+  {"release" ["src/clj/dev.clj"
+              "src/clj/prof.clj"]})
 
 (defn all-sources-tracker
   [build-type srcdirs]
