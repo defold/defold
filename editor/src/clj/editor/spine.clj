@@ -16,6 +16,7 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
+            [editor.scene-picking :as scene-picking]
             [editor.render :as render]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -507,26 +508,6 @@
                                       dep-build-targets
                                       [:texture-set])))
 
-(defn- connect-atlas [project node-id atlas]
-  (if-let [atlas-node (project/get-resource-node project atlas)]
-    (let [outputs (-> atlas-node g/node-type* g/output-labels)]
-      (if (every? #(contains? outputs %) [:anim-data :gpu-texture :build-targets])
-        [(g/connect atlas-node :anim-data     node-id :anim-data)
-         (g/connect atlas-node :gpu-texture   node-id :gpu-texture)
-         (g/connect atlas-node :build-targets node-id :dep-build-targets)]
-        []))
-    []))
-
-(defn reconnect [transaction graph self label kind labels]
-  (when (some #{:atlas} labels)
-    (let [atlas (g/node-value self :atlas)
-          project (project/get-project self)]
-      (concat
-        (gu/disconnect-all self :anim-data)
-        (gu/disconnect-all self :gpu-texture)
-        (gu/disconnect-all self :dep-build-targets)
-        (connect-atlas project self atlas)))))
-
 (defn- read-bones
   [spine-scene]
   (mapv (fn [b]
@@ -743,8 +724,8 @@
                              skin-color (:slot-color mesh)
                              mesh-color (:mesh-color mesh)
                              final-color (mapv * skin-color tint-color mesh-color)
-                             alpha (nth final-color 3)
-                             final-color (assoc (mapv #(* % alpha) final-color) 1 alpha)]
+                             alpha (final-color 3)
+                             final-color (assoc (mapv (partial * alpha) final-color) 3 alpha)]
                          (assoc mesh :color final-color)))))
           (:mesh-slots skin))))
 
@@ -763,11 +744,9 @@
 (def color [1.0 1.0 1.0 1.0])
 
 (defn- skeleton-vs [parent-pos bone vs ^Matrix4d wt]
-  (let [pos (Vector3d.)
-        t (doto (Matrix4d.)
+  (let [t (doto (Matrix4d.)
             (.mul wt ^Matrix4d (:transform bone)))
-        _ (.get ^Matrix4d t pos)
-        pos [(.x pos) (.y pos) (.z pos)]
+        pos (math/vecmath->clj (math/translation t))
         vs (if parent-pos
              (conj vs (into parent-pos color) (into pos color))
              vs)]
@@ -784,6 +763,26 @@
     (when (> vcount 0)
       (let [vb (render/->vtx-pos-col vcount)]
         (persistent! (reduce conj! vb vs))))))
+
+(shader/defshader spine-id-vertex-shader
+  (attribute vec4 position)
+  (attribute vec2 texcoord0)
+  (varying vec2 var_texcoord0)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq var_texcoord0 texcoord0)))
+
+(shader/defshader spine-id-fragment-shader
+  (varying vec2 var_texcoord0)
+  (uniform sampler2D texture_sampler)
+  (uniform vec4 id)
+  (defn void main []
+    (setq vec4 color (texture2D texture_sampler var_texcoord0.xy))
+    (if (> color.a 0.05)
+      (setq gl_FragColor id)
+      (discard))))
+
+(def spine-id-shader (shader/make-shader ::id-shader spine-id-vertex-shader spine-id-fragment-shader {"id" :id}))
 
 (defn- render-spine-scenes [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)]
@@ -802,8 +801,9 @@
 
       pass/selection
       (when-let [vb (gen-vb renderables)]
-        (let [vertex-binding (vtx/use-with ::spine-selection vb render/shader-tex-tint)]
-          (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
+        (let [gpu-texture (:gpu-texture (:user-data (first renderables)))
+              vertex-binding (vtx/use-with ::spine-selection vb spine-id-shader)]
+          (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [gpu-texture spine-id-shader vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
 
 (defn- render-spine-skeletons [^GL2 gl render-args renderables rcount]

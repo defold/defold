@@ -9,6 +9,41 @@
 
 namespace dmScript
 {
+
+///////////////////////////////////////////////////////////////
+// NOTE: Helper functions to get more logging on issue DEF-3714
+#define PUSH_TABLE_LOGGER_CAPACITY 128
+#define PUSH_TABLE_LOGGER_STR_SIZE PUSH_TABLE_LOGGER_CAPACITY+1
+
+    struct PushTableLogger
+    {
+        char m_Log[PUSH_TABLE_LOGGER_STR_SIZE]; // +1 for \0
+        const char* m_BufferStart;
+        size_t m_BufferSize;
+        uint32_t m_Size;
+        uint32_t m_Cursor;
+        PushTableLogger() {
+            memset(m_Log, 0x0, sizeof(m_Log));
+            m_BufferStart = 0;
+            m_BufferSize = 0;
+            m_Size = 0;
+            m_Cursor = 0;
+        };
+    };
+
+#ifdef __GNUC__
+    void PushTableLogFormat(PushTableLogger& logger, const char *format, ...)
+    __attribute__ ((format (printf, 2, 3)));
+#else
+    void PushTableLogFormat(PushTableLogger& logger, const char *format, ...);
+#endif
+
+    void PushTableLogString(PushTableLogger& logger, const char* s);
+    void PushTableLogChar(PushTableLogger& logger, char c);
+    void PushTableLogPrint(PushTableLogger& logger, char out[PUSH_TABLE_LOGGER_STR_SIZE]);
+// End DEF-3714 helper functions.
+///////////////////////////////////////////////////////////////
+
     struct Module
     {
         char*       m_Script;

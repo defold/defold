@@ -1,205 +1,380 @@
 (ns editor.keymap
-  (:require
-   [editor.ui :as ui]
-   [editor.util :as util])
-  (:import
-   (com.defold.editor Platform)
-   (javafx.scene Scene)
-   (javafx.scene.input KeyEvent KeyCombination KeyCombination$ModifierValue)))
+  (:require [editor.ui :as ui]
+            [editor.util :as util])
+  (:import [javafx.scene Scene]
+           [javafx.scene.input KeyCharacterCombination KeyCodeCombination KeyCombination KeyCombination$ModifierValue KeyEvent]))
 
 (set! *warn-on-reflection* true)
 
-(def platform-shortcut-keys
-  {:darwin :meta-down?
-   :win32  :control-down?
-   :linux  :control-down?})
-
-(def host-platform-shortcut-key (platform-shortcut-keys (util/os)))
-
-(def default-key-bindings
+(def platform->default-key-bindings
   ;; We should generally avoid adding shortcuts that can also be
   ;; interpreted as typable text. This includes "A", "Shift+E" but
-  ;; also combinations like Alt+Shortcut+2 because on windows Shortcut means
-  ;; Ctrl, and Alt+Ctrl is an alternative way to enter AltGR and
-  ;; AltGR+2 is @ on some layouts - something you may want to type in
-  ;; the code editor :)
+  ;; also combinations like Alt+Ctrl+2 because on windows Alt+Ctrl is
+  ;; an alternative way to enter AltGR and AltGR+2 is @ on some layouts -
+  ;; something you may want to type in the code editor.
   ;; The function key-binding-data->keymap attempts to catch this type
   ;; of mistake.
-  ;; Note that specifying both Ctrl+Shortcut will map the modifier to just
-  ;; Ctrl on platforms where Shortcut means Ctrl.
-  [["A"                     :add]
-   ["Alt+Backspace"         :delete-prev-word]
-   ["Alt+Delete"            :delete-next-word]
-   ["Alt+Down"              :end-of-line]
-   ["Alt+Down"              :move-down]
-   ["Alt+Left"              :prev-word]
-   ["Alt+Right"             :next-word]
-   ["Shortcut+'-'"          :zoom-out]
-   ;; disabled because of above
-   #_["Alt+Shortcut+1"        :show-console]
-   #_["Alt+Shortcut+2"        :show-curve-editor]
-   #_["Alt+Shortcut+3"        :show-build-errors]
-   #_["Alt+Shortcut+4"        :show-search-results]
-   #_["Alt+Shortcut+X"        :profile]
-   ["Alt+Up"                :beginning-of-line]
-   ["Alt+Up"                :move-up]
-   ["Backspace"             :delete-backward]
-   ["Ctrl+A"                :beginning-of-line]
-   ["Ctrl+D"                :delete-line]
-   ["Ctrl+E"                :end-of-line]
-   ["Ctrl+K"                :cut-to-end-of-line]
-   ["Ctrl+Left"             :prev-word]
-   ["Ctrl+Right"            :next-word]
-   ["Ctrl+Shortcut+H"       :toggle-component-guides] ; Mirrors the View > Extras shortcut in Photoshop. Maps to Ctrl+H on non-Mac platforms.
-   ["Ctrl+Space"            :proposals]
-   ["Delete"                :delete]
-   ["Down"                  :down]
-   ["E"                     :rotate-tool]
-   ["End"                   :end-of-line]
-   ["Enter"                 :enter]
-   ["Esc"                   :escape]
-   ["F"                     :frame-selection]
-   ["F1"                    :documentation]
-   ["F10"                   :step-over]
-   ["F11"                   :step-into]
-   ["Shift+F11"             :step-out]
-   ["F2"                    :rename]
-   ["F5"                    :start-debugger]
-   ["F6"                    :continue]
-   ["F7"                    :break]
-   ["Shift+F5"              :stop-debugger]
-   ["Ctrl+R"                :reload-stylesheet]
-   ["F9"                    :toggle-breakpoint]
-   ["Home"                  :beginning-of-line-text]
-   ["Left"                  :left]
-   ["Page Down"             :page-down]
-   ["Page Up"               :page-up]
-   ["Period"                :realign-camera]
-   ["R"                     :scale-tool]
-   ["Right"                 :right]
-   ["Shift+A"               :add-secondary]
-   ["Shift+Alt+Down"        :select-end-of-line]
-   ["Shift+Alt+Left"        :select-prev-word]
-   ["Shift+Alt+Right"       :select-next-word]
-   ["Shift+Alt+Up"          :select-beginning-of-line]
-   #_["Shift+Alt+Shortcut+X"  :profile-show]
-   ["Shift+Ctrl+A"          :select-beginning-of-line]
-   ["Shift+Ctrl+E"          :select-end-of-line]
-   ["Shift+Ctrl+Left"       :select-prev-word]
-   ["Shift+Ctrl+Right"      :select-next-word]
-   ["Shift+Down"            :down-major]
-   ["Shift+Down"            :select-down]
-   ["Shift+E"               :erase-tool]
-   ["Shift+End"             :select-end-of-line]
-   ["Shift+Home"            :select-beginning-of-line-text]
-   ["Shift+Left"            :left-major]
-   ["Shift+Left"            :select-left]
-   ["Shift+Page Down"       :select-page-down]
-   ["Shift+Page Up"         :select-page-up]
-   ["Shift+Right"           :right-major]
-   ["Shift+Right"           :select-right]
-   ["Shift+Shortcut+B"      :rebuild]
-   ["Shift+Shortcut+Delete" :delete-to-end-of-line]
-   ["Shift+Shortcut+Down"   :select-end-of-file]
-   ["Shift+Shortcut+End"    :select-end-of-file]
-   ["Shift+Shortcut+E"      :replace-next]
-   ["Shift+Shortcut+E"      :show-last-hidden]
-   ["Shift+Shortcut+F"      :search-in-files]
-   ["Shift+Shortcut+G"      :find-prev]
-   ["Shift+Shortcut+I"      :toggle-visibility-filters]
-   ["Shift+Shortcut+Home"   :select-beginning-of-file]
-   ["Shift+Shortcut+L"      :split-selection-into-lines]
-   ["Shift+Shortcut+Left"   :select-beginning-of-line-text]
-   ["Shift+Shortcut+R"      :open-asset]
-   ["Shift+Shortcut+Right"  :select-end-of-line]
-   ["Shift+Shortcut+Up"     :select-beginning-of-file]
-   ["Shift+Shortcut+W"      :close-all]
-   ["Shift+Shortcut+Z"      :redo]
-   ["Shift+Tab"             :backwards-tab-trigger]
-   ["Shift+Up"              :up-major]
-   ["Shift+Up"              :select-up]
-   ["Shortcut+'+'"          :zoom-in]
-   ["Shortcut+A"            :select-all]
-   ["Shortcut+B"            :build]
-   ["Shortcut+C"            :copy]
-   ["Shortcut+Comma"        :preferences]
-   ["Shortcut+D"            :select-next-occurrence]
-   ["Shortcut+Delete"       :delete-to-beginning-of-line]
-   ["Shortcut+Down"         :end-of-file]
-   ["Shortcut+E"            :replace-text]
-   ["Shortcut+E"            :hide-selected]
-   ["Shortcut+End"          :end-of-file]
-   ["Shortcut+F"            :find-text]
-   ["Shortcut+G"            :find-next]
-   #_["Shortcut+H"            :toggle-component-guides] ; This is actually taken on non-Mac platforms due to "Ctrl+Shortcut+H" above, and on Mac by the system-wide Hide Application shortcut.
-   ["Shortcut+Home"         :beginning-of-file]
-   ["Shortcut+I"            :reindent]
-   ["Shortcut+L"            :goto-line]
-   ["Shortcut+Left"         :beginning-of-line-text]
-   ["Shortcut+N"            :new-file]
-   ["Shortcut+O"            :open]
-   ["Shortcut+P"            :open-asset]
-   ["Shortcut+Q"            :quit]
-   ["Shortcut+R"            :hot-reload]
-   ["Shortcut+Right"        :end-of-line]
-   ["Shortcut+S"            :save-all]
-   ["Shortcut+Slash"        :toggle-comment]
-   ["Shortcut+T"            :scene-stop]
-   ["Shortcut+U"            :synchronize]
-   ["Shortcut+Up"           :beginning-of-file]
-   ["Shortcut+V"            :paste]
-   ["Shortcut+W"            :close]
-   ["Shortcut+X"            :cut]
-   ["Shortcut+Z"            :undo]
-   ["Space"                 :scene-play]
-   ["Space"                 :show-palette]
-   ["Tab"                   :tab]
-   ["Up"                    :up]
-   ["W"                     :move-tool]])
+  ;; Note that specifying Shortcut key (which is Meta on mac and Ctrl on windows
+  ;; and linux) is not allowed.
+  {:darwin [["A" :add]
+            ["Alt+Backspace" :delete-prev-word]
+            ["Alt+Delete" :delete-next-word]
+            ["Alt+Down" :end-of-line]
+            ["Alt+Down" :move-down]
+            ["Alt+Left" :prev-word]
+            ["Alt+Meta+E" :select-next-occurrence]
+            ["Alt+Meta+F" :replace-text]
+            ["Alt+Meta+G" :replace-next]
+            ["Alt+Right" :next-word]
+            ["Alt+Up" :beginning-of-line]
+            ["Alt+Up" :move-up]
+            ["Backspace" :delete-backward]
+            ["Ctrl+A" :beginning-of-line]
+            ["Ctrl+D" :delete-line]
+            ["Ctrl+E" :end-of-line]
+            ["Ctrl+I" :reindent]
+            ["Ctrl+K" :delete-to-end-of-line]
+            ["Ctrl+Meta+H" :toggle-component-guides]
+            ["Ctrl+R" :reload-stylesheet]
+            ["Ctrl+Space" :proposals]
+            ["Delete" :delete]
+            ["Down" :down]
+            ["E" :rotate-tool]
+            ["End" :end-of-line]
+            ["Enter" :enter]
+            ["Esc" :escape]
+            ["F" :frame-selection]
+            ["F1" :documentation]
+            ["F10" :step-over]
+            ["F11" :step-into]
+            ["F2" :rename]
+            ["F5" :start-debugger]
+            ["F6" :continue]
+            ["F7" :break]
+            ["F9" :toggle-breakpoint]
+            ["Home" :beginning-of-line-text]
+            ["Left" :left]
+            ["Meta+'+'" :zoom-in]
+            ["Meta+'-'" :zoom-out]
+            ["Meta+A" :select-all]
+            ["Meta+B" :build]
+            ["Meta+C" :copy]
+            ["Meta+Comma" :preferences]
+            ["Meta+D" :select-next-occurrence]
+            ["Meta+Delete" :delete-to-end-of-line]
+            ["Meta+Down" :end-of-file]
+            ["Meta+E" :hide-selected]
+            ["Meta+F" :find-text]
+            ["Meta+G" :find-next]
+            ["Meta+L" :goto-line]
+            ["Meta+Left" :beginning-of-line-text]
+            ["Meta+N" :new-file]
+            ["Meta+O" :open]
+            ["Meta+P" :open-asset]
+            ["Meta+Q" :quit]
+            ["Meta+R" :hot-reload]
+            ["Meta+Right" :end-of-line]
+            ["Meta+S" :save-all]
+            ["Meta+Slash" :toggle-comment]
+            ["Meta+T" :scene-stop]
+            ["Meta+U" :rebundle]
+            ["Meta+Up" :beginning-of-file]
+            ["Meta+V" :paste]
+            ["Meta+W" :close]
+            ["Meta+X" :cut]
+            ["Meta+Z" :undo]
+            ["Page Down" :page-down]
+            ["Page Up" :page-up]
+            ["Period" :realign-camera]
+            ["R" :scale-tool]
+            ["Right" :right]
+            ["Shift+A" :add-secondary]
+            ["Shift+Alt+Down" :select-end-of-line]
+            ["Shift+Alt+Left" :select-prev-word]
+            ["Shift+Alt+Right" :select-next-word]
+            ["Shift+Alt+Up" :select-beginning-of-line]
+            ["Shift+Ctrl+A" :select-beginning-of-line]
+            ["Shift+Ctrl+E" :select-end-of-line]
+            ["Shift+Ctrl+Left" :select-prev-word]
+            ["Shift+Ctrl+Right" :select-next-word]
+            ["Shift+Down" :down-major]
+            ["Shift+Down" :select-down]
+            ["Shift+E" :erase-tool]
+            ["Shift+End" :select-end-of-line]
+            ["Shift+F11" :step-out]
+            ["Shift+F5" :stop-debugger]
+            ["Shift+Home" :select-beginning-of-line-text]
+            ["Shift+Left" :left-major]
+            ["Shift+Left" :select-left]
+            ["Shift+Meta+B" :rebuild]
+            ["Shift+Meta+Delete" :delete-to-end-of-line]
+            ["Shift+Meta+Down" :select-end-of-file]
+            ["Shift+Meta+E" :show-last-hidden]
+            ["Shift+Meta+F" :search-in-files]
+            ["Shift+Meta+G" :find-prev]
+            ["Shift+Meta+I" :toggle-visibility-filters]
+            ["Shift+Meta+L" :split-selection-into-lines]
+            ["Shift+Meta+Left" :select-beginning-of-line-text]
+            ["Shift+Meta+R" :open-asset]
+            ["Shift+Meta+Right" :select-end-of-line]
+            ["Shift+Meta+Up" :select-beginning-of-file]
+            ["Shift+Meta+W" :close-all]
+            ["Shift+Meta+Z" :redo]
+            ["Shift+Page Down" :select-page-down]
+            ["Shift+Page Up" :select-page-up]
+            ["Shift+Right" :right-major]
+            ["Shift+Right" :select-right]
+            ["Shift+Tab" :backwards-tab-trigger]
+            ["Shift+Up" :select-up]
+            ["Shift+Up" :up-major]
+            ["Space" :scene-play]
+            ["Space" :show-palette]
+            ["Tab" :tab]
+            ["Up" :up]
+            ["W" :move-tool]]
+   :win32 [["A" :add]
+           ["Alt+Down" :move-down]
+           ["Alt+Up" :move-up]
+           ["Backspace" :delete-backward]
+           ["Ctrl+'+'" :zoom-in]
+           ["Ctrl+'-'" :zoom-out]
+           ["Ctrl+A" :select-all]
+           ["Ctrl+B" :build]
+           ["Ctrl+Backspace" :delete-prev-word]
+           ["Ctrl+C" :copy]
+           ["Ctrl+Comma" :preferences]
+           ["Ctrl+D" :select-next-occurrence]
+           ["Ctrl+Delete" :delete-next-word]
+           ["Ctrl+E" :hide-selected]
+           ["Ctrl+End" :end-of-file]
+           ["Ctrl+F" :find-text]
+           ["Ctrl+G" :find-next]
+           ["Ctrl+H" :replace-text]
+           ["Ctrl+H" :toggle-component-guides]
+           ["Ctrl+Home" :beginning-of-file]
+           ["Ctrl+I" :reindent]
+           ["Ctrl+K" :delete-to-end-of-line]
+           ["Ctrl+L" :goto-line]
+           ["Ctrl+Left" :prev-word]
+           ["Ctrl+N" :new-file]
+           ["Ctrl+O" :open]
+           ["Ctrl+P" :open-asset]
+           ["Ctrl+Q" :quit]
+           ["Ctrl+R" :hot-reload]
+           ["Ctrl+Right" :next-word]
+           ["Ctrl+S" :save-all]
+           ["Ctrl+Slash" :toggle-comment]
+           ["Ctrl+Space" :proposals]
+           ["Ctrl+T" :scene-stop]
+           ["Ctrl+U" :rebundle]
+           ["Ctrl+V" :paste]
+           ["Ctrl+W" :close]
+           ["Ctrl+X" :cut]
+           ["Ctrl+Z" :undo]
+           ["Delete" :delete]
+           ["Down" :down]
+           ["E" :rotate-tool]
+           ["End" :end-of-line]
+           ["Enter" :enter]
+           ["Esc" :escape]
+           ["F" :frame-selection]
+           ["F1" :documentation]
+           ["F10" :step-over]
+           ["F11" :step-into]
+           ["F2" :rename]
+           ["F5" :start-debugger]
+           ["F6" :continue]
+           ["F7" :break]
+           ["F9" :toggle-breakpoint]
+           ["Home" :beginning-of-line-text]
+           ["Left" :left]
+           ["Page Down" :page-down]
+           ["Page Up" :page-up]
+           ["Period" :realign-camera]
+           ["R" :scale-tool]
+           ["Right" :right]
+           ["Shift+A" :add-secondary]
+           ["Shift+Ctrl+B" :rebuild]
+           ["Shift+Ctrl+Delete" :delete-to-end-of-line]
+           ["Shift+Ctrl+E" :show-last-hidden]
+           ["Shift+Ctrl+End" :select-end-of-file]
+           ["Shift+Ctrl+F" :search-in-files]
+           ["Shift+Ctrl+G" :find-prev]
+           ["Shift+Ctrl+H" :replace-next]
+           ["Shift+Ctrl+Home" :select-beginning-of-file]
+           ["Shift+Ctrl+I" :toggle-visibility-filters]
+           ["Shift+Ctrl+L" :split-selection-into-lines]
+           ["Shift+Ctrl+Left" :select-prev-word]
+           ["Shift+Ctrl+R" :open-asset]
+           ["Shift+Ctrl+Right" :select-next-word]
+           ["Shift+Ctrl+W" :close-all]
+           ["Shift+Ctrl+Z" :redo]
+           ["Shift+Down" :down-major]
+           ["Shift+Down" :select-down]
+           ["Shift+E" :erase-tool]
+           ["Shift+End" :select-end-of-line]
+           ["Shift+F11" :step-out]
+           ["Shift+F5" :stop-debugger]
+           ["Shift+Home" :select-beginning-of-line-text]
+           ["Shift+Left" :left-major]
+           ["Shift+Left" :select-left]
+           ["Shift+Page Down" :select-page-down]
+           ["Shift+Page Up" :select-page-up]
+           ["Shift+Right" :right-major]
+           ["Shift+Right" :select-right]
+           ["Shift+Tab" :backwards-tab-trigger]
+           ["Shift+Up" :select-up]
+           ["Shift+Up" :up-major]
+           ["Space" :scene-play]
+           ["Space" :show-palette]
+           ["Tab" :tab]
+           ["Up" :up]
+           ["W" :move-tool]]
+   :linux [["A" :add]
+           ["Alt+Down" :move-down]
+           ["Alt+Up" :move-up]
+           ["Backspace" :delete-backward]
+           ["Ctrl+'+'" :zoom-in]
+           ["Ctrl+'-'" :zoom-out]
+           ["Ctrl+A" :select-all]
+           ["Ctrl+B" :build]
+           ["Ctrl+Backspace" :delete-prev-word]
+           ["Ctrl+C" :copy]
+           ["Ctrl+Comma" :preferences]
+           ["Ctrl+D" :select-next-occurrence]
+           ["Ctrl+Delete" :delete-next-word]
+           ["Ctrl+E" :hide-selected]
+           ["Ctrl+End" :end-of-file]
+           ["Ctrl+F" :find-text]
+           ["Ctrl+G" :find-next]
+           ["Ctrl+H" :replace-text]
+           ["Ctrl+H" :toggle-component-guides]
+           ["Ctrl+Home" :beginning-of-file]
+           ["Ctrl+I" :reindent]
+           ["Ctrl+K" :delete-to-end-of-line]
+           ["Ctrl+L" :goto-line]
+           ["Ctrl+Left" :prev-word]
+           ["Ctrl+N" :new-file]
+           ["Ctrl+O" :open]
+           ["Ctrl+P" :open-asset]
+           ["Ctrl+Q" :quit]
+           ["Ctrl+R" :hot-reload]
+           ["Ctrl+Right" :next-word]
+           ["Ctrl+S" :save-all]
+           ["Ctrl+Slash" :toggle-comment]
+           ["Ctrl+Space" :proposals]
+           ["Ctrl+T" :scene-stop]
+           ["Ctrl+U" :rebundle]
+           ["Ctrl+V" :paste]
+           ["Ctrl+W" :close]
+           ["Ctrl+X" :cut]
+           ["Ctrl+Z" :undo]
+           ["Delete" :delete]
+           ["Down" :down]
+           ["E" :rotate-tool]
+           ["End" :end-of-line]
+           ["Enter" :enter]
+           ["Esc" :escape]
+           ["F" :frame-selection]
+           ["F1" :documentation]
+           ["F10" :step-over]
+           ["F11" :step-into]
+           ["F2" :rename]
+           ["F5" :start-debugger]
+           ["F6" :continue]
+           ["F7" :break]
+           ["F9" :toggle-breakpoint]
+           ["Home" :beginning-of-line-text]
+           ["Left" :left]
+           ["Page Down" :page-down]
+           ["Page Up" :page-up]
+           ["Period" :realign-camera]
+           ["R" :scale-tool]
+           ["Right" :right]
+           ["Shift+A" :add-secondary]
+           ["Shift+Ctrl+B" :rebuild]
+           ["Shift+Ctrl+Delete" :delete-to-end-of-line]
+           ["Shift+Ctrl+E" :show-last-hidden]
+           ["Shift+Ctrl+End" :select-end-of-file]
+           ["Shift+Ctrl+F" :search-in-files]
+           ["Shift+Ctrl+G" :find-prev]
+           ["Shift+Ctrl+H" :replace-next]
+           ["Shift+Ctrl+Home" :select-beginning-of-file]
+           ["Shift+Ctrl+I" :toggle-visibility-filters]
+           ["Shift+Ctrl+L" :split-selection-into-lines]
+           ["Shift+Ctrl+Left" :select-prev-word]
+           ["Shift+Ctrl+R" :open-asset]
+           ["Shift+Ctrl+Right" :select-next-word]
+           ["Shift+Ctrl+W" :close-all]
+           ["Shift+Ctrl+Z" :redo]
+           ["Shift+Down" :down-major]
+           ["Shift+Down" :select-down]
+           ["Shift+E" :erase-tool]
+           ["Shift+End" :select-end-of-line]
+           ["Shift+F11" :step-out]
+           ["Shift+F5" :stop-debugger]
+           ["Shift+Home" :select-beginning-of-line-text]
+           ["Shift+Left" :left-major]
+           ["Shift+Left" :select-left]
+           ["Shift+Page Down" :select-page-down]
+           ["Shift+Page Up" :select-page-up]
+           ["Shift+Right" :right-major]
+           ["Shift+Right" :select-right]
+           ["Shift+Tab" :backwards-tab-trigger]
+           ["Shift+Up" :select-up]
+           ["Shift+Up" :up-major]
+           ["Space" :scene-play]
+           ["Space" :show-palette]
+           ["Tab" :tab]
+           ["Up" :up]
+           ["W" :move-tool]]})
 
-(def ^:private default-allowed-duplicate-shortcuts #{"Alt+Down"
-                                                     "Alt+Up"
-                                                     "Shift+Down"
-                                                     "Shift+Left"
-                                                     "Shift+Right"
-                                                     "Shift+Up"
-                                                     "Shortcut+E"
-                                                     "Shift+Shortcut+E"
-                                                     "Space"
-                                                     "F5"})
+(def default-host-key-bindings
+  (platform->default-key-bindings (util/os)))
+
+(def ^:private default-allowed-duplicate-shortcuts
+  #{"Alt+Down"
+    "Alt+Up"
+    "Shift+Down"
+    "Shift+Left"
+    "Shift+Right"
+    "Shift+Up"
+    "Ctrl+H"
+    "Space"
+    "F5"})
 
 ;; These are only (?) used in contexts where there is no text field
 ;; interested in the actual typable input.
-(def ^:private default-allowed-typable-shortcuts #{"A"       ; :add
-                                                   "E"       ; :rotate-tool
-                                                   "F"       ; :frame-selection
-                                                   "R"       ; :scale-tool
-                                                   "W"       ; :move-tool
-                                                   "Shift+A" ; :add-secondary
-                                                   "Shift+E" ; :erase-tool
-                                                   })
+(def ^:private default-allowed-typable-shortcuts
+  #{"A"         ; :add
+    "E"         ; :rotate-tool
+    "F"         ; :frame-selection
+    "R"         ; :scale-tool
+    "W"         ; :move-tool
+    "Shift+A"   ; :add-secondary
+    "Shift+E"}) ; :erase-tool
 
 (defprotocol KeyComboData
-  (key-combo->map* [this] "returns a data representation of a KeyCombination."))
+  (key-combo->map [this] "returns a data representation of a KeyCombination."))
 
 (extend-protocol KeyComboData
-  javafx.scene.input.KeyCodeCombination
-  (key-combo->map* [key-combo]
-    {:key            (.. key-combo getCode getName)
-     :alt-down?      (= KeyCombination$ModifierValue/DOWN (.getAlt key-combo))
-     :control-down?  (= KeyCombination$ModifierValue/DOWN (.getControl key-combo))
-     :meta-down?     (= KeyCombination$ModifierValue/DOWN (.getMeta key-combo))
-     :shift-down?    (= KeyCombination$ModifierValue/DOWN (.getShift key-combo))
+  KeyCodeCombination
+  (key-combo->map [key-combo]
+    {:key (.getName (.getCode key-combo))
+     :alt-down? (= KeyCombination$ModifierValue/DOWN (.getAlt key-combo))
+     :control-down? (= KeyCombination$ModifierValue/DOWN (.getControl key-combo))
+     :meta-down? (= KeyCombination$ModifierValue/DOWN (.getMeta key-combo))
+     :shift-down? (= KeyCombination$ModifierValue/DOWN (.getShift key-combo))
      :shortcut-down? (= KeyCombination$ModifierValue/DOWN (.getShortcut key-combo))})
 
-  javafx.scene.input.KeyCharacterCombination
-  (key-combo->map* [key-combo]
-    {:key            (.getCharacter key-combo)
-     :alt-down?      (= KeyCombination$ModifierValue/DOWN (.getAlt key-combo))
-     :control-down?  (= KeyCombination$ModifierValue/DOWN (.getControl key-combo))
-     :meta-down?     (= KeyCombination$ModifierValue/DOWN (.getMeta key-combo))
-     :shift-down?    (= KeyCombination$ModifierValue/DOWN (.getShift key-combo))
-     :shortcut-down? (= KeyCombination$ModifierValue/DOWN (.getShortcut key-combo))})  )
+  KeyCharacterCombination
+  (key-combo->map [key-combo]
+    {:key (.getCharacter key-combo)
+     :alt-down? (= KeyCombination$ModifierValue/DOWN (.getAlt key-combo))
+     :control-down? (= KeyCombination$ModifierValue/DOWN (.getControl key-combo))
+     :meta-down? (= KeyCombination$ModifierValue/DOWN (.getMeta key-combo))
+     :shift-down? (= KeyCombination$ModifierValue/DOWN (.getShift key-combo))
+     :shortcut-down? (= KeyCombination$ModifierValue/DOWN (.getShortcut key-combo))}))
 
 (defn key-event->map [^KeyEvent e]
   {:key              (.getCharacter e)
@@ -209,19 +384,10 @@
    :shift-down?      (.isShiftDown e)
    :shortcut-down?   (.isShortcutDown e)})
 
-(defn- key-combo->map [s]
-  (let [key-combo (KeyCombination/keyCombination s)]
-    (key-combo->map* key-combo)))
-
 (defn key-combo->display-text [s]
   (.getDisplayText (KeyCombination/keyCombination s)))
 
-(defn- convert-shortcut-key [platform-shortcut-key key-combo-data]
-  (-> key-combo-data
-      (update platform-shortcut-key #(or % (:shortcut-down? key-combo-data)))
-      (dissoc :shortcut-down?)))
-
-(defn typable?
+(def ^:private typable-truth-table
   "Only act on key pressed events that look like textual input, and
   skip what is likely shortcut combinations.
 
@@ -267,76 +433,55 @@
   yes  yes  yes  no   => typable  -- As above
   yes  yes  yes  yes  => typable  -- As above
 
-  This does not seem right. We probably want:
+  This does not seem right. We probably want something like that:
 
-  MAC  CTRL ALT  META    RESULT
-  no   no   no   no   => typable
-  no   no   no   yes  => shortcut <-- Now treated as possibly shortcut
-  no   no   yes  no   => shortcut
-  no   no   yes  yes  => shortcut
-  no   yes  no   no   => shortcut
-  no   yes  no   yes  => shortcut
-  no   yes  yes  no   => typable
-  no   yes  yes  yes  => shortcut <-- As above
-  yes  no   no   no   => typable
-  yes  no   no   yes  => shortcut
-  yes  no   yes  no   => typable
-  yes  no   yes  yes  => typable  <-- Let it be for now
-  yes  yes  no   no   => shortcut
-  yes  yes  no   yes  => shortcut
-  yes  yes  yes  no   => typable  <-- As above
-  yes  yes  yes  yes  => typable  <-- As above
+    MAC   CTRL  ALT   META  RESULT"
+  {[:no   :no   :no   :no ] :typable
+   [:no   :no   :no   :yes] :shortcut   ;; Now treated as possibly shortcut
+   [:no   :no   :yes  :no ] :shortcut
+   [:no   :no   :yes  :yes] :shortcut
+   [:no   :yes  :no   :no ] :shortcut
+   [:no   :yes  :no   :yes] :shortcut
+   [:no   :yes  :yes  :no ] :typable
+   [:no   :yes  :yes  :yes] :shortcut   ;; As above
+   [:yes  :no   :no   :no ] :typable
+   [:yes  :no   :no   :yes] :shortcut
+   [:yes  :no   :yes  :no ] :typable
+   [:yes  :no   :yes  :yes] :shortcut   ;; Now treated as possibly shortcut
+   [:yes  :yes  :no   :no ] :shortcut
+   [:yes  :yes  :no   :yes] :shortcut
+   [:yes  :yes  :yes  :no ] :typable    ;; As above
+   [:yes  :yes  :yes  :yes] :shortcut}) ;; Now treated as possibly shortcut
 
-  So that's what we use below."
+(defn- boolean->kw [b]
+  (if b :yes :no))
+
+(defn typable?
   ([key-combo-data]
    (typable? key-combo-data (util/os)))
-  ([{:keys [alt-down? control-down? meta-down?] :as _key-combo-data} os]
+  ([{:keys [alt-down? control-down? meta-down?]} os]
    (let [mac? (= os :darwin)]
-     (or (and mac? alt-down?)
-         (not (or control-down? alt-down? meta-down?))
-         (and control-down? alt-down? (not meta-down?))))))
+     (-> typable-truth-table
+         (get (mapv boolean->kw [mac? control-down? alt-down? meta-down?]))
+         (= :typable)))))
 
-(defn- platform-typable-shortcut?
-  [os key-combo-data]
-  (let [canonical-key-combo-data (convert-shortcut-key (platform-shortcut-keys os) key-combo-data)]
-    (and (typable? canonical-key-combo-data os)
-         (= 1 (count (:key canonical-key-combo-data))))))
+(defn- platform-typable-shortcut? [key-combo-data os]
+  (and (typable? key-combo-data os)
+       (= 1 (count (:key key-combo-data)))))
 
-(defn- any-platform-typable-shortcut?
-  [key-combo-data]
-  (or (platform-typable-shortcut? :darwin key-combo-data)
-      (platform-typable-shortcut? :win32 key-combo-data)
-      (platform-typable-shortcut? :linux key-combo-data)))
-
-(defn- key-binding-data
-  [key-bindings platform-shortcut-key]
+(defn- key-binding-data [key-bindings]
   (map (fn [[shortcut command]]
          (let [key-combo (KeyCombination/keyCombination shortcut)
-               key-combo-data (key-combo->map shortcut)
-               canonical-key-combo-data (convert-shortcut-key platform-shortcut-key key-combo-data)]
+               key-combo-data (key-combo->map key-combo)]
            {:shortcut shortcut
             :command command
             :key-combo key-combo
-            :key-combo-data key-combo-data
-            :canonical-key-combo-data canonical-key-combo-data}))
+            :key-combo-data key-combo-data}))
        key-bindings))
 
-(defn- remove-shortcut-key-overlaps
-  "Given a sequence of key-binding data, find all bindings where the modifiers
-  used are in conflict with the `Shortcut` key, and remove them. For example, on
-  platforms where the shortcut key is `Ctrl`, the bindings `Ctrl+A` and
-  `Shortcut+A` are in conflict as they would resolve to the same binding. In
-  such cases, we prefer the binding with the `Shortcut` key."
-  [key-bindings-data]
-  (->> (group-by :canonical-key-combo-data key-bindings-data)
-       (vals)
-       (mapcat (fn [overlapping-key-bindings]
-                 (or (seq (filter (comp :shortcut-down? :key-combo-data) overlapping-key-bindings))
-                     overlapping-key-bindings)))))
-
 (defn- key-binding-data->keymap
-  [key-bindings-data valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts]
-  (reduce (fn [ret {:keys [canonical-key-combo-data key-combo-data shortcut command ^KeyCombination key-combo]}]
+  [key-bindings-data platform valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts]
+  (reduce (fn [ret {:keys [key-combo-data shortcut command ^KeyCombination key-combo]}]
             (cond
               (not (valid-command? command))
               (update ret :errors conj {:type :unknown-command
@@ -348,50 +493,53 @@
                                         :command command
                                         :shortcut shortcut})
 
-              (and (any-platform-typable-shortcut? key-combo-data)
-                   (not (allowed-typable-shortcuts shortcut)))
-              (update ret :errors into [{:type :typable-shortcut
-                                         :command command
-                                         :shortcut shortcut}])
+              (:shortcut-down? key-combo-data)
+              (update ret :errors conj {:type :shortcut-key
+                                        :command command
+                                        :shortcut shortcut})
 
-              (and (some? (get-in ret [:keymap canonical-key-combo-data]))
+              (and (platform-typable-shortcut? key-combo-data platform)
+                   (not (allowed-typable-shortcuts shortcut)))
+              (update ret :errors conj {:type :typable-shortcut
+                                        :command command
+                                        :shortcut shortcut})
+
+              (and (some? (get-in ret [:keymap key-combo-data]))
                    (not (allowed-duplicate-shortcuts shortcut)))
               (update ret :errors into [{:type :duplicate-shortcut
                                          :command command
                                          :shortcut shortcut}
                                         {:type :duplicate-shortcut
-                                         :command (get-in ret [:keymap canonical-key-combo-data])
+                                         :command (get-in ret [:keymap key-combo-data])
                                          :shortcut shortcut}])
 
               :else
-              (update-in ret [:keymap canonical-key-combo-data] (fnil conj []) {:command command
-                                                                                :shortcut shortcut
-                                                                                :key-combo key-combo})))
+              (update-in ret [:keymap key-combo-data] (fnil conj []) {:command command
+                                                                      :shortcut shortcut
+                                                                      :key-combo key-combo})))
           {:keymap {}
            :errors #{}}
           key-bindings-data))
 
 (defn- make-keymap*
-  [key-bindings platform-shortcut-key valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts]
-  (-> (key-binding-data key-bindings platform-shortcut-key)
-      (remove-shortcut-key-overlaps)
-      (key-binding-data->keymap valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts)))
+  [key-bindings platform valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts]
+  (-> (key-binding-data key-bindings)
+      (key-binding-data->keymap platform valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts)))
 
 (defn make-keymap
   ([key-bindings]
    (make-keymap key-bindings nil))
   ([key-bindings {:keys [valid-command?
-                         platform-shortcut-key
+                         platform
                          throw-on-error?
                          allowed-duplicate-shortcuts
                          allowed-typable-shortcuts]
                   :or   {valid-command?              (constantly true)
-                         platform-shortcut-key       host-platform-shortcut-key
+                         platform                    (util/os)
                          throw-on-error?             false
                          allowed-duplicate-shortcuts default-allowed-duplicate-shortcuts
-                         allowed-typable-shortcuts   default-allowed-typable-shortcuts}
-                  :as   opts}]
-   (let [{:keys [errors keymap]} (make-keymap* key-bindings platform-shortcut-key valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts)]
+                         allowed-typable-shortcuts   default-allowed-typable-shortcuts}}]
+   (let [{:keys [errors keymap]} (make-keymap* key-bindings platform valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts)]
      (if (and (seq errors) throw-on-error?)
        (throw (ex-info "Keymap has errors"
                        {:errors       errors
