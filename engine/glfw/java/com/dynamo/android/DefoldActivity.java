@@ -205,8 +205,6 @@ public class DefoldActivity extends NativeActivity {
         super.onCreate(savedInstanceState);
         final DefoldActivity self = this;
 
-
-
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN | WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         imm = (InputMethodManager)DefoldActivity.this.getSystemService(Context.INPUT_METHOD_SERVICE);
 

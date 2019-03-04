@@ -2,8 +2,6 @@ import os
 import sys
 import shutil
 
-print("HELLO WORLD!!!!!!!!!!")
-
 def extract_res(package_name, dir, output_dir):
     res_path = os.path.join(dir, "res")
     if os.path.exists(res_path):

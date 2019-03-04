@@ -76,26 +76,6 @@
             </intent-filter>
         </activity>
 
-        <!-- For IAC Invocations -->
-        <activity android:name="com.defold.iac.IACActivity"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            android:launchMode="singleTask"
-            android:configChanges="keyboardHidden|orientation|screenSize">
-            <intent-filter>
-               <action android:name="android.intent.action.VIEW" />
-               <category android:name="android.intent.category.DEFAULT" />
-               <category android:name="android.intent.category.BROWSABLE" />
-               <data android:scheme="{{android.package}}" />
-            </intent-filter>
-        </activity>
-
-        <!-- For Amazon IAP -->
-        <receiver android:name="com.amazon.device.iap.ResponseReceiver" >
-            <intent-filter>
-                <action android:name="com.amazon.inapp.purchasing.NOTIFY" android:permission="com.amazon.inapp.purchasing.Permission.NOTIFY" />
-            </intent-filter>
-        </receiver>
-
         <!-- For Firebase Cloud Messaging -->
         <service android:enabled="true" android:exported="true" android:name="com.defold.push.FirebaseMessagingService">
             <intent-filter>
@@ -116,6 +96,26 @@
                 <action android:name="com.google.android.c2dm.intent.RECEIVE"/>
             </intent-filter>
         </receiver>
+
+        <!-- For IAC Invocations -->
+        <activity android:name="com.defold.iac.IACActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:launchMode="singleTask"
+            android:configChanges="keyboardHidden|orientation|screenSize">
+            <intent-filter>
+               <action android:name="android.intent.action.VIEW" />
+               <category android:name="android.intent.category.DEFAULT" />
+               <category android:name="android.intent.category.BROWSABLE" />
+               <data android:scheme="{{android.package}}" />
+            </intent-filter>
+        </activity>
+
+        <!-- For Amazon IAP -->
+        <receiver android:name="com.amazon.device.iap.ResponseReceiver" >
+            <intent-filter>
+                <action android:name="com.amazon.inapp.purchasing.NOTIFY" android:permission="com.amazon.inapp.purchasing.Permission.NOTIFY" />
+            </intent-filter>
+        </receiver>
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="com.android.vending.BILLING" />
@@ -125,9 +125,9 @@
 
     <!-- For GCM (push) -->
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
-    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
 </manifest>
 <!-- END_INCLUDE(manifest) -->

@@ -70,8 +70,6 @@ public class Push {
     private static AlarmManager am = null;
     private IPushListener listener = null;
 
-    // private GoogleCloudMessaging gcm;
-
     private Activity activity;
 
     // We need to store recieved notifications in memory until

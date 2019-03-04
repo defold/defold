@@ -14,7 +14,6 @@
 *.apidoc_
 engine/.clang_complete
 /.vscode
-com.dynamo.cr/com.dynamo.cr.bob.test/test/build/
 
 # When opening the folder through certain IDE's (e.g. VSCode)
 scripts/android-v4/.classpath
