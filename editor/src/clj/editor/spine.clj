@@ -1042,7 +1042,7 @@
                                       (assoc-in [:renderable :user-data :skin] skin))
                                   (merge {:node-id _node-id
                                           :renderable {:passes [pass/selection]}
-                                          :aabb geom/unit-bounding-box
+                                          :aabb geom/empty-bounding-box
                                           :transform geom/Identity4d}
                                          spine-scene-scene))))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id own-build-errors spine-scene]

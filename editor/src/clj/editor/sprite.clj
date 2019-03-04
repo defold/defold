@@ -295,12 +295,11 @@
   (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
   (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
   (output aabb AABB (g/fnk [animation] (if animation
-                                         (let [hw (* 0.5 (:width animation))
-                                               hh (* 0.5 (:height animation))]
-                                           (-> geom/null-aabb
-                                             (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
-                                             (geom/aabb-incorporate (Point3d. hw hh 0))))
-                                         geom/unit-bounding-box-2d)))
+                                         (let [animation-width (* 0.5 (:width animation))
+                                               animation-height (* 0.5 (:height animation))]
+                                           (geom/make-aabb (Point3d. (- animation-width) (- animation-height) 0)
+                                                           (Point3d. animation-width animation-height 0)))
+                                         geom/empty-bounding-box)))
   (output save-value g/Any produce-save-value)
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))

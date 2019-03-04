@@ -728,9 +728,8 @@
                                     (let [offset-fn (partial mapv + (pivot-offset pivot aabb-size))
                                           [min-x min-y _] (offset-fn [0 0 0])
                                           [max-x max-y _] (offset-fn aabb-size)]
-                                      (-> geom/null-aabb
-                                          (geom/aabb-incorporate min-x min-y 0)
-                                          (geom/aabb-incorporate max-x max-y 0)))))
+                                      (geom/coords->aabb [min-x min-y 0]
+                                                         [max-x max-y 0]))))
 
   (output scene-renderable-user-data g/Any (g/constantly nil))
   (output scene-renderable g/Any :cached
@@ -1357,7 +1356,7 @@
   (output aabb g/Any (g/fnk [template-scene]
                        (if (some? template-scene)
                          (:aabb template-scene)
-                         geom/unit-bounding-box)))
+                         geom/empty-bounding-box)))
   (output scene-children g/Any (g/fnk [_node-id id template-scene]
                                  (if-let [child-scenes (:children (add-renderable-tags template-scene #{:gui}))]
                                    (mapv (partial scene/claim-child-scene (:node-id template-scene) _node-id id) child-scenes)
@@ -1530,7 +1529,7 @@
   (output aabb g/Any :cached (g/fnk [source-scene]
                                (if (some? source-scene)
                                  (:aabb source-scene)
-                                 geom/unit-bounding-box)))
+                                 geom/empty-bounding-box)))
   (output scene g/Any :cached (g/fnk [_node-id id aabb transform source-scene scene-children color+alpha inherit-alpha]
                                      (let [scene (if source-scene
                                                    (let [updatable (assoc (:updatable source-scene) :node-id _node-id)]
@@ -2082,11 +2081,12 @@
                        (into {}))]
       (sort-children node-order scene))))
 
-(g/defnk produce-scene [_node-id scene-dims aabb child-scenes]
+(g/defnk produce-scene [_node-id scene-dims child-scenes]
   (let [w (:width scene-dims)
         h (:height scene-dims)
         scene {:node-id _node-id
-               :aabb aabb
+               :aabb geom/null-aabb
+               :default-aabb (geom/coords->aabb [0 0 0] [w h 0])
                :transform geom/Identity4d
                :renderable {:render-fn render-lines
                             :tags #{:gui :gui-bounds}
@@ -2311,7 +2311,6 @@
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (input samplers [g/KeywordMap])
   (output samplers [g/KeywordMap] (gu/passthrough samplers))
-  (output aabb AABB :cached (g/constantly geom/null-aabb))
   (output pb-msg g/Any :cached produce-pb-msg)
   (output rt-pb-msg g/Any :cached produce-rt-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))

@@ -13,9 +13,6 @@
   (:import [editor.types AABB]
            [javax.vecmath Point3d Matrix4d Quat4d Vector3d]))
 
-(defn- make-aabb [min max]
-  (reduce geom/aabb-incorporate geom/null-aabb (map #(Point3d. (double-array (if (= (count %) 3) % (conj % 0)))) [min max])))
-
 (defn- apply-scene-transforms-to-aabbs
   ([scene] (apply-scene-transforms-to-aabbs geom/Identity4d scene))
   ([parent-world-transform scene]
@@ -35,24 +32,24 @@
            (let [cases {"/logic/atlas_sprite.collection"
                         (fn [node-id]
                           (let [go (ffirst (g/sources-of node-id :child-scenes))]
-                            (is (= (node-union-aabb node-id) (make-aabb [-101 -97 -1] [101 97 1])))
+                            (is (= (node-union-aabb node-id) (geom/coords->aabb [-101 -97 0] [101 97 0])))
                             (g/transact (g/set-property go :position [10 0 0]))
-                            (is (= (node-union-aabb node-id) (make-aabb [-91 -97 -1] [111 97 1])))))
+                            (is (= (node-union-aabb node-id) (geom/coords->aabb [-91 -97 0] [111 97 0])))))
                         "/logic/atlas_sprite.go"
                         (fn [node-id]
                           (let [component (ffirst (g/sources-of node-id :child-scenes))]
-                            (is (= (node-union-aabb node-id) (make-aabb [-101 -97] [101 97])))
+                            (is (= (node-union-aabb node-id) (geom/coords->aabb [-101 -97] [101 97])))
                             (g/transact (g/set-property component :position [10 0 0]))
-                            (is (= (node-union-aabb node-id) (make-aabb [-91 -97] [111 97])))))
+                            (is (= (node-union-aabb node-id) (geom/coords->aabb [-91 -97] [111 97])))))
                         "/sprite/atlas.sprite"
                         (fn [node-id]
-                          (is (= (node-union-aabb node-id) (make-aabb [-101 -97] [101 97]))))
+                          (is (= (node-union-aabb node-id) (geom/coords->aabb [-101 -97] [101 97]))))
                         "/car/env/env.cubemap"
                         (fn [node-id]
-                          (is (= (node-union-aabb node-id) geom/unit-bounding-box)))
+                          (is (= (node-union-aabb node-id) (geom/coords->aabb [-1 -1 -1] [1 1 1]))))
                         "/switcher/switcher.atlas"
                         (fn [node-id]
-                          (is (= (node-union-aabb node-id) (make-aabb [0 0] [2048 1024]))))}]
+                          (is (= (node-union-aabb node-id) (geom/coords->aabb [0 0] [2048 1024]))))}]
              (test-util/with-loaded-project
                (doseq [[path test-fn] cases]
                  (let [[node view] (test-util/open-scene-view! project app-view path 128 128)]
