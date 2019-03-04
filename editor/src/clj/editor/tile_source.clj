@@ -231,7 +231,6 @@
   [_node-id gpu-texture updatable id anim-data tile-source-attributes start-tile]
   {:node-id    _node-id
    :aabb       geom/null-aabb
-   :transform  geom/Identity4d
    :renderable {:render-fn render-animation
                 :batch-key nil
                 :user-data {:gpu-texture gpu-texture
@@ -458,19 +457,16 @@
                      :convex-hulls convex-hulls
                      :collision-groups-data collision-groups-data}]
       {:aabb aabb
-       :transform geom/Identity4d
        :renderable {:render-fn render-tile-source
                     :tags #{:tile-source}
                     :user-data user-data
                     :passes [pass/transparent]}
        :children (into [{:aabb aabb
-                         :transform geom/Identity4d
                          :renderable {:render-fn render-tile-source-outline
                                       :tags #{:tile-source :outline}
                                       :user-data user-data
                                       :passes [pass/outline]}}
                         {:aabb aabb
-                         :transform geom/Identity4d
                          :renderable {:render-fn render-tile-source-hulls
                                       :tags #{:tile-source :collision-shape}
                                       :user-data user-data

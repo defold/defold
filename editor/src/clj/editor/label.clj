@@ -215,7 +215,6 @@
                                   :passes [pass/transparent pass/selection]}
                :children [{:node-id _node-id
                            :aabb aabb
-                           :transform geom/Identity4d
                            :renderable {:render-fn render-lines
                                         :tags #{:text :outline}
                                         :batch-key ::outline

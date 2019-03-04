@@ -392,8 +392,7 @@
                              (not-empty))]
         (g/error-aggregate errors))
       (cond-> {:node-id _node-id
-               :aabb aabb
-               :transform geom/Identity4d}
+               :aabb aabb}
 
               (and (some? font-map) (not-empty preview-text))
               (assoc :renderable {:render-fn render-font

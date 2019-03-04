@@ -819,8 +819,7 @@
 
 (g/defnk produce-scene [_node-id aabb gpu-texture default-tex-params spine-scene-pb scene-structure]
   (let [scene {:node-id _node-id
-               :aabb aabb
-               :transform geom/Identity4d}]
+               :aabb aabb}]
     (if (and gpu-texture scene-structure)
       (let [blend-mode :blend-mode-alpha]
         (assoc scene
@@ -835,7 +834,6 @@
                                         :blend-mode blend-mode}
                             :passes [pass/transparent pass/selection]}
                :children [{:aabb aabb
-                           :transform geom/Identity4d
                            :node-id _node-id
                            :renderable {:render-fn render-spine-skeletons
                                         :tags #{:spine :skeleton :outline}
@@ -843,7 +841,6 @@
                                         :user-data {:scene-structure scene-structure}
                                         :passes [pass/transparent]}}
                           {:aabb aabb
-                           :transform geom/Identity4d
                            :node-id _node-id
                            :renderable {:render-fn render-spine-outlines
                                         :tags #{:spine :outline}
@@ -1042,8 +1039,7 @@
                                       (assoc-in [:renderable :user-data :skin] skin))
                                   (merge {:node-id _node-id
                                           :renderable {:passes [pass/selection]}
-                                          :aabb geom/empty-bounding-box
-                                          :transform geom/Identity4d}
+                                          :aabb geom/empty-bounding-box}
                                          spine-scene-scene))))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id own-build-errors spine-scene]
                                                      (cond-> {:node-id _node-id

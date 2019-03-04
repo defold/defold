@@ -434,7 +434,6 @@
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
                                      {:node-id _node-id
                                       :children child-scenes
-                                      :transform geom/Identity4d
                                       :aabb geom/null-aabb}))
   (output go-inst-ids g/Any :cached (g/fnk [go-inst-ids] (reduce merge {} go-inst-ids)))
   (output ddf-properties g/Any (g/fnk [ddf-properties] (reduce (fn [props m]

@@ -231,7 +231,6 @@
       {:node-id _node-id
        :node-outline-key id
        :aabb aabb
-       :transform geom/Identity4d
        :renderable {:render-fn render-layer
                     :tags #{:tilemap}
                     :user-data {:node-id _node-id
@@ -331,8 +330,7 @@
 (g/defnk produce-scene
   [_node-id child-scenes]
   {:node-id  _node-id
-   :aabb     geom/null-aabb
-   :transform geom/Identity4d
+   :aabb geom/null-aabb
    :renderable {:passes [pass/selection]}
    :children child-scenes})
 
