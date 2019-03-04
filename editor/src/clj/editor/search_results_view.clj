@@ -36,17 +36,26 @@
 (defn- make-match-tree-item [resource {:keys [line caret-position match]}]
   (TreeItem. (->MatchContextResource resource line caret-position match)))
 
-(defn- insert-search-result [^TreeView tree-view search-result]
+(defn- make-result-tree-item [search-result]
   (let [{:keys [resource matches]} search-result
         match-items (map (partial make-match-tree-item resource) matches)
         resource-item (TreeItem. resource)]
     (.setExpanded resource-item true)
-    (-> resource-item .getChildren (.addAll ^Collection match-items))
-    (let [^List tree-items (.getChildren (.getRoot tree-view))
-          first-match? (.isEmpty tree-items)]
-      (.add tree-items resource-item)
-      (when first-match?
-        (-> tree-view .getSelectionModel (.clearAndSelect 1))))))
+    (.addAll (.getChildren resource-item) ^Collection match-items)
+    resource-item))
+
+(defn- results->search-results+done? [results]
+  (loop [[result & more] results
+         tree-items (transient [])]
+    (cond
+      (nil? result)
+      [(persistent! tree-items) false]
+
+      (= ::project-search/done result)
+      [(persistent! tree-items) true]
+
+      :else
+      (recur more (conj! tree-items result)))))
 
 (defn- start-tree-update-timer! [tree-views search-in-progress results-fn]
   (let [timer (ui/->timer 5 "tree-update-timer"
@@ -56,19 +65,26 @@
                             (when (< 0.2 elapsed-time)
                               (ui/visible! search-in-progress true))
 
-                            (when-some [results (results-fn)]
-                              (loop [[result & more] results]
-                                (when result
-                                  (cond
-                                    (= ::project-search/done result)
-                                    (do
-                                      (.stop timer)
-                                      (ui/visible! search-in-progress false))
-
-                                    :else
-                                    (do (doseq [^TreeView tree-view tree-views]
-                                          (insert-search-result tree-view result))
-                                        (recur more))))))))]
+                            (let [[search-results done?] (results->search-results+done? (results-fn))]
+                              (when done?
+                                (.stop timer)
+                                (ui/visible! search-in-progress false))
+                              (when-not (empty? search-results)
+                                (doseq [^TreeView tree-view tree-views
+                                        :let [tree-children (.getChildren (.getRoot tree-view))
+                                              first-match? (.isEmpty tree-children)
+                                              focus-model (.getFocusModel tree-view)
+                                              ;; focus model slows adding children drastically
+                                              ;; if there is a focused item
+                                              ;; removing focus before adding and then
+                                              ;; restoring it results in same behavior
+                                              ;; with much better performance
+                                              focused-index (.getFocusedIndex focus-model)]]
+                                  (.focus focus-model -1)
+                                  (.addAll tree-children ^Collection (mapv make-result-tree-item search-results))
+                                  (.focus focus-model focused-index)
+                                  (when first-match?
+                                    (.clearAndSelect (.getSelectionModel tree-view) 1)))))))]
     (doseq [^TreeView tree-view tree-views]
       (.clear (.getChildren (.getRoot tree-view))))
     (ui/timer-start! timer)

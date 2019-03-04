@@ -158,7 +158,7 @@
                                                                     resource-name)]]
                                                 (ui/text! tab title)))))
   (output keymap g/Any :cached (g/fnk []
-                                 (keymap/make-keymap keymap/default-key-bindings {:valid-command? (set (handler/available-commands))})))
+                                 (keymap/make-keymap keymap/default-host-key-bindings {:valid-command? (set (handler/available-commands))})))
   (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
 
 (defn- selection->openable-resources [selection]
