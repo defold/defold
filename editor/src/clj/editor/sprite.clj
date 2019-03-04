@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.colors :as colors]
             [editor.graph-util :as gu]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -108,16 +109,13 @@
         v3 (gen-outline-vertex wt pt x0 y1 cr cg cb)]
     (-> vbuf (conj! v0) (conj! v1) (conj! v1) (conj! v2) (conj! v2) (conj! v3) (conj! v3) (conj! v0))))
 
-(def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0]))
-(def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
-
 (defn- gen-outline-vertex-buffer
   [renderables count]
   (let [tmp-point (Point3d.)]
     (loop [renderables renderables
            vbuf (->color-vtx (* count 8))]
       (if-let [renderable (first renderables)]
-        (let [color (if (:selected renderable) selected-outline-color outline-color)
+        (let [color (if (:selected renderable) colors/selected-outline-color colors/outline-color)
               cr (get color 0)
               cg (get color 1)
               cb (get color 2)
