@@ -123,9 +123,10 @@
                                 :source-paths ["sidecar"]}
                       :release {:jvm-opts          ["-Ddefold.build=release"]}
                       :dev     {:dependencies      [[org.clojure/test.check   "0.9.0"]
-                                                    [org.mockito/mockito-core "1.10.19"]
                                                     [org.clojure/tools.trace  "0.7.9"]
+                                                    [com.clojure-goes-fast/clj-async-profiler "0.3.0"]
                                                     [criterium "0.4.3"]
+                                                    [org.mockito/mockito-core "1.10.19"]
                                                     [ring "1.4.0"]]
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
@@ -136,4 +137,10 @@
                                                     "-Djogl.texture.notexrect=true"
                                                     ;"-XX:+UnlockCommercialFeatures"
                                                     ;"-XX:+FlightRecorder"
-                                                    "-XX:-OmitStackTraceInFastThrow"]}})
+                                                    "-XX:-OmitStackTraceInFastThrow"
+
+                                                    ;; Flags for async-profiler.
+                                                    ;; From https://github.com/clojure-goes-fast/clj-async-profiler/blob/master/README.md
+                                                    "-Djdk.attach.allowAttachSelf"   ; Required for attach to running process.
+                                                    "-XX:+UnlockDiagnosticVMOptions" ; Required for DebugNonSafepoints.
+                                                    "-XX:+DebugNonSafepoints"]}})    ; Without this, there is a high chance that simple inlined methods will not appear in the profile.
