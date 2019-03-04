@@ -1360,6 +1360,12 @@ int Facebook_ShowDialog(lua_State* L)
   * @variable
   */
 
+ /*# log this event when a person achieves specific levels you define within your application, business, or organization
+  *
+  * @name facebook.EVENT_ACHIEVED_LEVEL
+  * @variable
+  */
+
  /*# log this event when the user has added an item to their cart
   *
   * The value_to_sum passed to facebook.post_event should be the item's price.
