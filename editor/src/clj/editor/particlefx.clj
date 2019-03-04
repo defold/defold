@@ -326,7 +326,7 @@
          :node-outline-key node-outline-key
          :label (:label mod-type)
          :icon modifier-icon})))
-  (output aabb AABB (g/constantly (geom/aabb-incorporate geom/null-aabb 0 0 0)))
+  (output aabb AABB (g/constantly geom/empty-bounding-box))
   (output scene g/Any :cached produce-modifier-scene))
 
 (def ^:private circle-steps 32)
@@ -628,9 +628,8 @@
                                            :emitter-type-sphere [x x x]
                                            :emitter-type-cone [x y x]
                                            :emitter-type-2dcone [x y x])]
-                             (-> geom/null-aabb
-                               (geom/aabb-incorporate (- w) (- h) (- d))
-                               (geom/aabb-incorporate w h d)))))
+                             (geom/coords->aabb [(- w) (- h) (- d)]
+                                                [w h d]))))
   (output emitter-sim-data g/Any :cached
           (g/fnk [animation texture-set gpu-texture material-shader]
             (when (and animation texture-set gpu-texture)
@@ -681,7 +680,7 @@
                :renderable {:render-fn render-pfx
                             :batch-key nil
                             :passes [pass/transparent pass/selection]}
-               :aabb geom/unit-bounding-box
+               :aabb geom/empty-bounding-box
                :transform geom/Identity4d
                :children child-scenes}]
     (scene/map-scene #(assoc % :updatable scene-updatable) scene)))

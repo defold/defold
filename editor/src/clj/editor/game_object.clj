@@ -199,7 +199,7 @@
                                   ;; project.
                                   {:node-id _node-id
                                    :transform transform
-                                   :aabb geom/unit-bounding-box
+                                   :aabb geom/empty-bounding-box
                                    :renderable {:passes [pass/selection]}})))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
   (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]

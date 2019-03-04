@@ -113,7 +113,7 @@
                                                                                                  nil _node-id
                                                                                                  :vertex-space-local _node-id
                                                                                                  :vertex-space-world :vertex-space-world)])))))
-    {:aabb geom/unit-bounding-box
+    {:aabb geom/empty-bounding-box
      :renderable {:passes [pass/selection]}
      :transform geom/Identity4d}))
 
