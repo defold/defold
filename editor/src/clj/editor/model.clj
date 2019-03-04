@@ -103,16 +103,18 @@
 
 (g/defnk produce-scene [_node-id scene shader gpu-textures vertex-space]
   (if (some? scene)
-    (update scene :renderable (fn [r]
-                                (cond-> r
-                                        shader (assoc-in [:user-data :shader] shader)
-                                        true (assoc-in [:user-data :textures] gpu-textures)
-                                        true (assoc-in [:user-data :vertex-space] vertex-space)
-                                        true (update :batch-key (fn [old-key]
-                                                                  [old-key shader gpu-textures (case vertex-space
-                                                                                                 nil _node-id
-                                                                                                 :vertex-space-local _node-id
-                                                                                                 :vertex-space-world :vertex-space-world)])))))
+    (update scene :renderable
+            (fn [r]
+              (cond-> r
+                      shader (assoc-in [:user-data :shader] shader)
+                      true (assoc-in [:user-data :textures] gpu-textures)
+                      true (assoc-in [:user-data :vertex-space] vertex-space)
+                      true (update :batch-key
+                                   (fn [old-key]
+                                     [old-key shader gpu-textures (case vertex-space
+                                                                    nil _node-id
+                                                                    :vertex-space-local _node-id
+                                                                    :vertex-space-world :vertex-space-world)])))))
     {:aabb geom/empty-bounding-box
      :renderable {:passes [pass/selection]}}))
 

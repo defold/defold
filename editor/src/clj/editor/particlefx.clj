@@ -290,14 +290,14 @@
   (:label (mod-types modifier-type)))
 
 (g/defnk produce-modifier-scene
-  [_node-id transform aabb type magnitude max-distance node-outline-key]
+  [_node-id transform type magnitude max-distance node-outline-key]
   (let [mod-type (mod-types type)
         magnitude (props/sample magnitude)
         max-distance (props/sample max-distance)]
     {:node-id _node-id
      :node-outline-key node-outline-key
      :transform transform
-     :aabb aabb
+     :aabb geom/empty-bounding-box
      :renderable {:render-fn render-lines
                   :tags #{:particlefx :outline}
                   :batch-key nil
@@ -326,7 +326,6 @@
          :node-outline-key node-outline-key
          :label (:label mod-type)
          :icon modifier-icon})))
-  (output aabb AABB (g/constantly geom/empty-bounding-box))
   (output scene g/Any :cached produce-modifier-scene))
 
 (def ^:private circle-steps 32)
