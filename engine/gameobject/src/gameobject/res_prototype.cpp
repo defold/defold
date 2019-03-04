@@ -12,7 +12,7 @@ namespace dmGameObject
 {
     static void ReleaseResources(dmResource::HFactory factory, Prototype* prototype)
     {
-        for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
+        for (uint32_t i = 0; i < prototype->m_ComponentCount; ++i)
         {
             Prototype::Component& c = prototype->m_Components[i];
             dmResource::Release(factory, c.m_Resource);
@@ -21,7 +21,13 @@ namespace dmGameObject
     }
 
     static dmResource::Result AcquireResources(dmResource::HFactory factory, dmGameObject::HRegister regist, dmGameObjectDDF::PrototypeDesc* proto_desc, Prototype* proto, const char* filename) {
-        proto->m_Components.SetCapacity(proto_desc->m_Components.m_Count);
+        proto->m_ComponentCount = 0;
+        proto->m_Components = 0;
+        if (proto_desc->m_Components.m_Count == 0)
+        {
+            return dmResource::RESULT_OK;
+        }
+        proto->m_Components = (Prototype::Component*)malloc(sizeof(Prototype::Component) * proto_desc->m_Components.m_Count);
 
         for (uint32_t i = 0; i < proto_desc->m_Components.m_Count; ++i)
         {
@@ -35,7 +41,7 @@ namespace dmGameObject
             if (fact_e == dmResource::RESULT_OK)
             {
                 id = dmHashString64(component_desc.m_Id);
-                for (uint32_t j = 0; j < proto->m_Components.Size(); ++j)
+                for (uint32_t j = 0; j < proto->m_ComponentCount; ++j)
                 {
                     if (proto->m_Components[j].m_Id == id)
                     {
@@ -82,7 +88,7 @@ namespace dmGameObject
                 {
                     return dmResource::RESULT_FORMAT_ERROR;
                 }
-                proto->m_Components.Push(c);
+                proto->m_Components[proto->m_ComponentCount++] = c;
             }
         }
         return dmResource::RESULT_OK;
@@ -147,7 +153,12 @@ namespace dmGameObject
         dmResource::Result r = AcquireResources(params.m_Factory, regist, proto_desc, temp, params.m_Filename);
         if (dmResource::RESULT_OK == r) {
             Prototype* proto = (Prototype*) params.m_Resource->m_Resource;
-            proto->m_Components.Swap(temp->m_Components);
+            Prototype::Component* c = proto->m_Components;
+            uint32_t i = proto->m_ComponentCount;
+            proto->m_Components = temp->m_Components;
+            proto->m_ComponentCount = temp->m_ComponentCount;
+            temp->m_Components = c;
+            temp->m_ComponentCount = i;
             params.m_Resource->m_PrevResource = temp;
         } else {
             ReleaseResources(params.m_Factory, temp);

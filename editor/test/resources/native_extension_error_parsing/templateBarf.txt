@@ -1,0 +1,233 @@
+clang++ -c -arch x86_64 -target x86_64-apple-darwin12 -isysroot /opt/MacOSX10.13.sdk/ -m64 -O2 -g -mmacosx-version-min=10.7 -DDM_PLATFORM_OSX -DLUA_BYTECODE_ENABLE  -fno-exceptions -fvisibility=hidden  -Iupload/win32nativeext/include   -I/var/extender/sdk/851fbeb469987908d2b785fa3964003acc919394/defoldsdk//include -I/var/extender/sdk/851fbeb469987908d2b785fa3964003acc919394/defoldsdk//sdk/include  upload/win32nativeext/src/main.cpp -obuild/main.cpp_0.o
+In file included from upload/win32nativeext/src/main.cpp:10:
+In file included from /opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/algorithm:68:
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_algo.h:208:17: error: invalid operands to binary expression ('std::vector<int, std::allocator<int> >' and 'int')
+          if (*__first == __val)
+              ~~~~~~~~ ^  ~~~~~
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_algo.h:326:19: note: in instantiation of function template specialization 'std::__find<__gnu_cxx::__normal_iterator<std::vector<int, std::allocator<int> > *, std::vector<std::vector<int, std::allocator<int> >, std::allocator<std::vector<int, std::allocator<int> > > > >, int>' requested here
+      return std::__find(__first, __last, __val,
+                  ^
+upload/win32nativeext/src/main.cpp:35:64: note: in instantiation of function template specialization 'std::find<__gnu_cxx::__normal_iterator<std::vector<int, std::allocator<int> > *, std::vector<std::vector<int, std::allocator<int> >, std::allocator<std::vector<int, std::allocator<int> > > > >, int>' requested here
+    std::vector< std::vector <int> >::const_iterator it = std::find( v.begin(), v.end(), a );
+                                                               ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/postypes.h:202:5: note: candidate template ignored: could not match 'fpos' against 'vector'
+    operator==(const fpos<_StateT>& __lhs, const fpos<_StateT>& __rhs)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_pair.h:96:5: note: candidate template ignored: could not match 'pair' against 'vector'
+    operator==(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:282:5: note: candidate template ignored: could not match 'reverse_iterator' against 'vector'
+    operator==(const reverse_iterator<_Iterator>& __x,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:332:5: note: candidate template ignored: could not match 'reverse_iterator' against 'vector'
+    operator==(const reverse_iterator<_IteratorL>& __x,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:732:5: note: candidate template ignored: could not match '__normal_iterator' against 'vector'
+    operator==(const __normal_iterator<_IteratorL, _Container>& __lhs,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:738:5: note: candidate template ignored: could not match '__normal_iterator' against 'vector'
+    operator==(const __normal_iterator<_Iterator, _Container>& __lhs,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/ext/new_allocator.h:115:5: note: candidate template ignored: could not match 'new_allocator' against 'vector'
+    operator==(const new_allocator<_Tp>&, const new_allocator<_Tp>&)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/allocator.h:115:5: note: candidate template ignored: could not match 'allocator' against 'vector'
+    operator==(const allocator<_T1>&, const allocator<_T2>&)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_vector.h:942:5: note: candidate template ignored: could not match 'vector<type-parameter-0-0, type-parameter-0-1>' against 'const int'
+    operator==(const vector<_Tp, _Alloc>& __x, const vector<_Tp, _Alloc>& __y)
+    ^
+In file included from upload/win32nativeext/src/main.cpp:10:
+In file included from /opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/algorithm:68:
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_algo.h:212:17: error: invalid operands to binary expression ('std::vector<int, std::allocator<int> >' and 'int')
+          if (*__first == __val)
+              ~~~~~~~~ ^  ~~~~~
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/postypes.h:202:5: note: candidate template ignored: could not match 'fpos' against 'vector'
+    operator==(const fpos<_StateT>& __lhs, const fpos<_StateT>& __rhs)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_pair.h:96:5: note: candidate template ignored: could not match 'pair' against 'vector'
+    operator==(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:282:5: note: candidate template ignored: could not match 'reverse_iterator' against 'vector'
+    operator==(const reverse_iterator<_Iterator>& __x,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:332:5: note: candidate template ignored: could not match 'reverse_iterator' against 'vector'
+    operator==(const reverse_iterator<_IteratorL>& __x,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:732:5: note: candidate template ignored: could not match '__normal_iterator' against 'vector'
+    operator==(const __normal_iterator<_IteratorL, _Container>& __lhs,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:738:5: note: candidate template ignored: could not match '__normal_iterator' against 'vector'
+    operator==(const __normal_iterator<_Iterator, _Container>& __lhs,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/ext/new_allocator.h:115:5: note: candidate template ignored: could not match 'new_allocator' against 'vector'
+    operator==(const new_allocator<_Tp>&, const new_allocator<_Tp>&)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/allocator.h:115:5: note: candidate template ignored: could not match 'allocator' against 'vector'
+    operator==(const allocator<_T1>&, const allocator<_T2>&)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_vector.h:942:5: note: candidate template ignored: could not match 'vector<type-parameter-0-0, type-parameter-0-1>' against 'const int'
+    operator==(const vector<_Tp, _Alloc>& __x, const vector<_Tp, _Alloc>& __y)
+    ^
+In file included from upload/win32nativeext/src/main.cpp:10:
+In file included from /opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/algorithm:68:
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_algo.h:216:17: error: invalid operands to binary expression ('std::vector<int, std::allocator<int> >' and 'int')
+          if (*__first == __val)
+              ~~~~~~~~ ^  ~~~~~
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/postypes.h:202:5: note: candidate template ignored: could not match 'fpos' against 'vector'
+    operator==(const fpos<_StateT>& __lhs, const fpos<_StateT>& __rhs)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_pair.h:96:5: note: candidate template ignored: could not match 'pair' against 'vector'
+    operator==(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:282:5: note: candidate template ignored: could not match 'reverse_iterator' against 'vector'
+    operator==(const reverse_iterator<_Iterator>& __x,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:332:5: note: candidate template ignored: could not match 'reverse_iterator' against 'vector'
+    operator==(const reverse_iterator<_IteratorL>& __x,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:732:5: note: candidate template ignored: could not match '__normal_iterator' against 'vector'
+    operator==(const __normal_iterator<_IteratorL, _Container>& __lhs,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:738:5: note: candidate template ignored: could not match '__normal_iterator' against 'vector'
+    operator==(const __normal_iterator<_Iterator, _Container>& __lhs,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/ext/new_allocator.h:115:5: note: candidate template ignored: could not match 'new_allocator' against 'vector'
+    operator==(const new_allocator<_Tp>&, const new_allocator<_Tp>&)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/allocator.h:115:5: note: candidate template ignored: could not match 'allocator' against 'vector'
+    operator==(const allocator<_T1>&, const allocator<_T2>&)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_vector.h:942:5: note: candidate template ignored: could not match 'vector<type-parameter-0-0, type-parameter-0-1>' against 'const int'
+    operator==(const vector<_Tp, _Alloc>& __x, const vector<_Tp, _Alloc>& __y)
+    ^
+In file included from upload/win32nativeext/src/main.cpp:10:
+In file included from /opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/algorithm:68:
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_algo.h:220:17: error: invalid operands to binary expression ('std::vector<int, std::allocator<int> >' and 'int')
+          if (*__first == __val)
+              ~~~~~~~~ ^  ~~~~~
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/postypes.h:202:5: note: candidate template ignored: could not match 'fpos' against 'vector'
+    operator==(const fpos<_StateT>& __lhs, const fpos<_StateT>& __rhs)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_pair.h:96:5: note: candidate template ignored: could not match 'pair' against 'vector'
+    operator==(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:282:5: note: candidate template ignored: could not match 'reverse_iterator' against 'vector'
+    operator==(const reverse_iterator<_Iterator>& __x,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:332:5: note: candidate template ignored: could not match 'reverse_iterator' against 'vector'
+    operator==(const reverse_iterator<_IteratorL>& __x,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:732:5: note: candidate template ignored: could not match '__normal_iterator' against 'vector'
+    operator==(const __normal_iterator<_IteratorL, _Container>& __lhs,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:738:5: note: candidate template ignored: could not match '__normal_iterator' against 'vector'
+    operator==(const __normal_iterator<_Iterator, _Container>& __lhs,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/ext/new_allocator.h:115:5: note: candidate template ignored: could not match 'new_allocator' against 'vector'
+    operator==(const new_allocator<_Tp>&, const new_allocator<_Tp>&)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/allocator.h:115:5: note: candidate template ignored: could not match 'allocator' against 'vector'
+    operator==(const allocator<_T1>&, const allocator<_T2>&)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_vector.h:942:5: note: candidate template ignored: could not match 'vector<type-parameter-0-0, type-parameter-0-1>' against 'const int'
+    operator==(const vector<_Tp, _Alloc>& __x, const vector<_Tp, _Alloc>& __y)
+    ^
+In file included from upload/win32nativeext/src/main.cpp:10:
+In file included from /opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/algorithm:68:
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_algo.h:228:17: error: invalid operands to binary expression ('std::vector<int, std::allocator<int> >' and 'int')
+          if (*__first == __val)
+              ~~~~~~~~ ^  ~~~~~
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/postypes.h:202:5: note: candidate template ignored: could not match 'fpos' against 'vector'
+    operator==(const fpos<_StateT>& __lhs, const fpos<_StateT>& __rhs)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_pair.h:96:5: note: candidate template ignored: could not match 'pair' against 'vector'
+    operator==(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:282:5: note: candidate template ignored: could not match 'reverse_iterator' against 'vector'
+    operator==(const reverse_iterator<_Iterator>& __x,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:332:5: note: candidate template ignored: could not match 'reverse_iterator' against 'vector'
+    operator==(const reverse_iterator<_IteratorL>& __x,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:732:5: note: candidate template ignored: could not match '__normal_iterator' against 'vector'
+    operator==(const __normal_iterator<_IteratorL, _Container>& __lhs,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:738:5: note: candidate template ignored: could not match '__normal_iterator' against 'vector'
+    operator==(const __normal_iterator<_Iterator, _Container>& __lhs,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/ext/new_allocator.h:115:5: note: candidate template ignored: could not match 'new_allocator' against 'vector'
+    operator==(const new_allocator<_Tp>&, const new_allocator<_Tp>&)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/allocator.h:115:5: note: candidate template ignored: could not match 'allocator' against 'vector'
+    operator==(const allocator<_T1>&, const allocator<_T2>&)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_vector.h:942:5: note: candidate template ignored: could not match 'vector<type-parameter-0-0, type-parameter-0-1>' against 'const int'
+    operator==(const vector<_Tp, _Alloc>& __x, const vector<_Tp, _Alloc>& __y)
+    ^
+In file included from upload/win32nativeext/src/main.cpp:10:
+In file included from /opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/algorithm:68:
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_algo.h:232:17: error: invalid operands to binary expression ('std::vector<int, std::allocator<int> >' and 'int')
+          if (*__first == __val)
+              ~~~~~~~~ ^  ~~~~~
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/postypes.h:202:5: note: candidate template ignored: could not match 'fpos' against 'vector'
+    operator==(const fpos<_StateT>& __lhs, const fpos<_StateT>& __rhs)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_pair.h:96:5: note: candidate template ignored: could not match 'pair' against 'vector'
+    operator==(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:282:5: note: candidate template ignored: could not match 'reverse_iterator' against 'vector'
+    operator==(const reverse_iterator<_Iterator>& __x,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:332:5: note: candidate template ignored: could not match 'reverse_iterator' against 'vector'
+    operator==(const reverse_iterator<_IteratorL>& __x,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:732:5: note: candidate template ignored: could not match '__normal_iterator' against 'vector'
+    operator==(const __normal_iterator<_IteratorL, _Container>& __lhs,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:738:5: note: candidate template ignored: could not match '__normal_iterator' against 'vector'
+    operator==(const __normal_iterator<_Iterator, _Container>& __lhs,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/ext/new_allocator.h:115:5: note: candidate template ignored: could not match 'new_allocator' against 'vector'
+    operator==(const new_allocator<_Tp>&, const new_allocator<_Tp>&)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/allocator.h:115:5: note: candidate template ignored: could not match 'allocator' against 'vector'
+    operator==(const allocator<_T1>&, const allocator<_T2>&)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_vector.h:942:5: note: candidate template ignored: could not match 'vector<type-parameter-0-0, type-parameter-0-1>' against 'const int'
+    operator==(const vector<_Tp, _Alloc>& __x, const vector<_Tp, _Alloc>& __y)
+    ^
+In file included from upload/win32nativeext/src/main.cpp:10:
+In file included from /opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/algorithm:68:
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_algo.h:236:17: error: invalid operands to binary expression ('std::vector<int, std::allocator<int> >' and 'int')
+          if (*__first == __val)
+              ~~~~~~~~ ^  ~~~~~
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/postypes.h:202:5: note: candidate template ignored: could not match 'fpos' against 'vector'
+    operator==(const fpos<_StateT>& __lhs, const fpos<_StateT>& __rhs)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_pair.h:96:5: note: candidate template ignored: could not match 'pair' against 'vector'
+    operator==(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:282:5: note: candidate template ignored: could not match 'reverse_iterator' against 'vector'
+    operator==(const reverse_iterator<_Iterator>& __x,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:332:5: note: candidate template ignored: could not match 'reverse_iterator' against 'vector'
+    operator==(const reverse_iterator<_IteratorL>& __x,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:732:5: note: candidate template ignored: could not match '__normal_iterator' against 'vector'
+    operator==(const __normal_iterator<_IteratorL, _Container>& __lhs,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_iterator.h:738:5: note: candidate template ignored: could not match '__normal_iterator' against 'vector'
+    operator==(const __normal_iterator<_Iterator, _Container>& __lhs,
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/ext/new_allocator.h:115:5: note: candidate template ignored: could not match 'new_allocator' against 'vector'
+    operator==(const new_allocator<_Tp>&, const new_allocator<_Tp>&)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/allocator.h:115:5: note: candidate template ignored: could not match 'allocator' against 'vector'
+    operator==(const allocator<_T1>&, const allocator<_T2>&)
+    ^
+/opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/bits/stl_vector.h:942:5: note: candidate template ignored: could not match 'vector<type-parameter-0-0, type-parameter-0-1>' against 'const int'
+    operator==(const vector<_Tp, _Alloc>& __x, const vector<_Tp, _Alloc>& __y)
+    ^
+7 errors generated.
+

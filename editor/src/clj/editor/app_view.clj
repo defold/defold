@@ -49,11 +49,12 @@
             [editor.disk-availability :as disk-availability]
             [editor.scene-visibility :as scene-visibility]
             [editor.scene-cache :as scene-cache]
-            [editor.types :as types])
+            [editor.types :as types]
+            [editor.game-project :as game-project])
   (:import [com.defold.control TabPaneBehavior]
            [com.defold.editor Editor EditorApplication]
            [com.defold.editor Start]
-           [java.net URI Socket]
+           [java.net URI Socket URL]
            [java.util Collection]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
@@ -157,7 +158,7 @@
                                                                     resource-name)]]
                                                 (ui/text! tab title)))))
   (output keymap g/Any :cached (g/fnk []
-                                 (keymap/make-keymap keymap/default-key-bindings {:valid-command? (set (handler/available-commands))})))
+                                 (keymap/make-keymap keymap/default-host-key-bindings {:valid-command? (set (handler/available-commands))})))
   (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
 
 (defn- selection->openable-resources [selection]
@@ -398,10 +399,12 @@
    :build (ref progress/done)
    :resource-sync (ref progress/done)
    :save-all (ref progress/done)
-   :fetch-libraries (ref progress/done)})
+   :fetch-libraries (ref progress/done)
+   :download-update (ref progress/done)})
 
 (def ^:private app-task-ui-priority
-  [:save-all :resource-sync :fetch-libraries :build :main])
+  "Task priority in descending order (from highest to lowest)"
+  [:save-all :resource-sync :fetch-libraries :build :download-update :main])
 
 (def ^:private render-task-progress-ui-inflight (ref false))
 
@@ -412,9 +415,10 @@
       (ref-set task-progress-snapshot
                (into {} (map (juxt first (comp deref second))) app-task-progress)))
     (let [status-bar (.. (ui/main-stage) (getScene) (getRoot) (lookup "#status-bar"))
-          [key progress] (first (filter (comp (complement progress/done?) second)
-                                        (map (juxt identity @task-progress-snapshot)
-                                             app-task-ui-priority)))
+          [key progress] (->> app-task-ui-priority
+                              (map (juxt identity @task-progress-snapshot))
+                              (filter (comp (complement progress/done?) second))
+                              first)
           show-progress-hbox? (boolean (and (not= key :main)
                                             progress
                                             (not (progress/done? progress))))]
@@ -424,8 +428,8 @@
           status-label)
 
         ;; The bottom right of the status bar can show either the progress-hbox
-        ;; or the update-available-label, or both. The progress-hbox will cover
-        ;; the update-available-label if both are visible.
+        ;; or the update-link, or both. The progress-hbox will cover
+        ;; the update-link if both are visible.
         (if-not show-progress-hbox?
           (ui/visible! progress-hbox false)
           (do
@@ -903,7 +907,7 @@ If you do not specifically require different script states, consider changing th
   (run [] (ui/open-url (github/search-issues-link))))
 
 (handler/defhandler :show-logs :global
-  (run [] (ui/open-file (.toFile (Editor/getLogDirectory)))))
+  (run [] (ui/open-file (.getAbsoluteFile (.toFile (Editor/getLogDirectory))))))
 
 (handler/defhandler :about :global
   (run [] (make-about-dialog)))
@@ -1067,34 +1071,34 @@ If you do not specifically require different script states, consider changing th
 
 (defn select
   ([app-view node-ids]
-    (select app-view (g/node-value app-view :active-resource-node) node-ids))
+   (select app-view (g/node-value app-view :active-resource-node) node-ids))
   ([app-view resource-node node-ids]
-    (let [project-id (g/node-value app-view :project-id)
-          open-resource-nodes (g/node-value app-view :open-resource-nodes)]
-      (project/select project-id resource-node node-ids open-resource-nodes))))
+   (let [project-id (g/node-value app-view :project-id)
+         open-resource-nodes (g/node-value app-view :open-resource-nodes)]
+     (project/select project-id resource-node node-ids open-resource-nodes))))
 
 (defn select!
   ([app-view node-ids]
-    (select! app-view node-ids (gensym)))
+   (select! app-view node-ids (gensym)))
   ([app-view node-ids op-seq]
-    (g/transact
-      (concat
-        (g/operation-sequence op-seq)
-        (g/operation-label "Select")
-        (select app-view node-ids)))))
+   (g/transact
+     (concat
+       (g/operation-sequence op-seq)
+       (g/operation-label "Select")
+       (select app-view node-ids)))))
 
 (defn sub-select!
   ([app-view sub-selection]
-    (sub-select! app-view sub-selection (gensym)))
+   (sub-select! app-view sub-selection (gensym)))
   ([app-view sub-selection op-seq]
-    (let [project-id (g/node-value app-view :project-id)
-          active-resource-node (g/node-value app-view :active-resource-node)
-          open-resource-nodes (g/node-value app-view :open-resource-nodes)]
-      (g/transact
-        (concat
-          (g/operation-sequence op-seq)
-          (g/operation-label "Select")
-          (project/sub-select project-id active-resource-node sub-selection open-resource-nodes))))))
+   (let [project-id (g/node-value app-view :project-id)
+         active-resource-node (g/node-value app-view :active-resource-node)
+         open-resource-nodes (g/node-value app-view :open-resource-nodes)]
+     (g/transact
+       (concat
+         (g/operation-sequence op-seq)
+         (g/operation-label "Select")
+         (project/sub-select project-id active-resource-node sub-selection open-resource-nodes))))))
 
 (defn- make-title
   ([] "Defold Editor 2.0")
@@ -1403,7 +1407,8 @@ If you do not specifically require different script states, consider changing th
   (active? [app-view selection] (context-resource app-view selection))
   (enabled? [app-view selection] (when-let [r (context-resource app-view selection)]
                                    (and (resource/abs-path r)
-                                        (resource/exists? r))))
+                                        (or (resource/exists? r)
+                                            (empty? (resource/path r))))))
   (run [app-view selection] (when-let [r (context-resource app-view selection)]
                               (let [f (File. (resource/abs-path r))]
                                 (ui/open-file (fs/to-folder f))))))
@@ -1548,6 +1553,7 @@ If you do not specifically require different script states, consider changing th
     (search-results-view/show-search-in-files-dialog! search-results-view project prefs)))
 
 (defn- bundle! [changes-view build-errors-view project prefs platform bundle-options]
+  (g/user-data! project :last-bundle-options (assoc bundle-options :platform-key platform))
   (console/clear-console!)
   (let [output-directory ^File (:output-directory bundle-options)
         clear-errors! (make-clear-build-errors build-errors-view)
@@ -1556,6 +1562,8 @@ If you do not specifically require different script states, consider changing th
         render-save-progress! (make-render-task-progress :save-all)
         render-build-progress! (make-render-task-progress :build)
         bob-args (bob/bundle-bob-args prefs platform bundle-options)]
+    (when (not (.exists output-directory))
+      (fs/create-directories! output-directory))
     (clear-errors!)
     (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress!
                            render-build-error! bob/bundle-bob-commands bob-args project changes-view
@@ -1567,10 +1575,17 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :bundle :global
   (run [user-data workspace project prefs app-view changes-view build-errors-view]
-       (let [owner-window (g/node-value app-view :stage)
-             platform (:platform user-data)
-             bundle! (partial bundle! changes-view build-errors-view project prefs platform)]
-         (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
+    (let [owner-window (g/node-value app-view :stage)
+          platform (:platform user-data)
+          bundle! (partial bundle! changes-view build-errors-view project prefs platform)]
+      (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
+
+(handler/defhandler :rebundle :global
+  (enabled? [project] (some? (g/user-data project :last-bundle-options)))
+  (run [workspace project prefs app-view changes-view build-errors-view]
+    (let [last-bundle-options (g/user-data project :last-bundle-options)
+          platform (:platform-key last-bundle-options)]
+      (bundle! changes-view build-errors-view project prefs platform last-bundle-options))))
 
 (defn- fetch-libraries [workspace project dashboard-client changes-view]
   (let [library-uris (project/project-dependencies project)
@@ -1590,6 +1605,17 @@ If you do not specifically require different script states, consider changing th
                 (ui/run-later
                   (workspace/install-validated-libraries! workspace library-uris lib-states)
                   (disk/async-reload! render-install-progress! workspace [] changes-view))))))))))
+
+(handler/defhandler :add-dependency :global
+  (enabled? [] (disk-availability/available?))
+  (run [selection app-view prefs workspace dashboard-client project changes-view user-data]
+       (let [game-project (project/get-resource-node project "/game.project")
+             dependencies (game-project/get-setting game-project ["project" "dependencies"])
+             dependency-uri (.toURI (URL. (:dep-url user-data)))]
+         (when (not-any? (partial = dependency-uri) dependencies)
+           (game-project/set-setting! game-project ["project" "dependencies"]
+                                      (conj (vec dependencies) dependency-uri))
+           (fetch-libraries workspace project dashboard-client changes-view)))))
 
 (handler/defhandler :fetch-libraries :global
   (enabled? [] (disk-availability/available?))

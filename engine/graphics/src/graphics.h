@@ -5,6 +5,8 @@
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include <dmsdk/graphics/graphics.h>
+#include <ddf/ddf.h>
+#include <graphics/graphics_ddf.h>
 
 #if defined(__AVM2__)
 #include "flash/graphics_flash_defines.h"
@@ -101,6 +103,13 @@ namespace dmGraphics
         TYPE_FLOAT_MAT4     = DMGRAPHICS_TYPE_FLOAT_MAT4,
         TYPE_SAMPLER_2D     = DMGRAPHICS_TYPE_SAMPLER_2D,
         TYPE_SAMPLER_CUBE   = DMGRAPHICS_TYPE_SAMPLER_CUBE,
+    };
+
+    // Index buffer format
+    enum IndexBufferFormat
+    {
+        INDEXBUFFER_FORMAT_16 = 0,
+        INDEXBUFFER_FORMAT_32 = 1,
     };
 
     // Texture format
@@ -557,6 +566,7 @@ namespace dmGraphics
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
     void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);
     bool UnmapIndexBuffer(HIndexBuffer buffer);
+    bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format);
     uint32_t GetMaxElementsIndices(HContext context);
 
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count);
@@ -578,6 +588,8 @@ namespace dmGraphics
     bool ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size);
     void DeleteVertexProgram(HVertexProgram prog);
     void DeleteFragmentProgram(HFragmentProgram prog);
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context);
+    void* GetShaderProgramData(HContext context, dmGraphics::ShaderDesc* ddf, uint32_t& data_len);
 
     void EnableProgram(HContext context, HProgram program);
     void DisableProgram(HContext context);
@@ -613,6 +625,7 @@ namespace dmGraphics
     void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
     inline uint32_t GetBufferTypeIndex(BufferType buffer_type);
+    inline const char* GetBufferTypeLiteral(BufferType buffer_type);
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format);
     HTexture NewTexture(HContext context, const TextureCreationParams& params);
@@ -661,6 +674,17 @@ namespace dmGraphics
      * @param buffer_size buffer size
      */
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
+
+    const char* GetBufferTypeLiteral(BufferType buffer_type)
+    {
+        switch (buffer_type)
+        {
+            case BUFFER_TYPE_COLOR_BIT: return "BUFFER_TYPE_COLOR_BIT";
+            case BUFFER_TYPE_DEPTH_BIT: return "BUFFER_TYPE_DEPTH_BIT";
+            case BUFFER_TYPE_STENCIL_BIT: return "BUFFER_TYPE_STENCIL_BIT";
+            default: return "<unknown buffer type>";
+        }
+    }
 
     uint32_t GetBufferTypeIndex(BufferType buffer_type)
     {

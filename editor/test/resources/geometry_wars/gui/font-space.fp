@@ -4,13 +4,13 @@ varying lowp vec4 var_face_color;
 varying lowp vec4 var_outline_color;
 varying lowp vec4 var_shadow_color;
 varying mediump vec4 var_sdf_params;
-uniform lowp sampler2D texture;
+uniform lowp sampler2D texture_sampler;
 uniform lowp vec4 texture_size_recip;
 uniform mediump vec4 config;
 
 mediump float sample_df(mediump vec2 where)
 {
-    return texture2D(texture, where.xy).x;
+    return texture2D(texture_sampler, where.xy).x;
 }
 
 mediump float scale_sample(mediump float v)

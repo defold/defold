@@ -325,6 +325,14 @@ namespace dmGui
             return 1;
         }
 
+        NodeProxy* np1 = NodeProxy_Check(L, 1);
+        NodeProxy* np2 = NodeProxy_Check(L, 2);
+        if (np1->m_Scene != np2->m_Scene)
+        {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+
         HNode hn1, hn2;
         InternalNode* n1 = LuaCheckNode(L, 1, &hn1);
         InternalNode* n2 = LuaCheckNode(L, 2, &hn2);
@@ -915,7 +923,7 @@ namespace dmGui
      * @param to [type:vector3|vector4] target property value
      * @param easing [type:constant|vector] easing to use during animation.
      *      Either specify one of the `gui.EASING_*` constants or provide a
-     *      [type:vector] with a custom curve.
+     *      [type:vector] with a custom curve. See the <a href="/manuals/animation#_easing">animation guide</a> for more information.
      * @param duration [type:number] duration of the animation in seconds.
      * @param [delay] [type:number] delay before the animation starts in seconds.
      * @param [complete_function] [type:function(self, node)] function to call when the
@@ -4273,7 +4281,7 @@ namespace dmGui
 
     /*# Stops a particle fx
      *
-     * Stops the paricle fx for a gui node
+     * Stops the particle fx for a gui node
      *
      * @name gui.stop_particlefx
      * @param node [type:node] node to stop particle fx for

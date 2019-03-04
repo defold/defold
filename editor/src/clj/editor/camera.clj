@@ -6,7 +6,7 @@
             [editor.math :as math]
             [editor.types :as types]
             [editor.graph-util :as gu])
-  (:import [editor.types Camera Region AABB]
+  (:import [editor.types AABB Camera Rect Region]
            [javax.vecmath Point3d Quat4d Matrix3d Matrix4d Vector3d Vector4d AxisAngle4d Tuple3d Tuple4d]))
 
 (set! *warn-on-reflection* true)
@@ -64,6 +64,34 @@
     (set! (. m m33) 0.0)
     m))
 
+(defn region-orthographic-projection-matrix
+  ^Matrix4d [^Region viewport ^double near ^double far]
+  (let [left   (.left viewport)
+        right  (.right viewport)
+        top    (.top viewport)
+        bottom (.bottom viewport)
+        m      (Matrix4d.)]
+    (set! (. m m00) (/ 2.0 (- right left)))
+    (set! (. m m01) 0.0)
+    (set! (. m m02) 0.0)
+    (set! (. m m03) (/ (- (+ right left)) (- right left)))
+
+    (set! (. m m10) 0.0)
+    (set! (. m m11) (/ 2.0 (- top bottom)))
+    (set! (. m m12) 0.0)
+    (set! (. m m13) (/ (- (+ top bottom)) (- top bottom)))
+
+    (set! (. m m20) 0.0)
+    (set! (. m m21) 0.0)
+    (set! (. m m22) (/ 2.0 (- near far)))
+    (set! (. m m23) (/ (+ near far) (- near far)))
+
+    (set! (. m m30) 0.0)
+    (set! (. m m31) 0.0)
+    (set! (. m m32) 0.0)
+    (set! (. m m33) 1.0)
+    m))
+
 (s/defn camera-orthographic-projection-matrix :- Matrix4d
   [camera :- Camera]
   (let [near   (.z-near camera)
@@ -72,7 +100,6 @@
         left   (- right)
         top    (/ (.fov-y camera) 2.0)
         bottom (- top)
-
         m      (Matrix4d.)]
     (set! (. m m00) (/ 2.0 (- right left)))
     (set! (. m m01) 0.0)
@@ -100,8 +127,6 @@
   (case (:type camera)
     :perspective  (camera-perspective-projection-matrix camera)
     :orthographic (camera-orthographic-projection-matrix camera)))
-
-
 
 (s/defn make-camera :- Camera
   ([] (make-camera :perspective))
@@ -177,6 +202,37 @@
 (defn camera-view-proj-matrix ^Matrix4d [camera]
   (doto (camera-projection-matrix camera)
     (.mul (camera-view-matrix camera))))
+
+(defn pick-matrix
+  "Create a picking matrix as used by gluPickMatrix.
+
+  `viewport` is the extents of the viewport
+
+  `pick-rect` is the picking rectangle, where .x .y is the center of
+  the picking region and .width .height the corresponding dimensions
+  picking region.
+
+  See:
+    * editor.scene-selection/calc-picking-rect
+    * https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/gluPickMatrix.xml"
+  ^Matrix4d [^Region viewport ^Rect pick-rect]
+  (let [sx (/ (.right viewport)
+              (.width pick-rect))
+        sy (/ (.bottom viewport)
+              (.height pick-rect))
+        tx (/ (+ (.right viewport)
+                 (* 2.0 (- (.left viewport)
+                           (.x pick-rect))))
+              (.width pick-rect))
+        ty (/ (+ (.bottom viewport)
+                 (* 2.0 (- (.top viewport) (- (.bottom viewport) (.y pick-rect)))))
+              (.height pick-rect))]
+  (doto (Matrix4d.)
+    (.set (double-array [sx  0.0 0.0 tx
+                         0.0 sy  0.0 ty
+                         0.0 0.0 1.0 0.0
+                         0.0 0.0 0.0 1.0])))))
+
 
 (defmacro scale-to-doubleunit [x x-min x-max]
   `(- (/ (* (- ~x ~x-min) 2) ~x-max) 1.0))

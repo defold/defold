@@ -131,7 +131,7 @@ namespace dmGui
 
         uint64_t    m_TextureHash;
         void*       m_Texture;
-        void*       m_TextureSet;
+        NodeTextureType m_TextureType;
 
         TextureSetAnimDesc m_TextureSetAnimDesc;
         uint64_t    m_FlipbookAnimHash;
@@ -210,14 +210,20 @@ namespace dmGui
     {
         int         m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
         Context*    m_Context;
+        const char* m_SourceFileName;
         int         m_InstanceReference;
     };
 
     struct TextureInfo
     {
-        TextureInfo(void* texture, void *textureset, uint32_t original_width, uint32_t original_height) : m_Texture(texture), m_TextureSet(textureset), m_OriginalWidth(original_width), m_OriginalHeight(original_height) {}
-        void*   m_Texture;
-        void*   m_TextureSet;
+        TextureInfo(void* texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height) 
+        : m_TextureSource(texture_source)
+        , m_TextureSourceType(texture_source_type)
+        , m_OriginalWidth(original_width)
+        , m_OriginalHeight(original_height) {}
+        
+        void*    m_TextureSource;
+        NodeTextureType m_TextureSourceType;
         uint32_t m_OriginalWidth : 16;
         uint32_t m_OriginalHeight : 16;
     };

@@ -27,7 +27,6 @@
                      [commons-configuration/commons-configuration "1.10"
                       :exclusions [commons-logging/commons-logging]] ; commons-configuration -> 1.1.1, amazonica -> 1.2
                      [commons-codec/commons-codec                 "1.10"]
-                     [org.clojure/data.json                       "0.2.6"]
                      [org.projectodd.shimdandy/shimdandy-api      "1.2.0"]
                      [org.projectodd.shimdandy/shimdandy-impl     "1.2.0"]
                      [potemkin                                    "0.4.3"]
@@ -41,6 +40,7 @@
                      [org.eclipse.jgit/org.eclipse.jgit           "4.2.0.201601211800-r"
                       :exclusions [org.apache.httpcomponents/httpclient]] ; jgit -> 4.3.6, amazonica -> 4.5.2
                      [clj-antlr                                   "0.2.2"]
+                     [org.apache.commons/commons-compress         "1.18"]
 
                      [net.java.dev.jna/jna                        "4.1.0"]
                      [net.java.dev.jna/jna-platform               "4.1.0"]

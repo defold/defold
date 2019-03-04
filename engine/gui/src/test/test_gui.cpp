@@ -120,11 +120,11 @@ static void CreateTestSkin(dmRigDDF::MeshSet* mesh_set, int mesh_entry_index, dm
     mesh.m_MeshColor[10]              = color.getZ();
     mesh.m_MeshColor[11]              = color.getW();
 
-    mesh.m_Indices.m_Data         = new uint32_t[vert_count];
-    mesh.m_Indices.m_Count        = vert_count;
-    mesh.m_Indices.m_Data[0]      = 0;
-    mesh.m_Indices.m_Data[1]      = 1;
-    mesh.m_Indices.m_Data[2]      = 2;
+    mesh.m_PositionIndices.m_Data     = new uint32_t[vert_count];
+    mesh.m_PositionIndices.m_Count    = vert_count;
+    mesh.m_PositionIndices.m_Data[0]  = 0;
+    mesh.m_PositionIndices.m_Data[1]  = 1;
+    mesh.m_PositionIndices.m_Data[2]  = 2;
     mesh.m_BoneIndices.m_Data     = new uint32_t[vert_count*4];
     mesh.m_BoneIndices.m_Count    = vert_count*4;
     mesh.m_BoneIndices.m_Data[0]  = 0;
@@ -608,11 +608,11 @@ private:
             if (mesh.m_Normals.m_Count > 0)          { delete [] mesh.m_Normals.m_Data; }
             if (mesh.m_BoneIndices.m_Count > 0)      { delete [] mesh.m_BoneIndices.m_Data; }
             if (mesh.m_Weights.m_Count > 0)          { delete [] mesh.m_Weights.m_Data; }
-            if (mesh.m_Indices.m_Count > 0)          { delete [] mesh.m_Indices.m_Data; }
             if (mesh.m_MeshColor.m_Count > 0)            { delete [] mesh.m_MeshColor.m_Data; }
             if (mesh.m_Texcoord0Indices.m_Count > 0) { delete [] mesh.m_Texcoord0Indices.m_Data; }
             if (mesh.m_Texcoord0.m_Count > 0)        { delete [] mesh.m_Texcoord0.m_Data; }
             if (mesh.m_Positions.m_Count > 0)        { delete [] mesh.m_Positions.m_Data; }
+            if (mesh.m_PositionIndices.m_Count > 0)  { delete [] mesh.m_PositionIndices.m_Data; }
         }
         delete [] m_MeshSet->m_MeshAttachments.m_Data;
 
@@ -628,7 +628,6 @@ private:
                 if (mesh_slot.m_SlotColor.m_Count > 0) { delete [] mesh_slot.m_SlotColor.m_Data; }
             }
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data;
-
         }
         delete [] m_MeshSet->m_MeshEntries.m_Data;
 
@@ -836,13 +835,63 @@ TEST_F(dmGuiTest, Layouts)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
+TEST_F(dmGuiTest, NodeTextureType)
+{
+    int t1, t2;
+    void* raw_tex;
+    dmGui::Result r;
+    dmGui::NodeTextureType node_texture_type;
+    uint64_t fb_id;
+
+    // Test NODE_TEXTURE_TYPE_TEXTURE_SET: Create and get type
+    r = dmGui::AddTexture(m_Scene, "t1", (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(0,0,0), dmGui::NODE_TYPE_BOX);
+    ASSERT_NE((dmGui::HNode) 0, node);
+
+    r = dmGui::SetNodeTexture(m_Scene, node, "t1");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    raw_tex = dmGui::GetNodeTexture(m_Scene, node, &node_texture_type);
+    ASSERT_EQ(raw_tex, &t1);
+    ASSERT_EQ(node_texture_type, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET);
+
+    // Test NODE_TEXTURE_TYPE_TEXTURE_SET: Playing flipbook animation
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0x0);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
+    ASSERT_EQ(dmHashString64("ta1"), fb_id);
+
+    // Test NODE_TEXTURE_TYPE_TEXTURE: Create and get type
+    r = dmGui::AddTexture(m_Scene, "t2", (void*) &t2, dmGui::NODE_TEXTURE_TYPE_TEXTURE, 1, 1);
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    r = dmGui::SetNodeTexture(m_Scene, node, "t2");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    raw_tex = dmGui::GetNodeTexture(m_Scene, node, &node_texture_type);
+    ASSERT_EQ(raw_tex, &t2);
+    ASSERT_EQ(node_texture_type, dmGui::NODE_TEXTURE_TYPE_TEXTURE);
+
+    // Test NODE_TEXTURE_TYPE_TEXTURE: Playing flipbook animation should not work!
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta2", 0x0);
+    ASSERT_EQ(r, dmGui::RESULT_INVAL_ERROR);
+    ASSERT_EQ(dmGui::GetNodeFlipbookAnimId(m_Scene, node), 0);
+
+    // Test NODE_TEXTURE_TYPE_NONE: Removing known texture should reset node texture types
+    dmGui::RemoveTexture(m_Scene, "t2");
+    dmGui::GetNodeTexture(m_Scene, node, &node_texture_type);
+    ASSERT_EQ(node_texture_type, dmGui::NODE_TEXTURE_TYPE_NONE);
+}
 
 TEST_F(dmGuiTest, SizeMode)
 {
-    int t1, ts1;
+    int t1;
     dmGui::Result r;
 
-    r = dmGui::AddTexture(m_Scene, "t1", (void*) &t1, (void*) &ts1, 1, 1);
+    r = dmGui::AddTexture(m_Scene, "t1", (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
@@ -865,10 +914,10 @@ TEST_F(dmGuiTest, SizeMode)
 
 TEST_F(dmGuiTest, FlipbookAnim)
 {
-    int t1, ts1;
+    int t1;
     dmGui::Result r;
 
-    r = dmGui::AddTexture(m_Scene, "t1", (void*) &t1, (void*) &ts1, 1, 1);
+    r = dmGui::AddTexture(m_Scene, "t1", (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
@@ -918,7 +967,7 @@ TEST_F(dmGuiTest, FlipbookAnim)
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
     ASSERT_EQ(0, fb_id);
 
-    r = dmGui::AddTexture(m_Scene, "t2", (void*) &t1, 0, 1, 1);
+    r = dmGui::AddTexture(m_Scene, "t2", (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     r = dmGui::SetNodeTexture(m_Scene, node, "t2");
@@ -931,11 +980,10 @@ TEST_F(dmGuiTest, FlipbookAnim)
 TEST_F(dmGuiTest, TextureFontLayer)
 {
     int t1, t2;
-    int ts1, ts2;
     int f1, f2;
 
-    dmGui::AddTexture(m_Scene, "t1", (void*) &t1, (void*) &ts1, 1, 1);
-    dmGui::AddTexture(m_Scene, "t2", (void*) &t2, (void*) &ts2, 1, 1);
+    dmGui::AddTexture(m_Scene, "t1", (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
+    dmGui::AddTexture(m_Scene, "t2", (void*) &t2, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     dmGui::AddFont(m_Scene, "f1", &f1);
     dmGui::AddFont(m_Scene, "f2", &f2);
     dmGui::AddLayer(m_Scene, "l1");
@@ -959,9 +1007,8 @@ TEST_F(dmGuiTest, TextureFontLayer)
     r = dmGui::SetNodeTexture(m_Scene, node, "t2");
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    dmGui::AddTexture(m_Scene, "t2", (void*) &t1, (void*) &ts1, 1, 1);
+    dmGui::AddTexture(m_Scene, "t2", (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(&t1, m_Scene->m_Nodes[node & 0xffff].m_Node.m_Texture);
-    ASSERT_EQ(&ts1, m_Scene->m_Nodes[node & 0xffff].m_Node.m_TextureSet);
 
     dmGui::RemoveTexture(m_Scene, "t2");
     ASSERT_EQ((void*)0, m_Scene->m_Nodes[node & 0xffff].m_Node.m_Texture);
@@ -1030,8 +1077,9 @@ static void DynamicRenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* no
     uint32_t* count = (uint32_t*) context;
     for (uint32_t i = 0; i < node_count; ++i) {
         dmGui::HNode node = nodes[i].m_Node;
+        dmGui::NodeTextureType node_texture_type;
         dmhash_t id = dmGui::GetNodeTextureId(scene, node);
-        if ((id == dmHashString64("t1") || id == dmHashString64("t2")) && dmGui::GetNodeTexture(scene, node)) {
+        if ((id == dmHashString64("t1") || id == dmHashString64("t2")) && dmGui::GetNodeTexture(scene, node, &node_texture_type)) {
             *count = *count + 1;
         }
     }
@@ -1183,10 +1231,10 @@ TEST_F(dmGuiTest, DynamicTextureFlip)
 
 TEST_F(dmGuiTest, ScriptFlipbookAnim)
 {
-    int t1, ts1;
+    int t1;
     dmGui::Result r;
 
-    r = dmGui::AddTexture(m_Scene, "t1", (void*) &t1, (void*) &ts1, 1, 1);
+    r = dmGui::AddTexture(m_Scene, "t1", (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     const char* id = "n";
@@ -1227,10 +1275,10 @@ TEST_F(dmGuiTest, ScriptFlipbookAnim)
 
 TEST_F(dmGuiTest, ScriptTextureFontLayer)
 {
-    int t, ts;
+    int t;
     int f;
 
-    dmGui::AddTexture(m_Scene, "t", (void*) &t, (void*) &ts, 1, 1);
+    dmGui::AddTexture(m_Scene, "t", (void*) &t, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     dmGui::AddFont(m_Scene, "f", &f);
     dmGui::AddLayer(m_Scene, "l");
 
@@ -2740,8 +2788,8 @@ TEST_F(dmGuiTest, Bug352)
 {
     dmGui::AddFont(m_Scene, "big_score", 0);
     dmGui::AddFont(m_Scene, "score", 0);
-    dmGui::AddTexture(m_Scene, "left_hud", 0,0, 1, 1);
-    dmGui::AddTexture(m_Scene, "right_hud", 0,0, 1, 1);
+    dmGui::AddTexture(m_Scene, "left_hud", 0, dmGui::NODE_TEXTURE_TYPE_NONE, 1, 1);
+    dmGui::AddTexture(m_Scene, "right_hud", 0, dmGui::NODE_TEXTURE_TYPE_NONE, 1, 1);
 
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, LuaSourceFromStr((const char*)BUG352_LUA, BUG352_LUA_SIZE));
@@ -5190,11 +5238,11 @@ static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
             if (mesh.m_Normals.m_Count > 0)          { delete [] mesh.m_Normals.m_Data; }
             if (mesh.m_BoneIndices.m_Count > 0)      { delete [] mesh.m_BoneIndices.m_Data; }
             if (mesh.m_Weights.m_Count > 0)          { delete [] mesh.m_Weights.m_Data; }
-            if (mesh.m_Indices.m_Count > 0)          { delete [] mesh.m_Indices.m_Data; }
             if (mesh.m_MeshColor.m_Count > 0)            { delete [] mesh.m_MeshColor.m_Data; }
             if (mesh.m_Texcoord0Indices.m_Count > 0) { delete [] mesh.m_Texcoord0Indices.m_Data; }
             if (mesh.m_Texcoord0.m_Count > 0)        { delete [] mesh.m_Texcoord0.m_Data; }
             if (mesh.m_Positions.m_Count > 0)        { delete [] mesh.m_Positions.m_Data; }
+            if (mesh.m_PositionIndices.m_Count > 0)  { delete [] mesh.m_PositionIndices.m_Data; }
         }
         delete [] dummy_data->m_MeshSet->m_MeshAttachments.m_Data;
 
@@ -5209,7 +5257,6 @@ static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
                 if (mesh_slot.m_SlotColor.m_Count > 0) { delete [] mesh_slot.m_SlotColor.m_Data; }
             }
             delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data;
-
         }
         delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data;
     }

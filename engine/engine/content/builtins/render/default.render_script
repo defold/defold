@@ -26,6 +26,10 @@ local function stretch_projection(near, far)
     return vmath.matrix4_orthographic(0, render.get_width(), 0, render.get_height(), near, far)
 end
 
+local function get_projection(self)
+    return self.projection_fn(self.near, self.far, self.zoom)
+end
+
 function init(self)
     self.tile_pred = render.predicate({"tile"})
     self.gui_pred = render.predicate({"gui"})
@@ -39,6 +43,15 @@ function init(self)
     self.clear_color.w = sys.get_config("render.clear_color_alpha", 0)
 
     self.view = vmath.matrix4()
+
+    -- default is stretch projection. copy from builtins and change for different projection
+    -- or send a message to the render script to change projection:
+    -- msg.post("@render:", "use_stretch_projection", { near = -1, far = 1 })
+    -- msg.post("@render:", "use_fixed_projection", { near = -1, far = 1, zoom = 2 })
+    -- msg.post("@render:", "use_fixed_fit_projection", { near = -1, far = 1 })
+    self.near = -1
+    self.far = 1
+    self.projection_fn = stretch_projection
 end
 
 function update(self)
@@ -56,10 +69,8 @@ function update(self)
     render.set_blend_func(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA)
     render.disable_state(render.STATE_CULL_FACE)
 
-    -- default is stretch projection. copy from builtins and change for different projection
-    --
-    render.set_projection(stretch_projection(-1, 1))
-    
+    render.set_projection(get_projection(self))
+
     render.draw(self.tile_pred)
     render.draw(self.particle_pred)
     render.draw_debug3d()
@@ -73,9 +84,6 @@ function update(self)
     render.draw(self.gui_pred)
     render.draw(self.text_pred)
     render.disable_state(render.STATE_STENCIL_TEST)
-
-    render.set_depth_mask(false)
-    render.draw_debug2d()
 end
 
 function on_message(self, message_id, message)
@@ -83,5 +91,21 @@ function on_message(self, message_id, message)
         self.clear_color = message.color
     elseif message_id == hash("set_view_projection") then
         self.view = message.view
+        self.projection = message.projection
+    elseif message_id == hash("use_camera_projection") then
+        self.projection_fn = function() return self.projection or vmath.matrix4() end
+    elseif message_id == hash("use_stretch_projection") then
+        self.near = message.near or -1
+        self.far = message.far or 1
+        self.projection_fn = stretch_projection
+    elseif message_id == hash("use_fixed_projection") then
+        self.near = message.near or -1
+        self.far = message.far or 1
+        self.zoom = message.zoom or 1
+        self.projection_fn = fixed_projection
+    elseif message_id == hash("use_fixed_fit_projection") then
+        self.near = message.near or -1
+        self.far = message.far or 1
+        self.projection_fn = fixed_fit_projection
     end
 end

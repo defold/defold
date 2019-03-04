@@ -379,6 +379,15 @@ namespace dmGui
         PIEBOUNDS_ELLIPSE   = 1,
     };
 
+    // This enum denotes what kind of texture type the m_Texture pointer is referencing.
+    enum NodeTextureType
+    {
+        NODE_TEXTURE_TYPE_NONE,
+        NODE_TEXTURE_TYPE_TEXTURE,
+        NODE_TEXTURE_TYPE_TEXTURE_SET,
+        NODE_TEXTURE_TYPE_DYNAMIC
+    };
+
     /**
      * Container of input related information.
      */
@@ -551,7 +560,7 @@ namespace dmGui
      * @param original_height Original Height of the texture
      * @return Outcome of the operation
      */
-    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset, uint32_t original_width, uint32_t original_height);
+    Result AddTexture(HScene scene, const char* texture_name, void* texture, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height);
 
     /**
      * Removes a texture with the specified name from the scene.
@@ -936,7 +945,7 @@ namespace dmGui
     void SetNodeTextTracking(HScene scene, HNode node, float tracking);
     float GetNodeTextTracking(HScene scene, HNode node);
 
-    void* GetNodeTexture(HScene scene, HNode node);
+    void* GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut);
     dmhash_t GetNodeTextureId(HScene scene, HNode node);
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);

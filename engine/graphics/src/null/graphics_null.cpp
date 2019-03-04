@@ -410,6 +410,11 @@ namespace dmGraphics
         return true;
     }
 
+    bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
+    {
+        return true;
+    }
+
     uint32_t GetMaxElementsIndices(HContext context)
     {
         return 65536;
@@ -708,6 +713,11 @@ namespace dmGraphics
         FragmentProgram* p = (FragmentProgram*)program;
         delete [] (char*)p->m_Data;
         delete p;
+    }
+
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context)
+    {
+        return ShaderDesc::LANGUAGE_GLSL;
     }
 
     void EnableProgram(HContext context, HProgram program)

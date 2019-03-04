@@ -20,8 +20,7 @@
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
            [javafx.scene.control CheckBox Button Label ListView TextArea TextField Hyperlink]
-           [javafx.scene.input KeyCode KeyEvent]
-           [javafx.scene.input KeyEvent]
+           [javafx.scene.input KeyCode]
            [javafx.scene.layout HBox VBox Region]
            [javafx.scene.text Text TextFlow]
            [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]))
@@ -36,6 +35,8 @@
     (ui/with-controls root [^TextArea message ^Button ok]
       (ui/text! message text)
       (ui/on-action! ok (fn [_] (.close stage)))
+      (.setDefaultButton ok true)
+      (.setCancelButton ok true)
       (.setOnShown stage (ui/event-handler _ (.setScrollTop message 0.0))))
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
@@ -45,8 +46,10 @@
         stage (ui/make-dialog-stage)
         scene (Scene. root)]
     (ui/title! stage title)
-    (ui/with-controls root [message ok]
+    (ui/with-controls root [message ^Button ok]
       (ui/text! message text)
+      (.setDefaultButton ok true)
+      (.setCancelButton ok true)
       (ui/on-action! ok (fn [_] (.close stage))))
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
@@ -127,7 +130,8 @@
        (let [runs (map mark-run->node (message->mark-runs text))]
          (ui/children! message runs))
        (ui/bind-action! ok ::close)
-       (ui/bind-keys! root {KeyCode/ESCAPE ::close})
+       (.setDefaultButton ok true)
+       (.setCancelButton ok true)
        (ui/request-focus! ok))
      (.setScene stage scene)
      (ui/show-and-wait! stage))))
@@ -136,27 +140,27 @@
   ([text]
    (make-confirm-dialog text {}))
   ([text options]
-   (let [root     ^Region (ui/load-fxml "confirm.fxml")
-         stage    (if-let [owner-window (:owner-window options)]
-                    (ui/make-dialog-stage owner-window)
-                    (ui/make-dialog-stage))
-         scene    (Scene. root)
-         result   (atom false)]
+   (let [root ^Region (ui/load-fxml "confirm.fxml")
+         stage (if-let [owner-window (:owner-window options)]
+                 (ui/make-dialog-stage owner-window)
+                 (ui/make-dialog-stage))
+         scene (Scene. root)
+         result-atom (atom false)]
      (ui/with-controls root [^Label message ^Button ok ^Button cancel]
        (ui/text! message text)
        (ui/text! ok (get options :ok-label "OK"))
        (ui/text! cancel (get options :cancel-label "Cancel"))
        (ui/on-action! ok (fn [_]
-                           (reset! result true)
-                           (.close stage)))
+                           (reset! result-atom true)
+                           (ui/close! stage)))
        (ui/on-action! cancel (fn [_]
-                               (.close stage))))
+                               (ui/close! stage))))
      (when-let [pref-width (:pref-width options)]
        (.setPrefWidth root pref-width))
      (ui/title! stage (get options :title "Please Confirm"))
      (.setScene stage scene)
      (ui/show-and-wait! stage)
-     @result)))
+     @result-atom)))
 
 (defn make-resolution-dialog []
   (let [root     ^Region (ui/load-fxml "resolution.fxml")
@@ -178,19 +182,66 @@
     (ui/show-and-wait! stage)
   [@result @width @height]))
 
-(defn make-pending-update-dialog
-  [^Stage owner]
+(defn make-update-failed-dialog [^Stage owner]
+  (let [root ^Parent (ui/load-fxml "update-failed-alert.fxml")
+        stage (ui/make-dialog-stage owner)
+        scene (Scene. root)]
+    (ui/title! stage "Update failed")
+    (ui/with-controls root [^Button quit ^Button open-site]
+      (ui/on-action! quit
+        (fn [_]
+          (ui/close! stage)))
+      (ui/on-action! open-site
+        (fn [_]
+          (ui/open-url "https://www.defold.com/")
+          (ui/close! stage))))
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)))
+
+(defn make-download-update-or-restart-dialog [^Stage owner]
+  (let [root ^Parent (ui/load-fxml "update-or-restart-alert.fxml")
+        stage (ui/make-dialog-stage owner)
+        scene (Scene. root)
+        result-atom (atom :cancel)
+        make-action-fn (fn action! [result]
+                         (fn [_]
+                           (reset! result-atom result)
+                           (ui/close! stage)))]
+    (ui/title! stage "Update Available")
+    (ui/with-controls root [^Button cancel ^Button restart ^Button download]
+      (ui/on-action! cancel (make-action-fn :cancel))
+      (ui/on-action! restart (make-action-fn :restart))
+      (ui/on-action! download (make-action-fn :download)))
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+    @result-atom))
+
+(defn make-platform-no-longer-supported-dialog [^Stage owner]
+  (let [root ^Parent (ui/load-fxml "platform-no-longer-supported-alert.fxml")
+        stage (ui/make-dialog-stage owner)
+        scene (Scene. root)]
+    (ui/title! stage "Update Available")
+    (ui/with-controls root [^Button close]
+      (ui/on-action! close (fn on-close! [_]
+                             (ui/close! stage))))
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)))
+
+(defn make-download-update-dialog [^Stage owner]
   (let [root ^Parent (ui/load-fxml "update-alert.fxml")
         stage (ui/make-dialog-stage owner)
         scene (Scene. root)
-        result (atom false)]
+        result-atom (atom false)]
     (ui/title! stage "Update Available")
-    (ui/with-controls root [ok cancel]
-      (ui/on-action! ok (fn on-ok! [_] (reset! result true) (.close stage)))
-      (ui/on-action! cancel (fn on-cancel! [_] (.close stage))))
+    (ui/with-controls root [^Button ok ^Button cancel]
+      (ui/on-action! ok (fn on-ok! [_]
+                          (reset! result-atom true)
+                          (ui/close! stage)))
+      (ui/on-action! cancel (fn on-cancel! [_]
+                              (ui/close! stage))))
     (.setScene stage scene)
     (ui/show-and-wait! stage)
-    @result))
+    @result-atom))
 
 (handler/defhandler ::report-error :dialog
   (run [sentry-id-promise]
@@ -219,8 +270,9 @@
     (ui/title! stage "Error")
     (ui/text! (:message controls) (messages ex-map))
     (ui/bind-action! (:dismiss controls) ::close)
+    (.setCancelButton ^Button (:dismiss controls) true)
     (ui/bind-action! (:report controls) ::report-error)
-    (ui/bind-keys! root {KeyCode/ESCAPE ::close})
+    (.setDefaultButton ^Button (:report controls) true)
     (ui/request-focus! (:report controls))
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
@@ -230,15 +282,16 @@
         stage (ui/make-dialog-stage)
         scene (Scene. root)
         result (atom :quit)]
-    (ui/with-controls root [message quit continue glgenbuffers-link opengl-linux-link]
+    (ui/with-controls root [message ^Button quit ^Button continue glgenbuffers-link opengl-linux-link]
       (when-not (util/is-linux?)
         (.. root getChildren (remove opengl-linux-link)))
       (ui/context! root :dialog {:stage stage} nil)
       (ui/title! stage "Insufficient OpenGL Support")
       (ui/text! message support-error)
       (ui/on-action! continue (fn [_] (reset! result :continue) (ui/close! stage)))
+      (.setDefaultButton continue true)
       (ui/bind-action! quit ::close)
-      (ui/bind-keys! root {KeyCode/ESCAPE ::close})
+      (.setCancelButton quit true)
       (ui/on-action! glgenbuffers-link (fn [_] (ui/open-url (github/glgenbuffers-link))))
       (ui/on-action! opengl-linux-link (fn [_] (ui/open-url "https://www.defold.com/faq/#_linux_issues")))
       (.setScene stage scene)
@@ -472,7 +525,7 @@
   (let [root ^Parent (ui/load-fxml "new-folder-dialog.fxml")
         stage (ui/make-dialog-stage (ui/main-stage))
         scene (Scene. root)
-        controls (ui/collect-controls root ["name" "ok" "path"])
+        controls (ui/collect-controls root ["name" "ok" "cancel" "path"])
         return (atom nil)
         reset-return! (fn [] (reset! return (some-> (ui/text (:name controls)) sanitize-folder-name not-empty)))
         close (fn [] (reset-return!) (.close stage))
@@ -480,23 +533,17 @@
         do-validation (fn []
                         (let [sanitized (some-> (not-empty (ui/text (:name controls))) sanitize-folder-name)
                               validation-msg (some-> sanitized validate)]
-                        (if (or (nil? sanitized) validation-msg)
-                          (do (ui/text! (:path controls) (or validation-msg ""))
-                              (ui/enable! (:ok controls) false))
-                          (do (ui/text! (:path controls) sanitized)
-                              (ui/enable! (:ok controls) true)))))]
+                          (if (or (nil? sanitized) validation-msg)
+                            (do (ui/text! (:path controls) (or validation-msg ""))
+                                (ui/enable! (:ok controls) false))
+                            (do (ui/text! (:path controls) sanitized)
+                                (ui/enable! (:ok controls) true)))))]
     (ui/title! stage "New Folder")
 
     (ui/on-action! (:ok controls) (fn [_] (close)))
-
-    (.addEventFilter scene KeyEvent/KEY_PRESSED
-                     (ui/event-handler event
-                                       (let [code (.getCode ^KeyEvent event)]
-                                         (when (condp = code
-                                                 KeyCode/ENTER (if (ui/enabled? (:ok controls)) (do (reset-return!) true) false)
-                                                 KeyCode/ESCAPE true
-                                                 false)
-                                           (.close stage)))))
+    (.setDefaultButton ^Button (:ok controls) true)
+    (ui/on-action! (:cancel controls) (fn [_] (.close stage)))
+    (.setCancelButton ^Button (:cancel controls) true)
 
     (ui/on-edit! (:name controls) (fn [_old _new] (do-validation)))
 
@@ -522,17 +569,10 @@
                    (fn [_]
                      (reset! return (ui/text (:ip controls)))
                      (.close stage)))
+    (.setDefaultButton ^Button (:add controls) true)
     (ui/on-action! (:cancel controls)
                    (fn [_] (.close stage)))
-
-    (.addEventFilter scene KeyEvent/KEY_PRESSED
-                     (ui/event-handler event
-                                       (let [code (.getCode ^KeyEvent event)]
-                                         (when (condp = code
-                                                 KeyCode/ENTER  (do (reset! return (ui/text (:ip controls))) true)
-                                                 KeyCode/ESCAPE true
-                                                 false)
-                                           (.close stage)))))
+    (.setCancelButton ^Button (:cancel controls) true)
 
     (.setScene stage scene)
     (ui/show-and-wait! stage)
@@ -544,8 +584,7 @@
       str/trim
       (str/replace #"[/\\]" "") ; strip path separators
       (str/replace #"[\"']" "") ; strip quotes
-      (str/replace #"^\.*" "") ; prevent hiding files (.dotfile)
-      ))
+      (str/replace #"^\.*" ""))) ; prevent hiding files (.dotfile)
 
 (defn sanitize-file-name [extension name]
   (-> name
@@ -562,7 +601,7 @@
   (let [root     ^Parent (ui/load-fxml "rename-dialog.fxml")
         stage    (ui/make-dialog-stage (ui/main-stage))
         scene    (Scene. root)
-        controls (ui/collect-controls root ["name" "path" "ok" "name-label"])
+        controls (ui/collect-controls root ["name" "path" "ok" "cancel" "name-label"])
         return   (atom nil)
         reset-return! (fn [] (reset! return (some-> (ui/text (:name controls)) sanitize not-empty)))
         close    (fn [] (reset-return!) (.close stage))
@@ -584,15 +623,9 @@
       (.selectAll ^TextField (:name controls)))
 
     (ui/on-action! (:ok controls) (fn [_] (close)))
-
-    (.addEventFilter scene KeyEvent/KEY_PRESSED
-                     (ui/event-handler event
-                                       (let [code (.getCode ^KeyEvent event)]
-                                         (when (condp = code
-                                                 KeyCode/ENTER  (if (ui/enabled? (:ok controls)) (do (reset-return!) true) false)
-                                                 KeyCode/ESCAPE true
-                                                 false)
-                                           (.close stage)))))
+    (.setDefaultButton ^Button (:ok controls) true)
+    (ui/on-action! (:cancel controls) (fn [_] (.close stage)))
+    (.setCancelButton ^Button (:cancel controls) true)
 
     (ui/on-edit! (:name controls) (fn [_old _new] (do-validation)))
 
@@ -616,7 +649,7 @@
   (let [root ^Parent (ui/load-fxml "new-file-dialog.fxml")
         stage (ui/make-dialog-stage (ui/main-stage))
         scene (Scene. root)
-        controls (ui/collect-controls root ["name" "location" "browse" "path" "ok"])
+        controls (ui/collect-controls root ["name" "location" "browse" "path" "ok" "cancel"])
         return (atom nil)
         close (fn [perform?]
                 (when perform?
@@ -636,14 +669,9 @@
                                                 (when location
                                                   (set-location location)))))
     (ui/on-action! (:ok controls) (fn [_] (close true)))
-
-    (.addEventFilter scene KeyEvent/KEY_PRESSED
-                     (ui/event-handler event
-                                       (let [code (.getCode ^KeyEvent event)]
-                                         (condp = code
-                                           KeyCode/ENTER (close true)
-                                           KeyCode/ESCAPE (close false)
-                                           false))))
+    (.setDefaultButton ^Button (:ok controls) true)
+    (ui/on-action! (:cancel controls) (fn [_] (close false)))
+    (.setCancelButton ^Button (:cancel controls) true)
 
     (.setScene stage scene)
     (ui/show-and-wait! stage)
@@ -672,7 +700,7 @@
     (ui/bind-action! (:rename controls) ::rename-conflicting-files)
     (ui/bind-action! (:overwrite controls) ::overwrite-conflicting-files)
     (ui/bind-action! (:cancel controls) ::close)
-    (ui/bind-keys! root {KeyCode/ESCAPE ::close})
+    (.setCancelButton ^Button (:cancel controls) true)
     (ui/text! (:message controls) (let [conflict-count (count src-dest-pairs)]
                                     (if (= 1 conflict-count)
                                       "The destination has an entry with the same name."

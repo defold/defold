@@ -109,7 +109,7 @@ BUG_SUMMARY_FMT="""<tr><td class="SUMM_DESC">%(BUG_TYPE)s</td><td class="Q">%(BU
 
 # BUG_REPORTS is a list of these:
 # <tr class="bt_logic_error_dereference_of_null_pointer"><td class="DESC">Logic error</td><td class="DESC">Dereference of null pointer</td><td>easing.cpp</td><td class="DESC">GetValue</td><td class="Q">25</td><td class="Q">5</td><td><a href="report-cb9dae.html#EndPath">View Report</a></td>
-BUG_REPORT_FMT="""<tr class="%(BUG_CLASS)s"><td class="DESC">%(BUG_GROUP)s</td><td class="DESC">%(BUG_TYPE)s</td><td>%(FILE_NAME)s</td><td class="DESC">%(FUNCTION_NAME)s</td><td class="Q">%(LINE_NUMBER)s</td><td class="Q">%(LENGTH)s</td><td><a href="%(REPORT_FILE)s#EndPath">View Report</a></td></tr>"""
+BUG_REPORT_FMT="""<tr class="%(BUG_CLASS)s"><td class="DESC">%(BUG_GROUP)s</td><td class="DESC">%(BUG_TYPE)s</td><td>%(FILE_NAME)s</td><td class="DESC">%(FUNCTION_NAME)s</td><td class="Q">%(LINE_NUMBER)s</td><td class="Q">%(LENGTH)s</td><td><a href="%(REPORT_FILE)s#EndPath">View Report</a></td><!-- REPORTBUG id="%(REPORT_FILE)s" --></tr>"""
 BUG_REPORT_RE="<tr class=\"(.*?)\"><td class=\"DESC\">(.*?)</td><td class=\"DESC\">(.*?)</td><td>(.*?)</td><td class=\"DESC\">(.*?)</td><td class=\"Q\">([0-9]+?)</td><td class=\"Q\">([0-9]+?)</td><td><a href=\"(.*?)#EndPath\">View Report</a></td>"
 
 def get_report_info(report):
@@ -169,11 +169,11 @@ def generate_output(targetdir, bugs):
         class_counts[bug['BUG_CLASS']] += 1
         class_to_type[bug['BUG_CLASS']] = bug['BUG_TYPE']
 
-    # store the bug count with 
+    # store the bug count with
     BUG_SUMMARIES = ""
     for cls, count in class_counts.iteritems():
         BUG_SUMMARIES += BUG_SUMMARY_FMT % {'BUG_CLASS':cls, 'BUG_TYPE_COUNT':'%d'%count, 'BUG_TYPE':class_to_type[cls]} + '\n'
-    
+
     BUG_REPORTS = ""
     for _, _, bug in bugs:
         BUG_REPORTS += BUG_REPORT_FMT % bug + '\n'

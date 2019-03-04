@@ -59,9 +59,15 @@ public class LocalNotificationReceiver extends WakefulBroadcastReceiver {
                 int largeIconId = extras.getInt("largeIcon");
                 if (smallIconId == 0) {
                     smallIconId = info.icon;
+                    if (smallIconId == 0) {
+                        smallIconId = android.R.color.transparent;
+                    }
                 }
                 if (largeIconId == 0) {
                     largeIconId = info.icon;
+                    if (largeIconId == 0) {
+                        largeIconId = android.R.color.transparent;
+                    }
                 }
 
                 // Get bitmap for large icon resource

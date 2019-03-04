@@ -12,33 +12,35 @@ from Queue import Queue
 from ConfigParser import ConfigParser
 
 """
-Build utility for installing external packages, building engine, editor and cr
-Run build.py --help for help
+    Build utility for installing external packages, building engine, editor and cr
+    Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
-PACKAGES_HOST="protobuf-2.3.0 gtest-1.8.0 cg-3.1 vpx-1.7.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 tremolo-0.0.8".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
+PACKAGES_HOST="protobuf-2.3.0 gtest-1.8.0 cg-3.1 vpx-1.7.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
-PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.0.5 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_DARWIN="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-1.7.0 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
-PACKAGES_WIN32="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 apkc-0.1.0 bullet-2.77".split()
-PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
-PACKAGES_LINUX="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 apkc-0.1.0 bullet-2.77".split()
-PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
-PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 google-play-services-4.0.30 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_DARWIN="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 vpx-1.7.0 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0".split()
+PACKAGES_WIN32="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 openal-1.1 glut-3.7.6 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
+PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
+PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
+PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 google-play-services-4.0.30 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0 bullet-2.77".split()
 
+CDN_PACKAGES_URL="https://s3-eu-west-1.amazonaws.com/defold-packages"
+CDN_UPLOAD_URL="s3://d.defold.com/archive"
+
 PACKAGES_EMSCRIPTEN_SDK="emsdk-1.38.12"
-PACKAGES_IOS_SDK="iPhoneOS11.2.sdk"
+PACKAGES_IOS_SDK="iPhoneOS12.1.sdk"
+PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator12.1.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.13.sdk"
-PACKAGES_XCODE_TOOLCHAIN="XcodeToolchain9.2"
+PACKAGES_XCODE_TOOLCHAIN="XcodeDefault10.1.xctoolchain"
 PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-14-0"
 PACKAGES_WIN32_SDK_8="WindowsKits-8.1"
 PACKAGES_WIN32_SDK_10="WindowsKits-10.0"
-DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
-NODE_MODULE_XHR2_URL = "%s/xhr2-0.1.0-common.tar.gz" % (DEFOLD_PACKAGES_URL)
+PACKAGES_NODE_MODULE_XHR2="xhr2-0.1.0-common"
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
 EMSCRIPTEN_VERSION_STR = "1.38.12"
 EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
@@ -181,6 +183,7 @@ class Configuration(object):
                  disable_ccache = False,
                  no_colors = False,
                  archive_path = None,
+                 package_path = None,
                  set_version = None,
                  eclipse = False,
                  branch = None,
@@ -216,6 +219,7 @@ class Configuration(object):
         self.disable_ccache = disable_ccache
         self.no_colors = no_colors
         self.archive_path = archive_path
+        self.package_path = package_path
         self.set_version = set_version
         self.eclipse = eclipse
         self.branch = branch
@@ -269,12 +273,22 @@ class Configuration(object):
         self._log('Extracting %s to %s' % (file, path))
         version = sys.version_info
         # Avoid a bug in python 2.7 (fixed in 2.7.2) related to not being able to remove symlinks: http://bugs.python.org/issue10761
-        if self.host == 'linux' and version[0] == 2 and version[1] == 7 and version[2] < 2:
+        if self.host == 'x86_64-linux' and version[0] == 2 and version[1] == 7 and version[2] < 2:
             self.exec_env_command(['tar', 'xfz', file], cwd = path)
         else:
             tf = TarFile.open(file, 'r:gz')
             tf.extractall(path)
             tf.close()
+
+    def _extract_tgz_rename_folder(self, src, target_folder):
+        self._log('Extracting %s to %s/' % (src, target_folder))
+        parentdir, dirname = os.path.split(target_folder)
+        old_dir = os.getcwd()
+        os.chdir(parentdir)
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
+        self.exec_env_command(['tar', 'xfz', src, '-C', dirname, '--strip-components', '1'])
+        os.chdir(old_dir)
 
     def _extract_zip(self, file, path):
         self._log('Extracting %s to %s' % (file, path))
@@ -306,7 +320,6 @@ class Configuration(object):
     def install_go(self):
         urls = {
             'x86_64-darwin': 'https://storage.googleapis.com/golang/go1.7.1.darwin-amd64.tar.gz',
-            'linux'        : 'https://storage.googleapis.com/golang/go1.7.1.linux-386.tar.gz',
             'x86_64-linux' : 'https://storage.googleapis.com/golang/go1.7.1.linux-amd64.tar.gz',
             'win32'        : 'https://storage.googleapis.com/golang/go1.7.1.windows-386.zip',
             'x86_64-win32' : 'https://storage.googleapis.com/golang/go1.7.1.windows-amd64.zip'
@@ -341,7 +354,6 @@ class Configuration(object):
         platform_packages = {
             'win32':          PACKAGES_WIN32,
             'x86_64-win32':   PACKAGES_WIN32_64,
-            'linux':          PACKAGES_LINUX,
             'x86_64-linux':   PACKAGES_LINUX_64,
             'darwin':         PACKAGES_DARWIN,
             'x86_64-darwin':  PACKAGES_DARWIN_64,
@@ -409,66 +421,52 @@ class Configuration(object):
 
         node_modules_dir = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR)
         self._mkdirs(node_modules_dir)
-        xhr2_tarball = self._download(NODE_MODULE_XHR2_URL)
+        url = '%s/%s.tar.gz' % (self.package_path, PACKAGES_NODE_MODULE_XHR2)
+        xhr2_tarball = self._download(url)
         self._extract_tgz(xhr2_tarball, node_modules_dir)
-
-        def download_sdk(url, targetfolder, tmpname=None): # tmpname is the top folder name inside the archive, which you wish to rename
-            if not os.path.exists(targetfolder):
-                dlpath = self._download(url)
-                parent_folder = os.path.split(targetfolder)[0]
-                if tmpname is None:
-                    self._extract_tgz(dlpath, parent_folder)
-                else:
-                    tmpfolder = os.path.join(parent_folder, tmpname)
-                    os.rename(tmpfolder, targetfolder)
-
-        if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin'):
-            # macOS SDK
-            tgtfolder = join(self.ext, 'SDKs', PACKAGES_MACOS_SDK)
-            if not os.path.exists(tgtfolder):
-                url = '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_MACOS_SDK)
-                dlpath = self._download(url)
-                tmpfolder = join(self.ext, 'SDKs')
-                self._extract_tgz(dlpath, tmpfolder)
-                os.rename(join(tmpfolder, 'MacOSX.sdk'), tgtfolder)
-
-            # Xcode toolchain
-            tgtfolder = join(self.ext, 'SDKs', PACKAGES_XCODE_TOOLCHAIN)
-            if not os.path.exists(tgtfolder):
-                url = '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_XCODE_TOOLCHAIN)
-                dlpath = self._download(url)
-                self._extract_tgz(dlpath, join(self.ext, 'SDKs'))
-
-        if target_platform in ('armv7-darwin', 'arm64-darwin'):
-            # iOS SDK
-            tgtfolder = join(self.ext, 'SDKs', PACKAGES_IOS_SDK)
-            if not os.path.exists(tgtfolder):
-                url = '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_IOS_SDK)
-                dlpath = self._download(url)
-                tmpfolder = join(self.ext, 'SDKs')
-                self._extract_tgz(dlpath, tmpfolder)
-                os.rename(join(tmpfolder, 'iPhoneOS.sdk'), tgtfolder)
-
-        if 'win32' in target_platform and not ('win32' in self.host):
-            win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
-            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )
-            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
-            targetfolder = join(win32_sdk_folder, 'MicrosoftVisualStudio14.0') # let's avoid spaces in the paths
-            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_TOOLCHAIN), targetfolder, 'Microsoft Visual Studio 14.0' )
-
-            # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
         # Simple way to reduce number of warnings in the build
         proto_path = os.path.join(self.dynamo_home, 'share', 'proto')
         if not os.path.exists(proto_path):
             os.makedirs(proto_path)
 
+        self.install_sdk()
+
+    def install_sdk(self):
+        def download_sdk(url, targetfolder):
+            if not os.path.exists(targetfolder):
+                if not os.path.exists(os.path.dirname(targetfolder)):
+                    os.makedirs(os.path.dirname(targetfolder))
+                dlpath = self._download(url)
+                self._extract_tgz_rename_folder(dlpath, targetfolder)
+
+        sdkfolder = join(self.ext, 'SDKs')
+
+        target_platform = self.target_platform
+        if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin'):
+            # macOS SDK
+            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
+            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
+
+        if target_platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+            # iOS SDK
+            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SDK), join(sdkfolder, PACKAGES_IOS_SDK))
+            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
+
+        if 'win32' in target_platform and not ('win32' in self.host):
+            win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
+            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )
+            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
+            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0') )
+
+            # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
+
     def _form_ems_path(self):
         path = join(self.ext, EMSCRIPTEN_DIR)
         return path
 
     def install_ems(self):
-        url = '%s/%s-%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_EMSCRIPTEN_SDK, self.host)
+        url = '%s/%s-%s.tar.gz' % (self.package_path, PACKAGES_EMSCRIPTEN_SDK, self.host)
         dlpath = self._download(url)
         if dlpath is None:
             print("Error. Could not download %s" % url)
@@ -545,7 +543,7 @@ class Configuration(object):
         return self.host != self.target_platform
 
     def is_desktop_target(self):
-        return self.target_platform in ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32']
+        return self.target_platform in ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32']
 
     # package the native SDK, return the path to the zip file
     def _package_platform_sdk(self, platform):
@@ -679,7 +677,7 @@ class Configuration(object):
         lib_dir = self.target_platform
 
         # upload editor 2.0 launcher
-        if self.target_platform in ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32']:
+        if self.target_platform in ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32']:
             launcher_name = format_exes("launcher", self.target_platform)[0]
             launcherbin = join(bin_dir, launcher_name)
             self.upload_file(launcherbin, '%s/%s' % (full_archive_path, launcher_name))
@@ -696,6 +694,10 @@ class Configuration(object):
                 engine_symbols = join(bin_dir, engine_name + '.symbols')
                 if os.path.exists(engine_symbols):
                     self.upload_file(engine_symbols, '%s/%s.symbols' % (full_archive_path, engine_name))
+            elif 'darwin' in self.target_platform:
+                engine_symbols = join(bin_dir, engine_name + '.dSYM.zip')
+                if os.path.exists(engine_symbols):
+                    self.upload_file(engine_symbols, '%s/%s' % (full_archive_path, os.path.basename(engine_symbols)))
 
         zip_archs = []
         if not self.skip_docs:
@@ -775,7 +777,13 @@ class Configuration(object):
         self.exec_env_command(args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
 
     def build_bob_light(self):
-        self._log('Building bob')
+        self._log('Building bob light')
+
+        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        sha1 = self._git_sha1()
+        if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
+            self.exec_env_shell_command("./scripts/copy.sh", cwd = cwd)
+
         self.exec_env_shell_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'))
 
@@ -859,22 +867,21 @@ class Configuration(object):
             txts = []
             txts = missing.setdefault(plf, txts)
             txts = txts.append(txt)
-        # TODO Haxx to deal with the incorrect usage of x86-darwin in editor1
-        for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32'], ['x86_64-linux', 'x86_64-linux'], ['darwin', 'x86-darwin'], ['x86_64-darwin', 'x86-darwin']]:
-            luajit_path = join(cwd, '../../packages/luajit-2.0.5-%s.tar.gz' % (plf[0]))
+        for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32'], ['x86_64-linux', 'x86_64-linux'], ['x86_64-darwin', 'x86_64-darwin']]:
+            luajit_path = join(cwd, '../../packages/luajit-2.1.0-beta3-%s.tar.gz' % (plf[0]))
             if not os.path.exists(luajit_path):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
             else:
                 self._extract(luajit_path, luajit_dir)
-                luajit_exe = format_exes('luajit', plf[1])[0]
+                luajit_exe = format_exes('luajit-32', plf[1])[0]
+                luajit_exe_64 = format_exes('luajit-64', plf[1])[0]
                 self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe)))
+                self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe_64)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe_64)))
         win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal', 'PVRTexLib', 'msvcr120'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
-        osx_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['darwin', 'darwin'], ['x86_64-darwin', 'x86_64-darwin']]])
-        linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['linux', 'x86-linux'], ['x86_64-linux', 'x86_64-linux']]])
+        osx_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['x86_64-darwin', 'x86_64-darwin']]])
+        linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['x86_64-linux', 'x86_64-linux']]])
         js_files = {'bin/js-web/defold_sound.swf': 'libexec/js-web/defold_sound.swf'}
-        # TODO Haxx to deal with the incorrect usage of x86-darwin in editor1
-        haxx_host = self.host2 if self.host2 != 'x86_64-darwin' else 'x86-darwin'
-        android_files = {'ext/bin/%s/%s' % (self.host2, apkc_name): 'libexec/%s/%s' % (haxx_host, apkc_name),
+        android_files = {'ext/bin/%s/%s' % (self.host2, apkc_name): 'libexec/%s/%s' % (self.host2, apkc_name),
                          'share/java/classes.dex': 'lib/classes.dex',
                          'ext/share/java/android.jar': 'lib/android.jar'}
         # This dict is being built up and will eventually be used for copying in the end
@@ -882,7 +889,7 @@ class Configuration(object):
         #   - pairs of src-file -> dst-file
         artefacts = {'generic': {'share/java/dlib.jar': 'lib/dlib.jar',
                                  'share/builtins.zip': 'lib/builtins.zip',
-                                 'lib/%s/%s' % (self.host, texc_name): 'lib/%s/%s' % (self.host, texc_name)},
+                                 'lib/%s/%s' % (self.host2, texc_name): 'lib/%s/%s' % (self.host2, texc_name)},
                      'android-bundling': android_files,
                      'win32-bundling': win32_files,
                      'js-bundling': js_files,
@@ -897,7 +904,6 @@ class Configuration(object):
                            'osx-bundling': [['x86_64-darwin', 'x86_64-darwin']],
                            'linux-bundling': [['x86_64-linux', 'x86_64-linux']]}.iteritems():
             # plfs is pairs of src-platform -> dst-platform
-            # The haxx above makes sure that x86_64-darwin is noted as x86-darwin for dst-platform (because of Ed1 reasons)
             for plf in plfs:
                 exes = format_exes('dmengine', plf[1]) + format_exes('dmengine_release', plf[1])
                 artefacts[type].update(dict([['bin/%s/%s' % (plf[0], exe), 'libexec/%s/%s' % (plf[1], exe)] for exe in exes]))
@@ -1077,7 +1083,6 @@ instructions.configure=\
         cmd = ['./scripts/bundle.py',
                '--platform=x86_64-darwin',
                '--platform=x86_64-linux',
-               '--platform=x86-win32',
                '--platform=x86_64-win32',
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
@@ -1121,9 +1126,13 @@ instructions.configure=\
         bucket = self._get_s3_bucket(archive_url.hostname)
         key = bucket.new_key('editor2/channels/%(channel)s/update.json' % {'channel': self.channel})
         key.content_type = 'application/json'
-
-        self._log("Updating channel '%s': %s" % (self.channel, key))
+        self._log("Updating channel '%s' for update.json: %s" % (self.channel, key))
         key.set_contents_from_string(json.dumps(update_data))
+
+        key_v2 = bucket.new_key('editor2/channels/%(channel)s/update-v2.json' % {'channel': self.channel})
+        key_v2.content_type = 'application/json'
+        self._log("Updating channel '%s' for update-v2.json: %s" % (self.channel, key_v2))
+        key_v2.set_contents_from_string(json.dumps({'sha1': sha1}))
 
     def bump(self):
         sha1 = self._git_sha1()
@@ -1271,7 +1280,7 @@ instructions.configure=\
         </div>
 
         <script id="templ-releases" type="text/html">
-            <h2>Editor</h2>
+            <h2>Editor {{editor.version}}</h2>
             {{#editor.stable}}
                 <p>
                     <a href="{{url}}" class="btn btn-primary" style="width: 20em;" role="button">Download for {{name}}</a>
@@ -1396,9 +1405,19 @@ instructions.configure=\
             if response[0] != 'y':
                 return
 
-        model['editor'] = {'stable': [ dict(name='Mac OSX', url='/%s/Defold-macosx.cocoa.x86_64.dmg' % self.channel),
-                                       dict(name='Windows', url='/%s/Defold-win32.win32.x86.zip' % self.channel),
-                                       dict(name='Linux', url='/%s/Defold-linux.gtk.x86_64.zip' % self.channel)] }
+        # Pick editor URLs from the current SHA1 build.
+        model['editor'] = {'stable': [ dict(name='macOS 10.7+', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-darwin.dmg' % release_sha1),
+                                       dict(name='Windows', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-win32.zip' % release_sha1),
+                                       dict(name='Ubuntu 16.04+', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-linux.zip' % release_sha1)] }
+
+        # We handle the stable channel seperately, since we want it to point
+        # to the editor-dev release (which uses the latest stable engine).
+        if self.channel == "stable":
+            model['editor'] = {'stable': [ dict(name='macOS 10.7+', url='https://www.defold.com/download/editor2/Defold-x86_64-darwin.dmg'),
+                                           dict(name='Windows', url='https://www.defold.com/download/editor2/Defold-x86_64-win32.zip'),
+                                           dict(name='Ubuntu 16.04+', url='https://www.defold.com/download/editor2/Defold-x86_64-linux.zip')] }
+
+        model['editor']['version'] = self.version
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
@@ -1948,7 +1967,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web', 'wasm-web'],
+                      choices = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web', 'wasm-web'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',
@@ -1986,10 +2005,15 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'No color output. Default is color output')
 
-    default_archive_path = 's3://d.defold.com/archive'
+    default_archive_path = CDN_UPLOAD_URL
     parser.add_option('--archive-path', dest='archive_path',
                       default = default_archive_path,
-                      help = 'Archive build. Set ssh-path, host:path, to archive build to. Default is %s' % default_archive_path    )
+                      help = 'Archive build. Set ssh-path, host:path, to archive build to. Default is %s' % default_archive_path)
+
+    default_package_path = CDN_PACKAGES_URL
+    parser.add_option('--package-path', dest='package_path',
+                      default = default_package_path,
+                      help = 'The CDN where the SDK packages are located. Default is %s' % default_package_path)
 
     parser.add_option('--set-version', dest='set_version',
                       default = None,
@@ -2037,6 +2061,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       disable_ccache = options.disable_ccache,
                       no_colors = options.no_colors,
                       archive_path = options.archive_path,
+                      package_path = options.package_path,
                       set_version = options.set_version,
                       eclipse = options.eclipse,
                       branch = options.branch,
