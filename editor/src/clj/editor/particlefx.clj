@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.camera :as camera]
+            [editor.colors :as colors]
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.geom :as geom]
@@ -120,8 +121,8 @@
 
 (def line-id-shader (shader/make-shader ::line-id-shader line-id-vertex-shader line-id-fragment-shader {"id" :id}))
 
-(def color (scene/select-color pass/outline false [1.0 1.0 1.0 1.0]))
-(def selected-color (scene/select-color pass/outline true [1.0 1.0 1.0 1.0]))
+(def color colors/outline-color)
+(def selected-color colors/selected-outline-color)
 
 (def mod-type->properties {:modifier-type-acceleration [:modifier-key-magnitude]
                            :modifier-type-drag [:modifier-key-magnitude]

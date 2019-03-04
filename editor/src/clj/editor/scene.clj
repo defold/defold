@@ -14,6 +14,7 @@
             [editor.input :as i]
             [editor.math :as math]
             [editor.properties :as properties]
+            [editor.render :as render]
             [editor.resource :as resource]
             [editor.rulers :as rulers]
             [editor.scene-async :as scene-async]
@@ -27,6 +28,7 @@
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
+            [internal.util :as util]
             [service.log :as log]
             [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
@@ -106,14 +108,6 @@
    (.glReadPixels gl 0 0 w h GL2/GL_BGRA GL/GL_UNSIGNED_BYTE (IntBuffer/wrap (.getDataStorage ^IntegerComponentRaster (.getRaster image))))
    (.restore psm gl)
    image))
-
-(def outline-color colors/bright-grey)
-(def selected-outline-color colors/defold-turquoise)
-
-(defn select-color [pass selected object-color]
-  (if (= pass pass/outline)
-    (if selected selected-outline-color outline-color)
-    object-color))
 
 (defn vp-dims [^Region viewport]
   (types/dimensions viewport))
@@ -232,11 +226,26 @@
     (merge render-args
            (math/derive-render-transforms world view projection' texture))))
 
-(def render-mode-transitions {:normal :picking-color
+(def render-mode-transitions {:normal :aabbs
+                              :aabbs :picking-color
                               :picking-color :picking-rect
                               :picking-rect :normal})
 (def render-mode-atom (atom :normal))
 (def last-picking-rect (atom nil))
+(def render-mode-passes {:normal pass/render-passes
+                         :aabbs pass/render-passes
+                         :picking-color pass/selection-passes
+                         :picking-rect pass/selection-passes})
+
+(defn- render-aabb [^GL2 gl render-args renderables rcount]
+  (render/render-aabb-outline gl render-args ::renderable-aabb renderables rcount))
+
+(defn- make-aabb-renderables [renderables]
+  (into []
+        (comp
+          (filter :aabb)
+          (map #(assoc % :render-fn render-aabb)))
+        renderables))
 
 (defn render! [^GLContext context renderables updatable-states viewport pass->render-args]
   (let [^GL2 gl (.getGL context)
@@ -244,7 +253,7 @@
     (gl/gl-clear gl 0.0 0.0 0.0 1)
     (.glColor4f gl 1.0 1.0 1.0 1.0)
     (gl-viewport gl viewport)
-    (doseq [pass (if (= render-mode :normal) pass/render-passes pass/selection-passes)
+    (doseq [pass (render-mode-passes render-mode)
             :let [pass-render-args (cond-> (pass->render-args pass)
                                      (and (= render-mode :picking-rect)
                                           (some? @last-picking-rect))
@@ -252,7 +261,9 @@
                   pass-renderables (-> (get renderables pass)
                                        (assoc-updatable-states updatable-states))]]
       (setup-pass gl pass pass-render-args)
-      (batch-render gl pass-render-args pass-renderables :batch-key))))
+      (if (= render-mode :aabbs)
+        (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) (constantly nil))
+        (batch-render gl pass-render-args pass-renderables :batch-key)))))
 
 (defn- apply-pass-overrides
   [pass renderable]
@@ -454,12 +465,10 @@
                     (when-some [aabb (:aabb renderable)]
                       (when-not (geom/null-aabb? aabb)
                         (let [picking-node-id (:picking-node-id renderable)
-                              corners (geom/aabb->corners aabb)
-                              projected-corners (mapv (partial c/camera-project camera viewport) corners)
-                              projected-aabb ^AABB (reduce (fn [aabb ^Point3d pt]
-                                                             (geom/aabb-incorporate aabb pt))
-                                                           geom/null-aabb
-                                                           projected-corners)
+                              projected-aabb ^AABB (transduce (map (partial c/camera-project camera viewport))
+                                                              (completing geom/aabb-incorporate)
+                                                              geom/null-aabb
+                                                              (geom/aabb->corners aabb))
                               aabb-min ^Point3d (.min projected-aabb)
                               aabb-max ^Point3d (.max projected-aabb)
                               aabb-rect (types/rect (.x aabb-min)
@@ -487,17 +496,17 @@
 
   (output selected-renderables g/Any :cached (g/fnk [scene-render-data] (:selected-renderables scene-render-data)))
   (output selected-aabb AABB :cached (g/fnk [scene-render-data scene]
-                                       (let [aabbs (or (not-empty (into []
-                                                                        (comp cat
-                                                                              (filter :selected)
-                                                                              (map :aabb))
-                                                                        (vals (:renderables scene-render-data))))
-                                                       (some-> (:default-aabb scene) vector)
-                                                       (into []
-                                                             (comp cat
-                                                                   (map :aabb))
-                                                             (vals (:renderables scene-render-data))))]
-                                         (reduce geom/aabb-union geom/null-aabb aabbs))))
+                                       (let [renderables (sequence cat (vals (:renderables scene-render-data)))
+                                             {selected-aabbs true nonselected-aabbs false} (util/group-into {} [] :selected :aabb renderables)]
+                                         (cond
+                                           (seq selected-aabbs)
+                                           (reduce geom/aabb-union geom/null-aabb selected-aabbs)
+
+                                           (some? (:default-aabb scene))
+                                           (:default-aabb scene)
+
+                                           :else
+                                           (reduce geom/aabb-union geom/null-aabb (concat selected-aabbs nonselected-aabbs))))))
 
   (output renderables-screen-aabb+picking-node-id g/Any :cached produce-renderables-screen-aabb+picking-node-id)
   (output selected-updatables g/Any :cached (g/fnk [selected-renderables]

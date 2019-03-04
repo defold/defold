@@ -189,8 +189,7 @@
                                                           (assoc :node-id _node-id))]
                                     ;; label has scale and thus transform, others have identity transform
                                     (cond-> (assoc (scene/claim-scene scene _node-id id)
-                                                   :transform transform
-                                                   :aabb (:aabb scene))
+                                                   :transform transform)
                                             updatable ((partial scene/map-scene #(assoc % :updatable updatable)))))
                                   ;; This handles the case of no scene
                                   ;; from actual component - typically

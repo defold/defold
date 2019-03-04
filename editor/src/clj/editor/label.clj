@@ -1,5 +1,6 @@
 (ns editor.label
   (:require [dynamo.graph :as g]
+            [editor.colors :as colors]
             [editor.defold-project :as project]
             [editor.font :as font]
             [editor.geom :as geom]
@@ -15,7 +16,6 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
             [editor.scene-picking :as scene-picking]
             [editor.types :as types]
@@ -81,16 +81,13 @@
 
 ; Vertex generation
 
-(def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0]))
-(def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
-
 (defn- gen-lines-vb
   [renderables]
   (let [vcount (transduce (map (comp count :line-data :user-data)) + renderables)]
     (when (pos? vcount)
       (vtx/flip! (reduce (fn [vb {:keys [world-transform user-data selected] :as renderable}]
                            (let [line-data (:line-data user-data)
-                                 [r g b a] (get user-data :line-color (if (:selected renderable) selected-outline-color outline-color))]
+                                 [r g b a] (get user-data :line-color (if (:selected renderable) colors/selected-outline-color colors/outline-color))]
                              (reduce (fn [vb [x y z]]
                                        (color-vtx-put! vb x y z r g b a))
                                      vb
