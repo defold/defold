@@ -5,6 +5,7 @@
    [editor.app-view :as app-view]
    [editor.camera :as camera]
    [editor.collision-groups :as collision-groups]
+   [editor.colors :as colors]
    [editor.graph-util :as gu]
    [editor.image :as image]
    [editor.image-util :as image-util]
@@ -211,7 +212,7 @@
             (let [user-data (:user-data renderable)
                   {:keys [start-tile tile-source-attributes]} user-data
                   [[x0 y0] [x1 y1]] (tile-coords (+ (dec start-tile) frame) tile-source-attributes [sx sy])
-                  [cr cg cb ca] scene/selected-outline-color]
+                  [cr cg cb ca] colors/selected-outline-color]
               (.glColor4d gl cr cg cb ca)
               (.glBegin gl GL2/GL_LINE_LOOP)
               (.glVertex3d gl x0 y0 0)

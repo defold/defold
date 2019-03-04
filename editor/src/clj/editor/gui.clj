@@ -138,9 +138,6 @@
 
 (def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
 
-(def color (scene/select-color pass/outline false [1.0 1.0 1.0]))
-(def selected-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
-
 (defn- ->color-vtx-vb [vs colors vcount]
   (let [vb (->color-vtx vcount)
         vs (mapv (comp vec concat) vs colors)]
@@ -151,9 +148,6 @@
         vs (mapv (comp vec concat) vs uvs colors)]
     (persistent! (reduce conj! vb vs))))
 
-(def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0 1.0]))
-(def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0 1.0]))
-
 (defn- gen-lines-vb
   [renderables]
   (let [vcount (transduce (map (comp count :line-data :user-data)) + renderables)]
@@ -161,8 +155,8 @@
       (vtx2/flip! (reduce (fn [vb {:keys [world-transform user-data selected] :as renderable}]
                             (let [{:keys [line-data line-color]} user-data
                                   [r g b a] (or line-color
-                                                (and selected selected-outline-color)
-                                                outline-color)]
+                                                (and selected colors/selected-outline-color)
+                                                colors/outline-color)]
                               (reduce (fn [vb [x y z]]
                                         (color-vtx-put! vb x y z r g b a))
                                       vb
@@ -723,11 +717,10 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$YAnchor))))
 
   (output gpu-texture TextureLifecycle (g/constantly nil))
-  (output aabb-size g/Any (gu/passthrough size))
-  (output aabb g/Any :cached (g/fnk [pivot aabb-size]
-                                    (let [offset-fn (partial mapv + (pivot-offset pivot aabb-size))
+  (output aabb g/Any :cached (g/fnk [pivot size]
+                                    (let [offset-fn (partial mapv + (pivot-offset pivot size))
                                           [min-x min-y _] (offset-fn [0 0 0])
-                                          [max-x max-y _] (offset-fn aabb-size)]
+                                          [max-x max-y _] (offset-fn size)]
                                       (geom/coords->aabb [min-x min-y 0]
                                                          [max-x max-y 0]))))
 
@@ -1430,15 +1423,19 @@
                                  (:spine-scene-pb (or (spine-scene-infos spine-scene)
                                                       (spine-scene-infos "")))))
   (output gpu-texture TextureLifecycle (g/constantly nil))
-  (output scene-renderable-user-data g/Any :cached
-    (g/fnk [spine-scene-scene spine-skin color+alpha clipping-mode clipping-inverted clipping-visible]
-      (let [user-data (assoc (get-in spine-scene-scene [:renderable :user-data])
-                        :color color+alpha
-                        :renderable-tags #{:gui-spine}
-                        :skin spine-skin)]
-        (cond-> user-data
-          (not= :clipping-mode-none clipping-mode)
-          (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
+
+  (output aabb g/Any (g/fnk [spine-scene-infos spine-scene spine-skin pivot]
+                       (or (get-in spine-scene-infos [spine-scene :spine-skin-aabbs (if (= spine-skin "") "default" spine-skin)])
+                           geom/empty-bounding-box)))
+
+  (output scene-renderable-user-data g/Any :cached (g/fnk [spine-scene-scene spine-skin color+alpha clipping-mode clipping-inverted clipping-visible]
+                                                     (let [user-data (assoc (get-in spine-scene-scene [:renderable :user-data])
+                                                                            :color color+alpha
+                                                                            :renderable-tags #{:gui-spine}
+                                                                            :skin spine-skin)]
+                                                       (cond-> user-data
+                                                               (not= :clipping-mode-none clipping-mode)
+                                                               (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
 
   (output bone-node-msgs g/Any :cached (g/fnk [node-msgs spine-scene-structure spine-scene-pb adjust-mode]
                                          (let [pb-msg (first node-msgs)
@@ -1733,14 +1730,15 @@
     {name {:spine-anim-ids (into (sorted-set) spine-anim-ids)
            :spine-skin-ids (into (sorted-set) (:skins spine-scene-structure))}}))
 
-(g/defnk produce-spine-scene-infos [name spine-scene spine-scene-pb spine-scene-scene spine-scene-structure]
+(g/defnk produce-spine-scene-infos [_node-id name spine-scene spine-scene-pb spine-scene-scene spine-scene-structure spine-skin-aabbs]
   ;; If the referenced spine-scene-resource is missing, we don't return an entry.
   ;; This will cause every usage to fall back on the no-spine-scene entry for "".
   ;; NOTE: the no-spine-scene entry uses an instance of SpineSceneNode with an empty name.
   ;; It does not have any data, but it should still return an entry.
   (when (or (and (= "" name) (nil? spine-scene))
             (every? some? [spine-scene-pb spine-scene-scene spine-scene-structure]))
-    {name {:spine-scene-pb spine-scene-pb
+    {name {:spine-skin-aabbs spine-skin-aabbs
+           :spine-scene-pb spine-scene-pb
            :spine-scene-scene spine-scene-scene
            :spine-scene-structure spine-scene-structure}}))
 
@@ -1758,6 +1756,7 @@
                      [:build-targets :dep-build-targets]
                      [:spine-anim-ids :spine-anim-ids]
                      [:scene :spine-scene-scene]
+                     [:skin-aabbs :spine-skin-aabbs]
                      [:scene-structure :spine-scene-structure]
                      [:spine-scene-pb :spine-scene-pb])))
             (dynamic error (g/fnk [_node-id spine-scene]
@@ -1771,6 +1770,7 @@
   (input spine-anim-ids g/Any :substitute (constantly nil))
   (input dep-build-targets g/Any)
   (input spine-scene-scene g/Any :substitute (constantly nil))
+  (input spine-skin-aabbs g/Any :substitute (constantly nil))
   (input spine-scene-structure g/Any :substitute (constantly nil))
   (input spine-scene-pb g/Any :substitute (constantly nil))
 
