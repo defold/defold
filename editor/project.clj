@@ -6,8 +6,7 @@
 
   :plugins          [[lein-protobuf-minimal-mg "0.4.5" :hooks false]
                      [lein-sass "0.4.0"]
-                     [codox "0.9.3"]
-                     [lein-shell "0.5.0"]]
+                     [codox "0.9.3"]]
 
   :dependencies     [[org.clojure/clojure                         "1.8.0"]
                      [org.clojure/core.cache                      "0.6.5"]
@@ -137,15 +136,13 @@
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
-                                :injections        [(require 'clj-async-profiler.core)]
                                 :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.log.dir="
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"
                                                     ;;"-XX:+UnlockCommercialFeatures"
                                                     ;;"-XX:+FlightRecorder"
-                                                    "-XX:-OmitStackTraceInFastThrow"
-                                                    "-Djdk.attach.allowAttachSelf"]}}
+                                                    "-XX:-OmitStackTraceInFastThrow"]}}
   :eastwood {:out "eastwood-warnings.txt"
              :continue-on-exception true
              :add-linters [:unused-fn-args
