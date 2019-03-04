@@ -76,9 +76,9 @@
 
 (shader/defshader pos-uv-frag
   (varying vec2 var_texcoord0)
-  (uniform sampler2D texture)
+  (uniform sampler2D texture_sampler)
   (defn void main []
-    (setq gl_FragColor (texture2D texture var_texcoord0.xy))))
+    (setq gl_FragColor (texture2D texture_sampler var_texcoord0.xy))))
 
 (def tile-shader (shader/make-shader ::tile-shader pos-uv-vert pos-uv-frag))
 
@@ -237,7 +237,7 @@
                             :tile-source-attributes tile-source-attributes
                             :anim-data   (get anim-data id)
                             :start-tile  start-tile}
-                :passes    [pass/outline pass/overlay pass/selection]}
+                :passes    [pass/outline pass/overlay]}
    :updatable  updatable})
 
 (g/defnode TileAnimationNode

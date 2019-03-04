@@ -10,7 +10,7 @@
            [javafx.animation AnimationTimer]
            [javafx.event Event]
            [javafx.scene Parent Scene]
-           [javafx.scene.control SelectionMode TabPane TextField TreeItem TreeView]
+           [javafx.scene.control CheckBox SelectionMode TabPane TextField TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane]
            [javafx.stage StageStyle]))
@@ -36,17 +36,26 @@
 (defn- make-match-tree-item [resource {:keys [line caret-position match]}]
   (TreeItem. (->MatchContextResource resource line caret-position match)))
 
-(defn- insert-search-result [^TreeView tree-view search-result]
+(defn- make-result-tree-item [search-result]
   (let [{:keys [resource matches]} search-result
         match-items (map (partial make-match-tree-item resource) matches)
         resource-item (TreeItem. resource)]
     (.setExpanded resource-item true)
-    (-> resource-item .getChildren (.addAll ^Collection match-items))
-    (let [^List tree-items (.getChildren (.getRoot tree-view))
-          first-match? (.isEmpty tree-items)]
-      (.add tree-items resource-item)
-      (when first-match?
-        (-> tree-view .getSelectionModel (.clearAndSelect 1))))))
+    (.addAll (.getChildren resource-item) ^Collection match-items)
+    resource-item))
+
+(defn- results->search-results+done? [results]
+  (loop [[result & more] results
+         tree-items (transient [])]
+    (cond
+      (nil? result)
+      [(persistent! tree-items) false]
+
+      (= ::project-search/done result)
+      [(persistent! tree-items) true]
+
+      :else
+      (recur more (conj! tree-items result)))))
 
 (defn- start-tree-update-timer! [tree-views search-in-progress results-fn]
   (let [timer (ui/->timer 5 "tree-update-timer"
@@ -56,19 +65,26 @@
                             (when (< 0.2 elapsed-time)
                               (ui/visible! search-in-progress true))
 
-                            (when-some [results (results-fn)]
-                              (loop [[result & more] results]
-                                (when result
-                                  (cond
-                                    (= ::project-search/done result)
-                                    (do
-                                      (.stop timer)
-                                      (ui/visible! search-in-progress false))
-
-                                    :else
-                                    (do (doseq [^TreeView tree-view tree-views]
-                                          (insert-search-result tree-view result))
-                                        (recur more))))))))]
+                            (let [[search-results done?] (results->search-results+done? (results-fn))]
+                              (when done?
+                                (.stop timer)
+                                (ui/visible! search-in-progress false))
+                              (when-not (empty? search-results)
+                                (doseq [^TreeView tree-view tree-views
+                                        :let [tree-children (.getChildren (.getRoot tree-view))
+                                              first-match? (.isEmpty tree-children)
+                                              focus-model (.getFocusModel tree-view)
+                                              ;; focus model slows adding children drastically
+                                              ;; if there is a focused item
+                                              ;; removing focus before adding and then
+                                              ;; restoring it results in same behavior
+                                              ;; with much better performance
+                                              focused-index (.getFocusedIndex focus-model)]]
+                                  (.focus focus-model -1)
+                                  (.addAll tree-children ^Collection (mapv make-result-tree-item search-results))
+                                  (.focus focus-model focused-index)
+                                  (when first-match?
+                                    (.clearAndSelect (.getSelectionModel tree-view) 1)))))))]
     (doseq [^TreeView tree-view tree-views]
       (.clear (.getChildren (.getRoot tree-view))))
     (ui/timer-start! timer)
@@ -108,6 +124,7 @@
 
 (def ^:private search-in-files-term-prefs-key "search-in-files-term")
 (def ^:private search-in-files-exts-prefs-key "search-in-files-exts")
+(def ^:private search-in-files-include-libraries-prefs-key "search-in-files-include-libraries")
 
 (defn set-search-term! [prefs term]
   (assert (string? term))
@@ -120,7 +137,7 @@
                     (.initStyle StageStyle/DECORATED)
                     (.initOwner (ui/main-stage))
                     (.setResizable false))]
-    (ui/with-controls root [^TextField search ^TextField types ^TreeView resources-tree ok search-in-progress]
+    (ui/with-controls root [^TextField search ^TextField types ^CheckBox include-libraries-check-box ^TreeView resources-tree ok search-in-progress]
       (ui/visible! search-in-progress false)
       (let [start-consumer! (partial start-tree-update-timer! [resources-tree results-tab-tree-view] search-in-progress)
             stop-consumer! ui/timer-stop!
@@ -129,10 +146,12 @@
             {:keys [abort-search! start-search!]} (project-search/make-file-searcher file-resource-save-data-future start-consumer! stop-consumer! report-error!)
             on-input-changed! (fn [_ _ _]
                                 (let [term (.getText search)
-                                      exts (.getText types)]
+                                      exts (.getText types)
+                                      include-libraries? (.isSelected include-libraries-check-box)]
                                   (prefs/set-prefs prefs search-in-files-term-prefs-key term)
                                   (prefs/set-prefs prefs search-in-files-exts-prefs-key exts)
-                                  (start-search! term exts)))
+                                  (prefs/set-prefs prefs search-in-files-include-libraries-prefs-key include-libraries?)
+                                  (start-search! term exts include-libraries?)))
             dismiss-and-abort-search! (fn []
                                         (abort-search!)
                                         (ui/close! stage))
@@ -172,13 +191,16 @@
                                nil))))
 
         (let [term (prefs/get-prefs prefs search-in-files-term-prefs-key "")
-              exts (prefs/get-prefs prefs search-in-files-exts-prefs-key "")]
+              exts (prefs/get-prefs prefs search-in-files-exts-prefs-key "")
+              include-libraries? (prefs/get-prefs prefs search-in-files-include-libraries-prefs-key true)]
           (ui/text! search term)
           (ui/text! types exts)
-          (start-search! term exts))
+          (ui/value! include-libraries-check-box include-libraries?)
+          (start-search! term exts include-libraries?))
 
         (ui/observe (.textProperty search) on-input-changed!)
         (ui/observe (.textProperty types) on-input-changed!)
+        (ui/observe (.selectedProperty include-libraries-check-box) on-input-changed!)
         (.setScene stage scene)
         (ui/show! stage)))))
 

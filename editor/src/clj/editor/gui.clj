@@ -15,9 +15,8 @@
             [editor.gl.texture :as texture]
             [editor.gui-clipping :as clipping]
             [editor.defold-project :as project]
-            [editor.progress :as progress]
             [editor.scene :as scene]
-            [editor.scene-cache :as scene-cache]
+            [editor.scene-picking :as scene-picking]
             [editor.workspace :as workspace]
             [editor.math :as math]
             [editor.colors :as colors]
@@ -37,16 +36,12 @@
             [editor.validation :as validation])
   (:import [com.dynamo.gui.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$Type Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
             Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$SizeMode]
+           [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.texture TextureLifecycle]
-           [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
            [java.awt.image BufferedImage]
-           [com.defold.editor.pipeline TextureSetGenerator$UVTransform]
-           [org.apache.commons.io FilenameUtils]))
-
+           [javax.vecmath Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -101,12 +96,32 @@
 (shader/defshader fragment-shader
   (varying vec2 var_texcoord0)
   (varying vec4 var_color)
-  (uniform sampler2D texture)
+  (uniform sampler2D texture_sampler)
   (defn void main []
-    (setq gl_FragColor (* var_color (texture2D texture var_texcoord0.xy)))))
+    (setq gl_FragColor (* var_color (texture2D texture_sampler var_texcoord0.xy)))))
 
 ; TODO - macro of this
 (def shader (shader/make-shader ::shader vertex-shader fragment-shader))
+
+(shader/defshader gui-id-vertex-shader
+  (attribute vec4 position)
+  (attribute vec2 texcoord0)
+  (varying vec2 var_texcoord0)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq var_texcoord0 texcoord0)))
+
+(shader/defshader gui-id-fragment-shader
+  (varying vec2 var_texcoord0)
+  (uniform sampler2D texture_sampler)
+  (uniform vec4 id)
+  (defn void main []
+    (setq vec4 color (texture2D texture_sampler var_texcoord0.xy))
+    (if (> color.a 0.05)
+      (setq gl_FragColor id)
+      (discard))))
+
+(def id-shader (shader/make-shader ::id-shader gui-id-vertex-shader gui-id-fragment-shader {"id" :id}))
 
 (shader/defshader line-vertex-shader
   (attribute vec4 position)
@@ -216,16 +231,27 @@
         vb (gen-vb gl renderables)
         vcount (count vb)]
     (when (> vcount 0)
-      (let [shader (or material-shader shader)
-            vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
-                             (vtx2/use-with ::tris vb shader)
-                             (vtx/use-with ::tris vb shader))]
-        (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
-          (clipping/setup-gl gl clipping-state)
-          (gl/set-blend-mode gl blend-mode)
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
-          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
-          (clipping/restore-gl gl clipping-state))))))
+      (condp = (:pass render-args)
+        pass/transparent
+        (let [shader (or material-shader shader)
+              vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
+                               (vtx2/use-with ::tris vb shader)
+                               (vtx/use-with ::tris vb shader))]
+          (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
+            (clipping/setup-gl gl clipping-state)
+            (gl/set-blend-mode gl blend-mode)
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
+            (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
+            (clipping/restore-gl gl clipping-state)))
+
+        pass/selection
+        (let [vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
+                               (vtx2/use-with ::tris vb id-shader)
+                               (vtx/use-with ::tris vb id-shader))]
+          (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
+            (clipping/setup-gl gl clipping-state)
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
+            (clipping/restore-gl gl clipping-state)))))))
 
 (defn- pivot->h-align [pivot]
   (case pivot
@@ -1147,7 +1173,10 @@
                  (let [[w h] aabb-size
                        offset (pivot-offset pivot aabb-size)
                        lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))
-                       font-shader (or (font-shaders font) (font-shaders ""))]
+                       font-map (get-in text-data [:font-data :font-map])
+                       texture-recip-uniform (font/get-texture-recip-uniform font-map)
+                       font-shader (or (font-shaders font) (font-shaders ""))
+                       font-shader (assoc-in font-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
                    ;; The material-shader output is used to propagate the shader
                    ;; from the GuiSceneNode to our child nodes. Thus we cannot
                    ;; simply overload the material-shader output on this node.
@@ -1406,11 +1435,11 @@
                                                       (spine-scene-infos "")))))
   (output gpu-texture TextureLifecycle (g/constantly nil))
   (output scene-renderable-user-data g/Any :cached
-    (g/fnk [spine-scene-scene color+alpha clipping-mode clipping-inverted clipping-visible]
-      (let [user-data (-> spine-scene-scene
-                        (get-in [:renderable :user-data])
-                        (assoc :renderable-tags #{:gui-spine})
-                        (assoc :color (premul color+alpha)))]
+    (g/fnk [spine-scene-scene spine-skin color+alpha clipping-mode clipping-inverted clipping-visible]
+      (let [user-data (assoc (get-in spine-scene-scene [:renderable :user-data])
+                        :color color+alpha
+                        :renderable-tags #{:gui-spine}
+                        :skin spine-skin)]
         (cond-> user-data
           (not= :clipping-mode-none clipping-mode)
           (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))

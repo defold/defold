@@ -119,20 +119,37 @@
              {:log-port log-port
               :address loopback-address}))))
 
+(def ^:private exe-suffixes (into {}
+                                  (map (fn [^Platform platform]
+                                         [(.getPair platform) (.getExeSuffix platform)]))
+                                  [Platform/Arm64Darwin
+                                   Platform/Armv7Android
+                                   Platform/Armv7Darwin
+                                   Platform/JsWeb
+                                   Platform/X86Win32
+                                   Platform/X86_64Darwin
+                                   Platform/X86_64Linux
+                                   Platform/X86_64Win32]))
+
+(defn- dmengine-filename [platform]
+  (format "dmengine%s" (get exe-suffixes platform "")))
+
 (defn- bundled-engine [platform]
-  (let [suffix (.getExeSuffix (Platform/getHostPlatform))
-        path   (format "%s/%s/bin/dmengine%s" (system/defold-unpack-path) platform suffix)
+  (let [path   (format "%s/%s/bin/%s" (system/defold-unpack-path) platform (dmengine-filename platform))
         engine (io/file path)]
     {:id {:type :bundled :path (.getCanonicalPath engine)} :dmengine engine :platform platform}))
 
 (def custom-engine-pref-key "dev-custom-engine")
+
+(defn current-platform []
+  (.getPair (Platform/getJavaPlatform)))
 
 (defn- dev-custom-engine
   [prefs platform]
   (when (system/defold-dev?)
     (when-some [custom-engine (prefs/get-prefs prefs custom-engine-pref-key nil)]
       (when-not (str/blank? custom-engine)
-        (assert (= platform (.getPair (Platform/getHostPlatform))) "Can't use custom engine for platform different than host")
+        (assert (= platform (current-platform)) "Can't use custom engine for platform other than current")
         (let [engine (io/file custom-engine)]
           (assert (.exists engine))
           {:id {:type :dev :path (.getCanonicalPath engine)} :dmengine engine :platform platform})))))
@@ -149,9 +166,6 @@
         (let [build-server (native-extensions/get-build-server-url prefs)]
           (native-extensions/get-engine-archive project evaluation-context platform build-server))
         (bundled-engine platform))))
-
-(defn current-platform []
-  (.getPair (Platform/getJavaPlatform)))
 
 (defn- unpack-dmengine!
   [^File engine-archive entry-name ^File engine-file]
@@ -173,9 +187,18 @@
       (fs/copy! (io/file bundled-engine-dir dep) (io/file unpack-dir dep)))))
 
 (defn- engine-install-path ^File [^File project-directory engine-descriptor]
-  (let [suffix (.getExeSuffix (Platform/getHostPlatform))
-        unpack-dir (io/file project-directory "build" (:extender-platform engine-descriptor))]
-    (io/file unpack-dir (format "dmengine%s" suffix))))
+  (let [unpack-dir (io/file project-directory "build" (:extender-platform engine-descriptor))]
+    (io/file unpack-dir (dmengine-filename (current-platform)))))
+
+(defn copy-engine-executable! ^File [^File target-dmengine platform {:keys [^File dmengine ^File engine-archive] :as engine-descriptor}]
+  (assert (or dmengine engine-archive))
+  (cond
+    (some? dmengine)
+    (fs/copy-file! dmengine target-dmengine)
+
+    (some? engine-archive)
+    (unpack-dmengine! engine-archive (dmengine-filename platform) target-dmengine))
+  target-dmengine)
 
 (defn install-engine! ^File [^File project-directory {:keys [^File dmengine ^File engine-archive extender-platform] :as engine-descriptor}]
   (assert (or dmengine engine-archive))
@@ -188,7 +211,7 @@
           engine-dir (.getParentFile engine-file)]
       (fs/delete-directory! engine-dir {:missing :ignore})
       (fs/create-directories! engine-dir)
-      (unpack-dmengine! engine-archive (.getName engine-file) engine-file)
+      (unpack-dmengine! engine-archive (dmengine-filename (current-platform)) engine-file)
       (copy-dmengine-dependencies! engine-dir extender-platform)
       engine-file)))
 

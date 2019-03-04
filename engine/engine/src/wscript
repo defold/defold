@@ -24,7 +24,7 @@ def build(bld):
                           proto_gen_py = True,
                           protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
                           embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins/connect/connect.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
-                          source='engine.cpp engine_main.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto',
+                          source='engine.cpp engine_main.cpp physics_debug_render.cpp ../proto/engine_ddf.proto',
                           uselib_local = 'engine_service')
 
     obj = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
@@ -134,7 +134,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'WEBVIEWEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
+        uselib = 'WEBVIEWEXT PROFILEREXT_NULL GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine_release engine_service_null',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
