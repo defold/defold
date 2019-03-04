@@ -47,6 +47,7 @@ import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.OnCompleteListener;
 
 import com.google.firebase.FirebaseApp;
+import com.google.firebase.FirebaseOptions;
 import com.google.firebase.iid.FirebaseInstanceId;
 import com.google.firebase.iid.InstanceIdResult;
 import com.google.firebase.messaging.RemoteMessage;
@@ -62,7 +63,8 @@ public class Push {
     public static final String NOTIFICATION_CHANNEL_ID = "com.dynamo.android.notification_channel";
     private static final int PLAY_SERVICES_RESOLUTION_REQUEST = 9000;
 
-    private String senderId = "";
+    private String senderIdFCM = "";
+    private String applicationIdFCM = "";
 
     private static Push instance;
     private static AlarmManager am = null;
@@ -91,7 +93,7 @@ public class Push {
 
     private ArrayList<StoredNotification> storedNotifications = new ArrayList<StoredNotification>();
 
-    public void start(Activity activity, IPushListener listener, String senderId, String projectTitle) {
+    public void start(Activity activity, IPushListener listener, String senderId, String applicationId, String projectTitle) {
         Log.d(TAG, String.format("Push started (%s %s)", listener, senderId));
 
         // Create the NotificationChannel, but only on API 26+ because
@@ -106,7 +108,8 @@ public class Push {
         }
         this.activity = activity;
         this.listener = listener;
-        this.senderId = senderId;
+        this.senderIdFCM = senderId;
+        this.applicationIdFCM = applicationId;
     }
 
     public void stop() {
@@ -292,6 +295,11 @@ public class Push {
     }
 
     private void registerFirebase(Activity activity) {
+        FirebaseOptions.Builder builder = new FirebaseOptions.Builder()
+            .setApplicationId(this.applicationIdFCM)
+            .setGcmSenderId(this.senderIdFCM);
+        FirebaseApp.initializeApp(activity, builder.build());
+
         FirebaseInstanceId.getInstance().getInstanceId()
                 .addOnCompleteListener(new OnCompleteListener<InstanceIdResult>() {
                     @Override

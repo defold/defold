@@ -33,9 +33,6 @@ import android.content.pm.PackageInfo;
 import com.google.android.gms.ads.identifier.AdvertisingIdClient;
 import com.google.android.gms.common.*;
 
-import com.google.firebase.FirebaseApp;
-import com.google.firebase.FirebaseOptions;
-
 public class DefoldActivity extends NativeActivity {
 
     // Must match values from sys.h
@@ -208,14 +205,7 @@ public class DefoldActivity extends NativeActivity {
         super.onCreate(savedInstanceState);
         final DefoldActivity self = this;
 
-        FirebaseOptions.Builder builder = new FirebaseOptions.Builder()
-            .setApplicationId("1:559228544304:android:c1de85bbda9bc512")
-            .setApiKey("AIzaSyCzfqzjkbT-i933xc26WBbwd-Gw9bblz4Q")
-            .setGcmSenderId("559228544304")
-            .setProjectId("andsveking-test")
-            .setDatabaseUrl("https://andsveking-test.firebaseio.com")
-            .setStorageBucket("andsveking-test.appspot.com");
-        FirebaseApp.initializeApp(this, builder.build());
+
 
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN | WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         imm = (InputMethodManager)DefoldActivity.this.getSystemService(Context.INPUT_METHOD_SERVICE);
