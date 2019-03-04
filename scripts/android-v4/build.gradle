@@ -103,7 +103,11 @@ task collectResources(dependsOn: zipClasses, type:Exec) {
     commandLine 'python', 'extract_res.py', "${aarDirectory}", "${packageResDirectory}"
 }
 
-task createDefoldPackage(dependsOn: collectResources, type: Tar) {
+task fixResPermissions(dependsOn: collectResources, type:Exec) {
+    commandLine "chmod", "-R", "+rw", "${packageResDirectory}"
+}
+
+task createDefoldPackage(dependsOn: fixResPermissions, type: Tar) {
     from packageOutputDirectory
     archiveName 'android-support-v4-armv7-android.tar.gz'
     compression = Compression.GZIP
