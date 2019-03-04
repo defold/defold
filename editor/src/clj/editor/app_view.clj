@@ -156,7 +156,7 @@
                                                                     resource-name)]]
                                                 (ui/text! tab title)))))
   (output keymap g/Any :cached (g/fnk []
-                                 (keymap/make-keymap keymap/default-key-bindings {:valid-command? (set (handler/available-commands))})))
+                                 (keymap/make-keymap keymap/default-host-key-bindings {:valid-command? (set (handler/available-commands))})))
   (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
 
 (defn- selection->openable-resources [selection]
@@ -1543,6 +1543,7 @@ If you do not specifically require different script states, consider changing th
     (search-results-view/show-search-in-files-dialog! search-results-view project prefs)))
 
 (defn- bundle! [changes-view build-errors-view project prefs platform bundle-options]
+  (g/user-data! project :last-bundle-options (assoc bundle-options :platform-key platform))
   (console/clear-console!)
   (let [output-directory ^File (:output-directory bundle-options)
         clear-errors! (make-clear-build-errors build-errors-view)
@@ -1551,6 +1552,8 @@ If you do not specifically require different script states, consider changing th
         render-save-progress! (make-render-task-progress :save-all)
         render-build-progress! (make-render-task-progress :build)
         bob-args (bob/bundle-bob-args prefs platform bundle-options)]
+    (when (not (.exists output-directory))
+      (fs/create-directories! output-directory))
     (clear-errors!)
     (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress!
                            render-build-error! bob/bundle-bob-commands bob-args project changes-view
@@ -1562,10 +1565,17 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :bundle :global
   (run [user-data workspace project prefs app-view changes-view build-errors-view]
-       (let [owner-window (g/node-value app-view :stage)
-             platform (:platform user-data)
-             bundle! (partial bundle! changes-view build-errors-view project prefs platform)]
-         (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
+    (let [owner-window (g/node-value app-view :stage)
+          platform (:platform user-data)
+          bundle! (partial bundle! changes-view build-errors-view project prefs platform)]
+      (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
+
+(handler/defhandler :rebundle :global
+  (enabled? [project] (some? (g/user-data project :last-bundle-options)))
+  (run [workspace project prefs app-view changes-view build-errors-view]
+    (let [last-bundle-options (g/user-data project :last-bundle-options)
+          platform (:platform-key last-bundle-options)]
+      (bundle! changes-view build-errors-view project prefs platform last-bundle-options))))
 
 (defn- fetch-libraries [workspace project dashboard-client changes-view]
   (let [library-uris (project/project-dependencies project)

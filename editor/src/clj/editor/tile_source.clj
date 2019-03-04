@@ -76,9 +76,9 @@
 
 (shader/defshader pos-uv-frag
   (varying vec2 var_texcoord0)
-  (uniform sampler2D texture)
+  (uniform sampler2D texture_sampler)
   (defn void main []
-    (setq gl_FragColor (texture2D texture var_texcoord0.xy))))
+    (setq gl_FragColor (texture2D texture_sampler var_texcoord0.xy))))
 
 (def tile-shader (shader/make-shader ::tile-shader pos-uv-vert pos-uv-frag))
 
@@ -237,7 +237,7 @@
                             :tile-source-attributes tile-source-attributes
                             :anim-data   (get anim-data id)
                             :start-tile  start-tile}
-                :passes    [pass/outline pass/overlay pass/selection]}
+                :passes    [pass/outline pass/overlay]}
    :updatable  updatable})
 
 (g/defnode TileAnimationNode
@@ -347,7 +347,7 @@
         vb (vtx/use-with node-id vbuf tile-shader)
         gpu-texture (texture/set-params gpu-texture texture-params)]
     (gl/with-gl-bindings gl render-args [gpu-texture tile-shader vb]
-      (shader/set-uniform tile-shader gl "texture" 0)
+      (shader/set-uniform tile-shader gl "texture_sampler" 0)
       (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
 
 (defn gen-tile-outlines-vbuf
@@ -419,7 +419,7 @@
     (let [vbuf (gen-hulls-vbuf tile-set-attributes convex-hulls scale-factor collision-groups-data)
           vb (vtx/use-with node-id vbuf color-shader)]
       (gl/with-gl-bindings gl render-args [color-shader vb]
-        (shader/set-uniform tile-shader gl "texture" 0)
+        (shader/set-uniform tile-shader gl "texture_sampler" 0)
         (gl/gl-draw-arrays gl GL2/GL_LINES 0 (count vbuf))))))
 
 (defn- render-tile-source
