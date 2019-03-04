@@ -72,8 +72,17 @@
                               (when-not (empty? search-results)
                                 (doseq [^TreeView tree-view tree-views
                                         :let [tree-children (.getChildren (.getRoot tree-view))
-                                              first-match? (.isEmpty tree-children)]]
+                                              first-match? (.isEmpty tree-children)
+                                              focus-model (.getFocusModel tree-view)
+                                              ;; focus model slows adding childrend drastically
+                                              ;; if there is a focused item
+                                              ;; removing focus before adding and then
+                                              ;; restoring it results in same behavior
+                                              ;; with much better performance
+                                              focused-index (.getFocusedIndex focus-model)]]
+                                  (.focus focus-model -1)
                                   (.addAll tree-children ^Collection (mapv make-result-tree-item search-results))
+                                  (.focus focus-model focused-index)
                                   (when first-match?
                                     (.clearAndSelect (.getSelectionModel tree-view) 1)))))))]
     (doseq [^TreeView tree-view tree-views]
