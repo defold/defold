@@ -8,9 +8,10 @@
   (:import (org.commonmark.node Document Node)
            (javafx.css Styleable)
            (javafx.geometry HPos VPos)
+           (javafx.scene Parent)
            (javafx.scene.control Hyperlink ScrollPane Tab)
            (javafx.scene.image ImageView)
-           (javafx.scene.layout ColumnConstraints GridPane Priority)
+           (javafx.scene.layout ColumnConstraints GridPane Priority VBox)
            (javafx.scene.text Text TextAlignment TextFlow)))
 
 (set! *warn-on-reflection* true)
@@ -29,7 +30,12 @@
     (ui/node-array
       (mapcat (fn [x y]
                 (prn x y)
-                (make-javafx-nodes x y context))
+                (let [fx-nodes (make-javafx-nodes x y context)]
+                  ;; TODO: Can we remove the ability to return multiple nodes?
+                  (assert (> 2 (count fx-nodes)))
+                  (when (nil? y)
+                    (some-> fx-nodes first (ui/add-style! "first-child")))
+                  fx-nodes))
               md-node-children
               (cons nil md-node-children)))))
 
@@ -40,45 +46,54 @@
       (.add styles style-class))
     node))
 
+(defn text-flow
+  ^TextFlow [^String style-class ^Node md-node context]
+  (doto (TextFlow. (fx-node-children md-node context))
+    (ui/add-style! style-class)))
+
+(defn unimplemented
+  ^Text [^String text]
+  (doto (Text. text)
+    (ui/add-style! "unimplemented")))
+
 (extend-type org.commonmark.node.Node
   JavaFXNodeConversion
-  (make-javafx-nodes [md-node _prev-md-node _context]
-    [(Text. (str "<" (.getSimpleName (class md-node)) ">"))]))
+  (make-javafx-nodes [md-node prev-md-node _context]
+    [(unimplemented (str "<" (.getSimpleName (class md-node)) ">"))]))
 
 (extend-type org.commonmark.node.Code
   JavaFXNodeConversion
-  (make-javafx-nodes [md-node _prev-md-node context]
-    (map (partial add-style-class! "md-code")
-         (fx-node-children md-node context))))
+  (make-javafx-nodes [md-node prev-md-node context]
+    [(text-flow "md-code" md-node context)]))
 
 (extend-type org.commonmark.node.Emphasis
   JavaFXNodeConversion
-  (make-javafx-nodes [md-node _prev-md-node context]
-    (map (partial add-style-class! "md-emphasis")
-         (fx-node-children md-node context))))
+  (make-javafx-nodes [md-node prev-md-node context]
+    [(text-flow "md-emphasis" md-node context)]))
 
 (extend-type org.commonmark.node.Heading
   JavaFXNodeConversion
-  (make-javafx-nodes [md-node _prev-md-node context]
-    (map (partial add-style-class! (str "md-heading-l" (.getLevel md-node)))
-         (fx-node-children md-node context))))
+  (make-javafx-nodes [md-node prev-md-node context]
+    [(doto (text-flow "md-heading" md-node context)
+       (ui/add-style! (str "md-heading-l" (.getLevel md-node))))]))
 
 (extend-type org.commonmark.node.HtmlInline
   JavaFXNodeConversion
-  (make-javafx-nodes [md-node _prev-md-node _context]
+  (make-javafx-nodes [md-node prev-md-node _context]
     (prn "HtmlInline" (.getLiteral md-node))
-    [(Text. (.getLiteral md-node))]))
+    [(unimplemented (.getLiteral md-node))]))
 
 (extend-type org.commonmark.node.Image
   JavaFXNodeConversion
-  (make-javafx-nodes [md-node _prev-md-node {:keys [resolve-url] :as _context}]
+  (make-javafx-nodes [md-node prev-md-node {:keys [resolve-url] :as _context}]
     [(ImageView. ^String (resolve-url (.getDestination md-node)))]))
 
 (extend-type org.commonmark.node.Link
   JavaFXNodeConversion
-  (make-javafx-nodes [md-node _prev-md-node {:keys [on-link!] :as _context}]
-    (let [href (.getDestination md-node)]
-      [(doto (Hyperlink. (.getTitle md-node))
+  (make-javafx-nodes [md-node prev-md-node {:keys [on-link!] :as _context}]
+    (let [href (.getDestination md-node)
+          ^org.commonmark.node.Text text (.getFirstChild md-node)]
+      [(doto (Hyperlink. (.getLiteral text))
          (.setOnAction (ui/event-handler event
                          (on-link! href))))])))
 
@@ -92,7 +107,7 @@
 
 (defn- make-list-item [^long index ^Node md-node context]
   (prn "make-list-entry" md-node)
-  (doto (TextFlow. (fx-node-children md-node context))
+  (doto (VBox. (fx-node-children md-node context))
     (GridPane/setRowIndex (int index))
     (GridPane/setColumnIndex (int 1))
     (GridPane/setHalignment HPos/LEFT)
@@ -100,13 +115,11 @@
 
 (extend-type org.commonmark.node.OrderedList
   JavaFXNodeConversion
-  (make-javafx-nodes [md-node _prev-md-node context]
+  (make-javafx-nodes [md-node prev-md-node context]
     (let [grid-pane (GridPane.)
           column-constraints (.getColumnConstraints grid-pane)]
-      (.add column-constraints (doto (ColumnConstraints. 40)
-                                 (.setHgrow Priority/NEVER)))
-      (.add column-constraints (doto (ColumnConstraints.)
-                                 (.setHgrow Priority/ALWAYS)))
+      (.add column-constraints (doto (ColumnConstraints. 40) (.setHgrow Priority/NEVER)))
+      (.add column-constraints (ColumnConstraints.))
       (ui/children! grid-pane
                     (ui/node-array
                       (apply concat
@@ -119,17 +132,16 @@
 (extend-type org.commonmark.node.Paragraph
   JavaFXNodeConversion
   (make-javafx-nodes [md-node prev-md-node context]
-    (cond->> (fx-node-children md-node context)
-             (some? prev-md-node) (cons (Text. "\n\n")))))
+    [(text-flow "md-paragraph" md-node context)]))
 
 (extend-type org.commonmark.node.SoftLineBreak
   JavaFXNodeConversion
-  (make-javafx-nodes [_md-node _prev-md-node _context]
+  (make-javafx-nodes [_md-node prev-md-node _context]
     nil))
 
 (extend-type org.commonmark.node.Text
   JavaFXNodeConversion
-  (make-javafx-nodes [md-node _prev-md-node _context]
+  (make-javafx-nodes [md-node prev-md-node _context]
     [(Text. (.getLiteral md-node))]))
 
 ;; -----------------------------------------------------------------------------
@@ -137,7 +149,7 @@
 (defn resolve-url [workspace href]
   (str (.toURI (io/as-file (workspace/resolve-workspace-resource workspace href)))))
 
-(g/defnk produce-repaint-view [^Document document ^TextFlow document-view node-id+resource]
+(g/defnk produce-repaint-view [^Document document ^VBox document-view node-id+resource]
   (let [resource (second node-id+resource)
         workspace (resource/workspace resource)
         context {:on-link! (partial prn "Clicked")
@@ -147,13 +159,14 @@
 
 (g/defnode MarkdownViewNode
   (inherits view/WorkbenchView)
-  (property document-view TextFlow (dynamic visible (g/constantly false)))
+  (property document-view VBox (dynamic visible (g/constantly false)))
   (input document Document)
   (output repaint-view g/Any :cached produce-repaint-view))
 
 (defn- make-view [graph parent resource-node opts]
   (let [^Tab tab (:tab opts)
-        document-view (TextFlow.)
+        document-view (doto (VBox.)
+                        (ui/add-style! "markdown-view"))
         [view-node] (g/tx-nodes-added
                       (g/transact
                         (g/make-nodes graph [view-node [MarkdownViewNode :document-view document-view]]
@@ -175,3 +188,12 @@
                                 :id :markdown
                                 :label "Markdown"
                                 :make-view-fn make-view))
+
+(defn view-tree [^javafx.scene.Node fx-node]
+  (let [children (when (instance? Parent fx-node)
+                   (mapv view-tree (.getChildrenUnmodifiable ^Parent fx-node)))
+        style-classes (.getStyleClass fx-node)]
+    (cond-> {:class (class fx-node)}
+            (instance? Text fx-node) (assoc :text (.getText ^Text fx-node))
+            (seq style-classes) (assoc :style-classes (vec style-classes))
+            (seq children) (assoc :children children))))

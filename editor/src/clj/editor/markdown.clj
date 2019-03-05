@@ -1,9 +1,9 @@
 (ns editor.markdown
-  (:require [clojure.java.io :as io]
+  (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace])
-  (:import (org.commonmark.node Document)
+  (:import (org.commonmark.node Document Node)
            (org.commonmark.parser Parser)
            (org.commonmark.renderer.html HtmlRenderer)))
 
@@ -38,10 +38,11 @@
   (property document Document (dynamic visible (g/constantly false))))
 
 (defn- load-markdown [_project self resource]
-  (with-open [reader (io/reader resource :encoding "UTF-8")]
-    (let [parser (.build (Parser/builder))
-          document (.parseReader parser reader)]
-      (g/set-property self :document document))))
+  (let [parser (.build (Parser/builder))
+        raw-md (slurp resource :encoding "UTF-8")
+        filtered-md (string/replace raw-md #"\</?kbd\>" "`")
+        document (.parse parser filtered-md)]
+    (g/set-property self :document document)))
 
 (defn register-resource-types [workspace]
   (concat
@@ -59,3 +60,16 @@
                                       :load-fn load-old-markdown
                                       :view-types [:html :text]
                                       :view-opts nil)))
+
+;; -----------------------------------------------------------------------------
+
+(defn- md-node-children [^Node md-node]
+  (take-while some?
+              (iterate #(some-> ^Node % .getNext)
+                       (.getFirstChild md-node))))
+
+(defn markdown-tree [^Node md-node]
+  (let [children (mapv markdown-tree (md-node-children md-node))]
+    (cond-> (dissoc (bean md-node)
+                    :firstChild :lastChild :next :parent :previous)
+            (seq children) (assoc :children children))))

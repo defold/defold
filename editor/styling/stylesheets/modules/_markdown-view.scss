@@ -1,0 +1,59 @@
+.markdown-view {
+  -fx-padding: 2em;
+  -fx-background-color: #27292d;
+
+  HBox, VBox {
+    -fx-spacing: 0; // Fight crazy non-zero default.
+  }
+
+  Hyperlink, Text {
+    -fx-font-family: "Source Sans Pro", sans-serif;
+    -fx-font-size: 14px;
+    -fx-font-smoothing-type: lcd;
+  }
+
+  Hyperlink {
+    -fx-border-width: 0;
+    -fx-padding: 0;
+    -fx-text-fill: $df-bright-blue;
+    -fx-underline: false;
+
+    &:hover {
+      -fx-text-fill: lighten($df-bright-blue, 9%);
+      -fx-underline: true;
+    }
+  }
+
+  Text {
+    -fx-fill: $df-grey1;
+
+    &.unimplemented {
+      -fx-fill: $error-severity-fatal;
+    }
+  }
+
+  .md-paragraph {
+    -fx-line-spacing: 1.5em;
+    -fx-padding: 0em 0em 1.5em 0em;
+  }
+
+  .md-heading {
+    // -fx-padding: 1.5em 0em 0.5em 0em;
+
+    Text {
+      -fx-fill: $df-grey2;
+      -fx-font-family: "Source Sans Pro Light", sans-serif;
+    }
+  }
+
+  .md-heading.first-child {
+    //-fx-padding: 0em 0em 0.5em 0em;
+  }
+
+  // Ratio of 1.250 size increase for each header step.
+  .md-heading-l1 { Text { -fx-font-size: 34px; } }
+  .md-heading-l2 { Text { -fx-font-size: 27px; } }
+  .md-heading-l3 { Text { -fx-font-size: 22px; } }
+  .md-heading-l4 { Text { -fx-font-size: 18px; } }
+  .md-heading-l4 { Text { -fx-font-size: 18px; } }
+}
