@@ -490,6 +490,9 @@
        (reset! should-rotate-device? (not @should-rotate-device?)))
   (state [app-view user-data] @should-rotate-device?))
 
+(handler/defhandler :disabled-menu-label :global
+  (enabled? [] false))
+
 (handler/defhandler :open-web-profiler :global
   (enabled? [prefs]
     (some? (targets/selected-target prefs)))
@@ -524,150 +527,140 @@
                               :command :open-web-profiler}
                              {:label :separator}
                              {:label "Simulate Resolution..."
-                              :id ::debug
                               :children [{:label "Custom Resolution..."
                                           :command :set-custom-resolution}
-                                         {:label :separator}
-                                         {:label "iPhone"
-                                          :id ::debug
-                                          :children [{:label "iPhone XR (826x1792)"
-                                                     :command :change-res
-                                                     :user-data {:width 826
-                                                                 :height 1792}}
-                                                     {:label "iPhone XS Max (1242x2688)"
-                                                     :command :change-res
-                                                     :user-data {:width 1242
-                                                                 :height 2688}}
-                                                     {:label "iPhone XS (1125x2436)"
-                                                     :command :change-res
-                                                     :user-data {:width 1125
-                                                                 :height 2436}}
-                                                     {:label "iPhone X (1125x2436)"
-                                                     :command :change-res
-                                                     :user-data {:width 1125
-                                                                 :height 2436}}
-                                                     {:label "iPhone 8 Plus (1242x2208)"
-                                                     :command :change-res
-                                                     :user-data {:width 1242
-                                                                 :height 2208}}
-                                                     {:label "iPhone 8 (750x1334)"
-                                                     :command :change-res
-                                                     :user-data {:width 750
-                                                                 :height 1334}}
-                                                     {:label "iPhone 7 Plus (1242x2208)"
-                                                     :command :change-res
-                                                     :user-data {:width 1242
-                                                                 :height 2208}}
-                                                     {:label "iPhone 7 (750x1334)"
-                                                     :command :change-res
-                                                     :user-data {:width 750
-                                                                 :height 1334}}
-                                                     {:label "iPhone SE (640x1136)"
-                                                     :command :change-res
-                                                     :user-data {:width 640
-                                                                 :height 1136}}
-                                                     {:label "iPhone 6s Plus (1242x2208)"
-                                                     :command :change-res
-                                                     :user-data {:width 1242
-                                                                 :height 2208}}
-                                                     {:label "iPhone 6s (750x1334)"
-                                                     :command :change-res
-                                                     :user-data {:width 750
-                                                                 :height 1334}}
-                                                     {:label "iPhone 6 Plus (1242x2208)"
-                                                     :command :change-res
-                                                     :user-data {:width 1242
-                                                                 :height 2208}}
-                                                     {:label "iPhone 6 (750x1334)"
-                                                     :command :change-res
-                                                     :user-data {:width 750
-                                                                 :height 1334}}
-                                                     {:label "iPhone 5c (640x1136)"
-                                                     :command :change-res
-                                                     :user-data {:width 640
-                                                                 :height 1136}}
-                                                     {:label "iPhone 5s (640x1136)"
-                                                     :command :change-res
-                                                     :user-data {:width 640
-                                                                 :height 1136}}
-                                                     {:label "iPhone 5 (640x1136)"
-                                                     :command :change-res
-                                                     :user-data {:width 640
-                                                                 :height 1136}}
-                                                     {:label "iPhone 4S (640x960)"
-                                                     :command :change-res
-                                                     :user-data {:width 640
-                                                                 :height 960}}
-                                                     {:label "iPhone 4 (640x960)"
-                                                     :command :change-res
-                                                     :user-data {:width 640
-                                                                 :height 960}}]}
-                                         {:label "iPad"
-                                          :id ::debug
-                                          :children [{:label "iPad 2018 (1536x2048)"
-                                                     :command :change-res
-                                                     :user-data {:width 1536
-                                                                 :height 2048}}
-                                                     {:label "iPad Pro (2nd gen 12.9\") (2048x2732)"
-                                                     :command :change-res
-                                                     :user-data {:width 2048
-                                                                 :height 2732}}
-                                                     {:label "iPad Pro (2nd gen 10.5\") (1668x2224)"
-                                                     :command :change-res
-                                                     :user-data {:width 1668
-                                                                 :height 2224}}
-                                                     {:label "iPad Pro 2017 (1536x2048)"
-                                                     :command :change-res
-                                                     :user-data {:width 1536
-                                                                 :height 2048}}
-                                                     {:label "iPad Pro (1st gen 9.7\") (1536x2048)"
-                                                     :command :change-res
-                                                     :user-data {:width 1536
-                                                                 :height 2048}}
-                                                     {:label "iPad Pro (1st gen 12.9\") (2048x2732)"
-                                                     :command :change-res
-                                                     :user-data {:width 2048
-                                                                 :height 2732}}
-                                                     {:label "iPad Mini 4 (1536x2048)"
-                                                     :command :change-res
-                                                     :user-data {:width 1536
-                                                                 :height 2048}}
-                                                     {:label "iPad Air 2 (1536x2048)"
-                                                     :command :change-res
-                                                     :user-data {:width 1536
-                                                                 :height 2048}}
-                                                     {:label "iPad Mini 3 (1536x2048)"
-                                                     :command :change-res
-                                                     :user-data {:width 1536
-                                                                 :height 2048}}
-                                                     {:label "iPad Mini 2 (1536x2048)"
-                                                     :command :change-res
-                                                     :user-data {:width 1536
-                                                                 :height 2048}}
-                                                     {:label "iPad Air (1536x2048)"
-                                                     :command :change-res
-                                                     :user-data {:width 1536
-                                                                 :height 2048}}
-                                                     {:label "iPad 4th Gen (1536x2048)"
-                                                     :command :change-res
-                                                     :user-data {:width 1536
-                                                                 :height 2048}}
-                                                     {:label "iPad Mini (768x1024)"
-                                                     :command :change-res
-                                                     :user-data {:width 768
-                                                                 :height 1024}}
-                                                     {:label "iPad 3rd Gen (1536x2048)"
-                                                     :command :change-res
-                                                     :user-data {:width 1536
-                                                                 :height 2048}}
-                                                     {:label "iPad 2nd Gen (768x1024)"
-                                                     :command :change-res
-                                                     :user-data {:width 768
-                                                                 :height 1024}}
-                                                     {:label "iPad 1st Gen (768x1024)"
-                                                     :command :change-res
-                                                     :user-data {:width 768
-                                                                 :height 1024}}]}
-                                         {:label "Rotated Device"
-                                          :command :set-rotate-device
-                                          :check true}]}]}])
+                                         {:label "Apple"
+                                          :children [{:label "iPhone"
+                                                      :children [{:label "Viewport Resolutions"
+                                                                  :command :disabled-menu-label}
+                                                                 {:label "iPhone 4 (320x480)"
+                                                                  :command :change-res
+                                                                  :user-data {:width 320
+                                                                              :height 480}}
+                                                                 {:label "iPhone 5/SE (320x568)"
+                                                                  :command :change-res
+                                                                  :user-data {:width 320
+                                                                              :height 568}}
+                                                                 {:label "iPhone 6/7/8 (375x667)"
+                                                                  :command :change-res
+                                                                  :user-data {:width 375
+                                                                              :height 667}}
+                                                                 {:label "iPhone 6/7/8 Plus (414x736)"
+                                                                  :command :change-res
+                                                                  :user-data {:width 414
+                                                                              :height 736}}
+                                                                 {:label "iPhone X/XS (375x812)"
+                                                                  :command :change-res
+                                                                  :user-data {:width 375
+                                                                              :height 812}}
+                                                                 {:label "iPhone XR/XS Max (414x896)"
+                                                                  :command :change-res
+                                                                  :user-data {:width 414
+                                                                              :height 896}}
+                                                                 {:label :separator}
+                                                                 {:label "Native Resolutions"
+                                                                  :command :disabled-menu-label}
+                                                                 {:label "iPhone 4 (640x960)"
+                                                                  :command :change-res
+                                                                  :user-data {:width 640
+                                                                              :height 960}}
+                                                                 {:label "iPhone 5/SE (640x1136)"
+                                                                  :command :change-res
+                                                                  :user-data {:width 640
+                                                                              :height 1136}}
+                                                                 {:label "iPhone 6/7/8 (750x1334)"
+                                                                  :command :change-res
+                                                                  :user-data {:width 750
+                                                                              :height 1334}}
+                                                                 {:label "iPhone 6/7/8 Plus (1242x2208)"
+                                                                  :command :change-res
+                                                                  :user-data {:width 1242
+                                                                              :height 2208}}
+                                                                 {:label "iPhone X/XS (1125x2436)"
+                                                                  :command :change-res
+                                                                  :user-data {:width 1125
+                                                                              :height 2436}}
+                                                                 {:label "iPhone XS Max (1242x2688)"
+                                                                  :command :change-res
+                                                                  :user-data {:width 1242
+                                                                              :height 2688}}
+                                                                 {:label "iPhone XR (828x1792)"
+                                                                  :command :change-res
+                                                                  :user-data {:width 828
+                                                                              :height 1792}}]}
+                                                     {:label "iPad"
+                                                      :children [{:label "Viewport Resolutions"
+                                                                  :command :disabled-menu-label}
+                                                                 {:label "iPad Pro (1024x1366)"
+                                                                  :command :change-res
+                                                                  :user-data {:width 1024
+                                                                              :height 1366}}
+                                                                 {:label "iPad (768x1024)"
+                                                                  :command :change-res
+                                                                  :user-data {:width 768
+                                                                              :height 1024}}
+                                                                 {:label :separator}
+                                                                 {:label "Native Resolutions"
+                                                                  :command :disabled-menu-label}
+                                                                 {:label "iPad Pro (2048x2732)"
+                                                                  :command :change-res
+                                                                  :user-data {:width 2048
+                                                                              :height 2732}}
+                                                                 {:label "iPad (1536x2048)"
+                                                                  :command :change-res
+                                                                  :user-data {:width 1536
+                                                                              :height 2048}}
+                                                                 {:label "iPad Mini (768x1024)"
+                                                                  :command :change-res
+                                                                  :user-data {:width 768
+                                                                              :height 1024}}]}]}
+                                         {:label "Android Devices"
+                                          :children [{:label "Viewport Resolutions"
+                                                      :command :disabled-menu-label}
+                                                     {:label "Samsung Galaxy S7 (360x640)"
+                                                      :command :change-res
+                                                      :user-data {:width 360
+                                                                  :height 640}}
+                                                     {:label "Samsung Galaxy S8/S9/Note 9 (360x740)"
+                                                      :command :change-res
+                                                      :user-data {:width 360
+                                                                  :height 740}}
+                                                     {:label "Google Pixel 1/2/XL (412x732)"
+                                                      :command :change-res
+                                                      :user-data {:width 412
+                                                                  :height 732}}
+                                                     {:label "Google Pixel 3 (412x824)"
+                                                      :command :change-res
+                                                      :user-data {:width 412
+                                                                  :height 824}}
+                                                     {:label "Google Pixel 3 XL (412x847)"
+                                                      :command :change-res
+                                                      :user-data {:width 412
+                                                                  :height 847}}
+                                                     {:label :separator}
+                                                     {:label "Native Resolutions"
+                                                      :command :disabled-menu-label}
+                                                     {:label "Samsung Galaxy S7 (1440x2560)"
+                                                      :command :change-res
+                                                      :user-data {:width 1440
+                                                                  :height 2560}}
+                                                     {:label "Samsung Galaxy S8/S9/Note 9 (1440x2960)"
+                                                      :command :change-res
+                                                      :user-data {:width 1440
+                                                                  :height 2960}}
+                                                     {:label "Google Pixel (1080x1920)"
+                                                      :command :change-res
+                                                      :user-data {:width 1080
+                                                                  :height 1920}}
+                                                     {:label "Google Pixel 2/XL (1440x2560)"
+                                                      :command :change-res
+                                                      :user-data {:width 1440
+                                                                  :height 2560}}
+                                                     {:label "Google Pixel 3 (1080x2160)"
+                                                      :command :change-res
+                                                      :user-data {:width 1080
+                                                                  :height 2160}}
+                                                     {:label "Google Pixel 3 XL (1440x2960)"
+                                                      :command :change-res
+                                                      :user-data {:width 1440
+                                                                  :height 2960}}]}]}]}])
