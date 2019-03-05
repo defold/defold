@@ -13,18 +13,12 @@ using namespace Vectormath::Aos;
 
 namespace
 {
-    // NOTE: we don't generate actual bytecode for this test-data, so
-    // just pass in regular lua source instead.
     dmLuaDDF::LuaSource *LuaSourceFromString(const char *source)
     {
         static dmLuaDDF::LuaSource tmp;
         memset(&tmp, 0x00, sizeof(tmp));
         tmp.m_Script.m_Data = (uint8_t*)source;
         tmp.m_Script.m_Count = strlen(source);
-        tmp.m_Bytecode.m_Data = (uint8_t*)source;
-        tmp.m_Bytecode.m_Count = strlen(source);
-        tmp.m_Bytecode64.m_Data = (uint8_t*)source;
-        tmp.m_Bytecode64.m_Count = strlen(source);
         tmp.m_Filename = "render-dummy";
         return &tmp;
     }
