@@ -324,9 +324,6 @@ namespace dmResource
         TRequestIndex m_PersistResourceCount;
 
         dmArray<void*> m_PersistedResources;
-
-        uint64_t m_PreloaderCreationTimeNS;
-        uint64_t m_MainThreadTimeSpentNS;
     };
 
     const char* InternalizePath(ResourcePreloader::SyncedData* preloader_synced_data, uint64_t path_hash, const char* path, uint32_t path_len)
@@ -600,8 +597,6 @@ namespace dmResource
 
     HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names)
     {
-        uint64_t start_ns = dmTime::GetTime();
-
         ResourcePreloader* preloader = new ResourcePreloader();
         // root is always allocated so we don't add index zero in the free list
         for (uint32_t i = 0; i < MAX_PRELOADER_REQUESTS - 1; i++)
@@ -656,11 +651,6 @@ namespace dmResource
                 preloader->m_PersistResourceCount++;
             }
         }
-
-        uint64_t now_ns                      = dmTime::GetTime();
-        uint64_t main_thread_time_ns         = now_ns - start_ns;
-        preloader->m_PreloaderCreationTimeNS = start_ns;
-        preloader->m_MainThreadTimeSpentNS   = main_thread_time_ns;
 
         return preloader;
     }
@@ -1135,8 +1125,6 @@ namespace dmResource
                 if (post_create_result != RESULT_PENDING)
                 {
                     // All done!
-                    uint64_t main_thread_elapsed_ns = dmTime::GetTime() - start;
-                    preloader->m_MainThreadTimeSpentNS += main_thread_elapsed_ns;
                     return root_result;
                 }
             }
@@ -1172,8 +1160,6 @@ namespace dmResource
             }
         } while (dmTime::GetTime() - start <= soft_time_limit);
 
-        uint64_t main_thread_elapsed_ns = dmTime::GetTime() - start;
-        preloader->m_MainThreadTimeSpentNS += main_thread_elapsed_ns;
         return RESULT_PENDING;
     }
 
@@ -1191,8 +1177,6 @@ namespace dmResource
             dmLogWarning("Waiting for preloader to complete.");
         }
 
-        uint64_t start_excluding_update_ns = dmTime::GetTime();
-
         // Release root and persisted resources
         preloader->m_PersistedResources.Push(preloader->m_Request[0].m_Resource);
         for (uint32_t i = 0; i < preloader->m_PersistedResources.Size(); ++i)
@@ -1206,21 +1190,9 @@ namespace dmResource
         assert(preloader->m_FreelistSize == (MAX_PRELOADER_REQUESTS - 1));
         dmLoadQueue::DeleteQueue(preloader->m_LoadQueue);
 
-        uint64_t now_ns                 = dmTime::GetTime();
-        uint64_t preloader_load_time_ns = now_ns - preloader->m_PreloaderCreationTimeNS;
-        uint64_t main_thread_time_ns    = now_ns - start_excluding_update_ns;
-        preloader->m_MainThreadTimeSpentNS += main_thread_time_ns;
-
-        dmLogWarning("\"%s\", %u, %u",
-                     preloader->m_Request[0].m_PathDescriptor.m_InternalizedName,
-                     (uint32_t)(preloader_load_time_ns / 1000),
-                     (uint32_t)(preloader->m_MainThreadTimeSpentNS / 1000));
-
         delete preloader;
     }
 
-    // This function can be called from a different thread.
-    // No lock should be held during this call.
     bool PreloadHint(HPreloadHintInfo info, const char* name)
     {
         if (!info || !name)
