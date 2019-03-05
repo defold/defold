@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="ext/android/guava-22.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/android/sdk-common-26.0.0-dev.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/android/common-26.0.0-dev.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/android/manifest-merger-26.0.0-dev.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/aws/aws-java-sdk-s3-1.11.80.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/aws/aws-java-sdk-core-1.11.80.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/commons-codec-1.10.jar"/>
