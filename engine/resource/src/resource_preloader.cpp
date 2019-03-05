@@ -65,10 +65,10 @@ namespace dmResource
     struct PathDescriptor
     {
         const char* m_InternalizedName;
-        uint64_t m_NameHash;
         const char* m_InternalizedCanonicalPath;
-        uint64_t m_CanonicalPathHash;
         SResourceType* m_ResourceType;
+        uint64_t m_NameHash;
+        uint64_t m_CanonicalPathHash;
     };
 
     typedef int16_t TRequestIndex;
@@ -80,7 +80,7 @@ namespace dmResource
         TRequestIndex m_Parent;
         TRequestIndex m_FirstChild;
         TRequestIndex m_NextSibling;
-        TRequestIndex m_PendingChildCount;
+        uint16_t m_PendingChildCount;
 
         // Set once resources have started loading, they have a load request
         dmLoadQueue::HRequest m_LoadRequest;
@@ -260,12 +260,11 @@ namespace dmResource
     // the required size is something the sum of all children on each level down along
     // the largest branch.
 
-    static const uint32_t MAX_PRELOADER_REQUESTS = 1024;
-
     typedef dmHashTable<uint64_t, uint32_t> TPathHashTable;
     typedef dmHashTable<uint64_t, bool> TPathInProgressTable;
 
-    static const uint32_t PATH_IN_PROGRESS_TABLE_SIZE    = 313;
+    static const uint32_t MAX_PRELOADER_REQUESTS         = 1024;
+    static const uint32_t PATH_IN_PROGRESS_TABLE_SIZE    = MAX_PRELOADER_REQUESTS / 3;
     static const uint32_t PATH_IN_PROGRESS_CAPACITY      = MAX_PRELOADER_REQUESTS;
     static const uint32_t PATH_IN_PROGRESS_HASHDATA_SIZE = (PATH_IN_PROGRESS_TABLE_SIZE * sizeof(uint32_t)) + (PATH_IN_PROGRESS_CAPACITY * sizeof(TPathInProgressTable::Entry));
     static const uint32_t PATH_AVERAGE_LENGTH            = 40;
@@ -462,11 +461,12 @@ namespace dmResource
     {
         if (!preloader->m_FreelistSize)
         {
-            // Preload queue is exhausted; this is not fatal.
+            // Preload queue is exhausted; this is not fatal, it just means the resource will be loaded
+            // inside the main thread which may cause stuttering
             return RESULT_OUT_OF_MEMORY;
         }
 
-        // Quick dedue, check if the child is already listed un the current parent
+        // Quick dedue, check if the child is already listed under the current parent
         TRequestIndex child = preloader->m_Request[parent].m_FirstChild;
         while (child != -1)
         {
@@ -489,7 +489,9 @@ namespace dmResource
 
         PreloaderTreeInsert(preloader, new_req, parent);
 
-        // Check for recursive resources, if it is, mark with loop error
+        // Check for recursive resources, if it is, mark with loop error, the recursive load result will
+        // be checked for in the PreloaderUpdateOneItem and the result will be propagated to the resource
+        // preloaded creator.
         TRequestIndex go_up = parent;
         while (go_up != -1)
         {
@@ -556,13 +558,15 @@ namespace dmResource
     }
 
     // Only supports removing the first child, which is all the preloader uses anyway.
-    static void PreloaderRemoveLeaf(ResourcePreloader* preloader, TRequestIndex index)
+    static bool PreloaderRemoveLeaf(ResourcePreloader* preloader, TRequestIndex index)
     {
         assert(preloader->m_FreelistSize < MAX_PRELOADER_REQUESTS);
 
         PreloadRequest* me = &preloader->m_Request[index];
         assert(me->m_FirstChild == -1);
         assert(me->m_PendingChildCount == 0);
+        PreloadRequest* parent = &preloader->m_Request[me->m_Parent];
+        assert(parent->m_FirstChild == index);
 
         if (me->m_Resource)
         {
@@ -576,8 +580,6 @@ namespace dmResource
             }
         }
 
-        PreloadRequest* parent = &preloader->m_Request[me->m_Parent];
-        assert(parent->m_FirstChild == index);
         parent->m_FirstChild = me->m_NextSibling;
 
         if (me->m_LoadResult == RESULT_PENDING)
@@ -602,7 +604,7 @@ namespace dmResource
         uint64_t start_ns = dmTime::GetTime();
 
         ResourcePreloader* preloader = new ResourcePreloader();
-        // root is always allocated.
+        // root is always allocated so we don't add index zero in the free list
         for (uint32_t i = 0; i < MAX_PRELOADER_REQUESTS - 1; i++)
         {
             preloader->m_Freelist[i] = MAX_PRELOADER_REQUESTS - i - 1;
@@ -640,7 +642,8 @@ namespace dmResource
         }
 
         // Add remaining items as children of root (first item).
-        // This enables optimised loading in so that resources are not loaded multiple times and are released when they can be (internally pruning and sharing the request tree).
+        // This enables optimised loading in so that resources are not loaded multiple times
+        // and are released when they can be (internally pruning and sharing the request tree).
         for (uint32_t i = 1; i < names.Size(); ++i)
         {
             if (strlen(names[i]) >= RESOURCE_PATH_MAX)
@@ -674,7 +677,7 @@ namespace dmResource
     //   1) Having created the resource and free:d all buffers => RESULT_OK + m_Resource
     //   2) Having failed, (or created and destroyed), leaving => RESULT_SOME_ERROR + everything free:d
     //
-    // If buffer passed in is null it means to use the items internal buffer
+    // If buffer is null it means to use the items internal buffer
     static void CreateResource(HPreloader preloader, PreloadRequest* req, void* buffer, uint32_t buffer_size)
     {
         assert(req->m_LoadResult == RESULT_PENDING);
@@ -687,7 +690,7 @@ namespace dmResource
 
         SResourceType* resource_type = req->m_PathDescriptor.m_ResourceType;
 
-        // obliged to call CreateFunction if Preload has been called, so always do this even when an error has occured
+        // We must call CreateFunction if Preload function has been called, so always do this even when an error has occured
         tmp_resource.m_NameHash       = req->m_PathDescriptor.m_CanonicalPathHash;
         tmp_resource.m_ReferenceCount = 1;
         tmp_resource.m_ResourceType   = (void*)resource_type;
@@ -741,12 +744,11 @@ namespace dmResource
         assert(req->m_Buffer == 0);
         req->m_PreloadData = 0;
 
-        // This is set if precreate was run. Once past this step it is not going to be needed;
-        // and we clear it to indicate loading is done.
         RemoveFromParentPendingCount(preloader, req);
 
         // Children can now be removed (and their resources released) as they are not
-        // needed any longer.
+        // needed any longer as the parent resource have its own references to the
+        // child resources.
         RemoveChildren(preloader, req);
 
         if (req->m_LoadResult != RESULT_OK)
@@ -760,18 +762,18 @@ namespace dmResource
         // Only two options from now on is to either destroy the resource or have it inserted
         bool destroy = false;
 
-        // second need to destroy if already exists
+        // If someone else has loaded the resource already, use that one and mark our loaded resource for destruction
         SResourceDescriptor* rd = GetByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
         if (rd)
         {
-            // use already loaded then.
+            // Use already loaded resource
             rd->m_ReferenceCount++;
             req->m_Resource = rd->m_Resource;
             destroy         = true;
         }
         else
         {
-            // insert the already loaded, can fail here
+            // Insert the loaded and created resource, if insertion fails, mark the resource for detruction
             req->m_LoadResult = InsertResource(preloader->m_Factory, req->m_PathDescriptor.m_InternalizedName, req->m_PathDescriptor.m_CanonicalPathHash, &tmp_resource);
             if (req->m_LoadResult == RESULT_OK)
             {
@@ -798,7 +800,7 @@ namespace dmResource
                     ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[i];
                     if (ip.m_ResourceDesc.m_Resource == tmp_resource.m_Resource)
                     {
-                        // Mark resource that is should be destroyed once postcreate has run.
+                        // Mark resource that it should be destroyed once postcreate has been run.
                         ip.m_Destroy = true;
                         found        = true;
 
@@ -808,7 +810,7 @@ namespace dmResource
                         // and memory usage. There is an issue filed for this: DEF-3088
                         // Once that has been implemented, the delayed destroy (m_Destroy) can be removed,
                         // it would no longer be needed since each resource would only be created/loaded once.
-                        // Measurements from the amound of double-loading happening due to this in real games
+                        // Measurements from the amount of double-loading happening due to this in real games
                         // show that the triggered overhead is very low and it does not happen often so not
                         // a priority to fix.
 
@@ -853,7 +855,7 @@ namespace dmResource
 
     // Ends the Load part of the resource and handles the result of the load
     // It will create the resource if it has no children, otherwise it will
-    // copy the loaded buffer for later use.
+    // copy the loaded buffer for later use when all the children has been created.
     //
     // Returns true if the resource was created
     static bool FinishLoad(HPreloader preloader, PreloadRequest* req, dmLoadQueue::LoadResult& load_result, void* buffer, uint32_t buffer_size)
@@ -911,6 +913,8 @@ namespace dmResource
 
     static bool DoPreloaderUpdateOneReq(HPreloader preloader, TRequestIndex index, PreloadRequest* req);
 
+    // Find the first request that has is RESULT_PENDING and try to load it
+    // Continue until all requests are checked or we have created a one resource
     static bool PreloaderUpdateOneItem(HPreloader preloader, TRequestIndex index)
     {
         DM_PROFILE(Resource, "PreloaderUpdateOneItem");
@@ -979,7 +983,7 @@ namespace dmResource
             return false;
         }
 
-        // If has a buffer if is waiting for children to complete first
+        // It has a buffer if is waiting for children to complete first
         if (req->m_Buffer)
         {
             // traverse depth first
@@ -1023,7 +1027,8 @@ namespace dmResource
         info.m_Function             = req->m_PathDescriptor.m_ResourceType->m_PreloadFunction;
         info.m_Context              = req->m_PathDescriptor.m_ResourceType->m_Context;
 
-        // Silently ignore if return null (means try later)"
+        // If we can't add the request to the load queue it is because the queue is full
+        // We will try again once we completed loading of an item via dmLoadQueue::EndLoad
         if ((req->m_LoadRequest = dmLoadQueue::BeginLoad(preloader->m_LoadQueue, req->m_PathDescriptor.m_InternalizedName, req->m_PathDescriptor.m_InternalizedCanonicalPath, &info)))
         {
             MarkPathInProgress(preloader, &req->m_PathDescriptor);
@@ -1034,6 +1039,9 @@ namespace dmResource
         return false;
     }
 
+    // Calls the PostCreate function of any pending resources
+    // If the resource load is duplicate (indicated by ResourcePostCreateParamsInternal::m_Destroy)
+    // the resource will be deleted
     static Result PostCreateUpdateOneItem(HPreloader preloader)
     {
         ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[preloader->m_PostCreateCallbackIndex];
