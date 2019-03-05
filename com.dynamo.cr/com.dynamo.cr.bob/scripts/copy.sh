@@ -77,7 +77,7 @@ cp -v tmp/bin/x86_64-linux/luajit-64 libexec/x86_64-linux/luajit-64
 cp -v tmp/bin/x86_64-darwin/luajit-32 libexec/x86_64-darwin/luajit-32
 cp -v tmp/bin/x86_64-darwin/luajit-64 libexec/x86_64-darwin/luajit-64
 cp -v tmp/bin/win32/luajit-32.exe libexec/x86-win32/luajit-32.exe
-cp -v tmp/bin/win32/luajit-64.exe libexec/x86-win32/luajit-64.exe
+cp -v tmp/bin/win32/luajit-32.exe libexec/x86-win32/luajit-64.exe
 cp -v tmp/bin/x86_64-win32/luajit-64.exe libexec/x86_64-win32/luajit-64.exe
 jar cfM lib/luajit-share.zip -C $DYNAMO_HOME/ext/share/ luajit
 
