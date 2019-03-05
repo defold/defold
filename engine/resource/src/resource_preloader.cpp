@@ -323,7 +323,6 @@ namespace dmResource
         // How many of the initial resources where requested - they should not be release until preloader destruction
         TRequestIndex m_PersistResourceCount;
 
-        // persisted resources
         dmArray<void*> m_PersistedResources;
 
         uint64_t m_PreloaderCreationTimeNS;
@@ -1041,7 +1040,7 @@ namespace dmResource
 
     // Calls the PostCreate function of any pending resources
     // If the resource load is duplicate (indicated by ResourcePostCreateParamsInternal::m_Destroy)
-    // the resource will be deleted
+    // the resource will be deleted but we still need to call the PostCreate function
     static Result PostCreateUpdateOneItem(HPreloader preloader)
     {
         ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[preloader->m_PostCreateCallbackIndex];
@@ -1180,7 +1179,7 @@ namespace dmResource
 
     void DeletePreloader(HPreloader preloader)
     {
-        // Since Preload calls need their Create calls done and PostCreate calls must follow Create calls.
+        // Since Preload calls need their Create calls done and PostCreate calls must always follow Create calls.
         // To fix this:
         // * Make Get calls insta-fail on RESULT_ABORTED or something
         // * Make Queue only return RESULT_ABORTED always.
