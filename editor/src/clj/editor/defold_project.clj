@@ -393,75 +393,40 @@
                                                {:label :separator
                                                 :id ::project-end}]))}])
 
-(defn- update-selection [s open-resource-nodes active-resource-node selection-value]
-  (->> (assoc s active-resource-node selection-value)
-    (filter (comp (set open-resource-nodes) first))
-    (into {})))
+(defn add-resource-node-listener!
+  "Registers a function that will be called whenever an old resource node is
+  replaced with a new one. The function will be called with a map of old->new
+  resource node ids, which might contain nil if a previously existing resource
+  node was deleted. It can optionally return a (possibly nested) sequence of
+  transaction steps to be executed in a single transaction with other resource
+  node listeners."
+  [project handle-resource-node-changes]
+  (assert (ifn? handle-resource-node-changes))
+  (g/user-data-swap! project ::resource-node-listeners (fnil conj []) handle-resource-node-changes))
 
-(defn- perform-selection [project all-selections]
-  (let [all-node-ids (->> all-selections
-                       vals
-                       (reduce into [])
-                       distinct
-                       vec)
-        old-all-selections (g/node-value project :all-selections)]
-    (when-not (= old-all-selections all-selections)
-      (concat
-        (g/set-property project :all-selections all-selections)
-        (for [[node-id label] (g/sources-of project :all-selected-node-ids)]
-          (g/disconnect node-id label project :all-selected-node-ids))
-        (for [[node-id label] (g/sources-of project :all-selected-node-properties)]
-          (g/disconnect node-id label project :all-selected-node-properties))
-        (for [node-id all-node-ids]
-          (concat
-            (g/connect node-id :_node-id    project :all-selected-node-ids)
-            (g/connect node-id :_properties project :all-selected-node-properties)))))))
-
-(defn select
-  ([project resource-node node-ids open-resource-nodes]
-    (assert (every? some? node-ids) "Attempting to select nil values")
-    (let [node-ids (if (seq node-ids)
-                     (-> node-ids distinct vec)
-                     [resource-node])
-          all-selections (-> (g/node-value project :all-selections)
-                           (update-selection open-resource-nodes resource-node node-ids))]
-      (perform-selection project all-selections))))
-
-(defn- perform-sub-selection
-  ([project all-sub-selections]
-    (g/set-property project :all-sub-selections all-sub-selections)))
-
-(defn sub-select
-  ([project resource-node sub-selection open-resource-nodes]
-    (g/update-property project :all-sub-selections update-selection open-resource-nodes resource-node sub-selection)))
-
-(defn- remap-selection [m key-m val-fn]
-  (reduce (fn [m [old new]]
-            (if-let [v (get m old)]
-              (-> m
-                (dissoc old)
-                (assoc new (val-fn [new v])))
-              m))
-    m key-m))
+(defn- resource-node-listeners [project]
+  (g/user-data project ::resource-node-listeners))
 
 (def ^:private make-resource-nodes-by-path-map
   (partial into {} (map (juxt (comp resource/proj-path second) first))))
 
 (defn- perform-resource-change-plan [plan project render-progress!]
   (binding [*load-cache* (atom (into #{} (g/node-value project :nodes)))]
-    (let [old-nodes-by-path (g/node-value project :nodes-by-resource-path)
+    (let [resource-node-listeners (resource-node-listeners project)
+          resource-path->old-node (g/node-value project :nodes-by-resource-path)
           rn-dependencies-evaluation-context (g/make-evaluation-context)
           old-resource-node-dependencies (memoize
                                            (fn [node-id]
                                              (let [deps (g/node-value node-id :reload-dependencies rn-dependencies-evaluation-context)]
                                                (when-not (g/error? deps)
                                                  deps))))
-          resource->old-node (comp old-nodes-by-path resource/proj-path)
+          resource->old-node (comp resource-path->old-node resource/proj-path)
           new-nodes (make-nodes! project (:new plan))
-          resource-path->new-node (into {} (map (fn [resource-node]
-                                                  (let [resource (g/node-value resource-node :resource)]
-                                                    [(resource/proj-path resource) resource-node]))
-                                                new-nodes))
+          resource-path->new-node (into {}
+                                        (map (fn [resource-node]
+                                               (let [resource (g/node-value resource-node :resource)]
+                                                 [(resource/proj-path resource) resource-node])))
+                                        new-nodes)
           resource->new-node (comp resource-path->new-node resource/proj-path)
           ;; When transferring overrides and arcs, the target is either a newly
           ;; created or already (still!) existing node.
@@ -517,15 +482,20 @@
                                 (:invalidate-outputs plan))]
         (g/invalidate-outputs! all-outputs))
 
-      (let [old->new (into {} (map (fn [[p n]] [(old-nodes-by-path p) n]) resource-path->new-node))]
-        (g/transact
-          (concat
-            (let [all-selections (-> (g/node-value project :all-selections)
-                                     (remap-selection old->new (comp vector first)))]
-              (perform-selection project all-selections))
-            (let [all-sub-selections (-> (g/node-value project :all-sub-selections)
-                                         (remap-selection old->new (constantly [])))]
-              (perform-sub-selection project all-sub-selections)))))
+      (when (seq resource-node-listeners)
+        (let [new-resource-nodes-by-old (into {}
+                                              (map (fn [[resource-path old-node-id]]
+                                                     (let [new-node-id-or-nil (resource-path->new-node resource-path)]
+                                                       [old-node-id new-node-id-or-nil])))
+                                              resource-path->old-node)
+              transaction-steps (flatten
+                                  (doall
+                                    (for [handle-resource-node-changes resource-node-listeners
+                                          :let tx-data (handle-resource-node-changes new-resource-nodes-by-old)]
+                                      tx-data)))]
+          (when (seq transaction-steps)
+            (g/transact
+              transaction-steps))))
 
       ;; invalidating outputs is the only change that does not reset the undo history
       (when (some seq (vals (dissoc plan :invalidate-outputs)))
@@ -562,11 +532,6 @@
 
   (extern workspace g/Any)
 
-  (property all-selections g/Any)
-  (property all-sub-selections g/Any)
-
-  (input all-selected-node-ids g/Any :array)
-  (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
   (input resource-map g/Any)
   (input resource-types g/Any)
@@ -579,23 +544,6 @@
   (input build-settings g/Any)
   (input breakpoints Breakpoints :array :substitute gu/array-subst-remove-errors)
 
-  (output selected-node-ids-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-selections]
-                                                             (let [selected-node-id-set (set all-selected-node-ids)]
-                                                               (->> all-selections
-                                                                 (map (fn [[key vals]] [key (filterv selected-node-id-set vals)]))
-                                                                 (into {})))))
-  (output selected-node-properties-by-resource-node g/Any :cached (g/fnk [all-selected-node-properties all-selections]
-                                                                    (let [props (->> all-selected-node-properties
-                                                                                  (map (fn [p] [(:node-id p) p]))
-                                                                                  (into {}))]
-                                                                      (->> all-selections
-                                                                        (map (fn [[key vals]] [key (vec (keep props vals))]))
-                                                                        (into {})))))
-  (output sub-selections-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-sub-selections]
-                                                               (let [selected-node-id-set (set all-selected-node-ids)]
-                                                                 (->> all-sub-selections
-                                                                   (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
-                                                                   (into {})))))
   (output resource-map g/Any (gu/passthrough resource-map))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-id+resources] (make-resource-nodes-by-path-map node-id+resources)))
   (output save-data g/Any :cached (g/fnk [save-data] (filterv #(and % (:content %)) save-data)))

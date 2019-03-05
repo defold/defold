@@ -38,6 +38,7 @@
             [editor.scene-cache :as scene-cache]
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
+            [editor.selection :as selection]
             [editor.system :as system]
             [editor.targets :as targets]
             [editor.types :as types]
@@ -115,7 +116,7 @@
   (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
   (input active-outline g/Any)
   (input active-scene g/Any)
-  (input project-id g/NodeID)
+  (input selection-node g/NodeID)
   (input selected-node-ids-by-resource-node g/Any)
   (input selected-node-properties-by-resource-node g/Any)
   (input sub-selections-by-resource-node g/Any)
@@ -1095,10 +1096,8 @@ If you do not specifically require different script states, consider changing th
   ([app-view node-ids]
    (select app-view (g/node-value app-view :active-resource-node) node-ids))
   ([app-view resource-node node-ids]
-   (g/with-auto-evaluation-context evaluation-context
-     (let [project-id (g/node-value app-view :project-id evaluation-context)
-           open-resource-nodes (g/node-value app-view :open-resource-nodes evaluation-context)]
-       (project/select project-id resource-node node-ids open-resource-nodes)))))
+   (let [selection-node (g/node-value app-view :selection-node)]
+     (selection/select selection-node resource-node node-ids))))
 
 (defn select!
   ([app-view node-ids]
@@ -1114,15 +1113,13 @@ If you do not specifically require different script states, consider changing th
   ([app-view sub-selection]
    (sub-select! app-view sub-selection (gensym)))
   ([app-view sub-selection op-seq]
-   (g/with-auto-evaluation-context evaluation-context
-     (let [project-id (g/node-value app-view :project-id evaluation-context)
-           active-resource-node (g/node-value app-view :active-resource-node evaluation-context)
-           open-resource-nodes (g/node-value app-view :open-resource-nodes evaluation-context)]
-       (g/transact
-         (concat
-           (g/operation-sequence op-seq)
-           (g/operation-label "Select")
-           (project/sub-select project-id active-resource-node sub-selection open-resource-nodes)))))))
+   (let [selection-node (g/node-value app-view :selection-node)
+         active-resource-node (g/node-value app-view :active-resource-node)]
+     (g/transact
+       (concat
+         (g/operation-sequence op-seq)
+         (g/operation-label "Select")
+         (project/sub-select selection-node active-resource-node sub-selection))))))
 
 (defn- make-title
   ([] "Defold Editor 2.0")

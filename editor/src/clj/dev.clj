@@ -87,7 +87,7 @@
   (assert (or (nil? m) (map? m)))
   (exclude-keys-deep-helper (comp (set excluded-keys) key) m))
 
-(def select-keys-deep #'internal.util/select-keys-deep)
+(def select-keys-deep #'util/select-keys-deep)
 
 (defn deep-select [value-pred value]
   (cond

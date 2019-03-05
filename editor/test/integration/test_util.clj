@@ -15,6 +15,7 @@
             [editor.resource-types :as resource-types]
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
+            [editor.selection :as selection]
             [editor.workspace :as workspace]
             [editor.handler :as handler]
             [editor.view :as view]
@@ -188,17 +189,20 @@
   (g/make-graph! :history false :volatility 2))
 
 (defn setup-app-view! [project]
-  (let [view-graph (make-view-graph!)]
-    (-> (g/make-nodes view-graph [app-view [MockAppView
-                                            :active-tool :move
-                                            :manip-space :world
-                                            :scene (Scene. (VBox.))]]
-          (g/connect project :_node-id app-view :project-id)
-          (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
-            (g/connect project label app-view label)))
-      g/transact
-      g/tx-nodes-added
-      first)))
+  (let [view-graph (make-view-graph!)
+        [app-view selection-node]
+        (g/tx-nodes-added
+          (g/transact
+            (g/make-nodes view-graph [app-view [MockAppView
+                                                :active-tool :move
+                                                :manip-space :world
+                                                :scene (Scene. (VBox.))]
+                                      selection-node [selection/SelectionNode]]
+                          (g/connect selection-node :_node-id app-view :selection-node)
+                          (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
+                            (g/connect selection-node label app-view label)))))]
+    (project/add-resource-node-listener! project (partial selection/remap-selection selection-node))
+    app-view))
 
 (defn- make-tab! [project app-view path make-view-fn!]
   (let [node-id (project/get-resource-node project path)

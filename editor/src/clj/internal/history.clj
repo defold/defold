@@ -126,7 +126,7 @@
         rewound-outputs (transduce (map :outputs-modified) set/union (subvec history rewound-history-end-index))
         {hydrated-basis :basis hydrated-outputs :outputs-to-refresh} (ig/hydrate-after-undo basis rewound-graph)
         outputs-to-refresh (into rewound-outputs hydrated-outputs)
-        invalidated-labels-by-node-id (util/group-into #{} first second outputs-to-refresh)
+        invalidated-labels-by-node-id (util/group-into {} #{} first second outputs-to-refresh)
         rewound-basis (ig/update-successors hydrated-basis invalidated-labels-by-node-id)]
     {:basis rewound-basis
      :history rewound-history
@@ -196,11 +196,13 @@
         merge-into-previous-history-entry? (some-> sequence-label (= (history-sequence-label history)))]
     (if merge-into-previous-history-entry?
       (let [last-history-entry-index (dec (count history))
-            merged-history-entry (cond-> (assoc (peek history) :context context)
+            last-history-entry (history last-history-entry-index)
+            merged-history-entry (cond-> (assoc last-history-entry :context context)
                                          (some? label) (assoc :label label)
                                          (some? sequence-label) (assoc :sequence-label sequence-label)
                                          (seq outputs-modified) (update :outputs-modified into outputs-modified)
                                          (seq transaction-steps) (update :transaction-steps into transaction-steps))]
+        (assert (zero? (:undo-group last-history-entry)))
         (assoc history last-history-entry-index merged-history-entry))
       (let [history-entry (->HistoryEntry 0 label sequence-label context graph-after outputs-modified transaction-steps)]
         (conj history history-entry)))))

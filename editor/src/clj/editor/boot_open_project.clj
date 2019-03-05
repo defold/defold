@@ -27,6 +27,7 @@
             [editor.scene :as scene]
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
+            [editor.selection :as selection]
             [editor.sync :as sync]
             [editor.system :as system]
             [editor.targets :as targets]
@@ -151,6 +152,7 @@
           console-tab          (first (.getTabs tool-tabs))
           console-grid-pane    (.lookup root "#console-grid-pane")
           workbench            (.lookup root "#workbench")
+          selection-node       (selection/make-selection-node! *view-graph*)
           scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
           app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs)
           outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
@@ -257,8 +259,8 @@
       (g/transact
         (concat
           (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
-            (g/connect project label app-view label))
-          (g/connect project :_node-id app-view :project-id)
+            (g/connect selection-node label app-view label))
+          (g/connect selection-node :_node-id app-view :selection-node)
           (g/connect app-view :selected-node-ids outline-view :selection)
           (g/connect app-view :hidden-node-outline-key-paths outline-view :hidden-node-outline-key-paths)
           (g/connect app-view :active-resource asset-browser :active-resource)
@@ -344,9 +346,11 @@
   [^File game-project-file prefs render-progress! dashboard-client updater newly-created?]
   (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
         build-settings (workspace/make-build-settings prefs)
-        workspace    (setup-workspace project-path build-settings)
+        workspace (setup-workspace project-path build-settings)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
-        project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/sign-in! dashboard-client :fetch-libraries))]
+        selection-node (selection/make-selection-node! *view-graph*)
+        project (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/sign-in! dashboard-client :fetch-libraries))]
+    (project/add-resource-node-listener! project (partial selection/remap-selection selection-node))
     (ui/run-now
       (load-stage workspace project prefs dashboard-client updater newly-created?)
       (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
