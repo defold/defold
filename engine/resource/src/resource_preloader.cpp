@@ -554,7 +554,7 @@ namespace dmResource
     }
 
     // Only supports removing the first child, which is all the preloader uses anyway.
-    static bool PreloaderRemoveLeaf(ResourcePreloader* preloader, TRequestIndex index)
+    static void PreloaderRemoveLeaf(ResourcePreloader* preloader, TRequestIndex index)
     {
         assert(preloader->m_FreelistSize < MAX_PRELOADER_REQUESTS);
 
