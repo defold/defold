@@ -162,8 +162,6 @@ namespace dmLoadQueue
         q->m_WakeupCond   = dmConditionVariable::New();
         q->m_Thread       = dmThread::New(&LoadThread, 65536, q, "AsyncLoad");
 
-        //        dmLogWarning("sizeof(Queue): %u", (uint32_t)(sizeof(Queue) + QUEUE_SLOTS * DEFAULT_CAPACITY));
-
         return q;
     }
 
@@ -195,7 +193,7 @@ namespace dmLoadQueue
 
         if (queue->m_Loaded == queue->m_Front)
         {
-            // The worker sleeping waiting for request, wake it up
+            // The worker is sleeping waiting for request, wake it up
             dmConditionVariable::Signal(queue->m_WakeupCond);
         }
 
