@@ -68,6 +68,7 @@ namespace dmResource
         uint64_t m_NameHash;
         const char* m_InternalizedCanonicalPath;
         uint64_t m_CanonicalPathHash;
+        SResourceType* m_ResourceType;
     };
 
     typedef int16_t TRequestIndex;
@@ -89,7 +90,6 @@ namespace dmResource
         uint32_t m_BufferSize;
 
         // Set once preload function has run
-        SResourceType* m_ResourceType;
         void* m_PreloadData;
 
         // Set once load has completed
@@ -105,7 +105,7 @@ namespace dmResource
         bool m_Destroy;
     };
 
-    // A simple block allocator for scratch memory to use for small resource instead
+    // A simple block allocator for scratch memory to use for small resources instead
     // of pressuring malloc/free.
     //
     // It allocates blocks (or chunks) of memory via malloc and then allocates from
@@ -114,12 +114,12 @@ namespace dmResource
     // It keeps track of the high and low range used in a block to try and reuse free
     // space but no real defragmentation is done.
     //
-    // One block is always allocated, but other blocks are dynamically allocated/freed
+    // One block is always allocated, but other blocks are dynamically allocated/freed.
     //
     // There is no thread syncronization - one BlockAllocator is created per preloader/thread.
     //
     // If there is no space in the blocks or the allocation is deemed to big (BLOCK_ALLOCATION_THRESHOLD)
-    // it will fall back to malloc/free for the allocation
+    // it will fall back to malloc/free for the allocation.
 
     static const uint32_t BLOCK_SIZE                   = 16384;
     static const uint32_t BLOCK_ALLOCATION_THRESHOLD   = BLOCK_SIZE / 2;
@@ -212,7 +212,6 @@ namespace dmResource
             block_allocator->m_Blocks[first_free] = block;
             return &ptr[1];
         }
-        dmLogWarning("Scratch buffer is full when trying to allocate: %u bytes", size);
         uint16_t* res = (uint16_t*)malloc(sizeof(uint16_t) + size);
         *res          = MAX_BLOCK_COUNT;
         return &res[1];
@@ -354,6 +353,27 @@ namespace dmResource
         return result;
     }
 
+    static SResourceType* GetResourceType(HPreloader preloader, const char* path)
+    {
+        const char* ext = strrchr(path, '.');
+        if (!ext)
+        {
+            dmLogWarning("Unable to load resource: '%s'. Missing file extension.", path);
+            return 0;
+        }
+        else
+        {
+            SResourceType* resource_type = FindResourceType(preloader->m_Factory, ext + 1);
+            if (resource_type)
+            {
+                assert(resource_type->m_CreateFunction);
+                return resource_type;
+            }
+            dmLogError("Unable to load resource: '%s'. Unknown resource type: %s", path, ext);
+        }
+        return 0;
+    }
+
     Result MakePathDescriptor(ResourcePreloader* preloader, const char* name, PathDescriptor& out_path_descriptor)
     {
         if (name == 0x0)
@@ -372,6 +392,7 @@ namespace dmResource
             return RESULT_INVALID_DATA;
         }
         out_path_descriptor.m_NameHash = dmHashBuffer64(name, name_len);
+        out_path_descriptor.m_ResourceType = GetResourceType(preloader, name);
 
         char canonical_path[RESOURCE_PATH_MAX];
         GetCanonicalPath(name, canonical_path);
@@ -394,6 +415,7 @@ namespace dmResource
             }
         }
         dmSpinlock::Unlock(&preloader->m_SyncedDataSpinlock);
+
         return RESULT_OK;
     }
 
@@ -436,28 +458,6 @@ namespace dmResource
         }
     }
 
-    static SResourceType* GetResourceType(HPreloader preloader, const PathDescriptor& path_descriptor, Result* out_load_result)
-    {
-        const char* ext = strrchr(path_descriptor.m_InternalizedName, '.');
-        if (!ext)
-        {
-            dmLogWarning("Unable to load resource: '%s'. Missing file extension.", path_descriptor.m_InternalizedName);
-            *out_load_result = RESULT_MISSING_FILE_EXTENSION;
-            return 0;
-        }
-        else
-        {
-            SResourceType* resource_type = FindResourceType(preloader->m_Factory, ext + 1);
-            if (resource_type)
-            {
-                return resource_type;
-            }
-            dmLogError("Unable to load resource: '%s'. Unknown resource type: %s", path_descriptor.m_InternalizedName, ext);
-            *out_load_result = RESULT_UNKNOWN_RESOURCE_TYPE;
-        }
-        return 0;
-    }
-
     static Result PreloadPathDescriptor(HPreloader preloader, TRequestIndex parent, const PathDescriptor& path_descriptor)
     {
         if (!preloader->m_FreelistSize)
@@ -466,7 +466,7 @@ namespace dmResource
             return RESULT_OUT_OF_MEMORY;
         }
 
-        // Quick dedupe; we can do it safely on the same parent
+        // Quick dedue, check if the child is already listed un the current parent
         TRequestIndex child = preloader->m_Request[parent].m_FirstChild;
         while (child != -1)
         {
@@ -489,28 +489,19 @@ namespace dmResource
 
         PreloaderTreeInsert(preloader, new_req, parent);
 
-        req->m_ResourceType = GetResourceType(preloader, path_descriptor, &req->m_LoadResult);
-        if (!req->m_ResourceType)
+        // Check for recursive resources, if it is, mark with loop error
+        TRequestIndex go_up = parent;
+        while (go_up != -1)
         {
-            RemoveFromParentPendingCount(preloader, req);
-        }
-
-        if (req->m_LoadResult == RESULT_PENDING)
-        {
-            // Check for recursive resources, if it is, mark with loop error
-            TRequestIndex go_up = parent;
-            while (go_up != -1)
+            if (preloader->m_Request[go_up].m_PathDescriptor.m_CanonicalPathHash == path_descriptor.m_CanonicalPathHash)
             {
-                if (preloader->m_Request[go_up].m_PathDescriptor.m_CanonicalPathHash == path_descriptor.m_CanonicalPathHash)
-                {
-                    req->m_LoadResult = RESULT_RESOURCE_LOOP_ERROR;
-                    assert(parent != -1);
-                    assert(preloader->m_Request[parent].m_PendingChildCount > 0);
-                    preloader->m_Request[parent].m_PendingChildCount -= 1;
-                    break;
-                }
-                go_up = preloader->m_Request[go_up].m_Parent;
+                req->m_LoadResult = RESULT_RESOURCE_LOOP_ERROR;
+                assert(parent != -1);
+                assert(preloader->m_Request[parent].m_PendingChildCount > 0);
+                preloader->m_Request[parent].m_PendingChildCount -= 1;
+                break;
             }
+            go_up = preloader->m_Request[go_up].m_Parent;
         }
         return RESULT_OK;
     }
@@ -637,11 +628,6 @@ namespace dmResource
         root->m_PendingChildCount = 0;
         preloader->m_PersistResourceCount++;
 
-        if (root->m_LoadResult == RESULT_OK)
-        {
-            root->m_ResourceType = GetResourceType(preloader, root->m_PathDescriptor, &root->m_LoadResult);
-        }
-
         // Post create setup
         preloader->m_PostCreateCallbacks.SetCapacity(MAX_PRELOADER_REQUESTS / 8);
         preloader->m_LoadQueueFull           = false;
@@ -694,12 +680,12 @@ namespace dmResource
         assert(req->m_LoadResult == RESULT_PENDING);
         assert(req->m_PendingChildCount == 0);
 
-        assert(req->m_ResourceType);
+        assert(req->m_PathDescriptor.m_ResourceType);
 
         SResourceDescriptor tmp_resource;
         memset(&tmp_resource, 0, sizeof(tmp_resource));
 
-        SResourceType* resource_type = req->m_ResourceType;
+        SResourceType* resource_type = req->m_PathDescriptor.m_ResourceType;
 
         // obliged to call CreateFunction if Preload has been called, so always do this even when an error has occured
         tmp_resource.m_NameHash       = req->m_PathDescriptor.m_CanonicalPathHash;
@@ -757,7 +743,6 @@ namespace dmResource
 
         // This is set if precreate was run. Once past this step it is not going to be needed;
         // and we clear it to indicate loading is done.
-        req->m_ResourceType = 0;
         RemoveFromParentPendingCount(preloader, req);
 
         // Children can now be removed (and their resources released) as they are not
@@ -842,8 +827,6 @@ namespace dmResource
                 resource_type->m_DestroyFunction(params);
             }
         }
-
-        req->m_ResourceType = 0;
     }
 
     // Try to create the resource of the parent if all the child requests has been
@@ -943,8 +926,6 @@ namespace dmResource
                     }
                     break;
                 case RESULT_RESOURCE_LOOP_ERROR:
-                case RESULT_MISSING_FILE_EXTENSION:
-                case RESULT_UNKNOWN_RESOURCE_TYPE:
                     if (PreloaderTryPruneParent(preloader, req))
                     {
                         return true;
@@ -964,6 +945,17 @@ namespace dmResource
         DM_PROFILE(Resource, "DoPreloaderUpdateOneReq");
 
         assert(!req->m_Resource);
+
+        if (req->m_PathDescriptor.m_ResourceType == 0)
+        {
+            req->m_LoadResult = RESULT_UNKNOWN_RESOURCE_TYPE;
+            RemoveFromParentPendingCount(preloader, req);
+            if (PreloaderTryPruneParent(preloader, req))
+            {
+                return true;
+            }
+            return false;
+        }
 
         // If loading it must finish first before trying to go down to children
         if (req->m_LoadRequest)
@@ -1025,13 +1017,11 @@ namespace dmResource
             return false;
         }
 
-        assert(req->m_ResourceType);
-
         dmLoadQueue::PreloadInfo info;
         info.m_HintInfo.m_Preloader = preloader;
         info.m_HintInfo.m_Parent    = index;
-        info.m_Function             = req->m_ResourceType->m_PreloadFunction;
-        info.m_Context              = req->m_ResourceType->m_Context;
+        info.m_Function             = req->m_PathDescriptor.m_ResourceType->m_PreloadFunction;
+        info.m_Context              = req->m_PathDescriptor.m_ResourceType->m_Context;
 
         // Silently ignore if return null (means try later)"
         if ((req->m_LoadRequest = dmLoadQueue::BeginLoad(preloader->m_LoadQueue, req->m_PathDescriptor.m_InternalizedName, req->m_PathDescriptor.m_InternalizedCanonicalPath, &info)))
@@ -1245,6 +1235,7 @@ namespace dmResource
         PathDescriptor path_descriptor;
 
         path_descriptor.m_NameHash = dmHashBuffer64(name, name_len);
+        path_descriptor.m_ResourceType = GetResourceType(info->m_Preloader, name);
 
         char canonical_path[RESOURCE_PATH_MAX];
         GetCanonicalPath(name, canonical_path);
