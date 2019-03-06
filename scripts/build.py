@@ -373,7 +373,7 @@ class Configuration(object):
         for platform in other_platforms:
             packages = platform_packages.get(platform, [])
             package_paths = self._make_package_paths(platform, packages)
-            print("Installing %s packages" % platform)
+            print("1 Installing %s packages" % platform)
             for path in package_paths:
                 self._extract_tgz(path, self.ext)
             installed_packages.update(package_paths)
@@ -384,7 +384,7 @@ class Configuration(object):
             package_paths = self._make_package_paths(base_platform, packages)
             package_paths = [path for path in package_paths if path not in installed_packages]
             if len(package_paths) != 0:
-                print("Installing %s packages" % base_platform)
+                print("2 Installing %s packages" % base_platform)
                 for path in package_paths:
                     self._extract_tgz(path, self.ext)
                 installed_packages.update(package_paths)
@@ -394,7 +394,7 @@ class Configuration(object):
         target_package_paths = [path for path in target_package_paths if path not in installed_packages]
 
         if len(target_package_paths) != 0:
-            print("Installing %s packages" % self.target_platform)
+            print("3 Installing %s packages" % self.target_platform)
             for path in target_package_paths:
                 self._extract_tgz(path, self.ext)
             installed_packages.update(target_package_paths)
@@ -754,7 +754,7 @@ class Configuration(object):
 
         platform_dependencies = {'darwin': ['darwin', 'x86_64-darwin'], # x86_64-darwin from IOS fix 3dea8222
                                  'x86_64-linux': [],
-                                 'x86_64-win32': ['']}
+                                 'x86_64-win32': ['win32']}
 
         platforms = list(platform_dependencies.get(self.host, [self.host]))
 
