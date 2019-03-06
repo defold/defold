@@ -1,16 +1,17 @@
 (ns defold-robot.robot
-  (:require [clojure.tools.cli :as tools.cli]
+  (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.tools.cli :as tools.cli]
             [clojure.string :as string])
   (:import [java.io BufferedReader File FileFilter StringWriter]
-           [javax.imageio ImageIO]
-           [javafx.scene.robot Robot]
-           [org.apache.commons.io IOUtils]
-           [org.apache.commons.io.filefilter WildcardFileFilter]
-           [javafx.scene.input KeyCode]
            [javafx.application Platform]
+           [javafx.embed.swing SwingFXUtils]
+           [javafx.scene.input KeyCode]
+           [javafx.scene.robot Robot]
            [javafx.stage Screen]
-           [javafx.embed.swing SwingFXUtils])
+           [javax.imageio ImageIO]
+           [org.apache.commons.io IOUtils]
+           [org.apache.commons.io.filefilter WildcardFileFilter])
   (:gen-class))
 
 (set! *warn-on-reflection* true)
@@ -188,7 +189,7 @@
              (IOUtils/closeQuietly reader)))))))
 
 (defn- parse-script [script]
-  (read-string (slurp script)))
+  (edn/read-string (slurp script)))
 
 (defn -main [& args]
   (let [opts (tools.cli/parse-opts args cli-options)]
