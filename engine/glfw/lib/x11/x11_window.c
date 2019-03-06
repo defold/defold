@@ -32,7 +32,7 @@
 
 #include <limits.h>
 #include <assert.h>
-#include <libgen.h>
+#include <libgen.h> // Defold Extension for WM_CLASS property
 
 
 /* Define GLX 1.4 FSAA tokens if not already defined */
