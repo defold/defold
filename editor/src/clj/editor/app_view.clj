@@ -49,10 +49,11 @@
             [editor.disk-availability :as disk-availability]
             [editor.scene-visibility :as scene-visibility]
             [editor.scene-cache :as scene-cache]
-            [editor.types :as types])
+            [editor.types :as types]
+            [editor.game-project :as game-project])
   (:import [com.defold.editor Editor EditorApplication]
            [com.defold.editor Start]
-           [java.net URI Socket]
+           [java.net URI Socket URL]
            [java.util Collection]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
@@ -1595,6 +1596,17 @@ If you do not specifically require different script states, consider changing th
                 (ui/run-later
                   (workspace/install-validated-libraries! workspace library-uris lib-states)
                   (disk/async-reload! render-install-progress! workspace [] changes-view))))))))))
+
+(handler/defhandler :add-dependency :global
+  (enabled? [] (disk-availability/available?))
+  (run [selection app-view prefs workspace dashboard-client project changes-view user-data]
+       (let [game-project (project/get-resource-node project "/game.project")
+             dependencies (game-project/get-setting game-project ["project" "dependencies"])
+             dependency-uri (.toURI (URL. (:dep-url user-data)))]
+         (when (not-any? (partial = dependency-uri) dependencies)
+           (game-project/set-setting! game-project ["project" "dependencies"]
+                                      (conj (vec dependencies) dependency-uri))
+           (fetch-libraries workspace project dashboard-client changes-view)))))
 
 (handler/defhandler :fetch-libraries :global
   (enabled? [] (disk-availability/available?))

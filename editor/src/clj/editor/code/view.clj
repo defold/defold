@@ -470,7 +470,8 @@
         ^double line-height (data/line-height (.glyph layout))
         background-color (color-lookup color-scheme "editor.background")
         scroll-tab-color (color-lookup color-scheme "editor.scroll.tab")
-        scroll-tab-hovered-color (color-lookup color-scheme "editor.scroll.tab.hovered")]
+        scroll-tab-hovered-color (color-lookup color-scheme "editor.scroll.tab.hovered")
+        hovered-ui-element (:ui-element hovered-element)]
     (.setFill gc background-color)
     (.fillRect gc 0 0 (.. gc getCanvas getWidth) (.. gc getCanvas getHeight))
     (.setFontSmoothingType gc FontSmoothingType/GRAY) ; FontSmoothingType/LCD is very slow.
@@ -513,8 +514,16 @@
             viewed-height (Math/ceil (* minimap-ratio (.h canvas-rect)))]
         (.setFill gc background-color)
         (.fillRect gc (.x r) (.y r) (.w r) (.h r))
-        (.setFill gc (color-lookup color-scheme "editor.minimap.viewed.range"))
-        (.fillRect gc (.x r) viewed-start-y (.w r) viewed-height)
+
+        ;; Draw the viewed range if the mouse hovers the minimap.
+        (case hovered-ui-element
+          (:minimap :minimap-viewed-range)
+          (let [color (color-lookup color-scheme  "editor.minimap.viewed.range")]
+            (.setFill gc color)
+            (.fillRect gc (.x r) viewed-start-y (.w r) viewed-height))
+
+          nil)
+
         (draw-cursor-ranges! gc minimap-layout lines minimap-cursor-range-draw-infos)
         (draw-minimap-code! gc minimap-layout color-scheme lines syntax-info)
 
@@ -526,13 +535,12 @@
 
     ;; Draw horizontal scroll bar.
     (when-some [^Rect r (some-> (.scroll-tab-x layout) (data/expand-rect -3.0 -3.0))]
-      (.setFill gc (if (= :scroll-tab-x (:ui-element hovered-element)) scroll-tab-hovered-color scroll-tab-color))
+      (.setFill gc (if (= :scroll-tab-x hovered-ui-element) scroll-tab-hovered-color scroll-tab-color))
       (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) (.h r) (.h r)))
 
     ;; Draw vertical scroll bar.
     (when-some [^Rect r (some-> (.scroll-tab-y layout) (data/expand-rect -3.0 -3.0))]
-      (let [hovered-ui-element (:ui-element hovered-element)
-            color (case hovered-ui-element
+      (let [color (case hovered-ui-element
                     (:scroll-bar-y-down :scroll-bar-y-up :scroll-tab-y) scroll-tab-hovered-color
                     scroll-tab-color)]
         (.setFill gc color)
@@ -1413,6 +1421,7 @@
                                        (get-property view-node :cursor-ranges)
                                        (get-property view-node :regions)
                                        (get-property view-node :layout)
+                                       (get-property view-node :minimap-layout)
                                        (mouse-button event)
                                        (.getClickCount event)
                                        (.getX event)
@@ -1428,6 +1437,7 @@
                                      (get-property view-node :cursor-ranges)
                                      (get-property view-node :visible-regions)
                                      (get-property view-node :layout)
+                                     (get-property view-node :minimap-layout)
                                      (get-property view-node :gesture-start)
                                      (get-property view-node :hovered-element)
                                      (.getX event)
@@ -1443,6 +1453,7 @@
                    (data/mouse-released (get-property view-node :lines)
                                         (get-property view-node :visible-regions)
                                         (get-property view-node :layout)
+                                        (get-property view-node :minimap-layout)
                                         (get-property view-node :gesture-start)
                                         (mouse-button event)
                                         (.getX event)
