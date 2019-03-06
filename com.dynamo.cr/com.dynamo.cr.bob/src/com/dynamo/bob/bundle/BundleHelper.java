@@ -39,9 +39,18 @@ import com.dynamo.bob.util.BobProjectProperties;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
 
+import java.awt.AlphaComposite;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.Image;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+import java.net.URL;
+
 
 public class BundleHelper {
     private Project project;
+    private BobProjectProperties projectProperties;
     private String title;
     private File buildDir;
     private File appDir;
@@ -50,10 +59,10 @@ public class BundleHelper {
     private static Logger logger = Logger.getLogger(BundleHelper.class.getName());
 
     public BundleHelper(Project project, Platform platform, File bundleDir, String appDirSuffix) throws IOException {
-        BobProjectProperties projectProperties = project.getProjectProperties();
+        this.projectProperties = project.getProjectProperties();
 
         this.project = project;
-        this.title = projectProperties.getStringValue("project", "title", "Unnamed");
+        this.title = this.projectProperties.getStringValue("project", "title", "Unnamed");
 
         this.buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         this.appDir = new File(bundleDir, title + appDirSuffix);
@@ -221,6 +230,7 @@ public class BundleHelper {
         BufferedImage largestIconImage = getFallbackIconImage("ios", iconPropNames);
 
         // Copy game.project specified icons
+<<<<<<< HEAD
         genIcon(largestIconImage, appDir,   "app_icon_57x57",       "Icon.png",  57);
         genIcon(largestIconImage, appDir, "app_icon_114x114",    "Icon@2x.png", 114);
         genIcon(largestIconImage, appDir,   "app_icon_72x72",    "Icon-72.png",  72);
@@ -230,6 +240,17 @@ public class BundleHelper {
         genIcon(largestIconImage, appDir, "app_icon_120x120", "Icon-60@2x.png", 120);
         genIcon(largestIconImage, appDir, "app_icon_180x180", "Icon-60@3x.png", 180);
         genIcon(largestIconImage, appDir, "app_icon_167x167",   "Icon-167.png", 167);
+=======
+        genIcon(largestIconImage, appDir,   "app_icon_57x57",             "AppIcon57x57.png",  57);
+        genIcon(largestIconImage, appDir, "app_icon_114x114",          "AppIcon57x57@2x.png", 114);
+        genIcon(largestIconImage, appDir,   "app_icon_72x72",        "AppIcon72x72~ipad.png",  72);
+        genIcon(largestIconImage, appDir, "app_icon_144x144",     "AppIcon72x72@2x~ipad.png", 144);
+        genIcon(largestIconImage, appDir,   "app_icon_76x76",        "AppIcon76x76~ipad.png",  76);
+        genIcon(largestIconImage, appDir, "app_icon_152x152",     "AppIcon76x76@2x~ipad.png", 152);
+        genIcon(largestIconImage, appDir, "app_icon_120x120",          "AppIcon60x60@2x.png", 120);
+        genIcon(largestIconImage, appDir, "app_icon_180x180",          "AppIcon60x60@3x.png", 180);
+        genIcon(largestIconImage, appDir, "app_icon_167x167", "AppIcon83.5x83.5@2x~ipad.png", 167);
+>>>>>>> parent of 802bd8a... Revert "DEF-3529 - Fix so mobile icons are automatically resized if missing during bundling. (#2539)"
     }
 
     public void copyAndroidIcons(File resDir) throws IOException
@@ -266,44 +287,23 @@ public class BundleHelper {
     }
 
     public void createAndroidManifest(BobProjectProperties projectProperties, String projectRoot, File manifestFile, File resOutput, String exeName) throws IOException {
-     // Copy icons
-        int iconCount = 0;
-        // copy old 32x32 icon first, the correct size is actually 36x36
-        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_32x32", "drawable-ldpi/icon.png")
-            || copyIcon(projectProperties, projectRoot, resOutput, "app_icon_36x36", "drawable-ldpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_48x48", "drawable-mdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_72x72", "drawable-hdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_96x96", "drawable-xhdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_144x144", "drawable-xxhdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_192x192", "drawable-xxxhdpi/icon.png"))
-            iconCount++;
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("exe-name", exeName);
+
+        // We copy and resize the default icon in builtins if no other icons are set.
+        // This means that the app will always have icons from now on.
+        properties.put("has-icons?", true);
 
         // Copy push notification icons
-        if (copyIcon(projectProperties, projectRoot, resOutput, "push_icon_small", "drawable/push_icon_small.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resOutput, "push_icon_large", "drawable/push_icon_large.png"))
-            iconCount++;
+        copyIcon(projectProperties, projectRoot, resOutput, "push_icon_small", "drawable/push_icon_small.png");
+        copyIcon(projectProperties, projectRoot, resOutput, "push_icon_large", "drawable/push_icon_large.png");
 
         String[] dpis = new String[] { "ldpi", "mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi" };
         for (String dpi : dpis) {
-            if (copyIconDPI(projectProperties, projectRoot, resOutput, "push_icon_small", "push_icon_small.png", dpi))
-                iconCount++;
-            if (copyIconDPI(projectProperties, projectRoot, resOutput, "push_icon_large", "push_icon_large.png", dpi))
-                iconCount++;
+            copyIconDPI(projectProperties, projectRoot, resOutput, "push_icon_small", "push_icon_small.png", dpi);
+            copyIconDPI(projectProperties, projectRoot, resOutput, "push_icon_large", "push_icon_large.png", dpi);
         }
-
-        Map<String, Object> properties = new HashMap<>();
-        if (iconCount > 0) {
-            properties.put("has-icons?", true);
-        } else {
-            properties.put("has-icons?", false);
-        }
-        properties.put("exe-name", exeName);
 
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
             Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
