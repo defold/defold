@@ -22,6 +22,7 @@
 #include <dlib/path.h>
 #include <resource/resource.h>
 #include "script.h"
+#include "script/sys_ddf.h"
 
 #include <string.h>
 extern "C"
@@ -862,6 +863,89 @@ union SaveLoadBuffer
         return 1;
     }
 
+    #define SYSTEM_SOCKET_NAME "@system"
+
+    static void GetSystemURL(dmMessage::URL* out_url)
+    {
+        dmMessage::HSocket socket;
+        dmMessage::Result result = dmMessage::GetSocket(SYSTEM_SOCKET_NAME, &socket);
+        assert(result == dmMessage::RESULT_OK);
+        assert(socket);
+
+        dmMessage::URL url;
+        out_url->m_Socket = socket;
+        out_url->m_Path = 0;
+        out_url->m_Fragment = 0;
+    }
+
+    static int Sys_Exit(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmSystemDDF::Exit msg;
+        msg.m_Code = luaL_checkinteger(L, 1);
+
+        dmMessage::URL url;
+        GetSystemURL(&url);
+ 
+        dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::Exit::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::Exit::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        assert(result == dmMessage::RESULT_OK);
+
+        return 0;
+    }
+
+    static int Sys_Reboot(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmSystemDDF::Reboot msg;
+        msg.m_Arg1 = lua_gettop(L) > 0 ? luaL_checkstring(L, 1) : 0;
+        msg.m_Arg2 = lua_gettop(L) > 1 ? luaL_checkstring(L, 2) : 0;
+        msg.m_Arg3 = lua_gettop(L) > 2 ? luaL_checkstring(L, 3) : 0;
+        msg.m_Arg4 = lua_gettop(L) > 3 ? luaL_checkstring(L, 4) : 0;
+        msg.m_Arg5 = lua_gettop(L) > 4 ? luaL_checkstring(L, 5) : 0;
+        msg.m_Arg6 = lua_gettop(L) > 5 ? luaL_checkstring(L, 6) : 0;
+
+        dmMessage::URL url;
+        GetSystemURL(&url);
+ 
+        dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::Reboot::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::Reboot::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        assert(result == dmMessage::RESULT_OK);
+
+        return 0;
+    }
+
+    static int Sys_SetUpdateFrequency(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmSystemDDF::SetUpdateFrequency msg;
+        msg.m_Frequency = luaL_checkinteger(L, 1);
+
+        dmMessage::URL url;
+        GetSystemURL(&url);
+ 
+        dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        assert(result == dmMessage::RESULT_OK);
+
+        return 0;
+    }
+
+    static int Sys_SetVsync(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmSystemDDF::SetVsync msg;
+        msg.m_SwapInterval = luaL_checkinteger(L, 1);
+
+        dmMessage::URL url;
+        GetSystemURL(&url);
+ 
+        dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::SetVsync::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::SetVsync::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        assert(result == dmMessage::RESULT_OK);
+
+        return 0;
+    }
 
     static const luaL_reg ScriptSys_methods[] =
     {
@@ -878,6 +962,10 @@ union SaveLoadBuffer
         {"set_error_handler", Sys_SetErrorHandler},
         {"set_connectivity_host", Sys_SetConnectivityHost},
         {"get_connectivity", Sys_GetConnectivity},
+        {"exit", Sys_Exit},
+        {"reboot", Sys_Reboot},
+        {"set_update_frequency", Sys_SetUpdateFrequency},
+        {"set_vsync", Sys_SetVsync},
         {0, 0}
     };
 
