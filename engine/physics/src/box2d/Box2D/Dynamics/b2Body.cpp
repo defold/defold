@@ -144,7 +144,7 @@ void b2Body::SetType(b2BodyType type)
 	// Since the body type changed, we need to flag contacts for filtering.
 	for (b2Fixture* f = m_fixtureList; f; f = f->m_next)
 	{
-		f->Refilter();
+		f->Refilter(true);
 	}
 }
 
