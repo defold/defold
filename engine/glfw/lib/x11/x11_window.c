@@ -925,6 +925,29 @@ static GLboolean createWindow( int width, int height,
         XFree( hints );
     }
 
+    //========================================================================
+    // Defold extension: Set WM_CLASS property
+    //========================================================================
+    {
+        char exe_name_buffer[1024];
+        memset(exe_name_buffer, 0, sizeof(exe_name_buffer));
+        XClassHint* hints = XAllocClassHint();
+
+        if (readlink("/proc/self/exe", exe_name_buffer, sizeof(exe_name_buffer)-1) >= 0)
+        {
+            hints->res_name  = exe_name_buffer;
+            hints->res_class = exe_name_buffer;
+        }
+        else
+        {
+            hints->res_name  = (char*) "dmengine";
+            hints->res_class = (char*) "dmengine";
+        }
+
+        XSetClassHint(_glfwLibrary.display, _glfwLibrary.window, hints);
+        XFree(hints);
+    }
+
     _glfwPlatformSetWindowTitle( "GLFW Window" );
 
     // Make sure the window is mapped before proceeding
