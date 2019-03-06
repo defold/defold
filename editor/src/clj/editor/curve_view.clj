@@ -58,8 +58,7 @@
            [com.jogamp.opengl.glu GLU]
            [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]
            [sun.awt.image IntegerComponentRaster]
-           [java.util.concurrent Executors]
-           [com.defold.editor AsyncCopier]))
+           [java.util.concurrent Executors]))
 
 (set! *warn-on-reflection* true)
 
@@ -477,7 +476,7 @@
   (property play-mode g/Keyword)
   (property drawable GLAutoDrawable)
   (property picking-drawable GLAutoDrawable)
-  (property async-copier AsyncCopier)
+  (property async-copy-state g/Any)
   (property cursor-pos types/Vec2)
   (property tool-picking-rect Rect)
   (property list ListView)

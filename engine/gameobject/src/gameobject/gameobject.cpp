@@ -491,7 +491,7 @@ namespace dmGameObject
         regist->m_ComponentTypesOrder[regist->m_ComponentTypeCount] = regist->m_ComponentTypeCount;
         if (dmProfile::g_IsInitialized)
         {
-            regist->m_ComponentNameHash[regist->m_ComponentTypeCount] = dmProfile::HashCounterName(type.m_Name);
+            regist->m_ComponentNameHash[regist->m_ComponentTypeCount] = dmProfile::GetNameHash(type.m_Name);
         }
         regist->m_ComponentTypeCount++;
         return RESULT_OK;

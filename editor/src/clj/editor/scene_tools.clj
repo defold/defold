@@ -62,12 +62,6 @@
   [node-id]
   [:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz :scale-uniform])
 
-(defn- transform->translation
-  ^Vector3d [^Matrix4d transform]
-  (let [translation (Vector3d.)]
-    (.get transform translation)
-    translation))
-
 ; Render assets
 
 (vtx/defvertex pos-vtx
@@ -391,7 +385,7 @@
   (get-in transform-tools [active-tool :manip-spaces]))
 
 (defn- manip-world-transform [reference-renderable manip-space ^double scale-factor]
-  (let [world-position (transform->translation (:world-transform reference-renderable))
+  (let [world-position (math/translation (:world-transform reference-renderable))
         world-rotation ^Matrix3d (case manip-space
                                    :local (doto (Matrix3d.) (.set ^Quat4d (:world-rotation reference-renderable)))
                                    :world geom/Identity3d)]
@@ -427,12 +421,11 @@
   (case manip
     :scale-uniform (:screen-pos action)
     (let [manip-dir (manip->normal manip manip-rotation)
-         _ (.transform lead-transform manip-dir)
-         _ (.normalize manip-dir)
-         manip-pos (Vector3d.)
-         _ (.get lead-transform manip-pos)
-         [action-pos action-dir] (action->line action)]
-     (proj-fn action-pos action-dir (Point3d. manip-pos) manip-dir))))
+          _ (.transform lead-transform manip-dir)
+          _ (.normalize manip-dir)
+          manip-pos (math/translation lead-transform)
+          [action-pos action-dir] (action->line action)]
+      (proj-fn action-pos action-dir (Point3d. manip-pos) manip-dir))))
 
 (defn- manip->project-fn [manip camera viewport]
   (case manip
@@ -494,7 +487,7 @@
 
 (defn- apply-manipulator [manip-opts evaluation-context original-values manip manip-space start-action prev-action action camera viewport]
   (let [{:keys [world-rotation world-transform]} (peek original-values)
-        manip-origin (transform->translation world-transform)
+        manip-origin (math/translation world-transform)
         manip-rotation (get-manip-rotation manip-space world-rotation)
         lead-transform (if (or (manip->screen? manip) (= manip :scale-uniform))
                          (doto (c/camera-view-matrix camera) (.invert) (.setTranslation manip-origin))

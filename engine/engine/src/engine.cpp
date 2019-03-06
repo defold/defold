@@ -27,6 +27,7 @@
 #include <sound/sound.h>
 #include <render/render.h>
 #include <render/render_ddf.h>
+#include <profiler/profiler.h>
 #include <particle/particle.h>
 #include <tracking/tracking.h>
 #include <tracking/tracking_ddf.h>
@@ -35,7 +36,6 @@
 #include "engine_service.h"
 #include "engine_version.h"
 #include "physics_debug_render.h"
-#include "profile_render.h"
 
 // Embedded resources
 // Unfortunately, the draw_line et. al are used in production code
@@ -177,7 +177,6 @@ namespace dmEngine
     , m_MainCollection(0)
     , m_LastReloadMTime(0)
     , m_MouseSensitivity(1.0f)
-    , m_ShowProfile(false)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
     , m_SharedScriptContext(0x0)
@@ -412,6 +411,7 @@ namespace dmEngine
     {
         engine->m_UpdateFrequency = frequency;
         engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
+        dmProfiler::SetUpdateFrequency(engine->m_UpdateFrequency);
     }
 
     /*
@@ -1319,7 +1319,7 @@ bail:
                 }
 
                 DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
-                DM_COUNTER("Lua.Mem", GetLuaMemCount(engine));
+                DM_COUNTER("Lua.Mem (Kb)", GetLuaMemCount(engine));
 
                 if (dLib::IsDebugMode())
                 {
@@ -1334,22 +1334,7 @@ bail:
                     dmEngineService::Update(engine->m_EngineService, profile);
                 }
 
-#if !defined(DM_RELEASE)
-                if(engine->m_ShowProfile)
-                {
-                    DM_PROFILE(Profile, "Draw");
-                    dmProfile::Pause(true);
-
-                    dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
-                    dmRender::RenderListEnd(engine->m_RenderContext);
-                    dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
-                    dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
-                    dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
-                    dmRender::ClearRenderObjects(engine->m_RenderContext);
-                    dmProfile::Pause(false);
-                }
-#endif
+                dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, engine->m_SystemFontMap);
 
                 if (engine->m_UseSwVsync)
                 {
@@ -1534,7 +1519,7 @@ bail:
             }
             else if (descriptor == dmEngineDDF::ToggleProfile::m_DDFDescriptor)
             {
-                self->m_ShowProfile = !self->m_ShowProfile;
+                dmProfiler::ToggleProfiler();
             }
             else if (descriptor == dmEngineDDF::TogglePhysicsDebug::m_DDFDescriptor)
             {

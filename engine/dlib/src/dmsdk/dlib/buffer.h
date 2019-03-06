@@ -21,7 +21,7 @@ namespace dmBuffer
     /*# HBuffer type definition
      *
      * ```cpp
-     * typedef struct Buffer* HBuffer;
+     * typedef uint32_t HBuffer;
      * ```
      *
      * @typedef

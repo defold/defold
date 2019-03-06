@@ -15,9 +15,7 @@
             [editor.gl.texture :as texture]
             [editor.gui-clipping :as clipping]
             [editor.defold-project :as project]
-            [editor.progress :as progress]
             [editor.scene :as scene]
-            [editor.scene-cache :as scene-cache]
             [editor.scene-picking :as scene-picking]
             [editor.workspace :as workspace]
             [editor.math :as math]
@@ -38,16 +36,12 @@
             [editor.validation :as validation])
   (:import [com.dynamo.gui.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$Type Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
             Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$SizeMode]
+           [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.texture TextureLifecycle]
-           [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
            [java.awt.image BufferedImage]
-           [com.defold.editor.pipeline TextureSetGenerator$UVTransform]
-           [org.apache.commons.io FilenameUtils]))
-
+           [javax.vecmath Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -102,9 +96,9 @@
 (shader/defshader fragment-shader
   (varying vec2 var_texcoord0)
   (varying vec4 var_color)
-  (uniform sampler2D texture)
+  (uniform sampler2D texture_sampler)
   (defn void main []
-    (setq gl_FragColor (* var_color (texture2D texture var_texcoord0.xy)))))
+    (setq gl_FragColor (* var_color (texture2D texture_sampler var_texcoord0.xy)))))
 
 ; TODO - macro of this
 (def shader (shader/make-shader ::shader vertex-shader fragment-shader))
@@ -119,10 +113,10 @@
 
 (shader/defshader gui-id-fragment-shader
   (varying vec2 var_texcoord0)
-  (uniform sampler2D texture)
+  (uniform sampler2D texture_sampler)
   (uniform vec4 id)
   (defn void main []
-    (setq vec4 color (texture2D texture var_texcoord0.xy))
+    (setq vec4 color (texture2D texture_sampler var_texcoord0.xy))
     (if (> color.a 0.05)
       (setq gl_FragColor id)
       (discard))))
@@ -1441,11 +1435,11 @@
                                                       (spine-scene-infos "")))))
   (output gpu-texture TextureLifecycle (g/constantly nil))
   (output scene-renderable-user-data g/Any :cached
-    (g/fnk [spine-scene-scene color+alpha clipping-mode clipping-inverted clipping-visible]
-      (let [user-data (-> spine-scene-scene
-                        (get-in [:renderable :user-data])
-                        (assoc :renderable-tags #{:gui-spine})
-                        (assoc :color (premul color+alpha)))]
+    (g/fnk [spine-scene-scene spine-skin color+alpha clipping-mode clipping-inverted clipping-visible]
+      (let [user-data (assoc (get-in spine-scene-scene [:renderable :user-data])
+                        :color color+alpha
+                        :renderable-tags #{:gui-spine}
+                        :skin spine-skin)]
         (cond-> user-data
           (not= :clipping-mode-none clipping-mode)
           (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
