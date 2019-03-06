@@ -230,7 +230,6 @@ public class BundleHelper {
         BufferedImage largestIconImage = getFallbackIconImage("ios", iconPropNames);
 
         // Copy game.project specified icons
-<<<<<<< HEAD
         genIcon(largestIconImage, appDir,   "app_icon_57x57",       "Icon.png",  57);
         genIcon(largestIconImage, appDir, "app_icon_114x114",    "Icon@2x.png", 114);
         genIcon(largestIconImage, appDir,   "app_icon_72x72",    "Icon-72.png",  72);
@@ -240,17 +239,6 @@ public class BundleHelper {
         genIcon(largestIconImage, appDir, "app_icon_120x120", "Icon-60@2x.png", 120);
         genIcon(largestIconImage, appDir, "app_icon_180x180", "Icon-60@3x.png", 180);
         genIcon(largestIconImage, appDir, "app_icon_167x167",   "Icon-167.png", 167);
-=======
-        genIcon(largestIconImage, appDir,   "app_icon_57x57",             "AppIcon57x57.png",  57);
-        genIcon(largestIconImage, appDir, "app_icon_114x114",          "AppIcon57x57@2x.png", 114);
-        genIcon(largestIconImage, appDir,   "app_icon_72x72",        "AppIcon72x72~ipad.png",  72);
-        genIcon(largestIconImage, appDir, "app_icon_144x144",     "AppIcon72x72@2x~ipad.png", 144);
-        genIcon(largestIconImage, appDir,   "app_icon_76x76",        "AppIcon76x76~ipad.png",  76);
-        genIcon(largestIconImage, appDir, "app_icon_152x152",     "AppIcon76x76@2x~ipad.png", 152);
-        genIcon(largestIconImage, appDir, "app_icon_120x120",          "AppIcon60x60@2x.png", 120);
-        genIcon(largestIconImage, appDir, "app_icon_180x180",          "AppIcon60x60@3x.png", 180);
-        genIcon(largestIconImage, appDir, "app_icon_167x167", "AppIcon83.5x83.5@2x~ipad.png", 167);
->>>>>>> parent of 802bd8a... Revert "DEF-3529 - Fix so mobile icons are automatically resized if missing during bundling. (#2539)"
     }
 
     public void copyAndroidIcons(File resDir) throws IOException
