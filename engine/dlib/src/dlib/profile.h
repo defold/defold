@@ -68,15 +68,15 @@
         dmProfile::ProfileScope DM_PROFILE_PASTE2(profile_scope, __LINE__)(scope_index, name, name_hash);
 
     #define DM_PROFILE(scope_name, name) \
-        static const uint32_t DM_PROFILE_PASTE2(scope_index, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : (uint32_t)-1; \
+        static const uint32_t DM_PROFILE_PASTE2(scope_index, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : 0xffffffffu; \
         static const uint32_t DM_PROFILE_PASTE2(hash, __LINE__)        = dmProfile::g_IsInitialized ? dmProfile::GetNameHash(name, (uint32_t)strlen(name)) : 0; \
         DM_PROFILE_SCOPE(DM_PROFILE_PASTE2(scope_index, __LINE__), name, DM_PROFILE_PASTE2(hash, __LINE__))
 
     #define DM_PROFILE_FMT(scope_name, fmt, ...) \
-        static const uint32_t DM_PROFILE_PASTE2(scope_index, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : (uint32_t)-1; \
+        static const uint32_t DM_PROFILE_PASTE2(scope_index, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : 0xffffffffu; \
         const char* DM_PROFILE_PASTE2(name, __LINE__)                  = 0; \
         static uint32_t DM_PROFILE_PASTE2(hash, __LINE__)              = 0; \
-        if (DM_PROFILE_PASTE2(scope_index, __LINE__) != (uint32_t)-1) { \
+        if (DM_PROFILE_PASTE2(scope_index, __LINE__) != 0xffffffffu) { \
             char buffer[128]; \
             uint32_t name_length = DM_SNPRINTF(buffer, sizeof(buffer), fmt, __VA_ARGS__); \
             DM_PROFILE_PASTE2(hash, __LINE__) = dmProfile::GetNameHash(buffer, name_length); \
@@ -85,13 +85,13 @@
         DM_PROFILE_SCOPE(DM_PROFILE_PASTE2(scope_index, __LINE__), DM_PROFILE_PASTE2(name, __LINE__), DM_PROFILE_PASTE2(hash, __LINE__))
 
     #define DM_COUNTER(name, amount) \
-        static uint32_t DM_PROFILE_PASTE2(counter_index, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateCounter(name) : ((uint32_t)-1); \
-        if (DM_PROFILE_PASTE2(counter_index, __LINE__) != (uint32_t)-1) { \
+        static uint32_t DM_PROFILE_PASTE2(counter_index, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateCounter(name) : 0xffffffffu; \
+        if (DM_PROFILE_PASTE2(counter_index, __LINE__) != 0xffffffffu) { \
             dmProfile::AddCounterIndex(DM_PROFILE_PASTE2(counter_index, __LINE__), amount);\
         }
 
     #define DM_COUNTER_DYN(counter_index, amount) \
-        if (counter_index != (uint32_t)-1) { \
+        if (counter_index != 0xffffffffu) { \
             dmProfile::AddCounterIndex(counter_index, amount); \
         }
 #endif
@@ -350,7 +350,7 @@ namespace dmProfile
         uint64_t m_StartTick;
         inline ProfileScope(uint32_t scope_index, const char* name, uint32_t name_hash)
         {
-            if (scope_index != (uint32_t)-1)
+            if (scope_index != 0xffffffffu)
             {
                 StartScope(scope_index, name, name_hash);
             }

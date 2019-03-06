@@ -24,7 +24,9 @@ namespace dmStringPool
      * Add string to string pool. Similar functionality to String.intern() in java.
      * The string pool stores only a single copy of each distinct string. Therefore it is
      * guaranteed that two identical strings will have the same pointer value.
-     * @note The identical property is valid if two distinct strings result in two distinct hash values.
+     * @note The identical property is valid if and only if two distinct strings result
+     * in two distinct hash values.
+     * 
      * @param pool String pool
      * @param string String to add to pool
      * @return Pointer to string added
