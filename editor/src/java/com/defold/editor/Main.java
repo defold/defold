@@ -9,7 +9,7 @@ package com.defold.editor;
  * to start otherwise. Using other class as container for main is a workaround
  *
  * @see <a href="https://github.com/javafxports/openjdk-jfx/issues/236">Issue
- * disscussion on github</a>
+ * discussion on github</a>
  */
 public class Main {
     public static void main(String[] args) {
