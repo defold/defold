@@ -354,10 +354,12 @@
         parent-world-translation (math/translation parent-world-transform)
         local-translation (math/translation transform)
         min-scale (min (.-x world-scale) (.-y world-scale) (.-z world-scale))
-        world-translation (-> (math/rotate world-rotation local-translation)
+        world-translation (-> local-translation
                               (math/scale-vector min-scale)
                               (math/add-vector parent-world-translation))
         physics-world-transform (doto (Matrix4d. world-transform)
+                                  (.setRotation (doto (Quat4d. world-rotation)
+                                                  (.negate)))
                                   (.setScale min-scale)
                                   (.setTranslation world-translation))]
     (assoc renderable :world-transform physics-world-transform)))
