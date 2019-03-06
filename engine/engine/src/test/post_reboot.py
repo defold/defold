@@ -1,5 +1,5 @@
 import sys
-sys.path = ['build/default/proto'] + sys.path
+sys.path = ['../script/build/default/src/script'] + sys.path
 import sys_ddf_pb2, httplib
 
 m = sys_ddf_pb2.Reboot()

@@ -1,9 +1,10 @@
 import sys, os, httplib
 sys.path.append(os.path.join(os.environ['DYNAMO_HOME'], 'lib', 'python', 'gameobject'))
 sys.path.append(os.path.join('build', 'default', 'proto'))
-import sys_ddf_pb2, lua_ddf_pb2
 
-m = sys_ddf_pb2.RunScript()
+import engine_ddf_pb2, lua_ddf_pb2
+
+m = engine_ddf_pb2.RunScript()
 m.module.source.filename = 'test.luac'
 m.module.source.script = 'local test = require("init_script.init"); print("42"); msg.post("@system:", "exit", {code=test.func(10, 4.2)})'
 m.module.source.bytecode = ''
