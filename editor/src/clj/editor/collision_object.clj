@@ -345,23 +345,15 @@
           (gl/gl-draw-arrays gl GL/GL_TRIANGLE_FAN 0 (count vbuf)))))))
 
 (defn unify-scale [renderable]
-  (let [{:keys [^Matrix4d world-transform
+  (let [{:keys [^Quat4d world-rotation
                 ^Vector3d world-scale
-                ^Matrix4d transform
-                ^Quat4d world-rotation
-                ^Matrix4d parent-world-transform]
-         :or {transform geom/Identity4d}} renderable
-        parent-world-translation (math/translation parent-world-transform)
-        local-translation (math/translation transform)
+                ^Vector3d world-translation]} renderable
         min-scale (min (.-x world-scale) (.-y world-scale) (.-z world-scale))
-        world-translation (-> local-translation
-                              (math/scale-vector min-scale)
-                              (math/add-vector parent-world-translation))
-        physics-world-transform (doto (Matrix4d. world-transform)
-                                  (.setRotation (doto (Quat4d. world-rotation)
-                                                  (.negate)))
+        physics-world-transform (doto (Matrix4d.)
+                                  (.setIdentity)
                                   (.setScale min-scale)
-                                  (.setTranslation world-translation))]
+                                  (.setTranslation world-translation)
+                                  (.setRotation world-rotation))]
     (assoc renderable :world-transform physics-world-transform)))
 
 (defn wrap-uniform-scale [render-fn]
