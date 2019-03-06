@@ -438,6 +438,7 @@ namespace dmProfile
         }
     }
 
+    // Used when out of samples in order to remove conditional branches
     Sample g_DummySample = { "OUT_OF_SAMPLES", 0, 0, 0, 0 };
 
     static Sample* AllocateNewSample()
@@ -465,7 +466,6 @@ namespace dmProfile
         return ret;
     }
 
-    // Used when out of samples in order to remove conditional branches
     Sample* AllocateSample()
     {
         Sample* ret = AllocateNewSample();
