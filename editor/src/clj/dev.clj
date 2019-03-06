@@ -8,7 +8,8 @@
             [editor.properties-view :as properties-view]
             [internal.graph :as ig]
             [internal.util :as util])
-  (:import [clojure.lang MapEntry]))
+  (:import [clojure.lang MapEntry]
+           [javafx.stage Window]))
 
 (set! *warn-on-reflection* true)
 
@@ -89,6 +90,9 @@
 
 (defn view-of-type [node-type]
   (first (views-of-type node-type)))
+
+(defn windows []
+  (Window/getWindows))
 
 (def assets-view (partial view-of-type asset-browser/AssetBrowser))
 (def changed-files-view (partial view-of-type changes-view/ChangesView))
