@@ -878,6 +878,23 @@ union SaveLoadBuffer
         out_url->m_Fragment = 0;
     }
 
+    /*# exits application
+    * Terminates the game application and reports the specified <code>code</code> to the OS.
+    *
+    * @name exit
+    * @param code [type:number] exit code to report to the OS, 0 means clean exit
+    * @examples
+    *
+    * This examples demonstrates how to exit the application when some kind of quit messages is received (maybe from gui or similar):
+    *
+    * ```lua
+    * function on_message(self, message_id, message, sender)
+    *     if message_id == hash("quit") then
+    *         sys.exit(0)
+    *     end
+    * end
+    * ```
+    */
     static int Sys_Exit(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -894,6 +911,31 @@ union SaveLoadBuffer
         return 0;
     }
 
+    /*# reboot engine with arguments
+    * Reboots the game engine with a specified set of arguments.
+    * Arguments will be translated into command line arguments. Calling reboot
+    * function is equivalent to starting the engine with the same arguments.
+    *
+    * On startup the engine reads configuration from "game.project" in the
+    * project root.
+    *
+    * @name reboot
+    * @param arg1 [type:string] argument 1
+    * @param arg2 [type:string] argument 2
+    * @param arg3 [type:string] argument 3
+    * @param arg4 [type:string] argument 4
+    * @param arg5 [type:string] argument 5
+    * @param arg6 [type:string] argument 6
+    * @examples
+    *
+    * How to reboot engine with a specific bootstrap collection.
+    *
+    * ```lua
+    * local arg1 = '--config=bootstrap.main_collection=/my.collectionc'
+    * local arg2 = 'build/default/game.projectc'
+    * sys.reboot(arg1, arg2)
+    * ```
+    */
     static int Sys_Reboot(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -915,6 +957,62 @@ union SaveLoadBuffer
         return 0;
     }
 
+    /*# set vsync swap interval
+    * Set the vsync swap interval. The interval with which to swap the front and back buffers
+    * in sync with vertical blanks (v-blank), the hardware event where the screen image is updated
+    * with data from the front buffer. A value of 1 swaps the buffers at every v-blank, a value of
+    * 2 swaps the buffers every other v-blank and so on. A value of 0 disables waiting for v-blank
+    * before swapping the buffers. Default value is 1.
+    *
+    * When setting the swap interval to 0 and having `vsync` disabled in
+    * "game.project", the engine will try to respect the set frame cap value from
+    * "game.project" in software instead.
+    *
+    * This setting may be overridden by driver settings.
+    *
+    * @name set_vsync_swap_interval
+    * @param swap_interval target swap interval.
+    * @examples
+    *
+    * Setting the swap intervall to swap every v-blank
+    *  
+    * ```lua
+    * sys.set_vsync_swap_interval(1)
+    * ```
+    */
+    static int Sys_SetVsyncSwapInterval(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmSystemDDF::SetVsync msg;
+        msg.m_SwapInterval = luaL_checkinteger(L, 1);
+
+        dmMessage::URL url;
+        GetSystemURL(&url);
+ 
+        dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::SetVsync::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::SetVsync::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        assert(result == dmMessage::RESULT_OK);
+
+        return 0;
+    }
+
+    /*# set update frequency
+    * Set game update-frequency (frame cap). This option is equivalent to `display.update_frequency` in
+    * the "game.project" settings but set in run-time. If `Vsync` checked in "game.project", the rate will
+    * be clamped to a swap interval that matches any detected main monitor refresh rate. If `Vsync` is
+    * unchecked the engine will try to respect the rate in software using timers. There is no
+    * guarantee that the frame cap will be achieved depending on platform specifics and hardware settings.
+    *
+    * @name set_update_frequency
+    * @param frequency target frequency. 60 for 60 fps
+    * @examples
+    * 
+    * Setting the update frequency to 60 frames per second
+    *  
+    * ```lua
+    * sys.set_update_frequency(60)
+    * ```
+    */
     static int Sys_SetUpdateFrequency(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -926,22 +1024,6 @@ union SaveLoadBuffer
         GetSystemURL(&url);
  
         dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(result == dmMessage::RESULT_OK);
-
-        return 0;
-    }
-
-    static int Sys_SetVsync(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 0);
-
-        dmSystemDDF::SetVsync msg;
-        msg.m_SwapInterval = luaL_checkinteger(L, 1);
-
-        dmMessage::URL url;
-        GetSystemURL(&url);
- 
-        dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::SetVsync::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::SetVsync::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(result == dmMessage::RESULT_OK);
 
         return 0;
@@ -965,7 +1047,7 @@ union SaveLoadBuffer
         {"exit", Sys_Exit},
         {"reboot", Sys_Reboot},
         {"set_update_frequency", Sys_SetUpdateFrequency},
-        {"set_vsync", Sys_SetVsync},
+        {"set_vsync_swap_interval", Sys_SetVsyncSwapInterval},
         {0, 0}
     };
 
