@@ -3,8 +3,6 @@ package dmSystemDDF;
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
 
-import "gameobject/lua_ddf.proto";
-
 option java_package = "com.dynamo.system.proto";
 option java_outer_classname = "System";
 
