@@ -663,4 +663,7 @@
                                                      {:label "Google Pixel 3 XL (1440x2960)"
                                                       :command :change-res
                                                       :user-data {:width 1440
-                                                                  :height 2960}}]}]}]}])
+                                                                  :height 2960}}]}
+                                         {:label "Rotated Device"
+                                          :command :set-rotate-device
+                                          :check true}]}]}])

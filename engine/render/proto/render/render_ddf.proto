@@ -91,6 +91,19 @@ message WindowResized
     required uint32 height = 2;
 }
 
+/*# resizes the window
+ * Set the size of the game window. Only works on desktop platforms.
+ *
+ * @message
+ * @name resize
+ * @param height [type:number] the new window height
+ * @param width [type:number] the new window width
+ * @examples
+ *
+ * ```lua
+ * msg.post("@render:", "resize", { width = 1024, height = 768 } )
+ * ```
+ */
 message Resize
 {
     required uint32 width = 1;

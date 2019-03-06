@@ -589,7 +589,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #if !defined(__EMSCRIPTEN__)
         glfwSetWindowTitle(params->m_Title);
 #endif
-        
+
         glfwSetWindowSizeCallback(OnWindowResize);
         glfwSetWindowCloseCallback(OnWindowClose);
         glfwSetWindowFocusCallback(OnWindowFocus);
@@ -840,22 +840,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         if (context->m_WindowOpened)
         {
-            context->m_WindowWidth = width;
-            context->m_WindowHeight = height;
             glfwSetWindowSize((int)width, (int)height);
-
-            int res_width, res_height;
-            glfwGetWindowSize(&res_width, &res_height);
-            if (res_height < height) {
-                float aspect = (float)res_height / (float)height;
-                width = width * aspect;
-                height = res_height;
-                glfwSetWindowSize((int)width, (int)height);
-            }
-            if (context->m_WindowResizeCallback)
-            {
-                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, width, height);
-            }
         }
     }
 

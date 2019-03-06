@@ -2877,7 +2877,6 @@ bail:
             {
                 dmRenderDDF::Resize* resize_msg = (dmRenderDDF::Resize*)message->m_Data;
                 dmGraphics::ResizeWindow(instance->m_RenderContext->m_GraphicsContext, resize_msg->m_Width, resize_msg->m_Height);
-                // Line3D(instance->m_RenderContext, dl->m_StartPoint, dl->m_EndPoint, dl->m_Color, dl->m_Color);
                 return;
             }
         }
