@@ -32,6 +32,7 @@
 
 #include <limits.h>
 #include <assert.h>
+#include <libgen.h>
 
 
 /* Define GLX 1.4 FSAA tokens if not already defined */
@@ -929,14 +930,15 @@ static GLboolean createWindow( int width, int height,
     // Defold extension: Set WM_CLASS property
     //========================================================================
     {
-        char exe_name_buffer[1024];
-        memset(exe_name_buffer, 0, sizeof(exe_name_buffer));
+        char exe_path_buffer[1024];
+        memset(exe_path_buffer, 0, sizeof(exe_path_buffer));
         XClassHint* hints = XAllocClassHint();
 
-        if (readlink("/proc/self/exe", exe_name_buffer, sizeof(exe_name_buffer)-1) >= 0)
+        if (readlink("/proc/self/exe", exe_path_buffer, sizeof(exe_path_buffer)-1) >= 0)
         {
-            hints->res_name  = exe_name_buffer;
-            hints->res_class = exe_name_buffer;
+            char* exe_name   = basename(exe_path_buffer);
+            hints->res_name  = exe_name;
+            hints->res_class = exe_name;
         }
         else
         {
@@ -944,7 +946,7 @@ static GLboolean createWindow( int width, int height,
             hints->res_class = (char*) "dmengine";
         }
 
-        XSetClassHint(_glfwLibrary.display, _glfwLibrary.window, hints);
+        XSetClassHint(_glfwLibrary.display, _glfwWin.window, hints);
         XFree(hints);
     }
 
