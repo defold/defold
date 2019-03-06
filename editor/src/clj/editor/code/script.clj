@@ -134,9 +134,9 @@
               (update :properties into (:properties user-properties))
               (update :display-order into (:display-order user-properties)))))
 
-(defn- script->bytecode [lines proj-path arch]
+(defn- script->bytecode [lines proj-path]
   (try
-    (luajit/bytecode (data/lines-reader lines) proj-path arch)
+    (luajit/bytecode (data/lines-reader lines) proj-path)
     (catch Exception e
       (let [{:keys [filename line message]} (ex-data e)]
         (g/->error nil :lines :fatal e (.getMessage e)
@@ -152,16 +152,14 @@
                                              :type  type}))
                               (:properties user-properties))
         modules         (:modules user-data)
-        bytecode        (script->bytecode (:lines user-data) (:proj-path user-data) :32-bit)
-        bytecode-64     (script->bytecode (:lines user-data) (:proj-path user-data) :64-bit)]
+        bytecode        (script->bytecode (:lines user-data) (:proj-path user-data))]
     (g/precluding-errors
       [bytecode]
       {:resource resource
        :content  (protobuf/map->bytes Lua$LuaModule
                                       {:source     {:script   (ByteString/copyFromUtf8 (slurp (data/lines-reader (:lines user-data))))
                                                     :filename (resource/proj-path (:resource resource))
-                                                    :bytecode (ByteString/copyFrom ^bytes bytecode)
-                                                    :bytecode-64 (ByteString/copyFrom ^bytes bytecode-64)}
+                                                    :bytecode (ByteString/copyFrom ^bytes bytecode)}
                                        :modules    modules
                                        :resources  (mapv lua/lua-module->build-path modules)
                                        :properties (properties/properties->decls properties true)})})))

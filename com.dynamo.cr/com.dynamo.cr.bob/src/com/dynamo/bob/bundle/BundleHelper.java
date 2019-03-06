@@ -39,18 +39,9 @@ import com.dynamo.bob.util.BobProjectProperties;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
 
-import java.awt.AlphaComposite;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.Image;
-import java.awt.image.BufferedImage;
-import javax.imageio.ImageIO;
-import java.net.URL;
-
 
 public class BundleHelper {
     private Project project;
-    private BobProjectProperties projectProperties;
     private String title;
     private File buildDir;
     private File appDir;
@@ -59,10 +50,10 @@ public class BundleHelper {
     private static Logger logger = Logger.getLogger(BundleHelper.class.getName());
 
     public BundleHelper(Project project, Platform platform, File bundleDir, String appDirSuffix) throws IOException {
-        this.projectProperties = project.getProjectProperties();
+        BobProjectProperties projectProperties = project.getProjectProperties();
 
         this.project = project;
-        this.title = this.projectProperties.getStringValue("project", "title", "Unnamed");
+        this.title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         this.buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         this.appDir = new File(bundleDir, title + appDirSuffix);
@@ -275,23 +266,44 @@ public class BundleHelper {
     }
 
     public void createAndroidManifest(BobProjectProperties projectProperties, String projectRoot, File manifestFile, File resOutput, String exeName) throws IOException {
-
-        Map<String, Object> properties = new HashMap<>();
-        properties.put("exe-name", exeName);
-
-        // We copy and resize the default icon in builtins if no other icons are set.
-        // This means that the app will always have icons from now on.
-        properties.put("has-icons?", true);
+     // Copy icons
+        int iconCount = 0;
+        // copy old 32x32 icon first, the correct size is actually 36x36
+        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_32x32", "drawable-ldpi/icon.png")
+            || copyIcon(projectProperties, projectRoot, resOutput, "app_icon_36x36", "drawable-ldpi/icon.png"))
+            iconCount++;
+        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_48x48", "drawable-mdpi/icon.png"))
+            iconCount++;
+        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_72x72", "drawable-hdpi/icon.png"))
+            iconCount++;
+        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_96x96", "drawable-xhdpi/icon.png"))
+            iconCount++;
+        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_144x144", "drawable-xxhdpi/icon.png"))
+            iconCount++;
+        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_192x192", "drawable-xxxhdpi/icon.png"))
+            iconCount++;
 
         // Copy push notification icons
-        copyIcon(projectProperties, projectRoot, resOutput, "push_icon_small", "drawable/push_icon_small.png");
-        copyIcon(projectProperties, projectRoot, resOutput, "push_icon_large", "drawable/push_icon_large.png");
+        if (copyIcon(projectProperties, projectRoot, resOutput, "push_icon_small", "drawable/push_icon_small.png"))
+            iconCount++;
+        if (copyIcon(projectProperties, projectRoot, resOutput, "push_icon_large", "drawable/push_icon_large.png"))
+            iconCount++;
 
         String[] dpis = new String[] { "ldpi", "mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi" };
         for (String dpi : dpis) {
-            copyIconDPI(projectProperties, projectRoot, resOutput, "push_icon_small", "push_icon_small.png", dpi);
-            copyIconDPI(projectProperties, projectRoot, resOutput, "push_icon_large", "push_icon_large.png", dpi);
+            if (copyIconDPI(projectProperties, projectRoot, resOutput, "push_icon_small", "push_icon_small.png", dpi))
+                iconCount++;
+            if (copyIconDPI(projectProperties, projectRoot, resOutput, "push_icon_large", "push_icon_large.png", dpi))
+                iconCount++;
         }
+
+        Map<String, Object> properties = new HashMap<>();
+        if (iconCount > 0) {
+            properties.put("has-icons?", true);
+        } else {
+            properties.put("has-icons?", false);
+        }
+        properties.put("exe-name", exeName);
 
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
             Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
