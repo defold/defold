@@ -136,18 +136,12 @@
                          the copy -->
                     <globmapper from="x86_64-darwin/luajit-2.0.5" to="x86_64-darwin/luajit"/>
                     <globmapper from="x86_64-linux/luajit-2.0.5" to="x86_64-linux/luajit"/>
-                    <globmapper from="win32/luajit.exe" to="x86-win32/luajit.exe"/>
                     <globmapper from="x86_64-win32/luajit.exe" to="x86_64-win32/luajit.exe"/>
                 </compositemapper>
             </chainedmapper>
             <tarfileset includes="bin/x86_64-linux/**">
                 <gzipresource>
                     <file file="../../packages/luajit-2.0.5-x86_64-linux.tar.gz" />
-                </gzipresource>
-            </tarfileset>
-            <tarfileset includes="bin/win32/**">
-                <gzipresource>
-                    <file file="../../packages/luajit-2.0.5-win32.tar.gz" />
                 </gzipresource>
             </tarfileset>
             <tarfileset includes="bin/x86_64-win32/**">
