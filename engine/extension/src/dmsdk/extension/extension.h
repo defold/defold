@@ -148,7 +148,7 @@ namespace dmExtension
             __declspec(allocate(".CRT$XCU")) int (* _Fp ## symbol)(void) = symbol ## Wrapper;
     #endif
 
-    /*# onActivityResult callback typedef
+    /*# OnActivityResult callback typedef
      *
      * Activity result callback function type. Monitors events from the main activity.
      * Used with RegisterOnActivityResultListener() and UnregisterOnActivityResultListener()
@@ -169,7 +169,7 @@ namespace dmExtension
      *
      * @note [icon:android] Only available on Android
      * @name RegisterAndroidOnActivityResultListener
-     * @param [type:OnActivityResult] listener
+     * @param [type:dmExtension::OnActivityResult] listener
      */
     void RegisterAndroidOnActivityResultListener(OnActivityResult listener);
 
@@ -179,7 +179,7 @@ namespace dmExtension
      *
      * @note [icon:android] Only available on Android
      * @name UnregisterAndroidOnActivityResultListener
-     * @param [type:OnActivityResult] listener
+     * @param [type:dmExtension::OnActivityResult] listener
      */
     void UnregisterAndroidOnActivityResultListener(OnActivityResult listener);
 
@@ -259,7 +259,7 @@ namespace dmExtension
      * @param delegate [type:id<UIApplicationDelegate>] An UIApplicationDelegate, see: https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
      *
      * @examples
-     * ```cpp
+     * ```objective-c
      *
      * // myextension_ios.mm
      *
