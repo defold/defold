@@ -21,16 +21,19 @@ SHA1=`git log --pretty=%H -n1`
 # APKC
 cp -v $DYNAMO_HOME/ext/bin/x86_64-darwin/apkc libexec/x86_64-darwin/apkc
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/apkc libexec/x86_64-linux/apkc
+cp -v $DYNAMO_HOME/ext/bin/win32/apkc.exe libexec/x86-win32/apkc.exe
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/apkc.exe libexec/x86_64-win32/apkc.exe
 
 # SPIRV toolchain
 cp -v $DYNAMO_HOME/ext/bin/x86_64-darwin/glslc libexec/x86_64-darwin/glslc
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/glslc libexec/x86_64-linux/glslc
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/glslc.exe libexec/x86_64-win32/glslc.exe
+cp -v $DYNAMO_HOME/ext/bin/win32/glslc.exe libexec/x86-win32/glslc.exe
 
 cp -v $DYNAMO_HOME/ext/bin/x86_64-darwin/spirv-cross libexec/x86_64-darwin/spirv-cross
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/spirv-cross libexec/x86_64-linux/spirv-cross
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe libexec/x86_64-win32/spirv-cross.exe
+cp -v $DYNAMO_HOME/ext/bin/win32/spirv-cross.exe libexec/x86-win32/spirv-cross.exe
 
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/builtins.zip lib/builtins.zip
 
@@ -43,6 +46,7 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/dlib.jar lib/dlib.jar
 # TEXC Shared
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libtexc_shared.so lib/x86_64-linux/libtexc_shared.so
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-darwin/libtexc_shared.dylib lib/x86_64-darwin/libtexc_shared.dylib
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/win32/texc_shared.dll lib/x86-win32/texc_shared.dll
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/texc_shared.dll lib/x86_64-win32/texc_shared.dll
 
 # PVRTexLib
@@ -71,8 +75,6 @@ cp -v tmp/bin/x86_64-linux/luajit-32 libexec/x86_64-linux/luajit-32
 cp -v tmp/bin/x86_64-linux/luajit-64 libexec/x86_64-linux/luajit-64
 cp -v tmp/bin/x86_64-darwin/luajit-32 libexec/x86_64-darwin/luajit-32
 cp -v tmp/bin/x86_64-darwin/luajit-64 libexec/x86_64-darwin/luajit-64
-cp -v tmp/bin/win32/luajit-32.exe libexec/x86-win32/luajit-32.exe
-cp -v tmp/bin/win32/luajit-64.exe libexec/x86-win32/luajit-64.exe
 cp -v tmp/bin/x86_64-win32/luajit-32.exe libexec/x86_64-win32/luajit-32.exe
 cp -v tmp/bin/x86_64-win32/luajit-64.exe libexec/x86_64-win32/luajit-64.exe
 jar cfM lib/luajit-share.zip -C $DYNAMO_HOME/ext/share/ luajit
