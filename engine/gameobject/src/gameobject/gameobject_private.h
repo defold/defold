@@ -25,6 +25,12 @@ namespace dmGameObject
 
     struct Prototype
     {
+        Prototype()
+            : m_Components(0)
+            , m_ComponentCount(0)
+        {
+        }
+        ~Prototype();
         struct Component
         {
             Component(void* resource,
@@ -58,7 +64,8 @@ namespace dmGameObject
             PropertySet     m_PropertySet;
         };
 
-        dmArray<Component>     m_Components;
+        Component*  m_Components;
+        uint32_t    m_ComponentCount;
     };
 
     // Invalid instance index. Implies that maximum number of instances is 32766 (ie 0x7fff - 1)
