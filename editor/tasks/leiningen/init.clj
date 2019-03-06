@@ -6,7 +6,7 @@
 
 (defn- sha-from-version-file
   []
-  (let [stable-version (first (string/split  (slurp "../VERSION") #"\n"))
+  (let [stable-version (first (string/split-lines  (slurp "../VERSION")))
         {:keys [exit out err]} (sh/sh "git" "rev-list" "-n" "1" stable-version)]
     (if (zero? exit)
       (string/trim out)
