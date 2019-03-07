@@ -335,11 +335,9 @@ class Configuration(object):
             print("No go found for %s" % self.target_platform)
 
     def _make_package_path(self, platform, package):
-        print("_make_package_path, platform: " + platform + ", package: " + package)
         return join(self.defold_root, 'packages', package) + '-%s.tar.gz' % platform
 
     def _make_package_paths(self, platform, packages):
-        print("_make_package_paths, platform: " + platform)
         return [self._make_package_path(platform, package) for package in packages]
 
     def _extract_packages(self, platform, packages):
@@ -375,7 +373,6 @@ class Configuration(object):
         for platform in other_platforms:
             packages = platform_packages.get(platform, [])
             package_paths = self._make_package_paths(platform, packages)
-            print("1 Installing %s packages" % platform)
             for path in package_paths:
                 self._extract_tgz(path, self.ext)
             installed_packages.update(package_paths)
@@ -384,15 +381,9 @@ class Configuration(object):
             packages = list(PACKAGES_HOST)
             packages.extend(platform_packages.get(base_platform, []))
             package_paths = self._make_package_paths(base_platform, packages)
-            for path in package_paths:
-                print("### PRE path: " + path)
             package_paths = [path for path in package_paths if path not in installed_packages]
-            for path in package_paths:
-                print("### 2 PRE path: " + path)
             if len(package_paths) != 0:
-                print("2 Installing %s packages" % base_platform)
                 for path in package_paths:
-                    print("path: " + path)
                     self._extract_tgz(path, self.ext)
                 installed_packages.update(package_paths)
 
@@ -401,7 +392,6 @@ class Configuration(object):
         target_package_paths = [path for path in target_package_paths if path not in installed_packages]
 
         if len(target_package_paths) != 0:
-            print("3 Installing %s packages" % self.target_platform)
             for path in target_package_paths:
                 self._extract_tgz(path, self.ext)
             installed_packages.update(target_package_paths)
