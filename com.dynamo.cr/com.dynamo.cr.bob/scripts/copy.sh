@@ -67,7 +67,6 @@ cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/msvcr120.dll lib/x86_64-win32/msvcr120.d
 
 rm -rf tmp
 mkdir -p tmp
-tar xf ../../packages/luajit-2.1.0-beta3-win32.tar.gz -C tmp
 tar xf ../../packages/luajit-2.1.0-beta3-x86_64-win32.tar.gz -C tmp
 tar xf ../../packages/luajit-2.1.0-beta3-x86_64-linux.tar.gz -C tmp
 tar xf ../../packages/luajit-2.1.0-beta3-x86_64-darwin.tar.gz -C tmp
