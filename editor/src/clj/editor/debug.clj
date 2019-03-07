@@ -1,5 +1,6 @@
 (ns editor.debug
   (:require [editor.fs :as fs]
+            [editor.ns-batch-builder :as bb]
             [editor.system :as system]))
 
 (set! *warn-on-reflection* true)
@@ -44,7 +45,6 @@
         (prn e)))
     (println "NREPL library not found, not starting")))
 
-
 (defn- maybe-load-refactor-nrepl
   [repl-config]
   (if-let [wrap-refactor (try-resolve 'refactor-nrepl.middleware/wrap-refactor)]
@@ -68,6 +68,7 @@
 
 (defn start-server
   [port]
+  (bb/spit-batches "src/clj" "resources/sorted_clojure_ns_list.edn")
   (let [repl-config (cond-> {:bind "localhost"}
                       true (maybe-load-cider)
                       true (maybe-load-refactor-nrepl)

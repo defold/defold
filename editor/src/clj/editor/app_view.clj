@@ -330,13 +330,6 @@
         (.setDividerPositions sp (into-array Double/TYPE pos))
         (.layout sp)))))
 
-(handler/defhandler :open-project :global
-  (run [] (when-let [file-name (some-> (ui/choose-file {:title "Open Project"
-                                                        :filters [{:description "Project Files"
-                                                                   :exts ["*.project"]}]})
-                                       (.getAbsolutePath))]
-            (EditorApplication/openEditor (into-array String [file-name])))))
-
 (handler/defhandler :logout :global
   (enabled? [dashboard-client] (login/can-sign-out? dashboard-client))
   (run [dashboard-client] (login/sign-out! dashboard-client)))
