@@ -470,7 +470,7 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
 
 #ifdef __EMSCRIPTEN__
     // Emscipten works next way: stderr -> console.error / stdout -> console.log
-    if (severity == DM_LOG_SEVERITY_ERROR || severity == DM_LOG_SEVERITY_ERROR){
+    if (severity == DM_LOG_SEVERITY_ERROR || severity == DM_LOG_SEVERITY_FATAL){
         fwrite(str_buf, 1, actual_n, stderr);
     } else {
         fwrite(str_buf, 1, actual_n, stdout);
