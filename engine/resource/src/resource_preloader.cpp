@@ -396,7 +396,7 @@ namespace dmResource
         uint32_t canonical_path_len = GetCanonicalPath(name, canonical_path);
         out_path_descriptor.m_CanonicalPathHash = dmHashBuffer64(canonical_path, canonical_path_len);
 
-        dmSpinlock::Lock(&preloader->m_SyncedDataSpinlock);
+        DM_SPINLOCK_SCOPED_LOCK(preloader->m_SyncedDataSpinlock)
         {
             out_path_descriptor.m_InternalizedName = InternalizePath(&preloader->m_SyncedData, out_path_descriptor.m_NameHash, name, name_len);
             if (out_path_descriptor.m_InternalizedName == 0x0)
@@ -411,7 +411,6 @@ namespace dmResource
                 return RESULT_OUT_OF_MEMORY;
             }
         }
-        dmSpinlock::Unlock(&preloader->m_SyncedDataSpinlock);
 
         return RESULT_OK;
     }
@@ -508,9 +507,8 @@ namespace dmResource
         uint32_t new_hint_count = 0;
         dmArray<PendingHint> new_hints;
         {
-            dmSpinlock::Lock(&preloader->m_SyncedDataSpinlock);
+            DM_SPINLOCK_SCOPED_LOCK(preloader->m_SyncedDataSpinlock)
             new_hints.Swap(preloader->m_SyncedData.m_NewHints);
-            dmSpinlock::Unlock(&preloader->m_SyncedDataSpinlock);
         }
         for (uint32_t i = 0; i < new_hints.Size(); ++i)
         {
@@ -1200,7 +1198,7 @@ namespace dmResource
             return false;
         }
 
-        dmSpinlock::Lock(&preloader->m_SyncedDataSpinlock);
+        DM_SPINLOCK_SCOPED_LOCK(preloader->m_SyncedDataSpinlock)
         uint32_t new_hints_size = preloader->m_SyncedData.m_NewHints.Size();
         if (preloader->m_SyncedData.m_NewHints.Capacity() == new_hints_size)
         {
@@ -1210,8 +1208,6 @@ namespace dmResource
         PendingHint& hint     = preloader->m_SyncedData.m_NewHints.Back();
         hint.m_PathDescriptor = path_descriptor;
         hint.m_Parent         = info->m_Parent;
-
-        dmSpinlock::Unlock(&preloader->m_SyncedDataSpinlock);
 
         return true;
     }
