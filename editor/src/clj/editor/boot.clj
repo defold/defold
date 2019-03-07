@@ -94,6 +94,7 @@
   ;; Path to preference file, mainly used for testing
   [["-prefs" "--preferences PATH" "Path to preferences file"]])
 
+;; Entry point from java EditorApplication is in editor.bootloader/main, which calls this function.
 (defn main [args namespace-loader]
   (when (system/defold-dev?)
     (set-sha1-revisions-from-repo!))

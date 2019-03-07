@@ -20,7 +20,7 @@ public class EditorApplication {
         if (Editor.isDev()) {
             runtime.invoke("editor.debug/start-server", null);
         }
-        runtime.require("editor.boot");
+        runtime.invoke("editor.bootloader/load-boot");
     }
 
     public static void openEditor(String[] args) throws Exception {
@@ -30,6 +30,6 @@ public class EditorApplication {
     }
 
     public void run(String[] args) {
-        runtime.invoke("editor.bootloader/load-boot", args);
+        runtime.invoke("editor.bootloader/main", args);
     }
 }
