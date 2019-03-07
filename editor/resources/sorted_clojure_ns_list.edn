@@ -1,74 +1,95 @@
-[#{editor.volatile-cache editor.util util.thread-util util.id-vec
-   editor.system util.digest editor.code.lang.cish editor.progress
-   editor.gl.protocols internal.java internal.history util.time
-   util.murmur util.profiler editor.code.util editor.vcs-status
-   potemkin.namespaces editor.ui.popup util.text-util editor.colors
-   clojure.data.int-map-fixed editor.ui.tree-view-hack editor.process
-   editor.fuzzy-text editor.fs util.repo editor.math editor.jfx
-   editor.buffers util.net internal.cache editor.menu
-   editor.scene-picking util.http-client editor.url}
- #{editor.ui.fuzzy-choices editor.luajit camel-snake-kebab service.log
-   editor.scene-cache editor.debug editor.code.syntax
-   editor.field-expression editor.lua-parser editor.scene-async
-   editor.settings-core}
+[#{editor.util util.thread-util util.id-vec editor.system util.digest
+   editor.progress editor.gl.protocols internal.java internal.history
+   util.time util.murmur util.profiler editor.code.util
+   potemkin.namespaces util.text-util editor.colors
+   editor.ui.tree-view-hack editor.process editor.fuzzy-text editor.fs
+   util.repo editor.math editor.jfx util.net internal.cache editor.menu
+   util.http-client editor.url}
+ #{editor.ui.fuzzy-choices camel-snake-kebab service.log
+   editor.code.syntax editor.settings-core}
  #{editor.gl editor.code.data editor.protobuf editor.prefs
    editor.updater editor.game-project-core editor.analytics
    internal.util}
- #{editor.pipeline.texture-set-gen editor.sentry
-   editor.pipeline.tex-gen editor.library internal.graph.types
-   editor.github editor.client editor.collada editor.lua
-   editor.scene-text}
- #{internal.graph.error-values editor.error-reporting
-   editor.code-completion}
- #{editor.debugging.mobdebug util.http-server internal.node}
+ #{editor.sentry editor.library internal.graph.types editor.github
+   editor.client}
+ #{internal.graph.error-values editor.error-reporting}
+ #{internal.node}
  #{internal.graph}
  #{internal.system}
  #{internal.transaction}
  #{dynamo.graph}
- #{editor.types editor.gui-clipping editor.input editor.texture.math
-   editor.graph-util editor.collision-groups editor.form}
- #{editor.gl.pass editor.scene-layout editor.core editor.geom}
- #{editor.properties editor.handler editor.texture.pack-max-rects
-   editor.background editor.image-util editor.resource}
- #{editor.texture.engine editor.protobuf-forms editor.resource-io
-   editor.gl.texture editor.gl.shader editor.pipeline.fontc
-   editor.resource-update editor.outline editor.view editor.ui
-   editor.validation editor.resource-watch}
- #{editor.camera editor.disk-availability editor.workspace
-   editor.texture editor.ui.bindings editor.gl.vertex
-   editor.web-profiler editor.ui.fuzzy-choices-popup editor.git
-   editor.keymap editor.pipeline.font-gen editor.defold-project-search
-   editor.gviz editor.gl.vertex2}
- #{editor.particle-lib editor.resource-node editor.rulers
-   editor.pipeline editor.curve-grid editor.scene-visibility
-   editor.search-results-view editor.login editor.text
-   editor.scene-tools editor.grid editor.ui.fuzzy-combo-box
-   editor.graph-view}
- #{editor.image editor.code.resource editor.markdown
-   editor.scene-selection editor.protobuf-types editor.hot-reload
-   editor.html}
- #{editor.code.shader editor.code.text-file editor.code.view
-   editor.scene editor.json editor.placeholder-resource}
- #{editor.render editor.console editor.tile-map-grid
-   editor.defold-project editor.texture-set}
- #{editor.factory editor.build-errors-view editor.rig editor.settings
-   editor.animation-set editor.dialogs editor.render-pb
-   editor.camera-editor editor.engine.build-errors editor.code.script
-   editor.sound editor.cubemap editor.display-profiles editor.material
-   editor.collection-proxy}
- #{editor.engine.native-extensions editor.html-view editor.font
-   editor.targets editor.sprite editor.spine editor.collada-scene
-   editor.ui.updater editor.game-project editor.diff-view
-   editor.form-view editor.model editor.properties-view}
- #{editor.sync editor.pipeline.bob editor.engine editor.label
-   editor.welcome editor.live-update-settings}
- #{editor.bundle editor.changes-view editor.boot editor.debug-view
-   editor.prefs-dialog}
- #{editor.disk editor.bundle-dialog}
- #{editor.app-view}
+ #{editor.types editor.graph-util editor.collision-groups}
+ #{editor.core}
+ #{editor.properties editor.handler editor.resource}
+ #{editor.resource-io editor.resource-update editor.outline editor.view
+   editor.ui editor.resource-watch}
+ #{editor.workspace editor.ui.bindings editor.ui.fuzzy-choices-popup
+   editor.git editor.keymap}
+ #{editor.resource-node editor.pipeline editor.login}
+ #{editor.code.resource}
+ #{editor.code.view editor.placeholder-resource}
+ #{editor.defold-project}
+ #{editor.dialogs}
+ #{editor.ui.updater}
+ #{editor.welcome}
+ #{editor.boot}
+ #{editor.properties editor.gl editor.types editor.volatile-cache
+   editor.util editor.pipeline.texture-set-gen editor.handler
+   editor.protobuf-forms editor.gui-clipping editor.code.data
+   util.thread-util editor.disk-availability editor.workspace
+   editor.input editor.sentry internal.graph editor.pipeline.tex-gen
+   util.id-vec editor.system editor.resource-node util.digest
+   editor.code.lang.cish editor.ui.bindings editor.ui.fuzzy-choices
+   editor.code.resource editor.progress editor.luajit
+   editor.build-errors-view editor.rig camel-snake-kebab
+   editor.gl.protocols internal.java editor.markdown internal.history
+   editor.library editor.protobuf util.murmur editor.resource-io
+   internal.transaction editor.graph-util util.profiler
+   editor.code.util internal.graph.types editor.vcs-status
+   internal.graph.error-values editor.targets editor.code.view
+   potemkin.namespaces editor.ui.popup util.text-util internal.system
+   service.log editor.console editor.colors clojure.data.int-map-fixed
+   editor.ui.tree-view-hack editor.pipeline editor.login
+   editor.ui.updater editor.process editor.settings editor.gl.pass
+   editor.animation-set editor.fuzzy-text editor.fs editor.json
+   editor.text editor.dialogs editor.pipeline.fontc
+   editor.resource-update editor.placeholder-resource
+   editor.ui.fuzzy-choices-popup editor.error-reporting editor.prefs
+   editor.outline editor.math util.http-server editor.jfx
+   editor.buffers editor.view editor.collision-groups editor.github
+   editor.client util.net editor.ui editor.collada editor.git
+   editor.keymap editor.diff-view editor.core internal.node
+   editor.updater internal.cache editor.hot-reload editor.geom
+   editor.game-project-core editor.code.syntax editor.field-expression
+   editor.menu editor.scene-picking editor.defold-project-search
+   editor.form util.http-client editor.resource editor.lua editor.url
+   editor.html editor.gviz editor.lua-parser dynamo.graph
+   editor.ui.fuzzy-combo-box editor.scene-async editor.validation
+   editor.analytics editor.resource-watch editor.defold-project
+   internal.util editor.settings-core}
+ #{editor.camera editor.sync editor.factory editor.html-view
+   editor.code.text-file editor.debugging.mobdebug editor.background
+   editor.web-profiler editor.scene-visibility
+   editor.search-results-view editor.game-project editor.scene-cache
+   editor.render-pb editor.protobuf-types editor.pipeline.font-gen
+   editor.form-view editor.camera-editor editor.engine.build-errors
+   editor.image-util editor.code-completion editor.sound
+   editor.properties-view editor.graph-view editor.collection-proxy}
+ #{editor.changes-view editor.engine.native-extensions
+   editor.gl.texture editor.gl.shader editor.curve-grid
+   editor.code.script editor.grid editor.scene-text
+   editor.live-update-settings}
+ #{editor.code.shader editor.image editor.pipeline.bob editor.gl.vertex
+   editor.engine editor.scene-selection editor.gl.vertex2}
+ #{editor.bundle editor.particle-lib editor.rulers editor.debug-view
+   editor.disk editor.scene-tools editor.prefs-dialog}
+ #{editor.scene editor.bundle-dialog}
+ #{editor.render editor.tile-map-grid editor.app-view editor.cubemap
+   editor.display-profiles editor.material editor.texture-set}
  #{editor.tile-source editor.particlefx editor.collision-object
-   editor.outline-view editor.asset-browser editor.atlas
+   editor.font editor.outline-view editor.sprite editor.spine
+   editor.collada-scene editor.asset-browser editor.atlas editor.model
    editor.curve-view editor.game-object}
- #{editor.tile-map editor.collection editor.gui}
+ #{editor.tile-map editor.label editor.collection editor.gui}
  #{editor.resource-types}
  #{editor.boot-open-project}]
