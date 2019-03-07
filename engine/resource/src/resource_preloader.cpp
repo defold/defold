@@ -6,7 +6,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <dlib/align.h>
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
@@ -16,6 +15,7 @@
 #include <dlib/time.h>
 #include <dlib/spinlock.h>
 
+#include "block_allocator.h"
 #include "resource.h"
 #include "resource_private.h"
 #include "async/load_queue.h"
@@ -105,154 +105,6 @@ namespace dmResource
         bool m_Destroy;
     };
 
-    // A simple block allocator for scratch memory to use for small resources instead
-    // of pressuring malloc/free.
-    //
-    // It allocates blocks (or chunks) of memory via malloc and then allocates from
-    // each block.
-    //
-    // It keeps track of the high and low range used in a block to try and reuse free
-    // space but no real defragmentation is done.
-    //
-    // One block is always allocated, but other blocks are dynamically allocated/freed.
-    //
-    // There is no thread syncronization - one BlockAllocator is created per preloader/thread.
-    //
-    // If there is no space in the blocks or the allocation is deemed to big (BLOCK_ALLOCATION_THRESHOLD)
-    // it will fall back to malloc/free for the allocation.
-
-    static const uint32_t BLOCK_SIZE                   = 16384;
-    static const uint32_t BLOCK_ALLOCATION_THRESHOLD   = BLOCK_SIZE / 2;
-    static const uint16_t MAX_BLOCK_COUNT              = 8;
-    static const uint32_t BLOCK_ALLOCATION_ALIGNEMENT  = sizeof(uint16_t);
-
-    struct BlockData
-    {
-        uint32_t m_AllocationCount;
-        uint32_t m_LowWaterMark;
-        uint32_t m_HighWaterMark;
-    };
-
-    struct Block
-    {
-        uint8_t m_Data[BLOCK_SIZE];
-    };
-
-    struct BlockAllocator
-    {
-        BlockAllocator()
-        {
-            m_BlockDatas[0].m_AllocationCount = 0;
-            m_BlockDatas[0].m_LowWaterMark    = 0;
-            m_BlockDatas[0].m_HighWaterMark   = 0;
-            m_Blocks[0]                       = &m_InitialBlock;
-            for (uint16_t i = 1; i < MAX_BLOCK_COUNT; ++i)
-            {
-                m_Blocks[i] = 0x0;
-            }
-        }
-        ~BlockAllocator()
-        {
-            assert(m_BlockDatas[0].m_AllocationCount == 0);
-            for (uint16_t i = 1; i < MAX_BLOCK_COUNT; ++i)
-            {
-                assert(m_Blocks[i] == 0x0);
-            }
-        }
-        BlockData m_BlockDatas[MAX_BLOCK_COUNT];
-        Block* m_Blocks[MAX_BLOCK_COUNT];
-        Block m_InitialBlock;
-    };
-
-    void* Allocate(BlockAllocator* block_allocator, uint32_t size)
-    {
-        uint32_t allocation_size = DM_ALIGN(sizeof(uint16_t) + size, BLOCK_ALLOCATION_ALIGNEMENT);
-        if (allocation_size > BLOCK_ALLOCATION_THRESHOLD)
-        {
-            uint16_t* res = (uint16_t*)malloc(sizeof(uint16_t) + size);
-            *res          = MAX_BLOCK_COUNT;
-            return &res[1];
-        }
-        uint16_t first_free = MAX_BLOCK_COUNT;
-        for (uint16_t block_index = 0; block_index < MAX_BLOCK_COUNT; ++block_index)
-        {
-            Block* block = block_allocator->m_Blocks[block_index];
-            if (block == 0x0)
-            {
-                first_free = (first_free == MAX_BLOCK_COUNT) ? block_index : first_free;
-                continue;
-            }
-            BlockData* block_data = &block_allocator->m_BlockDatas[block_index];
-            if (block_data->m_LowWaterMark >= allocation_size)
-            {
-                block_data->m_LowWaterMark -= allocation_size;
-                block_data->m_AllocationCount++;
-                uint16_t* ptr = (uint16_t*)&block->m_Data[block_data->m_LowWaterMark];
-                *ptr          = block_index;
-                return &ptr[1];
-            }
-            if (block_data->m_HighWaterMark + allocation_size <= BLOCK_SIZE)
-            {
-                block_data->m_AllocationCount++;
-                uint16_t* ptr = (uint16_t*)&block->m_Data[block_data->m_HighWaterMark];
-                block_data->m_HighWaterMark += allocation_size;
-                *ptr = block_index;
-                return &ptr[1];
-            }
-        }
-        if (first_free != MAX_BLOCK_COUNT)
-        {
-            Block* block                          = new Block;
-            BlockData* block_data                 = &block_allocator->m_BlockDatas[first_free];
-            block_data->m_AllocationCount         = 1;
-            block_data->m_LowWaterMark            = 0;
-            block_data->m_HighWaterMark           = allocation_size;
-            uint16_t* ptr                         = (uint16_t*)&block->m_Data[0];
-            *ptr                                  = first_free;
-            block_allocator->m_Blocks[first_free] = block;
-            return &ptr[1];
-        }
-        uint16_t* res = (uint16_t*)malloc(sizeof(uint16_t) + size);
-        *res          = MAX_BLOCK_COUNT;
-        return &res[1];
-    }
-
-    void Free(BlockAllocator* block_allocator, void* data, uint32_t size)
-    {
-        uint16_t* ptr = (uint16_t*)data;
-        --ptr;
-        uint16_t block_index = *ptr;
-        if (block_index == MAX_BLOCK_COUNT)
-        {
-            free(ptr);
-            return;
-        }
-        assert(block_index < MAX_BLOCK_COUNT);
-        uint16_t allocation_size = DM_ALIGN(sizeof(uint16_t) + size, BLOCK_ALLOCATION_ALIGNEMENT);
-        Block* block             = block_allocator->m_Blocks[block_index];
-        assert(block != 0x0);
-        BlockData* block_data = &block_allocator->m_BlockDatas[block_index];
-        assert(block_data->m_AllocationCount > 0);
-
-        block_data->m_AllocationCount--;
-        if (0 == block_data->m_AllocationCount)
-        {
-            if (block_index != 0)
-            {
-                delete block;
-                block_allocator->m_Blocks[block_index] = 0x0;
-            }
-            return;
-        }
-        if ((uint8_t*)ptr == &block->m_Data[block_data->m_LowWaterMark])
-        {
-            block_data->m_LowWaterMark += allocation_size;
-        }
-        else if ((uint8_t*)ptr == &block->m_Data[block_data->m_HighWaterMark - allocation_size])
-        {
-            block_data->m_HighWaterMark -= allocation_size;
-        }
-    }
 
     // The preloader will function even down to a value of 1 here (the root object)
     // and sets the limit of how large a dependencies tree can be stored. Since nodes
@@ -312,7 +164,7 @@ namespace dmResource
         uint8_t m_PathInProgressData[PATH_IN_PROGRESS_HASHDATA_SIZE];
 
         // used instead of dynamic allocs as far as it lasts.
-        BlockAllocator m_BlockAllocator;
+        dmBlockAllocator::HContext m_BlockAllocator;
 
         // post create state
         bool m_LoadQueueFull;
@@ -626,6 +478,8 @@ namespace dmResource
         preloader->m_CreateComplete          = false;
         preloader->m_PostCreateCallbackIndex = 0;
 
+        preloader->m_BlockAllocator = dmBlockAllocator::CreateContext();
+
         if (root->m_LoadResult == RESULT_OK)
         {
             root->m_LoadResult = RESULT_PENDING;
@@ -690,7 +544,7 @@ namespace dmResource
             params.m_BufferSize               = req->m_BufferSize;
             req->m_LoadResult                 = resource_type->m_CreateFunction(params);
 
-            Free(&preloader->m_BlockAllocator, req->m_Buffer, req->m_BufferSize);
+            dmBlockAllocator::Free(preloader->m_BlockAllocator, req->m_Buffer, req->m_BufferSize);
 
             req->m_Buffer = 0;
         }
@@ -882,7 +736,7 @@ namespace dmResource
         else
         {
             // Keep the loaded bytes until we have loaded all children
-            req->m_Buffer = Allocate(&preloader->m_BlockAllocator, buffer_size);
+            req->m_Buffer = dmBlockAllocator::Allocate(preloader->m_BlockAllocator, buffer_size);
             memcpy(req->m_Buffer, buffer, buffer_size);
             req->m_BufferSize = buffer_size;
             dmLoadQueue::FreeLoad(preloader->m_LoadQueue, req->m_LoadRequest);
@@ -1180,6 +1034,8 @@ namespace dmResource
 
         assert(preloader->m_FreelistSize == (MAX_PRELOADER_REQUESTS - 1));
         dmLoadQueue::DeleteQueue(preloader->m_LoadQueue);
+
+        dmBlockAllocator::DeleteContext(preloader->m_BlockAllocator);
 
         delete preloader;
     }
