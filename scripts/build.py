@@ -673,6 +673,23 @@ class Configuration(object):
         with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'wb') as f:
             self._ziptree(join(self.dynamo_home, 'content', 'builtins'), outfile = f, directory = join(self.dynamo_home, 'content'))
 
+    def _strip_engine(self, path):
+        """ Strips the debug symbols from an executable """
+        if self.target_platform not in ['x86_64-linux','x86_64-darwin','armv7-darwin','arm64-darwin','armv7-android','arm64-android']:
+            return False
+
+        strip = "strip"
+        if 'android' in self.target_platform:
+            HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
+            ANDROID_ROOT = os.path.join(HOME, 'android')
+            ANDROID_NDK_VERSION = '10e'
+            ANDROID_GCC_VERSION = '4.8'
+            ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
+            strip = "%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-x86_64/bin/arm-linux-androideabi-strip" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, ANDROID_HOST)
+
+        self.exec_shell_command("%s %s" % (strip, path))
+        return True
+
     def archive_engine(self):
         sha1 = self._git_sha1()
         full_archive_path = join(self.archive_path, sha1, 'engine', self.target_platform).replace('\\', '/')
@@ -693,6 +710,9 @@ class Configuration(object):
             for engine_name in format_exes(n, self.target_platform):
                 engine = join(bin_dir, engine_name)
                 self.upload_file(engine, '%s/%s' % (full_archive_path, engine_name))
+                if self._strip_engine(engine):
+                    self.upload_file(engine, '%s/stripped/%s' % (full_archive_path, engine_name))
+
             if 'web' in self.target_platform:
                 self.upload_file(join(bin_dir, 'defold_sound.swf'), join(full_archive_path, 'defold_sound.swf'))
                 engine_mem = join(bin_dir, engine_name + '.mem')
