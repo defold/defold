@@ -67,8 +67,8 @@ namespace dmResource
         const char* m_InternalizedName;
         const char* m_InternalizedCanonicalPath;
         SResourceType* m_ResourceType;
-        uint64_t m_NameHash;
-        uint64_t m_CanonicalPathHash;
+        dmhash_t m_NameHash;
+        dmhash_t m_CanonicalPathHash;
     };
 
     typedef int16_t TRequestIndex;
@@ -112,8 +112,8 @@ namespace dmResource
     // the required size is something the sum of all children on each level down along
     // the largest branch.
 
-    typedef dmHashTable<uint64_t, uint32_t> TPathHashTable;
-    typedef dmHashTable<uint64_t, bool> TPathInProgressTable;
+    typedef dmHashTable<dmhash_t, uint32_t> TPathHashTable;
+    typedef dmHashTable<dmhash_t, bool> TPathInProgressTable;
 
     static const uint32_t MAX_PRELOADER_REQUESTS         = 1024;
     static const uint32_t PATH_IN_PROGRESS_TABLE_SIZE    = MAX_PRELOADER_REQUESTS / 3;
@@ -178,7 +178,7 @@ namespace dmResource
         dmArray<void*> m_PersistedResources;
     };
 
-    const char* InternalizePath(ResourcePreloader::SyncedData* preloader_synced_data, uint64_t path_hash, const char* path, uint32_t path_len)
+    const char* InternalizePath(ResourcePreloader::SyncedData* preloader_synced_data, dmhash_t path_hash, const char* path, uint32_t path_len)
     {
         uint32_t* path_lookup = preloader_synced_data->m_PathLookup.Get(path_hash);
         if (path_lookup != 0x0)
@@ -269,21 +269,21 @@ namespace dmResource
 
     static bool IsPathInProgress(ResourcePreloader* preloader, const PathDescriptor* path_descriptor)
     {
-        uint64_t path_hash = path_descriptor->m_CanonicalPathHash;
+        dmhash_t path_hash = path_descriptor->m_CanonicalPathHash;
         bool* path_lookup  = preloader->m_InProgress.Get(path_hash);
         return path_lookup != 0x0;
     }
 
     static void MarkPathInProgress(ResourcePreloader* preloader, const PathDescriptor* path_descriptor)
     {
-        uint64_t path_hash = path_descriptor->m_CanonicalPathHash;
+        dmhash_t path_hash = path_descriptor->m_CanonicalPathHash;
         assert(preloader->m_InProgress.Get(path_hash) == 0x0);
         preloader->m_InProgress.Put(path_hash, true);
     }
 
     static void UnmarkPathInProgress(ResourcePreloader* preloader, const PathDescriptor* path_descriptor)
     {
-        uint64_t path_hash = path_descriptor->m_CanonicalPathHash;
+        dmhash_t path_hash = path_descriptor->m_CanonicalPathHash;
         assert(preloader->m_InProgress.Get(path_hash) != 0x0);
         preloader->m_InProgress.Erase(path_hash);
     }
