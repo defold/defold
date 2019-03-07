@@ -108,8 +108,8 @@ namespace dmProfileRender
     }
 
     // These hashes are used so we can filter out the time the engine is waiting for frame buffer flip
-    static const TNameHash VSYNC_WAIT_NAME_HASH   = GetCombinedHash(dmProfile::GetNameHash("VSync"), dmProfile::GetNameHash("Wait"));
-    static const TNameHash ENGINE_FRAME_NAME_HASH = GetCombinedHash(dmProfile::GetNameHash("Engine"), dmProfile::GetNameHash("Frame"));
+    static const TNameHash VSYNC_WAIT_NAME_HASH   = GetCombinedHash(dmProfile::GetNameHash("VSync", (uint32_t)strlen("VSync")), dmProfile::GetNameHash("Wait", (uint32_t)strlen("Wait")));
+    static const TNameHash ENGINE_FRAME_NAME_HASH = GetCombinedHash(dmProfile::GetNameHash("Engine", (uint32_t)strlen("Engine")), dmProfile::GetNameHash("Frame", (uint32_t)strlen("Frame")));
 
     //  float *r, *g, *b; /* red, green, blue in [0,1] */
     //  float h, s, l;    /* hue in [0,360]; saturation, light in [0,1] */

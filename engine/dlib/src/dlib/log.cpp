@@ -468,7 +468,14 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
     __ios_log_print(severity, str_buf);
 #endif
 
-#if !defined(ANDROID)
+#ifdef __EMSCRIPTEN__
+    //Emscripten maps stderr to console.error and stdout to console.log.
+    if (severity == DM_LOG_SEVERITY_ERROR || severity == DM_LOG_SEVERITY_FATAL){
+        fwrite(str_buf, 1, actual_n, stderr);
+    } else {
+        fwrite(str_buf, 1, actual_n, stdout);
+    }
+#elif !defined(ANDROID)
     fwrite(str_buf, 1, actual_n, stderr);
 #endif
 
