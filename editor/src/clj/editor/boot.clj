@@ -40,13 +40,6 @@
                                                                      (str lib))))))
                     (apply f prefix lib options))))
 
-(defn- load-namespaces-in-background
-  []
-  ;; load the namespaces of the project with all the defnode
-  ;; creation in the background
-  (future
-    (require 'editor.boot-open-project)))
-
 (defn- open-project-with-progress-dialog
   [namespace-loader prefs project dashboard-client updater newly-created?]
   (ui/modal-progress
@@ -101,7 +94,7 @@
   ;; Path to preference file, mainly used for testing
   [["-prefs" "--preferences PATH" "Path to preferences file"]])
 
-(defn main [args]
+(defn main [args namespace-loader]
   (when (system/defold-dev?)
     (set-sha1-revisions-from-repo!))
   (error-reporting/setup-error-reporting! {:notifier {:notify-fn notify-user}
@@ -116,7 +109,6 @@
 
   (let [args (Arrays/asList args)
         opts (cli/parse-opts args cli-options)
-        namespace-loader (load-namespaces-in-background)
         prefs (if-let [prefs-path (get-in opts [:options :preferences])]
                 (prefs/load-prefs prefs-path)
                 (prefs/make-prefs "defold"))

@@ -30,6 +30,6 @@ public class EditorApplication {
     }
 
     public void run(String[] args) {
-        runtime.invoke("editor.boot/main", args);
+        runtime.invoke("editor.bootloader/load-boot", args);
     }
 }
