@@ -23,7 +23,7 @@ PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.0.5 tremolo-0.0
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_DARWIN="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-1.7.0 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0".split()
-PACKAGES_WIN32="facebook-gameroom-2017-08-14 webp-0.5.0 openal-1.1 glut-3.7.6 bullet-2.77".split()
+PACKAGES_WIN32="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 bullet-2.77".split()
 PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
 PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 google-play-services-4.0.30 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
@@ -781,7 +781,7 @@ class Configuration(object):
 
         platform_dependencies = {'darwin': ['darwin', 'x86_64-darwin'], # x86_64-darwin from IOS fix 3dea8222
                                  'x86_64-linux': [],
-                                 'x86_64-win32': []}
+                                 'x86_64-win32': ['win32']}
 
         platforms = list(platform_dependencies.get(self.host, [self.host]))
 

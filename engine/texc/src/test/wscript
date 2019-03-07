@@ -7,12 +7,7 @@ from waf_dynamo import copy_file_task
 def build(bld):
     platform = bld.env["PLATFORM"]
 
-    if "win32" in platform:
-        for dll in ["PVRTexLib.dll", "msvcr120.dll"]:
-            src = "%s/ext/lib/%s/%s" % (bld.env["PREFIX"], platform, dll)
-            copy_file_task(bld, src)
-
-    elif "darwin" in platform:
+    if "darwin" in platform:
         for lib in ["libPVRTexLib.dylib"]:
             src = "%s/ext/lib/%s/%s" % (bld.env["PREFIX"], platform, lib)
             copy_file_task(bld, src)
