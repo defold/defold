@@ -426,17 +426,17 @@ TEST(dmProfile, DynamicScope)
     for (size_t i = 0; i < samples.size(); i++)
     {
         dmProfile::Sample* sample = &samples[i];
-        if (sample->m_Scope->m_NameHash == dmProfile::GetNameHash("Scope1"))
+        if (sample->m_Scope->m_NameHash == dmProfile::GetNameHash("Scope1", (uint32_t)strlen("Scope1")))
         {
             ASSERT_STREQ(sample->m_Name, name0);
         }
-        else if (sample->m_Scope->m_NameHash == dmProfile::GetNameHash("Scope2"))
+        else if (sample->m_Scope->m_NameHash == dmProfile::GetNameHash("Scope2", (uint32_t)strlen("Scope2")))
         {
-            if (sample->m_NameHash == dmProfile::GetNameHash(name1))
+            if (sample->m_NameHash == dmProfile::GetNameHash(name1, (uint32_t)strlen(name1)))
             {
                 ASSERT_STREQ(sample->m_Name, name1);
             }
-            else if (sample->m_NameHash == dmProfile::GetNameHash(name2))
+            else if (sample->m_NameHash == dmProfile::GetNameHash(name2, (uint32_t)strlen(name2)))
             {
                 ASSERT_STREQ(sample->m_Name, name2);
             }
