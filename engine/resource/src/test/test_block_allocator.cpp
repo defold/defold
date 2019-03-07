@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <stdlib.h>
+
 #include "../block_allocator.h"
 
 TEST(BlockAllocator, CreateDestroy)
