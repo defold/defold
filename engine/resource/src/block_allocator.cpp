@@ -1,7 +1,7 @@
 #include "block_allocator.h"
 
 #include <assert.h>
-#include <string.h>
+#include <stdlib.h>
 
 #include <dlib/align.h>
 
