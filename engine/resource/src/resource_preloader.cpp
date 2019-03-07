@@ -354,11 +354,6 @@ namespace dmResource
         return RESULT_OK;
     }
 
-    static bool HintSortCompare(const PendingHint& a, const PendingHint& b)
-    {
-        return a.m_PathDescriptor.m_NameHash < a.m_PathDescriptor.m_NameHash;
-    }
-
     static bool PopHints(HPreloader preloader)
     {
         dmArray<PendingHint> new_hints;
