@@ -18,6 +18,10 @@ public class EditorApplication {
         runtime.invoke("editor.bootloader/load-boot");
     }
 
+    public void waitForClojureNamespaces() {
+        runtime.invoke("editor.bootloader/wait-until-editor-boot-loaded");
+    }
+
     public void run(String[] args) {
         runtime.invoke("editor.bootloader/main", args);
     }

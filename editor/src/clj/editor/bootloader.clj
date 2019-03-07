@@ -20,14 +20,15 @@
                    (println "****** LOADING NSES TOOK:" (/ (- (System/nanoTime) ns-load-time) 1000000000.0))))]
     (reset! load-info [loader boot-loaded?])))
 
+(defn wait-until-editor-boot-loaded
+  []
+  (.take ^LinkedBlockingQueue (second @load-info)))
+
 (defn main
   [args]
-  ;; Wait until edior.boot is loaded
-  ;; TODO: This causes a hiccup in the splash screen animation. Fix?
-  (let [[loader ^LinkedBlockingQueue boot-loaded?] @load-info]
+  (let [[loader _] @load-info]
     (reset! load-info nil)
     (ns-unmap *ns* 'load-info)
-    (.take boot-loaded?)
     (let [boot-main (resolve 'editor.boot/main)]
       (boot-main args loader))))
 
