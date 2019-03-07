@@ -308,13 +308,6 @@ namespace dmResource
 
     static Result PreloadPathDescriptor(HPreloader preloader, TRequestIndex parent, const PathDescriptor& path_descriptor)
     {
-        if (!preloader->m_FreelistSize)
-        {
-            // Preload queue is exhausted; this is not fatal, it just means the resource will be loaded
-            // inside the main thread which may cause stuttering
-            return RESULT_OUT_OF_MEMORY;
-        }
-
         // Quick deduplication, check if the child is already listed under the current parent
         TRequestIndex child = preloader->m_Request[parent].m_FirstChild;
         while (child != -1)
@@ -324,6 +317,13 @@ namespace dmResource
                 return RESULT_ALREADY_REGISTERED;
             }
             child = preloader->m_Request[child].m_NextSibling;
+        }
+
+        if (!preloader->m_FreelistSize)
+        {
+            // Preload queue is exhausted; this is not fatal, it just means the resource will be loaded
+            // inside the main thread which may cause stuttering
+            return RESULT_OUT_OF_MEMORY;
         }
 
         TRequestIndex new_req = preloader->m_Freelist[--preloader->m_FreelistSize];
@@ -354,34 +354,26 @@ namespace dmResource
         return RESULT_OK;
     }
 
+    static bool HintSortCompare(const PendingHint& a, const PendingHint& b)
+    {
+        return a.m_PathDescriptor.m_NameHash < a.m_PathDescriptor.m_NameHash;
+    }
+
     static bool PopHints(HPreloader preloader)
     {
-        uint32_t new_hint_count = 0;
         dmArray<PendingHint> new_hints;
         {
             DM_SPINLOCK_SCOPED_LOCK(preloader->m_SyncedDataSpinlock)
             new_hints.Swap(preloader->m_SyncedData.m_NewHints);
         }
-        for (uint32_t i = 0; i < new_hints.Size(); ++i)
+
+        uint32_t new_hint_count = 0;
+
+        const uint32_t hint_count = new_hints.Size();
+        const PendingHint* hints = new_hints.Begin();
+        for (uint32_t i = 0; i < hint_count; ++i)
         {
-            PendingHint* hint = &new_hints[i];
-            uint32_t j        = i + 1;
-            while (j < new_hints.Size())
-            {
-                PendingHint* test = &new_hints[j];
-                if (test->m_PathDescriptor.m_NameHash == hint->m_PathDescriptor.m_NameHash &&
-                    test->m_Parent == hint->m_Parent)
-                {
-                    // Duplicate, ignore and go to next
-                    hint = 0x0;
-                    break;
-                }
-                ++j;
-            }
-            if (hint == 0x0)
-            {
-                continue;
-            }
+            const PendingHint* hint = &hints[i];
             if (PreloadPathDescriptor(preloader, hint->m_Parent, hint->m_PathDescriptor) == RESULT_OK)
             {
                 ++new_hint_count;
