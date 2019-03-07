@@ -353,7 +353,7 @@ namespace dmResource
         const char* ext = strrchr(path, '.');
         if (!ext)
         {
-            dmLogWarning("Unable to load resource: '%s'. Missing file extension.", path);
+            dmLogWarning("Unknown resource type: '%s'. Missing file extension.", path);
             return 0;
         }
         else
@@ -364,7 +364,7 @@ namespace dmResource
                 assert(resource_type->m_CreateFunction);
                 return resource_type;
             }
-            dmLogError("Unable to load resource: '%s'. Unknown resource type: %s", path, ext);
+            dmLogError("Unknown resource type: '%s'. Unknown resource type: %s", path, ext);
         }
         return 0;
     }
@@ -384,14 +384,16 @@ namespace dmResource
         uint32_t name_len = strlen(name);
         if (name_len >= RESOURCE_PATH_MAX)
         {
+            dmLogError("Resource path is to long: (%s)", name);
             return RESULT_INVALID_DATA;
         }
         out_path_descriptor.m_NameHash = dmHashBuffer64(name, name_len);
         out_path_descriptor.m_ResourceType = GetResourceType(preloader, name);
+        // We do not bail on out_path_descriptor.m_ResourceType being zero here, we want to
+        // create a request so we can get a proper error code for the resource in the request
 
         char canonical_path[RESOURCE_PATH_MAX];
-        GetCanonicalPath(name, canonical_path);
-        uint32_t canonical_path_len             = strlen(canonical_path);
+        uint32_t canonical_path_len = GetCanonicalPath(name, canonical_path);
         out_path_descriptor.m_CanonicalPathHash = dmHashBuffer64(canonical_path, canonical_path_len);
 
         dmSpinlock::Lock(&preloader->m_SyncedDataSpinlock);
@@ -462,7 +464,7 @@ namespace dmResource
             return RESULT_OUT_OF_MEMORY;
         }
 
-        // Quick dedue, check if the child is already listed under the current parent
+        // Quick deduplication, check if the child is already listed under the current parent
         TRequestIndex child = preloader->m_Request[parent].m_FirstChild;
         while (child != -1)
         {
@@ -477,10 +479,7 @@ namespace dmResource
         PreloadRequest* req   = &preloader->m_Request[new_req];
         memset(req, 0, sizeof(PreloadRequest));
         req->m_PathDescriptor    = path_descriptor;
-        req->m_Parent            = -1;
         req->m_FirstChild        = -1;
-        req->m_NextSibling       = -1;
-        req->m_PendingChildCount = 0;
         req->m_LoadResult        = RESULT_PENDING;
 
         PreloaderTreeInsert(preloader, new_req, parent);
@@ -621,7 +620,6 @@ namespace dmResource
         root->m_Parent            = -1;
         root->m_FirstChild        = -1;
         root->m_NextSibling       = -1;
-        root->m_PendingChildCount = 0;
         preloader->m_PersistResourceCount++;
 
         // Post create setup
@@ -640,11 +638,6 @@ namespace dmResource
         // and are released when they can be (internally pruning and sharing the request tree).
         for (uint32_t i = 1; i < names.Size(); ++i)
         {
-            if (strlen(names[i]) >= RESOURCE_PATH_MAX)
-            {
-                dmLogWarning("Passed too long path into NewPreloader: \"%s\"", names[i]);
-                continue;
-            }
             Result res = PreloadHintInternal(preloader, 0, names[i]);
             if (res == RESULT_OK)
             {
@@ -1086,7 +1079,7 @@ namespace dmResource
                     if (root_result == RESULT_OK)
                     {
                         // Just waiting for the post-create functions to complete
-                        // if main result is RESULT_OK pick up any errors from
+                        // If main result is RESULT_OK pick up any errors from
                         // post create function
                         preloader->m_Request[0].m_LoadResult = post_create_result;
                     }
@@ -1198,45 +1191,16 @@ namespace dmResource
         if (!info || !name)
             return false;
 
-        Result res = CheckSuppliedResourcePath(name);
-        if (res != dmResource::RESULT_OK)
-        {
-            dmLogWarning("Invalid path into dmResource::PreloadHint: \"%s\"", name);
-            return res;
-        }
-        uint32_t name_len = strlen(name);
-        if (name_len >= RESOURCE_PATH_MAX)
-        {
-            dmLogWarning("Passed too long path into dmResource::PreloadHint: \"%s\"", name);
-            return RESULT_INVALID_DATA;
-        }
-
-        PathDescriptor path_descriptor;
-
-        path_descriptor.m_NameHash = dmHashBuffer64(name, name_len);
-        path_descriptor.m_ResourceType = GetResourceType(info->m_Preloader, name);
-
-        char canonical_path[RESOURCE_PATH_MAX];
-        GetCanonicalPath(name, canonical_path);
-        uint32_t canonical_path_len         = strlen(canonical_path);
-        path_descriptor.m_CanonicalPathHash = dmHashBuffer64(canonical_path, canonical_path_len);
-
         HPreloader preloader = info->m_Preloader;
 
-        dmSpinlock::Lock(&preloader->m_SyncedDataSpinlock);
-        path_descriptor.m_InternalizedName = InternalizePath(&preloader->m_SyncedData, path_descriptor.m_NameHash, name, name_len);
-        if (path_descriptor.m_InternalizedName == 0x0)
+        PathDescriptor path_descriptor;
+        Result res = MakePathDescriptor(info->m_Preloader, name, path_descriptor);
+        if (res != RESULT_OK)
         {
-            dmSpinlock::Unlock(&preloader->m_SyncedDataSpinlock);
-            return false;
-        }
-        path_descriptor.m_InternalizedCanonicalPath = InternalizePath(&preloader->m_SyncedData, path_descriptor.m_CanonicalPathHash, canonical_path, canonical_path_len);
-        if (path_descriptor.m_InternalizedCanonicalPath == 0x0)
-        {
-            dmSpinlock::Unlock(&preloader->m_SyncedDataSpinlock);
             return false;
         }
 
+        dmSpinlock::Lock(&preloader->m_SyncedDataSpinlock);
         uint32_t new_hints_size = preloader->m_SyncedData.m_NewHints.Size();
         if (preloader->m_SyncedData.m_NewHints.Capacity() == new_hints_size)
         {

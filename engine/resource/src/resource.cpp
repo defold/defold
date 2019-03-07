@@ -139,7 +139,7 @@ SResourceType* FindResourceType(SResourceFactory* factory, const char* extension
 }
 
 // TODO: Test this...
-void GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf)
+uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf)
 {
     DM_SNPRINTF(buf, RESOURCE_PATH_MAX, "%s/%s", base_dir, relative_dir);
 
@@ -156,11 +156,12 @@ void GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, ch
         ++source;
     }
     *dest = '\0';
+    return (uint32_t)(dest - buf);
 }
 
-void GetCanonicalPath(const char* relative_dir, char* buf)
+uint32_t GetCanonicalPath(const char* relative_dir, char* buf)
 {
-    GetCanonicalPathFromBase("", relative_dir, buf);
+    return GetCanonicalPathFromBase("", relative_dir, buf);
 }
 
 Result CheckSuppliedResourcePath(const char* name)
