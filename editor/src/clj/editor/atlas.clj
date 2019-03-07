@@ -295,7 +295,7 @@
                 :user-data {:gpu-texture gpu-texture
                             :anim-id     id
                             :anim-data   (get anim-data id)}
-                :passes    [pass/overlay]}
+                :passes    [pass/overlay pass/selection]}
    :updatable  updatable
    :children   child-scenes})
 
