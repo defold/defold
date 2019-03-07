@@ -24,7 +24,7 @@
   [args]
   ;; Wait until edior.boot is loaded
   ;; TODO: This causes a hiccup in the splash screen animation. Fix?
-  (let [[loader boot-loaded?] @load-info]
+  (let [[loader ^LinkedBlockingQueue boot-loaded?] @load-info]
     (reset! load-info nil)
     (ns-unmap *ns* 'load-info)
     (.take boot-loaded?)
