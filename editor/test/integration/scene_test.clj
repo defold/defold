@@ -78,7 +78,7 @@
                (test-util/mouse-press! view 0 0)
                (is (test-util/selected? app-view resource-node))
                ;; Toggling
-               (let [modifiers (if system/mac? [:meta] [:control])]
+               (let [modifiers (if system/mac? [:meta] [:shift])]
                  (test-util/mouse-click! view 32 32)
                  (is (test-util/selected? app-view go-node))
                  (test-util/mouse-click! view 32 32 modifiers)
@@ -245,7 +245,8 @@
            :user-data
            :world-rotation
            :world-scale
-           :world-transform} (set (keys renderable))))
+           :world-transform
+           :world-translation} (set (keys renderable))))
   (is (instance? AABB (:aabb renderable)))
   (is (some? (:node-id renderable)))
   (is (vector? (:node-id-path renderable)))
