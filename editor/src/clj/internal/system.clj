@@ -96,25 +96,31 @@
   [invalidate-map entries]
   (reduce (fn [m entry] (update m entry (fnil unchecked-inc 0))) invalidate-map entries))
 
+(def retry-counts (atom {}))
+
 (defn invalidate-outputs!
   "Invalidate the given outputs and _everything_ that could be
   affected by them. Outputs are specified as pairs of [node-id label]
   for both the argument and return value."
   [system outputs]
   ;; 'dependencies' takes a map, where outputs is a vec of node-id+label pairs
-  (dosync
-    (let [basis (basis system)
-          cache-entries (->> outputs
-                             ;; vec -> map, [[node-id label]] -> {node-id #{labels}}
-                             (reduce (fn [m [node-id label]]
-                                       (update m node-id (fn [label-set label] (if label-set (conj label-set label) #{label})) label))
-                                     {})
-                             (gt/dependencies basis)
-                             ;; map -> vec
-                             (into [] (mapcat (fn [[node-id labels]] (mapv #(vector node-id %) labels)))))]
-      (alter (:cache system) c/cache-invalidate cache-entries)
-      (alter (:invalidate-counters system) bump-invalidate-counters cache-entries)
-      cache-entries)))
+  (let [retries (atom 0)
+        cache-entries (dosync
+                        (swap! retries inc)
+                        (let [basis (basis system)
+                              cache-entries (->> outputs
+                                                 ;; vec -> map, [[node-id label]] -> {node-id #{labels}}
+                                                 (reduce (fn [m [node-id label]]
+                                                           (update m node-id (fn [label-set label] (if label-set (conj label-set label) #{label})) label))
+                                                         {})
+                                                 (gt/dependencies basis)
+                                                 ;; map -> vec
+                                                 (into [] (mapcat (fn [[node-id labels]] (mapv #(vector node-id %) labels)))))]
+                          (alter (:cache system) c/cache-invalidate cache-entries)
+                          (alter (:invalidate-counters system) bump-invalidate-counters cache-entries)
+                          cache-entries))]
+    (swap! retry-counts update-in [:invalidate-outputs @retries] (fnil inc 0))
+    cache-entries))
 
 (defn step-through-history!
   [step-function system graph-id]
@@ -239,31 +245,36 @@
 
 (defn merge-graphs!
   [system post-tx-graphs significantly-modified-graphs outputs-modified nodes-deleted]
-  (dosync
-    (let [outputs-modified (group-by #(gt/node-id->graph-id (first %)) outputs-modified)]
-      (doseq [[graph-id graph] post-tx-graphs]
-        (let [start-tx (:tx-id graph -1)
-              sidereal-tx (graph-time system graph-id)]
-          (if (< start-tx sidereal-tx)
-            ;; graph was modified concurrently by a different transaction.
-            (throw (ex-info "Concurrent modification of graph"
-                            {:_graph-id graph-id :start-tx start-tx :sidereal-tx sidereal-tx}))
-            (let [graph-ref (graph-ref system graph-id)
-                  before @graph-ref
-                  after (update-in graph [:tx-id] util/safe-inc)
-                  after (if (not (meaningful-change? significantly-modified-graphs graph-id))
-                          (assoc after :tx-sequence-label (:tx-sequence-label before))
-                          after)]
-              (when (and (has-history? system graph-id) (meaningful-change? significantly-modified-graphs graph-id))
-                (remember-change! system graph-id before after (outputs-modified graph-id)))
-              (ref-set graph-ref after))))))
-    (alter (:cache system) c/cache-invalidate outputs-modified)
-    (alter (:invalidate-counters system) bump-invalidate-counters outputs-modified)
-    (alter (:user-data system) (fn [user-data]
-                                 (reduce (fn [user-data node-id]
-                                           (let [graph-id (gt/node-id->graph-id node-id)]
-                                             (update user-data graph-id dissoc node-id)))
-                                         user-data (keys nodes-deleted))))))
+  (let [retries (atom 0)
+        result (dosync
+                 (swap! retries inc)
+                 (let [outputs-modified (group-by #(gt/node-id->graph-id (first %)) outputs-modified)]
+                   (doseq [[graph-id graph] post-tx-graphs]
+                     (let [start-tx (:tx-id graph -1)
+                           sidereal-tx (graph-time system graph-id)]
+                       (if (< start-tx sidereal-tx)
+                         ;; graph was modified concurrently by a different transaction.
+                         (throw (ex-info "Concurrent modification of graph"
+                                         {:_graph-id graph-id :start-tx start-tx :sidereal-tx sidereal-tx}))
+                         (let [graph-ref (graph-ref system graph-id)
+                               before @graph-ref
+                               after (update-in graph [:tx-id] util/safe-inc)
+                               after (if (not (meaningful-change? significantly-modified-graphs graph-id))
+                                       (assoc after :tx-sequence-label (:tx-sequence-label before))
+                                       after)]
+                           (when (and (has-history? system graph-id) (meaningful-change? significantly-modified-graphs graph-id))
+                             (remember-change! system graph-id before after (outputs-modified graph-id)))
+                           (ref-set graph-ref after))))))
+                 (alter (:cache system) c/cache-invalidate outputs-modified)
+                 (alter (:invalidate-counters system) bump-invalidate-counters outputs-modified)
+                 (alter (:user-data system) (fn [user-data]
+                                              (reduce (fn [user-data node-id]
+                                                        (let [graph-id (gt/node-id->graph-id node-id)]
+                                                          (update user-data graph-id dissoc node-id)))
+                                                      user-data (keys nodes-deleted)))))
+        ]
+    (swap! retry-counts update-in [:merge-graphs @retries] (fnil inc 0))
+    result))
 
 (defn basis-graphs-identical? [basis1 basis2]
   (let [graph-ids (keys (:graphs basis1))]
@@ -273,10 +284,14 @@
                             (map (:graphs basis2) graph-ids))))))
 
 (defn default-evaluation-context [system]
-  (dosync
-    (in/default-evaluation-context (basis system)
-                                   (system-cache system)
-                                   @(:invalidate-counters system))))
+  (let [retries (atom 0)
+        ec (dosync
+             (swap! retries inc)
+             (in/default-evaluation-context (basis system)
+                                            (system-cache system)
+                                            @(:invalidate-counters system)))]
+    (swap! retry-counts update-in [:def-eval-ctxt @retries] (fnil inc 0))
+    ec))
 
 (defn custom-evaluation-context
   ;; Basis & cache options:
@@ -291,7 +306,9 @@
   ;; we're using the system basis & cache.
   [system options]
   (assert (not (and (some? (:cache options)) (nil? (:basis options)))))
-  (let [system-options (dosync
+  (let [retries (atom 0)
+        system-options (dosync
+                         (swap! retries inc)
                          {:basis (basis system)
                           :cache (system-cache system)
                           :initial-invalidate-counters @(:invalidate-counters system)})
@@ -305,38 +322,45 @@
                          (some? (:basis options))
                          (basis-graphs-identical? (:basis options) (:basis system-options)))
                     system-options))]
+    (swap! retry-counts update-in [:cust-eval-ctxt @retries] (fnil inc 0))
     (in/custom-evaluation-context options)))
 
 (defn update-cache-from-evaluation-context!
   [system evaluation-context]
-  (dosync
-    ;; We assume here that the evaluation context was created from
-    ;; the system but they may have diverged, making some cache
-    ;; hits/misses invalid.
-    ;; Any change making the hits/misses invalid will have caused an
-    ;; invalidation which we track using an invalidate-counter
-    ;; map. If the cache hit/miss has not been invalidated (counters
-    ;; differ) since the e.c. was created, the hit/miss is safe to
-    ;; use.
-    ;; If the evaluation context was created with an explicit basis
-    ;; that differed from the system basis at the time, there is no
-    ;; initial-invalidate-counters to compare with, and we dont even try to
-    ;; update the cache.
-    (when-let [initial-invalidate-counters (:initial-invalidate-counters evaluation-context)]
-      (let [cache (:cache system)
-            invalidate-counters @(:invalidate-counters system)
-            evaluation-context-hits @(:hits evaluation-context)
-            evaluation-context-misses @(:local evaluation-context)]
-        (if (identical? invalidate-counters initial-invalidate-counters) ; nice case
-          (do (when (seq evaluation-context-hits) (alter cache c/cache-hit evaluation-context-hits))
-              (when (seq evaluation-context-misses) (alter cache c/cache-encache evaluation-context-misses)))
-          (let [invalidated-during-node-value? (fn [node-id+output]
-                                                 (not= (get initial-invalidate-counters node-id+output 0)
-                                                       (get invalidate-counters node-id+output 0)))
-                safe-cache-hits (remove invalidated-during-node-value? evaluation-context-hits)
-                safe-cache-misses (remove (comp invalidated-during-node-value? first) evaluation-context-misses)]
-            (when (seq safe-cache-hits) (alter cache c/cache-hit safe-cache-hits))
-            (when (seq safe-cache-misses) (alter cache c/cache-encache safe-cache-misses))))))))
+  (let [retries (atom 0)
+        res (dosync
+      (swap! retries inc)
+      ;; We assume here that the evaluation context was created from
+      ;; the system but they may have diverged, making some cache
+      ;; hits/misses invalid.
+      ;; Any change making the hits/misses invalid will have caused an
+      ;; invalidation which we track using an invalidate-counter
+      ;; map. If the cache hit/miss has not been invalidated (counters
+      ;; differ) since the e.c. was created, the hit/miss is safe to
+      ;; use.
+      ;; If the evaluation context was created with an explicit basis
+      ;; that differed from the system basis at the time, there is no
+      ;; initial-invalidate-counters to compare with, and we dont even try to
+      ;; update the cache.
+      (when-let [initial-invalidate-counters (:initial-invalidate-counters evaluation-context)]
+        (let [cache (:cache system)
+              invalidate-counters @(:invalidate-counters system)
+              evaluation-context-hits @(:hits evaluation-context)
+              evaluation-context-misses @(:local evaluation-context)]
+          (if (identical? invalidate-counters initial-invalidate-counters) ; nice case
+            (do (when (seq evaluation-context-hits) (alter cache c/cache-hit evaluation-context-hits))
+                (when (seq evaluation-context-misses) (alter cache c/cache-encache evaluation-context-misses)))
+            (let [invalidated-during-node-value? (fn [node-id+output]
+                                                   (not= (get initial-invalidate-counters node-id+output 0)
+                                                         (get invalidate-counters node-id+output 0)))
+                  safe-cache-hits (remove invalidated-during-node-value? evaluation-context-hits)
+                  safe-cache-misses (remove (comp invalidated-during-node-value? first) evaluation-context-misses)]
+              (when (seq safe-cache-hits) (alter cache c/cache-hit safe-cache-hits))
+              (when (seq safe-cache-misses) (alter cache c/cache-encache safe-cache-misses)))))))]
+    
+    (swap! retry-counts update-in [:update-cache @retries] (fnil inc 0))
+    res
+    ))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point

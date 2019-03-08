@@ -243,7 +243,7 @@
           app-view  (setup-app-view! project)]
       [workspace project app-view])))
 
-(defn- load-system-and-project-raw [path]
+(defn load-system-and-project-raw [path]
   (test-support/with-clean-system
     (let [workspace (setup-workspace! world path)
           project (setup-project! workspace)]

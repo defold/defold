@@ -42,3 +42,9 @@
           (let [elapsed (measure [i 20]
                           (drag-pull-outline! node-id box i))]
             (is (< elapsed 12))))))))
+
+(deftest load-project-perf
+  (time
+    (let [[system workspace project]
+          (test-util/load-system-and-project-raw "/Users/erik.angelin/Documents/blossom_blast_saga")])))
+    
