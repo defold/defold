@@ -105,8 +105,8 @@
                (is (empty? (g/overrides main)))))
     (let [[[main sub] [or-main or-sub]] (setup world 1)
           [stray] (ts/tx-nodes (g/make-nodes world
-                                          [stray BaseNode]
-                                          (g/connect stray :_node-id or-main :sub-nodes)))]
+                                             [stray BaseNode]
+                                             (g/connect stray :_node-id or-main :sub-nodes)))]
       (testing "Delete stray node attached to override :cascade-delete"
                (g/transact (g/delete-node main))
                (doseq [nid [main sub or-main or-sub stray]]

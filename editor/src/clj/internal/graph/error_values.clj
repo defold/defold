@@ -36,9 +36,9 @@
 (defn error?
   [x]
   (cond
-    (sequential? x)          (some error? x)
-    (error-value? x)         x
-    :else                    nil))
+    (sequential? x) (some error? x)
+    (error-value? x) x
+    :else nil))
 
 (defn- sev? [level x] (< (or level 0) (or (severity-levels (error-severity x)) 0)))
 
