@@ -386,7 +386,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         		{
         			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
-                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_MSL, resource, resourceOutput, "es", isDebug, soft_fail);
+                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "es", isDebug, soft_fail);
                     if (builder != null)
                     {
                         shaderDescBuilder.addShaders(builder);
