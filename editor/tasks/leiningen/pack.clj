@@ -14,7 +14,7 @@
   {"x86_64-darwin" {"bin" ["dmengine" "dmengine_release"]
                     "lib" ["libparticle_shared.dylib" "libtexc_shared.dylib"]}
    "x86-win32"     {"bin" ["dmengine.exe" "dmengine_release.exe"]
-                    "lib" ["particle_shared.dll" "texc_shared.dll"]}
+                    "lib" ["particle_shared.dll"]}
    "x86_64-win32"  {"bin" ["dmengine.exe" "dmengine_release.exe"]
                     "lib" ["particle_shared.dll" "texc_shared.dll"]}
    "x86_64-linux"  {"bin" ["dmengine" "dmengine_release"]
