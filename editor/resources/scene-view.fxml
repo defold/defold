@@ -2,8 +2,10 @@
 
 <?import javafx.scene.layout.*?>
 
+<?import javafx.scene.control.Label?>
 <AnchorPane id="gl-view-anchor-pane" xmlns="http://javafx.com/javafx/8">
     <children>
+        <Label id="scene-view-info-label" text="Tile Index: 35" AnchorPane.topAnchor="15" AnchorPane.leftAnchor="30" />
         <HBox id="toolbar" AnchorPane.topAnchor="15" AnchorPane.rightAnchor="15" />
     </children>
 </AnchorPane>

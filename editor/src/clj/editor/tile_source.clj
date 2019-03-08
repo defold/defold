@@ -1,35 +1,36 @@
 (ns editor.tile-source
   (:require
-   [clojure.string :as str]
-   [dynamo.graph :as g]
-   [editor.app-view :as app-view]
-   [editor.camera :as camera]
-   [editor.collision-groups :as collision-groups]
-   [editor.graph-util :as gu]
-   [editor.image :as image]
-   [editor.image-util :as image-util]
-   [editor.workspace :as workspace]
-   [editor.resource :as resource]
-   [editor.resource-io :as resource-io]
-   [editor.resource-node :as resource-node]
-   [editor.defold-project :as project]
-   [editor.handler :as handler]
-   [editor.gl :as gl]
-   [editor.gl.shader :as shader]
-   [editor.gl.texture :as texture]
-   [editor.gl.vertex :as vtx]
-   [editor.geom :as geom]
-   [editor.types :as types]
-   [editor.gl.pass :as pass]
-   [editor.pipeline.tex-gen :as tex-gen]
-   [editor.pipeline.texture-set-gen :as texture-set-gen]
-   [editor.properties :as properties]
-   [editor.scene :as scene]
-   [editor.texture-set :as texture-set]
-   [editor.outline :as outline]
-   [editor.protobuf :as protobuf]
-   [editor.util :as util]
-   [editor.validation :as validation])
+    [clojure.string :as str]
+    [dynamo.graph :as g]
+    [editor.app-view :as app-view]
+    [editor.camera :as camera]
+    [editor.collision-groups :as collision-groups]
+    [editor.graph-util :as gu]
+    [editor.image :as image]
+    [editor.image-util :as image-util]
+    [editor.workspace :as workspace]
+    [editor.resource :as resource]
+    [editor.resource-io :as resource-io]
+    [editor.resource-node :as resource-node]
+    [editor.defold-project :as project]
+    [editor.handler :as handler]
+    [editor.gl :as gl]
+    [editor.gl.shader :as shader]
+    [editor.gl.texture :as texture]
+    [editor.gl.vertex :as vtx]
+    [editor.geom :as geom]
+    [editor.types :as types]
+    [editor.gl.pass :as pass]
+    [editor.pipeline.tex-gen :as tex-gen]
+    [editor.pipeline.texture-set-gen :as texture-set-gen]
+    [editor.properties :as properties]
+    [editor.scene :as scene]
+    [editor.texture-set :as texture-set]
+    [editor.outline :as outline]
+    [editor.protobuf :as protobuf]
+    [editor.util :as util]
+    [editor.validation :as validation]
+    [editor.scene-text :as scene-text])
   (:import
    [com.dynamo.tile.proto Tile$TileSet Tile$Playback]
    [com.dynamo.textureset.proto TextureSetProto$TextureSet]
@@ -693,7 +694,8 @@
 
 (g/defnk produce-active-tile
   [cursor-world-pos tile-source-attributes convex-hulls camera viewport]
-  (when (and cursor-world-pos (seq convex-hulls))
+  ; (when (and cursor-world-pos (seq convex-hulls))
+  (when (some? cursor-world-pos)
     (let [{:keys [width height]} tile-source-attributes
           rows (:tiles-per-column tile-source-attributes)
           cols (:tiles-per-row tile-source-attributes)
@@ -702,9 +704,12 @@
           y-border (* scale-y tile-border-size)
           [x y :as tile] (world-pos->tile-pos cursor-world-pos width height x-border y-border)
           convex-hull (nth convex-hulls (+ x (* (- rows y 1) cols)) nil)]
-      (when (and (<= 0 x (dec cols))
+      #_(when (and (<= 0 x (dec cols))
                  (<= 0 y (dec rows))
                  (not (zero? (or (:count convex-hull) 0))))
+        tile)
+      (when (and (<= 0 x (dec cols))
+                 (<= 0 y (dec rows)))
         tile))))
 
 (g/defnk produce-active-tile-idx
@@ -838,7 +843,9 @@
   (output active-tile-idx g/Any :cached produce-active-tile-idx)
   (output selected-collision-group-node g/Any produce-selected-collision-group-node)
   (output renderables pass/RenderData :cached produce-tool-renderables)
-  (output input-handler Runnable :cached (g/constantly handle-input)))
+  (output input-handler Runnable :cached (g/constantly handle-input))
+  (output info-text g/Str (g/fnk [active-tile-idx] (when (some? active-tile-idx)
+                                                         (str "Tile Index: " (+ active-tile-idx 1))))))
 
 (defmethod scene/attach-tool-controller ::ToolController
   [_ tool-id view-id resource-id]

@@ -1068,7 +1068,8 @@
   (output editor-renderables pass/RenderData produce-editor-renderables)
   (output palette-renderables pass/RenderData produce-palette-renderables)
   (output renderables pass/RenderData :cached produce-tool-renderables)
-  (output input-handler Runnable :cached (g/constantly (make-input-handler))))
+  (output input-handler Runnable :cached (g/constantly (make-input-handler)))
+  (output info-text g/Str (g/constantly nil)))
 
 (defmethod scene/attach-tool-controller ::TileMapController
   [_ tool-id view-id resource-id]
