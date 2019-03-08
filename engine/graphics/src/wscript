@@ -8,6 +8,7 @@ def set_options(opt):
     pass
 
 def build(bld):
+    print(bld.env.PLATFORM)
     if bld.env.PLATFORM != 'as3-web':
         obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
                                includes = ['. opengl', '../proto'],
@@ -39,9 +40,14 @@ def build(bld):
                                uselib = 'DDF DLIB',
                                target = 'graphics_vulkan')
 
-    obj.find_sources_in_dirs('. vulkan ../proto/graphics')
+    obj.find_sources_in_dirs('. ../proto/graphics')
+
+    obj.source += ['vulkan/graphics_vulkan.cpp']
 
     if re.match('arm.*?darwin', bld.env.PLATFORM):
+      obj.source += ['vulkan/graphics_vulkan_ios.mm']
+
+    if bld.env.PLATFORM == 'x86_64-darwin':
         obj.source += ['vulkan/graphics_vulkan_osx.mm']
 
     if bld.env.PLATFORM == 'x86_64-linux':
