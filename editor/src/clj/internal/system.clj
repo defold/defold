@@ -104,9 +104,9 @@
   for both the argument and return value."
   [system outputs]
   ;; 'dependencies' takes a map, where outputs is a vec of node-id+label pairs
-  (let [retries (atom 0)
+  (let [retries (AtomicLong. 0)
         cache-entries (dosync
-                        (swap! retries inc)
+                        (.getAndIncrement retries)
                         (let [basis (basis system)
                               cache-entries (->> outputs
                                                  ;; vec -> map, [[node-id label]] -> {node-id #{labels}}
@@ -119,7 +119,7 @@
                           (alter (:cache system) c/cache-invalidate cache-entries)
                           (alter (:invalidate-counters system) bump-invalidate-counters cache-entries)
                           cache-entries))]
-    (swap! retry-counts update-in [:invalidate-outputs @retries] (fnil inc 0))
+    (swap! retry-counts update-in [:invalidate-outputs (.get retries)] (fnil inc 0))
     cache-entries))
 
 (defn step-through-history!
@@ -245,9 +245,9 @@
 
 (defn merge-graphs!
   [system post-tx-graphs significantly-modified-graphs outputs-modified nodes-deleted]
-  (let [retries (atom 0)
+  (let [retries (AtomicLong. 0)
         result (dosync
-                 (swap! retries inc)
+                 (.getAndIncrement retries)
                  (let [outputs-modified (group-by #(gt/node-id->graph-id (first %)) outputs-modified)]
                    (doseq [[graph-id graph] post-tx-graphs]
                      (let [start-tx (:tx-id graph -1)
@@ -273,7 +273,7 @@
                                                           (update user-data graph-id dissoc node-id)))
                                                       user-data (keys nodes-deleted)))))
         ]
-    (swap! retry-counts update-in [:merge-graphs @retries] (fnil inc 0))
+    (swap! retry-counts update-in [:merge-graphs (.get retries)] (fnil inc 0))
     result))
 
 (defn basis-graphs-identical? [basis1 basis2]
@@ -284,13 +284,13 @@
                             (map (:graphs basis2) graph-ids))))))
 
 (defn default-evaluation-context [system]
-  (let [retries (atom 0)
+  (let [retries (AtomicLong. 0)
         ec (dosync
-             (swap! retries inc)
+             (.getAndIncrement retries)
              (in/default-evaluation-context (basis system)
                                             (system-cache system)
                                             @(:invalidate-counters system)))]
-    (swap! retry-counts update-in [:def-eval-ctxt @retries] (fnil inc 0))
+    (swap! retry-counts update-in [:def-eval-ctxt (.get retries)] (fnil inc 0))
     ec))
 
 (defn custom-evaluation-context
@@ -306,9 +306,9 @@
   ;; we're using the system basis & cache.
   [system options]
   (assert (not (and (some? (:cache options)) (nil? (:basis options)))))
-  (let [retries (atom 0)
+  (let [retries (AtomicLong. 0)
         system-options (dosync
-                         (swap! retries inc)
+                         (.getAndIncrement retries)
                          {:basis (basis system)
                           :cache (system-cache system)
                           :initial-invalidate-counters @(:invalidate-counters system)})
@@ -322,14 +322,14 @@
                          (some? (:basis options))
                          (basis-graphs-identical? (:basis options) (:basis system-options)))
                     system-options))]
-    (swap! retry-counts update-in [:cust-eval-ctxt @retries] (fnil inc 0))
+    (swap! retry-counts update-in [:cust-eval-ctxt (.get retries)] (fnil inc 0))
     (in/custom-evaluation-context options)))
 
 (defn update-cache-from-evaluation-context!
   [system evaluation-context]
-  (let [retries (atom 0)
+  (let [retries (AtomicLong. 0)
         res (dosync
-      (swap! retries inc)
+      (.getAndIncrement retries)
       ;; We assume here that the evaluation context was created from
       ;; the system but they may have diverged, making some cache
       ;; hits/misses invalid.
@@ -358,7 +358,7 @@
               (when (seq safe-cache-hits) (alter cache c/cache-hit safe-cache-hits))
               (when (seq safe-cache-misses) (alter cache c/cache-encache safe-cache-misses)))))))]
     
-    (swap! retry-counts update-in [:update-cache @retries] (fnil inc 0))
+    (swap! retry-counts update-in [:update-cache (.get retries)] (fnil inc 0))
     res
     ))
 
