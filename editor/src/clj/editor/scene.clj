@@ -296,9 +296,9 @@
         world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))
         local-transform-unscaled (doto (Matrix4d. local-transform) (.setScale 1.0))
         local-rotation (doto (Quat4d.) (.set local-transform-unscaled))
+        world-translation (math/transform parent-world-transform (math/translation local-transform))
         world-rotation (doto (Quat4d. parent-world-rotation) (.mul local-rotation))
-        world-scale (math/multiply-vector parent-world-scale
-                                          (math/scale local-transform))
+        world-scale (math/multiply-vector parent-world-scale (math/scale local-transform))
         appear-selected? (some? (some selection-set node-id-path)) ; Child nodes appear selected if parent is.
         picking-node-id (or (:picking-node-id scene) (peek node-id-path))
         flat-renderable (-> scene
@@ -309,8 +309,9 @@
                                    :picking-id (alloc-picking-id! picking-node-id)
                                    :tags (:tags renderable)
                                    :render-fn (:render-fn renderable)
-                                   :world-scale world-scale
+                                   :world-translation world-translation
                                    :world-rotation world-rotation
+                                   :world-scale world-scale
                                    :world-transform world-transform
                                    :parent-world-transform parent-world-transform
                                    :selected appear-selected?
