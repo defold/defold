@@ -674,10 +674,11 @@
   (is/user-data @*the-system* node-id key))
 
 (defn user-data! [node-id key value]
-  (is/user-data! @*the-system* node-id key value))
+  (swap! *the-system* is/user-data! node-id key value))
 
 (defn user-data-swap! [node-id key f & args]
-  (apply is/user-data-swap! @*the-system* node-id key f args))
+  (swap! *the-system* (fn [sys] (apply is/user-data-swap! sys node-id key f args)))
+  (user-data node-id key))
 
 (defn invalidate
  "Creates the transaction step to invalidate all the outputs of the node.  It will take effect when the transaction is

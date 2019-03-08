@@ -229,7 +229,7 @@
          :override-id-generator (integer-counter)
          :cache (ref cache)
          :invalidate-counters {}
-         :user-data (ref {})}
+         :user-data {}}
         (attach-graph! initial-graph))))
 
 (defn- has-history? [system graph-id] (not (nil? (graph-history system graph-id))))
@@ -266,12 +266,13 @@
                                            system
                                            post-tx-graphs)]
                    (alter (:cache post-system) c/cache-invalidate outputs-modified)
-                   (alter (:user-data post-system) (fn [user-data]
-                                                     (reduce (fn [user-data node-id]
-                                                               (let [graph-id (gt/node-id->graph-id node-id)]
-                                                                 (update user-data graph-id dissoc node-id)))
-                                                             user-data (keys nodes-deleted))))
-                   (update post-system :invalidate-counters bump-invalidate-counters outputs-modified)))]
+                   (-> post-system
+                       (update :user-data (fn [user-data]
+                                            (reduce (fn [user-data node-id]
+                                                      (let [graph-id (gt/node-id->graph-id node-id)]
+                                                        (update user-data graph-id dissoc node-id)))
+                                                    user-data (keys nodes-deleted))))
+                       (update :invalidate-counters bump-invalidate-counters outputs-modified))))]
     (swap! retry-counts update-in [:merge-graphs (.get retries)] (fnil inc 0))
     result))
 
@@ -375,19 +376,16 @@
 
 (defn user-data [system node-id key]
   (let [graph-id (gt/node-id->graph-id node-id)]
-    (get-in @(:user-data system) [graph-id node-id key])))
+    (get-in (:user-data system) [graph-id node-id key])))
 
 (defn user-data! [system node-id key value]
-  (dosync
-    (let [graph-id (gt/node-id->graph-id node-id)]
-      (alter (:user-data system) assoc-in [graph-id node-id key] value))))
+  (let [graph-id (gt/node-id->graph-id node-id)]
+    (assoc-in system [:user-data graph-id node-id key] value)))
 
 (defn user-data-swap! [system node-id key f & args]
-  (dosync
-    (let [graph-id (gt/node-id->graph-id node-id)
-          path [graph-id node-id key]
-          user-data (apply alter (:user-data system) update-in path f args)]
-      (get-in user-data path))))
+  (let [graph-id (gt/node-id->graph-id node-id)
+        path [graph-id node-id key]]
+    (update-in system [:user-data graph-id node-id key] f args)))
 
 (defn clone-system [system]
   (dosync 
@@ -399,7 +397,7 @@
                           (:id-generators system))
      :override-id-generator (AtomicLong. (.longValue ^AtomicLong (:override-id-generator system)))
      :cache (ref (deref (:cache system)))
-     :user-data (ref (deref (:user-data system)))
+     :user-data (:user-data system)
      :invalidate-counters (:invalidate-counters system)
      :last-graph (:last-graph system)}))
 
@@ -414,6 +412,6 @@
          (= (.longValue ^AtomicLong (:override-id-generator s1))
             (.longValue ^AtomicLong (:override-id-generator s2)))
          (= (deref (:cache s1)) (deref (:cache s2)))
-         (= (deref (:user-data s1)) (deref (:user-data s2)))
+         (= (:user-data s1) (:user-data s2))
          (= (:invalidate-counters s1) (:invalidate-counters s2))
          (= (:last-graph s1) (:last-graph s2)))))
