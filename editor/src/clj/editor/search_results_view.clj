@@ -239,20 +239,18 @@
               (ui/on-double! (fn on-double! [^Event event]
                                (.consume event)
                                (open-selected!)))))
-      (.add progress-indicator))
-
-    ;; Select tab-pane.
-    (let [^TabPane tab-pane (.getParent (.getParent search-results-container))]
-      (.select (.getSelectionModel tab-pane) 3))))
+      (.add progress-indicator))))
 
 (defn make-search-results-view! [view-graph ^AnchorPane search-results-container open-resource-fn]
   (g/make-node! view-graph SearchResultsView
                 :open-resource-fn open-resource-fn
                 :search-results-container search-results-container))
 
-(defn show-search-in-files-dialog! [search-results-view project prefs]
+(defn show-search-in-files-dialog! [search-results-view project prefs show-search-results-tab-fn]
   (let [results-tab-tree-view (make-search-in-files-tree-view)
         progress-indicator (make-search-in-files-progress-indicator)
         open-fn (partial open-resource! search-results-view)
-        show-matches-fn #(update-search-results! search-results-view results-tab-tree-view progress-indicator)]
+        show-matches-fn (fn []
+                          (update-search-results! search-results-view results-tab-tree-view progress-indicator)
+                          (show-search-results-tab-fn))]
     (start-search-in-files! project prefs results-tab-tree-view progress-indicator open-fn show-matches-fn)))
