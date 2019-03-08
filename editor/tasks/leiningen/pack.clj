@@ -31,11 +31,8 @@
     platform))
 
 (def artifacts
-  {"${DYNAMO-HOME}/ext/bin/win32/luajit.exe"          "x86-win32/bin/luajit.exe"
-   "${DYNAMO-HOME}/ext/lib/win32/OpenAL32.dll"        "x86-win32/bin/OpenAL32.dll"
+  {"${DYNAMO-HOME}/ext/lib/win32/OpenAL32.dll"        "x86-win32/bin/OpenAL32.dll"
    "${DYNAMO-HOME}/ext/lib/win32/wrap_oal.dll"        "x86-win32/bin/wrap_oal.dll"
-   "${DYNAMO-HOME}/ext/lib/win32/PVRTexLib.dll"       "x86-win32/lib/PVRTexLib.dll"
-   "${DYNAMO-HOME}/ext/lib/win32/msvcr120.dll"        "x86-win32/lib/msvcr120.dll"
 
    "${DYNAMO-HOME}/ext/bin/x86_64-win32/luajit.exe"    "x86_64-win32/bin/luajit.exe"
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/OpenAL32.dll"  "x86_64-win32/bin/OpenAL32.dll"
@@ -52,12 +49,10 @@
    "$DYNAMO_HOME/ext/bin/x86_64-darwin/glslc"                 "x86_64-darwin/glslc"
    "$DYNAMO_HOME/ext/bin/x86_64-linux/glslc"                  "x86_64-linux/glslc"
    "$DYNAMO_HOME/ext/bin/x86_64-win32/glslc.exe"              "x86_64-win32/glslc.exe"
-   "$DYNAMO_HOME/ext/bin/win32/glslc.exe"                     "x86-win32/glslc.exe"
 
    "$DYNAMO_HOME/ext/bin/x86_64-darwin/spirv-cross"           "x86_64-darwin/spirv-cross"
    "$DYNAMO_HOME/ext/bin/x86_64-linux/spirv-cross"            "x86_64-linux/spirv-cross"
    "$DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe"        "x86_64-win32/spirv-cross.exe"
-   "$DYNAMO_HOME/ext/bin/win32/spirv-cross.exe"               "x86-win32/spirv-cross.exe"
 
    "${DYNAMO-HOME}/ext/share/luajit"                  "shared/luajit"
 
