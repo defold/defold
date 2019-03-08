@@ -50,15 +50,14 @@
 (defn- find-matches [pattern save-data]
   (when-some [lines (line-coll save-data)]
     (into []
-          (comp (keep (fn [{:keys [line row pos]}]
-                        (let [matcher (re-matcher pattern line)]
-                          (when (.matches matcher)
-                            {:line row
-                             :caret-position pos
-                             :match (str (apply str (take-last 24 (string/triml (.group matcher 1))))
-                                         (.group matcher 2)
-                                         (apply str (take 24 (string/trimr (.group matcher 3)))))}))))
-                (take 10))
+          (keep (fn [{:keys [line row pos]}]
+                  (let [matcher (re-matcher pattern line)]
+                    (when (.matches matcher)
+                      {:line row
+                       :caret-position pos
+                       :match (str (apply str (take-last 24 (string/triml (.group matcher 1))))
+                                   (.group matcher 2)
+                                   (apply str (take 24 (string/trimr (.group matcher 3)))))}))))
           lines)))
 
 (defn- save-data-sort-key [entry]

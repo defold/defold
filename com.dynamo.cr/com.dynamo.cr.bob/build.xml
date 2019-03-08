@@ -134,34 +134,30 @@
                     <!-- Symlinks do not seem to make it through this process, so we map from versioned name
                          to the final name. Only files that are matched by either glob below are included in
                          the copy -->
-                    <globmapper from="x86_64-darwin/luajit-2.1.0-beta3-32" to="x86_64-darwin/luajit-32"/>
-                    <globmapper from="x86_64-darwin/luajit-2.1.0-beta3-64" to="x86_64-darwin/luajit-64"/>
-                    <globmapper from="x86_64-linux/luajit-2.1.0-beta3-32" to="x86_64-linux/luajit-32"/>
-                    <globmapper from="x86_64-linux/luajit-2.1.0-beta3-64" to="x86_64-linux/luajit-64"/>
-                    <globmapper from="win32/luajit-32.exe" to="x86-win32/luajit-32.exe"/>
-                    <globmapper from="win32/luajit-64.exe" to="x86-win32/luajit-64.exe"/>
-                    <globmapper from="x86_64-win32/luajit-32.exe" to="x86_64-win32/luajit-32.exe"/>
-                    <globmapper from="x86_64-win32/luajit-64.exe" to="x86_64-win32/luajit-64.exe"/>
+                    <globmapper from="x86_64-darwin/luajit-2.0.5" to="x86_64-darwin/luajit"/>
+                    <globmapper from="x86_64-linux/luajit-2.0.5" to="x86_64-linux/luajit"/>
+                    <globmapper from="win32/luajit.exe" to="x86-win32/luajit.exe"/>
+                    <globmapper from="x86_64-win32/luajit.exe" to="x86_64-win32/luajit.exe"/>
                 </compositemapper>
             </chainedmapper>
             <tarfileset includes="bin/x86_64-linux/**">
                 <gzipresource>
-                    <file file="../../packages/luajit-2.1.0-beta3-x86_64-linux.tar.gz" />
+                    <file file="../../packages/luajit-2.0.5-x86_64-linux.tar.gz" />
                 </gzipresource>
             </tarfileset>
             <tarfileset includes="bin/win32/**">
                 <gzipresource>
-                    <file file="../../packages/luajit-2.1.0-beta3-win32.tar.gz" />
+                    <file file="../../packages/luajit-2.0.5-win32.tar.gz" />
                 </gzipresource>
             </tarfileset>
             <tarfileset includes="bin/x86_64-win32/**">
                 <gzipresource>
-                    <file file="../../packages/luajit-2.1.0-beta3-x86_64-win32.tar.gz" />
+                    <file file="../../packages/luajit-2.0.5-x86_64-win32.tar.gz" />
                 </gzipresource>
             </tarfileset>
             <tarfileset includes="bin/x86_64-darwin/**">
                 <gzipresource>
-                    <file file="../../packages/luajit-2.1.0-beta3-x86_64-darwin.tar.gz" />
+                    <file file="../../packages/luajit-2.0.5-x86_64-darwin.tar.gz" />
                 </gzipresource>
             </tarfileset>
         </copy>
@@ -208,7 +204,7 @@
                 <include name="x86_64-darwin/*texc_shared*"/>
             </fileset>
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="x86_64-darwin/*PVRTexLib*"/>
+                <include name="x86_64-darwin/*PVRTexLib.dylib"/>
             </fileset>
         </copy>
         <copy todir="lib/x86_64-linux" overwrite="true" flatten="true">
@@ -216,7 +212,7 @@
                 <include name="x86_64-linux/*texc_shared*"/>
             </fileset>
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="x86_64-linux/*PVRTexLib*"/>
+                <include name="x86_64-linux/*PVRTexLib.so"/>
             </fileset>
         </copy>
         <copy todir="lib/x86-win32" overwrite="true" flatten="true">
