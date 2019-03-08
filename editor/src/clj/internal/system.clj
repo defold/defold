@@ -116,10 +116,9 @@
                                                  ;; map -> vec
                                                  (into [] (mapcat (fn [[node-id labels]] (mapv #(vector node-id %) labels)))))]
                           (alter (:cache system) c/cache-invalidate cache-entries)
-                          (alter (:invalidate-counters system) bump-invalidate-counters cache-entries)
                           cache-entries))]
     (swap! retry-counts update-in [:invalidate-outputs (.get retries)] (fnil inc 0))
-    cache-entries))
+    (update system :invalidate-counters bump-invalidate-counters cache-entries)))
 
 (defn- step-through-history!
   [step-function system graph-id]
@@ -136,9 +135,9 @@
         system
         (let [{:keys [graph outputs-to-refresh]} (time-warp system (:graph next-state) outputs-to-refresh)]
           (ref-set graph-ref graph)
-          (let [system' (assoc-in system [:history graph-id :tape] tape)]
-            (invalidate-outputs! system' outputs-to-refresh)
-            system'))))))
+          (-> system
+              (assoc-in [:history graph-id :tape] tape)
+              (invalidate-outputs! outputs-to-refresh)))))))
 
 (def undo-history! (partial step-through-history! h/iprev))
 (def cancel-history! (partial step-through-history! h/drop-current))
@@ -229,7 +228,7 @@
          :id-generators {}
          :override-id-generator (integer-counter)
          :cache (ref cache)
-         :invalidate-counters (ref {})
+         :invalidate-counters {}
          :user-data (ref {})}
         (attach-graph! initial-graph))))
 
@@ -267,13 +266,12 @@
                                            system
                                            post-tx-graphs)]
                    (alter (:cache post-system) c/cache-invalidate outputs-modified)
-                   (alter (:invalidate-counters post-system) bump-invalidate-counters outputs-modified)
                    (alter (:user-data post-system) (fn [user-data]
                                                      (reduce (fn [user-data node-id]
                                                                (let [graph-id (gt/node-id->graph-id node-id)]
                                                                  (update user-data graph-id dissoc node-id)))
                                                              user-data (keys nodes-deleted))))
-                   post-system))]
+                   (update post-system :invalidate-counters bump-invalidate-counters outputs-modified)))]
     (swap! retry-counts update-in [:merge-graphs (.get retries)] (fnil inc 0))
     result))
 
@@ -290,7 +288,7 @@
              (.getAndIncrement retries)
              (in/default-evaluation-context (basis system)
                                             (system-cache system)
-                                            @(:invalidate-counters system)))]
+                                            (:invalidate-counters system)))]
     (swap! retry-counts update-in [:def-eval-ctxt (.get retries)] (fnil inc 0))
     ec))
 
@@ -312,7 +310,7 @@
                          (.getAndIncrement retries)
                          {:basis (basis system)
                           :cache (system-cache system)
-                          :initial-invalidate-counters @(:invalidate-counters system)})
+                          :initial-invalidate-counters (:invalidate-counters system)})
         options (merge
                   options
                   (cond
@@ -345,7 +343,7 @@
       ;; update the cache.
       (when-let [initial-invalidate-counters (:initial-invalidate-counters evaluation-context)]
         (let [cache (:cache system)
-              invalidate-counters @(:invalidate-counters system)
+              invalidate-counters (:invalidate-counters system)
               evaluation-context-hits @(:hits evaluation-context)
               evaluation-context-misses @(:local evaluation-context)]
           (if (identical? invalidate-counters initial-invalidate-counters) ; nice case
@@ -402,7 +400,7 @@
      :override-id-generator (AtomicLong. (.longValue ^AtomicLong (:override-id-generator system)))
      :cache (ref (deref (:cache system)))
      :user-data (ref (deref (:user-data system)))
-     :invalidate-counters (ref (deref (:invalidate-counters system)))
+     :invalidate-counters (:invalidate-counters system)
      :last-graph (:last-graph system)}))
 
 (defn system= [s1 s2]
@@ -417,5 +415,5 @@
             (.longValue ^AtomicLong (:override-id-generator s2)))
          (= (deref (:cache s1)) (deref (:cache s2)))
          (= (deref (:user-data s1)) (deref (:user-data s2)))
-         (= (deref (:invalidate-counters s1)) (deref (:invalidate-counters s2)))
+         (= (:invalidate-counters s1) (:invalidate-counters s2))
          (= (:last-graph s1) (:last-graph s2)))))

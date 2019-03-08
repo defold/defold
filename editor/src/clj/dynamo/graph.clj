@@ -952,7 +952,7 @@
   affected by them. Outputs are specified as pairs of [node-id label]
   for both the argument and return value."
   ([outputs]
-    (is/invalidate-outputs! @*the-system* outputs)))
+   (swap! *the-system* is/invalidate-outputs! outputs)))
 
 (defn invalidate-node-outputs!
   [node-id]
