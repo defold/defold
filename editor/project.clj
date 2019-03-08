@@ -127,9 +127,8 @@
                       :release {:jvm-opts          ["-Ddefold.build=release"]}
                       :dev     {:plugins           [[jonase/eastwood "0.3.5" :exclusions [org.clojure/clojure]]]
                                 :dependencies      [[org.clojure/test.check   "0.9.0"]
-                                                    [org.mockito/mockito-core "1.10.19"]
                                                     [org.clojure/tools.trace  "0.7.9"]
-                                                    [com.clojure-goes-fast/clj-async-profiler "0.3.0"]
+                                                    [clj-async-profiler-mg "0.4.0"]
                                                     [criterium "0.4.3"]
                                                     [org.mockito/mockito-core "1.10.19"]
                                                     [ring "1.4.0"]]
@@ -140,9 +139,15 @@
                                                     "-Ddefold.log.dir="
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"
-                                                    ;;"-XX:+UnlockCommercialFeatures"
-                                                    ;;"-XX:+FlightRecorder"
-                                                    "-XX:-OmitStackTraceInFastThrow"]}}
+                                                    ;"-XX:+UnlockCommercialFeatures"
+                                                    ;"-XX:+FlightRecorder"
+                                                    "-XX:-OmitStackTraceInFastThrow"
+
+                                                    ;; Flags for async-profiler.
+                                                    ;; From https://github.com/clojure-goes-fast/clj-async-profiler/blob/master/README.md
+                                                    "-Djdk.attach.allowAttachSelf"   ; Required for attach to running process.
+                                                    "-XX:+UnlockDiagnosticVMOptions" ; Required for DebugNonSafepoints.
+                                                    "-XX:+DebugNonSafepoints"]}}     ; Without this, there is a high chance that simple inlined methods will not appear in the profile.
   :eastwood {:out "eastwood-warnings.txt"
              :continue-on-exception true
              :add-linters [:unused-fn-args
