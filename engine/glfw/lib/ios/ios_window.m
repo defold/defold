@@ -34,6 +34,7 @@
 #import <OpenGLES/ES2/glext.h>
 #import <OpenGLES/EAGLDrawable.h>
 #import <QuartzCore/QuartzCore.h>
+#import <QuartzCore/CAMetalLayer.h>
 
 #include "internal.h"
 #include "platform.h"
@@ -283,6 +284,16 @@ GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate)
 @end
 
 
+@interface VKView : UIView
+@end
+
+@implementation VKView
+
+/** Returns a Metal-compatible layer. */
++(Class) layerClass { return [CAMetalLayer class]; }
+
+@end
+
 /*
 This class wraps the CAEAGLLayer from CoreAnimation into a convenient UIView subclass.
 The view content is basically an EAGL surface you render your OpenGL scene into.
@@ -332,9 +343,16 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 @synthesize context;
 
+/*
 + (Class)layerClass
 {
     return [CAEAGLLayer class];
+}
+*/
+
+/** Returns a Metal-compatible layer. */
++(Class) layerClass {
+    return [CAMetalLayer class];
 }
 
 - (id) init {
@@ -358,12 +376,14 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     _glfwWin.view = self;
     if ((self = [super initWithFrame:frame]))
     {
+        /*
         // Get the layer
         CAEAGLLayer *eaglLayer = (CAEAGLLayer *)self.layer;
 
         eaglLayer.opaque = YES;
         eaglLayer.drawableProperties = [NSDictionary dictionaryWithObjectsAndKeys:
                                         [NSNumber numberWithBool:NO], kEAGLDrawablePropertyRetainedBacking, kEAGLColorFormatRGBA8, kEAGLDrawablePropertyColorFormat, nil];
+        */
 
         displayLink = [[UIScreen mainScreen] displayLinkWithTarget:self selector:@selector(newFrame)];
         [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
@@ -534,6 +554,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
     g_SwapCount++;
 
+    /*
     // NOTE: We poll events above and the application might be iconfied
     // At least when running in frame-rates < 60
     if (!_glfwWin.iconified && g_StartupPhase == COMPLETE)
@@ -545,6 +566,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
         [context presentRenderbuffer:GL_RENDERBUFFER];
     }
+    */
 }
 
 - (void)newFrame
@@ -971,7 +993,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     self.view.autoresizesSubviews = YES;
 
     [self createGlView];
-
     _glfwWin.viewController = self;
 
     float version = [[UIDevice currentDevice].systemVersion floatValue];
@@ -989,6 +1010,8 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 {
     EAGLContext* glContext = nil;
     EAGLContext* glAuxContext = nil;
+
+    /*
     if (glView) {
         // We must recycle the GL context, since the engine will be performing operations
         // (e.g. creating shaders and textures) that depend upon it.
@@ -1003,6 +1026,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     }
     _glfwWin.context = glContext;
     _glfwWin.aux_context = glAuxContext;
+    */
 
     CGRect bounds = self.view.bounds;
     float version = [[UIDevice currentDevice].systemVersion floatValue];
@@ -1032,7 +1056,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     glView.layer.contentsScale = scaleFactor;
     [[self view] insertSubview:glView atIndex:0];
 
-    [glView createFramebuffer];
+    //[glView createFramebuffer];
 }
 
 - (void)updateViewFramesWorkaround
@@ -1165,10 +1189,12 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)viewDidAppear:(BOOL)animated
 {
+    /*
     // NOTE: We rely on an active OpenGL-context as we have no concept of Begin/End rendering
     // As we replace view-controller and view when re-opening the "window" we must ensure that we always
     // have an active context (context is set to nil when view is deallocated)
     [EAGLContext setCurrentContext: glView.context];
+    */
 
     [super viewDidAppear: animated];
 
