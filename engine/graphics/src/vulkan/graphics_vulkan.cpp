@@ -3,7 +3,11 @@
 #include <vectormath/cpp/vectormath_aos.h>
 
 #ifdef __MACH__
-    #define VK_USE_PLATFORM_MACOS_MVK
+    #if (defined(__arm__) || defined(__arm64__))
+        #define VK_USE_PLATFORM_IOS_MVK
+    #else
+        #define VK_USE_PLATFORM_MACOS_MVK
+    #endif
 #elif __linux__
     #define VK_USE_PLATFORM_XCB_KHR
 #endif
@@ -376,12 +380,17 @@ namespace dmGraphics
                     extensionListOut.Push(VK_KHR_SURFACE_EXTENSION_NAME);
                 }
 
-            #if defined(__MACH__)
+            #if defined(VK_USE_PLATFORM_MACOS_MVK)
                 if (strcmp(VK_MVK_MACOS_SURFACE_EXTENSION_NAME, vk_extension_list[i].extensionName) == 0)
                 {
                     extensionListOut.Push(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
                 }
-            #elif (__linux__)
+            #elif defined(VK_USE_PLATFORM_IOS_MVK)
+                if (strcmp(VK_MVK_IOS_SURFACE_EXTENSION_NAME, vk_extension_list[i].extensionName) == 0)
+                {
+                    extensionListOut.Push(VK_MVK_IOS_SURFACE_EXTENSION_NAME);
+                }
+            #elif (VK_USE_PLATFORM_XCB_KHR)
                 if (strcmp(VK_KHR_XCB_SURFACE_EXTENSION_NAME, vk_extension_list[i].extensionName) == 0)
                 {
                     extensionListOut.Push(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
@@ -2328,24 +2337,8 @@ namespace dmGraphics
 
         static void CreateMainRenderResources()
         {
-            const uint8_t pixels[64] = {
-                0,255,0,255,
-                255,255,0,255,
-                0,0,0,255,
-                255,0,0,255,
-                0,255,0,255,
-                255,255,0,255,
-                0,0,0,255,
-                255,0,0,255,
-                0,255,0,255,
-                255,255,0,255,
-                0,0,0,255,
-                255,0,0,255,
-                0,255,0,255,
-                255,255,0,255,
-                0,0,0,255,
-                255,0,0,255
-            };
+            uint8_t pixels[4 * 4 * 4];
+            memset(pixels, 255, sizeof(pixels));
 
             TextureParams params;
             params.m_Format = TEXTURE_FORMAT_RGBA;
@@ -2482,8 +2475,13 @@ namespace dmGraphics
             glfwWrapper::GLFWWindow wnd;
 
             #ifdef __MACH__
-            wnd.ns.view   = glfwGetOSXNSView();
-            wnd.ns.object = glfwGetOSXNSWindow();
+                #if (defined(__arm__) || defined(__arm64__))
+                    wnd.ns.view   = glfwGetiOSUIView();
+                    wnd.ns.object = glfwGetiOSUIWindow();
+                #else
+                    wnd.ns.view   = glfwGetOSXNSView();
+                    wnd.ns.object = glfwGetOSXNSWindow();
+                #endif
             #endif
 
             #ifdef __linux__
@@ -2596,6 +2594,20 @@ namespace dmGraphics
 		    vk_render_pass_begin_info.renderArea.extent   = g_vk_context.m_SwapChainImageExtent;
 		    vk_render_pass_begin_info.clearValueCount     = 0;
 		    vk_render_pass_begin_info.pClearValues        = 0;
+
+            VkClearValue vk_clear_values[2];
+            VK_ZERO_MEMORY(vk_clear_values, sizeof(vk_clear_values));
+
+            vk_clear_values[0].color.float32[0] = 1.0f;
+            vk_clear_values[0].color.float32[1] = 1.0f;
+            vk_clear_values[0].color.float32[2] = 1.0f;
+            vk_clear_values[0].color.float32[3] = 1.0f;
+
+            vk_clear_values[1].depthStencil.depth   = 1.0f;
+            vk_clear_values[1].depthStencil.stencil = 0;
+
+            vk_render_pass_begin_info.clearValueCount = 2;
+            vk_render_pass_begin_info.pClearValues    = vk_clear_values;
 
 		    vkCmdBeginRenderPass(g_vk_context.m_MainCommandBuffers[vk_frame_image], &vk_render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
         }
@@ -2886,6 +2898,7 @@ namespace dmGraphics
     void Flip(HContext context)
     {
         Vulkan::EndFrame();
+        glfwSwapBuffers();
     }
 
     void SetSwapInterval(HContext /*context*/, uint32_t /*swap_interval*/)

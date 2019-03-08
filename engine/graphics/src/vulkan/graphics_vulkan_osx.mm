@@ -1,21 +1,10 @@
 
 #include <vulkan/vulkan.h>
+#include <vulkan/vulkan_macos.h>
 #include "graphics_vulkan_platform.h"
 
 namespace glfwWrapper
 {
-	typedef VkFlags VkMacOSSurfaceCreateFlagsMVK;
-
-	typedef struct VkMacOSSurfaceCreateInfoMVK
-	{
-	    VkStructureType                 sType;
-	    const void*                     pNext;
-	    VkMacOSSurfaceCreateFlagsMVK    flags;
-	    const void*                     pView;
-	} VkMacOSSurfaceCreateInfoMVK;
-
-	typedef VkResult (*PFN_vkCreateMacOSSurfaceMVK)(VkInstance,const VkMacOSSurfaceCreateInfoMVK*,const VkAllocationCallbacks*,VkSurfaceKHR*);
-
     // Taken from GLFW3 source
     VkResult glfwCreateWindowSurface(VkInstance instance,
                                      GLFWWindow* window,

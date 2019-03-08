@@ -3,18 +3,10 @@
 
 // TODO: Fix these includes
 #if defined(__MACH__)
-    #if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
+    #include <objc/objc.h>
+
+    #if !( defined(__arm__) || defined(__arm64__) )
     	#include <Carbon/Carbon.h>
-    #endif
-
-    #if defined(__OBJC__)
-    	#import <Carbon/Carbon.h>
-    #endif
-
-    #if defined(__OBJC__)
-    	#import <Cocoa/Cocoa.h>
-    #else
-    	#include <objc/objc.h>
     #endif
 #endif
 
