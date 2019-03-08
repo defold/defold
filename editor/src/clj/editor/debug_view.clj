@@ -44,8 +44,8 @@
   (when (nil? (next coll)) (first coll)))
 
 (defn- set-debugger-data-visible!
-  [^Parent root visible?]
-  (ui/with-controls root [^Parent right-split ^Parent debugger-data-split]
+  [^Parent right-pane visible?]
+  (ui/with-controls right-pane [^Parent right-split ^Parent debugger-data-split]
     (let [was-visible? (.isVisible debugger-data-split)]
       (when (not= was-visible? visible?)
         (ui/visible! right-split (not visible?))
@@ -55,17 +55,17 @@
   (boolean (some-> resource resource/resource-type :tags (contains? :debuggable))))
 
 (g/defnk update-available-controls!
-  [active-resource debug-session suspension-state root]
+  [active-resource console-grid-pane debug-session right-pane suspension-state]
   (let [frames (:stack suspension-state)
         suspended? (some? frames)
         resource-debuggable? (debuggable-resource? active-resource)
         debug-session? (some? debug-session)]
-    (set-debugger-data-visible! root (and debug-session? resource-debuggable? suspended?))
-    (ui/with-controls root [debugger-prompt debugger-tool-bar]
+    (set-debugger-data-visible! right-pane (and debug-session? resource-debuggable? suspended?))
+    (ui/with-controls console-grid-pane [debugger-prompt debugger-tool-bar]
       (ui/visible! debugger-prompt (and debug-session? suspended?))
       (ui/visible! debugger-tool-bar debug-session?))
     (when debug-session?
-      (ui/with-controls root [debugger-prompt-field pause-debugger-button play-debugger-button step-in-debugger-button step-out-debugger-button step-over-debugger-button]
+      (ui/with-controls console-grid-pane [debugger-prompt-field pause-debugger-button play-debugger-button step-in-debugger-button step-out-debugger-button step-over-debugger-button]
         (ui/visible! pause-debugger-button (not suspended?))
         (ui/visible! play-debugger-button suspended?)
         (ui/enable! pause-debugger-button (not suspended?))
@@ -76,12 +76,12 @@
         (ui/enable! debugger-prompt-field suspended?)))))
 
 (g/defnk update-call-stack!
-  [debug-session suspension-state root]
+  [debug-session suspension-state right-pane]
   ;; NOTE: This should only depend upon stuff that changes due to a state change
   ;; in the debugger, since selecting the top-frame below will open the suspended
   ;; file and line in the editor.
   (when (some? debug-session)
-    (ui/with-controls root [^ListView debugger-call-stack]
+    (ui/with-controls right-pane [^ListView debugger-call-stack]
       (let [frames (:stack suspension-state)
             suspended? (some? frames)
             items (.getItems debugger-call-stack)]
@@ -106,11 +106,13 @@
   (inherits core/Scope)
 
   (property open-resource-fn g/Any)
+  (property show-debugger-controls-fn g/Any)
 
   (property debug-session g/Any)
   (property suspension-state g/Any)
 
-  (property root Parent)
+  (property console-grid-pane Parent)
+  (property right-pane Parent)
   (property scene Scene)
 
   (input active-resource resource/Resource)
@@ -119,13 +121,10 @@
   (output update-call-stack g/Any :cached update-call-stack!)
   (output execution-locations g/Any :cached produce-execution-locations))
 
-
-(defonce view-state (atom nil))
-
 (defn- current-stack-frame
   [debug-view]
-  (let [root (g/node-value debug-view :root)]
-    (ui/with-controls root [^ListView debugger-call-stack]
+  (let [right-pane (g/node-value debug-view :right-pane)]
+    (ui/with-controls right-pane [^ListView debugger-call-stack]
       (first (.. debugger-call-stack getSelectionModel getSelectedIndices)))))
 
 (defn- sanitize-eval-error [error-string]
@@ -244,24 +243,24 @@
     ret))
 
 (defn- setup-controls!
-  [debug-view ^SplitPane root]
-  (ui/with-controls root [console-tool-bar
-                          debugger-call-stack
-                          ^Parent debugger-data-split
-                          ^Parent debugger-prompt
-                          debugger-prompt-field
-                          ^TreeView debugger-variables
-                          ^Parent right-split]
-    ;; debugger data views
-    (.bind (.managedProperty debugger-data-split) (.visibleProperty debugger-data-split))
-    (.bind (.managedProperty right-split) (.visibleProperty right-split))
-
+  [debug-view ^Parent console-grid-pane ^Parent right-pane]
+  (ui/with-controls console-grid-pane [console-tool-bar
+                                       ^Parent debugger-prompt
+                                       debugger-prompt-field]
     ;; tool bar
     (setup-tool-bar! console-tool-bar)
 
     ;; debugger prompt
     (.bind (.managedProperty debugger-prompt) (.visibleProperty debugger-prompt))
-    (ui/on-action! debugger-prompt-field #(on-eval-input debug-view %))
+    (ui/on-action! debugger-prompt-field #(on-eval-input debug-view %)))
+
+  (ui/with-controls right-pane [debugger-call-stack
+                                ^Parent debugger-data-split
+                                ^TreeView debugger-variables
+                                ^Parent right-split]
+    ;; debugger data views
+    (.bind (.managedProperty debugger-data-split) (.visibleProperty debugger-data-split))
+    (.bind (.managedProperty right-split) (.visibleProperty right-split))
 
     ;; call stack
     (setup-call-stack-view! debugger-call-stack)
@@ -276,11 +275,13 @@
                               (.setRoot debugger-variables (make-variables-tree-item
                                                              (:locals selected-frame)
                                                              (:upvalues selected-frame))))))
-    ;; variables
-    (setup-variables-view! debugger-variables)
 
-    (g/set-property! debug-view :root root)
-    nil))
+    ;; variables
+    (setup-variables-view! debugger-variables))
+
+  ;; expose to view node
+  (g/set-property! debug-view :console-grid-pane console-grid-pane :right-pane right-pane)
+  nil)
 
 (defn- file-or-module->resource
   [workspace file]
@@ -353,28 +354,23 @@
   debug-view)
 
 (defn make-view!
-  [app-view view-graph project root scene open-resource-fn]
-  (let [view-id (setup-view! (g/make-node! view-graph DebugView
+  [app-view view-graph project ^Parent root scene open-resource-fn show-debugger-controls-fn]
+  (let [console-grid-pane (.lookup root "#console-grid-pane")
+        right-pane (.lookup root "#right-pane")
+        view-id (setup-view! (g/make-node! view-graph DebugView
                                            :scene scene
-                                           :open-resource-fn (make-open-resource-fn project open-resource-fn))
+                                           :open-resource-fn (make-open-resource-fn project open-resource-fn)
+                                           :show-debugger-controls-fn show-debugger-controls-fn)
                              app-view)
         timer (make-update-timer project view-id)]
-    (setup-controls! view-id root)
+    (setup-controls! view-id console-grid-pane right-pane)
     (ui/timer-start! timer)
-    (reset! view-state {:app-view app-view
-                        :view-graph view-graph
-                        :project project
-                        :root root
-                        :open-resource-fn open-resource-fn
-                        :view-id view-id
-                        :timer timer})
     view-id))
 
-(defn show!
-  [debug-view]
-  (ui/user-data! (g/node-value debug-view :scene) ::ui/refresh-requested? true)
-  (ui/with-controls (g/node-value debug-view :root) [tool-tabs]
-    (ui/select-tab! tool-tabs "console-tab")))
+(defn- show! [debug-view]
+  (let [show-debugger-controls-fn (g/node-value debug-view :show-debugger-controls-fn)]
+    (ui/user-data! (g/node-value debug-view :scene) ::ui/refresh-requested? true)
+    (show-debugger-controls-fn)))
 
 (defn- update-suspension-state!
   [debug-view debug-session]

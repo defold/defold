@@ -181,7 +181,8 @@
                                                       project
                                                       root
                                                       scene
-                                                      open-resource)]
+                                                      open-resource
+                                                      (partial app-view/show-debugger! scene tool-tabs))]
       (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
 
       (when updater
@@ -249,7 +250,8 @@
                          :changes-view        changes-view
                          :main-stage          stage
                          :asset-browser       asset-browser
-                         :debug-view          debug-view}
+                         :debug-view          debug-view
+                         :tool-tab-pane       tool-tabs}
             dynamics {:active-resource [:app-view :active-resource]}]
         (ui/context! root :global context-env (ui/->selection-provider assets) dynamics)
         (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
