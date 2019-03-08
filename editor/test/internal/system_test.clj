@@ -13,18 +13,15 @@
 
 (defn graphs        []    (is/graphs        @g/*the-system*))
 (defn graph         [gid] (is/graph         @g/*the-system* gid))
-(defn graph-ref     [gid] (is/graph-ref     @g/*the-system* gid))
-(defn graph-time    [gid] (is/graph-time    @g/*the-system* gid))
-(defn graph-history [gid] (is/graph-history @g/*the-system* gid))
 
 (defn history-states
   [gid]
-  (let [href (graph-history gid)]
+  (let [href (is/graph-history @g/*the-system* gid)]
     (concat (is/undo-stack href) (is/redo-stack href))))
 
 (defn undo-redo-state?
   [graph undos redos]
-  (let [href (graph-history graph)]
+  (let [href (is/graph-history @g/*the-system* graph)]
     (and (= (map :label (is/undo-stack href)) undos)
          (= (map :label (is/redo-stack href)) redos))))
 
@@ -58,9 +55,9 @@
   (testing "graph time advances with transactions"
     (ts/with-clean-system
       (let [gid       (g/make-graph!)
-            before    (graph-time gid)
+            before    (is/graph-time @g/*the-system* gid)
             tx-report (g/transact (g/make-node gid Root))
-            after     (graph-time gid)]
+            after     (is/graph-time @g/*the-system* gid)]
         (is (= :ok (:status tx-report)))
         (is (< before after))))))
 
@@ -68,10 +65,10 @@
   (testing "undo history is stored only for undoable graphs"
     (ts/with-clean-system
       (let [pgraph-id      (g/make-graph! :history true)
-            before         (graph-time pgraph-id)
+            before         (is/graph-time @g/*the-system* pgraph-id)
             history-before (history-states pgraph-id)
             tx-report      (g/transact (g/make-node pgraph-id Root))
-            after          (graph-time pgraph-id)
+            after          (is/graph-time @g/*the-system* pgraph-id)
             history-after  (history-states pgraph-id)]
         (is (= :ok (:status tx-report)))
         (is (< before after))
@@ -80,21 +77,20 @@
   (testing "transaction labels appear in the history"
     (ts/with-clean-system
       (let [pgraph-id    (g/make-graph! :history true)
-            undos-before (is/undo-stack (graph-history pgraph-id))
+            undos-before (is/undo-stack (is/graph-history @g/*the-system* pgraph-id))
             tx-report    (g/transact [(g/make-node pgraph-id Root)
                                       (g/operation-label "Build root")])
             root         (first (g/tx-nodes-added tx-report))
             tx-report    (g/transact [(g/set-property root :touched 1)
                                       (g/operation-label "Increment touch count")])
-            undos-after  (is/undo-stack (graph-history pgraph-id))
-            redos-after  (is/redo-stack (graph-history pgraph-id))
+            undos-after  (is/undo-stack (is/graph-history @g/*the-system* pgraph-id))
+            redos-after  (is/redo-stack (is/graph-history @g/*the-system* pgraph-id))
             snapshot     @g/*the-system*]
         (is (= ["Build root" "Increment touch count"] (mapv :label undos-after)))
         (is (= []                                     (mapv :label redos-after)))
-        (is/undo-history! snapshot pgraph-id)
-
-        (let [undos-after-undo  (is/undo-stack (graph-history pgraph-id))
-              redos-after-undo  (is/redo-stack (graph-history pgraph-id))]
+        (let [system-after-undo (is/undo-history! snapshot pgraph-id)
+              undos-after-undo  (is/undo-stack (is/graph-history system-after-undo pgraph-id))
+              redos-after-undo  (is/redo-stack (is/graph-history system-after-undo pgraph-id))]
           (is (= ["Build root"]            (mapv :label undos-after-undo)))
           (is (= ["Increment touch count"] (mapv :label redos-after-undo)))))))
 
@@ -542,7 +538,7 @@
 
           (is (= 2 (count (graphs))))
 
-          (is (nil? (graph-ref project-graph-id)))
+          (is (nil? (is/graph-ref @g/*the-system* project-graph-id)))
 
           (is (= (ts/graph-dependencies [[source-a1 :source-label]])
                  #{[sink-a2   :loud]

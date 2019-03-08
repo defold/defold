@@ -136,7 +136,7 @@
         override-id-generator (is/override-id-generator @*the-system*)
         tx-result (it/transact* (it/new-transaction-context basis id-generators override-id-generator) txs)]
     (when (= :ok (:status tx-result))
-      (is/merge-graphs! @*the-system* (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
+      (swap! *the-system* is/merge-graphs! (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
     tx-result))
 
 ;; ---------------------------------------------------------------------------
@@ -1280,8 +1280,7 @@
 
   (undo gid)"
   [graph-id]
-  (let [snapshot @*the-system*]
-    (is/undo-history! snapshot graph-id)))
+  (swap! *the-system* is/undo-history! graph-id))
 
 (defn has-undo?
   "Returns true/false if a `graph-id` has an undo available"
@@ -1300,8 +1299,7 @@
 
   Example: `(redo gid)`"
   [graph-id]
-  (let [snapshot @*the-system*]
-    (is/redo-history! snapshot graph-id)))
+  (swap! *the-system* is/redo-history! graph-id))
 
 (defn has-redo?
   "Returns true/false if a `graph-id` has an redo available"
@@ -1315,7 +1313,7 @@
   Example:
   `(reset-undo! gid)`"
   [graph-id]
-  (is/clear-history! @*the-system* graph-id))
+  (swap! *the-system* is/clear-history! graph-id))
 
 (defn cancel!
   "Given a `graph-id` and a `sequence-id` _cancels_ any sequence of undos on the graph as
@@ -1324,5 +1322,4 @@
   Example:
   `(cancel! gid :a)`"
   [graph-id sequence-id]
-  (let [snapshot @*the-system*]
-    (is/cancel! snapshot graph-id sequence-id)))
+  (swap! *the-system* is/cancel! graph-id sequence-id))
