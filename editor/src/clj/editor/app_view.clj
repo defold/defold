@@ -76,6 +76,66 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private split-info-by-pane-kw
+  {:left {:index 0
+          :pane-id "left-pane"
+          :split-id "main-split"}
+   :right {:index 1
+           :pane-id "right-pane"
+           :split-id "workbench-split"}
+   :bottom {:index 1
+            :pane-id "bottom-pane"
+            :split-id "center-split"}})
+
+(defn- pane-visible? [^Scene main-scene pane-kw]
+  (let [{:keys [pane-id split-id]} (split-info-by-pane-kw pane-kw)]
+    (some? (.lookup main-scene (str "#" split-id " #" pane-id)))))
+
+(defn- set-pane-visible! [^Scene main-scene pane-kw visible?]
+  (let [{:keys [index pane-id split-id]} (split-info-by-pane-kw pane-kw)
+        ^SplitPane split (.lookup main-scene (str "#" split-id))
+        ^Parent pane (.lookup split (str "#" pane-id))]
+    (cond
+      (and (nil? pane) visible?)
+      (let [user-data-key (keyword "hidden-pane" pane-id)
+            {:keys [pane divider-position]} (ui/user-data split user-data-key)
+            divider-index (max 0 (dec index))]
+        (.add (.getItems split) index pane)
+        (.setDividerPosition split divider-index divider-position)
+        (ui/user-data! split user-data-key nil))
+
+      (and (some? pane) (not visible?))
+      (let [user-data-key (keyword "hidden-pane" pane-id)
+            divider-index (max 0 (dec index))
+            divider-position (get (.getDividerPositions split) divider-index)]
+        (.remove (.getItems split) pane)
+        (ui/user-data! split user-data-key {:pane pane :divider-position divider-position})))
+    nil))
+
+(defn- select-tool-tab! [tab-id ^Scene main-scene ^TabPane tool-tab-pane]
+  (let [tabs (.getTabs tool-tab-pane)
+        tab-index (first (keep-indexed (fn [i ^Tab tab] (when (= tab-id (.getId tab)) i)) tabs))]
+    (set-pane-visible! main-scene :bottom true)
+    (if (some? tab-index)
+      (.select (.getSelectionModel tool-tab-pane) ^long tab-index)
+      (throw (ex-info (str "Tab id not found: " tab-id)
+                      {:tab-id tab-id
+                       :tab-ids (mapv #(.getId ^Tab %) tabs)})))))
+
+(def show-console! (partial select-tool-tab! "console-tab"))
+(def show-curve-editor! (partial select-tool-tab! "curve-editor-tab"))
+(def show-build-errors! (partial select-tool-tab! "build-errors-tab"))
+(def show-search-results! (partial select-tool-tab! "search-results-tab"))
+
+(defn show-asset-browser! [main-scene]
+  (set-pane-visible! main-scene :left true))
+
+(defn show-debugger! [main-scene tool-tab-pane]
+  ;; In addition to the controls in the console pane,
+  ;; the right pane is used to display locals.
+  (set-pane-visible! main-scene :right true)
+  (show-console! main-scene tool-tab-pane))
+
 (defn- fire-tab-closed-event! [^Tab tab]
   ;; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
   ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
@@ -357,9 +417,10 @@
   (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane evaluation-context)]
     (.getTabs tab-pane)))
 
-(defn- make-render-build-error
-  [build-errors-view]
-  (fn [errors] (build-errors-view/update-build-errors build-errors-view errors)))
+(defn- make-render-build-error [main-scene tool-tab-pane build-errors-view]
+  (fn [errors]
+    (build-errors-view/update-build-errors build-errors-view errors)
+    (show-build-errors! main-scene tool-tab-pane)))
 
 (defn- make-clear-build-errors
   [build-errors-view]
@@ -601,26 +662,28 @@
         (build-errors-view/clear-build-errors build-errors-view)
         build-results))))
 
-(defn- build-handler [project workspace prefs web-server build-errors-view console-view]
+(defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane]
   (let [project-directory (io/file (workspace/project-path workspace))
-        evaluation-context (g/make-evaluation-context)]
+        evaluation-context (g/make-evaluation-context)
+        main-scene (.getScene ^Stage main-stage)]
     (async-build! project evaluation-context prefs {:debug? false} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
                   (fn [build-results engine-descriptor build-engine-exception]
                     (g/update-cache-from-evaluation-context! evaluation-context)
                     (when (handle-build-results! workspace build-errors-view build-results)
                       (when engine-descriptor
-                        (console/show! console-view)
+                        (show-console! main-scene tool-tab-pane)
                         (launch-built-project! engine-descriptor project-directory prefs web-server false))
                       (when build-engine-exception
                         (log/warn :exception build-engine-exception)
-                        (engine-build-errors/handle-build-error! (make-render-build-error build-errors-view) project evaluation-context build-engine-exception)))))))
+                        (let [render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
+                          (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception))))))))
 
 (handler/defhandler :build :global
   (enabled? [] (not @build-in-progress?))
-  (run [project workspace prefs web-server build-errors-view console-view debug-view]
+  (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane]
     (debug-view/detach! debug-view)
-    (build-handler project workspace prefs web-server build-errors-view console-view)))
+    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane)))
 
 (defn- debugging-supported?
   [project]
@@ -635,7 +698,7 @@ If you do not specifically require different script states, consider changing th
   (enabled? [debug-view evaluation-context]
             (and (not @build-in-progress?)
                  (nil? (debug-view/current-session debug-view evaluation-context))))
-  (run [project workspace prefs web-server build-errors-view console-view debug-view]
+  (run [project workspace prefs web-server build-errors-view console-view debug-view main-stage tool-tab-pane]
     (when (debugging-supported? project)
       (let [project-directory (io/file (workspace/project-path workspace))
             evaluation-context (g/make-evaluation-context)]
@@ -650,7 +713,9 @@ If you do not specifically require different script states, consider changing th
                                 (debug-view/start-debugger! debug-view project (:address target "localhost")))))
                           (when build-engine-exception
                             (log/warn :exception build-engine-exception)
-                            (engine-build-errors/handle-build-error! (make-render-build-error build-errors-view) project evaluation-context build-engine-exception)))))))))
+                            (let [main-scene (.getScene ^Stage main-stage)
+                                  render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
+                              (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception))))))))))
 
 (handler/defhandler :attach-debugger :global
   (enabled? [debug-view prefs evaluation-context]
@@ -673,15 +738,16 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :rebuild :global
   (enabled? [] (not @build-in-progress?))
-  (run [project workspace prefs web-server build-errors-view console-view debug-view]
+  (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane]
     (debug-view/detach! debug-view)
     (workspace/clear-build-cache! workspace)
-    (build-handler project workspace prefs web-server build-errors-view console-view)))
+    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane)))
 
 (handler/defhandler :build-html5 :global
-  (run [project prefs web-server build-errors-view changes-view]
-    (let [clear-errors! (make-clear-build-errors build-errors-view)
-          render-build-error! (make-render-build-error build-errors-view)
+  (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]
+    (let [main-scene (.getScene ^Stage main-stage)
+          clear-errors! (make-clear-build-errors build-errors-view)
+          render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
           render-reload-progress! (make-render-task-progress :resource-sync)
           render-save-progress! (make-render-task-progress :save-all)
           render-build-progress! (make-render-task-progress :build)
@@ -996,7 +1062,18 @@ If you do not specifically require different script states, consider changing th
                               :id ::edit-end}]}
                  {:label "View"
                   :id ::view
-                  :children [{:label "Show Console"
+                  :children [{:label "Assets Pane"
+                              :command :show-pane-left
+                              :check true}
+                             {:label "Tools Pane"
+                              :command :show-pane-bottom
+                              :check true}
+                             {:label "Properties Pane"
+                              :command :show-pane-right
+                              :check true}
+                             {:label :separator
+                              :id ::view-end}
+                             {:label "Show Console"
                               :command :show-console}
                              {:label "Show Curve Editor"
                               :command :show-curve-editor}
@@ -1448,27 +1525,35 @@ If you do not specifically require different script states, consider changing th
                                                       (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
-(defn- select-tool-tab! [app-view tab-id]
-  (let [^TabPane tool-tab-pane (g/node-value app-view :tool-tab-pane)
-        tabs (.getTabs tool-tab-pane)
-        tab-index (first (keep-indexed (fn [i ^Tab tab] (when (= tab-id (.getId tab)) i)) tabs))]
-    (if (some? tab-index)
-      (.select (.getSelectionModel tool-tab-pane) ^long tab-index)
-      (throw (ex-info (str "Tab id not found: " tab-id)
-                      {:tab-id tab-id
-                       :tab-ids (mapv #(.getId ^Tab %) tabs)})))))
+(handler/defhandler :show-pane-left :global
+  (state [^Stage main-stage] (pane-visible? (.getScene main-stage) :left))
+  (run [^Stage main-stage]
+       (let [main-scene (.getScene main-stage)]
+         (set-pane-visible! main-scene :left (not (pane-visible? main-scene :left))))))
+
+(handler/defhandler :show-pane-right :global
+  (state [^Stage main-stage] (pane-visible? (.getScene main-stage) :right))
+  (run [^Stage main-stage]
+       (let [main-scene (.getScene main-stage)]
+         (set-pane-visible! main-scene :right (not (pane-visible? main-scene :right))))))
+
+(handler/defhandler :show-pane-bottom :global
+  (state [^Stage main-stage] (pane-visible? (.getScene main-stage) :bottom))
+  (run [^Stage main-stage]
+       (let [main-scene (.getScene main-stage)]
+         (set-pane-visible! main-scene :bottom (not (pane-visible? main-scene :bottom))))))
 
 (handler/defhandler :show-console :global
-  (run [app-view] (select-tool-tab! app-view "console-tab")))
+  (run [^Stage main-stage tool-tab-pane] (show-console! (.getScene main-stage) tool-tab-pane)))
 
 (handler/defhandler :show-curve-editor :global
-  (run [app-view] (select-tool-tab! app-view "curve-editor-tab")))
+  (run [^Stage main-stage tool-tab-pane] (show-curve-editor! (.getScene main-stage) tool-tab-pane)))
 
 (handler/defhandler :show-build-errors :global
-  (run [app-view] (select-tool-tab! app-view "build-errors-tab")))
+  (run [^Stage main-stage tool-tab-pane] (show-build-errors! (.getScene main-stage) tool-tab-pane)))
 
 (handler/defhandler :show-search-results :global
-  (run [app-view] (select-tool-tab! app-view "search-results-tab")))
+  (run [^Stage main-stage tool-tab-pane] (show-search-results! (.getScene main-stage) tool-tab-pane)))
 
 (defn- put-on-clipboard!
   [s]
@@ -1570,17 +1655,20 @@ If you do not specifically require different script states, consider changing th
       (query-and-open! workspace project app-view prefs term))))
 
 (handler/defhandler :search-in-files :global
-  (run [project app-view prefs search-results-view]
+  (run [project app-view prefs search-results-view main-stage tool-tabs-pane]
     (when-let [term (get-view-text-selection (g/node-value app-view :active-view-info))]
       (search-results-view/set-search-term! prefs term))
-    (search-results-view/show-search-in-files-dialog! search-results-view project prefs)))
+    (let [main-scene (.getScene ^Stage main-stage)
+          show-search-results-tab! (partial show-search-results! main-scene tool-tabs-pane)]
+      (search-results-view/show-search-in-files-dialog! search-results-view project prefs show-search-results-tab!))))
 
-(defn- bundle! [changes-view build-errors-view project prefs platform bundle-options]
+(defn- bundle! [main-stage tool-tab-pane changes-view build-errors-view project prefs platform bundle-options]
   (g/user-data! project :last-bundle-options (assoc bundle-options :platform-key platform))
   (console/clear-console!)
-  (let [output-directory ^File (:output-directory bundle-options)
+  (let [main-scene (.getScene ^Stage main-stage)
+        output-directory ^File (:output-directory bundle-options)
         clear-errors! (make-clear-build-errors build-errors-view)
-        render-build-error! (make-render-build-error build-errors-view)
+        render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
         render-reload-progress! (make-render-task-progress :resource-sync)
         render-save-progress! (make-render-task-progress :save-all)
         render-build-progress! (make-render-task-progress :build)
@@ -1597,18 +1685,18 @@ If you do not specifically require different script states, consider changing th
                                  (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again.")))))))
 
 (handler/defhandler :bundle :global
-  (run [user-data workspace project prefs app-view changes-view build-errors-view]
+  (run [user-data workspace project prefs app-view changes-view build-errors-view main-stage tool-tab-pane]
     (let [owner-window (g/node-value app-view :stage)
           platform (:platform user-data)
-          bundle! (partial bundle! changes-view build-errors-view project prefs platform)]
+          bundle! (partial bundle! main-stage tool-tab-pane changes-view build-errors-view project prefs platform)]
       (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
 
 (handler/defhandler :rebundle :global
   (enabled? [project] (some? (g/user-data project :last-bundle-options)))
-  (run [workspace project prefs app-view changes-view build-errors-view]
+  (run [workspace project prefs app-view changes-view build-errors-view main-stage tool-tab-pane]
     (let [last-bundle-options (g/user-data project :last-bundle-options)
           platform (:platform-key last-bundle-options)]
-      (bundle! changes-view build-errors-view project prefs platform last-bundle-options))))
+      (bundle! main-stage tool-tab-pane changes-view build-errors-view project prefs platform last-bundle-options))))
 
 (defn- fetch-libraries [workspace project dashboard-client changes-view]
   (let [library-uris (project/project-dependencies project)
@@ -1665,13 +1753,15 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :sign-ios-app :global
   (active? [] (util/is-mac-os?))
-  (run [workspace project prefs dashboard-client build-errors-view]
+  (run [workspace project prefs dashboard-client build-errors-view main-stage tool-tab-pane]
     (build-errors-view/clear-build-errors build-errors-view)
     (let [result (bundle/make-sign-dialog workspace prefs dashboard-client project)]
       (when-let [error (:error result)]
         (g/with-auto-evaluation-context evaluation-context
-          (if (engine-build-errors/handle-build-error! (make-render-build-error build-errors-view) project evaluation-context error)
-            (dialogs/make-alert-dialog "Failed to build ipa with Native Extensions. Please fix build errors and try again.")
-            (do (error-reporting/report-exception! error)
-                (when-let [message (:message result)]
-                  (dialogs/make-alert-dialog message)))))))))
+          (let [main-scene (.getScene ^Stage main-stage)
+                render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
+            (if (engine-build-errors/handle-build-error! render-build-error! project evaluation-context error)
+              (dialogs/make-alert-dialog "Failed to build ipa with Native Extensions. Please fix build errors and try again.")
+              (do (error-reporting/report-exception! error)
+                  (when-let [message (:message result)]
+                    (dialogs/make-alert-dialog message))))))))))
