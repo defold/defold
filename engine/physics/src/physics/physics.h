@@ -1010,6 +1010,24 @@ namespace dmPhysics
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request);
 
     /**
+     * Request a synchronous ray cast
+     *
+     * @param world Physics world in which to perform the ray cast
+     * @param request Struct containing data for the query
+     * @param response Struct receiving the output data from the query
+     */
+    void RayCast3D(HWorld3D world, const RayCastRequest& request, RayCastResponse& response);
+
+    /**
+     * Request a synchronous ray cast
+     *
+     * @param world Physics world in which to perform the ray cast
+     * @param request Struct containing data for the query
+     * @param response Struct receiving the output data from the query
+     */
+    void RayCast2D(HWorld2D world, const RayCastRequest& request, RayCastResponse& response);
+
+    /**
      * Callbacks used to draw the world for debugging purposes.
      */
     struct DebugCallbacks

@@ -5,6 +5,11 @@
 
 #include <gameobject/gameobject.h>
 
+namespace dmPhysics {
+    struct RayCastRequest;
+    struct RayCastResponse;
+}
+
 namespace dmGameSystem
 {
     dmGameObject::CreateResult CompCollisionObjectNewWorld(const dmGameObject::ComponentNewWorldParams& params);
@@ -32,6 +37,10 @@ namespace dmGameSystem
     dmGameObject::PropertyResult CompCollisionObjectSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
 
     uint16_t CompCollisionGetGroupBitIndex(void* world, uint64_t group_hash);
+
+    // For script_physics.cpp
+    void RayCast(void* world, const dmPhysics::RayCastRequest& request, dmPhysics::RayCastResponse& response);
+    dmhash_t CompCollisionObjectGetIdentifier(void* component);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H

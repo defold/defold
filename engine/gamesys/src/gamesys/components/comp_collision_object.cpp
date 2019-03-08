@@ -1076,4 +1076,23 @@ namespace dmGameSystem
     {
         return GetGroupBitIndex((CollisionWorld*)world, group_hash);
     }
+
+    void RayCast(void* _world, const dmPhysics::RayCastRequest& request, dmPhysics::RayCastResponse& response)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        if (world->m_3D)
+        {
+            dmPhysics::RayCast3D(world->m_World3D, request, response);
+        }
+        else
+        {
+            dmPhysics::RayCast2D(world->m_World2D, request, response);
+        }
+    }
+
+    dmhash_t CompCollisionObjectGetIdentifier(void* _component)
+    {
+        CollisionComponent* component = (CollisionComponent*)_component;
+        return dmGameObject::GetIdentifier(component->m_Instance);
+    }
 }

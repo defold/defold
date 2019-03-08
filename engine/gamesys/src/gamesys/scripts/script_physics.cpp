@@ -14,6 +14,7 @@
 #include "components/comp_collision_object.h"
 
 #include "script_physics.h"
+#include <physics/physics.h>
 
 extern "C"
 {
@@ -171,10 +172,11 @@ namespace dmGameSystem
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
      * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
-     * @param [request_id] [type:number] a number between 0-255 that will be sent back in the response for identification, 0 by default
+     * @param [request_id] [type:number] a number between [-1,-255]. If -1, it is a synchronous ray cast. If >= 0 it will be sent back in the response for identification, 0 by default
+     * @return [type:table] If synchronous and successful, it returns a table. If asynchronous it returns nil. See `ray_cast_response` for details on the returned values.
      * @examples
      *
-     * How to perform a ray cast:
+     * How to perform a ray cast asynchronously:
      *
      * ```lua
      * function init(self)
@@ -195,52 +197,103 @@ namespace dmGameSystem
      *     end
      * end
      * ```
+     *
+     * How to perform a ray cast synchronously:
+     *
+     * ```lua
+     * function init(self)
+     *     self.my_groups = {hash("my_group1"), hash("my_group2")}
+     * end
+     *
+     * function update(self, dt)
+     *     -- request ray cast
+     *     local result = physics.ray_cast(my_start, my_end, self.my_groups)
+     *     if result ~= nil then
+     *         -- act on the hit (see 'ray_cast_response')
+     *     end
+     * end
+     * ```
      */
     int Physics_RayCast(lua_State* L)
     {
         int top = lua_gettop(L);
 
         dmMessage::URL sender;
-
-        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
-
         if (!dmScript::GetURL(L, &sender)) {
             return luaL_error(L, "could not find a requesting instance for physics.ray_cast");
         }
-        dmPhysicsDDF::RequestRayCast request;
-        request.m_From = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 1));
-        request.m_To = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 2));
-        request.m_Mask = 0;
-        luaL_checktype(L, 3, LUA_TTABLE);
 
         lua_getglobal(L, PHYSICS_CONTEXT_NAME);
         PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
         lua_pop(L, 1);
 
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
         void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
 
+        Vectormath::Aos::Point3 from( *dmScript::CheckVector3(L, 1) );
+        Vectormath::Aos::Point3 to( *dmScript::CheckVector3(L, 2) );
+
+        uint32_t mask = 0;
+        luaL_checktype(L, 3, LUA_TTABLE);
         lua_pushnil(L);
         while (lua_next(L, 3) != 0)
         {
-            request.m_Mask |= CompCollisionGetGroupBitIndex(world, dmScript::CheckHash(L, -1));
+            mask |= CompCollisionGetGroupBitIndex(world, dmScript::CheckHash(L, -1));
             lua_pop(L, 1);
         }
-        request.m_RequestId = 0;
+
+        int request_id = 0;
         if (top > 3)
         {
-            request.m_RequestId = luaL_checkinteger(L, 4);
-            if (request.m_RequestId > 255)
+            request_id = luaL_checkinteger(L, 4);
+            if (request_id < -1 || request_id > 255)
             {
-                return luaL_error(L, "request_id must be between 0-255");
+                return luaL_error(L, "request_id must be between -1-255");
             }
         }
-        dmMessage::URL receiver;
-        dmMessage::ResetURL(receiver);
-        receiver.m_Socket = context->m_Socket;
-        dmMessage::Post(&sender, &receiver, dmPhysicsDDF::RequestRayCast::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmPhysicsDDF::RequestRayCast::m_DDFDescriptor, &request, sizeof(dmPhysicsDDF::RequestRayCast), 0);
-        assert(top == lua_gettop(L));
-        return 0;
+
+        if (request_id >= 0) { // Asynchronous
+            dmPhysicsDDF::RequestRayCast request;
+            request.m_From = from;
+            request.m_To = to;
+            request.m_Mask = mask;
+            request.m_RequestId = request_id;
+
+            dmMessage::URL receiver;
+            dmMessage::ResetURL(receiver);
+            receiver.m_Socket = context->m_Socket;
+            dmMessage::Post(&sender, &receiver, dmPhysicsDDF::RequestRayCast::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmPhysicsDDF::RequestRayCast::m_DDFDescriptor, &request, sizeof(dmPhysicsDDF::RequestRayCast), 0);
+            lua_pushnil(L);
+        } else { // Synchronous
+            dmPhysics::RayCastRequest request;
+            dmPhysics::RayCastResponse response;
+            request.m_From = from;
+            request.m_To = to;
+            request.m_Mask = mask;
+            dmGameSystem::RayCast(world, request, response);
+
+            if (response.m_Hit) {
+                lua_newtable(L);
+                lua_pushnumber(L, response.m_Fraction);
+                lua_setfield(L, -2, "fraction");
+                dmScript::PushVector3(L, Vectormath::Aos::Vector3(response.m_Position));
+                lua_setfield(L, -2, "position");
+                dmScript::PushVector3(L, response.m_Normal);
+                lua_setfield(L, -2, "normal");
+                lua_pushnumber(L, (int)response.m_CollisionObjectGroup);
+                lua_setfield(L, -2, "group");
+
+                dmhash_t id = dmGameSystem::CompCollisionObjectGetIdentifier(response.m_CollisionObjectUserData);
+                dmScript::PushHash(L, id);
+                lua_setfield(L, -2, "id");
+            } else {
+                lua_pushnil(L);
+            }
+        }
+
+        assert(top+1 == lua_gettop(L));
+        return 1;
     }
 
     static const luaL_reg PHYSICS_FUNCTIONS[] =
@@ -317,4 +370,3 @@ namespace dmGameSystem
 }
 
 #undef PHYSICS_CONTEXT_NAME
-#undef COLLISION_OBJECT_EXT

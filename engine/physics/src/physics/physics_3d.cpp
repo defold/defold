@@ -945,6 +945,31 @@ namespace dmPhysics
         }
     }
 
+    void RayCast3D(HWorld3D world, const RayCastRequest& request, RayCastResponse& out_response)
+    {
+        DM_PROFILE(Physics, "RayCasts");
+        float scale = world->m_Context->m_Scale;
+
+        btVector3 from;
+        ToBt(request.m_From, from, scale);
+        btVector3 to;
+        ToBt(request.m_To, to, scale);
+        ProcessRayCastResultCallback3D result_callback(from, to, request.m_Mask, request.m_IgnoredUserData);
+        world->m_DynamicsWorld->rayTest(from, to, result_callback);
+        RayCastResponse response;
+        response.m_Hit = result_callback.hasHit() ? 1 : 0;
+        response.m_Fraction = result_callback.m_closestHitFraction;
+        float inv_scale = world->m_Context->m_InvScale;
+        FromBt(result_callback.m_hitPointWorld, response.m_Position, inv_scale);
+        FromBt(result_callback.m_hitNormalWorld, response.m_Normal, 1.0f); // don't scale normal
+        if (result_callback.m_collisionObject != 0x0)
+        {
+            response.m_CollisionObjectUserData = result_callback.m_collisionObject->getUserPointer();
+            response.m_CollisionObjectGroup = result_callback.m_collisionObject->getBroadphaseHandle()->m_collisionFilterGroup;
+        }
+        out_response = response;
+    }
+
     void SetDebugCallbacks3D(HContext3D context, const DebugCallbacks& callbacks)
     {
         context->m_DebugCallbacks = callbacks;
