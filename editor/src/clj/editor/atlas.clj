@@ -278,7 +278,6 @@
 
 (defn render-animation
   [^GL2 gl render-args renderables n]
-  (assert (= (:pass render-args) pass/overlay))
   (texture-set/render-animation-overlay gl render-args renderables n ->texture-vtx atlas-shader))
 
 (g/defnk produce-animation-updatable
