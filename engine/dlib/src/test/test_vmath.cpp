@@ -1,5 +1,5 @@
 #define JC_TEST_IMPLEMENTATION
-#include <jc/test.h>
+#include <jc_test/jc_test.h>
 #include "dlib/vmath.h"
 
 const float epsilon = 0.0001f;

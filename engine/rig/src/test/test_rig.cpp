@@ -1,5 +1,5 @@
 #define JC_TEST_IMPLEMENTATION
-#include <jc/test.h>
+#include <jc_test/jc_test.h>
 #include <dlib/log.h>
 
 #include <../rig.h>

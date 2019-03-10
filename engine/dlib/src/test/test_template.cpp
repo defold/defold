@@ -4,7 +4,7 @@
 #include <vector>
 #include <string>
 #define JC_TEST_IMPLEMENTATION
-#include <jc/test.h>
+#include <jc_test/jc_test.h>
 #include "../dlib/template.h"
 
 const char* MapReplace(void* user_data, const char* key)

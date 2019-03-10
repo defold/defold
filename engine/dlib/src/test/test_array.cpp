@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 #define JC_TEST_IMPLEMENTATION
-#include <jc/test.h>
+#include <jc_test/jc_test.h>
 
 const uint32_t array_size = 32;
 const uint32_t array_size_test_offset = 7;

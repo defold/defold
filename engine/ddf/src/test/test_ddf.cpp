@@ -5,7 +5,7 @@
 #include <fstream>
 #include <vector>
 #define JC_TEST_IMPLEMENTATION
-#include <jc/test.h>
+#include <jc_test/jc_test.h>
 
 #ifdef _WIN32
 #include <io.h>

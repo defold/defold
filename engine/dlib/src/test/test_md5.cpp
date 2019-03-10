@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #define JC_TEST_IMPLEMENTATION
-#include <jc/test.h>
+#include <jc_test/jc_test.h>
 #include "../dlib/md5.h"
 
 static void ASSERT_MD5(uint8_t* expected, const dmMD5::Digest& d)

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string>
 #define JC_TEST_IMPLEMENTATION
-#include <jc/test.h>
+#include <jc_test/jc_test.h>
 #include "../dlib/atomic.h"
 #include "../dlib/thread.h"
 #include "../dlib/log.h"

@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #define JC_TEST_IMPLEMENTATION
-#include <jc/test.h>
+#include <jc_test/jc_test.h>
 #include "../sound.h"
 
 // Basically just testing that the linkage works

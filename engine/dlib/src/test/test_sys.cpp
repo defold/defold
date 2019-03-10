@@ -4,7 +4,7 @@
 #include <sys/stat.h>
 #include <string>
 #define JC_TEST_IMPLEMENTATION
-#include <jc/test.h>
+#include <jc_test/jc_test.h>
 #include "../dlib/sys.h"
 #include "../dlib/path.h"
 #include "../dlib/log.h"

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <jc/test.h>
+#include <jc_test/jc_test.h>
 
 #include <resource/resource.h>
 

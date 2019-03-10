@@ -1,6 +1,6 @@
 #include <stdint.h>
 #define JC_TEST_IMPLEMENTATION
-#include <jc/test.h>
+#include <jc_test/jc_test.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include "render/render.h"

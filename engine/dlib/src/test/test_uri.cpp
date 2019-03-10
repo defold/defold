@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <string.h>
 #define JC_TEST_IMPLEMENTATION
-#include <jc/test.h>
+#include <jc_test/jc_test.h>
 #include "dlib/uri.h"
 #include "dlib/path.h"
 

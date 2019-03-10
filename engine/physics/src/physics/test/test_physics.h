@@ -5,7 +5,7 @@
 #include "../physics.h"
 #include "../physics_2d.h"
 #include "../physics_3d.h"
-#include <jc/test.h>
+#include <jc_test/jc_test.h>
 
 struct VisualObject
 {
