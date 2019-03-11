@@ -96,15 +96,6 @@ namespace dmGui
         return scene;
     }
 
-    static int GuiScriptInstance_gc (lua_State *L)
-    {
-        Scene* i = GuiScriptInstance_Check(L, 1);
-        memset(i, 0, sizeof(*i));
-        (void) i;
-        assert(i);
-        return 0;
-    }
-
     static int GuiScriptInstance_tostring (lua_State *L)
     {
         lua_pushfstring(L, "GuiScript: %p", lua_touserdata(L, 1));
@@ -113,7 +104,7 @@ namespace dmGui
 
     static int GuiScriptInstance_index(lua_State *L)
     {
-        Scene* i = GuiScriptInstance_Check(L, 1);
+        Scene* i = (Scene*)lua_touserdata(L, 1);
         assert(i);
 
         // Try to find value in instance data
@@ -127,7 +118,7 @@ namespace dmGui
     {
         int top = lua_gettop(L);
 
-        Scene* i = GuiScriptInstance_Check(L, 1);
+        Scene* i = (Scene*)lua_touserdata(L, 1);
         assert(i);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_DataReference);
@@ -184,7 +175,6 @@ namespace dmGui
 
     static const luaL_reg GuiScriptInstance_meta[] =
     {
-        {"__gc",                                        GuiScriptInstance_gc},
         {"__tostring",                                  GuiScriptInstance_tostring},
         {"__index",                                     GuiScriptInstance_index},
         {"__newindex",                                  GuiScriptInstance_newindex},
@@ -240,11 +230,6 @@ namespace dmGui
         return 0; // Never reached
     }
 
-    static int NodeProxy_gc (lua_State *L)
-    {
-        return 0;
-    }
-
     static int NodeProxy_tostring (lua_State *L)
     {
         DM_LUA_STACK_CHECK(L,1);
@@ -294,7 +279,7 @@ namespace dmGui
 
     static int NodeProxy_index(lua_State *L)
     {
-        InternalNode* n = LuaCheckNode(L, 1, 0);
+        InternalNode* n = (InternalNode*)lua_touserdata(L, 1);
         (void)n;
 
         const char* key = luaL_checkstring(L, 2);
@@ -350,7 +335,6 @@ namespace dmGui
 
     static const luaL_reg NodeProxy_meta[] =
     {
-        {"__gc",       NodeProxy_gc},
         {"__tostring", NodeProxy_tostring},
         {"__index",    NodeProxy_index},
         {"__newindex", NodeProxy_newindex},

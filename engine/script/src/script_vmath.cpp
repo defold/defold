@@ -222,15 +222,6 @@ namespace dmScript
         return (Vectormath::Aos::Vector3*)GetUserData(L, index, SCRIPT_TYPE_NAME_VECTOR3);
     }
 
-    static int Vector3_gc(lua_State *L)
-    {
-        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
-        memset(v, 0, sizeof(*v));
-        (void) v;
-        assert(v);
-        return 0;
-    }
-
     static int Vector3_tostring(lua_State *L)
     {
         Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
@@ -354,7 +345,6 @@ namespace dmScript
     };
     static const luaL_reg Vector3_meta[] =
     {
-        {"__gc",        Vector3_gc},
         {"__tostring",  Vector3_tostring},
         {"__index",     Vector3_index},
         {"__newindex",  Vector3_newindex},
@@ -370,15 +360,6 @@ namespace dmScript
     Vectormath::Aos::Vector4* ToVector4(lua_State *L, int index)
     {
         return (Vectormath::Aos::Vector4*)GetUserData(L, index, SCRIPT_TYPE_NAME_VECTOR4);
-    }
-
-    static int Vector4_gc(lua_State *L)
-    {
-        Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
-        memset(v, 0, sizeof(*v));
-        (void) v;
-        assert(v);
-        return 0;
     }
 
     static int Vector4_tostring(lua_State *L)
@@ -513,7 +494,6 @@ namespace dmScript
     };
     static const luaL_reg Vector4_meta[] =
     {
-        {"__gc",        Vector4_gc},
         {"__tostring",  Vector4_tostring},
         {"__index",     Vector4_index},
         {"__newindex",  Vector4_newindex},
@@ -529,15 +509,6 @@ namespace dmScript
     Vectormath::Aos::Quat* ToQuat(lua_State *L, int index)
     {
         return (Vectormath::Aos::Quat*)GetUserData(L, index, SCRIPT_TYPE_NAME_QUAT);
-    }
-
-    static int Quat_gc(lua_State *L)
-    {
-        Vectormath::Aos::Quat* q = CheckQuat(L, 1);
-        memset(q, 0, sizeof(*q));
-        (void) q;
-        assert(q);
-        return 0;
     }
 
     static int Quat_tostring(lua_State *L)
@@ -641,7 +612,6 @@ namespace dmScript
     };
     static const luaL_reg Quat_meta[] =
     {
-        {"__gc",        Quat_gc},
         {"__tostring",  Quat_tostring},
         {"__index",     Quat_index},
         {"__newindex",  Quat_newindex},
@@ -654,15 +624,6 @@ namespace dmScript
     Vectormath::Aos::Matrix4* ToMatrix4(lua_State *L, int index)
     {
         return (Vectormath::Aos::Matrix4*)GetUserData(L, index, SCRIPT_TYPE_NAME_MATRIX4);
-    }
-
-    static int Matrix4_gc(lua_State *L)
-    {
-        Vectormath::Aos::Matrix4* m = CheckMatrix4(L, 1);
-        memset(m, 0, sizeof(*m));
-        (void) m;
-        assert(m);
-        return 0;
     }
 
     static int Matrix4_tostring(lua_State *L)
@@ -800,7 +761,6 @@ namespace dmScript
     };
     static const luaL_reg Matrix4_meta[] =
     {
-        {"__gc",        Matrix4_gc},
         {"__tostring",  Matrix4_tostring},
         {"__index",     Matrix4_index},
         {"__newindex",  Matrix4_newindex},

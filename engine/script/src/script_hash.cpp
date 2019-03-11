@@ -283,13 +283,6 @@ namespace dmScript
         return 1;
     }
 
-    static int Script_gc (lua_State *L)
-    {
-        dmhash_t hash = CheckHash(L, 1);
-        (void)hash;
-        return 0;
-    }
-
     static int Script_tostring(lua_State* L)
     {
         dmhash_t hash = CheckHash(L, 1);
@@ -376,9 +369,6 @@ namespace dmScript
         luaL_newmetatable(L, SCRIPT_TYPE_NAME_HASH);
 
         luaL_openlib(L, 0x0, ScriptHash_methods, 0);
-        lua_pushstring(L, "__gc");
-        lua_pushcfunction(L, Script_gc);
-        lua_settable(L, -3);
 
         lua_pushstring(L, "__eq");
         lua_pushcfunction(L, Script_eq);

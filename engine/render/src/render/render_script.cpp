@@ -212,15 +212,6 @@ namespace dmRender
         return i;
     }
 
-    static int RenderScriptInstance_gc (lua_State *L)
-    {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        memset(i, 0, sizeof(*i));
-        (void) i;
-        assert(i);
-        return 0;
-    }
-
     static int RenderScriptInstance_tostring (lua_State *L)
     {
         lua_pushfstring(L, "RenderScript: %p", lua_touserdata(L, 1));
@@ -306,7 +297,6 @@ namespace dmRender
 
     static const luaL_reg RenderScriptInstance_meta[] =
     {
-        {"__gc",                                        RenderScriptInstance_gc},
         {"__tostring",                                  RenderScriptInstance_tostring},
         {"__index",                                     RenderScriptInstance_index},
         {"__newindex",                                  RenderScriptInstance_newindex},

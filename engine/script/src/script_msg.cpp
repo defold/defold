@@ -53,13 +53,6 @@ namespace dmScript
         return result;
     }
 
-    static int URL_gc(lua_State *L)
-    {
-        dmMessage::URL* url = CheckURL(L, 1);
-        memset(url, 0, sizeof(*url));
-        return 0;
-    }
-
     void url_tostring(const dmMessage::URL* url, char* buffer, uint32_t buffer_size)
     {
         char tmp[32];
@@ -257,7 +250,6 @@ namespace dmScript
 
     static const luaL_reg URL_meta[] =
     {
-        {"__gc",        URL_gc},
         {"__tostring",  URL_tostring},
         {"__concat",    URL_concat},
         {"__index",     URL_index},

@@ -220,15 +220,6 @@ namespace dmGameObject
         return i;
     }
 
-    static int ScriptInstance_gc (lua_State *L)
-    {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
-        memset(i, 0, sizeof(*i));
-        (void) i;
-        assert(i);
-        return 0;
-    }
-
     static int ScriptInstance_tostring (lua_State *L)
     {
         lua_pushfstring(L, "Script: %p", lua_touserdata(L, 1));
@@ -237,7 +228,7 @@ namespace dmGameObject
 
     static int ScriptInstance_index(lua_State *L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
         (void) i;
         assert(i);
 
@@ -252,7 +243,7 @@ namespace dmGameObject
     {
         int top = lua_gettop(L);
 
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
         (void) i;
         assert(i);
 
@@ -353,7 +344,6 @@ namespace dmGameObject
 
     static const luaL_reg ScriptInstance_meta[] =
     {
-        {"__gc",                                        ScriptInstance_gc},
         {"__tostring",                                  ScriptInstance_tostring},
         {"__index",                                     ScriptInstance_index},
         {"__newindex",                                  ScriptInstance_newindex},
