@@ -201,7 +201,7 @@
                 <include name="x86_64-darwin/*texc_shared*"/>
             </fileset>
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="x86_64-darwin/*PVRTexLib*"/>
+                <include name="x86_64-darwin/*PVRTexLib.dylib"/>
             </fileset>
         </copy>
         <copy todir="lib/x86_64-linux" overwrite="true" flatten="true">
@@ -209,7 +209,7 @@
                 <include name="x86_64-linux/*texc_shared*"/>
             </fileset>
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="x86_64-linux/*PVRTexLib*"/>
+                <include name="x86_64-linux/*PVRTexLib.so"/>
             </fileset>
         </copy>
         <copy todir="lib/x86-win32" overwrite="true" flatten="true">
