@@ -207,7 +207,7 @@ namespace dmGameSystem
      *
      * function update(self, dt)
      *     -- request ray cast
-     *     local result = physics.ray_cast(my_start, my_end, self.my_groups)
+     *     local result = physics.ray_cast(my_start, my_end, self.my_groups, -1)
      *     if result ~= nil then
      *         -- act on the hit (see 'ray_cast_response')
      *     end
