@@ -427,6 +427,7 @@ namespace dmMessage
                 dmConditionVariable::Wait(s->m_Condition, s->m_Mutex);
             } else {
                 dmMutex::Unlock(s->m_Mutex);
+                ReleaseSocket(s);
                 return 0;
             }
         }
