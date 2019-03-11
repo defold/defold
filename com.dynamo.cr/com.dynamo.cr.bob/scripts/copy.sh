@@ -83,24 +83,24 @@ copy () {
     cp -v $DYNAMO_HOME/archive/${SHA1}/engine/$1 libexec/$2
 }
 
-copy x86_64-linux/dmengine x86_64-linux/dmengine
-copy x86_64-linux/dmengine_release x86_64-linux/dmengine_release
-copy x86_64-linux/dmengine_headless x86_64-linux/dmengine_headless
-copy x86_64-darwin/dmengine x86_64-darwin/dmengine
-copy x86_64-darwin/dmengine_release x86_64-darwin/dmengine_release
-copy x86_64-darwin/dmengine_headless x86_64-darwin/dmengine_headless
+copy x86_64-linux/stripped/dmengine x86_64-linux/dmengine
+copy x86_64-linux/stripped/dmengine_release x86_64-linux/dmengine_release
+copy x86_64-linux/stripped/dmengine_headless x86_64-linux/dmengine_headless
+copy x86_64-darwin/stripped/dmengine x86_64-darwin/dmengine
+copy x86_64-darwin/stripped/dmengine_release x86_64-darwin/dmengine_release
+copy x86_64-darwin/stripped/dmengine_headless x86_64-darwin/dmengine_headless
 copy win32/dmengine.exe x86-win32/dmengine.exe
 copy win32/dmengine_release.exe x86-win32/dmengine_release.exe
 copy win32/dmengine_headless.exe x86-win32/dmengine_headless.exe
 copy x86_64-win32/dmengine.exe x86_64-win32/dmengine.exe
 copy x86_64-win32/dmengine_release.exe x86_64-win32/dmengine_release.exe
 copy x86_64-win32/dmengine_headless.exe x86_64-win32/dmengine_headless.exe
-copy armv7-darwin/dmengine armv7-darwin/dmengine
-copy armv7-darwin/dmengine_release armv7-darwin/dmengine_release
-copy arm64-darwin/dmengine arm64-darwin/dmengine
-copy arm64-darwin/dmengine_release arm64-darwin/dmengine_release
-copy armv7-android/libdmengine.so armv7-android/libdmengine.so
-copy armv7-android/libdmengine_release.so armv7-android/libdmengine_release.so
+copy armv7-darwin/stripped/dmengine armv7-darwin/dmengine
+copy armv7-darwin/stripped/dmengine_release armv7-darwin/dmengine_release
+copy arm64-darwin/stripped/dmengine arm64-darwin/dmengine
+copy arm64-darwin/stripped/dmengine_release arm64-darwin/dmengine_release
+copy armv7-android/stripped/libdmengine.so armv7-android/libdmengine.so
+copy armv7-android/stripped/libdmengine_release.so armv7-android/libdmengine_release.so
 copy js-web/dmengine.js js-web/dmengine.js
 copy js-web/defold_sound.swf js-web/defold_sound.swf
 #copy js-web/dmengine.js.mem js-web/dmengine.js.mem

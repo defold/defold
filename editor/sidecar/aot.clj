@@ -7,13 +7,23 @@
             [clojure.tools.namespace.track :as track]
             [clojure.walk :as walk]))
 
+(def excluded-sources-by-build-type
+  {"release" ["src/clj/dev.clj"
+              "src/clj/prof.clj"]})
+
 (defn all-sources-tracker
-  [srcdirs]
-  (reduce
-   (fn [tracker dir]
-     (->> dir find/find-clojure-sources-in-dir (file/add-files tracker)))
-   (track/tracker)
-   srcdirs))
+  [build-type srcdirs]
+  (let [excluded-files (into #{}
+                             (map io/file)
+                             (excluded-sources-by-build-type build-type))]
+    (reduce
+      (fn [tracker dir]
+        (->> dir
+             find/find-clojure-sources-in-dir
+             (remove excluded-files)
+             (file/add-files tracker)))
+      (track/tracker)
+      srcdirs)))
 
 (defn sorted-deps
   [tracker]
@@ -45,9 +55,9 @@
          schema.utils]))
 
 (defn compile-order
-  [srcdirs]
+  [srcdirs build-type]
   (->> srcdirs
-       all-sources-tracker
+       (all-sources-tracker build-type)
        sorted-deps
        (remove core-namespaces)))
 
@@ -82,7 +92,7 @@
 
 (defn -main [& args]
   (defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))
-  (let [order (compile-order srcdirs)]
+  (let [order (compile-order srcdirs @build-type)]
     (println "Compiling in order " order)
     (compile-clj order))
   (println "Done compiling")

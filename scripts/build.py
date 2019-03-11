@@ -666,6 +666,23 @@ class Configuration(object):
         with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'wb') as f:
             self._ziptree(join(self.dynamo_home, 'content', 'builtins'), outfile = f, directory = join(self.dynamo_home, 'content'))
 
+    def _strip_engine(self, path):
+        """ Strips the debug symbols from an executable """
+        if self.target_platform not in ['x86_64-linux','x86_64-darwin','armv7-darwin','arm64-darwin','armv7-android','arm64-android']:
+            return False
+
+        strip = "strip"
+        if 'android' in self.target_platform:
+            HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
+            ANDROID_ROOT = os.path.join(HOME, 'android')
+            ANDROID_NDK_VERSION = '10e'
+            ANDROID_GCC_VERSION = '4.8'
+            ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
+            strip = "%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-x86_64/bin/arm-linux-androideabi-strip" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, ANDROID_HOST)
+
+        self.exec_shell_command("%s %s" % (strip, path))
+        return True
+
     def archive_engine(self):
         sha1 = self._git_sha1()
         full_archive_path = join(self.archive_path, sha1, 'engine', self.target_platform).replace('\\', '/')
@@ -686,6 +703,9 @@ class Configuration(object):
             for engine_name in format_exes(n, self.target_platform):
                 engine = join(bin_dir, engine_name)
                 self.upload_file(engine, '%s/%s' % (full_archive_path, engine_name))
+                if self._strip_engine(engine):
+                    self.upload_file(engine, '%s/stripped/%s' % (full_archive_path, engine_name))
+
             if 'web' in self.target_platform:
                 self.upload_file(join(bin_dir, 'defold_sound.swf'), join(full_archive_path, 'defold_sound.swf'))
                 engine_mem = join(bin_dir, engine_name + '.mem')
@@ -1100,11 +1120,6 @@ instructions.configure=\
             for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
                 self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
-        for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'launcher*')):
-            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
-
-        for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'update', '*')):
-            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
         self.wait_uploads()
 
     def release_editor2(self):
@@ -1117,17 +1132,8 @@ instructions.configure=\
         self._log("Releasing editor2 '%s' for channel '%s'" % (sha1, self.channel))
 
         # Rather than accessing S3 from its web end-point, we always go through the CDN
-        update_url = 'https://d.defold.com/editor2/%(sha1)s/editor2' % {'sha1': sha1}
-        update_data = {
-            'url': update_url,
-        }
-
         archive_url = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(archive_url.hostname)
-        key = bucket.new_key('editor2/channels/%(channel)s/update.json' % {'channel': self.channel})
-        key.content_type = 'application/json'
-        self._log("Updating channel '%s' for update.json: %s" % (self.channel, key))
-        key.set_contents_from_string(json.dumps(update_data))
 
         key_v2 = bucket.new_key('editor2/channels/%(channel)s/update-v2.json' % {'channel': self.channel})
         key_v2.content_type = 'application/json'
