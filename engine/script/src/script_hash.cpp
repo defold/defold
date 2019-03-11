@@ -29,10 +29,10 @@ namespace dmScript
     #define SCRIPT_TYPE_NAME_HASH "hash"
     #define SCRIPT_HASH_TABLE "__script_hash_table"
 
-    bool IsHash(lua_State *L, int index)
+    dmhash_t* IsHash(lua_State *L, int index)
     {
         void *p = lua_touserdata(L, index);
-        bool result = false;
+        dmhash_t* result = 0;
         if (p != 0x0)
         {  /* value is a userdata? */
             if (lua_getmetatable(L, index))
@@ -40,7 +40,7 @@ namespace dmScript
                 lua_getfield(L, LUA_REGISTRYINDEX, SCRIPT_TYPE_NAME_HASH);  /* get correct metatable */
                 if (lua_rawequal(L, -1, -2))
                 {  /* does it have the correct mt? */
-                    result = true;
+                    result = (dmhash_t*)p;
                 }
                 lua_pop(L, 2);  /* remove both metatables */
             }
@@ -72,9 +72,10 @@ namespace dmScript
         int top = lua_gettop(L);
 
         dmhash_t hash;
-        if(IsHash(L, 1))
+        dmhash_t* hash_ptr = IsHash(L, 1);
+        if(hash_ptr)
         {
-            hash = *(dmhash_t*)lua_touserdata(L, 1);
+            hash = *hash_ptr;
         }
         else
         {
@@ -215,9 +216,9 @@ namespace dmScript
     dmhash_t CheckHash(lua_State* L, int index)
     {
         dmhash_t* lua_hash = 0x0;
-        if (IsHash(L, index))
+        lua_hash = IsHash(L, index);
+        if (lua_hash)
         {
-            lua_hash = (dmhash_t*)lua_touserdata(L, index);
             return *lua_hash;
         }
 
@@ -227,10 +228,9 @@ namespace dmScript
 
     dmhash_t CheckHashOrString(lua_State* L, int index)
     {
-        dmhash_t* lua_hash = 0x0;
-        if (IsHash(L, index))
+        dmhash_t* lua_hash = IsHash(L, index);
+        if (lua_hash)
         {
-            lua_hash = (dmhash_t*)lua_touserdata(L, index);
             return *lua_hash;
         }
         else if( lua_type(L, index) == LUA_TSTRING )

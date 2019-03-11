@@ -162,9 +162,10 @@ namespace dmScript
         const char* key = luaL_checkstring(L, 2);
         if (strcmp("socket", key) == 0)
         {
-            if (IsHash(L, 3))
+            dmhash_t* hash_ptr = IsHash(L, 3);
+            if (hash_ptr)
             {
-                url->m_Socket = CheckHash(L, 3);
+                url->m_Socket = *hash_ptr;
             }
             else if (lua_isstring(L, 3))
             {
