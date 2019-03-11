@@ -5,6 +5,8 @@
 
 #if defined(_WIN32)
 #include "safe_windows.h"
+#elif defined(__APPLE__)
+#include <mach/mach_time.h>
 #elif  defined(__EMSCRIPTEN__)
 #include <emscripten.h>
 #else
@@ -154,6 +156,10 @@ namespace dmProfile
 
 #if defined(_WIN32)
         QueryPerformanceFrequency((LARGE_INTEGER*)&g_TicksPerSecond);
+#elif defined(__APPLE__)
+        mach_timebase_info_data_t info;
+        mach_timebase_info(&info);
+        g_TicksPerSecond = (info.denom * 1000000000ull) / info.numer;
 #endif
         // Set g_BeginTime even if we haven't started since threads may calculate scopes outside of
         // engine Begin()/End() of profiles which happens in Engine::Step() - just so we don't get
@@ -770,6 +776,8 @@ namespace dmProfile
         QueryPerformanceCounter((LARGE_INTEGER*)&now);
 #elif defined(__EMSCRIPTEN__)
         now = (uint64_t)(emscripten_get_now() * 1000.0);
+#elif defined(__APPLE__)
+        now = mach_absolute_time();
 #else
         timeval tv;
         gettimeofday(&tv, 0);
