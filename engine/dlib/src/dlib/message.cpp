@@ -352,11 +352,6 @@ namespace dmMessage
         DM_PROFILE(Message, "Post")
         DM_COUNTER("Messages", 1)
 
-        if (receiver == 0x0)
-        {
-            return RESULT_SOCKET_NOT_FOUND;
-        }
-
         MessageSocket* s = AcquireSocket(receiver->m_Socket);
         if (s == 0x0)
         {
@@ -385,12 +380,11 @@ namespace dmMessage
         new_message->m_DestroyCallback = destroy_callback;
         memcpy(&new_message->m_Data[0], message_data, message_data_size);
 
-        bool is_first_message = !s->m_Header;
-
         if (!s->m_Header)
         {
             s->m_Header = new_message;
             s->m_Tail = new_message;
+            dmConditionVariable::Signal(s->m_Condition);
         }
         else
         {
@@ -398,10 +392,6 @@ namespace dmMessage
             s->m_Tail = new_message;
         }
 
-        if (is_first_message)
-        {
-            dmConditionVariable::Signal(s->m_Condition);
-        }
         dmMutex::Unlock(s->m_Mutex);
 
         ReleaseSocket(s);

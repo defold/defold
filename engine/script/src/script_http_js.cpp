@@ -52,6 +52,11 @@ namespace dmScript
                              const char* headers, uint32_t headers_length,
                              const char* response, uint32_t response_length)
     {
+        if (requester == 0)
+        {
+            dmLogWarning("Failed to return http-response. Requester deleted?");
+            return;
+        }
         dmHttpDDF::HttpResponse resp;
         resp.m_Status = status;
         resp.m_Headers = (uint64_t) headers;
