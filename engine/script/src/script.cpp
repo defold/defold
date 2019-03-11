@@ -521,14 +521,9 @@ namespace dmScript
 
     void* CheckUserType(lua_State* L, int idx, const char* type, const char* error_message)
     {
-        luaL_checktype(L, idx, LUA_TUSERDATA);
-        // from https://github.com/keplerproject/lua-compat-5.3/blob/master/c-api/compat-5.3.c#L292-L306
-        void* object = lua_touserdata(L, idx);
-        lua_getmetatable(L, idx);
-        luaL_getmetatable(L, type);
-        int res = lua_rawequal(L, -1, -2);
-        lua_pop(L, 2);
-        if (!res) {
+        void* object = luaL_checkudata(L, idx, type);
+        if (object == 0)
+        {
             if (error_message == 0x0) {
                 luaL_typerror(L, idx, type);
             }
@@ -592,7 +587,14 @@ namespace dmScript
         if (GetMetaFunction(L, -1, META_TABLE_GET_URL)) {
             lua_pushvalue(L, -2);
             lua_call(L, 1, 1);
-            out_url = *CheckURL(L, -1);
+            dmMessage::URL* url_ptr = (dmMessage::URL*)lua_touserdata(L, -1);
+            if (url_ptr == 0)
+            {
+                // if META_TABLE_GET_URL should return a valid URL or null,
+                // we should not need to validate the type of the result
+                luaL_typerror(L, -1, "url");
+            }
+            out_url = *url_ptr;
             lua_pop(L, 2);
             assert(top == lua_gettop(L));
             return true;
@@ -603,24 +605,72 @@ namespace dmScript
     }
 
     bool GetUserData(lua_State* L, uintptr_t& out_user_data, const char* user_type) {
-        int top = lua_gettop(L);
-        (void)top;
+        DM_LUA_STACK_CHECK(L, 0);
+
         GetInstance(L);
-        if (!dmScript::IsUserType(L, -1, user_type)) {
+        // [-1] Instance
+
+        if (lua_type(L, -1) != LUA_TUSERDATA)
+        {
             lua_pop(L, 1);
             return false;
         }
-        if (GetMetaFunction(L, -1, META_TABLE_GET_USER_DATA)) {
-            lua_pushvalue(L, -2);
-            lua_call(L, 1, 1);
-            out_user_data = (uintptr_t)lua_touserdata(L, -1);
-            lua_pop(L, 2);
-            assert(top == lua_gettop(L));
-            return true;
+
+        if (!lua_getmetatable(L, -1))
+        {
+            lua_pop(L, 1);
+            return false;
+        }
+        // [-1] Instance meta table
+        // [-2] Instance
+
+        lua_getfield(L, LUA_REGISTRYINDEX, user_type);
+        // [-1] Correct meta table
+        // [-2] Instance meta table
+        // [-3] Instance
+
+        // Compare them
+        if (!lua_rawequal(L, -1, -2))
+        {
+            lua_pop(L, 3);
+            return false;
         }
         lua_pop(L, 1);
-        assert(top == lua_gettop(L));
-        return false;
+        // [-1] Instance meta table
+        // [-2] Instance
+
+        lua_pushstring(L, META_TABLE_GET_USER_DATA);
+        // [-1] META_TABLE_GET_USER_DATA
+        // [-2] Instance meta table
+        // [-3] Instance
+
+        lua_rawget(L, -2);
+        // [-1] function
+        // [-2] Instance meta table
+        // [-3] Instance
+
+        lua_remove(L, -2);
+        // [-1] function
+        // [-2] Instance
+
+        if (lua_isnil(L, -1)) {
+            lua_pop(L, 2);
+            return false;
+        }
+
+        lua_pushvalue(L, -2);
+        // [-1] Instance
+        // [-2] function
+        // [-3] Instance
+
+        lua_call(L, 1, 1);
+        // [-1] user data
+        // [-2] Instance
+        out_user_data = (uintptr_t)lua_touserdata(L, -1);
+
+        lua_pop(L, 2);
+
+        return true;
     }
 
     bool IsValidInstance(lua_State* L) {
