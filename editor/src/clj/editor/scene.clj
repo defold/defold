@@ -713,6 +713,8 @@
   (input updatables g/Any)
   (input selected-updatables g/Any)
   (output inactive? g/Bool (g/fnk [_node-id active-view] (not= _node-id active-view)))
+  (output info-text g/Str (g/fnk [scene tool-info-text]
+                            (or tool-info-text (:info-text scene))))
   (output tool-renderables g/Any produce-tool-renderables)
   (output active-tool g/Keyword (gu/passthrough active-tool))
   (output manip-space g/Keyword (gu/passthrough manip-space))
@@ -740,7 +742,7 @@
       (when-not (ui/inside-hidden-tab? image-view)
         (let [drawable (g/node-value node-id :drawable evaluation-context)
               async-copy-state-atom (g/node-value node-id :async-copy-state evaluation-context)
-              info-text (g/node-value node-id :tool-info-text evaluation-context)]
+              info-text (g/node-value node-id :info-text evaluation-context)]
           (when (some? info-label)
             (if (empty? info-text)
               (ui/visible! info-label false)

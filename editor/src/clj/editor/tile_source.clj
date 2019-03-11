@@ -449,15 +449,17 @@
 
 
 (g/defnk produce-scene
-  [_node-id tile-source-attributes aabb uv-transforms texture-set gpu-texture convex-hulls collision-groups-data child-scenes]
+  [_node-id tile-source-attributes aabb layout-size uv-transforms texture-set texture-profile gpu-texture convex-hulls collision-groups-data child-scenes]
   (when tile-source-attributes
     (let [user-data {:node-id _node-id
                      :tile-source-attributes tile-source-attributes
                      :uv-transforms uv-transforms
                      :gpu-texture gpu-texture
                      :convex-hulls convex-hulls
-                     :collision-groups-data collision-groups-data}]
+                     :collision-groups-data collision-groups-data}
+          [width height] layout-size]
       {:aabb aabb
+       :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))
        :renderable {:render-fn render-tile-source
                     :tags #{:tile-source}
                     :user-data user-data
@@ -845,7 +847,7 @@
   (output renderables pass/RenderData :cached produce-tool-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
   (output info-text g/Str (g/fnk [active-tile-idx] (when (some? active-tile-idx)
-                                                         (str "Tile Index: " (+ active-tile-idx 1))))))
+                                                         (str "Tile " (+ active-tile-idx 1))))))
 
 (defmethod scene/attach-tool-controller ::ToolController
   [_ tool-id view-id resource-id]

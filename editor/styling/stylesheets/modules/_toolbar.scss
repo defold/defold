@@ -130,8 +130,11 @@
 }
 
 #scene-view-info-label {
+    -fx-padding: 10px 15px;
+    -fx-spacing: 10px;
+    -fx-height: 30px;
     -fx-font-face: $default-font;
-    -fx-font-size: 16px;
+    -fx-font-size: 14px;
     -fx-text-fill: $defold-white;
     -fx-effect: dropshadow(one-pass-box, rgba(0, 0, 0, 1), 0, 0, 1, 1);
 }
