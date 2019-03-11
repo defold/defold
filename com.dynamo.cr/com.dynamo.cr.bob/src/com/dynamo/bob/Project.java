@@ -635,6 +635,13 @@ public class Project {
                 File resOutput = new File(tmpDir, "resources");
                 resOutput.delete();
                 resOutput.mkdir();
+                FileUtils.forceMkdir(new File(resOutput, "drawable"));
+                FileUtils.forceMkdir(new File(resOutput, "drawable-ldpi"));
+                FileUtils.forceMkdir(new File(resOutput, "drawable-mdpi"));
+                FileUtils.forceMkdir(new File(resOutput, "drawable-hdpi"));
+                FileUtils.forceMkdir(new File(resOutput, "drawable-xhdpi"));
+                FileUtils.forceMkdir(new File(resOutput, "drawable-xxhdpi"));
+                FileUtils.forceMkdir(new File(resOutput, "drawable-xxxhdpi"));
                 resOutput.deleteOnExit();
 
                 // <tmpDir>/rjava - Output directory of aapt, all R.java files will be stored here
@@ -653,6 +660,7 @@ public class Project {
                 manifestFile.deleteOnExit();
                 BundleHelper helper = new BundleHelper(this, Platform.Armv7Android, tmpDir, "");
                 helper.createAndroidManifest(getProjectProperties(), getRootDirectory(), manifestFile, resOutput, "dummy");
+                helper.copyAndroidIcons(resOutput);
 
                 // Run aapt to generate R.java files
                 generateRJava(resDirs, extraPackages, manifestFile, javaROutput);

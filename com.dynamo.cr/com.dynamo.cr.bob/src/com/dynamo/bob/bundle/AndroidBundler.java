@@ -125,6 +125,7 @@ public class AndroidBundler implements IBundler {
         BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, "");
         File manifestFile = new File(appDir, "AndroidManifest.xml");
         helper.createAndroidManifest(projectProperties, projectRoot, manifestFile, resDir, exeName);
+        helper.copyAndroidIcons(resDir);
 
         // Create APK
         File ap1 = new File(appDir, title + ".ap1");
