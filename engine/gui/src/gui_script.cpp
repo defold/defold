@@ -4214,20 +4214,20 @@ namespace dmGui
      * `state`
      * : [type:constant] the new state of the emitter:
      *
-     * - `gui.EMITTER_STATE_SLEEPING`
-     * - `gui.EMITTER_STATE_PRESPAWN`
-     * - `gui.EMITTER_STATE_SPAWNING`
-     * - `gui.EMITTER_STATE_POSTSPAWN`
+     * - `particlefx.EMITTER_STATE_SLEEPING`
+     * - `particlefx.EMITTER_STATE_PRESPAWN`
+     * - `particlefx.EMITTER_STATE_SPAWNING`
+     * - `particlefx.EMITTER_STATE_POSTSPAWN`
      *
      * @examples
      *
      * How to play a particle fx when a gui node is created.
      * The callback receives the gui node, the hash of the id
-     * of the emitter, and the new state of the emitter as gui.EMITTER_STATE_<STATE>.
+     * of the emitter, and the new state of the emitter as particlefx.EMITTER_STATE_<STATE>.
      *
      * ```lua
      * local function emitter_state_change(self, node, emitter, state)
-     *   if emitter == hash("exhaust") and state == gui.EMITTER_STATE_POSTSPAWN then
+     *   if emitter == hash("exhaust") and state == particlefx.EMITTER_STATE_POSTSPAWN then
      *     -- exhaust is done spawning particles...
      *   end
      * end
