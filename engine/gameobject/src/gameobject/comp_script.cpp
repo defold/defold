@@ -228,7 +228,7 @@ namespace dmGameObject
 
     UpdateResult CompScriptOnMessage(const ComponentOnMessageParams& params)
     {
-        DM_PROFILE(Script, "RunScript");
+        DM_PROFILE(Script, "ScriptOnMessage");
         UpdateResult result = UPDATE_RESULT_OK;
 
         ScriptInstance* script_instance = (ScriptInstance*)*params.m_UserData;
@@ -343,7 +343,7 @@ namespace dmGameObject
 
     InputResult CompScriptOnInput(const ComponentOnInputParams& params)
     {
-        DM_PROFILE(Script, "RunScript");
+        DM_PROFILE(Script, "ScriptOnInput");
         InputResult result = INPUT_RESULT_IGNORED;
 
         ScriptInstance* script_instance = (ScriptInstance*)*params.m_UserData;
