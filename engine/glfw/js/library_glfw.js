@@ -173,7 +173,8 @@ var LibraryGLFW = {
       // event.preventDefault, meaning if the fullscreen button has a
       // click handler it will never be called since the element would
       // never be "active".
-      event.target.focus();
+      if (event.target.focus)
+        event.target.focus();
 
       return res;
     },
