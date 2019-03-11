@@ -148,6 +148,18 @@ var LibraryGLFW = {
         }
     },
 
+    addEventListenerCanvas:function (type, listener, useCapture) {
+          if (typeof Module['canvas'] !== 'undefined') {
+              Module['canvas'].addEventListener(type, listener, useCapture);
+          }
+      },
+
+      removeEventListenerCanvas:function (type, listener, useCapture) {
+          if (typeof Module['canvas'] !== 'undefined') {
+              Module['canvas'].removeEventListener(type, listener, useCapture);
+          }
+      },
+
     isCanvasActive: function(event) {
       var res = (typeof document.activeElement == 'undefined' || document.activeElement == Module["canvas"]);
 
@@ -289,7 +301,6 @@ var LibraryGLFW = {
         if (!GLFW.isCanvasActive(event)) { return; }
 
         var e = event;
-        var rect = Module['canvas'].getBoundingClientRect();
         for(var i = 0; i < e.changedTouches.length; ++i) {
           var touch = e.changedTouches[i];
           var coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
@@ -309,7 +320,6 @@ var LibraryGLFW = {
         if (event.target != Module["canvas"]) { return; }
 
         var e = event;
-        var rect = Module['canvas'].getBoundingClientRect();
         for(var i = 0; i < e.changedTouches.length; ++i) {
           var touch = e.changedTouches[i];
           var coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
@@ -428,9 +438,9 @@ var LibraryGLFW = {
     GLFW.addEventListener("mouseup", GLFW.onMouseButtonUp, true);
     GLFW.addEventListener('DOMMouseScroll', GLFW.onMouseWheel, true);
     GLFW.addEventListener('mousewheel', GLFW.onMouseWheel, true);
-    GLFW.addEventListener('touchstart', GLFW.onTouchStart, true);
-    GLFW.addEventListener('touchend', GLFW.onTouchEnd, true);
-    GLFW.addEventListener('touchmove', GLFW.onTouchMove, true);
+    GLFW.addEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
+    GLFW.addEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
+    GLFW.addEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
 
     __ATEXIT__.push({ func: function() {
         GLFW.removeEventListener("keydown", GLFW.onKeydown, true);
@@ -441,9 +451,9 @@ var LibraryGLFW = {
         GLFW.removeEventListener("mouseup", GLFW.onMouseButtonUp, true);
         GLFW.removeEventListener('DOMMouseScroll', GLFW.onMouseWheel, true);
         GLFW.removeEventListener('mousewheel', GLFW.onMouseWheel, true);
-        GLFW.removeEventListener('touchstart', GLFW.onTouchStart, true);
-        GLFW.removeEventListener('touchend', GLFW.onTouchEnd, true);
-        GLFW.removeEventListener('touchmove', GLFW.onTouchMove, true);
+        GLFW.removeEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
+        GLFW.removeEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
+        GLFW.removeEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
 
         var canvas = Module["canvas"];
         if (typeof canvas !== 'undefined') {
