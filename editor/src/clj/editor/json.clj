@@ -75,16 +75,15 @@
         content (try
                   (read-then-close (StringReader. text))
                   (catch Exception error
-                    error))
-        lines (util/split-lines text)]
+                    error))]
     (if (instance? Exception content)
-      (make-code-editable project self resource lines)
+      (make-code-editable project self resource (util/split-lines text))
       (let [[load-fn accept-fn new-content] (some (fn [[_loader-id {:keys [accept-fn load-fn]}]]
                                                     (when-some [new-content (accept-fn content)]
                                                       [load-fn accept-fn new-content]))
                                                   @json-loaders)]
         (if (nil? load-fn)
-          (make-code-editable project self resource lines)
+          (make-code-editable project self resource (util/split-lines text))
           (concat
             (g/set-property self :content-transform accept-fn :editable? false)
             (load-fn self new-content)))))))
