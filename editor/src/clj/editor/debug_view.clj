@@ -1,7 +1,7 @@
 (ns editor.debug-view
   (:require [clojure.java.io :as io]
             [clojure.set :as set]
-            [clojure.string :as str]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.console :as console]
             [editor.core :as core]
@@ -18,13 +18,17 @@
             [editor.workspace :as workspace]
             [service.log :as log])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
+           [editor.debugging.mobdebug LuaStructure]
            [java.nio.file Files]
+           [java.util Collection]
+           [javafx.beans.value ChangeListener]
+           [javafx.event ActionEvent]
            [javafx.scene Parent]
-           [javafx.scene.control Button Label ListView TreeItem TreeView SplitPane]
+           [javafx.scene.control Button Label ListView SplitPane TreeItem TreeView TextField]
            [javafx.scene.layout HBox Pane Priority]
            [org.apache.commons.io FilenameUtils]))
 
-(set! *warn-on-reflection* false)
+(set! *warn-on-reflection* true)
 
 (def ^:private attach-debugger-label "Attach Debugger")
 (def ^:private break-label "Break")
@@ -39,10 +43,6 @@
 
 (defn- single [coll]
   (when (nil? (next coll)) (first coll)))
-
-(defn- add-item!
-  [^ListView list-view item]
-  (.. list-view getItems (add item)))
 
 (defn- set-debugger-data-visible!
   [^Parent root visible?]
@@ -84,13 +84,14 @@
   (when (some? debug-session)
     (ui/with-controls root [^ListView debugger-call-stack]
       (let [frames (:stack suspension-state)
-            suspended? (some? frames)]
+            suspended? (some? frames)
+            items (.getItems debugger-call-stack)]
         (if suspended?
           (do
-            (.. debugger-call-stack getItems (setAll frames))
+            (.setAll items ^Collection frames)
             (when-some [top-frame (first frames)]
               (ui/select! debugger-call-stack top-frame)))
-          (.. debugger-call-stack getItems clear))))))
+          (.clear items))))))
 
 (g/defnk produce-execution-locations
   [suspension-state]
@@ -127,18 +128,43 @@
     (ui/with-controls root [^ListView debugger-call-stack]
       (first (.. debugger-call-stack getSelectionModel getSelectedIndices)))))
 
+(defn- sanitize-eval-error [error-string]
+  (let [error-line-pattern ":1: "
+        i (string/index-of error-string error-line-pattern)
+        displayed-error (if (some? i)
+                          (subs error-string (+ i (count error-line-pattern)))
+                          error-string)]
+    (str "ERROR:EVAL: " displayed-error)))
+
+(defn- eval-result->string [result]
+  (->> result
+       vals
+       (map mobdebug/lua-value->structure-string)
+       (string/join ", ")))
+
 (defn- on-eval-input
-  [debug-view ^ListView event]
+  [debug-view ^ActionEvent event]
   (when-some [debug-session (g/node-value debug-view :debug-session)]
-    (let [input (.getSource event)
+    (let [input ^TextField (.getSource event)
           code  (.getText input)
           frame (current-stack-frame debug-view)]
       (.clear input)
       (assert (= :suspended (mobdebug/state debug-session)))
       (console/append-console-entry! :eval-expression code)
       (let [ret (mobdebug/eval debug-session code frame)
-            s (some->> ret :result vals (str/join ", "))]
-        (console/append-console-entry! :eval-result (or s "nil"))))))
+            [type line] (cond
+                          (= :bad-request (:error ret))
+                          [:eval-error "Bad request"]
+
+                          (string? (:error ret))
+                          [:eval-error (sanitize-eval-error (:error ret))]
+
+                          (:result ret)
+                          [:eval-result (eval-result->string (:result ret))]
+
+                          :else
+                          [:eval-error (str ret)])]
+        (console/append-console-entry! type line)))))
 
 (defn- setup-tool-bar!
   [^Parent console-tool-bar]
@@ -192,36 +218,40 @@
                                                      (ui/add-style! "equals"))
                                                    (Label. display-value)]))}))))
 
-(defn- variable-sort-value
-  [[k v]]
-  (if (map? k)
-    (-> k meta :tostring)
-    (str k)))
-
-(defn- lua-str
-  [v]
-  (if (map? v)
-    (-> v meta :tostring)
-    (str v)))
-
 (defn- make-variable-tree-item
   [[name value]]
-  (let [variable {:name (lua-str name)
-                  :display-name (lua-str name)
+  (let [variable {:name name
+                  :display-name (mobdebug/lua-value->identity-string name)
                   :value value
-                  :display-value (lua-str value)}
-        tree-item (TreeItem. variable)]
-    (when (and (map? value) (seq value))
-      (.. tree-item getChildren (addAll (mapv make-variable-tree-item (sort-by variable-sort-value value)))))
+                  :display-value (mobdebug/lua-value->identity-string value)}
+        tree-item (TreeItem. variable)
+        children (.getChildren tree-item)]
+    (when (and (instance? LuaStructure value)
+               (pos? (count value)))
+      (.add children (TreeItem.))
+      (.addListener (.expandedProperty tree-item)
+                    (reify ChangeListener
+                      (changed [_ _ _ shown]
+                        (when shown
+                          (.setAll children ^Collection (map make-variable-tree-item value)))))))
     tree-item))
 
 (defn- make-variables-tree-item
   [locals upvalues]
-  (make-variable-tree-item ["root" (into locals upvalues)]))
+  (let [ret (TreeItem.)
+        children (.getChildren ret)]
+    (.setAll children ^Collection (map make-variable-tree-item (concat locals upvalues)))
+    ret))
 
 (defn- setup-controls!
   [debug-view ^SplitPane root]
-  (ui/with-controls root [console-tool-bar debugger-call-stack ^Parent debugger-data-split ^Parent debugger-prompt debugger-prompt-field debugger-variables right-split]
+  (ui/with-controls root [console-tool-bar
+                          debugger-call-stack
+                          ^Parent debugger-data-split
+                          ^Parent debugger-prompt
+                          debugger-prompt-field
+                          ^TreeView debugger-variables
+                          ^Parent right-split]
     ;; debugger data views
     (.bind (.managedProperty debugger-data-split) (.visibleProperty debugger-data-split))
     (.bind (.managedProperty right-split) (.visibleProperty right-split))
@@ -231,7 +261,7 @@
 
     ;; debugger prompt
     (.bind (.managedProperty debugger-prompt) (.visibleProperty debugger-prompt))
-    (ui/on-action! debugger-prompt-field (partial on-eval-input debug-view))
+    (ui/on-action! debugger-prompt-field #(on-eval-input debug-view %))
 
     ;; call stack
     (setup-call-stack-view! debugger-call-stack)
