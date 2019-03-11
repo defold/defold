@@ -352,8 +352,10 @@ var LibraryGLFW = {
 
       GLFW.wheelPos += Browser.getMouseWheelDelta(event);
 
-      if (GLFW.mouseWheelFunc && event.target == Module["canvas"]) {
-        Runtime.dynCall('vi', GLFW.mouseWheelFunc, [GLFW.wheelPos]);
+      if (event.target == Module["canvas"]) {
+        if (GLFW.mouseWheelFunc) {
+          Runtime.dynCall('vi', GLFW.mouseWheelFunc, [GLFW.wheelPos]);
+        }
         event.preventDefault();
       }
     },
