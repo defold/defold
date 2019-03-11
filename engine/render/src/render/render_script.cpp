@@ -63,7 +63,7 @@ namespace dmRender
 
     static int RenderScriptConstantBuffer_gc (lua_State *L)
     {
-        HNamedConstantBuffer* cb = RenderScriptConstantBuffer_Check(L, 1);
+        HNamedConstantBuffer* cb = (HNamedConstantBuffer*)lua_touserdata(L, 1);
         DeleteNamedConstantBuffer(*cb);
         *cb = 0;
         return 0;
@@ -77,7 +77,7 @@ namespace dmRender
 
     static int RenderScriptConstantBuffer_index(lua_State *L)
     {
-        HNamedConstantBuffer* cb = RenderScriptConstantBuffer_Check(L, 1);
+        HNamedConstantBuffer* cb = (HNamedConstantBuffer*)lua_touserdata(L, 1);
         assert(cb);
 
         const char* name = luaL_checkstring(L, 2);
@@ -98,7 +98,7 @@ namespace dmRender
     static int RenderScriptConstantBuffer_newindex(lua_State *L)
     {
         int top = lua_gettop(L);
-        HNamedConstantBuffer* cb = RenderScriptConstantBuffer_Check(L, 1);
+        HNamedConstantBuffer* cb = (HNamedConstantBuffer*)lua_touserdata(L, 1);
         assert(cb);
 
         const char* name = luaL_checkstring(L, 2);
@@ -223,7 +223,7 @@ namespace dmRender
         int top = lua_gettop(L);
         (void) top;
 
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, 1);
         assert(i);
 
         // Try to find value in instance data
@@ -241,7 +241,7 @@ namespace dmRender
         int top = lua_gettop(L);
         (void) top;
 
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
+        RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, 1);
         assert(i);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_RenderScriptDataReference);

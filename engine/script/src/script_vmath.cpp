@@ -126,7 +126,7 @@ namespace dmScript
 
     static int Vector_len(lua_State *L)
     {
-        dmVMath::FloatVector* v = CheckVector(L, 1);
+        dmVMath::FloatVector* v = *(dmVMath::FloatVector**)lua_touserdata(L, 1);
 
         lua_pushnumber(L, v->size);
         return 1;
@@ -134,7 +134,7 @@ namespace dmScript
 
     static int Vector_index(lua_State *L)
     {
-        dmVMath::FloatVector* v = CheckVector(L, 1);
+        dmVMath::FloatVector* v = *(dmVMath::FloatVector**)lua_touserdata(L, 1);
 
         int key = luaL_checkinteger(L, 2);
         if (key > 0 && key <= v->size)
@@ -155,7 +155,7 @@ namespace dmScript
 
     static int Vector_newindex(lua_State *L)
     {
-        dmVMath::FloatVector* v = CheckVector(L, 1);
+        dmVMath::FloatVector* v = *(dmVMath::FloatVector**)lua_touserdata(L, 1);
 
         int key = luaL_checkinteger(L, 2);
         if (key > 0 && key <= v->size)
@@ -176,14 +176,14 @@ namespace dmScript
 
     static int Vector_tostring(lua_State *L)
     {
-        dmVMath::FloatVector* v = CheckVector(L, 1);
+        dmVMath::FloatVector* v = *(dmVMath::FloatVector**)lua_touserdata(L, 1);
         lua_pushfstring(L, "%s.%s (size: %d)", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR, v->size);
         return 1;
     }
 
     static int Vector_gc(lua_State *L)
     {
-        dmVMath::FloatVector* v = CheckVector(L, 1);
+        dmVMath::FloatVector* v = *(dmVMath::FloatVector**)lua_touserdata(L, 1);
         delete v;
         return 0;
     }
@@ -224,14 +224,14 @@ namespace dmScript
 
     static int Vector3_tostring(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
+        Vectormath::Aos::Vector3* v = (Vectormath::Aos::Vector3*)lua_touserdata(L, 1);
         lua_pushfstring(L, "vmath.%s(%f, %f, %f)", SCRIPT_TYPE_NAME_VECTOR3, v->getX(), v->getY(), v->getZ());
         return 1;
     }
 
     static int Vector3_index(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
+        Vectormath::Aos::Vector3* v = (Vectormath::Aos::Vector3*)lua_touserdata(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
@@ -257,7 +257,7 @@ namespace dmScript
 
     static int Vector3_newindex(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
+        Vectormath::Aos::Vector3* v = (Vectormath::Aos::Vector3*)lua_touserdata(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
@@ -314,7 +314,7 @@ namespace dmScript
 
     static int Vector3_unm(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
+        Vectormath::Aos::Vector3* v = (Vectormath::Aos::Vector3*)lua_touserdata(L, 1);
         PushVector3(L, - *v);
         return 1;
     }
@@ -322,7 +322,7 @@ namespace dmScript
     static int Vector3_concat(lua_State *L)
     {
         const char* s = luaL_checkstring(L, 1);
-        Vectormath::Aos::Vector3* v = CheckVector3(L, 2);
+        Vectormath::Aos::Vector3* v = (Vectormath::Aos::Vector3*)lua_touserdata(L, 2);
         size_t size = 48 + strlen(s);
         char* buffer = new char[size];
         DM_SNPRINTF(buffer, size, "%s[%f, %f, %f]", s, v->getX(), v->getY(), v->getZ());
@@ -364,14 +364,14 @@ namespace dmScript
 
     static int Vector4_tostring(lua_State *L)
     {
-        Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+        Vectormath::Aos::Vector4* v = (Vectormath::Aos::Vector4*)lua_touserdata(L, 1);
         lua_pushfstring(L, "vmath.%s(%f, %f, %f, %f)", SCRIPT_TYPE_NAME_VECTOR4, v->getX(), v->getY(), v->getZ(), v->getW());
         return 1;
     }
 
     static int Vector4_index(lua_State *L)
     {
-        Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+        Vectormath::Aos::Vector4* v = (Vectormath::Aos::Vector4*)lua_touserdata(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
@@ -402,7 +402,7 @@ namespace dmScript
 
     static int Vector4_newindex(lua_State *L)
     {
-        Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+        Vectormath::Aos::Vector4* v = (Vectormath::Aos::Vector4*)lua_touserdata(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
@@ -463,7 +463,7 @@ namespace dmScript
 
     static int Vector4_unm(lua_State *L)
     {
-        Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+        Vectormath::Aos::Vector4* v = (Vectormath::Aos::Vector4*)lua_touserdata(L, 1);
         PushVector4(L, - *v);
         return 1;
     }
@@ -471,7 +471,7 @@ namespace dmScript
     static int Vector4_concat(lua_State *L)
     {
         const char* s = luaL_checkstring(L, 1);
-        Vectormath::Aos::Vector4* v = CheckVector4(L, 2);
+        Vectormath::Aos::Vector4* v = (Vectormath::Aos::Vector4*)lua_touserdata(L, 2);
         size_t size = 64 + strlen(s);
         char* buffer = new char[size];
         DM_SNPRINTF(buffer, size, "%s[%f, %f, %f, %f]", s, v->getX(), v->getY(), v->getZ(), v->getW());
@@ -520,7 +520,7 @@ namespace dmScript
 
     static int Quat_index(lua_State *L)
     {
-        Vectormath::Aos::Quat* q = CheckQuat(L, 1);
+        Vectormath::Aos::Quat* q = (Vectormath::Aos::Quat*)lua_touserdata(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
@@ -552,7 +552,7 @@ namespace dmScript
 
     static int Quat_newindex(lua_State *L)
     {
-        Vectormath::Aos::Quat* q = CheckQuat(L, 1);
+        Vectormath::Aos::Quat* q = (Vectormath::Aos::Quat*)lua_touserdata(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
@@ -639,7 +639,7 @@ namespace dmScript
 
     static int Matrix4_index(lua_State *L)
     {
-        Vectormath::Aos::Matrix4* m = CheckMatrix4(L, 1);
+        Vectormath::Aos::Matrix4* m = (Vectormath::Aos::Matrix4*)lua_touserdata(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (strlen(key) == 3)
@@ -666,7 +666,7 @@ namespace dmScript
 
     static int Matrix4_newindex(lua_State *L)
     {
-        Vectormath::Aos::Matrix4* m = CheckMatrix4(L, 1);
+        Vectormath::Aos::Matrix4* m = (Vectormath::Aos::Matrix4*)lua_touserdata(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (strlen(key) == 3)

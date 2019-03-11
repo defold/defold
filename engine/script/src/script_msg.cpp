@@ -109,7 +109,8 @@ namespace dmScript
 
     static int URL_index(lua_State *L)
     {
-        dmMessage::URL* url = CheckURL(L, 1);
+        dmMessage::URL* url = (dmMessage::URL*)lua_touserdata(L, 1);
+        assert(url);
 
         const char* key = luaL_checkstring(L, 2);
         if (strcmp("socket", key) == 0)
