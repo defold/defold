@@ -1250,7 +1250,7 @@
   `(make-graph! :history true :volatility 1)`"
   [& {:keys [history volatility] :or {history false volatility 0}}]
   (let [g (assoc (ig/empty-graph) :_volatility volatility)
-        s (swap! *the-system* (if history is/attach-graph-with-history! is/attach-graph!) g)]
+        s (swap! *the-system* (if history is/attach-graph-with-history is/attach-graph) g)]
     (:last-graph s)))
 
 (defn last-graph-added
@@ -1281,7 +1281,7 @@
 
   (undo gid)"
   [graph-id]
-  (swap! *the-system* is/undo-history! graph-id))
+  (swap! *the-system* is/undo-history graph-id))
 
 (defn has-undo?
   "Returns true/false if a `graph-id` has an undo available"
@@ -1300,7 +1300,7 @@
 
   Example: `(redo gid)`"
   [graph-id]
-  (swap! *the-system* is/redo-history! graph-id))
+  (swap! *the-system* is/redo-history graph-id))
 
 (defn has-redo?
   "Returns true/false if a `graph-id` has an redo available"
