@@ -194,7 +194,7 @@ public:
             entry->m_Value = value;
             entry->m_Next = 0xffffffff;
 
-            uint32_t bucket_index = (uint32_t) (key % m_HashTableSize);
+            uint32_t bucket_index = (uint32_t) (((uint32_t)key) % m_HashTableSize);
             uint32_t entry_ptr = m_HashTable[bucket_index];
             if (entry_ptr == 0xffffffff)
             {
@@ -280,7 +280,7 @@ public:
         // Avoid module division by zero
         assert(m_HashTableSize != 0);
 
-        uint32_t bucket_index = key % m_HashTableSize;
+        uint32_t bucket_index = ((uint32_t)key) % m_HashTableSize;
         uint32_t entry_ptr = m_HashTable[bucket_index];
 
         // Empty list?
@@ -390,7 +390,7 @@ private:
         if (!m_HashTableSize)
             return 0;
 
-        uint32_t bucket_index = (uint32_t) (key % m_HashTableSize);
+        uint32_t bucket_index = (uint32_t) (((uint32_t)key) % m_HashTableSize);
         uint32_t bucket = m_HashTable[bucket_index];
 
         uint32_t entry_ptr = bucket;
