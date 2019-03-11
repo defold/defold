@@ -2,23 +2,14 @@ package com.defold.editor;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLClassLoader;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.FalseFileFilter;
@@ -27,12 +18,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
-import ch.qos.logback.core.FileAppender;
 import ch.qos.logback.core.rolling.*;
 import ch.qos.logback.core.util.FileSize;
 
 import com.defold.libs.ResourceUnpacker;
-import com.defold.util.SupportPath;
 
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -66,7 +55,7 @@ public class Start extends Application {
 
     private static boolean createdFromMain = false;
 
-    private void reKickLoading(Splash splash) throws Exception {
+    private void kickLoading(Splash splash) throws Exception {
         // Do this work in a different thread or it will stop the splash screen from showing/animating.
         Thread kickThread = new Thread(() -> {
                 try {
@@ -155,7 +144,7 @@ public class Start extends Application {
                                         Boolean oldValue, Boolean newValue) {
                         if (newValue.booleanValue()) {
                             try {
-                                reKickLoading(splash);
+                                kickLoading(splash);
                             } catch (Throwable t) {
                                 t.printStackTrace();
                                 logger.error("failed to kick loading", t);
