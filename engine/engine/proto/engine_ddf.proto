@@ -96,7 +96,9 @@ message TogglePhysicsDebug {}
  *
  * [icon:macos] [icon:windows] [icon:linux] Video recording is only supported on desktop platforms.
  *
- * [icon:attention] Audio is currently not supported
+ * [icon:attention] Audio is currently not supported.
+ *
+ * [icon:attention] Window width and height must be a multiple of 8 to be able to record video.
  *
  * This message can only be sent to the designated `@system` socket.
  *
@@ -244,4 +246,3 @@ message RunScript
 {
     required dmLuaDDF.LuaModule module = 1;
 }
-
