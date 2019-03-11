@@ -98,8 +98,8 @@
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-linux-amd64"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-macosx-universal"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-amd64"]
-                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]]
-                     [org.clojure/tools.namespace "0.2.11"]
+                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]
+                     [org.clojure/tools.namespace "0.2.11"]]
 
   :source-paths      ["src/clj"]
 
