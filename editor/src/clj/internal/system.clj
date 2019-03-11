@@ -383,9 +383,8 @@
     (assoc-in system [:user-data graph-id node-id key] value)))
 
 (defn user-data-swap! [system node-id key f & args]
-  (let [graph-id (gt/node-id->graph-id node-id)
-        path [graph-id node-id key]]
-    (update-in system [:user-data graph-id node-id key] f args)))
+  (let [graph-id (gt/node-id->graph-id node-id)]
+    (update-in system [:user-data graph-id node-id key] #(apply f %1 %2) args)))
 
 (defn clone-system [system]
   (dosync 
