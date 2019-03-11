@@ -1,6 +1,5 @@
 (ns editor.spine
   (:require [clojure.java.io :as io]
-            [clojure.string :as str]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [util.murmur :as murmur]
@@ -15,7 +14,6 @@
             [editor.defold-project :as project]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
             [editor.render :as render]
             [editor.validation :as validation]
@@ -32,10 +30,11 @@
             [internal.util :as util])
   (:import [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [com.defold.editor.pipeline BezierUtil RigUtil$Transform TextureSetGenerator$UVTransform]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+           [editor.gl.shader ShaderLifecycle]
+           [editor.types AABB]
            [com.jogamp.opengl GL GL2]
-           [javax.vecmath Matrix4d Point2d Point3d Quat4d Vector2d Vector3d Vector4d Tuple3d Tuple4d]
-           [editor.gl.shader ShaderLifecycle]))
+           [java.util HashSet]
+           [javax.vecmath Matrix4d Point2d Point3d Quat4d Vector3d Vector4d Tuple3d Tuple4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -1184,6 +1183,42 @@
             (and (get content "bones") (get content "animations")))
     content))
 
+(defn accept-resource-json
+  [resource]
+  ;; This function tries to find the JSON elements that mark a spine scene
+  ;; without doing a full parse. This is a performance improvement for startup
+  ;; of large projects. A full parse is done if this function succeeds so there
+  ;; is no need to check if the content is valid JSON at this point.
+  (with-open [is (io/input-stream resource)]
+    (let [sb (StringBuilder.)]
+      (loop [done? false
+             inside-string? false
+             escape? false
+             strings (HashSet.)
+             c (.read is)]
+        (if done?
+          true
+          (if (= -1 c)
+            false
+            (if escape?
+              (do
+                (.append sb (char c))
+                (recur done? inside-string? false strings (.read is)))
+              (case c
+                92 (recur done? inside-string? true strings (.read is)) ;; \
+                34 (if inside-string? ;; "
+                     (do
+                       (.add strings (.toString sb))
+                       (.setLength sb 0)
+                       (recur (or (and (.contains strings "skeleton") (.contains strings "spine"))
+                                  (and (.contains strings "bones") (.contains strings "animations")))
+                              false escape? strings (.read is)))
+                     (recur done? true escape? strings (.read is)))
+                (do
+                  (when inside-string?
+                    (.append sb (char c)))
+                  (recur done? inside-string? escape? strings (.read is)))))))))))
+
 (defn- tx-first-created [tx-data]
   (get-in (first tx-data) [:node :_node-id]))
 
@@ -1223,4 +1258,4 @@
             (recur (rest bones) (conj tx-data bone-tx-data) (assoc bone-ids name bone-id)))
           tx-data)))))
 
-(json/register-json-loader ::spine-scene accept-spine-scene-json load-spine-scene-json)
+(json/register-json-loader ::spine-scene accept-spine-scene-json accept-resource-json load-spine-scene-json)

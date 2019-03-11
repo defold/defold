@@ -8,7 +8,7 @@
             [editor.graph-util :as gu]
             [editor.resource :as resource]
             [editor.workspace :as workspace])
-  (:import [java.io PushbackReader StringReader]))
+  (:import [java.io PushbackReader InputStreamReader]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -71,22 +71,23 @@
       (g/connect self :save-data project :save-data))))
 
 (defn load-json [project self resource]
-  (let [text (slurp resource)
-        content (try
-                  (read-then-close (StringReader. text))
-                  (catch Exception error
-                    error))]
-    (if (instance? Exception content)
-      (make-code-editable project self resource (util/split-lines text))
-      (let [[load-fn accept-fn new-content] (some (fn [[_loader-id {:keys [accept-fn load-fn]}]]
-                                                    (when-some [new-content (accept-fn content)]
-                                                      [load-fn accept-fn new-content]))
-                                                  @json-loaders)]
-        (if (nil? load-fn)
-          (make-code-editable project self resource (util/split-lines text))
+  (let [[load-fn accept-fn] (some (fn [[_loader-id {:keys [accept-content-fn
+                                                           accept-resource-fn
+                                                           load-fn]}]]
+                                    (when (accept-resource-fn resource)
+                                      [load-fn accept-content-fn]))
+                                  @json-loaders)]
+    (if (nil? load-fn)
+      (make-code-editable project self resource (util/split-lines (slurp resource)))
+      (let [content (try
+                      (read-then-close (InputStreamReader. (io/input-stream resource)))
+                      (catch Exception error
+                        error))]
+        (if (instance? Exception content)
+          (make-code-editable project self resource (util/split-lines (slurp resource)))
           (concat
-            (g/set-property self :content-transform accept-fn :editable? false)
-            (load-fn self new-content)))))))
+           (g/set-property self :content-transform accept-fn :editable? false)
+           (load-fn self (accept-fn content))))))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
@@ -102,5 +103,7 @@
                                     :textual? true
                                     :auto-connect-save-data? false))
 
-(defn register-json-loader [loader-id accept-fn load-fn]
-  (swap! json-loaders assoc loader-id {:accept-fn accept-fn :load-fn load-fn}))
+(defn register-json-loader [loader-id accept-content-fn accept-resource-fn load-fn]
+  (swap! json-loaders assoc loader-id {:accept-content-fn accept-content-fn
+                                       :accept-resource-fn accept-resource-fn
+                                       :load-fn load-fn}))
