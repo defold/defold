@@ -1,6 +1,7 @@
 (ns editor.bootloader
   "Loads namespaces in parallel when possible to speed up start time."
-  (:require [clojure.java.io :as io])
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io])
   (:import [java.util.concurrent LinkedBlockingQueue]))
 
 (def load-info (atom nil))
@@ -9,7 +10,7 @@
   []
   (let [batches (->> (io/resource "sorted_clojure_ns_list.edn")
                      (slurp)
-                     (read-string))
+                     (edn/read-string))
         boot-loaded? (LinkedBlockingQueue.)
         loader (future
                  (doseq [batch batches]
