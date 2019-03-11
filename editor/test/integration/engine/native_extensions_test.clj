@@ -105,7 +105,7 @@
                                  (exit-event-loop!)))))
     (deref result)))
 
-(deftest async-build-on-build-server
+#_(deftest async-build-on-build-server
   (with-clean-system
     (let [workspace (test-util/setup-scratch-workspace! world "test/resources/trivial_extension")
           project (test-util/setup-project! workspace)
