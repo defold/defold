@@ -9,8 +9,7 @@
             [internal.graph :as ig]
             [internal.util :as util])
   (:import [clojure.lang MapEntry]
-           [com.sun.javafx.stage StageHelper]
-           [javafx.stage Stage]))
+           [javafx.stage Window]))
 
 (set! *warn-on-reflection* true)
 
@@ -93,8 +92,7 @@
   (first (views-of-type node-type)))
 
 (defn windows []
-  (filter #(.isShowing ^Stage %)
-          (StageHelper/getStages)))
+  (Window/getWindows))
 
 (def assets-view (partial view-of-type asset-browser/AssetBrowser))
 (def changed-files-view (partial view-of-type changes-view/ChangesView))
