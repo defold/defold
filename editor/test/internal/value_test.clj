@@ -68,16 +68,16 @@
 (defn build-sample-project
   [world]
   (g/tx-nodes-added
-   (g/transact
-    (g/make-nodes world
-        [name1     [CacheTestNode :scalar "Jane"]
-         name2     [CacheTestNode :scalar "Doe"]
-         combiner  CacheTestNode
-         expensive CacheTestNode
-         nil-val   CacheTestNode]
-      (g/connect name1 :uncached-value combiner :first-name)
-      (g/connect name2 :uncached-value combiner :last-name)
-      (g/connect name1 :uncached-value expensive :operand)))))
+    (g/transact
+      (g/make-nodes world
+          [name1     [CacheTestNode :scalar "Jane"]
+           name2     [CacheTestNode :scalar "Doe"]
+           combiner  CacheTestNode
+           expensive CacheTestNode
+           nil-val   CacheTestNode]
+        (g/connect name1 :uncached-value combiner :first-name)
+        (g/connect name2 :uncached-value combiner :last-name)
+        (g/connect name1 :uncached-value expensive :operand)))))
 
 (defn with-function-counts
   [f]
@@ -156,11 +156,11 @@
 (defn build-override-project
   [world]
   (let [nodes (ts/tx-nodes
-               (g/make-node world OverrideValueNode)
-               (g/make-node world CacheTestNode :scalar "Jane"))
+                (g/make-node world OverrideValueNode)
+                (g/make-node world CacheTestNode :scalar "Jane"))
         [override jane]  nodes]
     (g/transact
-     (g/connect jane :uncached-value override :overridden))
+      (g/connect jane :uncached-value override :overridden))
     nodes))
 
 (deftest invalid-resource-values
@@ -173,11 +173,11 @@
   (ts/with-clean-system
     (let [[node]            (ts/tx-nodes (g/make-node world OverrideValueNode :name "a project" :int-prop 0))
           after-transaction (g/transact
-                             (concat
-                               (g/update-property node :int-prop inc)
-                               (g/update-property node :int-prop inc)
-                               (g/update-property node :int-prop inc)
-                               (g/update-property node :int-prop inc)))]
+                              (concat
+                                (g/update-property node :int-prop inc)
+                                (g/update-property node :int-prop inc)
+                                (g/update-property node :int-prop inc)
+                                (g/update-property node :int-prop inc)))]
       (is (= 4 (g/node-value node :int-prop))))))
 
 (g/defnode OutputChaining
@@ -227,9 +227,9 @@
     (let [[node s1] (ts/tx-nodes (g/make-node world ValuePrecedence)
                                  (g/make-node world Source :constant :input))]
       (g/transact
-       (concat
-         (g/connect s1 :constant node :overloaded-input-property)
-         (g/connect s1 :constant node :eponymous)))
+        (concat
+          (g/connect s1 :constant node :overloaded-input-property)
+          (g/connect s1 :constant node :eponymous)))
       (is (= :output             (g/node-value node :overloaded-output-input-property)))
       (is (= :input              (g/node-value node :overloaded-input-property)))
       (is (= :property           (g/node-value node :the-property)))
@@ -244,10 +244,10 @@
                                              (g/make-node world Source :constant :source-2)
                                              (g/make-node world Source :constant :source-3))]
         (g/transact
-         (concat
-           (g/connect s1 :constant combiner :renderables)
-           (g/connect s2 :constant combiner :renderables)
-           (g/connect s3 :constant combiner :renderables)))
+          (concat
+            (g/connect s1 :constant combiner :renderables)
+            (g/connect s2 :constant combiner :renderables)
+            (g/connect s3 :constant combiner :renderables)))
         (is (= "source-1source-2source-3" (g/node-value combiner :transform-renderables)))))))
 
 (deftest invalidation-across-graphs
@@ -258,32 +258,32 @@
                                                (g/make-node project-graph CacheTestNode :scalar "Plissken"))
           [view-node]    (ts/tx-nodes (g/make-node view-graph CacheTestNode))]
       (g/transact
-       [(g/connect content-node :scalar view-node :first-name)
-        (g/connect aux-node     :scalar view-node :last-name)])
+        [(g/connect content-node :scalar view-node :first-name)
+         (g/connect aux-node     :scalar view-node :last-name)])
 
       (expect-call-when
-       view-node 'compute-derived-value
-       (is (= "Snake Plissken" (g/node-value view-node :derived-value))))
+        view-node 'compute-derived-value
+        (is (= "Snake Plissken" (g/node-value view-node :derived-value))))
 
       (g/transact (g/set-property aux-node :scalar "Solid"))
 
       (expect-call-when
-       view-node 'compute-derived-value
-       (is (= "Snake Solid" (g/node-value view-node :derived-value))))
+        view-node 'compute-derived-value
+        (is (= "Snake Solid" (g/node-value view-node :derived-value))))
 
       (g/transact
-       [(g/disconnect     aux-node :scalar view-node :last-name)
-        (g/disconnect content-node :scalar view-node :first-name)
-        (g/connect        aux-node :scalar view-node :first-name)
-        (g/connect    content-node :scalar view-node :last-name)])
+        [(g/disconnect     aux-node :scalar view-node :last-name)
+         (g/disconnect content-node :scalar view-node :first-name)
+         (g/connect        aux-node :scalar view-node :first-name)
+         (g/connect    content-node :scalar view-node :last-name)])
 
       (expect-call-when
-       view-node 'compute-derived-value
-       (is (= "Solid Snake" (g/node-value view-node :derived-value))))
+        view-node 'compute-derived-value
+        (is (= "Solid Snake" (g/node-value view-node :derived-value))))
 
       (expect-no-call-when
-       view-node 'compute-derived-value
-       (is (= "Solid Snake" (g/node-value view-node :derived-value)))))))
+        view-node 'compute-derived-value
+        (is (= "Solid Snake" (g/node-value view-node :derived-value)))))))
 
 (g/defnode SubstitutingInputsNode
   (input unary-no-sub     g/Any)
@@ -338,28 +338,28 @@
       (testing "unary inputs"
         (ts/with-clean-system
           (let [[receiver const] (ts/tx-nodes
-                                  (g/make-nodes world
-                                      [receiver SubstitutingInputsNode
-                                       const    ConstantNode]
-                                    (g/connect const :scalar-with-error receiver :unary-no-sub)
-                                    (g/connect const :scalar-with-error receiver :unary-with-sub)))]
+                                   (g/make-nodes world
+                                       [receiver SubstitutingInputsNode
+                                        const    ConstantNode]
+                                     (g/connect const :scalar-with-error receiver :unary-no-sub)
+                                     (g/connect const :scalar-with-error receiver :unary-with-sub)))]
             (is (g/error? (g/node-value receiver :unary-no-sub)))
             (is (= 99     (g/node-value receiver :unary-with-sub))))))
       (testing "multivalued inputs"
         (ts/with-clean-system
           (let [[receiver const] (ts/tx-nodes
-                                  (g/make-nodes world
-                                      [receiver SubstitutingInputsNode
-                                       const    ConstantNode]
-                                    (g/connect const :scalar            receiver :multi-no-sub)
-                                    (g/connect const :scalar-with-error receiver :multi-no-sub)
-                                    (g/connect const :scalar            receiver :multi-no-sub)
-                                    (g/connect const :everything        receiver :multi-no-sub)
+                                   (g/make-nodes world
+                                       [receiver SubstitutingInputsNode
+                                        const    ConstantNode]
+                                     (g/connect const :scalar            receiver :multi-no-sub)
+                                     (g/connect const :scalar-with-error receiver :multi-no-sub)
+                                     (g/connect const :scalar            receiver :multi-no-sub)
+                                     (g/connect const :everything        receiver :multi-no-sub)
 
-                                    (g/connect const :scalar            receiver :multi-with-sub)
-                                    (g/connect const :scalar-with-error receiver :multi-with-sub)
-                                    (g/connect const :scalar            receiver :multi-with-sub)
-                                    (g/connect const :everything        receiver :multi-with-sub)))]
+                                     (g/connect const :scalar            receiver :multi-with-sub)
+                                     (g/connect const :scalar-with-error receiver :multi-with-sub)
+                                     (g/connect const :scalar            receiver :multi-with-sub)
+                                     (g/connect const :everything        receiver :multi-with-sub)))]
             (is (g/error?           (g/node-value receiver :multi-no-sub)))
             (is (= [1 4848 1 42]    (g/node-value receiver :multi-with-sub)))))))))
 
@@ -406,10 +406,10 @@
   (testing "single-valued input with an error results in single error out."
     (ts/with-clean-system
       (let [[sender receiver] (ts/tx-nodes
-                               (g/make-nodes world
-                                   [sender   ConstantPropertyNode
-                                    receiver ErrorReceiverNode]
-                                 (g/connect sender :a-property receiver :single)))
+                                (g/make-nodes world
+                                    [sender   ConstantPropertyNode
+                                     receiver ErrorReceiverNode]
+                                  (g/connect sender :a-property receiver :single)))
             _                 (g/mark-defective! sender (g/error-fatal "Bad news, my friend."))
             error-value       (g/node-value receiver :single-output)]
         (are [node label sev e] (and (= node (:_node-id e)) (= label (:_label e)) (= sev (:severity error-value)))
@@ -420,17 +420,18 @@
   (testing "multi-valued input with an error results in a single error out."
     (ts/with-clean-system
       (let [[sender1 sender2 sender3 receiver] (ts/tx-nodes
-                                                (g/make-nodes world
-                                                    [sender1 [ConstantPropertyNode :a-property 1]
-                                                     sender2 [ConstantPropertyNode :a-property 2]
-                                                     sender3 [ConstantPropertyNode :a-property 3]
-                                                     receiver ErrorReceiverNode]
-                                                  (g/connect sender1 :a-property receiver :multi)
-                                                  (g/connect sender2 :a-property receiver :multi)
-                                                  (g/connect sender3 :a-property receiver :multi)))
+                                                 (g/make-nodes world
+                                                     [sender1 [ConstantPropertyNode :a-property 1]
+                                                      sender2 [ConstantPropertyNode :a-property 2]
+                                                      sender3 [ConstantPropertyNode :a-property 3]
+                                                      receiver ErrorReceiverNode]
+                                                   (g/connect sender1 :a-property receiver :multi)
+                                                   (g/connect sender2 :a-property receiver :multi)
+                                                   (g/connect sender3 :a-property receiver :multi)))
             _                                  (g/mark-defective! sender2 (g/error-fatal "Bad things have happened"))
             error-value                        (g/node-value receiver :multi-output)]
-        (are [node label sev e] (and (= node (:_node-id e)) (= label (:_label e)) (= sev (:severity error-value)))
+        (are [node label sev e]
+            (and (= node (:_node-id e)) (= label (:_label e)) (= sev (:severity error-value)))
           receiver :multi-output :fatal   error-value
           receiver :multi        :fatal   (cause error-value)
           sender2  :a-property   :fatal   (cause (cause error-value)))))))
@@ -459,11 +460,11 @@
   (ts/with-clean-system
     (let [list-type      (type (list 1))
           [output input] (ts/tx-nodes
-                          (g/make-nodes world
-                              [output ListOutput
-                               input  ListInput]
-                            (g/connect output :list-output       input :list-input)
-                            (g/connect output :inner-list-output input :inner-list-input)))]
+                           (g/make-nodes world
+                               [output ListOutput
+                                input  ListInput]
+                             (g/connect output :list-output       input :list-input)
+                             (g/connect output :inner-list-output input :inner-list-input)))]
       (is (= list-type (type (g/node-value output :recycle))))
       (is (= list-type (type (g/node-value input  :list-input))))
       (is (= list-type (type (first (g/node-value output :inner-recycle)))))
@@ -473,11 +474,11 @@
   (ts/with-clean-system
     (let [vec-type       (type (vector 1))
           [output input] (ts/tx-nodes
-                          (g/make-nodes world
-                              [output VecOutput
-                               input  VecInput]
-                            (g/connect output :vec-output       input :vec-input)
-                            (g/connect output :inner-vec-output input :inner-vec-input)))]
+                           (g/make-nodes world
+                               [output VecOutput
+                                input  VecInput]
+                             (g/connect output :vec-output       input :vec-input)
+                             (g/connect output :inner-vec-output input :inner-vec-input)))]
       (is (= vec-type (type (g/node-value output :recycle))))
       (is (= vec-type (type (g/node-value input  :vec-input))))
       (is (= vec-type (type (first (g/node-value output :inner-recycle)))))
@@ -490,9 +491,9 @@
 (deftest values-are-not-reconstructed-on-happy-path
   (ts/with-clean-system
     (let [[const input] (ts/tx-nodes
-                         (g/make-nodes world
-                             [const  ConstantOutputNode
-                              input  ListInput]
-                           (g/connect const :val input :list-input)))]
+                          (g/make-nodes world
+                              [const  ConstantOutputNode
+                               input  ListInput]
+                            (g/connect const :val input :list-input)))]
       (is (identical? (g/node-value const :val) (g/node-value const :val)))
       (is (identical? (g/node-value const :val) (g/node-value input :list-input))))))
