@@ -45,7 +45,7 @@
 (defn slice [^ByteBuffer bb offsets]
   (let [dup (.duplicate bb)]
     (mapv (fn [o] (do
-                   (.position dup o)
+                   (.position dup (int o))
                    (doto (.slice dup)
                      (.order (.order bb))))) offsets)))
 
