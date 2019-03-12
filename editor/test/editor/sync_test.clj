@@ -175,7 +175,7 @@
   (gt/with-git [git (gt/new-git)
                 prefs (make-prefs)
                 creds (git/credentials prefs)
-                flow @(sync/begin-flow! git creds)]
+                flow  @(sync/begin-flow! git creds)]
     (is (= :pull/start (:state flow)))
     (is (= git (:git flow)))
     (is (instance? org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider creds))
@@ -193,7 +193,7 @@
                   existing-path "/existing.txt"
                   existing-contents "A file that already existed in the repo, with unstaged changes."
                   deleted-path "/deleted.txt"]
-      ; Create some local changes.
+                                        ; Create some local changes.
       (gt/create-file git existing-path "A file that already existed in the repo.")
       (gt/create-file git deleted-path "A file that existed in the repo, but will be deleted.")
       (gt/commit-src git)
@@ -201,9 +201,9 @@
       (gt/create-file git added-path added-contents)
       (gt/delete-file git deleted-path)
 
-      ; Create a directory where the flow journal file is expected to be
-      ; in order to cause an Exception inside the begin-flow! function.
-      ; Verify that the local changes remain afterwards.
+                                        ; Create a directory where the flow journal file is expected to be
+                                        ; in order to cause an Exception inside the begin-flow! function.
+                                        ; Verify that the local changes remain afterwards.
       (let [journal-file (sync/flow-journal-file git)
             status-before (git/status git)]
         (fs/create-directories! journal-file)
@@ -539,11 +539,11 @@
 
 (deftest advance-flow-test
   (testing ":pull/done"
-    (gt/with-git [git (gt/new-git)
+    (gt/with-git [git       (gt/new-git)
                   local-git (gt/clone git)
-                  prefs (make-prefs)
-                  creds (git/credentials prefs)
-                  !flow (sync/begin-flow! local-git creds)]
+                  prefs     (make-prefs)
+                  creds     (git/credentials prefs)
+                  !flow     (sync/begin-flow! local-git creds)]
       (is (flow-equal? @!flow @(sync/resume-flow local-git creds)))
       (swap! !flow sync/advance-flow progress/null-render-progress!)
       (is (= :pull/done (:state @!flow)))
@@ -552,83 +552,83 @@
   (testing ":pull/conflicts"
     (testing "Use ours"
       (test-conflict-resolution sync/use-ours!
-                                {:conflicting-stage-state {"src/both_modified_conflicting.txt" :both-modified
+                                {:conflicting-stage-state {"src/both_modified_conflicting.txt"     :both-modified
                                                            "src/local_deleted_remote_modified.txt" :deleted-by-them
                                                            "src/local_modified_remote_deleted.txt" :deleted-by-us
-                                                           "src/local_modified_remote_moved.txt" :deleted-by-us
-                                                           "src/local_moved_remote_modified.txt" :deleted-by-them
-                                                           "src/new/both_added_conflicting.txt" :both-added}
-                                 :missing #{"src/local_deleted.txt"
-                                            "src/local_deleted_remote_modified.txt"
-                                            "src/local_moved.txt"
-                                            "src/local_moved_remote_modified.txt"}
-                                 :modified #{"src/both_modified_conflicting.txt"
-                                             "src/local_modified.txt"
-                                             "src/new/both_added_conflicting.txt"}
-                                 :untracked #{"src/local_modified_remote_deleted.txt"
-                                              "src/local_modified_remote_moved.txt"
-                                              "src/moved/both_moved_conflicting_a.txt"
-                                              "src/moved/local_moved.txt"
-                                              "src/moved/local_moved_remote_modified.txt"
-                                              "src/new/local_added.txt"}}
-                                {"src/both_modified_conflicting.txt" "both_modified_conflicting, modified by local."
-                                 "src/both_modified_same.txt" "both_modified_same, modified identically by both."
-                                 "src/local_modified.txt" "local_modified, modified by local."
-                                 "src/local_modified_remote_deleted.txt" "local_modified_remote_deleted modified by local."
-                                 "src/local_modified_remote_moved.txt" "local_modified_remote_moved, modified by local."
-                                 "src/moved/both_moved_conflicting_a.txt" "both_moved_conflicting"
-                                 "src/moved/both_moved_conflicting_b.txt" "both_moved_conflicting"
-                                 "src/moved/both_moved_same.txt" "both_moved_same"
+                                                           "src/local_modified_remote_moved.txt"   :deleted-by-us
+                                                           "src/local_moved_remote_modified.txt"   :deleted-by-them
+                                                           "src/new/both_added_conflicting.txt"    :both-added}
+                                 :missing                #{"src/local_deleted.txt"
+                                                           "src/local_deleted_remote_modified.txt"
+                                                           "src/local_moved.txt"
+                                                           "src/local_moved_remote_modified.txt"}
+                                 :modified               #{"src/both_modified_conflicting.txt"
+                                                           "src/local_modified.txt"
+                                                           "src/new/both_added_conflicting.txt"}
+                                 :untracked              #{"src/local_modified_remote_deleted.txt"
+                                                           "src/local_modified_remote_moved.txt"
+                                                           "src/moved/both_moved_conflicting_a.txt"
+                                                           "src/moved/local_moved.txt"
+                                                           "src/moved/local_moved_remote_modified.txt"
+                                                           "src/new/local_added.txt"}}
+                                {"src/both_modified_conflicting.txt"         "both_modified_conflicting, modified by local."
+                                 "src/both_modified_same.txt"                "both_modified_same, modified identically by both."
+                                 "src/local_modified.txt"                    "local_modified, modified by local."
+                                 "src/local_modified_remote_deleted.txt"     "local_modified_remote_deleted modified by local."
+                                 "src/local_modified_remote_moved.txt"       "local_modified_remote_moved, modified by local."
+                                 "src/moved/both_moved_conflicting_a.txt"    "both_moved_conflicting"
+                                 "src/moved/both_moved_conflicting_b.txt"    "both_moved_conflicting"
+                                 "src/moved/both_moved_same.txt"             "both_moved_same"
                                  "src/moved/local_modified_remote_moved.txt" "local_modified_remote_moved"
-                                 "src/moved/local_moved.txt" "local_moved"
+                                 "src/moved/local_moved.txt"                 "local_moved"
                                  "src/moved/local_moved_remote_modified.txt" "local_moved_remote_modified"
-                                 "src/moved/remote_moved.txt" "remote_moved"
-                                 "src/new/both_added_conflicting.txt" "both_added_conflicting, added by local."
-                                 "src/new/both_added_same.txt" "both_added_same, added identically by both."
-                                 "src/new/local_added.txt" "local_added, added only by local."
-                                 "src/new/remote_added.txt" "remote_added, added only by remote."
-                                 "src/remote_modified.txt" "remote_modified, modified by remote."}))
+                                 "src/moved/remote_moved.txt"                "remote_moved"
+                                 "src/new/both_added_conflicting.txt"        "both_added_conflicting, added by local."
+                                 "src/new/both_added_same.txt"               "both_added_same, added identically by both."
+                                 "src/new/local_added.txt"                   "local_added, added only by local."
+                                 "src/new/remote_added.txt"                  "remote_added, added only by remote."
+                                 "src/remote_modified.txt"                   "remote_modified, modified by remote."}))
     (testing "Use theirs"
       (test-conflict-resolution sync/use-theirs!
-                                {:conflicting-stage-state {"src/both_modified_conflicting.txt" :both-modified
+                                {:conflicting-stage-state {"src/both_modified_conflicting.txt"     :both-modified
                                                            "src/local_deleted_remote_modified.txt" :deleted-by-them
                                                            "src/local_modified_remote_deleted.txt" :deleted-by-us
-                                                           "src/local_modified_remote_moved.txt" :deleted-by-us
-                                                           "src/local_moved_remote_modified.txt" :deleted-by-them
-                                                           "src/new/both_added_conflicting.txt" :both-added}
-                                 :missing #{"src/local_deleted.txt"
-                                            "src/local_moved.txt"}
-                                 :modified #{"src/local_modified.txt"}
-                                 :untracked #{"src/moved/both_moved_conflicting_a.txt"
-                                              "src/moved/local_moved.txt"
-                                              "src/moved/local_moved_remote_modified.txt"
-                                              "src/new/local_added.txt"}}
-                                {"src/both_modified_conflicting.txt" "both_modified_conflicting, modified by remote."
-                                 "src/both_modified_same.txt" "both_modified_same, modified identically by both."
-                                 "src/local_deleted_remote_modified.txt" "local_deleted_remote_modified modified by remote."
-                                 "src/local_modified.txt" "local_modified, modified by local."
-                                 "src/local_moved_remote_modified.txt" "local_moved_remote_modified modified by remote."
-                                 "src/moved/both_moved_conflicting_a.txt" "both_moved_conflicting"
-                                 "src/moved/both_moved_conflicting_b.txt" "both_moved_conflicting"
-                                 "src/moved/both_moved_same.txt" "both_moved_same"
+                                                           "src/local_modified_remote_moved.txt"   :deleted-by-us
+                                                           "src/local_moved_remote_modified.txt"   :deleted-by-them
+                                                           "src/new/both_added_conflicting.txt"    :both-added}
+                                 :missing                #{"src/local_deleted.txt"
+                                                           "src/local_moved.txt"}
+                                 :modified               #{"src/local_modified.txt"}
+                                 :untracked              #{"src/moved/both_moved_conflicting_a.txt"
+                                                           "src/moved/local_moved.txt"
+                                                           "src/moved/local_moved_remote_modified.txt"
+                                                           "src/new/local_added.txt"}}
+                                {"src/both_modified_conflicting.txt"         "both_modified_conflicting, modified by remote."
+                                 "src/both_modified_same.txt"                "both_modified_same, modified identically by both."
+                                 "src/local_deleted_remote_modified.txt"     "local_deleted_remote_modified modified by remote."
+                                 "src/local_modified.txt"                    "local_modified, modified by local."
+                                 "src/local_moved_remote_modified.txt"       "local_moved_remote_modified modified by remote."
+                                 "src/moved/both_moved_conflicting_a.txt"    "both_moved_conflicting"
+                                 "src/moved/both_moved_conflicting_b.txt"    "both_moved_conflicting"
+                                 "src/moved/both_moved_same.txt"             "both_moved_same"
                                  "src/moved/local_modified_remote_moved.txt" "local_modified_remote_moved"
-                                 "src/moved/local_moved.txt" "local_moved"
+                                 "src/moved/local_moved.txt"                 "local_moved"
                                  "src/moved/local_moved_remote_modified.txt" "local_moved_remote_modified"
-                                 "src/moved/remote_moved.txt" "remote_moved"
-                                 "src/new/both_added_conflicting.txt" "both_added_conflicting, added by remote."
-                                 "src/new/both_added_same.txt" "both_added_same, added identically by both."
-                                 "src/new/local_added.txt" "local_added, added only by local."
-                                 "src/new/remote_added.txt" "remote_added, added only by remote."
-                                 "src/remote_modified.txt" "remote_modified, modified by remote."})))
+                                 "src/moved/remote_moved.txt"                "remote_moved"
+                                 "src/new/both_added_conflicting.txt"        "both_added_conflicting, added by remote."
+                                 "src/new/both_added_same.txt"               "both_added_same, added identically by both."
+                                 "src/new/local_added.txt"                   "local_added, added only by local."
+                                 "src/new/remote_added.txt"                  "remote_added, added only by remote."
+                                 "src/remote_modified.txt"                   "remote_modified, modified by remote."})))
 
   (testing ":push-staging -> :push/done"
     (gt/with-git [git (gt/new-git)]
       (gt/create-file git "/src/main.cpp" "void main() {}")
       (gt/commit-src git)
       (gt/with-git [local-git (gt/clone git)
-                    prefs (make-prefs)
-                    creds (git/credentials prefs)
-                    !flow (sync/begin-flow! local-git creds)]
+                    prefs     (make-prefs)
+                    creds     (git/credentials prefs)
+                    !flow     (sync/begin-flow! local-git creds)]
         (swap! !flow assoc :state :push/start)
         (gt/create-file local-git "/src/main.cpp" "void main() {BAR}")
         (swap! !flow sync/advance-flow progress/null-render-progress!)
@@ -638,7 +638,7 @@
         (swap! !flow sync/refresh-git-state)
         (is (= #{(git/make-modify-change "src/main.cpp")} (:staged @!flow)))
         (is (flow-equal? @!flow @(sync/resume-flow local-git creds)))
-        (swap! !flow merge {:state :push/committing
+        (swap! !flow merge {:state   :push/committing
                             :message "foobar"})
         (is (flow-equal? @!flow @(sync/resume-flow local-git creds)))
         (swap! !flow sync/advance-flow progress/null-render-progress!)
