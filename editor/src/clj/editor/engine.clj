@@ -52,21 +52,19 @@
       (finally
         (.disconnect conn)))))
 
-(defn change-resolution! [target user-data]
+(defn change-resolution! [target width height rotate]
   (let [uri (URI. (str (:url target) "/post/@render/resize"))
-        conn ^HttpURLConnection (get-connection uri)
-        width (if (:rotate user-data)
-                (:height user-data)
-                (:width user-data))
-        height (if (:rotate user-data)
-                 (:width user-data)
-                 (:height user-data))]
+        conn ^HttpURLConnection (get-connection uri)]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
                             Render$Resize
-                            {:width width
-                             :height height})))
+                            {:width (if rotate
+                                      height
+                                      width)
+                             :height (if rotate
+                                       width
+                                       height)})))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))
       (finally

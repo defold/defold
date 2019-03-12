@@ -13,7 +13,8 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.defold-project :as project]
-            [editor.github :as github])
+            [editor.github :as github]
+            [editor.field-expression :as field-expression])
   (:import [java.io File]
            [java.util List Collection]
            [java.nio.file Path Paths]
@@ -171,10 +172,15 @@
         height   (atom 420)]
     (ui/with-controls root [^TextField resolution-width ^TextField resolution-height ^Button ok ^Button cancel]
       (ui/on-action! ok (fn [_]
-                          (reset! result true)
-                          (reset! width (Integer. (.getText resolution-width)))
-                          (reset! height (Integer. (.getText resolution-height)))
-                          (.close stage)))
+                          (if-let [w (field-expression/to-int (.getText resolution-width))]
+                            (if-let [h (field-expression/to-int (.getText resolution-height))]
+                              (do
+                                (reset! width w)
+                                (reset! height h)
+                                (reset! result true)
+                                (.close stage))
+                              nil)
+                            nil)))
       (ui/on-action! cancel (fn [_]
                               (.close stage))))
     (ui/title! stage "Custom resolution")
