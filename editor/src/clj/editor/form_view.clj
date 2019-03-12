@@ -23,9 +23,8 @@
            [javafx.beans.value ObservableNumberValue]
            [javafx.beans.binding Bindings]
            [javafx.scene.layout GridPane HBox VBox Priority ColumnConstraints]
-           [javafx.scene.control Control Cell ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane Label TextField ComboBox CheckBox Button ContextMenu MenuItem SelectionMode ContentDisplay TableColumnBase]
+           [javafx.scene.control Control Cell ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane Label TextField ComboBox CheckBox Button ContextMenu MenuItem SelectionMode ContentDisplay]
            [com.defold.control ListView ListCell ListCellSkinWithBehavior TableCell TableCellBehavior TableCellSkinWithBehavior]
-           [com.sun.javafx.scene.control TableColumnBaseHelper]
            [com.sun.javafx.scene.control.behavior ListCellBehavior]))
 
 ;; A note about the cell-factory controls (:list, :table, :2panel):
@@ -267,7 +266,7 @@
                         (ui/add-style! "button-small"))
         open-button (doto (Button. "" (jfx/get-image-view open-icon 16))
                       (.setMaxWidth 26)
-                      (ui/add-style! "button-small"))
+                       (ui/add-style! "button-small"))
         text (let [tf (TextField.)]
                (.setPrefWidth tf (field-width field-info))
                (GridPane/setFillWidth tf true)
@@ -330,7 +329,7 @@
                               (.setPrefWidth tf (field-width field-info))
                               (GridPane/setFillWidth tf true)
                               tf))
-                          labels)
+                            labels)
         box (doto (GridPane.)
               (.setHgap grid-hgap))
         current-value (atom nil)
@@ -392,7 +391,8 @@
 
 (defn- create-cell-field-control [^Cell cell column-info ctxt]
   (let [field-ops {:set (fn [_ value] (.commitEdit cell value))
-                   :cancel #(.cancelEdit cell)}
+                   :cancel #(.cancelEdit cell)
+                   }
         [^Control control api] (create-field-control column-info field-ops ctxt)] ; column-info ~ field-info
     (.setPadding control (Insets. 0 0 0 0))
     [control api]))
@@ -401,7 +401,7 @@
   (let [min-width (.prefWidth ctrl -1)
         curr-width (.getWidth table-column)]
     (when (< curr-width min-width)
-      (TableColumnBaseHelper/setWidth table-column min-width))))
+      (.impl_setWidth table-column min-width))))
 
 (defn- create-table-cell-factory [column-info ctxt edited-cell-atom]
   (reify Callback
@@ -515,7 +515,7 @@
                                                                    (when (or (nil? enabled) (enabled))
                                                                      (menu-item label action)))
                                                                  item-descs))))
-                                            (ui/set-show-relative-to-window! cm true)
+                                            (.setImpl_showRelativeToWindow cm true)
                                             (.show cm ctrl (.getScreenX event) (.getScreenY event))
                                             (.consume event)))))))
 
@@ -692,7 +692,7 @@
 
 (defmethod query-values-fn :resource [field-info {:keys [workspace project] :as ctxt}]
   (fn [] (dialogs/make-resource-dialog workspace project {:ext (:filter field-info)
-                                                          :selection :multiple})))
+                                                                 :selection :multiple})))
 
 (defmethod query-values-fn :default [_ _] nil)
 
@@ -814,7 +814,8 @@
                           :clear (when-let [clear (:clear field-ops)]
                                    (fn [path]
                                      (let [selected-index (get-selected-index list-view)]
-                                       (clear (concat (:path field-info) [selected-index] path)))))}
+                                       (clear (concat (:path field-info) [selected-index] path)))))
+                          }
         grid-rows (mapcat (fn [section-info] (create-section-grid-rows section-info nested-field-ops ctxt)) (:sections (:panel-form field-info)))
         updaters (into {} (keep :update-ui-fn grid-rows))
         grid (create-form-grid grid-rows)
@@ -1013,7 +1014,8 @@
 (defn- make-base-field-ops [form-ops]
   {:set (fn [path value] (form/set-value! form-ops path value))
    :clear (when (form/can-clear? form-ops)
-            (fn [path] (form/clear-value! form-ops path)))})
+            (fn [path] (form/clear-value! form-ops path)))
+   })
 
 (defn- create-form-grid [grid-rows]
   (let [grid (doto (GridPane.)
