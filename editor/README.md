@@ -53,6 +53,15 @@ Some of the remaining instructions are about EMACS. If instead you want to use t
 
 If you are using a repl, you can also run the tests by calling `(suite/suite)`.
 
+## Running the linter
+`lein lint` will run [eastwood](https://github.com/jonase/eastwood) on the project and save the output in a file called eastwood-warnings.txt.
+
+There will also be a lot of warnings about reflection, boxed math and some stack
+traces from eastwood printed to standard error. These are side effects of the
+flags for reflection warnings and boxed math being turned on for the project as
+a whole because of how eastwood parses and evaluates code and can safely be
+ignored. The real output from the linting is in eastwood-warnings.txt
+
 ## Setup NREPL for debugging
 
 If you want to work on the editor chances are you want to `connect` or `jack-in` to a REPL as described below.
