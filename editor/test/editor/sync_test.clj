@@ -193,7 +193,7 @@
                   existing-path "/existing.txt"
                   existing-contents "A file that already existed in the repo, with unstaged changes."
                   deleted-path "/deleted.txt"]
-                                        ; Create some local changes.
+      ;; Create some local changes.
       (gt/create-file git existing-path "A file that already existed in the repo.")
       (gt/create-file git deleted-path "A file that existed in the repo, but will be deleted.")
       (gt/commit-src git)
@@ -201,9 +201,9 @@
       (gt/create-file git added-path added-contents)
       (gt/delete-file git deleted-path)
 
-                                        ; Create a directory where the flow journal file is expected to be
-                                        ; in order to cause an Exception inside the begin-flow! function.
-                                        ; Verify that the local changes remain afterwards.
+      ;; Create a directory where the flow journal file is expected to be
+      ;; in order to cause an Exception inside the begin-flow! function.
+      ;; Verify that the local changes remain afterwards.
       (let [journal-file (sync/flow-journal-file git)
             status-before (git/status git)]
         (fs/create-directories! journal-file)
@@ -448,15 +448,15 @@
 
   (testing "invalid-ref-error"
     (are [data]
-      (gt/with-git [git (gt/new-git)]
-        (setup-flow-in-progress! git)
-        (update-flow-journal! git #(merge % data))
-        (let [result (sync/cancel-flow-in-progress! git)]
-          (is (= :error (:type result)))
-          (is (= :invalid-ref-error (:code result)))
-          (is (valid-error-message? (cancel-error-code-message :invalid-ref-error)))
-          (is (false? (:can-retry? result)))
-          (is (false? (sync/flow-in-progress? git)))))
+        (gt/with-git [git (gt/new-git)]
+          (setup-flow-in-progress! git)
+          (update-flow-journal! git #(merge % data))
+          (let [result (sync/cancel-flow-in-progress! git)]
+            (is (= :error (:type result)))
+            (is (= :invalid-ref-error (:code result)))
+            (is (valid-error-message? (cancel-error-code-message :invalid-ref-error)))
+            (is (false? (:can-retry? result)))
+            (is (false? (sync/flow-in-progress? git)))))
       {:start-ref (make-fake-ref-string)}
       {:stash-info {:ref (make-fake-ref-string)}}
       {:start-ref (make-fake-ref-string) :stash-info {:ref (make-fake-ref-string)}}))
