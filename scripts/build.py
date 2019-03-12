@@ -16,7 +16,7 @@ from ConfigParser import ConfigParser
     Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.6.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
 PACKAGES_HOST="protobuf-2.3.0 gtest-1.8.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.0.5 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.0.5 tremolo-0.0.8 bullet-2.77".split()
@@ -1118,11 +1118,6 @@ instructions.configure=\
             for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
                 self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
-        for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'launcher*')):
-            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
-
-        for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'update', '*')):
-            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
         self.wait_uploads()
 
     def release_editor2(self):
@@ -1135,17 +1130,8 @@ instructions.configure=\
         self._log("Releasing editor2 '%s' for channel '%s'" % (sha1, self.channel))
 
         # Rather than accessing S3 from its web end-point, we always go through the CDN
-        update_url = 'https://d.defold.com/editor2/%(sha1)s/editor2' % {'sha1': sha1}
-        update_data = {
-            'url': update_url,
-        }
-
         archive_url = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(archive_url.hostname)
-        key = bucket.new_key('editor2/channels/%(channel)s/update.json' % {'channel': self.channel})
-        key.content_type = 'application/json'
-        self._log("Updating channel '%s' for update.json: %s" % (self.channel, key))
-        key.set_contents_from_string(json.dumps(update_data))
 
         key_v2 = bucket.new_key('editor2/channels/%(channel)s/update-v2.json' % {'channel': self.channel})
         key_v2.content_type = 'application/json'
@@ -1691,7 +1677,7 @@ instructions.configure=\
         game_project = '../../editor/test/resources/geometry_wars/game.project'
         args = [java, '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test_prefs.json', game_project]
         robot_jar = '%s/ext/share/java/defold-robot.jar' % self.dynamo_home
-        robot_args = [java, '-jar', robot_jar, '-s', '../../share/smoke_test.json', '-o', 'result']
+        robot_args = [java, '-jar', robot_jar, '-s', '../../share/smoke-test.edn', '-o', 'result']
         print('Running robot: %s' % robot_args)
         robot_proc = subprocess.Popen(robot_args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
         time.sleep(2)
