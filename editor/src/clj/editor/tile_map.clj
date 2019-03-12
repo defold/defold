@@ -13,6 +13,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.material :as material]
+            [editor.math :as math]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -331,9 +332,10 @@
 
 (g/defnk produce-scene
   [_node-id child-scenes]
-  {:node-id  _node-id
-   :aabb     (reduce geom/aabb-union (geom/null-aabb) (keep :aabb child-scenes))
-   :children child-scenes})
+  (let [aabb (reduce geom/aabb-union (geom/null-aabb) (keep :aabb child-scenes))]
+    {:node-id  _node-id
+     :aabb     aabb
+     :children child-scenes}))
 
 (g/defnk produce-node-outline
   [_node-id child-outlines]
@@ -1020,6 +1022,12 @@
     (fn [self action _]
       (handle-input self action state))))
 
+(defn- get-current-tile
+  [cursor-world-pos tile-dimensions]
+  (when (and cursor-world-pos tile-dimensions)
+    (let [[w h] tile-dimensions]
+      (world-pos->tile cursor-world-pos w h))))
+
 (g/defnode TileMapController
   (property prefs g/Any)
   (property cursor-world-pos Point3d)
@@ -1055,9 +1063,7 @@
 
   (output current-tile g/Any
           (g/fnk [cursor-world-pos tile-dimensions]
-            (when (and cursor-world-pos tile-dimensions)
-              (let [[w h] tile-dimensions]
-                (world-pos->tile cursor-world-pos w h)))))
+            (get-current-tile cursor-world-pos tile-dimensions)))
 
   (output palette-transform g/Any
           (g/fnk [tile-source-attributes viewport cursor-screen-pos]
@@ -1068,7 +1074,10 @@
   (output editor-renderables pass/RenderData produce-editor-renderables)
   (output palette-renderables pass/RenderData produce-palette-renderables)
   (output renderables pass/RenderData :cached produce-tool-renderables)
-  (output input-handler Runnable :cached (g/constantly (make-input-handler))))
+  (output input-handler Runnable :cached (g/constantly (make-input-handler)))
+  (output info-text g/Str (g/fnk [cursor-world-pos tile-dimensions]
+                            (when-some [[x y] (get-current-tile cursor-world-pos tile-dimensions)]
+                              (format "Cell: %d, %d" x y)))))
 
 (defmethod scene/attach-tool-controller ::TileMapController
   [_ tool-id view-id resource-id]

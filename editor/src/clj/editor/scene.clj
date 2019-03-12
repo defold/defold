@@ -39,6 +39,7 @@
            [javafx.embed.swing SwingFXUtils]
            [javafx.geometry HPos VPos]
            [javafx.scene Node Parent]
+           [javafx.scene.control Label]
            [javafx.scene.image ImageView WritableImage]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
@@ -469,6 +470,8 @@
         (vals (:renderables scene-render-data))))
 
 (g/defnode SceneRenderer
+  (property info-label Label (dynamic visible (g/constantly false)))
+
   (input active-view g/NodeID)
   (input scene g/Any :substitute substitute-scene)
   (input selection g/Any)
@@ -703,12 +706,15 @@
 
   (input input-handlers Runnable :array)
   (input picking-rect Rect)
+  (input tool-info-text g/Str)
   (input tool-renderables pass/RenderData :array :substitute substitute-render-data)
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)
   (input updatables g/Any)
   (input selected-updatables g/Any)
   (output inactive? g/Bool (g/fnk [_node-id active-view] (not= _node-id active-view)))
+  (output info-text g/Str (g/fnk [scene tool-info-text]
+                            (or tool-info-text (:info-text scene))))
   (output tool-renderables g/Any produce-tool-renderables)
   (output active-tool g/Keyword (gu/passthrough active-tool))
   (output manip-space g/Keyword (gu/passthrough manip-space))
@@ -724,7 +730,7 @@
                                              {:renderables (reduce (partial merge-with into)
                                                                    {}
                                                                    tool-renderables)})))
-  
+
   (output picking-selection g/Any :cached produce-selection)
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
@@ -734,7 +740,14 @@
     (let [image-view (g/node-value node-id :image-view evaluation-context)]
       (when-not (ui/inside-hidden-tab? image-view)
         (let [drawable (g/node-value node-id :drawable evaluation-context)
-              async-copy-state-atom (g/node-value node-id :async-copy-state evaluation-context)]
+              async-copy-state-atom (g/node-value node-id :async-copy-state evaluation-context)
+              info-label (g/node-value node-id :info-label evaluation-context)
+              info-text (g/node-value node-id :info-text evaluation-context)]
+          (when (some? info-label)
+            (if (empty? info-text)
+              (ui/visible! info-label false)
+              (do (ui/text! info-label info-text)
+                  (ui/visible! info-label true))))
           (when (and (some? drawable) (some? async-copy-state-atom))
             (update-image-view! image-view drawable async-copy-state-atom evaluation-context)))))))
 
@@ -1138,6 +1151,8 @@
   (let [view-id (g/make-node! scene-graph SceneView :updatable-states {})
         scene-view-pane (make-scene-view-pane view-id opts)]
     (ui/children! parent [scene-view-pane])
+    (ui/with-controls scene-view-pane [scene-view-info-label]
+      (g/set-property! view-id :info-label scene-view-info-label))
     view-id))
 
 (g/defnk produce-frame [all-renderables ^Region viewport pass->render-args ^GLAutoDrawable drawable]
@@ -1170,6 +1185,7 @@
   (input updatables g/Any)
   (input selected-updatables g/Any)
   (input picking-rect Rect)
+  (input tool-info-text g/Str)
   (input tool-renderables pass/RenderData :array)
   (output tool-renderables g/Any produce-tool-renderables)
   (output inactive? g/Bool (g/constantly false))
@@ -1248,6 +1264,7 @@
                     (g/connect app-view-id     :hidden-node-outline-key-paths view-id         :hidden-node-outline-key-paths)
 
                     (g/connect tool-controller :input-handler                 view-id         :input-handlers)
+                    (g/connect tool-controller :info-text                     view-id         :tool-info-text)
                     (g/connect tool-controller :renderables                   view-id         :tool-renderables)
                     (g/connect view-id         :active-tool                   tool-controller :active-tool)
                     (g/connect view-id         :manip-space                   tool-controller :manip-space)

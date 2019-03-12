@@ -435,9 +435,10 @@
         (.glEnd gl)))))
 
 (g/defnk produce-scene
-  [_node-id aabb layout-size gpu-texture child-scenes]
+  [_node-id aabb layout-size gpu-texture child-scenes texture-profile]
   (let [[width height] layout-size]
     {:aabb aabb
+     :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))
      :renderable {:render-fn render-atlas
                   :user-data {:gpu-texture gpu-texture
                               :vbuf        (gen-renderable-vertex-buffer width height)}

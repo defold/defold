@@ -25,6 +25,7 @@
    [editor.pipeline.texture-set-gen :as texture-set-gen]
    [editor.properties :as properties]
    [editor.scene :as scene]
+   [editor.scene-text :as scene-text]
    [editor.texture-set :as texture-set]
    [editor.outline :as outline]
    [editor.protobuf :as protobuf]
@@ -448,15 +449,17 @@
 
 
 (g/defnk produce-scene
-  [_node-id tile-source-attributes aabb uv-transforms texture-set gpu-texture convex-hulls collision-groups-data child-scenes]
+  [_node-id tile-source-attributes aabb layout-size uv-transforms texture-set texture-profile gpu-texture convex-hulls collision-groups-data child-scenes]
   (when tile-source-attributes
     (let [user-data {:node-id _node-id
                      :tile-source-attributes tile-source-attributes
                      :uv-transforms uv-transforms
                      :gpu-texture gpu-texture
                      :convex-hulls convex-hulls
-                     :collision-groups-data collision-groups-data}]
+                     :collision-groups-data collision-groups-data}
+          [width height] layout-size]
       {:aabb aabb
+       :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))
        :renderable {:render-fn render-tile-source
                     :tags #{:tile-source}
                     :user-data user-data
@@ -693,7 +696,7 @@
 
 (g/defnk produce-active-tile
   [cursor-world-pos tile-source-attributes convex-hulls camera viewport]
-  (when (and cursor-world-pos (seq convex-hulls))
+  (when (some? cursor-world-pos)
     (let [{:keys [width height]} tile-source-attributes
           rows (:tiles-per-column tile-source-attributes)
           cols (:tiles-per-row tile-source-attributes)
@@ -703,8 +706,7 @@
           [x y :as tile] (world-pos->tile-pos cursor-world-pos width height x-border y-border)
           convex-hull (nth convex-hulls (+ x (* (- rows y 1) cols)) nil)]
       (when (and (<= 0 x (dec cols))
-                 (<= 0 y (dec rows))
-                 (not (zero? (or (:count convex-hull) 0))))
+                 (<= 0 y (dec rows)))
         tile))))
 
 (g/defnk produce-active-tile-idx
@@ -838,7 +840,10 @@
   (output active-tile-idx g/Any :cached produce-active-tile-idx)
   (output selected-collision-group-node g/Any produce-selected-collision-group-node)
   (output renderables pass/RenderData :cached produce-tool-renderables)
-  (output input-handler Runnable :cached (g/constantly handle-input)))
+  (output input-handler Runnable :cached (g/constantly handle-input))
+  (output info-text g/Str (g/fnk [active-tile-idx]
+                            (when (some? active-tile-idx)
+                              (str "Tile " (+ active-tile-idx 1))))))
 
 (defmethod scene/attach-tool-controller ::ToolController
   [_ tool-id view-id resource-id]
