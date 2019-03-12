@@ -249,8 +249,7 @@
  (add-two-nodes-and-connect-them)
  (add-two-nodes-and-connect-and-disconnect-them)
  (run-many-transactions)
- (one-node-value-bench)
-  )
+ (one-node-value-bench))
 
 (defn -main [& args]
   (println "Running benchmarks and outputing results to ./test/benchmark/bench-results.txt")
