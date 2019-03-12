@@ -8,7 +8,7 @@
                      [lein-sass "0.4.0"]
                      [codox "0.9.3"]]
 
-  :dependencies     [[org.clojure/clojure                         "1.8.0"]
+  :dependencies     [[org.clojure/clojure                         "1.10.0"]
                      [org.clojure/core.cache                      "0.6.5"]
                      [org.clojure/tools.cli                       "0.3.5"]
                      [org.clojure/tools.macro                     "0.1.5"]
@@ -17,7 +17,7 @@
                      [org.clojure/data.json                       "0.2.6"]
                      [com.cognitect/transit-clj                   "0.8.285"
                       :exclusions [com.fasterxml.jackson.core/jackson-core]] ; transit-clj -> 2.3.2, amazonica -> 2.6.6
-                     [prismatic/schema                            "1.0.4"]
+                     [prismatic/schema                            "1.1.9"]
                      [prismatic/plumbing                          "0.5.2"]
                      [com.google.protobuf/protobuf-java           "2.3.0"]
                      [ch.qos.logback/logback-classic              "1.2.1"]
@@ -54,6 +54,40 @@
                       :exclusions [com.amazonaws/aws-java-sdk com.amazonaws/amazon-kinesis-client]]
                      [com.amazonaws/aws-java-sdk-core             "1.11.63"]
                      [com.amazonaws/aws-java-sdk-s3               "1.11.63"]
+
+                     ;; bob needs javax.xml.bind, and it's removed in jdk 11
+                     [javax.xml.bind/jaxb-api "2.3.0"]
+                     [com.sun.xml.bind/jaxb-core "2.3.0"]
+                     [com.sun.xml.bind/jaxb-impl "2.3.0"]
+
+                     [org.openjfx/javafx-base "12-ea+8"]
+                     [org.openjfx/javafx-base "12-ea+8" :classifier "linux"]
+                     [org.openjfx/javafx-base "12-ea+8" :classifier "mac"]
+                     [org.openjfx/javafx-base "12-ea+8" :classifier "win"]
+                     [org.openjfx/javafx-controls "12-ea+8"]
+                     [org.openjfx/javafx-controls "12-ea+8" :classifier "linux"]
+                     [org.openjfx/javafx-controls "12-ea+8" :classifier "mac"]
+                     [org.openjfx/javafx-controls "12-ea+8" :classifier "win"]
+                     [org.openjfx/javafx-graphics "12-ea+8"]
+                     [org.openjfx/javafx-graphics "12-ea+8" :classifier "linux"]
+                     [org.openjfx/javafx-graphics "12-ea+8" :classifier "mac"]
+                     [org.openjfx/javafx-graphics "12-ea+8" :classifier "win"]
+                     [org.openjfx/javafx-media "12-ea+8"]
+                     [org.openjfx/javafx-media "12-ea+8" :classifier "linux"]
+                     [org.openjfx/javafx-media "12-ea+8" :classifier "mac"]
+                     [org.openjfx/javafx-media "12-ea+8" :classifier "win"]
+                     [org.openjfx/javafx-web "12-ea+8"]
+                     [org.openjfx/javafx-web "12-ea+8" :classifier "linux"]
+                     [org.openjfx/javafx-web "12-ea+8" :classifier "mac"]
+                     [org.openjfx/javafx-web "12-ea+8" :classifier "win"]
+                     [org.openjfx/javafx-fxml "12-ea+8"]
+                     [org.openjfx/javafx-fxml "12-ea+8" :classifier "linux"]
+                     [org.openjfx/javafx-fxml "12-ea+8" :classifier "mac"]
+                     [org.openjfx/javafx-fxml "12-ea+8" :classifier "win"]
+                     [org.openjfx/javafx-swing "12-ea+8"]
+                     [org.openjfx/javafx-swing "12-ea+8" :classifier "linux"]
+                     [org.openjfx/javafx-swing "12-ea+8" :classifier "mac"]
+                     [org.openjfx/javafx-swing "12-ea+8" :classifier "win"]
 
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2"]
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-linux-amd64"]
@@ -110,12 +144,20 @@
                       :src-linenum-anchor-prefix "L"
                       :defaults                  {:doc/format :markdown}}
 
-  :jvm-opts          ["-Djna.nosys=true" "-Djava.net.preferIPv4Stack=true"]
-  :main ^:skip-aot   com.defold.editor.Start
+  :jvm-opts          ["-Djna.nosys=true"
+                      "-Djava.net.preferIPv4Stack=true"
+                      "--illegal-access=warn"
+                      ;; hide warnings about illegal reflective access by jogl
+                      "--add-opens=java.base/java.lang=ALL-UNNAMED"
+                      "--add-opens=java.desktop/sun.awt=ALL-UNNAMED"
+                      "--add-opens=java.desktop/sun.java2d.opengl=ALL-UNNAMED"
+                      ;; hide warnings about illegal reflective access by clojure
+                      "--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED"]
+  :main ^:skip-aot   com.defold.editor.Main
 
   :uberjar-exclusions [#"^natives/"]
 
-  :profiles          {:test    {:injections [(defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))]
+  :profiles          {:test    {:injections [(defonce force-toolkit-init (javafx.application.Platform/startup (fn [])))]
                                 :resource-paths ["test/resources"]}
                       :uberjar {:prep-tasks  ^:replace ["clean" "protobuf" ["sass" "once"] "javac" ["run" "-m" "aot"]]
                                 :aot          :all
