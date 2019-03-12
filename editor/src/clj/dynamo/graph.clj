@@ -249,7 +249,7 @@
 (deftype Properties
     {:properties {s/Keyword {:node-id                              s/Int
                              (s/optional-key :validation-problems) s/Any
-                             :value                                s/Any
+                             :value                                s/Any ; Can be property value or ErrorValue
                              :type                                 s/Any
                              s/Keyword                             s/Any}}
      (s/optional-key :node-id) s/Int
