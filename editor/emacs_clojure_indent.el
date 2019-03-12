@@ -33,4 +33,4 @@
   (with-temp-dir! 1)
   (with-channel 1)
   (profile 1)
-  (are 2))
+  (are '(:defn)))
