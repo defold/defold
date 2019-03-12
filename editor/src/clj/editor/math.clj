@@ -138,6 +138,13 @@
         _ (.mulInverse q rotation)]
     (Vector3d. (.getX q) (.getY q) (.getZ q))))
 
+
+(defn transform
+  ^Vector3d [^Matrix4d mat ^Vector3d v]
+  (let [v' (Point3d. v)]
+    (.transform mat v')
+    (Vector3d. v')))
+
 (defn transform-vector
   ^Vector3d [^Matrix4d mat ^Vector3d v]
   (let [v' (Vector3d. v)]
@@ -169,6 +176,12 @@
 (defn translation
   ^Vector3d [^Matrix4d m]
   (let [ret (Vector3d.)]
+    (.get m ret)
+    ret))
+
+(defn rotation
+  ^Quat4d [^Matrix4d m]
+  (let [ret (Quat4d.)]
     (.get m ret)
     ret))
 
