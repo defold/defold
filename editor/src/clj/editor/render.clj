@@ -1,10 +1,10 @@
 (ns editor.render
-  (:require [editor.geom :as geom]
+  (:require [editor.colors :as colors]
+            [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
             [editor.types :as types]
-            [editor.scene :as scene]
             [editor.gl.pass :as pass])
   (:import [com.jogamp.opengl GL GL2]
            [editor.types AABB]
@@ -56,9 +56,6 @@
 
 (def shader-outline (shader/make-shader ::shader-outline shader-ver-outline shader-frag-outline))
 
-(def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0]))
-(def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
-
 (def ^:private line-order
   [[5 4]
    [5 0]
@@ -100,7 +97,7 @@
 
 (defn- renderable->aabb-box!
   [vbuf renderable]
-  (let [color (if (:selected renderable) selected-outline-color outline-color)
+  (let [color (if (:selected renderable) colors/selected-outline-color colors/outline-color)
         [cr cg cb _] color
         aabb (:aabb renderable)]
     (conj-aabb-lines! vbuf aabb cr cg cb)))
