@@ -1649,7 +1649,7 @@ instructions.configure=\
         config = ConfigParser()
         config.read(info['config'])
         overrides = {'bootstrap.resourcespath': info['resources_path']}
-        java = join('Defold.app', 'Contents', 'Resources', 'packages', 'jre', 'bin', 'java')
+        java = join('Defold.app', 'Contents', 'Resources', 'packages', 'jdk11.0.1', 'bin', 'java')
         jar = self._get_config(config, 'launcher', 'jar', overrides)
         vmargs = self._get_config(config, 'launcher', 'vmargs', overrides).split(',') + ['-Ddefold.log.dir=.']
         vmargs = filter(lambda x: not str.startswith(x, '-Ddefold.update.url='), vmargs)
