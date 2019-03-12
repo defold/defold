@@ -1,10 +1,9 @@
 [#{editor.util util.thread-util util.id-vec editor.system util.digest
    editor.progress editor.gl.protocols internal.java internal.history
    util.time util.murmur util.profiler editor.code.util
-   potemkin.namespaces util.text-util editor.colors
-   editor.ui.tree-view-hack editor.process editor.fuzzy-text editor.fs
-   util.repo editor.math editor.jfx util.net internal.cache editor.menu
-   util.http-client editor.url}
+   potemkin.namespaces util.text-util editor.colors editor.process
+   editor.fuzzy-text editor.fs util.repo editor.math editor.jfx
+   util.net internal.cache editor.menu util.http-client editor.url}
  #{editor.ui.fuzzy-choices camel-snake-kebab service.log
    editor.code.syntax editor.settings-core}
  #{editor.gl editor.code.data editor.protobuf editor.prefs
@@ -49,24 +48,24 @@
    internal.graph.error-values editor.targets editor.code.view
    potemkin.namespaces editor.ui.popup util.text-util internal.system
    service.log editor.console editor.colors clojure.data.int-map-fixed
-   editor.ui.tree-view-hack editor.pipeline editor.login
-   editor.ui.updater editor.process editor.settings editor.gl.pass
-   editor.animation-set editor.fuzzy-text editor.fs editor.json
-   editor.text editor.dialogs editor.pipeline.fontc
-   editor.resource-update editor.placeholder-resource
-   editor.ui.fuzzy-choices-popup editor.error-reporting editor.prefs
-   editor.outline editor.math util.http-server editor.jfx
-   editor.buffers editor.view editor.collision-groups editor.github
-   editor.client util.net editor.ui editor.collada editor.git
-   editor.keymap editor.diff-view editor.core internal.node
-   editor.updater internal.cache editor.hot-reload editor.geom
-   editor.game-project-core editor.code.syntax editor.field-expression
-   editor.menu editor.scene-picking editor.defold-project-search
-   editor.form util.http-client editor.resource editor.lua editor.url
-   editor.html editor.gviz editor.lua-parser dynamo.graph
-   editor.ui.fuzzy-combo-box editor.scene-async editor.validation
-   editor.analytics editor.resource-watch editor.defold-project
-   internal.util editor.settings-core}
+   editor.pipeline editor.login editor.ui.updater editor.process
+   editor.settings editor.gl.pass editor.animation-set
+   editor.fuzzy-text editor.fs editor.json editor.text editor.dialogs
+   editor.pipeline.fontc editor.resource-update
+   editor.placeholder-resource editor.ui.fuzzy-choices-popup
+   editor.error-reporting editor.prefs editor.outline editor.math
+   util.http-server editor.jfx editor.buffers editor.view
+   editor.collision-groups editor.github editor.client util.net
+   editor.ui editor.collada editor.git editor.keymap editor.diff-view
+   editor.core internal.node editor.updater internal.cache
+   editor.hot-reload editor.geom editor.game-project-core
+   editor.code.syntax editor.field-expression editor.menu
+   editor.scene-picking editor.defold-project-search editor.form
+   util.http-client editor.resource editor.lua editor.url editor.html
+   editor.gviz editor.lua-parser dynamo.graph editor.ui.fuzzy-combo-box
+   editor.scene-async editor.validation editor.analytics
+   editor.resource-watch editor.defold-project internal.util
+   editor.settings-core}
  #{editor.camera editor.sync editor.factory editor.html-view
    editor.code.text-file editor.debugging.mobdebug editor.background
    editor.web-profiler editor.scene-visibility
