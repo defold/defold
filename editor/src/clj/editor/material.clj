@@ -9,7 +9,6 @@
             [editor.gl.vertex :as vtx]
             [editor.gl.texture :as texture]
             [editor.defold-project :as project]
-            [editor.scene :as scene]
             [editor.workspace :as workspace]
             [editor.math :as math]
             [editor.resource :as resource]
@@ -225,7 +224,6 @@
 
   (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
-  (output scene g/Any (g/constantly {}))
   (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source vertex-program fragment-source fragment-program vertex-constants fragment-constants]
                                                 (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
                                                     (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")

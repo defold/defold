@@ -659,10 +659,9 @@
                            (if font-map
                              (let [[w h] (measure font-map preview-text true (:cache-width font-map) 0 1)
                                    h-offset (:max-ascent font-map)]
-                               (-> (geom/null-aabb)
-                                 (geom/aabb-incorporate (Point3d. 0 h-offset 0))
-                                 (geom/aabb-incorporate (Point3d. w (- h-offset h) 0))))
-                             (geom/null-aabb))))
+                               (geom/make-aabb (Point3d. 0 h-offset 0)
+                                               (Point3d. w (- h-offset h) 0)))
+                             geom/null-aabb)))
   (output gpu-texture g/Any :cached (g/fnk [_node-id font-map material-samplers]
                                            (when font-map
                                              (let [w (:cache-width font-map)
