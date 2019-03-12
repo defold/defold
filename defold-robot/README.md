@@ -15,44 +15,45 @@ $ java -jar defold-robot.jar -s [script] -o [output-dir]
 
 ### Script
 
-A simple script in EDN:
+A simple script in JSON:
 
-```edn
-{:logs {:editor {:pattern "editor2.*.log"
-                 :dir "."}
-        :engine {:pattern "log.txt"
-                 :dir "."}}
- :steps [[:await-log :editor 60000 "project loaded"]
-         [:wait 2000]
-         [:screen-capture "project_loaded"]
-         [:press :command :shift :r]
-         [:type ".coll"]
-         [:press :down]
-         [:press :enter]
-         [:wait 2500]
-         [:screen-capture "collection"]
-         [:press :command :shift :r]
-         [:type "player.script"]
-         [:press :down]
-         [:press :enter]
-         [:wait 2000]
-         [:screen-capture "script"]
-         [:press :command :b]
-         [:await-log :engine 10000 "intro started"]
-         [:await-log :engine 60000 " seconds"]
-         [:screen-capture "game_intro"]
-         [:await-log :engine 60000 "level started"]
-         [:await-log :engine 60000 " seconds"]
-         [:screen-capture "game_running"]
-         [:switch-focus]
-         [:press :enter]
-         [:press :command :r]
-         [:press :command :z]
-         [:await-log :engine 3000 "successfully reloaded"]
-         [:screen-capture "test_end"]
-         [:switch-focus]
-         [:press :command :q]
-         [:press :command :q]]}
+```json
+{
+	"logs": {
+		"editor-log": {
+			"pattern": "editor2.*.log",
+			"dir" : "."
+		},
+		"engine-log": {
+			"pattern": "log.txt",
+			"dir" : "."
+		}
+	},
+	"steps": [
+		["await-log" "editor-log" 5000 "Project loaded"],
+		["press" "Shortcut+Shift+R"],
+		["type" ".coll"],
+		["press" "Down"],
+		["press" "Enter"],
+		["wait" 1000],
+		["screen-capture" "collection"],
+		["press" "Shortcut+Shift+R"],
+		["type" ".script"],
+		["press" "Down"],
+		["press" "Enter"],
+		["wait" 1000],
+		["screen-capture" "script"],
+		["press" "Shortcut+B"],
+		["wait" 10000],
+		["screen-capture" "build"],
+		["switch-focus" 1],
+		["type" "print('Now reloading')"],
+		["press" "Enter"],
+		["press" "Shortcut+R"],
+		["await-log" "engine-log" 5000 "Now reloading"],
+		["press" "Shortcut+Q"],
+	]
+}
 ```
 
 In brief, this script:
