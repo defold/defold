@@ -1,0 +1,31 @@
+{
+	"logs": {
+		"editor-log": {
+			"pattern": "test.*.log",
+			"dir" : "."
+		}
+	},
+	"steps": [
+		["screen-capture" "test"],
+	],
+	"old": [
+		["await-log" "editor-log" 5000 "Command 2"],
+		["switch-focus" 1],
+		["press" "Shortcut+Shift+R"],
+		["type" ".coll"],
+		["press" "Down"],
+		["press" "Enter"],
+		["wait" 1000],
+		["screen-capture" "collection"],
+		["press" "Shortcut+Shift+R"],
+		["type" ".script"],
+		["press" "Down"],
+		["press" "Enter"],
+		["wait" 1000],
+		["screen-capture" "script"],
+		["press" "Shortcut+B"],
+		["wait" 10000],
+		["screen-capture" "build"],
+		["press" "Shortcut+Q"],
+	]
+}
