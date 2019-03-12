@@ -21,43 +21,43 @@
       (println (apply format fmt r)))))
 
 (v/defvertex one-d-position-only
-            (vec1.byte location))
+  (vec1.byte location))
 
 (v/defvertex two-d-position
-            (vec2.byte position))
+  (vec2.byte position))
 
 (v/defvertex two-d-position-short
-            (vec2.short position))
+  (vec2.short position))
 
 (v/defvertex short-byte-byte
-            (vec2.byte  bite)
-            (vec2.short shorty)
-            (vec1.byte  nibble))
+  (vec2.byte  bite)
+  (vec2.short shorty)
+  (vec1.byte  nibble))
 
 (v/defvertex short-short :interleaved
-            (vec1.short u)
-            (vec1.short v))
+  (vec1.short u)
+  (vec1.short v))
 
 (v/defvertex short-short-chunky :chunked
-            (vec1.short u)
-            (vec1.short v))
+  (vec1.short u)
+  (vec1.short v))
 
 (deftest vertex-contains-correct-data
   (let [vertex-buffer (->one-d-position-only 1)]
     (conj! vertex-buffer [42])
 
     (testing "what goes in comes out"
-             (is (= [42] (get vertex-buffer 0)))
-             (is (= 1    (count vertex-buffer)))
-             (is (array= (byte-array [42])
-                         (contents-of vertex-buffer))))
+      (is (= [42] (get vertex-buffer 0)))
+      (is (= 1    (count vertex-buffer)))
+      (is (array= (byte-array [42])
+                  (contents-of vertex-buffer))))
 
     (testing "once made persistent, the data is still there"
-             (let [final (persistent! vertex-buffer)]
-               (is (= [42] (get final 0)))
-               (is (= 1    (count final)))
-               (is (array= (byte-array [42])
-                           (contents-of final)))))))
+      (let [final (persistent! vertex-buffer)]
+        (is (= [42] (get final 0)))
+        (is (= 1    (count final)))
+        (is (array= (byte-array [42])
+                    (contents-of final)))))))
 
 (defn- laid-out-as [def into-seq expected-vec]
   (let [ctor  (symbol (str "->" (:name def)))
@@ -101,8 +101,8 @@
   (is (= [['location 1 'byte]] (:attributes one-d-position-only))))
 
 (v/defvertex four-d-position-and-2d-texture
-            (vec4.float position)
-            (vec2.float texcoord))
+  (vec4.float position)
+  (vec2.float texcoord))
 
 (deftest four-two-vertex-contains-correct-data
   (let [vertex-buffer (->four-d-position-and-2d-texture 2)
