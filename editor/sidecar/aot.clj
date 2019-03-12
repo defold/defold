@@ -91,7 +91,7 @@
       (compile n))))
 
 (defn -main [& args]
-  (defonce force-toolkit-init (javafx.application.Platform/startup (fn [])))
+  (defonce force-toolkit-init (javafx.embed.swing.JFXPanel.))
   (let [order (compile-order srcdirs @build-type)]
     (println "Compiling in order " order)
     (compile-clj order))

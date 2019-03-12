@@ -14,8 +14,7 @@
             [editor.resource-node :as resource-node]
             [editor.defold-project :as project]
             [editor.github :as github])
-  (:import [clojure.lang Named]
-           [java.io File]
+  (:import [java.io File]
            [java.util List Collection]
            [java.nio.file Path Paths]
            [javafx.geometry Pos]
@@ -237,12 +236,8 @@
   [ex-map]
   (->> (tree-seq :via :via ex-map)
        (drop 1)
-       (map (fn [{:keys [message type]}]
-              (let [type-name (cond
-                                (instance? Class type) (.getName ^Class type)
-                                (instance? Named type) (name type)
-                                :else (str type))]
-                (format "%s: %s" type-name (or message "Unknown")))))
+       (map (fn [{:keys [message ^Class type]}]
+              (format "%s: %s" (.getName type) (or message "Unknown"))))
        (str/join "\n")))
 
 (defn make-unexpected-error-dialog

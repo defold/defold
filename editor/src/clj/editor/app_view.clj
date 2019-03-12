@@ -51,7 +51,8 @@
             [editor.scene-cache :as scene-cache]
             [editor.types :as types]
             [editor.game-project :as game-project])
-  (:import [com.defold.editor Editor EditorApplication]
+  (:import [com.defold.control TabPaneBehavior]
+           [com.defold.editor Editor EditorApplication]
            [com.defold.editor Start]
            [java.net URI Socket URL]
            [java.util Collection]
@@ -1171,7 +1172,15 @@ If you do not specifically require different script states, consider changing th
                 (when (< 1 (count tab-panes))
                   (.remove tab-panes tab-pane)
                   (.requestFocus ^TabPane (.get tab-panes 0)))))))))
-  (ui/register-tab-pane-context-menu tab-pane ::tab-menu))
+
+  (ui/register-tab-pane-context-menu tab-pane ::tab-menu)
+
+  ;; Workaround for JavaFX bug: https://bugs.openjdk.java.net/browse/JDK-8167282
+  ;; Consume key events that would select non-existing tabs in case we have none.
+  (.addEventFilter tab-pane KeyEvent/KEY_PRESSED (ui/event-handler event
+                                                   (when (and (empty? (.getTabs tab-pane))
+                                                              (TabPaneBehavior/isTraversalEvent event))
+                                                     (.consume event)))))
 
 (defn- handle-focus-owner-change! [app-view app-scene new-focus-owner]
   (let [old-editor-tab-pane (g/node-value app-view :active-tab-pane)
