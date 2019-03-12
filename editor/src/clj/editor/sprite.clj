@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.colors :as colors]
             [editor.graph-util :as gu]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -108,16 +109,13 @@
         v3 (gen-outline-vertex wt pt x0 y1 cr cg cb)]
     (-> vbuf (conj! v0) (conj! v1) (conj! v1) (conj! v2) (conj! v2) (conj! v3) (conj! v3) (conj! v0))))
 
-(def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0]))
-(def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
-
 (defn- gen-outline-vertex-buffer
   [renderables count]
   (let [tmp-point (Point3d.)]
     (loop [renderables renderables
            vbuf (->color-vtx (* count 8))]
       (if-let [renderable (first renderables)]
-        (let [color (if (:selected renderable) selected-outline-color outline-color)
+        (let [color (if (:selected renderable) colors/selected-outline-color colors/outline-color)
               cr (get color 0)
               cg (get color 1)
               cb (get color 2)
@@ -186,7 +184,9 @@
 
 (g/defnk produce-scene
   [_node-id aabb gpu-texture material-shader animation blend-mode]
-  (cond-> {:node-id _node-id :aabb aabb}
+  (cond-> {:node-id _node-id
+           :aabb aabb
+           :renderable {:passes [pass/selection]}}
     (seq (:frames animation))
     (assoc :renderable {:render-fn render-sprites
                         :batch-key [gpu-texture blend-mode material-shader]
@@ -291,12 +291,11 @@
   (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
   (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
   (output aabb AABB (g/fnk [animation] (if animation
-                                         (let [hw (* 0.5 (:width animation))
-                                               hh (* 0.5 (:height animation))]
-                                           (-> (geom/null-aabb)
-                                             (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
-                                             (geom/aabb-incorporate (Point3d. hw hh 0))))
-                                         (geom/null-aabb))))
+                                         (let [animation-width (* 0.5 (:width animation))
+                                               animation-height (* 0.5 (:height animation))]
+                                           (geom/make-aabb (Point3d. (- animation-width) (- animation-height) 0)
+                                                           (Point3d. animation-width animation-height 0)))
+                                         geom/empty-bounding-box)))
   (output save-value g/Any produce-save-value)
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))
