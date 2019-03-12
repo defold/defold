@@ -60,7 +60,9 @@
                           message
                           (throw (or (.getException this)
                                      (ex-info "TaskResult failed without message or exception." {})))))
-  (error-path [this] (some->> this .getTask root-task .getInputs ^IResource first .getPath (str "/")))
+  (error-path [this]
+    (let [^IResource resource (some->> this .getTask root-task .getInputs first)]
+      (str "/" (.getPath resource))))
   (error-line [this] (.getLineNumber this))
   (error-severity [_this] :fatal))
 
