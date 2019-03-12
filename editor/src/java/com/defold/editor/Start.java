@@ -1,61 +1,33 @@
 package com.defold.editor;
 
-import java.awt.image.BufferedImage;
-import java.io.File;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-
+import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
+import ch.qos.logback.core.rolling.RollingFileAppender;
+import ch.qos.logback.core.rolling.TimeBasedRollingPolicy;
+import ch.qos.logback.core.util.FileSize;
+import com.defold.libs.ResourceUnpacker;
+import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.stage.Stage;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.FalseFileFilter;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
-import ch.qos.logback.core.rolling.*;
-import ch.qos.logback.core.util.FileSize;
-
-import com.defold.libs.ResourceUnpacker;
-
-import javafx.application.Application;
-import javafx.application.Platform;
-import javafx.beans.value.ChangeListener;
-import javafx.beans.value.ObservableValue;
-import javafx.stage.Stage;
 import org.slf4j.bridge.SLF4JBridgeHandler;
+
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.lang.reflect.Method;
+import java.nio.file.Path;
+import java.util.Collection;
+import java.util.List;
 
 
 public class Start extends Application {
 
     private static Logger logger = LoggerFactory.getLogger(Start.class);
 
-    static ArrayList<URL> extractURLs(String classPath) {
-        ArrayList<URL> urls = new ArrayList<>();
-        for (String s : classPath.split(File.pathSeparator)) {
-            String suffix = "";
-            if (!s.endsWith(".jar")) {
-                suffix = "/";
-            }
-            URL url;
-            try {
-                url = new URL(String.format("file:%s%s", s, suffix));
-            } catch (MalformedURLException e) {
-                throw new RuntimeException(e);
-            }
-            urls.add(url);
-        }
-        return urls;
-    }
-
-    private static boolean createdFromMain = false;
-
-    private void kickLoading(Splash splash) throws Exception {
+    private void kickLoading(Splash splash) {
         // Do this work in a different thread or it will stop the splash screen from showing/animating.
         Thread kickThread = new Thread(() -> {
                 try {
@@ -79,7 +51,7 @@ public class Start extends Application {
                             });
                     } catch (Throwable t) {
                         t.printStackTrace();
-                        String message = (t instanceof InvocationTargetException) ? t.getCause().getMessage() : t.getMessage();
+                        final String message = t.getMessage();
                         logger.error(message, t);
                         Platform.runLater(() -> {
                                 splash.setLaunchError(message);
@@ -130,7 +102,7 @@ public class Start extends Application {
               clojure.java.io/resource..
             */
 
-            BufferedImage tmp = new BufferedImage(1, 1, BufferedImage.TYPE_3BYTE_BGR);
+            new BufferedImage(1, 1, BufferedImage.TYPE_3BYTE_BGR);
 
             // Clean up old packages as they consume a lot of hard drive space.
             // NOTE! This is a temp hack to give some hard drive space back to users.
@@ -138,20 +110,16 @@ public class Start extends Application {
             prunePackages();
 
             final Splash splash = new Splash();
-            splash.shownProperty().addListener(new ChangeListener<Boolean>() {
-                    @Override
-                    public void changed(ObservableValue<? extends Boolean> observable,
-                                        Boolean oldValue, Boolean newValue) {
-                        if (newValue.booleanValue()) {
-                            try {
-                                kickLoading(splash);
-                            } catch (Throwable t) {
-                                t.printStackTrace();
-                                logger.error("failed to kick loading", t);
-                            }
-                        }
+            splash.shownProperty().addListener((observable, oldValue, newValue) -> {
+                if (newValue) {
+                    try {
+                        kickLoading(splash);
+                    } catch (Throwable t) {
+                        t.printStackTrace();
+                        logger.error("failed to kick loading", t);
                     }
-                });
+                }
+            });
             splash.show();
         } catch (Throwable t) {
             t.printStackTrace();
@@ -161,7 +129,7 @@ public class Start extends Application {
     }
 
     @Override
-    public void stop() throws Exception {
+    public void stop() {
         Shutdown.runShutdownActions();
 
         // NOTE: We force exit here as it seems like the shutdown process
@@ -171,7 +139,6 @@ public class Start extends Application {
     }
 
     public static void main(String[] args) {
-        createdFromMain = true;
         initializeLogging();
         Start.launch(args);
     }
