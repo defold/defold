@@ -448,15 +448,15 @@
 
   (testing "invalid-ref-error"
     (are [data]
-        (gt/with-git [git (gt/new-git)]
-          (setup-flow-in-progress! git)
-          (update-flow-journal! git #(merge % data))
-          (let [result (sync/cancel-flow-in-progress! git)]
-            (is (= :error (:type result)))
-            (is (= :invalid-ref-error (:code result)))
-            (is (valid-error-message? (cancel-error-code-message :invalid-ref-error)))
-            (is (false? (:can-retry? result)))
-            (is (false? (sync/flow-in-progress? git)))))
+      (gt/with-git [git (gt/new-git)]
+        (setup-flow-in-progress! git)
+        (update-flow-journal! git #(merge % data))
+        (let [result (sync/cancel-flow-in-progress! git)]
+          (is (= :error (:type result)))
+          (is (= :invalid-ref-error (:code result)))
+          (is (valid-error-message? (cancel-error-code-message :invalid-ref-error)))
+          (is (false? (:can-retry? result)))
+          (is (false? (sync/flow-in-progress? git)))))
       {:start-ref (make-fake-ref-string)}
       {:stash-info {:ref (make-fake-ref-string)}}
       {:start-ref (make-fake-ref-string) :stash-info {:ref (make-fake-ref-string)}}))

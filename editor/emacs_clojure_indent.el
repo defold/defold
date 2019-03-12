@@ -1,5 +1,7 @@
+
+(customize-set-variable 'clojure-indent-style 'align-arguments)
+
 (define-clojure-indent
-  (concat 0)
   (make-nodes 2)
   (fnk 1)
   (precluding-errors 1)
@@ -30,4 +32,5 @@
   (with-prop 1)
   (with-temp-dir! 1)
   (with-channel 1)
-  (profile 1))
+  (profile 1)
+  (are 2))
