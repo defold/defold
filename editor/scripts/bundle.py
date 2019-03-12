@@ -14,6 +14,9 @@ import ConfigParser
 import datetime
 import imp
 
+# If you update java version, don't forget to update it here too:
+# - /editor/bundle-resources/config at "launcher.jdk" key
+# - /scripts/build.py smoke_test, `java` variable
 java_version = '11.0.1'
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
@@ -254,7 +257,7 @@ def bundle(platform, jar_file, options, build_jdk):
     exec_command(['%s/bin/jlink' % build_jdk,
                   '@jlink-options',
                   '--module-path=%s/jmods' % platform_jdk,
-                  '--output=%s/jre' % packages_dir])
+                  '--output=%s/jdk%s' % (packages_dir, java_version)])
 
     if is_mac:
         sign_files(bundle_dir)
