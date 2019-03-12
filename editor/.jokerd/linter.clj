@@ -1,20 +1,16 @@
 (ns benchmark.graph-benchmark)
-
 (def world)
 
 (ns clojure.set)
-
 (def map-invert)
 
 (ns com.sun.javafx.css.StyleManager)
-
 (def getInstance)
 
 (ns editor.atlas)
-
-(def pos-uv-vert)
-(def pos-uv-frag)
 (def ->texture-vtx)
+(def pos-uv-frag)
+(def pos-uv-vert)
 
 (ns editor.code.data)
 (def dest-buffer)
@@ -22,190 +18,165 @@
 (def length)
 
 (ns editor.collada-scene)
-
-(def shader-ver-pos-nrm-tex)
-(def shader-frag-pos-nrm-tex)
-(def model-id-vertex-shader)
-(def model-id-fragment-shader)
 (def ->vtx-pos-nrm-tex)
+(def model-id-fragment-shader)
+(def model-id-vertex-shader)
+(def shader-frag-pos-nrm-tex)
+(def shader-ver-pos-nrm-tex)
 
 (ns editor.collision-object)
-
 (def ->color-vtx)
-(def vertex-shader)
 (def fragment-shader)
-(def shape-id-vertex-shader)
 (def shape-id-fragment-shader)
+(def shape-id-vertex-shader)
+(def vertex-shader)
 
 (ns editor.cubemap)
-
 (def ->normal-vtx)
-(def pos-norm-vert)
 (def pos-norm-frag)
+(def pos-norm-vert)
 
 (ns editor.curve-view)
-
-(def line-vertex-shader)
-(def line-fragment-shader)
 (def ->color-vtx)
+(def line-fragment-shader)
+(def line-vertex-shader)
 
 (ns editor.font)
-
 (def ->DefoldVertex)
 (def ->DFVertex)
 
 (ns editor.gl)
-
 (def gl-context)
 
 (ns editor.gl.pass)
-
-(def selection-passes)
 (def render-passes)
+(def selection-passes)
 
 (ns editor.gl.shader)
-
 (defmacro defshader [name & body])
 
 (ns editor.gui)
-
-(def vertex-shader)
-(def fragment-shader)
-(def gui-id-vertex-shader)
-(def gui-id-fragment-shader)
-(def line-vertex-shader)
-(def line-fragment-shader)
-(def ->color-vtx-vb)
-(def color-vtx-put!)
-(def uv-color-vtx-put!)
 (def ->color-vtx)
+(def ->color-vtx-vb)
 (def ->uv-color-vtx)
+(def color-vtx-put!)
+(def fragment-shader)
+(def gui-id-fragment-shader)
+(def gui-id-vertex-shader)
+(def line-fragment-shader)
+(def line-vertex-shader)
+(def uv-color-vtx-put!)
+(def vertex-shader)
 
 (ns editor.label)
-
-(def vertex-shader)
-(def fragment-shader)
-(def line-vertex-shader)
-(def line-fragment-shader)
-(def label-id-vertex-shader)
-(def label-id-fragment-shader)
-(def color-vtx-put!)
 (def ->color-vtx)
+(def color-vtx-put!)
+(def fragment-shader)
+(def label-id-fragment-shader)
+(def label-id-vertex-shader)
+(def line-fragment-shader)
+(def line-vertex-shader)
+(def vertex-shader)
 
 (ns editor.particlefx)
-
-(def line-vertex-shader)
-(def line-fragment-shader)
-(def line-id-vertex-shader)
-(def line-id-fragment-shader)
 (def ->color-vtx)
+(def line-fragment-shader)
+(def line-id-fragment-shader)
+(def line-id-vertex-shader)
+(def line-vertex-shader)
 
 (ns editor.render)
-
-(def shader-ver-tex-col)
+(def ->vtx-pos-col)
+(def shader-frag-outline)
 (def shader-frag-tex-tint)
 (def shader-ver-outline)
-(def shader-frag-outline)
-(def ->vtx-pos-col)
+(def shader-ver-tex-col)
 
 (ns editor.rulers)
-
-(def tex-vertex-shader)
-(def tex-fragment-shader)
-(def color-uv-vtx-put!)
 (def ->color-uv-vtx)
+(def color-uv-vtx-put!)
+(def tex-fragment-shader)
+(def tex-vertex-shader)
 
 (ns editor.scene-tools)
-
-(def vertex-shader)
-(def fragment-shader)
 (def ->pos-vtx)
+(def fragment-shader)
+(def vertex-shader)
 
 (ns editor.sprite)
-
-(def vertex-shader)
-(def fragment-shader)
-(def outline-vertex-shader)
-(def outline-fragment-shader)
-(def ->texture-vtx)
 (def ->color-vtx)
-(def sprite-id-vertex-shader)
+(def ->texture-vtx)
+(def fragment-shader)
+(def outline-fragment-shader)
+(def outline-vertex-shader)
 (def sprite-id-fragment-shader)
+(def sprite-id-vertex-shader)
+(def vertex-shader)
 
 (ns editor.spine)
-
-(def spine-id-vertex-shader)
 (def spine-id-fragment-shader)
+(def spine-id-vertex-shader)
 
 (ns editor.system)
-
 (def defold-engine-sha1)
 
 (ns editor.tile-map)
-
-(def tile-map-id-vertex-shader)
-(def tile-map-id-fragment-shader)
-(def pos-uv-vert)
-(def pos-uv-frag)
-(def ->pos-uv-vtx)
-(def pos-uv-vtx-put!)
-(def pos-color-vert)
-(def pos-color-frag)
 (def ->color-vtx)
+(def ->pos-uv-vtx)
 (def color-vtx-put!)
+(def pos-color-frag)
+(def pos-color-vert)
+(def pos-uv-frag)
+(def pos-uv-vert)
+(def pos-uv-vtx-put!)
+(def tile-map-id-fragment-shader)
+(def tile-map-id-vertex-shader)
 
 (ns editor.tile-source)
-
-(def pos-uv-vert)
-(def pos-uv-frag)
-(def pos-color-vert)
-(def pos-color-frag)
-(def ->pos-uv-vtx)
 (def ->pos-color-vtx)
+(def ->pos-uv-vtx)
+(def pos-color-frag)
+(def pos-color-vert)
+(def pos-uv-frag)
+(def pos-uv-vert)
 
 (ns editor.ui)
-
 (def now)
 
 (ns javafx.application.Platform)
-
 (def exit)
 
 (ns javafx.scene.Cursor)
-
 (def DEFAULT)
+(def DISAPPEAR)
 (def HAND)
 (def TEXT)
-(def DISAPPEAR)
 
 (ns Thread$State)
-
 (def TERMINATED)
 
 (ns joker.core)
-
 (def clojure.core.protocols.CollReduce)
 (def clojure.core.protocols.IKVReduce)
+(def editor.gl.vertex2.VertexBuffer)
 (def internal.node.NodeImpl)
-(def schema.core.Predicate)
 (def internal.node.NodeTypeRef)
 (def internal.node.ValueTypeRef)
-(def javafx.stage.Stage)
 (def javafx.scene.control.Tab)
-(def javafx.stage.Window)
-(def javafx.scene.input.KeyCodeCombination)
 (def javafx.scene.input.KeyCharacterCombination)
-(def schema.utils.ValidationError)
-(def editor.gl.vertex2.VertexBuffer)
+(def javafx.scene.input.KeyCodeCombination)
+(def javafx.stage.Stage)
+(def javafx.stage.Window)
 (def org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider)
+(def schema.core.Predicate)
+(def schema.utils.ValidationError)
+(defmacro defproject [& _])
 (defmacro deftest [& shut-up])
 (defmacro is [& quiet-please])
 (defmacro testing [& yawn])
 (defmacro use-fixtures [& _])
-(defmacro defproject [& _])
 
 (ns util.profiler-test)
-
 (def threads)
 
 

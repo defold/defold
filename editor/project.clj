@@ -100,7 +100,7 @@
                       :output-directory "resources/editor.css"
                       :source-maps false}
 
-  :aliases           {"benchmark"     ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
+  :aliases           {"benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
                       "lint" ["with-profile" "+test" "eastwood"]}
 
   ;; used by `pack` task
