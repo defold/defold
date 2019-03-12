@@ -109,7 +109,7 @@
   (when (not (string/blank? params))
     (into {}
           (map (fn [param]
-                 (let [[k ^String v] (string/split param #"=")]
+                 (let [[k v] (string/split param #"=")]
                    [(keyword k) (URLDecoder/decode v "UTF-8")])))
           (string/split params #"&"))))
 

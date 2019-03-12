@@ -3,6 +3,7 @@
 import os
 import os.path as path
 import stat
+import glob
 import sys
 import optparse
 import re
@@ -14,15 +15,13 @@ import ConfigParser
 import datetime
 import imp
 
-java_version = '11.0.1'
-
 platform_to_java = {'x86_64-linux': 'linux-x64',
-                    'x86_64-darwin': 'osx-x64',
+                    'x86_64-darwin': 'macosx-x64',
                     'x86_64-win32': 'windows-x64'}
 
-python_platform_to_java = {'linux2': 'linux-x64',
-                           'win32': 'windows-x64',
-                           'darwin': 'osx-x64'}
+platform_to_legacy = {'x86_64-linux': 'x86_64-linux',
+                      'x86_64-darwin': 'x86_64-darwin',
+                      'x86_64-win32': 'x86_64-win32'}
 
 def log(msg):
     print msg
@@ -150,43 +149,24 @@ def launcher_path(options, platform, exe_suffix):
         return options.launcher
     elif options.engine_sha1:
         launcher_version = options.engine_sha1
-        launcher_url = 'https://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform, exe_suffix)
+        launcher_url = 'https://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform_to_legacy[platform], exe_suffix)
         launcher = download(launcher_url)
         if not launcher:
             print 'Failed to download launcher', launcher_url
             sys.exit(5)
         return launcher
     else:
-        return path.join(os.environ['DYNAMO_HOME'], "bin", platform, "launcher%s" % exe_suffix)
+        return path.join(os.environ['DYNAMO_HOME'], "bin", platform_to_legacy[platform], "launcher%s" % exe_suffix)
 
-
-def full_jdk_url(jdk_platform):
-    return 'https://s3-eu-west-1.amazonaws.com/defold-packages/openjdk-%s_%s_bin.tar.gz' % (java_version, jdk_platform)
-
-
-def download_build_jdk():
-    rmtree('build/jdk')
-    is_mac = sys.platform == 'darwin'
-    jdk_url = full_jdk_url(python_platform_to_java[sys.platform])
-    jdk = download(jdk_url)
-    if not jdk:
-        print('Failed to download build jdk %s' % jdk_url)
-        sys.exit(5)
-    mkdirs('build/jdk')
-    extract(jdk, 'build/jdk', is_mac)
-    if is_mac:
-        return 'build/jdk/jdk-%s.jdk/Contents/Home' % java_version
-    else:
-        return 'build/jdk/jdk-%s' % java_version
-
-
-def bundle(platform, jar_file, options, build_jdk):
+def bundle(platform, jar_file, options):
     rmtree('tmp')
 
-    jdk_url = full_jdk_url(platform_to_java[platform])
-    jdk = download(jdk_url)
-    if not jdk:
-        print('Failed to download %s' % jdk_url)
+    jre_minor = 102
+    ext = 'tar.gz'
+    jre_url = 'https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u%d-%s.%s' % (jre_minor, platform_to_java[platform], ext)
+    jre = download(jre_url)
+    if not jre:
+        print('Failed to download %s' % jre_url)
         sys.exit(5)
 
     exe_suffix = ''
@@ -216,6 +196,7 @@ def bundle(platform, jar_file, options, build_jdk):
     mkdirs(exe_dir)
     mkdirs(resources_dir)
     mkdirs(packages_dir)
+    mkdirs('%s/jre' % packages_dir)
 
     if is_mac:
         shutil.copy('bundle-resources/Info.plist', '%s/Contents' % bundle_dir)
@@ -243,18 +224,16 @@ def bundle(platform, jar_file, options, build_jdk):
     if not 'win32' in platform:
         exec_command(['chmod', '+x', '%s/Defold%s' % (exe_dir, exe_suffix)])
 
-    extract(jdk, 'tmp', is_mac)
+    extract(jre, 'tmp', is_mac)
 
     print 'Creating bundle'
     if is_mac:
-        platform_jdk = 'tmp/jdk-%s.jdk/Contents/Home' % java_version
+        jre_glob = 'tmp/jre1.8.0_%s.jre/Contents/Home/*' % (jre_minor)
     else:
-        platform_jdk = 'tmp/jdk-%s' % java_version
+        jre_glob = 'tmp/jre1.8.0_%s/*' % (jre_minor)
 
-    exec_command(['%s/bin/jlink' % build_jdk,
-                  '@jlink-options',
-                  '--module-path=%s/jmods' % platform_jdk,
-                  '--output=%s/jre' % packages_dir])
+    for p in glob.glob(jre_glob):
+        shutil.move(p, '%s/jre' % packages_dir)
 
     if is_mac:
         sign_files(bundle_dir)
@@ -263,13 +242,13 @@ def bundle(platform, jar_file, options, build_jdk):
     else:
         ziptree(bundle_dir, 'target/editor/Defold-%s.zip' % platform, 'tmp')
 
-def check_reflections(java_cmd_env):
+def check_reflections():
     reflection_prefix = 'Reflection warning, ' # final space important
     included_reflections = ['editor/', 'util/'] # [] = include all
     ignored_reflections = []
 
     # lein check puts reflection warnings on stderr, redirect to stdout to capture all output
-    output = exec_command(['env', java_cmd_env, 'bash', './scripts/lein', 'check-and-exit'])
+    output = exec_command(['./scripts/lein', 'check'])
     lines = output.splitlines()
     reflection_lines = (line for line in lines if re.match(reflection_prefix, line))
     reflections = (re.match('(' + reflection_prefix + ')(.*)', line).group(2) for line in reflection_lines)
@@ -343,30 +322,25 @@ if __name__ == '__main__':
 
     rmtree('target/editor')
 
-    print('Downloading build jdk')
-
-    build_jdk = download_build_jdk()
-    java_cmd_env = 'JAVA_CMD=%s/bin/java' % build_jdk
-
     print 'Building editor'
 
-    init_command = ['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+release', 'init']
+    init_command = ['bash', './scripts/lein', 'with-profile', '+release', 'init']
     if options.engine_sha1:
         init_command += [options.engine_sha1]
 
     exec_command(init_command)
-    check_reflections(java_cmd_env)
+    check_reflections()
 
     if options.skip_tests:
         print 'Skipping tests'
     else:
-        exec_command(['env', java_cmd_env, 'bash', './scripts/lein', 'test'])
+        exec_command(['./scripts/lein', 'test'])
 
-    exec_command(['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
+    exec_command(['bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
 
     jar_file = 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar'
 
     mkdirs('target/editor')
 
     for platform in options.target_platform:
-        bundle(platform, jar_file, options, build_jdk)
+        bundle(platform, jar_file, options)
