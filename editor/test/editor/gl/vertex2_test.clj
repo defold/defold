@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [support.test-support :refer [array=]]
             [editor.buffers :as b]
-            [editor.gl.vertex2 :refer :all])
+            [editor.gl.vertex2 :as v])
   (:import [java.nio ByteBuffer]
            [com.google.protobuf ByteString]
            [editor.gl.vertex2 VertexBuffer]))
@@ -25,13 +25,13 @@
     (doseq [r rows]
       (println (apply format fmt r)))))
 
-(defvertex pos-1b
+(v/defvertex pos-1b
   (vec1.byte position))
 
-(defvertex pos-2b
+(v/defvertex pos-2b
   (vec2.byte position))
 
-(defvertex pos-2s
+(v/defvertex pos-2s
   (vec2.short position))
 
 (deftest vertex-contains-correct-data
@@ -44,7 +44,7 @@
                          (contents-of vertex-buffer))))
 
     (testing "once flipped, the data is still there"
-             (let [final (flip! vertex-buffer)]
+             (let [final (v/flip! vertex-buffer)]
                (is (= 1    (count final)))
                (is (array= (byte-array [42])
                            (contents-of final)))))))
@@ -72,7 +72,7 @@
 (deftest attributes-compiled-correctly
   (is (= [{:components 1, :type :byte, :name "position", :normalized? false}] (:attributes pos-1b))))
 
-(defvertex pos-4f-uv-2f
+(v/defvertex pos-4f-uv-2f
   (vec4.float position)
   (vec2.float texcoord))
 
