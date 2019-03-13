@@ -1,5 +1,6 @@
 #include "script.h"
 
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
