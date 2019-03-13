@@ -322,14 +322,6 @@ namespace dmScript
     dmVMath::FloatVector* CheckVector(lua_State* L, int index);
 
     /**
-     * Check if the value in the supplied index on the lua stack is a matrix4.
-     * @param L Lua state
-     * @param index Index of the value
-     * @return The matrix4 value
-     */
-    Vectormath::Aos::Matrix4* CheckMatrix4(lua_State* L, int index);
-
-    /**
      * Check if the value at #index is a URL
      * @param L Lua state
      * @param index Index of the value
