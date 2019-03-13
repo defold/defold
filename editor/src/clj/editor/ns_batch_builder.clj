@@ -1,10 +1,11 @@
 (ns editor.ns-batch-builder
-  (:require [clojure.java.io :as io]
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [clojure.pprint :as pprint]
             [clojure.set :as set]
+            [clojure.tools.namespace.dependency :as ns-deps]
             [clojure.tools.namespace.find :as ns-find]
-            [clojure.tools.namespace.parse :as ns-parse]
-            [clojure.tools.namespace.dependency :as ns-deps]))
+            [clojure.tools.namespace.parse :as ns-parse]))
 
 (defn- add-deps
   [graph [sym deps]]
@@ -14,9 +15,8 @@
 
 (defn- make-namespace-deps-graph
   [srcdir]
-  (let [namespaces (filter (fn [ns] (not= (second ns) 'dev))
-                           (ns-find/find-ns-decls [(io/file srcdir)]))
-        own-nses (into #{} (map second namespaces))]
+  (let [namespaces (ns-find/find-ns-decls [(io/file srcdir)])
+        own-nses (into #{} (map second) namespaces)]
     (reduce add-deps
             (ns-deps/graph)
             (for [ns namespaces]
@@ -30,14 +30,13 @@
     (loop [available available
            remaining nodes-with-deps
            batches []]
-      (if (= 0 (count remaining))
+      (if (empty? remaining)
         [batches deps]
-        (let [next-batch (->> remaining
-                              (filter
-                               (fn [[_node deps]]
-                                 (= 0 (count (set/difference deps available)))))
-                              (map first)
-                              (into #{}))]
+        (let [next-batch (into #{}
+                               (keep (fn [[node deps]]
+                                       (when (empty? (set/difference deps available))
+                                         node)))
+                               remaining)]
           (recur (set/union available next-batch)
                  (filter (fn [[node _deps]] (not (next-batch node))) remaining)
                  (conj batches next-batch)))))))
@@ -45,6 +44,7 @@
 (defn spit-batches
   "Writes a vector of batches (sets of symbols) in edn format to a file,
   for later consumption by the bootloader.
+  Also verifies that the file was correctly written.
 
   from - a directory containing the editor clojure source files.
   to - an edn file where the batches will be written."
@@ -57,5 +57,7 @@
         [boot-batches available] (make-load-batches-for-ns graph 'editor.boot #{})
         [boot-open-project-batches _] (make-load-batches-for-ns graph 'editor.boot-open-project available)
         batches (into [] (concat boot-batches boot-open-project-batches))]
-    (spit to (with-out-str (pprint/pprint batches)))))
+    (spit to (with-out-str (pprint/pprint batches)))
+    (when (not= batches (edn/read-string (slurp to)))
+      (throw (Exception. (format "Batch file %s was not correctly generated." to))))))
 

@@ -13,7 +13,7 @@ public class EditorApplication {
     public EditorApplication(ClassLoader classLoader) {
         runtime = ClojureRuntimeShim.newRuntime(classLoader, "editor");
         if (Editor.isDev()) {
-            runtime.invoke("editor.debug/start-server", null);
+            runtime.invoke("editor.debug/init-debug");
         }
         runtime.invoke("editor.bootloader/load-boot");
     }
