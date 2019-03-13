@@ -94,6 +94,8 @@ message TogglePhysicsDebug {}
  *
  * [icon:attention] Audio is currently not supported
  *
+ * [icon:attention] Window width and height must be a multiple of 8 to be able to record video.
+ *
  * This message can only be sent to the designated `@system` socket.
  *
  * @message
