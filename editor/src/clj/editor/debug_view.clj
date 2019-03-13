@@ -229,11 +229,9 @@
     (when (and (instance? LuaStructure value)
                (pos? (count value)))
       (.add children (TreeItem.))
-      (.addListener (.expandedProperty tree-item)
-                    (reify ChangeListener
-                      (changed [_ _ _ shown]
-                        (when shown
-                          (.setAll children ^Collection (map make-variable-tree-item value)))))))
+      (ui/observe-once (.expandedProperty tree-item)
+                       (fn [_ _ _]
+                         (.setAll children ^Collection (map make-variable-tree-item value)))))
     tree-item))
 
 (defn- make-variables-tree-item
