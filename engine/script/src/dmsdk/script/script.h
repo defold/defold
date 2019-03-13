@@ -11,6 +11,15 @@ extern "C"
 #include <dmsdk/lua/lauxlib.h>
 }
 
+namespace Vectormath {
+    namespace Aos {
+        class Vector3;
+        class Vector4;
+        class Quat;
+        class Matrix4;
+    }
+}
+
 namespace dmScript
 {
     /*# SDK Script API documentation
@@ -257,7 +266,7 @@ namespace dmScript
     lua_State* GetMainThread(lua_State* L);
 
     /*# Lua wrapper for a dmBuffer::HBuffer
-     * 
+     *
      * Holds info about the buffer and who owns it.
      *
      * @struct
@@ -315,6 +324,91 @@ namespace dmScript
      * @return buffer [type:LuaHBuffer*] pointer to dmScript::LuaHBuffer
      */
     LuaHBuffer* CheckBuffer(lua_State* L, int index);
+
+    /**
+     * Check if the value at #index is a vector3
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true if value at #index is a vector3
+     */
+    bool IsVector3(lua_State* L, int index);
+
+    /**
+     * Push a Vector3 value onto the supplied lua state, will increase the stack by 1.
+     * @param L Lua state
+     * @param v Vector3 value to push
+     */
+    void PushVector3(lua_State* L, const Vectormath::Aos::Vector3& v);
+
+    /**
+     * Check if the value in the supplied index on the lua stack is a Vector3.
+     * @param L Lua state
+     * @param index Index of the value
+     * @return The Vector3 value
+     */
+    Vectormath::Aos::Vector3* CheckVector3(lua_State* L, int index);
+
+    /**
+     * Check if the value at #index is a vector4
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true if value at #index is a vector4
+     */
+    bool IsVector4(lua_State* L, int index);
+
+    /**
+     * Push a Vector4 value onto the supplied lua state, will increase the stack by 1.
+     * @param L Lua state
+     * @param v Vector4 value to push
+     */
+    void PushVector4(lua_State* L, const Vectormath::Aos::Vector4& v);
+
+    /**
+     * Check if the value in the supplied index on the lua stack is a Vector4.
+     * @param L Lua state
+     * @param index Index of the value
+     * @return The Vector4 value
+     */
+    Vectormath::Aos::Vector4* CheckVector4(lua_State* L, int index);
+
+    /**
+     * Check if the value at #index is a quat
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true if value at #index is a quat
+     */
+    bool IsQuat(lua_State* L, int index);
+
+    /**
+     * Push a quaternion value onto the supplied lua state, will increase the stack by 1.
+     * @param L Lua state
+     * @param q Quaternion value to push
+     */
+    void PushQuat(lua_State* L, const Vectormath::Aos::Quat& q);
+
+    /**
+     * Check if the value in the supplied index on the lua stack is a quaternion.
+     * @param L Lua state
+     * @param index Index of the value
+     * @return The quat value
+     */
+    Vectormath::Aos::Quat* CheckQuat(lua_State* L, int index);
+
+    /**
+     * Check if the value at #index is a matrix4
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true if value at #index is a matrix4
+     */
+    bool IsMatrix4(lua_State* L, int index);
+
+    /**
+     * Push a matrix4 value onto the supplied lua state, will increase the stack by 1.
+     * @param L Lua state
+     * @param m Matrix4 value to push
+     */
+    void PushMatrix4(lua_State* L, const Vectormath::Aos::Matrix4& m);
+
 }
 
 #endif // DMSDK_SCRIPT_H
