@@ -11,6 +11,10 @@ extern "C"
 #include <dmsdk/lua/lauxlib.h>
 }
 
+namespace dmJson {
+    struct Document;
+}
+
 namespace dmScript
 {
     /*# SDK Script API documentation
@@ -257,7 +261,7 @@ namespace dmScript
     lua_State* GetMainThread(lua_State* L);
 
     /*# Lua wrapper for a dmBuffer::HBuffer
-     * 
+     *
      * Holds info about the buffer and who owns it.
      *
      * @struct
@@ -315,6 +319,22 @@ namespace dmScript
      * @return buffer [type:LuaHBuffer*] pointer to dmScript::LuaHBuffer
      */
     LuaHBuffer* CheckBuffer(lua_State* L, int index);
+
+
+    /*# convert a dmJson::Document to a Lua table
+     * Convert a dmJson::Document document to Lua table.
+     *
+     * @note If the function fails, it will free the document with dmJson::Free
+     *
+     * @param L lua state
+     * @param doc JSON document
+     * @param index index of JSON node
+     * @param error_str_out if an error is encountered, the error string is written to this argument
+     * @param error_str_size size of error_str_out
+     * @return <0 if it fails. >=0 if it succeeds.
+     */
+    int JsonToLua(lua_State* L, dmJson::Document* doc, int index, char* error_str_out, size_t error_str_size);
+
 }
 
 #endif // DMSDK_SCRIPT_H

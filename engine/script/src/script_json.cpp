@@ -4,6 +4,7 @@
 #include <float.h>
 
 #include <dlib/dstrings.h>
+#include <dlib/json.h>
 
 #include "script.h"
 
@@ -29,14 +30,18 @@ namespace dmScript
 
     #define LIB_NAME "json"
 
-    int JsonToLua(lua_State*L, dmJson::Document* doc, int index, char* error_str_out, size_t error_str_size)
+    /** Convert a JSON document to Lua table. (See dmScript::JsonToLua)
+     * @note Doesn't free the document upon error
+     * @note Doesn't reset the Lua stack upon error
+     * @return <0 if it fails. >=0 if it succeeds (index of next JSON node to handle)
+     */
+    static int JsonToLuaInternal(lua_State* L, dmJson::Document* doc, int index, char* error_str_out, size_t error_str_size)
     {
         // The maximum length of a IEEE 754 double (+ \0)
         const uint32_t buffer_len = 3 + DBL_MANT_DIG - DBL_MIN_EXP + 1;
 
         if (index >= doc->m_NodeCount)
         {
-            dmJson::Free(doc);
             DM_SNPRINTF(error_str_out, error_str_size, "Unexpected JSON index, unable to parse content.");
             return -1;
         }
@@ -73,7 +78,6 @@ namespace dmScript
                 }
                 else
                 {
-                    dmJson::Free(doc);
                     DM_SNPRINTF(error_str_out, error_str_size, "Invalid JSON primitive: %s", buffer);
                     return -1;
                 }
@@ -89,7 +93,7 @@ namespace dmScript
             ++index;
             for (int i = 0; i < n.m_Size; ++i)
             {
-                index = JsonToLua(L, doc, index, error_str_out, error_str_size);
+                index = JsonToLuaInternal(L, doc, index, error_str_out, error_str_size);
                 if (index < 0)
                     return -1;
                 lua_rawseti(L, -2, i+1);
@@ -105,10 +109,10 @@ namespace dmScript
                 ++index;
                 for (int i = 0; i < n.m_Size; i += 2)
                 {
-                    index = JsonToLua(L, doc, index, error_str_out, error_str_size);
+                    index = JsonToLuaInternal(L, doc, index, error_str_out, error_str_size);
                     if (index < 0)
                         return -1;
-                    index = JsonToLua(L, doc, index, error_str_out, error_str_size);
+                    index = JsonToLuaInternal(L, doc, index, error_str_out, error_str_size);
                     if (index < 0)
                         return -1;
                     lua_rawset(L, -3);
@@ -120,15 +124,25 @@ namespace dmScript
             {
                 char buffer[buffer_len] = { 0 };
                 memcpy(buffer, json + n.m_Start, dmMath::Min(buffer_len - 1, l));
-                dmJson::Free(doc);
                 DM_SNPRINTF(error_str_out, error_str_size, "Incomplete JSON object: %s", buffer);
                 return -1;
             }
         }
 
-        dmJson::Free(doc);
         DM_SNPRINTF(error_str_out, error_str_size, "Unsupported JSON type (%d), unable to parse content.", n.m_Type);
         return -1;
+    }
+
+    int JsonToLua(lua_State* L, dmJson::Document* doc, int index, char* error_str_out, size_t error_str_size)
+    {
+        int top = lua_gettop(L);
+        int result = JsonToLuaInternal(L, doc, index, error_str_out, error_str_size);
+        if (result < 0)
+        {
+            lua_pop(L, lua_gettop(L) - top);
+            dmJson::Free(doc);
+        }
+        return result;
     }
 
     /*# decode JSON from a string to a lua-table
@@ -186,10 +200,7 @@ namespace dmScript
             assert(top + 1 == lua_gettop(L));
             return 1;
         }
-        else if (r == dmJson::RESULT_OK && doc.m_NodeCount == 0)
-        {
-            dmJson::Free(&doc);
-        }
+        dmJson::Free(&doc);
 
         assert(top == lua_gettop(L));
         return luaL_error(L, "Failed to parse json '%s' (%d).", json, r);

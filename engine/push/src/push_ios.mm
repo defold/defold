@@ -200,7 +200,6 @@ static void RunListener(NSDictionary *userdata, bool local, bool wasActivated)
             if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
                 char err_str[128];
                 if (dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str)) < 0) {
-                    lua_pop(L, lua_gettop(L) - top);
                     dmLogError("Error running push listener: %s", err_str);
                     return;
                 }

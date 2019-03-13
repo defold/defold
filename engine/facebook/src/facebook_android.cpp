@@ -198,7 +198,6 @@ static void RunDialogResultCallback(Command* cmd)
             if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
                 char err_str[128];
                 if (dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str)) < 0) {
-                    lua_pop(L, lua_gettop(L) - top - 2); // Need to leave function and self references.
                     dmLogError("Failed converting dialog result JSON to Lua; %s", err_str);
                     lua_pushnil(L);
                 }

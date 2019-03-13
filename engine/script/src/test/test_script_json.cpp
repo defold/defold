@@ -6,6 +6,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/configfile.h>
+#include <dlib/json.h>
 
 extern "C"
 {
@@ -124,6 +125,7 @@ TEST_P(JsonToLuaTest, TestJsonToLua)
         ASSERT_TRUE(doc.m_NodeCount > 0);
 
         char err_str[128];
+        int top_before_call = lua_gettop(L);
         int convert_r = dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str));
 
         if (p.m_ExpectedConvertOK) {
@@ -131,9 +133,7 @@ TEST_P(JsonToLuaTest, TestJsonToLua)
             lua_pop(L, 1);
         } else {
             ASSERT_EQ(-1, convert_r);
-
-            // Need to pop any junk left on the stack since JsonToLua does not automatically clean up.
-            lua_pop(L, lua_gettop(L) - top);
+            ASSERT_EQ(top_before_call, lua_gettop(L));
         }
 
         dmJson::Free(&doc);
