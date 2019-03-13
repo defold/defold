@@ -39,12 +39,23 @@ Consider putting it in an alias in your bash profile.
 
 ## Updating jdk to JDK11
 
-* Download the [OSX](https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_osx-x64_bin.tar.gz) or [Linux](https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz) version and extract it
+### OS X
+
+* Download the [OSX](https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_osx-x64_bin.tar.gz) version and extract it
 * Run `sudo cp -R <path-to-extracted-folder>/jdk-11.0.2.jdk /Library/Java/JavaVirtualMachines/`
 * Verify that the jdk version is available by running `/usr/libexec/java_home -V`
 * Switch to the new version by running `/usr/libexec/java_home -v 11.0.2`
 
-Note: If you are using IntelliJ for lein tasks, you will need to first add the new SDK (file->project structure/SDKs)
+### Linux
+
+* Download [Linux](https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz) version and extract it somewhere
+* Run `sudo update-alternatives --install "/usr/bin/java" "java" "/path/to/jdk/bin/java" 1102`
+* Run `sudo update-alternatives --install "/usr/bin/javac" "javac" "/path/to/jdk/bin/javac" 1102`
+* If require, switch to new version using `sudo update-alternatives --config java` and `sudo update-alternatives --config javac`
+
+### Notes
+
+If you are using IntelliJ for lein tasks, you will need to first add the new SDK (file->project structure/SDKs)
 and then set the project SDK setting (file->project structure/Project) to the new version.
 
 ## Setup
