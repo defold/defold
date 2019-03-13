@@ -8,7 +8,7 @@
             [editor.graph-util :as gu]
             [editor.resource :as resource]
             [editor.workspace :as workspace])
-  (:import [java.io PushbackReader InputStreamReader]))
+  (:import [java.io InputStreamReader PushbackReader]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -86,8 +86,8 @@
         (if (instance? Exception content)
           (make-code-editable project self resource (util/split-lines (slurp resource)))
           (concat
-           (g/set-property self :content-transform accept-fn :editable? false)
-           (load-fn self (accept-fn content))))))))
+            (g/set-property self :content-transform accept-fn :editable? false)
+            (load-fn self (accept-fn content))))))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

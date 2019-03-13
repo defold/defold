@@ -1189,13 +1189,13 @@
   ;; without doing a full parse. This is a performance improvement for startup
   ;; of large projects. A full parse is done if this function succeeds so there
   ;; is no need to check if the content is valid JSON at this point.
-  (with-open [is (io/input-stream resource)]
+  (with-open [rdr (io/reader resource)]
     (let [sb (StringBuilder.)]
       (loop [done? false
              inside-string? false
              escape? false
              strings (HashSet.)
-             c (.read is)]
+             c (.read rdr)]
         (if done?
           true
           (if (= -1 c)
@@ -1203,21 +1203,21 @@
             (if escape?
               (do
                 (.append sb (char c))
-                (recur done? inside-string? false strings (.read is)))
+                (recur done? inside-string? false strings (.read rdr)))
               (case c
-                92 (recur done? inside-string? true strings (.read is)) ;; \
+                92 (recur done? inside-string? true strings (.read rdr)) ;; \
                 34 (if inside-string? ;; "
                      (do
                        (.add strings (.toString sb))
                        (.setLength sb 0)
                        (recur (or (and (.contains strings "skeleton") (.contains strings "spine"))
                                   (and (.contains strings "bones") (.contains strings "animations")))
-                              false escape? strings (.read is)))
-                     (recur done? true escape? strings (.read is)))
+                              false escape? strings (.read rdr)))
+                     (recur done? true escape? strings (.read rdr)))
                 (do
                   (when inside-string?
                     (.append sb (char c)))
-                  (recur done? inside-string? escape? strings (.read is)))))))))))
+                  (recur done? inside-string? escape? strings (.read rdr)))))))))))
 
 (defn- tx-first-created [tx-data]
   (get-in (first tx-data) [:node :_node-id]))

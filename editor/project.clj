@@ -12,7 +12,7 @@
                      [org.clojure/core.cache                      "0.6.5"]
                      [org.clojure/tools.cli                       "0.3.5"]
                      [org.clojure/tools.macro                     "0.1.5"]
-                     [org.clojure/tools.namespace                 "0.2.10"]
+                     [org.clojure/tools.namespace                 "0.2.11"]
                      [org.clojure/data.int-map                    "0.2.4"]
                      [org.clojure/data.json                       "0.2.6"]
                      [com.cognitect/transit-clj                   "0.8.285"
@@ -98,8 +98,7 @@
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-linux-amd64"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-macosx-universal"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-amd64"]
-                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]
-                     [org.clojure/tools.namespace "0.2.11"]]
+                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]]
 
   :source-paths      ["src/clj"]
 
