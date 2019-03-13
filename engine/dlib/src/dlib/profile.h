@@ -78,7 +78,8 @@
         static uint32_t DM_PROFILE_PASTE2(hash, __LINE__)              = 0; \
         if (DM_PROFILE_PASTE2(scope_index, __LINE__) != 0xffffffffu) { \
             char buffer[128]; \
-            uint32_t name_length = DM_SNPRINTF(buffer, sizeof(buffer), fmt, __VA_ARGS__); \
+            DM_SNPRINTF(buffer, sizeof(buffer), fmt, __VA_ARGS__); \
+            uint32_t name_length = strlen(buffer); \
             DM_PROFILE_PASTE2(hash, __LINE__) = dmProfile::GetNameHash(buffer, name_length); \
             DM_PROFILE_PASTE2(name, __LINE__) = dmProfile::Internalize(buffer, name_length, DM_PROFILE_PASTE2(hash, __LINE__)); \
         } \
