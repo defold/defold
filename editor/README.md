@@ -37,6 +37,16 @@ First of all, follow the Windows instructions in [Defold Readme](../README.md)
 This is the shell environment that you must have to run the project.
 Consider putting it in an alias in your bash profile.
 
+## Updating jdk to JDK11
+
+* Download the [OSX](https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_osx-x64_bin.tar.gz) or [Linux](https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz) version and extract it
+* Run `sudo cp -R <path-to-extracted-folder>/jdk-11.0.2.jdk /Library/Java/JavaVirtualMachines/`
+* Verify that the jdk version is available by running `/usr/libexec/java_home -V`
+* Switch to the new version by running `/usr/libexec/java_home -v 11.0.2`
+
+Note: If you are using IntelliJ for lein tasks, you will need to first add the new SDK (file->project structure/SDKs)
+and then set the project SDK setting (file->project structure/Project) to the new version.
+
 ## Setup
 * Build the engine with `scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-tests`
   from the `defold` directory
