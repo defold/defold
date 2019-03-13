@@ -8,40 +8,11 @@ import "gameobject/lua_ddf.proto";
 option java_package = "com.dynamo.engine.proto";
 option java_outer_classname = "Engine";
 
-/*# System API documentation
+// (Hidden) iconifies the application
+/* This command asks the window manager to minimize/iconify the application
  *
- * Functions and messages for using system resources, controlling the engine,
- * error handling and debugging.
- *
- * @document
- * @name System
- * @namespace sys
- */
-
-/*# exits application
- * Terminates the game application and reports the specified <code>code</code> to the OS.
  * This message can only be sent to the designated `@system` socket.
- *
- * @message
- * @name exit
- * @param code [type:number] exit code to report to the OS, 0 means clean exit
- * @examples
- *
- * This examples demonstrates how to exit the application when some kind of quit messages is received (maybe from gui or similar):
- *
- * ```lua
- * function on_message(self, message_id, message, sender)
- *     if message_id == hash("quit") then
- *         msg.post("@system:", "exit", {code = 0})
- *     end
- * end
- * ```
  */
-message Exit
-{
-    required int32 code = 1;
-}
-
 message HideApp {}
 
 /*# shows/hides the on-screen profiler

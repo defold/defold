@@ -190,7 +190,7 @@ public class AndroidBundler implements IBundler {
         args.add("--no-crunch");
         args.add("-f");
         args.add("--extra-packages");
-        args.add("com.facebook:com.google.android.gms");
+        args.add("com.facebook:com.google.android.gms:com.google.android.gms.common");
         args.add("-m");
         args.add("--auto-add-overlay");
 
@@ -203,7 +203,12 @@ public class AndroidBundler implements IBundler {
 
         args.add("-S"); args.add(resDir.getAbsolutePath());
         args.add("-S"); args.add(Bob.getPath("res/facebook"));
-        args.add("-S"); args.add(Bob.getPath("res/google-play-services"));
+        args.add("-S"); args.add(Bob.getPath("res/com.android.support.support-compat-27.1.1"));
+        args.add("-S"); args.add(Bob.getPath("res/com.android.support.support-core-ui-27.1.1"));
+        args.add("-S"); args.add(Bob.getPath("res/com.android.support.support-media-compat-27.1.1"));
+        args.add("-S"); args.add(Bob.getPath("res/com.google.android.gms.play-services-base-16.0.1"));
+        args.add("-S"); args.add(Bob.getPath("res/com.google.android.gms.play-services-basement-16.0.1"));
+        args.add("-S"); args.add(Bob.getPath("res/com.google.firebase.firebase-messaging-17.3.4"));
 
         args.add("-M"); args.add(manifestFile.getAbsolutePath());
         args.add("-I"); args.add(Bob.getPath("lib/android.jar"));

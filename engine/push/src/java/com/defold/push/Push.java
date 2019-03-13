@@ -41,9 +41,17 @@ import android.os.Build;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
+import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.GooglePlayServicesUtil;
-import com.google.android.gms.gcm.GoogleCloudMessaging;
+import com.google.android.gms.tasks.Task;
+import com.google.android.gms.tasks.OnCompleteListener;
+
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.FirebaseOptions;
+import com.google.firebase.iid.FirebaseInstanceId;
+import com.google.firebase.iid.InstanceIdResult;
+import com.google.firebase.messaging.RemoteMessage;
+
 
 public class Push {
 
@@ -55,13 +63,12 @@ public class Push {
     public static final String NOTIFICATION_CHANNEL_ID = "com.dynamo.android.notification_channel";
     private static final int PLAY_SERVICES_RESOLUTION_REQUEST = 9000;
 
-    private String senderId = "";
+    private String senderIdFCM = "";
+    private String applicationIdFCM = "";
 
     private static Push instance;
     private static AlarmManager am = null;
     private IPushListener listener = null;
-
-    private GoogleCloudMessaging gcm;
 
     private Activity activity;
 
@@ -84,7 +91,7 @@ public class Push {
 
     private ArrayList<StoredNotification> storedNotifications = new ArrayList<StoredNotification>();
 
-    public void start(Activity activity, IPushListener listener, String senderId, String projectTitle) {
+    public void start(Activity activity, IPushListener listener, String senderId, String applicationId, String projectTitle) {
         Log.d(TAG, String.format("Push started (%s %s)", listener, senderId));
 
         // Create the NotificationChannel, but only on API 26+ because
@@ -99,7 +106,8 @@ public class Push {
         }
         this.activity = activity;
         this.listener = listener;
-        this.senderId = senderId;
+        this.senderIdFCM = senderId;
+        this.applicationIdFCM = applicationId;
     }
 
     public void stop() {
@@ -125,7 +133,7 @@ public class Push {
             @Override
             public void run() {
                 try {
-                    startGooglePlay(activity);
+                    startFirebase(activity);
                     loadSavedLocalMessages(activity);
                     loadSavedMessages(activity);
                 } catch (Throwable e) {
@@ -284,28 +292,45 @@ public class Push {
         return instance;
     }
 
-    private void startGooglePlay(Activity activity) {
-        if (checkPlayServices(activity)) {
-            gcm = GoogleCloudMessaging.getInstance(activity);
-            registerInBackground(activity);
-        } else {
-            Log.w(TAG, "No valid Google Play Services APK found.");
-        }
+    private void registerFirebase(Activity activity) {
+        FirebaseOptions.Builder builder = new FirebaseOptions.Builder()
+            .setApplicationId(this.applicationIdFCM)
+            .setGcmSenderId(this.senderIdFCM);
+        FirebaseApp.initializeApp(activity, builder.build());
+
+        FirebaseInstanceId.getInstance().getInstanceId()
+                .addOnCompleteListener(new OnCompleteListener<InstanceIdResult>() {
+                    @Override
+                    public void onComplete(Task<InstanceIdResult> task) {
+                        if (!task.isSuccessful()) {
+                            Log.w(TAG, "getInstanceId failed", task.getException());
+                            sendRegistrationResult(null, task.getException().getLocalizedMessage());
+                            return;
+                        }
+
+                        // Get new Instance ID token
+                        String token = task.getResult().getToken();
+                        sendRegistrationResult(token, null);
+                    }
+                });
     }
 
     private boolean checkPlayServices(Activity activity) {
-        int resultCode = GooglePlayServicesUtil
-                .isGooglePlayServicesAvailable(activity);
+        int resultCode = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(activity);
         if (resultCode != ConnectionResult.SUCCESS) {
-            if (GooglePlayServicesUtil.isUserRecoverableError(resultCode)) {
-                GooglePlayServicesUtil.getErrorDialog(resultCode, activity,
-                        PLAY_SERVICES_RESOLUTION_REQUEST).show();
-            } else {
-                Log.w(TAG, "This device is not supported.");
-            }
+            Log.i(TAG, "This device is not supported. Remote push notifications are not supported");
             return false;
         }
         return true;
+    }
+
+    private void startFirebase(Activity activity) {
+        if (checkPlayServices(activity)) {
+            registerFirebase(activity);
+        } else {
+            Log.w(TAG, "No valid Google Play Services APK found.");
+            sendRegistrationResult(null, "Google Play Services not available.");
+        }
     }
 
     private void sendRegistrationResult(String regid, String errorMessage) {
@@ -314,29 +339,6 @@ public class Push {
         } else {
             Log.e(TAG, "No listener callback set");
         }
-    }
-
-    private void registerInBackground(final Context context) {
-        new AsyncTask<Void, Void, Void>() {
-            @Override
-            protected Void doInBackground(Void... params) {
-                try {
-                    if (gcm == null) {
-                        gcm = GoogleCloudMessaging.getInstance(context);
-                    }
-                    String regid = gcm.register(senderId);
-                    sendRegistrationResult(regid, null);
-                } catch (IOException e) {
-                    Log.e(TAG, "Failed to register", e);
-                    sendRegistrationResult(null, e.getLocalizedMessage());
-                } catch (Throwable e) {
-                    Log.e(TAG, "Failed to register", e);
-                    sendRegistrationResult(null, e.getLocalizedMessage());
-                }
-                return null;
-            }
-
-        }.execute(null, null, null);
     }
 
     private void loadSavedMessages(Context context) {
@@ -402,6 +404,18 @@ public class Push {
         for (String k : bundle.keySet()) {
             try {
                 o.put(k, bundle.getString(k));
+            } catch (JSONException e) {
+                Log.e(TAG, "failed to create json-object", e);
+            }
+        }
+        return o;
+    }
+
+    static JSONObject toJson(Map<String, String> bundle) {
+        JSONObject o = new JSONObject();
+        for (Map.Entry<String, String> entry : bundle.entrySet()) {
+            try {
+                o.put(entry.getKey(), entry.getValue());
             } catch (JSONException e) {
                 Log.e(TAG, "failed to create json-object", e);
             }
@@ -475,40 +489,9 @@ public class Push {
         return result;
     }
 
-    void onPush(Context context, Intent intent) {
-        Bundle extras = intent.getExtras();
-        GoogleCloudMessaging gcm = GoogleCloudMessaging.getInstance(context);
-        String messageType = gcm.getMessageType(intent);
-
-        // Note in regards to the 'from' != "google.com/iid" check:
-        // - In mid/late 2015 Google updated their push service. During this
-        //   change "ghost" messages began popping up in Defold, some even
-        //   the first time the apps were run. The reason was Google sending
-        //   some of their own messages to the devices with "commands", for
-        //   example telling the GCM-library to request a new device token.
-        //   These commands where not handled in our GCM-library version,
-        //   thus we simply forwarded them below as normal pushes.
-        //   More info: JIRA issue DEF-1354
-        //              http://stackoverflow.com/questions/30479424/
-        if (!extras.isEmpty() &&
-            !extras.getString("from").equals("google.com/iid")) {
-
-            if (GoogleCloudMessaging.MESSAGE_TYPE_MESSAGE.equals(messageType)) {
-                JSONObject o = toJson(extras);
-                String msg = o.toString();
-                boolean wasActivated = !DefoldActivity.isActivityVisible();
-                Log.d(TAG, "message received: " + msg);
-                if (listener != null) {
-                    Log.d(TAG, "forwarding message to application");
-                    listener.onMessage(msg, wasActivated);
-                }
-
-                Log.d(TAG, "creating notification for message");
-                sendNotification(context, extras, wasActivated);
-            } else {
-                Log.i(TAG, String.format("unhandled message type: %s",
-                        messageType));
-            }
+    void onRemotePush(String payload, boolean wasActivated) {
+        if (listener != null) {
+            listener.onMessage(payload, wasActivated);
         }
     }
 
@@ -522,97 +505,112 @@ public class Push {
         removeNotification(id);
 
         if (listener != null) {
-            this.listener.onLocalMessage(msg, id, wasActivated);
+            listener.onLocalMessage(msg, id, wasActivated);
         }
     }
 
-    private void sendNotification(Context context, Bundle extras, boolean wasActivated) {
-
-        NotificationManager nm = (NotificationManager) context
-                .getSystemService(Context.NOTIFICATION_SERVICE);
+    public void showNotification(Context context, Map<String, String> extras) {
 
         Intent intent = new Intent(context, PushDispatchActivity.class)
                 .setAction(ACTION_FORWARD_PUSH);
-        intent.putExtra("wasActivated", (byte) (wasActivated ? 1 : 0));
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
 
+        JSONObject payloadJson = toJson(extras);
+        String payloadString = payloadJson.toString();
+        intent.putExtra("payload", payloadString);
+
+        Bundle extrasBundle = intent.getExtras();
+        extrasBundle.putByte("remote", (byte)1);
+
+        // App is visible, trigger the intent directly.
         if (DefoldActivity.isActivityVisible()) {
-            // Send the push notification directly to the dispatch
-            // activity if app is visible.
+            extrasBundle.putByte("wasActivated", (byte)0);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(intent);
-        } else {
-            for (String key : extras.keySet()) {
-                intent.putExtra(key, extras.getString(key));
-            }
-
-            int id = (int) (System.currentTimeMillis() % Integer.MAX_VALUE);
-            PendingIntent contentIntent = PendingIntent.getActivity(context, id,
-                    intent, 0);
-
-            String fieldTitle = null;
-            String fieldText = null;
-
-            // Try to find field names from manifest file
-            PackageManager pm = context.getPackageManager();
-            try {
-                ComponentName cn = new ComponentName(context, DEFOLD_ACTIVITY);
-                ActivityInfo activityInfo = pm.getActivityInfo(cn, PackageManager.GET_META_DATA);
-
-                Bundle bundle = activityInfo.metaData;
-                if (bundle != null) {
-                    fieldTitle = bundle.getString("com.defold.push.field_title", null);
-                    fieldText = bundle.getString("com.defold.push.field_text", "alert");
-                } else {
-                    Log.w(TAG, "Bundle was null, could not get meta data from manifest.");
-                }
-            } catch (PackageManager.NameNotFoundException e) {
-                Log.w(TAG, "Could not get activity info, needed to get push field conversion.");
-            }
-
-            ApplicationInfo info = context.getApplicationInfo();
-            String title = info.loadLabel(pm).toString();
-            if (fieldTitle != null && extras.getString(fieldTitle) != null) {
-                title = extras.getString(fieldTitle);
-            }
-
-            String text = extras.getString(fieldText);
-            if (text == null) {
-                Log.w(TAG, "Missing text field in push message");
-                text = "New message";
-            }
-
-            NotificationCompat.Builder builder = new NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
-                    .setContentTitle(title)
-                    .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
-                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                    .setContentText(text);
-
-            // Find icons if they were supplied, fallback to app icon
-            int smallIconId = context.getResources().getIdentifier("push_icon_small", "drawable", context.getPackageName());
-            int largeIconId = context.getResources().getIdentifier("push_icon_large", "drawable", context.getPackageName());
-            if (smallIconId == 0) {
-                smallIconId = info.icon;
-            }
-            if (largeIconId == 0) {
-                largeIconId = info.icon;
-            }
-
-            // Get bitmap for large icon resource
-            try {
-                Resources resources = pm.getResourcesForApplication(info);
-                Bitmap largeIconBitmap = BitmapFactory.decodeResource(resources, largeIconId);
-                builder.setLargeIcon(largeIconBitmap);
-            } catch (PackageManager.NameNotFoundException e) {
-                Log.w(TAG, "Could not get application resources.");
-            }
-
-            builder.setSmallIcon(smallIconId);
-
-            builder.setContentIntent(contentIntent);
-            Notification notification = builder.build();
-            notification.flags |= Notification.FLAG_AUTO_CANCEL;
-            nm.notify(id, notification);
+            return;
         }
+
+        // App is not visible, this means that we need to display a notification.
+        // This means that when the intent is triggered next time it will be
+        // from an interaction of the notification popup, and thus we can set
+        // wasActivated to 1.
+        extrasBundle.putByte("wasActivated", (byte)1);
+
+        int id = (int) (System.currentTimeMillis() % Integer.MAX_VALUE);
+        PendingIntent contentIntent = PendingIntent.getActivity(context, id,
+                intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_ONE_SHOT);
+
+        String fieldTitle = null;
+        String fieldText = null;
+
+        // Try to find field names from manifest file
+        PackageManager pm = context.getPackageManager();
+        try {
+            ComponentName cn = new ComponentName(context, DEFOLD_ACTIVITY);
+            ActivityInfo activityInfo = pm.getActivityInfo(cn, PackageManager.GET_META_DATA);
+
+            Bundle bundle = activityInfo.metaData;
+            if (bundle != null) {
+                fieldTitle = bundle.getString("com.defold.push.field_title", null);
+                fieldText = bundle.getString("com.defold.push.field_text", "alert");
+            } else {
+                Log.w(TAG, "Bundle was null, could not get meta data from manifest.");
+            }
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.w(TAG, "Could not get activity info, needed to get push field conversion.");
+        }
+
+        ApplicationInfo info = context.getApplicationInfo();
+        String title = info.loadLabel(pm).toString();
+        if (fieldTitle != null && extras.get(fieldTitle) != null) {
+            title = extras.get(fieldTitle);
+        }
+
+        String text = extras.get(fieldText);
+        if (text == null) {
+            Log.w(TAG, "Missing text field in push message");
+            text = "New message";
+        }
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
+                .setContentTitle(title)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setContentText(text);
+
+        // Find icons if they were supplied, fallback to app icon
+        int smallIconId = context.getResources().getIdentifier("push_icon_small", "drawable", context.getPackageName());
+        int largeIconId = context.getResources().getIdentifier("push_icon_large", "drawable", context.getPackageName());
+        if (smallIconId == 0) {
+            smallIconId = info.icon;
+            if (smallIconId == 0) {
+                smallIconId = android.R.color.transparent;
+            }
+        }
+        if (largeIconId == 0) {
+            largeIconId = info.icon;
+            if (largeIconId == 0) {
+                largeIconId = android.R.color.transparent;
+            }
+        }
+
+        // Get bitmap for large icon resource
+        try {
+            Resources resources = pm.getResourcesForApplication(info);
+            Bitmap largeIconBitmap = BitmapFactory.decodeResource(resources, largeIconId);
+            builder.setLargeIcon(largeIconBitmap);
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.w(TAG, "Could not get application resources.");
+        }
+
+        builder.setSmallIcon(smallIconId);
+        builder.setContentIntent(contentIntent);
+
+        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        Notification notification = builder.build();
+        notification.defaults = Notification.DEFAULT_ALL;
+        notification.flags |= Notification.FLAG_AUTO_CANCEL;
+        nm.notify(id, notification);
     }
 
 }

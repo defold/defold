@@ -622,9 +622,13 @@
    :default "com.example.todo",
    :path ["android" "package"]}
   {:type :string,
-   :help "Google Cloud Messaging Sender ID",
+   :help "Firebase Cloud Messaging Sender ID",
    :default "",
    :path ["android" "gcm_sender_id"]}
+  {:type :string,
+   :help "Firebase Cloud Messaging Application ID",
+   :default "",
+   :path ["android" "fcm_application_id"]}
   {:type :resource,
    :filter "xml",
    :preserve-extension true,
