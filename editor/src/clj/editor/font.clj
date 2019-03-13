@@ -190,17 +190,17 @@
 
 (defn measure
   ([font-map text]
-    (measure font-map text false 0 0 1))
+   (measure font-map text false 0 0 1))
   ([font-map text line-break? max-width text-tracking text-leading]
-    (if (or (nil? font-map) (nil? text) (empty? text))
-      [0 0]
-      (let [glyphs (font-map->glyphs font-map)
-            line-height (+ (:max-descent font-map) (:max-ascent font-map))
-            text-tracking (* line-height text-tracking)
-            lines (split-text glyphs text line-break? max-width text-tracking)
-            line-widths (map (partial measure-line glyphs text-tracking) lines)
-            max-width (reduce max 0 line-widths)]
-        [max-width (* line-height (+ 1 (* text-leading (dec (count lines)))))]))))
+   (if (or (nil? font-map) (nil? text) (empty? text))
+     [0 0]
+     (let [glyphs (font-map->glyphs font-map)
+           line-height (+ (:max-descent font-map) (:max-ascent font-map))
+           text-tracking (* line-height text-tracking)
+           lines (split-text glyphs text line-break? max-width text-tracking)
+           line-widths (map (partial measure-line glyphs text-tracking) lines)
+           max-width (reduce max 0 line-widths)]
+       [max-width (* line-height (+ 1 (* text-leading (dec (count lines)))))]))))
 
 (g/deftype FontData {:type     schema/Keyword
                      :font-map schema/Any
@@ -731,9 +731,9 @@
                                        w (+ (:width glyph) p)
                                        h (+ (:ascent glyph) (:descent glyph) p)
                                        ^ByteBuffer src-data (-> ^ByteBuffer (.asReadOnlyByteBuffer ^ByteString (:glyph-data font-map))
-                                                                ^ByteBuffer (.position (:glyph-data-offset glyph))
+                                                                ^ByteBuffer (.position (int (:glyph-data-offset glyph)))
                                                                 (.slice)
-                                                                (.limit (:glyph-data-size glyph)))
+                                                                (.limit (int (:glyph-data-size glyph))))
                                        tgt-data (doto (ByteBuffer/allocateDirect (:glyph-data-size glyph))
                                                   (.put src-data)
                                                   (.flip))]
