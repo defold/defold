@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [support.test-support :refer [array=]]
             [editor.buffers :as b]
-            [editor.gl.vertex :refer :all])
+            [editor.gl.vertex :as v])
   (:import [com.google.protobuf ByteString]))
 
 (defn- contents-of
@@ -20,25 +20,25 @@
     (doseq [r rows]
       (println (apply format fmt r)))))
 
-(defvertex one-d-position-only
+(v/defvertex one-d-position-only
   (vec1.byte location))
 
-(defvertex two-d-position
+(v/defvertex two-d-position
   (vec2.byte position))
 
-(defvertex two-d-position-short
+(v/defvertex two-d-position-short
   (vec2.short position))
 
-(defvertex short-byte-byte
+(v/defvertex short-byte-byte
   (vec2.byte  bite)
   (vec2.short shorty)
   (vec1.byte  nibble))
 
-(defvertex short-short :interleaved
+(v/defvertex short-short :interleaved
   (vec1.short u)
   (vec1.short v))
 
-(defvertex short-short-chunky :chunked
+(v/defvertex short-short-chunky :chunked
   (vec1.short u)
   (vec1.short v))
 
@@ -47,17 +47,17 @@
     (conj! vertex-buffer [42])
 
     (testing "what goes in comes out"
-             (is (= [42] (get vertex-buffer 0)))
-             (is (= 1    (count vertex-buffer)))
-             (is (array= (byte-array [42])
-                         (contents-of vertex-buffer))))
+      (is (= [42] (get vertex-buffer 0)))
+      (is (= 1    (count vertex-buffer)))
+      (is (array= (byte-array [42])
+                  (contents-of vertex-buffer))))
 
     (testing "once made persistent, the data is still there"
-             (let [final (persistent! vertex-buffer)]
-               (is (= [42] (get final 0)))
-               (is (= 1    (count final)))
-               (is (array= (byte-array [42])
-                           (contents-of final)))))))
+      (let [final (persistent! vertex-buffer)]
+        (is (= [42] (get final 0)))
+        (is (= 1    (count final)))
+        (is (array= (byte-array [42])
+                    (contents-of final)))))))
 
 (defn- laid-out-as [def into-seq expected-vec]
   (let [ctor  (symbol (str "->" (:name def)))
@@ -100,7 +100,7 @@
 (deftest attributes-compiled-correctly
   (is (= [['location 1 'byte]] (:attributes one-d-position-only))))
 
-(defvertex four-d-position-and-2d-texture
+(v/defvertex four-d-position-and-2d-texture
   (vec4.float position)
   (vec2.float texcoord))
 

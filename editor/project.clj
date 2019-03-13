@@ -4,7 +4,7 @@
 
   :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))}
 
-  :plugins          [[lein-protobuf-minimal "0.4.4" :hooks false]
+  :plugins          [[lein-protobuf-minimal-mg "0.4.5" :hooks false]
                      [lein-sass "0.4.0"]
                      [codox "0.9.3"]]
 
@@ -102,6 +102,8 @@
 
   :source-paths      ["src/clj"]
 
+  :test-paths        ["test"]
+
   :java-source-paths ["src/java"]
 
   :resource-paths    ["resources" "generated-resources"]
@@ -132,7 +134,8 @@
                       :output-directory "resources/editor.css"
                       :source-maps false}
 
-  :aliases           {"benchmark"     ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]}
+  :aliases           {"benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
+                      "lint" ["with-profile" "+test" "eastwood"]}
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"}
@@ -164,9 +167,10 @@
                                 :omit-source  true
                                 :source-paths ["sidecar"]}
                       :release {:jvm-opts          ["-Ddefold.build=release"]}
-                      :dev     {:dependencies      [[org.clojure/test.check   "0.9.0"]
+                      :dev     {:plugins           [[jonase/eastwood "0.3.5" :exclusions [org.clojure/clojure]]]
+                                :dependencies      [[org.clojure/test.check   "0.9.0"]
                                                     [org.clojure/tools.trace  "0.7.9"]
-                                                    [com.clojure-goes-fast/clj-async-profiler "0.3.0"]
+                                                    [clj-async-profiler-mg "0.4.0"]
                                                     [criterium "0.4.3"]
                                                     [org.mockito/mockito-core "1.10.19"]
                                                     [ring "1.4.0"]]
@@ -185,4 +189,10 @@
                                                     ;; From https://github.com/clojure-goes-fast/clj-async-profiler/blob/master/README.md
                                                     "-Djdk.attach.allowAttachSelf"   ; Required for attach to running process.
                                                     "-XX:+UnlockDiagnosticVMOptions" ; Required for DebugNonSafepoints.
-                                                    "-XX:+DebugNonSafepoints"]}})    ; Without this, there is a high chance that simple inlined methods will not appear in the profile.
+                                                    "-XX:+DebugNonSafepoints"]}}     ; Without this, there is a high chance that simple inlined methods will not appear in the profile.
+  :eastwood {:out "eastwood-warnings.txt"
+             :continue-on-exception true
+             :add-linters [:unused-fn-args
+                           :unused-locals
+                           :unused-namespaces
+                           :unused-private-vars]})
