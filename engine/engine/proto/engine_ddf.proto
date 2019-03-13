@@ -15,6 +15,199 @@ option java_outer_classname = "Engine";
  */
 message HideApp {}
 
+/*# shows/hides the on-screen profiler
+ * Toggles the on-screen profiler.
+ * The profiler is a real-time tool that shows the numbers of milliseconds spent
+ * in each scope per frame as well as counters. The profiler is very useful for
+ * tracking down performance and resource problems.
+ *
+ * In addition to the on-screen profiler, Defold includes a web-based profiler that
+ * allows you to sample a series of data points and then analyze them in detail.
+ * The web profiler is available at `http://<device IP>:8002` where <device IP> is
+ * the IP address of the device you are running your game on.
+ *
+ * This message can only be sent to the designated `@system` socket.
+ *
+ * @message
+ * @name toggle_profile
+ * @examples
+ *
+ * ```lua
+ * msg.post("@system:", "toggle_profile")
+ * ```
+ */
+message ToggleProfile {}
+
+/*# shows/hides the on-screen physics visual debugging
+ * Toggles the on-screen physics visual debugging mode which is very useful for
+ * tracking down issues related to physics. This mode visualizes
+ * all collision object shapes and normals at detected contact points. Toggling
+ * this mode on is equal to setting `physics.debug` in the "game.project" settings,
+ * but set in run-time.
+ *
+ * This message can only be sent to the designated `@system` socket.
+ *
+ * @message
+ * @name toggle_physics_debug
+ * @examples
+ * @examples
+ *
+ * ```lua
+ * msg.post("@system:", "toggle_physics_debug")
+ * ```
+ */
+message TogglePhysicsDebug {}
+
+/*# starts video recording
+ * Starts video recording of the game frame-buffer to file. Current video format is the
+ * open vp8 codec in the ivf container. It's possible to upload this format directly
+ * to YouTube. The VLC video player has native support but with the known issue that
+ * not the entire file is played back. It's probably an issue with VLC.
+ * The Miro Video Converter has support for vp8/ivf.
+ *
+ * [icon:macos] [icon:windows] [icon:linux] Video recording is only supported on desktop platforms.
+ *
+ * [icon:attention] Audio is currently not supported.
+ *
+ * [icon:attention] Window width and height must be a multiple of 8 to be able to record video.
+ *
+ * This message can only be sent to the designated `@system` socket.
+ *
+ * @message
+ * @name start_record
+ * @param file_name [type:string] file name to write the video to
+ * @param frame_period [type:number] frame period to record, ie write every nth frame. Default value is `2`
+ * @param fps [type:number] frames per second. Playback speed for the video. Default value is `30`. The fps value doens't affect the recording. It's only meta-data in the written video file.
+ * @examples
+ *
+ * Record a video in 30 fps given that the native game fps is 60:
+ *
+ * ```lua
+ * msg.post("@system:", "start_record", { file_name = "test_rec.ivf" } )
+ * ```
+ *
+ * To write a video in 60 fps given that the native game fps is 60:
+ *
+ * ```lua
+ * msg.post("@system:", "start_record", { file_name = "test_rec.ivf", frame_period = 1, fps = 60 } )
+ * ```
+ */
+message StartRecord
+{
+    required string file_name = 1;
+    optional int32 frame_period = 2 [default = 2];
+    optional int32 fps = 3 [ default = 30 ];
+}
+
+/*# stop current video recording
+ * Stops the currently active video recording.
+ *
+ * [icon:macos] [icon:windows] [icon:linux] Video recording is only supported on desktop platforms.
+ *
+ * This message can only be sent to the designated `@system` socket.
+ *
+ * @message
+ * @name stop_record
+ * @examples
+ *
+ * ```lua
+ * msg.post("@system:", "stop_record")
+ * ```
+ */
+message StopRecord
+{
+}
+
+
+/*# reboot engine with arguments
+ * Reboots the game engine with a specified set of arguments.
+ * Arguments will be translated into command line arguments. Sending the reboot
+ * command is equivalent to starting the engine with the same arguments.
+ *
+ * On startup the engine reads configuration from "game.project" in the
+ * project root.
+ *
+ * This message can only be sent to the designated `@system` socket.
+ *
+ * @message
+ * @name reboot
+ * @param arg1 [type:string] argument 1
+ * @param arg2 [type:string] argument 2
+ * @param arg3 [type:string] argument 3
+ * @param arg4 [type:string] argument 4
+ * @param arg5 [type:string] argument 5
+ * @param arg6 [type:string] argument 6
+ * @examples
+ *
+ * How to reboot engine with a specific bootstrap collection.
+ *
+ * ```lua
+ * local arg1 = '--config=bootstrap.main_collection=/my.collectionc'
+ * local arg2 = 'build/default/game.projectc'
+ * msg.post("@system:", "reboot", {arg1 = arg1, arg2 = arg2})
+ * ```
+ */
+message Reboot
+{
+    // We don't support repeated value in script_ddf. Probably for a good reason.
+    optional string arg1 = 1;
+    optional string arg2 = 2;
+    optional string arg3 = 3;
+    optional string arg4 = 4;
+    optional string arg5 = 5;
+    optional string arg6 = 6;
+}
+
+/*# set vsync swap interval
+ * Set the vsync swap interval. The interval with which to swap the front and back buffers
+ * in sync with vertical blanks (v-blank), the hardware event where the screen image is updated
+ * with data from the front buffer. A value of 1 swaps the buffers at every v-blank, a value of
+ * 2 swaps the buffers every other v-blank and so on. A value of 0 disables waiting for v-blank
+ * before swapping the buffers. Default value is 1.
+ *
+ * When setting the swap interval to 0 and having `vsync` disabled in
+ * "game.project", the engine will try to respect the set frame cap value from
+ * "game.project" in software instead.
+ *
+ * This setting may be overridden by driver settings.
+ *
+ * This message can only be sent to the designated `@system` socket.
+ *
+ * @message
+ * @name set_vsync
+ * @param swap_interval target swap interval.
+ * @examples
+ * <pre>
+ * msg.post("@system:", "set_vsync", { swap_interval = 1 } )
+ * </pre>
+ */
+message SetVsync
+{
+    required int32 swap_interval = 1 [default = 1];
+}
+
+/*# set update frequency
+ * Set game update-frequency (frame cap). This option is equivalent to `display.update_frequency` in
+ * the "game.project" settings but set in run-time. If `Vsync` checked in "game.project", the rate will
+ * be clamped to a swap interval that matches any detected main monitor refresh rate. If `Vsync` is
+ * unchecked the engine will try to respect the rate in software using timers. There is no
+ * guarantee that the frame cap will be achieved depending on platform specifics and hardware settings.
+ *
+ * This message can only be sent to the designated `@system` socket.
+ *
+ * @message
+ * @name set_update_frequency
+ * @param frequency target frequency. 60 for 60 fps
+ * @examples
+ * <pre>
+ * msg.post("@system:", "set_update_frequency", { frequency = 60 } )
+ * </pre>
+ */
+message SetUpdateFrequency
+{
+    required int32 frequency = 1;
+}
+
 // (Hidden) run a Lua script
 /* Runs a Lua script on the initialized Lua contexts
  *
@@ -24,4 +217,3 @@ message RunScript
 {
     required dmLuaDDF.LuaModule module = 1;
 }
-
