@@ -5,7 +5,7 @@ call the appropriate methods. Since this is very expensive (specifically
 fetching the Method from the Class), it uses memoization wherever possible.
 It should be possible to use macros instead and retain the same API.
 Macros currently mean no foreseeable performance gain however."
-  (:require [camel-snake-kebab :refer :all]
+  (:require [camel-snake-kebab :refer [->kebab-case ->CamelCase]]
             [clojure.java.io :as io]
             [clojure.string :as s]
             [internal.java :as j]
