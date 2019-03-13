@@ -118,6 +118,7 @@ namespace dmRecord
         else if (params->m_Width % 8 != 0 || params->m_Height % 8 != 0
                 || params->m_Width == 0 || params->m_Height == 0)
         {
+            dmLogError("Window width and height must be a multiple of 8");
             return RESULT_INVAL_ERROR;
         }
 
@@ -131,7 +132,7 @@ namespace dmRecord
         vpx_codec_err_t res = vpx_codec_enc_config_default(vpx_codec_vp8_cx(), &cfg, 0);
         if (res)
         {
-            dmLogError("Faild to get default configuration (%s)", vpx_codec_err_to_string(res));
+            dmLogError("Failed to get default configuration (%s)", vpx_codec_err_to_string(res));
             vpx_img_free(&vpx_image);
             return RESULT_UNKNOWN_ERROR;
         }
