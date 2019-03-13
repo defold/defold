@@ -354,7 +354,7 @@
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert camera "no camera?")
   (assert aabb   "no aabb?")
-  (if (= aabb (geom/null-aabb))
+  (if (geom/null-aabb? aabb)
     [(:fov-x camera) (:fov-y camera)]
     (let [min-proj    (camera-project camera viewport (.. aabb min))
           max-proj    (camera-project camera viewport (.. aabb max))
