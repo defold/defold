@@ -52,6 +52,13 @@
         (update repl-config :handler wrap-refactor))
     repl-config))
 
+(defn- maybe-load-sayid
+  [repl-config]
+  (if-let [wrap-sayid (try-resolve 'com.billpiel.sayid.nrepl-middleware/wrap-sayid)]
+    (do (println "Adding sayid middleware")
+      (update repl-config :handler wrap-sayid))
+    repl-config))
+
 (defn- maybe-load-cider
   [repl-config]
   (if-let [cider-handler (try-resolve 'cider.nrepl/cider-nrepl-handler)]
@@ -64,6 +71,7 @@
   (let [repl-config (cond-> {:bind "localhost"}
                       true (maybe-load-cider)
                       true (maybe-load-refactor-nrepl)
+                      true (maybe-load-sayid)
                       port (assoc :port port))]
     (send repl-server (constantly repl-config))
     (send repl-server start-and-print)))
