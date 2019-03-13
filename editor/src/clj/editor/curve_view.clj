@@ -454,7 +454,8 @@
                         (curve-aabb aabb))
                     aabb))
                 aabb)))
-    (geom/null-aabb) selected-node-properties))
+          geom/null-aabb
+          selected-node-properties))
 
 (g/defnk produce-selected-aabb [sub-selection-map selected-node-properties]
   (reduce (fn [aabb props]
@@ -466,7 +467,8 @@
                              aabb)]
                   (recur (rest props) aabb))
                 aabb)))
-          (geom/null-aabb) selected-node-properties))
+          geom/null-aabb
+          selected-node-properties))
 
 (g/defnode CurveView
   (inherits scene/SceneRenderer)
@@ -552,7 +554,7 @@
   (let [aabb (if (empty? selection)
                (g/node-value view :aabb)
                (g/node-value view :selected-aabb))]
-    (when (not= aabb (geom/null-aabb))
+    (when (geom/null-aabb? aabb)
       (let [graph (g/node-id->graph-id view)
             camera (g/node-feeding-into view :camera)
             viewport (g/node-value view :viewport)

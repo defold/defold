@@ -22,7 +22,7 @@
 (defn bbuf->string [^ByteBuffer bb] (String. ^bytes (alias-buf-bytes bb) "UTF-8"))
 
 (defprotocol ByteStringCoding
-  (byte-pack ^ByteString [source] "Return a Protocol Buffer compatible byte string from the given source."))
+  (byte-pack [source] "Return a Protocol Buffer compatible ByteString from the given source."))
 
 (defn- new-buffer [s] (ByteBuffer/allocateDirect s))
 
@@ -45,10 +45,10 @@
 (defn slice [^ByteBuffer bb offsets]
   (let [dup (.duplicate bb)]
     (mapv (fn [o] (do
-                   (.position dup o)
+                   (.position dup (int o))
                    (doto (.slice dup)
                      (.order (.order bb))))) offsets)))
 
 (extend-type ByteBuffer
   ByteStringCoding
-  (byte-pack [buffer] (ByteString/copyFrom (.asReadOnlyBuffer buffer))))
+  (byte-pack [this] (ByteString/copyFrom (.asReadOnlyBuffer this))))
