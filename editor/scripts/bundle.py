@@ -358,6 +358,10 @@ if __name__ == '__main__':
         init_command += [options.engine_sha1]
 
     exec_command(init_command)
+
+    build_ns_batches_command = ['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+release', 'build-ns-batches']
+    exec_command(build_ns_batches_command)
+
     check_reflections(java_cmd_env)
 
     if options.skip_tests:
