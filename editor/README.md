@@ -1,8 +1,8 @@
 # JavaFX Clojure Editor
 
 ## Requirements
-* Java 1.8
-* [Leiningen](http://leiningen.org/)
+* [Java 11](https://jdk.java.net/11/)
+* [Leiningen](http://leiningen.org/) (Note: latest lein 2.9.0 does not work on this project, you should run `lein downgrade 2.8.3`) after installing
 
 ## Windows
 
@@ -53,6 +53,15 @@ Some of the remaining instructions are about EMACS. If instead you want to use t
 
 If you are using a repl, you can also run the tests by calling `(suite/suite)`.
 
+## Running the linter
+`lein lint` will run [eastwood](https://github.com/jonase/eastwood) on the project and save the output in a file called eastwood-warnings.txt.
+
+There will also be a lot of warnings about reflection, boxed math and some stack
+traces from eastwood printed to standard error. These are side effects of the
+flags for reflection warnings and boxed math being turned on for the project as
+a whole because of how eastwood parses and evaluates code and can safely be
+ignored. The real output from the linting is in eastwood-warnings.txt
+
 ## Setup NREPL for debugging
 
 If you want to work on the editor chances are you want to `connect` or `jack-in` to a REPL as described below.
@@ -101,7 +110,7 @@ the editor locally:
 
 You can also use `M-x cider-jack-in` or launch the editor inside Cursive for debugging with breakpoints etc.
 
-First set the envrinment varaible `DYNAMO_HOME`. Example of a value `/Users/martin/work/defold/tmp/dynamo_home`.
+First set the environment variable `DYNAMO_HOME`. Example of a value `/Users/martin/work/defold/tmp/dynamo_home`.
 
 After you jacked in do the following to load and start the app;
 
@@ -153,5 +162,5 @@ In order to setup bob locally, you need to:
 
 - Build the engine for the specific platform, e.g. python scripts/build.py build_engine --platform=js-web --skip-tests -- --skip-build-tests
   - For android, you also need to build_go through build.py to obtain apkc
-- Build bob with local artefacts, python scripts/build.py build_bob --skip-sync-archive
+- Build bob with local artifacts, python scripts/build.py build_bob --skip-sync-archive
 - lein init, which will install bob.jar as a local maven package

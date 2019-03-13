@@ -188,13 +188,11 @@
   (output build-error g/Err (g/constantly nil))
 
   (output scene g/Any :cached (g/fnk [_node-id id transform scene child-scenes]
-                                     (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (or (:aabb scene) (geom/null-aabb)) child-scenes)
-                                           aabb (geom/aabb-transform (geom/aabb-incorporate aabb 0 0 0) transform)]
-                                       (-> (scene/claim-scene scene _node-id id)
+                                     (-> (scene/claim-scene scene _node-id id)
                                          (assoc :transform transform
-                                                :aabb aabb
+                                                :aabb geom/empty-bounding-box
                                                 :renderable {:passes [pass/selection]})
-                                         (update :children (fn [s] (reduce conj (or s []) child-scenes)))))))
+                                         (update :children (fn [s] (reduce conj (or s []) child-scenes))))))
   (output go-inst-ids g/Any :cached (g/fnk [_node-id id]
                                            {id _node-id}))
   (output ddf-properties g/Any :cached (g/fnk [id ddf-component-properties] {:id id :properties ddf-component-properties})))
@@ -436,7 +434,7 @@
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
                                      {:node-id _node-id
                                       :children child-scenes
-                                      :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))}))
+                                      :aabb geom/null-aabb}))
   (output go-inst-ids g/Any :cached (g/fnk [go-inst-ids] (reduce merge {} go-inst-ids)))
   (output ddf-properties g/Any (g/fnk [ddf-properties] (reduce (fn [props m]
                                                                  (if (empty? (:properties m))
@@ -575,7 +573,7 @@
   (output scene g/Any :cached (g/fnk [_node-id id transform scene]
                                      (assoc (scene/claim-scene scene _node-id id)
                                             :transform transform
-                                            :aabb (geom/aabb-transform (or (:aabb scene) (geom/null-aabb)) transform)
+                                            :aabb geom/empty-bounding-box
                                             :renderable {:passes [pass/selection]})))
   (output build-targets g/Any :cached produce-coll-inst-build-targets)
   (output sub-ddf-properties g/Any :cached (g/fnk [id ddf-properties]
