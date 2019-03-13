@@ -68,7 +68,6 @@
 
 (defn start-server
   [port]
-  (bb/spit-batches "src/clj" "resources/sorted_clojure_ns_list.edn")
   (let [repl-config (cond-> {:bind "localhost"}
                       true (maybe-load-cider)
                       true (maybe-load-refactor-nrepl)
@@ -84,3 +83,9 @@
     (let [stop-server (resolve 'clojure.tools.nrepl.server/stop-server)]
       (send repl-server stop-server))
     (catch Exception _)))
+
+(defn init-debug
+  []
+  (bb/spit-batches "src/clj" "resources/sorted_clojure_ns_list.edn")
+  (start-server nil))
+

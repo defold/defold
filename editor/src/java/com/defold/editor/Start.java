@@ -22,7 +22,6 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 
-
 public class Start extends Application {
 
     private static Logger logger = LoggerFactory.getLogger(Start.class);
@@ -31,6 +30,12 @@ public class Start extends Application {
         // Do this work in a different thread or it will stop the splash screen from showing/animating.
         Thread kickThread = new Thread(() -> {
                 try {
+                    // A terrible hack as an attempt to avoid a deadlock when loading native libraries.
+                    // Prism might be loading native libraries at this point, although we kick this loading after the splash has been shown.
+                    // The current hypothesis is that the splash is "onShown" before the loading has finished and rendering can start.
+                    // Ocular inspection shows the splash as grey for a few frames (1-3?) before filled in with graphics. That grey-time also seems to differ between runs.
+                    // This is an attempt to make the deadlock less likely to happen and hopefully avoid it altogether. No guarantees.
+                    Thread.sleep(200);
                     ResourceUnpacker.unpackResources();
                     ClassLoader parent = ClassLoader.getSystemClassLoader();
                     Class<?> glprofile = parent.loadClass("com.jogamp.opengl.GLProfile");
