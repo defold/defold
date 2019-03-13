@@ -1,9 +1,8 @@
 (ns internal.transaction-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer :all]
-            [internal.util :refer :all]
-            [internal.transaction :as it]))
+            [internal.transaction :as it]
+            [support.test-support :as ts]))
 
 (g/defnk upcase-a [a] (.toUpperCase a))
 
@@ -22,37 +21,37 @@
 
 (deftest low-level-transactions
   (testing "one node"
-    (with-clean-system
+    (ts/with-clean-system
       (let [tx-result (g/transact (g/make-node world Resource :d "known value"))]
         (is (= :ok (:status tx-result))))))
   (testing "two connected nodes"
-    (with-clean-system
-      (let [[id1 id2] (tx-nodes (g/make-node world Resource)
-                                (g/make-node world Downstream))
+    (ts/with-clean-system
+      (let [[id1 id2] (ts/tx-nodes (g/make-node world Resource)
+                                   (g/make-node world Downstream))
             after                 (:basis (g/transact (it/connect id1 :b id2 :consumer)))]
         (is (= [id1 :b]        (first (g/sources after id2 :consumer))))
         (is (= [id2 :consumer] (first (g/targets after id1 :b)))))))
   (testing "connections have cardinality"
-    (with-clean-system
-      (let [[id1 id2] (tx-nodes (g/make-node world Resource)
-                                (g/make-node world Downstream))]
+    (ts/with-clean-system
+      (let [[id1 id2] (ts/tx-nodes (g/make-node world Resource)
+                                   (g/make-node world Downstream))]
         (g/transact (g/connect id1 :b id2 :array-consumer))
         (g/transact (g/connect id1 :b id2 :array-consumer))
         (is (= 2 (count (g/sources-of id2 :array-consumer))))
         (is (= 2 (count (g/inputs id2)))))))
   (testing "disconnect disconnects all matching"
-    (with-clean-system
-      (let [[id1 id2] (tx-nodes (g/make-node world Resource)
-                                (g/make-node world Downstream))]
+    (ts/with-clean-system
+      (let [[id1 id2] (ts/tx-nodes (g/make-node world Resource)
+                                   (g/make-node world Downstream))]
         (g/transact (g/connect id1 :b id2 :array-consumer))
         (g/transact (g/connect id1 :b id2 :array-consumer))
         (g/transact (g/disconnect id1 :b id2 :array-consumer))
         (is (= 0 (count (g/sources-of id2 :array-consumer))))
         (is (= 0 (count (g/inputs id2)))))))
   (testing "disconnect two singly-connected nodes"
-    (with-clean-system
-      (let [[id1 id2] (tx-nodes (g/make-node world Resource)
-                                (g/make-node world Downstream))
+    (ts/with-clean-system
+      (let [[id1 id2] (ts/tx-nodes (g/make-node world Resource)
+                                   (g/make-node world Downstream))
             tx-result             (g/transact (it/connect    id1 :b id2 :consumer))
             tx-result             (g/transact (it/disconnect id1 :b id2 :consumer))
             after                 (:basis tx-result)]
@@ -61,16 +60,16 @@
         (is (= [] (g/targets after id1 :b))))))
 
   (testing "simple update"
-    (with-clean-system
-      (let [[resource] (tx-nodes (g/make-node world Resource :marker (int 0)))
+    (ts/with-clean-system
+      (let [[resource] (ts/tx-nodes (g/make-node world Resource :marker (int 0)))
             tx-result  (g/transact (it/update-property resource :marker safe+ [42]))]
         (is (= :ok (:status tx-result)))
         (is (= 42 (g/node-value resource :marker))))))
 
   (testing "node deletion"
-    (with-clean-system
-      (let [[resource1 resource2] (tx-nodes (g/make-node world Resource)
-                                            (g/make-node world Downstream))]
+    (ts/with-clean-system
+      (let [[resource1 resource2] (ts/tx-nodes (g/make-node world Resource)
+                                               (g/make-node world Downstream))]
         (g/transact (it/connect resource1 :b resource2 :consumer))
         (let [tx-result  (g/transact (it/delete-node resource2))
               after      (:basis tx-result)]
@@ -80,7 +79,7 @@
           (is (empty?    (:nodes-added   tx-result)))))))
 
   (testing "node deletion in same transaction"
-    (with-clean-system
+    (ts/with-clean-system
       (let [tx-result (g/transact
                        (g/make-nodes world
                                      [resource Resource]
@@ -90,8 +89,8 @@
         (is (nil?  node)))))
 
   (testing "node transformation"
-    (with-clean-system
-      (let [[id1] (tx-nodes (g/make-node world Resource :marker (int 99)))
+    (ts/with-clean-system
+      (let [[id1] (ts/tx-nodes (g/make-node world Resource :marker (int 99)))
             tx-result   (g/transact (it/become id1 (g/construct Downstream)))]
         (is (= :ok (:status tx-result)))
         (is (= Downstream (g/node-type* (g/now) id1)))
@@ -130,7 +129,7 @@
                :formal-greeter    (g/make-node world Receiver)
                :calculator        (g/make-node world Receiver)
                :multi-node-target (g/make-node world FocalNode)}
-        nodes (zipmap (keys nodes) (apply tx-nodes (vals nodes)))]
+        nodes (zipmap (keys nodes) (apply ts/tx-nodes (vals nodes)))]
     (g/transact
      (for [[from from-l to to-l]
            [[:first-name-cell :name          :person            :first-name]
@@ -153,7 +152,7 @@
     [k v]))
 
 (deftest precise-invalidation
-  (with-clean-system
+  (ts/with-clean-system
     (let [{:keys [calculator person first-name-cell greeter formal-greeter multi-node-target]} (build-network world)]
       (are [update expected] (= (into #{} (pairwise expected)) (affected-by (apply g/set-property update)))
         [calculator :touched true]                {calculator        #{:_declared-properties :_properties :touched}}
@@ -167,7 +166,7 @@
 
 
 (deftest blanket-invalidation
-  (with-clean-system
+  (ts/with-clean-system
     (let [{:keys [calculator person first-name-cell greeter formal-greeter multi-node-target]} (build-network world)
           tx-result        (g/transact (g/invalidate person))
           outputs-modified (:outputs-modified tx-result)]
@@ -182,7 +181,7 @@
   (output self-dependent g/Str :cached (g/fnk [ordinary] ordinary)))
 
 (deftest invalidated-properties-noted-by-transaction
-  (with-clean-system
+  (ts/with-clean-system
     (let [tx-result        (g/transact (g/make-node world CachedOutputInvalidation))
           real-id          (first (g/tx-nodes-added tx-result))
           outputs-modified (:outputs-modified tx-result)]
@@ -203,8 +202,8 @@
 
 ;; TODO - move this to an integration test group
 (deftest values-of-a-deleted-node-are-removed-from-cache
-  (with-clean-system
-    (let [[node-id]  (tx-nodes (g/make-node world CachedValueNode))]
+  (ts/with-clean-system
+    (let [[node-id]  (ts/tx-nodes (g/make-node world CachedValueNode))]
       (is (= "an-output-value" (g/node-value node-id :cached-output)))
       (let [cached-value (cache-peek system node-id :cached-output)]
         (is (= "an-output-value" cached-value))
@@ -220,21 +219,21 @@
 
 (deftest become-interacts-with-caching
   (testing "newly uncacheable values are evicted"
-    (with-clean-system
-      (let [[node-id]      (tx-nodes (g/make-node world OriginalNode))
+    (ts/with-clean-system
+      (let [[node-id]      (ts/tx-nodes (g/make-node world OriginalNode))
             expected-value (g/node-value node-id :original-output)]
         (is (not (nil? expected-value)))
         (is (= expected-value (cache-peek system node-id :original-output)))
         (let [tx-result (g/transact (g/become node-id (g/construct ReplacementNode)))]
-          (yield)
+          (ts/yield)
           (is (nil? (cache-peek system node-id :original-output)))))))
 
   (testing "newly cacheable values are indeed cached"
-    (with-clean-system
-      (let [[node-id]    (tx-nodes (g/make-node world OriginalNode))
+    (ts/with-clean-system
+      (let [[node-id]    (ts/tx-nodes (g/make-node world OriginalNode))
             tx-result    (g/transact (g/become node-id (g/construct ReplacementNode)))
             cached-value (g/node-value node-id :additional-output)]
-        (yield)
+        (ts/yield)
         (is (= cached-value (cache-peek system node-id :additional-output)))))))
 
 (g/defnode Container
@@ -242,8 +241,8 @@
 
 (deftest double-deletion-is-safe
   (testing "delete scope first"
-    (with-clean-system
-      (let [[outer inner] (tx-nodes (g/make-node world Container) (g/make-node world Resource))]
+    (ts/with-clean-system
+      (let [[outer inner] (ts/tx-nodes (g/make-node world Container) (g/make-node world Resource))]
         (g/transact (g/connect inner :_node-id outer :nodes))
         (is (= :ok (:status (g/transact
                              (concat
@@ -251,8 +250,8 @@
                               (g/delete-node inner)))))))))
 
   (testing "delete inner node first"
-    (with-clean-system
-      (let [[outer inner] (tx-nodes (g/make-node world Container) (g/make-node world Resource))]
+    (ts/with-clean-system
+      (let [[outer inner] (ts/tx-nodes (g/make-node world Container) (g/make-node world Resource))]
         (g/transact (g/connect inner :_node-id outer :nodes))
 
         (is (= :ok (:status (g/transact
@@ -268,8 +267,8 @@
 
 (deftest cascading-delete
   (testing "delete container, one cascade connected by one output"
-    (with-clean-system
-      (let [[container resource] (tx-nodes (g/make-node world CascadingContainer) (g/make-node world Resource))]
+    (ts/with-clean-system
+      (let [[container resource] (ts/tx-nodes (g/make-node world CascadingContainer) (g/make-node world Resource))]
         (g/transact
          (g/connect resource :b container :attachments))
         (is (= :ok (:status (g/transact (g/delete-node container)))))
@@ -277,8 +276,8 @@
         (is (not (exists? resource))))))
 
   (testing "delete container, one cascade connected by multiple outputs"
-    (with-clean-system
-      (let [[container resource] (tx-nodes (g/make-node world CascadingContainer) (g/make-node world Resource))]
+    (ts/with-clean-system
+      (let [[container resource] (ts/tx-nodes (g/make-node world CascadingContainer) (g/make-node world Resource))]
         (g/transact
          [(g/connect resource :b container :attachments)
           (g/connect resource :c container :attachments)])
@@ -287,8 +286,8 @@
         (is (not (exists? resource))))))
 
   (testing "delete container, one cascade connected by a property"
-    (with-clean-system
-      (let [[container resource] (tx-nodes (g/make-node world CascadingContainer) (g/make-node world Resource))]
+    (ts/with-clean-system
+      (let [[container resource] (ts/tx-nodes (g/make-node world CascadingContainer) (g/make-node world Resource))]
         (g/transact
          (g/connect resource :d container :attachments))
         (is (= :ok (:status (g/transact (g/delete-node container)))))
@@ -296,10 +295,10 @@
         (is (not (exists? resource))))))
 
   (testing "delete container, two cascades"
-    (with-clean-system
-      (let [[container resource1 resource2] (tx-nodes (g/make-node world CascadingContainer)
-                                                      (g/make-node world Resource)
-                                                      (g/make-node world Resource))]
+    (ts/with-clean-system
+      (let [[container resource1 resource2] (ts/tx-nodes (g/make-node world CascadingContainer)
+                                                         (g/make-node world Resource)
+                                                         (g/make-node world Resource))]
         (g/transact
          [(g/connect resource1 :d container :attachments)
           (g/connect resource2 :d container :attachments)])
@@ -309,11 +308,11 @@
         (is (not (exists? resource2))))))
 
   (testing "delete container, daisy chain of deletes"
-    (with-clean-system
-      (let [[container middle1 middle2 resource] (tx-nodes (g/make-node world CascadingContainer)
-                                                           (g/make-node world CascadingContainer)
-                                                           (g/make-node world CascadingContainer)
-                                                           (g/make-node world Resource))]
+    (ts/with-clean-system
+      (let [[container middle1 middle2 resource] (ts/tx-nodes (g/make-node world CascadingContainer)
+                                                              (g/make-node world CascadingContainer)
+                                                              (g/make-node world CascadingContainer)
+                                                              (g/make-node world Resource))]
         (g/transact
          [(g/connect resource  :d          middle2   :attachments)
           (g/connect middle2   :a-property middle1   :attachments)
@@ -352,29 +351,29 @@
 ;;; guaranteed. This test needs some rewrites.
 
 #_(deftest property-dependencies
-  (with-clean-system
-    (let [[source target] (tx-nodes (g/make-nodes world [source PropSource
-                                                         target [PropTarget :target :label :second :ignored :third :ignored]]
-                                                  (g/connect source :_node-id target :source-id)))]
-      (is (= :label (g/node-value target :target)))
-      (is (= :label (g/node-value target :second)))
-      (is (= :label (g/node-value target :third))))))
+    (ts/with-clean-system
+      (let [[source target] (ts/tx-nodes (g/make-nodes world [source PropSource
+                                                              target [PropTarget :target :label :second :ignored :third :ignored]]
+                                                       (g/connect source :_node-id target :source-id)))]
+        (is (= :label (g/node-value target :target)))
+        (is (= :label (g/node-value target :second)))
+        (is (= :label (g/node-value target :third))))))
 
 (g/defnode MultiInput
   (input in g/Keyword :array))
 
 (deftest node-deletion-pull-input
-  (with-clean-system
+  (ts/with-clean-system
     (let [view-graph (g/make-graph! :volatility 1)
           [src-node] (g/tx-nodes-added
-                       (g/transact
-                         (g/make-nodes world
-                           [resource Resource])))
+                      (g/transact
+                       (g/make-nodes world
+                                     [resource Resource])))
           [tgt-node] (g/tx-nodes-added
-                       (g/transact
-                         (g/make-nodes view-graph
-                           [view MultiInput]
-                           (g/connect src-node :b view :in))))]
+                      (g/transact
+                       (g/make-nodes view-graph
+                                     [view MultiInput]
+                                     (g/connect src-node :b view :in))))]
       (is (= [:ok] (g/node-value tgt-node :in)))
       (g/delete-node! src-node)
       (is (= [] (g/node-value tgt-node :in))))))

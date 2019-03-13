@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.camera :as camera]
+            [editor.colors :as colors]
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.geom :as geom]
@@ -120,8 +121,8 @@
 
 (def line-id-shader (shader/make-shader ::line-id-shader line-id-vertex-shader line-id-fragment-shader {"id" :id}))
 
-(def color (scene/select-color pass/outline false [1.0 1.0 1.0 1.0]))
-(def selected-color (scene/select-color pass/outline true [1.0 1.0 1.0 1.0]))
+(def color colors/outline-color)
+(def selected-color colors/selected-outline-color)
 
 (def mod-type->properties {:modifier-type-acceleration [:modifier-key-magnitude]
                            :modifier-type-drag [:modifier-key-magnitude]
@@ -290,14 +291,14 @@
   (:label (mod-types modifier-type)))
 
 (g/defnk produce-modifier-scene
-  [_node-id transform aabb type magnitude max-distance node-outline-key]
+  [_node-id transform type magnitude max-distance node-outline-key]
   (let [mod-type (mod-types type)
         magnitude (props/sample magnitude)
         max-distance (props/sample max-distance)]
     {:node-id _node-id
      :node-outline-key node-outline-key
      :transform transform
-     :aabb aabb
+     :aabb geom/empty-bounding-box
      :renderable {:render-fn render-lines
                   :tags #{:particlefx :outline}
                   :batch-key nil
@@ -326,7 +327,6 @@
          :node-outline-key node-outline-key
          :label (:label mod-type)
          :icon modifier-icon})))
-  (output aabb AABB (g/constantly (geom/aabb-incorporate (geom/null-aabb) 0 0 0)))
   (output scene g/Any :cached produce-modifier-scene))
 
 (def ^:private circle-steps 32)
@@ -627,9 +627,8 @@
                                            :emitter-type-sphere [x x x]
                                            :emitter-type-cone [x y x]
                                            :emitter-type-2dcone [x y x])]
-                             (-> (geom/null-aabb)
-                               (geom/aabb-incorporate (- w) (- h) (- d))
-                               (geom/aabb-incorporate w h d)))))
+                             (geom/coords->aabb [(- w) (- h) (- d)]
+                                                [w h d]))))
   (output emitter-sim-data g/Any :cached
           (g/fnk [animation texture-set gpu-texture material-shader]
             (when (and animation texture-set gpu-texture)
@@ -679,8 +678,8 @@
   (let [scene {:node-id _node-id
                :renderable {:render-fn render-pfx
                             :batch-key nil
-                            :passes [pass/transparent]}
-               :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
+                            :passes [pass/transparent pass/selection]}
+               :aabb geom/empty-bounding-box
                :children child-scenes}]
     (scene/map-scene #(assoc % :updatable scene-updatable) scene)))
 
