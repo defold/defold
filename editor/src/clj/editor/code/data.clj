@@ -974,6 +974,8 @@
           (+ scroll-min ^double margin)
           (- scroll-max ^double margin))))))
 
+(def scroll-nowhere (constantly nil))
+
 (defn- scroll-to-rect [scroll-x-fn scroll-y-fn ^LayoutInfo layout lines ^Rect target-rect]
   (let [canvas-rect ^Rect (.canvas layout)
         margin-x (text-width (.glyph layout) "    ")
@@ -2095,7 +2097,7 @@
                                   :from-doc-x (x->doc-x layout x)
                                   :from-doc-y (y->doc-y layout y))}))
 
-(defn mouse-pressed [lines cursor-ranges regions ^LayoutInfo layout button click-count x y alt-key? shift-key? shortcut-key?]
+(defn mouse-pressed [lines cursor-ranges regions ^LayoutInfo layout ^LayoutInfo minimap-layout button click-count x y alt-key? shift-key? shortcut-key?]
   (case button
     :primary
     (cond
@@ -2130,9 +2132,21 @@
       (assoc (scroll-y-once :down layout (count lines))
         :gesture-start (gesture-info :scroll-bar-y-hold-down button click-count x y))
 
-      ;; Ignore minimap clicks.
-      (rect-contains? (.minimap layout) x y)
-      nil
+      ;; Prepare to drag the visible minimap region.
+      (and (not alt-key?) (not shift-key?) (not shortcut-key?) (some-> (.minimap layout) (rect-contains? x y)))
+      (let [^Rect r (.canvas minimap-layout)
+            ^double document-line-height (line-height (.glyph layout))
+            ^double minimap-line-height (line-height (.glyph minimap-layout))
+            minimap-ratio (/ minimap-line-height document-line-height)
+            viewed-start-y (+ (* minimap-ratio (- (.scroll-y layout))) (.scroll-y minimap-layout))
+            viewed-height (Math/ceil (* minimap-ratio (.h r)))
+            viewed-range-rect (->Rect (.x r) viewed-start-y (.w r) viewed-height)]
+        (if (rect-contains? viewed-range-rect x y)
+          (when (= 1 click-count)
+            {:gesture-start (gesture-info :minimap-viewed-range-drag button click-count x y :scroll-y (.scroll-y layout))})
+          (let [clicked-row (y->row minimap-layout y)
+                target-cursor (adjust-cursor lines (->Cursor clicked-row 0))]
+            (scroll-to-cursor scroll-nowhere scroll-center layout lines target-cursor))))
 
       ;; Shift-click to extend the existing cursor range.
       (and shift-key? (not alt-key?) (not shortcut-key?) (= 1 click-count) (= 1 (count cursor-ranges)))
@@ -2168,7 +2182,7 @@
     :secondary
     nil))
 
-(defn- mouse-gesture [lines cursor-ranges ^LayoutInfo layout ^GestureInfo gesture-start x y]
+(defn- mouse-gesture [lines cursor-ranges ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start x y]
   (when (not= :secondary (.button gesture-start))
     (case (.type gesture-start)
       ;; Dragging the horizontal scroll tab.
@@ -2186,6 +2200,27 @@
       (let [^double start-scroll (:scroll-y gesture-start)
             line-count (count lines)
             screen-to-scroll-ratio (scroll-height-ratio layout line-count)
+            screen-delta (- ^double y ^double (:y gesture-start))
+            scroll-delta (Math/floor (* screen-delta screen-to-scroll-ratio))
+            scroll-y (limit-scroll-y layout line-count (- start-scroll scroll-delta))]
+        (when (not= scroll-y (.scroll-y layout))
+          {:scroll-y scroll-y}))
+
+      ;; Dragging the visible minimap region.
+      :minimap-viewed-range-drag
+      (let [^double start-scroll (:scroll-y gesture-start)
+            ^double document-line-height (line-height (.glyph layout))
+            ^double minimap-line-height (line-height (.glyph minimap-layout))
+            line-count (count lines)
+            canvas-height (.h ^Rect (.canvas layout))
+            document-height (* line-count document-line-height)
+            document-scroll-range (- document-height canvas-height)
+            minimap-ratio (/ minimap-line-height document-line-height)
+            minimap-document-height (* line-count minimap-line-height)
+            minimap-visible-document-height (min minimap-document-height canvas-height)
+            minimap-canvas-height (* minimap-ratio canvas-height)
+            minimap-scroll-range (- minimap-visible-document-height minimap-canvas-height)
+            screen-to-scroll-ratio (/ document-scroll-range minimap-scroll-range)
             screen-delta (- ^double y ^double (:y gesture-start))
             scroll-delta (Math/floor (* screen-delta screen-to-scroll-ratio))
             scroll-y (limit-scroll-y layout line-count (- start-scroll scroll-delta))]
@@ -2267,7 +2302,7 @@
                  (scroll-to-any-cursor layout lines new-cursor-ranges))))
       nil)))
 
-(defn- element-at-position [lines visible-regions ^LayoutInfo layout x y]
+(defn- element-at-position [lines visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout x y]
   (cond
     ;; Horizontal scroll tab.
     (some-> (.scroll-tab-x layout) (rect-contains? x y))
@@ -2289,6 +2324,19 @@
            (> ^double y (+ (.y r) (* 0.5 (.h r))))))
     {:type :ui-element :ui-element :scroll-bar-y-down}
 
+    ;; Minimap.
+    (some-> (.minimap layout) (rect-contains? x y))
+    (let [^Rect r (.canvas minimap-layout)
+          ^double document-line-height (line-height (.glyph layout))
+          ^double minimap-line-height (line-height (.glyph minimap-layout))
+          minimap-ratio (/ minimap-line-height document-line-height)
+          viewed-start-y (+ (* minimap-ratio (- (.scroll-y layout))) (.scroll-y minimap-layout))
+          viewed-height (Math/ceil (* minimap-ratio (.h r)))
+          viewed-range-rect (->Rect (.x r) viewed-start-y (.w r) viewed-height)]
+      (if (rect-contains? viewed-range-rect x y)
+        {:type :ui-element :ui-element :minimap-viewed-range}
+        {:type :ui-element :ui-element :minimap}))
+
     :else
     (when-some [clickable-region (some (fn [region]
                                          (when (and (some? (:on-click! region))
@@ -2298,19 +2346,19 @@
                                        visible-regions)]
       {:type :region :region clickable-region})))
 
-(defn- mouse-hover [lines visible-regions ^LayoutInfo layout hovered-element x y]
-  (let [new-hovered-element (element-at-position lines visible-regions layout x y)]
+(defn- mouse-hover [lines visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout hovered-element x y]
+  (let [new-hovered-element (element-at-position lines visible-regions layout minimap-layout x y)]
     (when (not= hovered-element new-hovered-element)
       {:hovered-element new-hovered-element})))
 
-(defn mouse-moved [lines cursor-ranges visible-regions ^LayoutInfo layout ^GestureInfo gesture-start hovered-element x y]
+(defn mouse-moved [lines cursor-ranges visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start hovered-element x y]
   (if (some? gesture-start)
-    (mouse-gesture lines cursor-ranges layout gesture-start x y)
-    (mouse-hover lines visible-regions layout hovered-element x y)))
+    (mouse-gesture lines cursor-ranges layout minimap-layout gesture-start x y)
+    (mouse-hover lines visible-regions layout minimap-layout hovered-element x y)))
 
-(defn mouse-released [lines visible-regions ^LayoutInfo layout ^GestureInfo gesture-start button x y]
+(defn mouse-released [lines visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start button x y]
   (when (= button (some-> gesture-start :button))
-    (assoc (mouse-hover lines visible-regions layout ::force-evaluation x y)
+    (assoc (mouse-hover lines visible-regions layout minimap-layout ::force-evaluation x y)
       :gesture-start nil)))
 
 (defn mouse-exited [^GestureInfo gesture-start hovered-element]

@@ -596,6 +596,7 @@ namespace dmResource
     /**
      * Hint the preloader what to load before Create is called on the resource.
      * The resources are not guaranteed to be loaded before Create is called.
+     * This function can be called from a worker thread.
      * @param name Resource name
      * @return bool if successfully invoking preloader.
      */

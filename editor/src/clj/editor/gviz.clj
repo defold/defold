@@ -94,7 +94,7 @@
          (mapcat (comp keys :nodes second) (:graphs basis)))
     (include-overrides basis)))
 
-(defn subgraph->dot ^String [basis & {:keys [root-id input-fn output-fn] :or {:root-id nil} :as opts}]
+(defn subgraph->dot ^String [basis & {:keys [root-id input-fn output-fn] :or {root-id nil} :as opts}]
   (let [nodes (extract-nodes basis opts)
         arcs (nodes->arcs basis nodes) inputs (reduce (fn [inputs [s sl t tl]] (update inputs t conj tl)) {} arcs)
         outputs (reduce (fn [outputs [s sl t tl]] (update outputs s conj sl)) {} arcs)
@@ -135,7 +135,7 @@
     (when (= 0 (.exitValue p))
       *png-file*)))
 
-(defn show [basis & {:keys [root-id input-fn output-fn] :or {:root-id nil} :as opts}]
+(defn show [basis & {:keys [root-id input-fn output-fn] :or {root-id nil} :as opts}]
   (let [f (-> (apply subgraph->dot basis (mapcat identity opts))
             (dot->image))]
     (when f

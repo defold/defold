@@ -13,37 +13,43 @@
   (:import [editor.types AABB]
            [javax.vecmath Point3d Matrix4d Quat4d Vector3d]))
 
-(defn- make-aabb [min max]
-  (reduce geom/aabb-incorporate (geom/null-aabb) (map #(Point3d. (double-array (conj % 0))) [min max])))
+(defn- apply-scene-transforms-to-aabbs
+  ([scene] (apply-scene-transforms-to-aabbs geom/Identity4d scene))
+  ([parent-world-transform scene]
+   (let [local-transform (or (:transform scene) geom/Identity4d)
+         world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))]
+     (cond-> (update scene :aabb geom/aabb-transform world-transform)
+             (seq (:children scene)) (update :children #(mapv (partial apply-scene-transforms-to-aabbs world-transform) %))))))
+
+(defn- scene-union-aabb [scene]
+  (reduce geom/aabb-union geom/null-aabb (map :aabb (tree-seq :children :children scene))))
+
+(defn- node-union-aabb [node-id]
+  (scene-union-aabb (apply-scene-transforms-to-aabbs (g/node-value node-id :scene))))
 
 (deftest gen-scene
   (testing "Scene generation"
            (let [cases {"/logic/atlas_sprite.collection"
                         (fn [node-id]
                           (let [go (ffirst (g/sources-of node-id :child-scenes))]
-                            (is (= (:aabb (g/node-value node-id :scene)) (make-aabb [-101 -97] [101 97])))
+                            (is (= (node-union-aabb node-id) (geom/coords->aabb [-101 -97 0] [101 97 0])))
                             (g/transact (g/set-property go :position [10 0 0]))
-                            (is (= (:aabb (g/node-value node-id :scene)) (make-aabb [-91 -97] [111 97])))))
+                            (is (= (node-union-aabb node-id) (geom/coords->aabb [-91 -97 0] [111 97 0])))))
                         "/logic/atlas_sprite.go"
                         (fn [node-id]
                           (let [component (ffirst (g/sources-of node-id :child-scenes))]
-                            (is (= (:aabb (g/node-value node-id :scene)) (make-aabb [-101 -97] [101 97])))
+                            (is (= (node-union-aabb node-id) (geom/coords->aabb [-101 -97] [101 97])))
                             (g/transact (g/set-property component :position [10 0 0]))
-                            (is (= (:aabb (g/node-value node-id :scene)) (make-aabb [-91 -97] [111 97])))))
+                            (is (= (node-union-aabb node-id) (geom/coords->aabb [-91 -97] [111 97])))))
                         "/sprite/atlas.sprite"
                         (fn [node-id]
-                          (let [scene (g/node-value node-id :scene)
-                                aabb (make-aabb [-101 -97] [101 97])]
-                            (is (= (:aabb scene) aabb))))
+                          (is (= (node-union-aabb node-id) (geom/coords->aabb [-101 -97] [101 97]))))
                         "/car/env/env.cubemap"
                         (fn [node-id]
-                          (let [scene (g/node-value node-id :scene)]
-                            (is (= (:aabb scene) geom/unit-bounding-box))))
+                          (is (= (node-union-aabb node-id) (geom/coords->aabb [-1 -1 -1] [1 1 1]))))
                         "/switcher/switcher.atlas"
                         (fn [node-id]
-                          (let [scene (g/node-value node-id :scene)
-                                aabb (make-aabb [0 0] [2048 1024])]
-                            (is (= (:aabb scene) aabb))))}]
+                          (is (= (node-union-aabb node-id) (geom/coords->aabb [0 0] [2048 1024]))))}]
              (test-util/with-loaded-project
                (doseq [[path test-fn] cases]
                  (let [[node view] (test-util/open-scene-view! project app-view path 128 128)]
@@ -78,7 +84,7 @@
                (test-util/mouse-press! view 0 0)
                (is (test-util/selected? app-view resource-node))
                ;; Toggling
-               (let [modifiers (if system/mac? [:meta] [:control])]
+               (let [modifiers (if system/mac? [:meta] [:shift])]
                  (test-util/mouse-click! view 32 32)
                  (is (test-util/selected? app-view go-node))
                  (test-util/mouse-click! view 32 32 modifiers)
@@ -174,7 +180,7 @@
                ;; Move tool
                (test-util/set-active-tool! app-view :move)
                (is (= 0.0 (.x (pos go-node))))
-               (test-util/mouse-drag! view 64 64 68 64)
+               (test-util/mouse-drag! view 64 64 100 64)
                (is (not= 0.0 (.x (pos go-node))))))))
 
 (deftest select-component-part-in-collection
@@ -245,7 +251,8 @@
            :user-data
            :world-rotation
            :world-scale
-           :world-transform} (set (keys renderable))))
+           :world-transform
+           :world-translation} (set (keys renderable))))
   (is (instance? AABB (:aabb renderable)))
   (is (some? (:node-id renderable)))
   (is (vector? (:node-id-path renderable)))
