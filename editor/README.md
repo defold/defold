@@ -1,4 +1,4 @@
-# JavaFX Clojure Editor
+# Defold JavaFX Clojure Editor
 
 ## Requirements
 * [Java 11](https://jdk.java.net/11/)
