@@ -89,12 +89,12 @@
   "Clears a cache (default *the-system* cache), useful when debugging"
   ([] (clear-system-cache! *the-system*))
   ([sys-atom]
-   (swap! sys-atom assoc :cache (ref (is/make-cache {})))
+   (swap! sys-atom assoc :cache (is/make-cache {}))
    nil)
   ([sys-atom node-id]
    (let [outputs (cached-outputs (node-type* node-id))
          entries (map (partial vector node-id) outputs)]
-     (dosync (alter (:cache @sys-atom) c/cache-invalidate entries))
+     (swap! sys-atom update :cache c/cache-invalidate entries)
      nil)))
 
 (defn graph "Given a graph id, returns the particular graph in the system at the current point in time"
@@ -674,10 +674,11 @@
   (is/user-data @*the-system* node-id key))
 
 (defn user-data! [node-id key value]
-  (swap! *the-system* is/user-data! node-id key value))
+  (swap! *the-system* is/assoc-user-data node-id key value)
+  value)
 
 (defn user-data-swap! [node-id key f & args]
-  (-> (swap! *the-system* (fn [sys] (apply is/user-data-swap! sys node-id key f args)))
+  (-> (swap! *the-system* (fn [sys] (apply is/update-user-data sys node-id key f args)))
       (is/user-data node-id key)))
 
 (defn invalidate
@@ -799,7 +800,8 @@
 
 (defn update-cache-from-evaluation-context!
   [evaluation-context]
-  (swap! *the-system* is/update-cache-from-evaluation-context evaluation-context))
+  (swap! *the-system* is/update-cache-from-evaluation-context evaluation-context)
+  nil)
 
 (defmacro with-auto-evaluation-context [ec & body]
   `(let [~ec (make-evaluation-context)
@@ -952,7 +954,8 @@
   affected by them. Outputs are specified as pairs of [node-id label]
   for both the argument and return value."
   ([outputs]
-   (swap! *the-system* is/invalidate-outputs outputs)))
+   (swap! *the-system* is/invalidate-outputs outputs)
+   nil))
 
 (defn invalidate-node-outputs!
   [node-id]
@@ -1271,7 +1274,8 @@
   [graph-id]
   (when-let [graph (is/graph @*the-system* graph-id)]
     (transact (mapv it/delete-node (ig/node-ids graph)))
-    (swap! *the-system* is/detach-graph graph-id)))
+    (swap! *the-system* is/detach-graph graph-id)
+    nil))
 
 (defn undo!
   "Given a `graph-id` resets the graph back to the last _step_ in time.
@@ -1280,7 +1284,8 @@
 
   (undo gid)"
   [graph-id]
-  (swap! *the-system* is/undo-history graph-id))
+  (swap! *the-system* is/undo-history graph-id)
+  nil)
 
 (defn has-undo?
   "Returns true/false if a `graph-id` has an undo available"
@@ -1299,7 +1304,8 @@
 
   Example: `(redo gid)`"
   [graph-id]
-  (swap! *the-system* is/redo-history graph-id))
+  (swap! *the-system* is/redo-history graph-id)
+  nil)
 
 (defn has-redo?
   "Returns true/false if a `graph-id` has an redo available"
@@ -1313,7 +1319,8 @@
   Example:
   `(reset-undo! gid)`"
   [graph-id]
-  (swap! *the-system* is/clear-history graph-id))
+  (swap! *the-system* is/clear-history graph-id)
+  nil)
 
 (defn cancel!
   "Given a `graph-id` and a `sequence-id` _cancels_ any sequence of undos on the graph as
@@ -1322,4 +1329,5 @@
   Example:
   `(cancel! gid :a)`"
   [graph-id sequence-id]
-  (swap! *the-system* is/cancel graph-id sequence-id))
+  (swap! *the-system* is/cancel graph-id sequence-id)
+  nil)
