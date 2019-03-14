@@ -89,11 +89,13 @@
    :front (resource/resource->proj-path front)
    :back (resource/resource->proj-path back)})
 
+(def ^:private cubemap-aabb (geom/coords->aabb [1 1 1] [-1 -1 -1]))
+
 (g/defnk produce-scene
-  [_node-id aabb gpu-texture]
+  [_node-id gpu-texture]
   (let [vertex-binding (vtx/use-with _node-id unit-sphere cubemap-shader)]
     {:node-id    _node-id
-     :aabb       aabb
+     :aabb       cubemap-aabb
      :renderable {:render-fn (fn [gl render-args _renderables _count]
                                (let [camera (:camera render-args)]
                                  (render-cubemap gl render-args camera gpu-texture vertex-binding)))
@@ -274,7 +276,6 @@
   (output transform-properties g/Any scene/produce-no-transform-properties)
   (output gpu-texture g/Any :cached produce-gpu-texture)
   (output save-value  g/Any :cached produce-save-value)
-  (output aabb        AABB  :cached (g/constantly geom/unit-bounding-box))
   (output scene       g/Any :cached produce-scene))
 
 (defn load-cubemap [project self resource cubemap-message]
