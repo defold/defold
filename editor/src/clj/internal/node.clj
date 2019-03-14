@@ -1017,12 +1017,12 @@
    (:property tree)))
 
 (defn process-node-type-forms
-  [fqs forms]
+  [fully-qualified-node-type-symbol forms]
   (-> (maybe-inject-intrinsics forms)
       group-node-type-forms
       merge-supertypes
-      (assoc :name (str fqs))
-      (assoc :key (keyword fqs))
+      (assoc :name (str fully-qualified-node-type-symbol))
+      (assoc :key (keyword fully-qualified-node-type-symbol))
       wrap-constant-fns
       defer-display-order-resolution
       extract-fn-arguments
