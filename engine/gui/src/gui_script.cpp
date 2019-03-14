@@ -1004,15 +1004,16 @@ namespace dmGui
             luaL_error(L, "property '%s' not found", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
         }
 
+        Vector3* v3;
         Vector4 to;
         if (lua_isnumber(L, 3))
         {
             to = Vector4((float) lua_tonumber(L, 3));
         }
-        else if (dmScript::IsVector3(L, 3))
+        else if ((v3 = dmScript::ToVector3(L, 3)))
         {
             Vector4 original = dmGui::GetNodePropertyHash(scene, hnode, property_hash);
-            to = Vector4(*dmScript::CheckVector3(L, 3), original.getW());
+            to = Vector4(*v3, original.getW());
         }
         else
         {
@@ -3450,11 +3451,12 @@ namespace dmGui
                 return 0;\
             }\
             Vector4 v;\
-            if (dmScript::IsVector3(L, 2))\
+            Vector3* v3;\
+            if ((v3 = dmScript::ToVector3(L, 2)))\
             {\
                 Scene* scene = GetScene(L);\
                 Vector4 original = dmGui::GetNodeProperty(scene, hnode, property);\
-                v = Vector4(*dmScript::CheckVector3(L, 2), original.getW());\
+                v = Vector4(*v3, original.getW());\
             }\
             else\
                 v = *dmScript::CheckVector4(L, 2);\
@@ -3508,13 +3510,15 @@ namespace dmGui
             return 0;
         }
         Vector4 v;
-        if (dmScript::IsVector3(L, 2))
+        Vector3* v3;
+        Vector4* v4;
+        if ((v3 = dmScript::ToVector3(L, 2)))
         {
             Scene* scene = GetScene(L);
             Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_ROTATION);
-            v = Vector4(*dmScript::CheckVector3(L, 2), original.getW());
-        } else if (dmScript::IsVector4(L, 2)) {
-            v = *dmScript::CheckVector4(L, 2);
+            v = Vector4(*v3, original.getW());
+        } else if ((v4 = dmScript::ToVector4(L, 2))) {
+            v = *v4;
         } else {
             Scene* scene = GetScene(L);
             Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_ROTATION);
@@ -3557,12 +3561,13 @@ namespace dmGui
         {
             return 0;
         }
+        Vector3* v3;
         Vector4 v;
-        if (dmScript::IsVector3(L, 2))
+        if ((v3 = dmScript::ToVector3(L, 2)))
         {
             Scene* scene = GetScene(L);
             Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_SIZE);
-            v = Vector4(*dmScript::CheckVector3(L, 2), original.getW());
+            v = Vector4(*v3, original.getW());
         }
         else
             v = *dmScript::CheckVector4(L, 2);

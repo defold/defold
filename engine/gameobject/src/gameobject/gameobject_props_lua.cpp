@@ -7,7 +7,7 @@
 
 namespace dmGameObject
 {
-    static PropertyType GetPropertyType(lua_State* L, int index)
+    static PropertyType GetPropertyType(lua_State* L, int index, void** userdata)
     {
         int type = lua_type(L, index);
         switch (type)
@@ -25,15 +25,15 @@ namespace dmGameObject
                 {
                     return PROPERTY_TYPE_URL;
                 }
-                else if (dmScript::IsVector3(L, index))
+                else if ((*userdata = (void*)dmScript::ToVector3(L, index)))
                 {
                     return PROPERTY_TYPE_VECTOR3;
                 }
-                else if (dmScript::IsVector4(L, index))
+                else if ((*userdata = (void*)dmScript::ToVector4(L, index)))
                 {
                     return PROPERTY_TYPE_VECTOR4;
                 }
-                else if (dmScript::IsQuat(L, index))
+                else if ((*userdata = (void*)dmScript::ToQuat(L, index)))
                 {
                     return PROPERTY_TYPE_QUAT;
                 }
@@ -51,7 +51,8 @@ namespace dmGameObject
 
     PropertyResult LuaToVar(lua_State* L, int index, PropertyVar& out_var)
     {
-        out_var.m_Type = GetPropertyType(L, index);
+        void* userdata = 0;
+        out_var.m_Type = GetPropertyType(L, index, &userdata);
         switch(out_var.m_Type)
         {
             case PROPERTY_TYPE_NUMBER:
@@ -68,28 +69,28 @@ namespace dmGameObject
                 return PROPERTY_RESULT_OK;
             case PROPERTY_TYPE_VECTOR3:
                 {
-                    Vector3 v = *dmScript::CheckVector3(L, index);
-                    out_var.m_V4[0] = v.getX();
-                    out_var.m_V4[1] = v.getY();
-                    out_var.m_V4[2] = v.getZ();
+                    Vector3* v = (Vector3*)userdata;
+                    out_var.m_V4[0] = v->getX();
+                    out_var.m_V4[1] = v->getY();
+                    out_var.m_V4[2] = v->getZ();
                 }
                 return PROPERTY_RESULT_OK;
             case PROPERTY_TYPE_VECTOR4:
                 {
-                    Vector4 v = *dmScript::CheckVector4(L, index);
-                    out_var.m_V4[0] = v.getX();
-                    out_var.m_V4[1] = v.getY();
-                    out_var.m_V4[2] = v.getZ();
-                    out_var.m_V4[3] = v.getW();
+                    Vector4* v = (Vector4*)userdata;
+                    out_var.m_V4[0] = v->getX();
+                    out_var.m_V4[1] = v->getY();
+                    out_var.m_V4[2] = v->getZ();
+                    out_var.m_V4[3] = v->getW();
                 }
                 return PROPERTY_RESULT_OK;
             case PROPERTY_TYPE_QUAT:
                 {
-                    Quat q = *dmScript::CheckQuat(L, index);
-                    out_var.m_V4[0] = q.getX();
-                    out_var.m_V4[1] = q.getY();
-                    out_var.m_V4[2] = q.getZ();
-                    out_var.m_V4[3] = q.getW();
+                    Quat* q = (Quat*)userdata;
+                    out_var.m_V4[0] = q->getX();
+                    out_var.m_V4[1] = q->getY();
+                    out_var.m_V4[2] = q->getZ();
+                    out_var.m_V4[3] = q->getW();
                 }
                 return PROPERTY_RESULT_OK;
             case PROPERTY_TYPE_BOOLEAN:
