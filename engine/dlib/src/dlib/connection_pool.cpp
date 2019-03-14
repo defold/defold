@@ -313,6 +313,7 @@ namespace dmConnectionPool
         uint64_t handshakestart = dmTime::GetTime();
         if( timeout > 0 && (handshakestart - connectstart) > (uint64_t)timeout )
         {
+            dmLogWarning("Http handshake to \"%s\" timed out, waited for %u ms", host, timeout / 1000);
             dmSocket::Delete(c->m_Socket);
             c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
             return RESULT_SOCKET_ERROR;

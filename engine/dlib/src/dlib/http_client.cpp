@@ -997,6 +997,7 @@ bail:
 
             if( HasRequestTimedOut(client) )
             {
+                dmLogWarning("Http connection to \"%s\" timed out, waited for %u ms", client->m_Hostname, client->m_RequestTimeout / 1000);
                 return r;
             }
 
@@ -1005,6 +1006,7 @@ bail:
 
                 if( HasRequestTimedOut(client) )
                 {
+                    dmLogWarning("Http request to \"%s\" timed out, waited for %u ms", client->m_Hostname, client->m_RequestTimeout / 1000);
                     return r;
                 }
 
