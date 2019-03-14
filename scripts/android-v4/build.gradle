@@ -8,6 +8,9 @@ repositories {
 }
 
 dependencies {
+    compile 'com.google.firebase:firebase-messaging:17.3.4'
+    compile 'com.google.firebase:firebase-core:16.0.7'
+    compile 'com.google.android.gms:play-services-base:16.0.1'
     compile 'com.android.support:support-v4:27.1.1'
     compile 'com.android.support:support-compat:27.1.1'
     compile 'com.android.support:support-core-utils:27.1.1'
@@ -26,10 +29,12 @@ dependencies {
 
 def resultDirectory = "${project.buildDir}/result"
 def packedDirectory = "${resultDirectory}/packed"
+def aarDirectory = "${packedDirectory}/aar"
 def unpackedDirectory = "${resultDirectory}/unpacked"
 def unpackedClassesDirectory = "${unpackedDirectory}/classes"
 def packageOutputDirectory = "${project.buildDir}/package"
 def packageDirectory = "${packageOutputDirectory}/share/java"
+def packageResDirectory = "${packageDirectory}/res"
 
 task copyArtifacts() {
     outputs.dir packedDirectory
@@ -73,11 +78,11 @@ task unzipAars(dependsOn: unzipJars) {
                 println "Unzip $lib.name"
                 def dirName = lib.name - '.aar'
                 from zipTree(lib)
-                into "${packedDirectory}/aar/${dirName}"
+                into "${aarDirectory}/${dirName}"
             }
         }
         println('*** Unzip jars from aars')
-        fileTree(dir: "${packedDirectory}/aar").include('**/*.jar').each { lib ->
+        fileTree(dir: "${aarDirectory}").include('**/*.jar').each { lib ->
             copy {
                 println "Unzip $lib.name"
                 from zipTree(lib)
@@ -94,7 +99,15 @@ task zipClasses(dependsOn: unzipAars, type: Zip) {
     destinationDir file("${packageDirectory}")
 }
 
-task createDefoldPackage(dependsOn: zipClasses, type: Tar) {
+task collectResources(dependsOn: zipClasses, type:Exec) {
+    commandLine 'python', 'extract_res.py', "${aarDirectory}", "${packageResDirectory}"
+}
+
+task fixResPermissions(dependsOn: collectResources, type:Exec) {
+    commandLine "chmod", "-R", "+rw", "${packageResDirectory}"
+}
+
+task createDefoldPackage(dependsOn: fixResPermissions, type: Tar) {
     from packageOutputDirectory
     archiveName 'android-support-v4-armv7-android.tar.gz'
     compression = Compression.GZIP

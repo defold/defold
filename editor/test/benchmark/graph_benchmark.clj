@@ -3,7 +3,7 @@
             [clojure.test :refer :all]
             [criterium.core :as cc]
             [dynamo.graph :as g]
-            [support.test-support :refer :all]
+            [support.test-support :refer [tx-nodes with-clean-system]]
             [editor.core :as core]
             [integration.test-util :as test-util]
             [internal.graph :as ig]
@@ -249,8 +249,7 @@
  (add-two-nodes-and-connect-them)
  (add-two-nodes-and-connect-and-disconnect-them)
  (run-many-transactions)
- (one-node-value-bench)
-  )
+ (one-node-value-bench))
 
 (defn -main [& args]
   (println "Running benchmarks and outputing results to ./test/benchmark/bench-results.txt")
