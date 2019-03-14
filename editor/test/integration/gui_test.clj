@@ -395,9 +395,6 @@
     (let [node-id (test-util/resource-node project "/gui/scene.gui")]
       (is (= ["Landscape"] (map :name (:layouts (g/node-value node-id :pb-msg))))))))
 
-(defn- max-x [scene]
-  (.getX ^Point3d (:max (:aabb scene))))
-
 (defn- add-layout! [project app-view scene name]
   (let [parent (g/node-value scene :layouts-node)
         user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
@@ -420,9 +417,7 @@
       (let [new-box (gui-node node-id "box")]
         (is (and new-box (not= box new-box))))
       (let [new-dims (g/node-value node-id :scene-dims)]
-        (is (and new-dims (not= dims new-dims))))
-      (let [new-scene (g/node-value node-id :scene)]
-        (is (not= (max-x scene) (max-x new-scene)))))))
+        (is (and new-dims (not= dims new-dims)))))))
 
 (deftest gui-layout-add
   (test-util/with-loaded-project
