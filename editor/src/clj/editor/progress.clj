@@ -52,8 +52,8 @@
 (defn cancelable? [progress]
   (:cancelable progress))
 
-(defn caceled? [progress]
-  {:canceled progress})
+(defn canceled? [progress]
+  (:canceled progress))
 
 ;; ----------------------------------------------------------
 
