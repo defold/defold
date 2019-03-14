@@ -247,7 +247,6 @@ namespace dmGameSystem
         dmMessage::ResetURL(receiver);
         receiver.m_Socket = context->m_Socket;
         dmMessage::Post(&sender, &receiver, dmPhysicsDDF::RequestRayCast::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmPhysicsDDF::RequestRayCast::m_DDFDescriptor, &request, sizeof(dmPhysicsDDF::RequestRayCast), 0);
-        lua_pushnil(L);
         return 0;
     }
 
@@ -327,7 +326,9 @@ namespace dmGameSystem
             lua_setfield(L, -2, "position");
             dmScript::PushVector3(L, response.m_Normal);
             lua_setfield(L, -2, "normal");
-            lua_pushnumber(L, (int)response.m_CollisionObjectGroup);
+
+            dmhash_t group = dmGameSystem::GetLSBGroupHash(world, response.m_CollisionObjectGroup);
+            dmScript::PushHash(L, group);
             lua_setfield(L, -2, "group");
 
             dmhash_t id = dmGameSystem::CompCollisionObjectGetIdentifier(response.m_CollisionObjectUserData);

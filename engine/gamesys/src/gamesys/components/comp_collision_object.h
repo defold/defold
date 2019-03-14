@@ -40,6 +40,7 @@ namespace dmGameSystem
 
     // For script_physics.cpp
     void RayCast(void* world, const dmPhysics::RayCastRequest& request, dmPhysics::RayCastResponse& response);
+    uint64_t GetLSBGroupHash(void* world, uint16_t mask);
     dmhash_t CompCollisionObjectGetIdentifier(void* component);
 }
 

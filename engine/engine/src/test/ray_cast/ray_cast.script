@@ -61,47 +61,64 @@ function init(self)
 	to2d.z = 1
 	physics.raycast_async(from2d, to2d, { A, B }, 13)							-- zero length ray
 
-	-- First do the synchronous tests
-	self.messages = {}
-
-	local result = nil
-	local from = go.get_position()
-	result = physics.raycast(from, go.get_position("dynamic_b"), { B })			-- B should be hit
-	self.messages[1] = { message_id = "ray_cast_response", message = result }
-	result = physics.raycast(from, go.get_position("dynamic_b"), { A, B })		-- A should be hit
-	self.messages[2] = { message_id = "ray_cast_response", message = result }
-	result = physics.raycast(from, go.get_position("dynamic_b"), {})			-- miss
-	self.messages[3] = { message_id = "ray_cast_missed", message = result }
-
-	result = physics.raycast(from, go.get_position("kinematic_b"), { B })		-- B should be hit
-	self.messages[4] = { message_id = "ray_cast_response", message = result }
-	result = physics.raycast(from, go.get_position("kinematic_b"), { A, B })	-- A should be hit
-	self.messages[5] = { message_id = "ray_cast_response", message = result }
-	result = physics.raycast(from, go.get_position("kinematic_b"), {})			-- miss
-	self.messages[6] = { message_id = "ray_cast_missed", message = result }
-
-	result = physics.raycast(from, go.get_position("static_b"), { B })			-- B should be hit
-	self.messages[7] = { message_id = "ray_cast_response", message = result }
-	result = physics.raycast(from, go.get_position("static_b"), { A, B })		-- A should be hit
-	self.messages[8] = { message_id = "ray_cast_response", message = result }
-	result = physics.raycast(from, go.get_position("static_b"), {})				-- miss
-	self.messages[9] = { message_id = "ray_cast_missed", message = result }
-
-	result = physics.raycast(from, go.get_position("trigger_b"), { A, B })		-- miss
-	self.messages[10] = { message_id = "ray_cast_missed", message = result }
-	result = physics.raycast(from, go.get_position("miss"), { A, B })			-- miss
-	self.messages[11] = { message_id = "ray_cast_missed", message = result }
-
-	local result = physics.raycast()
-	check_messages(self.messages)
-
 	self.frame_count = 0
 	self.messages = {}
 end
 
 function update(self, dt)
 	self.frame_count = self.frame_count + 1
+
 	if self.frame_count == 2 then
+		check_messages(self.messages)
+		self.messages = {}
+
+	elseif self.frame_count == 3 then
+		local result = nil
+		local from = go.get_position()
+		result = physics.raycast(from, go.get_position("dynamic_b"), { B })			-- B should be hit
+		self.messages[1] = { message_id = HIT, message = result }
+		result = physics.raycast(from, go.get_position("dynamic_b"), { A, B })		-- A should be hit
+		self.messages[2] = { message_id = HIT, message = result }
+		result = physics.raycast(from, go.get_position("dynamic_b"), {})			-- miss
+		self.messages[3] = { message_id = MISS, message = result }
+
+		result = physics.raycast(from, go.get_position("kinematic_b"), { B })		-- B should be hit
+		self.messages[4] = { message_id = HIT, message = result }
+		result = physics.raycast(from, go.get_position("kinematic_b"), { A, B })	-- A should be hit
+		self.messages[5] = { message_id = HIT, message = result }
+		result = physics.raycast(from, go.get_position("kinematic_b"), {})			-- miss
+		self.messages[6] = { message_id = MISS, message = result }
+
+		result = physics.raycast(from, go.get_position("static_b"), { B })			-- B should be hit
+		self.messages[7] = { message_id = HIT, message = result }
+		result = physics.raycast(from, go.get_position("static_b"), { A, B })		-- A should be hit
+		self.messages[8] = { message_id = HIT, message = result }
+		result = physics.raycast(from, go.get_position("static_b"), {})				-- miss
+		self.messages[9] = { message_id = MISS, message = result }
+
+		result = physics.raycast(from, go.get_position("trigger_b"), { A, B })		-- miss
+		self.messages[10] = { message_id = MISS, message = result }
+		result = physics.raycast(from, go.get_position("miss"), { A, B })			-- miss
+		self.messages[11] = { message_id = MISS, message = result }
+
+		-- ray cast with zero length
+		local from3d = go.get_position("dynamic_b")
+		local to3d = go.get_position("dynamic_b")
+		result = physics.raycast(from3d, to3d, { A, B })							-- zero length ray
+		if result ~= nil then
+			self.messages[12] = { message_id = "ray_cast_response", message = result }
+		end
+
+		-- ray cast with zero length
+		local from2d = go.get_position("dynamic_b")
+		local to2d = go.get_position("dynamic_b")
+		from2d.z = -1
+		to2d.z = 1
+		result = physics.raycast(from2d, to2d, { A, B })							-- zero length ray
+		if result ~= nil then
+			self.messages[13] = { message_id = "ray_cast_response", message = result }
+		end
+
 		check_messages(self.messages)
 
 		msg.post("main:/main#script", "done")

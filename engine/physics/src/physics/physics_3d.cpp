@@ -948,8 +948,14 @@ namespace dmPhysics
     void RayCast3D(HWorld3D world, const RayCastRequest& request, RayCastResponse& out_response)
     {
         DM_PROFILE(Physics, "RayCasts");
-        float scale = world->m_Context->m_Scale;
 
+        if (Vectormath::Aos::lengthSqr(request.m_To - request.m_From) <= 0.0f)
+        {
+            dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
+            return;
+        }
+
+        float scale = world->m_Context->m_Scale;
         btVector3 from;
         ToBt(request.m_From, from, scale);
         btVector3 to;

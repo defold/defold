@@ -931,6 +931,15 @@ namespace dmPhysics
     void RayCast2D(HWorld2D world, const RayCastRequest& request, RayCastResponse& response)
     {
         DM_PROFILE(Physics, "RayCasts");
+
+        const Vectormath::Aos::Point3 from2d = Vectormath::Aos::Point3(request.m_From.getX(), request.m_From.getY(), 0.0);
+        const Vectormath::Aos::Point3 to2d = Vectormath::Aos::Point3(request.m_To.getX(), request.m_To.getY(), 0.0);
+        if (Vectormath::Aos::lengthSqr(to2d - from2d) <= 0.0f)
+        {
+            dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
+            return;
+        }
+
         float scale = world->m_Context->m_Scale;
         ProcessRayCastResultCallback2D callback;
         callback.m_Context = world->m_Context;
