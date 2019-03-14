@@ -48,9 +48,7 @@ public class OSXBundler implements IBundler {
 
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
-        if(canceled.isCanceled()) {
-            return;
-        }
+        BundleHelper.throwIfCanceled(canceled);
 
         List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(platform, extenderExeDir);
         if (bundleExes == null) {
@@ -62,9 +60,7 @@ public class OSXBundler implements IBundler {
         }
         File bundleExe = bundleExes.get(0);
 
-        if(canceled.isCanceled()) {
-            return;
-        }
+        BundleHelper.throwIfCanceled(canceled);
 
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
@@ -74,32 +70,24 @@ public class OSXBundler implements IBundler {
 
         BundleHelper helper = new BundleHelper(project, platform, bundleDir, ".app");
 
-        if(canceled.isCanceled()) {
-            return;
-        }
+        BundleHelper.throwIfCanceled(canceled);
 
         // Collect bundle/package resources to be included in .App directory
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, platform);
 
-        if(canceled.isCanceled()) {
-            return;
-        }
+        BundleHelper.throwIfCanceled(canceled);
 
         // Copy bundle resources into .app folder
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
-        if(canceled.isCanceled()) {
-            return;
-        }
+        BundleHelper.throwIfCanceled(canceled);
 
         // Copy archive and game.projectc
         for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
             FileUtils.copyFile(new File(buildDir, name), new File(resourcesDir, name));
         }
 
-        if(canceled.isCanceled()) {
-            return;
-        }
+        BundleHelper.throwIfCanceled(canceled);
 
         Map<String, Object> infoData = new HashMap<String, Object>();
         infoData.put("exe-name", exeName);
