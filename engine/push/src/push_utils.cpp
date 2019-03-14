@@ -1,4 +1,5 @@
 #include <dlib/dstrings.h>
+#include <dlib/json.h>
 
 #include "push_utils.h"
 
