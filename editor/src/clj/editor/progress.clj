@@ -7,8 +7,10 @@
   ([msg size]
    (make msg size 0))
   ([msg size pos]
+   (make msg size pos false))
+  ([msg size pos cancelable?]
    {:pre [(<= pos size)]}
-   {:message msg :size size :pos pos}))
+   {:message msg :size size :pos pos :cancelable cancelable? :canceled false}))
 
 (defn make-indeterminate [msg]
   (make msg 0))
@@ -46,6 +48,12 @@
 (defn done? [{:keys [pos size] :as _progress}]
   (and (pos? size)
        (= pos size)))
+
+(defn cancelable? [progress]
+  (:cancelable progress))
+
+(defn caceled? [progress]
+  {:canceled progress})
 
 ;; ----------------------------------------------------------
 
@@ -138,9 +146,9 @@
     (evening-sub-task! (nest-render-progress render-progress! (make "" 5 4)))
     (render-progress! (make "parent: not to bad" 5 5)))
 
-  (parent-task! println-render-progress!)
+  (parent-task! println-render-progress!))
 
-  )
+
 
 (defn progress-mapv
   ([f coll render-progress!]
