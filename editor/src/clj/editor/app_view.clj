@@ -436,9 +436,11 @@
             (if (progress/cancelable? progress)
               (do
                 (ui/visible! progress-cancel-button true)
+                (ui/managed! progress-cancel-button true)
                 (ui/on-action! progress-cancel-button (fn [_] (cancel-task key))))
               (do
                 (ui/visible! progress-cancel-button false)
+                (ui/managed! progress-cancel-button false)
                 (ui/on-action! progress-cancel-button identity)))))))))
 
 (defn- render-task-progress! [key progress]
