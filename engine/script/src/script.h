@@ -321,6 +321,38 @@ namespace dmScript
      */
     dmVMath::FloatVector* CheckVector(lua_State* L, int index);
 
+    /*# check if the value is a Vectormath::Aos::Vector3
+     * Check if the value at index is a vector3
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return boolean [type:boolean] True if value at index is a vector3
+     */
+    bool IsVector3(lua_State* L, int index);
+
+    /*# check if the value is a Vectormath::Aos::Vector4
+     * Check if the value at index is a Vectormath::Aos::Vector4
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return boolean [type:boolean] True if value at index is a Vectormath::Aos::Vector4
+     */
+    bool IsVector4(lua_State* L, int index);
+
+    /*# check if the value is a Vectormath::Aos::Quat
+     * Check if the value at index is a Vectormath::Aos::Quat
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return boolean [type:boolean] True if value at index is a Vectormath::Aos::Quat
+     */
+    bool IsQuat(lua_State* L, int index);
+
+    /*# check if the value at index is a Vectormath::Aos::Matrix4
+     * Check if the value at index is a Vectormath::Aos::Matrix4
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return boolean [type:boolean] True if value at index is a Vectormath::Aos::Matrix4
+     */
+    bool IsMatrix4(lua_State* L, int index);
+
     /**
      * Check if the value at #index is a URL
      * @param L Lua state
