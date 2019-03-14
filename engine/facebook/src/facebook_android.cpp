@@ -6,6 +6,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/array.h>
+#include <dlib/json.h>
 #include <dlib/mutex.h>
 #include <script/script.h>
 
