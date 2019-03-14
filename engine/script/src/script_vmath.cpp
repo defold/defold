@@ -311,11 +311,10 @@ namespace dmScript
 
     static int Vector3_mul(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v;
+        Vectormath::Aos::Vector3* v = ToVector3(L, 1);
         float s;
-        if (IsVector3(L, 1))
+        if (v != 0)
         {
-            v = CheckVector3(L, 1);
             s = (float) luaL_checknumber(L, 2);
         }
         else
@@ -476,11 +475,10 @@ namespace dmScript
 
     static int Vector4_mul(lua_State *L)
     {
-        Vectormath::Aos::Vector4* v;
+        Vectormath::Aos::Vector4* v = ToVector4(L, 1);
         float s;
-        if (IsVector4(L, 1))
+        if (v != 0)
         {
-            v = CheckVector4(L, 1);
             s = (float) luaL_checknumber(L, 2);
         }
         else
@@ -765,15 +763,15 @@ namespace dmScript
         else
         {
             m1 = *CheckMatrix4(L, 1);
-            if (IsMatrix4(L, 2))
+            Vectormath::Aos::Matrix4* m2 = ToMatrix4(L, 2);
+            Vectormath::Aos::Vector4* v = m2 != 0 ? 0 : ToVector4(L, 2);
+            if (m2 != 0)
             {
-                Vectormath::Aos::Matrix4 m2 = *CheckMatrix4(L, 2);
-                PushMatrix4(L, m1 * m2);
+                PushMatrix4(L, m1 * *m2);
             }
-            else if (IsVector4(L, 2))
+            else if (v != 0)
             {
-                Vectormath::Aos::Vector4 v = *CheckVector4(L, 2);
-                PushVector4(L, m1 * v);
+                PushVector4(L, m1 * *v);
             }
             else if (lua_isnumber(L, 2))
             {
