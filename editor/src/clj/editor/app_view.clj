@@ -458,7 +458,7 @@
     (fn [progress] (render-task-progress! key progress))))
 
 (defn make-task-canceled-query [key]
-  (fn [] (:canceled @(key app-task-progress))))
+  (fn [] (progress/canceled? @(key app-task-progress))))
 
 (defn render-main-task-progress! [progress]
   (render-task-progress! :main progress))
