@@ -168,7 +168,7 @@ public abstract class LuaBuilder extends Builder<Void> {
 
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
         srcBuilder.setFilename(task.input(0).getPath());
-        
+
         if (needsLuaSource.contains(project.getPlatform())) {
             srcBuilder.setScript(ByteString.copyFrom(scriptBytes));
         } else {
