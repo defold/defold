@@ -3,7 +3,6 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [support.test-support :as ts]
-            [internal.util :as u]
             [internal.graph.types :as gt]
             [internal.system :as is]))
 
@@ -402,14 +401,13 @@
         (is (= nil (g/node-value sink :loud)))))))
 
 (defn- successors [node-id label]
-  (-> @g/*the-system* :graphs (get (g/node-id->graph-id node-id)) :successors (get-in [node-id label])))
+  (get-in @g/*the-system* [:graphs (g/node-id->graph-id node-id) :successors node-id label]))
 
 (defn- sarcs [node-id label]
-  (-> @g/*the-system* :graphs (get (g/node-id->graph-id node-id)) :sarcs (get-in [node-id label])))
+  (get-in @g/*the-system* [:graphs (g/node-id->graph-id node-id) :sarcs node-id label]))
 
 (defn- tarcs [node-id label]
-  (-> @g/*the-system* :graphs (get (g/node-id->graph-id node-id)) :tarcs (get-in [node-id label])))
-
+  (get-in @g/*the-system* [:graphs (g/node-id->graph-id node-id) :tarcs node-id label]))
 
 (deftest undo-restores-hydrated-successors
   (testing "undo connection P->V preserves connection and successors"

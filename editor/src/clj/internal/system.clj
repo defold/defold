@@ -239,7 +239,7 @@
                                   (throw (ex-info "Concurrent modification of graph"
                                                   {:_graph-id graph-id :start-tx start-tx :sidereal-tx sidereal-tx}))
                                   (let [graph-before (get-in system [:graphs graph-id])
-                                        graph-after (update-in graph [:tx-id] util/safe-inc)
+                                        graph-after (update graph :tx-id util/safe-inc)
                                         graph-after (if (not (meaningful-change? significantly-modified-graphs graph-id))
                                                       (assoc graph-after :tx-sequence-label (:tx-sequence-label graph-before))
                                                       graph-after)
@@ -253,10 +253,10 @@
     (-> post-system
         (update :cache c/cache-invalidate outputs-modified)
         (update :user-data (fn [user-data]
-                             (reduce (fn [user-data node-id]
-                                       (let [graph-id (gt/node-id->graph-id node-id)]
-                                         (update user-data graph-id dissoc node-id)))
-                                     user-data (keys nodes-deleted))))
+                             (reduce (fn [user-data [graph-id deleted-node-ids]]
+                                       (update user-data graph-id (partial apply dissoc) deleted-node-ids))
+                                     user-data
+                                     (group-by gt/node-id->graph-id (keys nodes-deleted)))))
         (update :invalidate-counters bump-invalidate-counters outputs-modified))))
 
 (defn basis-graphs-identical? [basis1 basis2]
@@ -313,7 +313,7 @@
   ;; that differed from the system basis at the time, there is no
   ;; initial-invalidate-counters to compare with, and we dont even try to
   ;; update the cache.
-  (when-let [initial-invalidate-counters (:initial-invalidate-counters evaluation-context)]
+  (if-some [initial-invalidate-counters (:initial-invalidate-counters evaluation-context)]
     (let [cache (:cache system)
           invalidate-counters (:invalidate-counters system)
           evaluation-context-hits @(:hits evaluation-context)
@@ -335,7 +335,8 @@
                   (update :cache c/cache-hit safe-cache-hits)
 
                   (seq safe-cache-misses)
-                  (update :cache c/cache-encache safe-cache-misses)))))))
+                  (update :cache c/cache-encache safe-cache-misses)))))
+    system))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
@@ -353,11 +354,11 @@
   (let [graph-id (gt/node-id->graph-id node-id)]
     (get-in (:user-data system) [graph-id node-id key])))
 
-(defn user-data! [system node-id key value]
+(defn assoc-user-data [system node-id key value]
   (let [graph-id (gt/node-id->graph-id node-id)]
     (assoc-in system [:user-data graph-id node-id key] value)))
 
-(defn user-data-swap! [system node-id key f & args]
+(defn update-user-data [system node-id key f & args]
   (let [graph-id (gt/node-id->graph-id node-id)]
     (update-in system [:user-data graph-id node-id key] #(apply f %1 %2) args)))
 
