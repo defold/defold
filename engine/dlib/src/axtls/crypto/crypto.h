@@ -50,8 +50,12 @@ namespace dmAxTls {
 
 /* enable features based on a 'super-set' capbaility. */
 #if defined(CONFIG_SSL_FULL_MODE)
+#ifndef CONFIG_SSL_ENABLE_CLIENT
 #define CONFIG_SSL_ENABLE_CLIENT
+#endif
+#ifndef CONFIG_SSL_CERT_VERIFICATION
 #define CONFIG_SSL_CERT_VERIFICATION
+#endif
 #elif defined(CONFIG_SSL_ENABLE_CLIENT)
 #define CONFIG_SSL_CERT_VERIFICATION
 #endif

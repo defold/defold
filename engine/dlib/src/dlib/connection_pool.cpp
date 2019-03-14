@@ -81,7 +81,7 @@ namespace dmConnectionPool
             // to find out which certificates to load.
 
             // We set SSL_CONNECT_IN_PARTS to make the socket non blocking during the ssl handshake
-            int options = SSL_SERVER_VERIFY_LATER | SSL_CONNECT_IN_PARTS;
+            int options = SSL_SERVER_VERIFY_LATER | SSL_CONNECT_IN_PARTS | SSL_DISPLAY_STATES | SSL_DISPLAY_CERTS | SSL_DISPLAY_RSA;
 
             // NOTE: CONFIG_SSL_CTX_MUTEXING must be configured as the
             // ssl-context is shared among all threads

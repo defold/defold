@@ -102,7 +102,7 @@ def build(bld):
         source_dirs.append('dlib/js')
 
     # NOTE: Add CONFIG_SSL_FULL_MODE when debugging axTLS
-    extra_defines = ['ZLIB_CONST', 'CONFIG_SSL_CTX_MUTEXING']
+    extra_defines = ['ZLIB_CONST', 'CONFIG_SSL_CTX_MUTEXING', 'CONFIG_HTTP_VERBOSE', 'CONFIG_SSL_FULL_MODE', 'CONFIG_SSL_CERT_VERIFICATION']
 
     if 'win32' not in bld.env.PLATFORM:
         extra_defines.append('Z_HAVE_UNISTD_H')
