@@ -124,3 +124,21 @@ Links:
 #status-pane #progress-hbox {
   -fx-background-color: $dark-grey;
 }
+
+#status-pane #progress-hbox #progress-cancel-button {
+    -fx-background-color: $mid-grey;
+    -fx-text-fill: $bright-grey;
+    -fx-background-radius: 50%;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+    -fx-min-width: 16;
+    -fx-min-height: 16;
+    &:hover {
+        -fx-background-color: $mid-grey-light;
+    }
+    &:armed {
+        -fx-background-color: $input-background;
+        -fx-text-fill: $defold-white;
+    }
+}
+
