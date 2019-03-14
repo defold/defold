@@ -1,7 +1,6 @@
 (ns editor.app-view
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [clojure.set :as set]
             [dynamo.graph :as g]
             [editor.bundle :as bundle]
             [editor.bundle-dialog :as bundle-dialog]
@@ -52,27 +51,20 @@
             [editor.types :as types]
             [editor.game-project :as game-project])
   (:import [com.defold.editor Editor EditorApplication]
-           [com.defold.editor Start]
-           [java.net URI Socket URL]
-           [java.util Collection]
-           [javafx.application Platform]
+           [java.net URL]
+           [java.util Collection List]
            [javafx.beans.value ChangeListener]
-           [javafx.collections FXCollections ObservableList ListChangeListener]
-           [javafx.embed.swing SwingFXUtils]
-           [javafx.event ActionEvent Event EventHandler]
-           [javafx.fxml FXMLLoader]
-           [javafx.geometry Insets Pos]
+           [javafx.collections ObservableList ListChangeListener]
+           [javafx.event Event]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy ProgressBar Tooltip]
-           [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input Clipboard ClipboardContent KeyEvent]
-           [javafx.scene.layout AnchorPane HBox StackPane]
+           [javafx.scene.control MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy Tooltip]
+           [javafx.scene.image Image ImageView]
+           [javafx.scene.input Clipboard ClipboardContent]
+           [javafx.scene.layout AnchorPane StackPane]
            [javafx.scene.shape Ellipse SVGPath]
-           [javafx.stage Screen Stage FileChooser WindowEvent]
-           [javafx.util Callback]
-           [java.io InputStream File IOException BufferedReader]
-           [java.util.prefs Preferences]
-           [com.jogamp.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
+           [javafx.stage Screen Stage WindowEvent]
+           [java.io File IOException BufferedReader]
+           [java.util.concurrent.atomic AtomicInteger]))
 
 (set! *warn-on-reflection* true)
 
@@ -286,7 +278,7 @@
   (when-let [dims (prefs/get-prefs prefs prefs-window-dimensions nil)]
     (let [{:keys [x y width height maximized full-screen]} dims]
       (when (and (number? x) (number? y) (number? width) (number? height))
-        (when-let [screens (seq (Screen/getScreensForRectangle x y width height))]
+        (when-let [_ (seq (Screen/getScreensForRectangle x y width height))]
           (doto stage
             (.setX x)
             (.setY y))
@@ -381,7 +373,7 @@
                              (when-let [line (.readLine buffered-reader)] ; line of text or nil if eof reached
                                (sink-fn line)
                                (recur))))))
-                     (catch IOException e
+                     (catch IOException _
                        ;; Losing the log connection is ok and even expected
                        nil)
                      (catch InterruptedException _
@@ -400,6 +392,13 @@
    :save-all (ref progress/done)
    :fetch-libraries (ref progress/done)
    :download-update (ref progress/done)})
+
+(defn- cancel-task
+  [key]
+  (dosync
+    (let [ref (key app-task-progress)
+          value @r]
+      (ref-set ref (assoc value :canceled true)))))
 
 (def ^:private app-task-ui-priority
   "Task priority in descending order (from highest to lowest)"
@@ -421,11 +420,10 @@
           show-progress-hbox? (boolean (and (not= key :main)
                                             progress
                                             (not (progress/done? progress))))]
-      (ui/with-controls status-bar [progress-bar progress-hbox progress-percentage-label status-label]
+      (ui/with-controls status-bar [progress-bar progress-hbox progress-percentage-label status-label progress-cancel-button]
         (ui/render-progress-message!
           (if key progress (@task-progress-snapshot :main))
           status-label)
-
         ;; The bottom right of the status bar can show either the progress-hbox
         ;; or the update-link, or both. The progress-hbox will cover
         ;; the update-link if both are visible.
@@ -434,7 +432,14 @@
           (do
             (ui/visible! progress-hbox true)
             (ui/render-progress-bar! progress progress-bar)
-            (ui/render-progress-percentage! progress progress-percentage-label)))))))
+            (ui/render-progress-percentage! progress progress-percentage-label)
+            (if (progress/cancelable? progress)
+              (do
+                (ui/visible! progress-cancel-button true)
+                (ui/on-action! progress-cancel-button (fn [_] (cancel-task key))))
+              (do
+                (ui/visible! progress-cancel-button false)
+                (ui/on-action! progress-cancel-button identity)))))))))
 
 (defn- render-task-progress! [key progress]
   (let [schedule-render-task-progress-ui (ref false)]
@@ -449,6 +454,9 @@
   (assert (contains? app-task-progress key))
   (progress/throttle-render-progress
     (fn [progress] (render-task-progress! key progress))))
+
+(defn make-task-canceled-query [key]
+  (fn [] (:canceled @(key app-task-progress))))
 
 (defn render-main-task-progress! [progress]
   (render-task-progress! :main progress))
@@ -559,7 +567,7 @@
                                    "If the engine is already running, shut down the process manually and retry."
                                    (.getMessage e))))))
 
-(defn async-build! [project evaluation-context prefs {:keys [debug? engine?] :or {debug? false engine? true} :as opts} old-artifact-map render-build-progress! result-fn]
+(defn async-build! [project evaluation-context prefs {:keys [debug? engine?] :or {debug? false engine? true}} old-artifact-map render-build-progress! result-fn]
   (assert (not @build-in-progress?))
   (reset! build-in-progress? true)
   (future
@@ -585,7 +593,7 @@
         (error-reporting/report-exception! t)))))
 
 (defn- handle-build-results! [workspace build-errors-view build-results]
-  (let [{:keys [error artifacts artifact-map etags]} build-results]
+  (let [{:keys [error _ artifact-map etags]} build-results]
     (if (some? error)
       (do
         (build-errors-view/update-build-errors build-errors-view error)
@@ -1057,16 +1065,11 @@ If you do not specifically require different script states, consider changing th
 
 (defrecord SelectionProvider [app-view]
   handler/SelectionProvider
-  (selection [this] (g/node-value app-view :selected-node-ids))
-  (succeeding-selection [this] [])
-  (alt-selection [this] []))
+  (selection [_] (g/node-value app-view :selected-node-ids))
+  (succeeding-selection [_] [])
+  (alt-selection [_] []))
 
 (defn ->selection-provider [app-view] (SelectionProvider. app-view))
-
-(defn- update-selection [s open-resource-nodes active-resource-node selection-value]
-  (->> (assoc s active-resource-node selection-value)
-    (filter (comp (set open-resource-nodes) first))
-    (into {})))
 
 (defn select
   ([app-view node-ids]
@@ -1209,7 +1212,7 @@ If you do not specifically require different script states, consider changing th
 
       (keymap/install-key-bindings! (.getScene stage) (g/node-value app-view :keymap))
 
-      (let [refresh-tick (java.util.concurrent.atomic.AtomicInteger. 0)
+      (let [refresh-tick (AtomicInteger. 0)
             refresh-timer (ui/->timer "refresh-app-view"
                                       (fn [_ _]
                                         (when-not (ui/ui-disabled?)
@@ -1302,7 +1305,7 @@ If you do not specifically require different script states, consider changing th
                                (:line opts) (assoc :line (:line opts)))
                args (->> (string/split arg-tmpl #" ")
                          (map #(substitute-args % arg-sub)))]
-           (doto (ProcessBuilder. ^java.util.List (cons custom-editor args))
+           (doto (ProcessBuilder. ^List (cons custom-editor args))
              (.directory (workspace/project-path workspace))
              (.start))
            false)
@@ -1552,11 +1555,12 @@ If you do not specifically require different script states, consider changing th
         render-reload-progress! (make-render-task-progress :resource-sync)
         render-save-progress! (make-render-task-progress :save-all)
         render-build-progress! (make-render-task-progress :build)
+        task-canceled? (make-task-canceled-query :build)
         bob-args (bob/bundle-bob-args prefs platform bundle-options)]
     (when (not (.exists output-directory))
       (fs/create-directories! output-directory))
     (clear-errors!)
-    (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress!
+    (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! task-canceled?
                            render-build-error! bob/bundle-bob-commands bob-args project changes-view
                            (fn [successful?]
                              (when successful?

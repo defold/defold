@@ -31,7 +31,7 @@ public class OSXBundler implements IBundler {
     }
 
     @Override
-    public void bundleApplication(Project project, File bundleDir)
+    public void bundleApplication(Project project, File bundleDir, ICanceled canceled)
             throws IOException, CompileExceptionError {
 
         final Platform platform = Platform.X86_64Darwin;
@@ -47,6 +47,11 @@ public class OSXBundler implements IBundler {
         File macosDir = new File(contentsDir, "MacOS");
 
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
+
+        if(canceled.isCanceled()) {
+            return;
+        }
+
         List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(platform, extenderExeDir);
         if (bundleExes == null) {
             final String variant = project.option("variant", Bob.VARIANT_RELEASE);
@@ -57,6 +62,10 @@ public class OSXBundler implements IBundler {
         }
         File bundleExe = bundleExes.get(0);
 
+        if(canceled.isCanceled()) {
+            return;
+        }
+
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
         contentsDir.mkdirs();
@@ -65,15 +74,31 @@ public class OSXBundler implements IBundler {
 
         BundleHelper helper = new BundleHelper(project, platform, bundleDir, ".app");
 
+        if(canceled.isCanceled()) {
+            return;
+        }
+
         // Collect bundle/package resources to be included in .App directory
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, platform);
+
+        if(canceled.isCanceled()) {
+            return;
+        }
 
         // Copy bundle resources into .app folder
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
+        if(canceled.isCanceled()) {
+            return;
+        }
+
         // Copy archive and game.projectc
         for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
             FileUtils.copyFile(new File(buildDir, name), new File(resourcesDir, name));
+        }
+
+        if(canceled.isCanceled()) {
+            return;
         }
 
         Map<String, Object> infoData = new HashMap<String, Object>();

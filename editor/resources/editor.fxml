@@ -240,6 +240,7 @@
             <HBox id="progress-hbox" visible="false">
               <Label id="progress-percentage-label"/>
               <ProgressBar id="progress-bar" styleClass="really-small-progress-bar"/>
+              <Button id="progress-cancel-button" mnemonicParsing="false" styleClass="button-small" text="X" visible="false"/>
             </HBox>
           </StackPane>
         </children>
