@@ -324,8 +324,6 @@ namespace dmScript
     /*# convert a dmJson::Document to a Lua table
      * Convert a dmJson::Document document to Lua table.
      *
-     * @note If the function fails, it will free the document with dmJson::Free
-     *
      * @param L lua state
      * @param doc JSON document
      * @param index index of JSON node

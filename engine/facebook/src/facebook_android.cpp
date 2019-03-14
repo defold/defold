@@ -206,6 +206,7 @@ static void RunDialogResultCallback(Command* cmd)
                 dmLogError("Failed to parse dialog JSON result (%d)", r);
                 lua_pushnil(L);
             }
+            dmJson::Free(&doc);
         } else {
             lua_pushnil(L);
         }

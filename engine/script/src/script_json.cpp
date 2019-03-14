@@ -140,7 +140,6 @@ namespace dmScript
         if (result < 0)
         {
             lua_pop(L, lua_gettop(L) - top);
-            dmJson::Free(doc);
         }
         return result;
     }
@@ -193,6 +192,7 @@ namespace dmScript
         {
             char err_str[128];
             if (JsonToLua(L, &doc, 0, err_str, sizeof(err_str)) < 0) {
+                dmJson::Free(&doc);
                 return luaL_error(L, "%s", err_str);
             }
             dmJson::Free(&doc);
