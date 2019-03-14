@@ -48,9 +48,7 @@ public class LinuxBundler implements IBundler {
         String exeName = BundleHelper.projectNameToBinaryName(title);
         File appDir = new File(bundleDir, title);
 
-        if(canceled.isCanceled()) {
-            return;
-        }
+        BundleHelper.throwIfCanceled(canceled);
 
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
@@ -59,33 +57,25 @@ public class LinuxBundler implements IBundler {
         final List<String> extensionFolders = ExtenderUtil.getExtensionFolders(project);
         final boolean hasExtensions = !extensionFolders.isEmpty();
 
-        if(canceled.isCanceled()) {
-            return;
-        }
+        BundleHelper.throwIfCanceled(canceled);
 
         bundleApplicationForPlatform(platform, project, appDir, exeName);
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
 
-        if(canceled.isCanceled()) {
-            return;
-        }
+        BundleHelper.throwIfCanceled(canceled);
 
         // Copy archive and game.projectc
         for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
             FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
         }
 
-        if(canceled.isCanceled()) {
-            return;
-        }
+        BundleHelper.throwIfCanceled(canceled);
 
         // Collect bundle/package resources to be included in bundle directory
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, platform);
 
-        if(canceled.isCanceled()) {
-            return;
-        }
+        BundleHelper.throwIfCanceled(canceled);
 
         // Copy bundle resources into bundle directory
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
