@@ -554,6 +554,20 @@ public class Project {
             throw new CompileExceptionError(null, -1, "Failed building Android resources to R.java: " + e.getMessage());
         }
     }
+    
+    public Platform getPlatform() throws CompileExceptionError {
+        String pair = option("platform", null);
+        Platform p = Platform.getHostPlatform();
+        if (pair != null) {
+            p = Platform.get(pair);
+        }
+
+        if (p == null) {
+            throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
+        }
+        
+        return p;
+    }
 
     public String[] getPlatformStrings() throws CompileExceptionError {
         String pair = option("platform", null);
