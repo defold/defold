@@ -14,32 +14,32 @@ function init(self)
 	-- The test also ensures that collision pbjects of type 'trigger' does not
 	-- generate a ray cast response (they should result in a miss)
 	local from = go.get_position()
-	physics.ray_cast(from, go.get_position("dynamic_b"), { B }, 1)			-- B should be hit
-	physics.ray_cast(from, go.get_position("dynamic_b"), { A, B }, 2)		-- A should be hit
-	physics.ray_cast(from, go.get_position("dynamic_b"), {}, 3)				-- miss
+	physics.raycast_async(from, go.get_position("dynamic_b"), { B }, 1)			-- B should be hit
+	physics.raycast_async(from, go.get_position("dynamic_b"), { A, B }, 2)		-- A should be hit
+	physics.raycast_async(from, go.get_position("dynamic_b"), {}, 3)			-- miss
 
-	physics.ray_cast(from, go.get_position("kinematic_b"), { B }, 4)		-- B should be hit
-	physics.ray_cast(from, go.get_position("kinematic_b"), { A, B }, 5)		-- A should be hit
-	physics.ray_cast(from, go.get_position("kinematic_b"), {}, 6)			-- miss
+	physics.raycast_async(from, go.get_position("kinematic_b"), { B }, 4)		-- B should be hit
+	physics.raycast_async(from, go.get_position("kinematic_b"), { A, B }, 5)		-- A should be hit
+	physics.raycast_async(from, go.get_position("kinematic_b"), {}, 6)			-- miss
 
-	physics.ray_cast(from, go.get_position("static_b"), { B }, 7)			-- B should be hit
-	physics.ray_cast(from, go.get_position("static_b"), { A, B }, 8)		-- A should be hit
-	physics.ray_cast(from, go.get_position("static_b"), {}, 9)				-- miss
+	physics.raycast_async(from, go.get_position("static_b"), { B }, 7)			-- B should be hit
+	physics.raycast_async(from, go.get_position("static_b"), { A, B }, 8)		-- A should be hit
+	physics.raycast_async(from, go.get_position("static_b"), {}, 9)				-- miss
 
-	physics.ray_cast(from, go.get_position("trigger_b"), { A, B }, 10)		-- miss
-	physics.ray_cast(from, go.get_position("miss"), { A, B }, 11)			-- miss
+	physics.raycast_async(from, go.get_position("trigger_b"), { A, B }, 10)		-- miss
+	physics.raycast_async(from, go.get_position("miss"), { A, B }, 11)			-- miss
 
 	-- ray cast with zero length
 	local from3d = go.get_position("dynamic_b")
 	local to3d = go.get_position("dynamic_b")
-	physics.ray_cast(from3d, to3d, { A, B }, 12)							-- zero length ray
+	physics.raycast_async(from3d, to3d, { A, B }, 12)							-- zero length ray
 
 	-- ray cast with zero length (ignoring z-value variation)
 	local from2d = go.get_position("dynamic_b")
 	local to2d = go.get_position("dynamic_b")
 	from2d.z = -1
 	to2d.z = 1
-	physics.ray_cast(from2d, to2d, { A, B }, 13)							-- zero length ray
+	physics.raycast_async(from2d, to2d, { A, B }, 13)							-- zero length ray
 
 	self.frame_count = 0
 	self.messages = {}

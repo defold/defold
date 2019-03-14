@@ -168,7 +168,7 @@ namespace dmGameSystem
      * - If an object is hit, the result will be reported via a `ray_cast_response` message.
      * - If there is no object hit, the result will be reported via a `ray_cast_missed` message.
      *
-     * @name physics.ray_cast
+     * @name physics.raycast_async
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
      * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
@@ -204,7 +204,7 @@ namespace dmGameSystem
 
         dmMessage::URL sender;
         if (!dmScript::GetURL(L, &sender)) {
-            return luaL_error(L, "could not find a requesting instance for physics.ray_cast");
+            return luaL_error(L, "could not find a requesting instance for physics.raycast_async");
         }
 
         lua_getglobal(L, PHYSICS_CONTEXT_NAME);
@@ -260,7 +260,7 @@ namespace dmGameSystem
      * through `groups`.
      * The actual ray cast will be performed during the physics-update.
      *
-     * @name physics.ray_cast
+     * @name physics.raycast
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
      * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
@@ -289,7 +289,7 @@ namespace dmGameSystem
 
         dmMessage::URL sender;
         if (!dmScript::GetURL(L, &sender)) {
-            return luaL_error(L, "could not find a requesting instance for physics.ray_cast");
+            return luaL_error(L, "could not find a requesting instance for physics.raycast");
         }
 
         lua_getglobal(L, PHYSICS_CONTEXT_NAME);
