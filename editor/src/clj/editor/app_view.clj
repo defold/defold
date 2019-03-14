@@ -396,9 +396,9 @@
 (defn- cancel-task
   [key]
   (dosync
-    (let [ref (key app-task-progress)
-          value @r]
-      (ref-set ref (assoc value :canceled true)))))
+    (let [progress-ref (key app-task-progress)
+          value @progress-ref]
+      (ref-set progress-ref (assoc value :canceled true)))))
 
 (def ^:private app-task-ui-priority
   "Task priority in descending order (from highest to lowest)"
