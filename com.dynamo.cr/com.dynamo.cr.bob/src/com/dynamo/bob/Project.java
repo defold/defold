@@ -445,7 +445,7 @@ public class Project {
 
     static Map<Platform, Class<? extends IBundler>> bundlers;
     static {
-        bundlers = new HashMap<Platform, Class<? extends IBundler>>();
+        bundlers = new HashMap<>();
         bundlers.put(Platform.X86_64Darwin, OSXBundler.class);
         bundlers.put(Platform.X86_64Linux, LinuxBundler.class);
         bundlers.put(Platform.X86Win32, Win32Bundler.class);
@@ -487,13 +487,16 @@ public class Project {
         } else {
             bundleDir = new File(getRootDirectory(), getBuildDirectory());
         }
+        if(monitor.isCanceled()) {
+            return;
+        }
         bundleDir.mkdirs();
-        bundler.bundleApplication(this, bundleDir);
+        bundler.bundleApplication(this, bundleDir, monitor);
         m.worked(1);
         m.done();
     }
 
-    static boolean anyFailing(Collection<TaskResult> results) {
+    private static boolean anyFailing(Collection<TaskResult> results) {
         for (TaskResult taskResult : results) {
             if (!taskResult.isOk()) {
                 return true;
@@ -743,94 +746,123 @@ public class Project {
         validateBuildResourceMapping();
         List<TaskResult> result = new ArrayList<TaskResult>();
 
+        if(monitor.isCanceled()) {
+            return result;
+        }
+
         monitor.beginTask("", 100);
 
+        loop:
         for (String command : commands) {
-            if (command.equals("build")) {
+            if (monitor.isCanceled()) {
+                return result;
+            }
+            switch (command) {
+                case "build": {
 
-                // Do early test if report files are writeable before we start building
-                boolean generateReport = this.hasOption("build-report") || this.hasOption("build-report-html");
-                FileWriter fileJSONWriter = null;
-                FileWriter fileHTMLWriter = null;
+                    // Do early test if report files are writable before we start building
+                    boolean generateReport = this.hasOption("build-report") || this.hasOption("build-report-html");
+                    FileWriter fileJSONWriter = null;
+                    FileWriter fileHTMLWriter = null;
 
-                if (this.hasOption("build-report")) {
-                    String reportJSONPath = this.option("build-report", "report.json");
-                    File reportJSONFile = new File(reportJSONPath);
-                    fileJSONWriter = new FileWriter(reportJSONFile);
-                }
-                if (this.hasOption("build-report-html")) {
-                    String reportHTMLPath = this.option("build-report-html", "report.html");
-                    File reportHTMLFile = new File(reportHTMLPath);
-                    fileHTMLWriter = new FileWriter(reportHTMLFile);
-                }
+                    if (this.hasOption("build-report")) {
+                        String reportJSONPath = this.option("build-report", "report.json");
+                        File reportJSONFile = new File(reportJSONPath);
+                        fileJSONWriter = new FileWriter(reportJSONFile);
+                    }
+                    if (this.hasOption("build-report-html")) {
+                        String reportHTMLPath = this.option("build-report-html", "report.html");
+                        File reportHTMLFile = new File(reportHTMLPath);
+                        fileHTMLWriter = new FileWriter(reportHTMLFile);
+                    }
 
-                IProgress m = monitor.subProgress(99);
-                m.beginTask("Building...", newTasks.size());
-                result = runTasks(m);
-                m.done();
-                if (anyFailing(result)) {
+                    IProgress m = monitor.subProgress(99);
+                    if(monitor.isCanceled()) {
+                        return result;
+                    }
+                    m.beginTask("Building...", newTasks.size());
+                    result = runTasks(m);
+                    m.done();
+                    if (anyFailing(result)) {
+                        // TODO(mags): This looks like an error. If build fails, we start over..?
+                        break loop;
+                    }
+                    if(monitor.isCanceled()) {
+                        return result;
+                    }
+
+                    final String[] platforms = getPlatformStrings();
+                    // Get or build engine binary
+                    boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
+                    if (buildRemoteEngine) {
+
+                        final String variant = this.option("variant", Bob.VARIANT_RELEASE);
+                        final Boolean withSymbols = this.hasOption("with-symbols");
+
+                        Map<String, String> appmanifestOptions = new HashMap<>();
+                        appmanifestOptions.put("baseVariant", variant);
+                        appmanifestOptions.put("withSymbols", withSymbols.toString());
+
+                        buildEngine(monitor, platforms, appmanifestOptions);
+                    } else {
+                        // Remove the remote built executables in the build folder, they're still in the cache
+                        cleanEngine(monitor, platforms);
+                    }
+
+                    if(monitor.isCanceled()) {
+                        return result;
+                    }
+
+                    // Generate and save build report
+                    if (generateReport) {
+                        IProgress mrep = monitor.subProgress(1);
+                        mrep.beginTask("Generating report...", 1);
+                        ReportGenerator rg = new ReportGenerator(this);
+                        String reportJSON = rg.generateJSON();
+
+                        // Save JSON report
+                        if (this.hasOption("build-report")) {
+                            fileJSONWriter.write(reportJSON);
+                            fileJSONWriter.close();
+                        }
+
+                        // Save HTML report
+                        if (this.hasOption("build-report-html")) {
+                            String reportHTML = rg.generateHTML(reportJSON);
+                            fileHTMLWriter.write(reportHTML);
+                            fileHTMLWriter.close();
+                        }
+                        mrep.done();
+                    }
+
                     break;
                 }
-
-                final String[] platforms = getPlatformStrings();
-                // Get or build engine binary
-                boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
-                if (buildRemoteEngine) {
-
-                    final String variant = this.option("variant", Bob.VARIANT_RELEASE);
-                    final Boolean withSymbols = this.hasOption("with-symbols");
-
-                    Map<String, String> appmanifestOptions = new HashMap<>();
-                    appmanifestOptions.put("baseVariant", variant);
-                    appmanifestOptions.put("withSymbols", withSymbols.toString());
-
-                    buildEngine(monitor, platforms, appmanifestOptions);
-                } else {
-                    // Remove the remote built executables in the build folder, they're still in the cache
-                    cleanEngine(monitor, platforms);
-                }
-
-                // Generate and save build report
-                if (generateReport) {
-                    IProgress mrep = monitor.subProgress(1);
-                    mrep.beginTask("Generating report...", 1);
-                    ReportGenerator rg = new ReportGenerator(this);
-                    String reportJSON = rg.generateJSON();
-
-                    // Save JSON report
-                    if (this.hasOption("build-report")) {
-                        fileJSONWriter.write(reportJSON);
-                        fileJSONWriter.close();
+                case "clean": {
+                    IProgress m = monitor.subProgress(1);
+                    m.beginTask("Cleaning...", newTasks.size());
+                    for (Task<?> t : newTasks) {
+                        List<IResource> outputs = t.getOutputs();
+                        for (IResource r : outputs) {
+                            r.remove();
+                            m.worked(1);
+                        }
                     }
-
-                    // Save HTML report
-                    if (this.hasOption("build-report-html")) {
-                        String reportHTML = rg.generateHTML(reportJSON);
-                        fileHTMLWriter.write(reportHTML);
-                        fileHTMLWriter.close();
-                    }
-                    mrep.done();
+                    m.done();
+                    break;
                 }
-
-            } else if (command.equals("clean")) {
-                IProgress m = monitor.subProgress(1);
-                m.beginTask("Cleaning...", newTasks.size());
-                for (Task<?> t : newTasks) {
-                    List<IResource> outputs = t.getOutputs();
-                    for (IResource r : outputs) {
-                        r.remove();
-                        m.worked(1);
-                    }
+                case "distclean": {
+                    IProgress m = monitor.subProgress(1);
+                    m.beginTask("Cleaning...", newTasks.size());
+                    FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
+                    m.worked(1);
+                    m.done();
+                    break;
                 }
-                m.done();
-            } else if (command.equals("distclean")) {
-                IProgress m = monitor.subProgress(1);
-                m.beginTask("Cleaning...", newTasks.size());
-                FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
-                m.worked(1);
-                m.done();
-            } else if (command.equals("bundle")) {
-                bundle(monitor);
+                case "bundle": {
+                    bundle(monitor);
+                    break;
+                }
+                default: break;
             }
         }
 
@@ -841,29 +873,29 @@ public class Project {
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    List<TaskResult> runTasks(IProgress monitor) throws IOException {
+    private List<TaskResult> runTasks(IProgress monitor) throws IOException {
 
         // set of all completed tasks. The set includes both task run
         // in this session and task already completed (output already exists with correct signatures, see below)
         // the set also contains failed tasks
-        Set<Task> completedTasks = new HashSet<Task>();
+        Set<Task> completedTasks = new HashSet<>();
 
         // the set of all output files generated
         // in this or previous session
-        Set<IResource> completedOutputs = new HashSet<IResource>();
+        Set<IResource> completedOutputs = new HashSet<>();
 
-        List<TaskResult> result = new ArrayList<TaskResult>();
+        List<TaskResult> result = new ArrayList<>();
 
-        List<Task<?>> tasks = new ArrayList<Task<?>>(newTasks);
+        List<Task<?>> tasks = new ArrayList<>(newTasks);
         // set of *all* possible output files
-        Set<IResource> allOutputs = new HashSet<IResource>();
+        Set<IResource> allOutputs = new HashSet<>();
         for (Task<?> task : newTasks) {
             allOutputs.addAll(task.getOutputs());
         }
         newTasks.clear();
 
         // Keep track of the paths for all outputs
-        outputs = new HashMap<String, EnumSet<OutputFlags>>(allOutputs.size());
+        outputs = new HashMap<>(allOutputs.size());
         for (IResource res : allOutputs) {
             outputs.put(res.getAbsPath(), EnumSet.noneOf(OutputFlags.class));
         }
@@ -877,10 +909,12 @@ public class Project {
 run:
         while (completedTasks.size() < tasks.size()) {
             for (Task<?> task : tasks) {
+                if(monitor.isCanceled()) {
+                    return result;
+                }
                 // deps are the task input files generated by another task not yet completed,
                 // i.e. "solve" the dependency graph
-                Set<IResource> deps = new HashSet<IResource>();
-                deps.addAll(task.getInputs());
+                Set<IResource> deps = new HashSet<>(task.getInputs());
                 deps.retainAll(allOutputs);
                 deps.removeAll(completedOutputs);
                 if (deps.size() > 0) {
