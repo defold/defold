@@ -776,7 +776,6 @@ public class Project {
                     result = runTasks(m);
                     m.done();
                     if (anyFailing(result)) {
-                        // TODO(mags): This looks like an error. If build fails, we start over..?
                         break loop;
                     }
                     BundleHelper.throwIfCanceled(monitor);
