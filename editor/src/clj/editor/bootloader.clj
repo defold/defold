@@ -16,15 +16,21 @@
                      (edn/read-string))
         boot-loaded? (promise)
         loader (future
-                 (doseq [batch batches]
-                   (dorun (pmap require batch))
-                   (when (contains? batch 'editor.boot)
-                     (deliver boot-loaded? true))))]
+                 (try
+                   (doseq [batch batches]
+                     (dorun (pmap require batch))
+                     (when (contains? batch 'editor.boot)
+                       (deliver boot-loaded? true)))
+                   (catch Throwable t
+                     (deliver boot-loaded? t)
+                     (throw t))))]
     (reset! load-info [loader boot-loaded?])))
 
 (defn wait-until-editor-boot-loaded
   []
-  @(second @load-info))
+  (let [result @(second @load-info)]
+    (when (instance? Throwable result)
+      (throw result))))
 
 (defn main
   [args]
@@ -33,4 +39,3 @@
     (ns-unmap *ns* 'load-info)
     (let [boot-main (resolve 'editor.boot/main)]
       (boot-main args loader))))
-
