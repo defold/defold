@@ -9,7 +9,6 @@
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/configfile.h>
-#include <dlib/json.h>
 #include <dlib/log.h>
 #include <resource/resource.h>
 #include <ddf/ddf.h>
@@ -618,17 +617,6 @@ namespace dmScript
      * Wraps luaL_loadbuffer but takes dmLuaDDF::LuaSource instead of buffer directly.
      */
     int LuaLoad(lua_State *L, dmLuaDDF::LuaSource* source);
-
-    /**
-     * Convert a JSON document to Lua table.
-     * @param L lua state
-     * @param doc JSON document
-     * @param index index of JSON node
-     * @param error_str_out if an error is encountered, the error string is written to this argument
-     * @param error_str_size size of error_str_out
-     * @return index of next JSON node to handle
-     */
-    int JsonToLua(lua_State*L, dmJson::Document* doc, int index, char* error_str_out, size_t error_str_size);
 
     /** Gets the number of references currently kept
      * @return the total number of references in the game

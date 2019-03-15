@@ -19,6 +19,9 @@ namespace Vectormath {
         class Matrix4;
     }
 }
+namespace dmJson {
+    struct Document;
+}
 
 namespace dmScript
 {
@@ -440,6 +443,19 @@ namespace dmScript
      * @return matrix [type:Vectormath::Aos::Matrix4] The value
      */
     Vectormath::Aos::Matrix4* CheckMatrix4(lua_State* L, int index);
+
+    /*# convert a dmJson::Document to a Lua table
+     * Convert a dmJson::Document document to Lua table.
+     *
+     * @name dmJson::Type
+     * @param L [type:lua_State*] lua state
+     * @param doc [type:dmJson::Document] JSON document
+     * @param index [type:int] index of JSON node
+     * @param error_str_out [type:char*] if an error is encountered, the error string is written to this argument
+     * @param error_str_size [type:size_t] size of error_str_out
+     * @return int [type:int] <0 if it fails. >=0 if it succeeds.
+     */
+    int JsonToLua(lua_State* L, dmJson::Document* doc, int index, char* error_str_out, size_t error_str_size);
 
 }
 
