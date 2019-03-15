@@ -106,7 +106,7 @@
     file))
 
 (defn- download! [url ^File zip-file track-download-progress! cancelled-atom]
-  (log/info :message "Downloading update" :url url :file (str (.getCanonicalPath zip-file)))
+  (log/info :message "Downloading update" :url url :file (.getCanonicalPath zip-file))
   (net/download! url zip-file
                  :progress-callback (fn [current total]
                                       (track-download-progress!
