@@ -17,6 +17,7 @@ import imp
 # If you update java version, don't forget to update it here too:
 # - /editor/bundle-resources/config at "launcher.jdk" key
 # - /scripts/build.py smoke_test, `java` variable
+# - /editor/src/clj/editor/updater.clj, `protected-dirs` let binding
 java_version = '11.0.1'
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
