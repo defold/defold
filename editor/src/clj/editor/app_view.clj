@@ -52,12 +52,12 @@
             [util.profiler :as profiler])
   (:import [com.defold.editor Editor EditorApplication]
            [java.io BufferedReader File IOException]
-           java.net.URL
+           [java.net URL]
            [java.util Collection List]
-           java.util.concurrent.atomic.AtomicInteger
-           javafx.beans.value.ChangeListener
+           [java.util.concurrent.atomic AtomicInteger]
+           [javafx.beans.value ChangeListener]
            [javafx.collections ListChangeListener ObservableList]
-           javafx.event.Event
+           [javafx.event Event]
            [javafx.scene Node Parent Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy Tooltip]
            [javafx.scene.image Image ImageView]
