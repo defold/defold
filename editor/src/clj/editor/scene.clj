@@ -236,6 +236,10 @@
                          :aabbs pass/render-passes
                          :picking-color pass/selection-passes
                          :picking-rect pass/selection-passes})
+(def render-mode-batch-key {:normal :batch-key
+                            :aabbs (constantly nil)
+                            :picking-color :select-batch-key
+                            :picking-rect :select-batch-key})
 
 (defn- render-aabb [^GL2 gl render-args renderables rcount]
   (render/render-aabb-outline gl render-args ::renderable-aabb renderables rcount))
@@ -249,7 +253,8 @@
 
 (defn render! [^GLContext context renderables updatable-states viewport pass->render-args]
   (let [^GL2 gl (.getGL context)
-        render-mode @render-mode-atom]
+        render-mode @render-mode-atom
+        batch-key (render-mode-batch-key render-mode)]
     (gl/gl-clear gl 0.0 0.0 0.0 1)
     (.glColor4f gl 1.0 1.0 1.0 1.0)
     (gl-viewport gl viewport)
@@ -262,8 +267,8 @@
                                        (assoc-updatable-states updatable-states))]]
       (setup-pass gl pass pass-render-args)
       (if (= render-mode :aabbs)
-        (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) (constantly nil))
-        (batch-render gl pass-render-args pass-renderables :batch-key)))))
+        (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) batch-key)
+        (batch-render gl pass-render-args pass-renderables batch-key)))))
 
 (defn- apply-pass-overrides
   [pass renderable]
@@ -635,7 +640,7 @@
           (reset! last-picking-rect picking-rect)
           (doseq [pass [pass/opaque-selection pass/selection]]
             (let [pass-render-args (picking-render-args (pass->render-args pass) viewport picking-rect)
-                  pass-renderables (get renderables pass)]
+                  pass-renderables (vec (render-sort (get renderables pass)))]
               (setup-pass gl pass pass-render-args)
               (batch-render gl pass-render-args pass-renderables :select-batch-key)))
           (.glFlush gl)
