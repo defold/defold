@@ -327,8 +327,9 @@ namespace dmScript
      */
     LuaHBuffer* CheckBuffer(lua_State* L, int index);
 
-    /*# cget the value at index as a Vectormath::Aos::Vector3*
+    /*# get the value at index as a Vectormath::Aos::Vector3*
      * Get the value at index as a Vectormath::Aos::Vector3*
+     * @name dmScript::ToVector3
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return v [type:Vectormath::Aos::Vector3*] The pointer to the value, or 0 if not correct type
@@ -338,6 +339,7 @@ namespace dmScript
     /*# push a Vectormath::Aos::Vector3 onto the Lua stack
      *
      * Push a Vectormath::Aos::Vector3 value onto the supplied lua state, will increase the stack by 1.
+     * @name dmScript::PushVector3
      * @param L [type:lua_State*] Lua state
      * @param v [type:Vectormath::Aos::Vector3] Vector3 value to push
      */
@@ -347,6 +349,7 @@ namespace dmScript
      *
      * Check if the value in the supplied index on the lua stack is a Vectormath::Aos::Vector3.
      * @note throws a luaL_error if it's not the correct type
+     * @name dmScript::CheckVector3
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return vector3 [type:Vectormath::Aos::Vector3] The value
@@ -355,6 +358,7 @@ namespace dmScript
 
     /*# get the value at index as a Vectormath::Aos::Vector4*
      * Get the value at index as a Vectormath::Aos::Vector4*
+     * @name dmScript::ToVector4
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return v [type:Vectormath::Aos::Vector4*] The pointer to the value, or 0 if not correct type
@@ -363,6 +367,7 @@ namespace dmScript
 
     /*# push a Vectormath::Aos::Vector4 on the stack
      * Push a Vectormath::Aos::Vector4 value onto the supplied lua state, will increase the stack by 1.
+     * @name dmScript::PushVector4
      * @param L [type:lua_State*] Lua state
      * @param v [type:Vectormath::Aos::Vector4] Vectormath::Aos::Vector4 value to push
      */
@@ -372,6 +377,7 @@ namespace dmScript
      *
      * Check if the value in the supplied index on the lua stack is a Vectormath::Aos::Vector3.
      * @note throws a luaL_error if it's not the correct type
+     * @name dmScript::CheckVector4
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return vector4 [type:Vectormath::Aos::Vector4] The value
@@ -380,6 +386,7 @@ namespace dmScript
 
     /*# get the value at index as a Vectormath::Aos::Quat*
      * Get the value at index as a Vectormath::Aos::Quat*
+     * @name dmScript::ToQuat
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return quat [type:Vectormath::Aos::Quat*] The pointer to the value, or 0 if not correct type
@@ -388,6 +395,7 @@ namespace dmScript
 
     /*# push a Vectormath::Aos::Quat onto the Lua stack
      * Push a quaternion value onto Lua stack. Will increase the stack by 1.
+     * @name dmScript::PushQuat
      * @param L [type:lua_State*] Lua state
      * @param quat [type:Vectormath::Aos::Quat] Vectormath::Aos::Quat value to push
      */
@@ -397,6 +405,7 @@ namespace dmScript
      *
      * Check if the value in the supplied index on the lua stack is a Vectormath::Aos::Quat.
      * @note throws a luaL_error if it's not the correct type
+     * @name dmScript::CheckQuat
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return quat [type:Vectormath::Aos::Quat] The value
@@ -405,6 +414,7 @@ namespace dmScript
 
     /*# get the value at index as a Vectormath::Aos::Matrix4*
      * Get the value at index as a Vectormath::Aos::Matrix4*
+     * @name dmScript::ToMatrix4
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return quat [type:Vectormath::Aos::Matrix4*] The pointer to the value, or 0 if not correct type
@@ -413,6 +423,7 @@ namespace dmScript
 
     /*# push a Vectormath::Aos::Matrix4 onto the Lua stack
      * Push a matrix4 value onto the Lua stack. Will increase the stack by 1.
+     * @name dmScript::PushMatrix4
      * @param L [type:lua_State*] Lua state
      * @param matrix [type:Vectormath::Aos::Matrix4] Vectormath::Aos::Matrix4 value to push
      */
@@ -423,6 +434,7 @@ namespace dmScript
      * Check if the value in the supplied index on the lua stack is a Vectormath::Aos::Matrix4.
      *
      * @note throws a luaL_error if it's not the correct type
+     * @name dmScript::CheckMatrix4
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return matrix [type:Vectormath::Aos::Matrix4] The value
