@@ -24,7 +24,7 @@
   (format "https://d.defold.com/editor2/channels/%s/update-v2.json" channel))
 
 (def ^:private ^File support-dir
-  (.getAbsoluteFile (.toFile (Editor/getSupportPath))))
+  (.getCanonicalFile (.toFile (Editor/getSupportPath))))
 
 (def ^:private ^File update-dir
   (io/file support-dir "update"))
@@ -32,12 +32,13 @@
 (def ^:private ^File update-sha1-file
   (io/file support-dir "update.sha1"))
 
-(defn- make-updater [channel editor-sha1 downloaded-sha1 platform install-dir launcher-path]
+(defn- make-updater [channel editor-sha1 downloaded-sha1 platform install-dir launcher-path protected-dirs]
   {:channel channel
    :platform platform
    :install-dir install-dir
    :launcher-path launcher-path
    :editor-sha1 editor-sha1
+   :protected-dirs protected-dirs
    :state-atom (atom {:downloaded-sha1 downloaded-sha1
                       :server-sha1 editor-sha1})})
 
@@ -105,7 +106,7 @@
     file))
 
 (defn- download! [url ^File zip-file track-download-progress! cancelled-atom]
-  (log/info :message "Downloading update" :url url :file (.getAbsolutePath zip-file))
+  (log/info :message "Downloading update" :url url :file (str (.getCanonicalPath zip-file)))
   (net/download! url zip-file
                  :progress-callback (fn [current total]
                                       (track-download-progress!
@@ -130,7 +131,7 @@
       (swap! state-atom dissoc :downloaded-sha1)
       (FileUtils/deleteQuietly update-dir)
       (FileUtils/deleteQuietly update-sha1-file))
-    (log/info :message "Extracting update" :dir update-dir)
+    (log/info :message "Extracting update" :dir (str update-dir))
     (with-open [zip (ZipFile. zip-file)]
       (let [entries (enumeration-seq (.getEntries zip))
             entry-count (count entries)]
@@ -224,6 +225,13 @@
       ("linux" "darwin") (install-unix-file! source-file target-file)
       "win32" (install-windows-file! source-file target-file editor-sha1))))
 
+(defn- in-protected-dir? [updater ^File file]
+  (let [path (.toPath file)]
+    (->> updater
+         :protected-dirs
+         (some #(.startsWith path (.toPath ^File %)))
+         boolean)))
+
 (defn install!
   "Installs previously downloaded update"
   [updater]
@@ -236,7 +244,8 @@
     (log/info :message "Installing update")
     (doseq [^File source-file (FileUtils/listFiles update-dir nil true)
             :let [relative-path (.relativize (.toPath update-dir) (.toPath source-file))
-                  target-file (io/file install-dir (.toFile relative-path))]]
+                  target-file (io/file install-dir (.toFile relative-path))]
+            :when (not (in-protected-dir? updater target-file))]
       (io/make-parents target-file)
       (install-file! updater source-file target-file))
     (FileUtils/deleteQuietly update-sha1-file)
@@ -303,7 +312,12 @@
         sha1 (system/defold-editor-sha1)
         platform (Platform/getHostPlatform)
         os (.getOs platform)
-        install-dir (.getAbsoluteFile
+        resources-dir (-> (system/defold-resourcespath)
+                          (or "")
+                          io/file
+                          .getCanonicalFile)
+        protected-dirs [(io/file resources-dir "packages" "jdk11.0.1")]
+        install-dir (.getCanonicalFile
                       (if-let [path (system/defold-resourcespath)]
                         (case os
                           "darwin" (io/file path "../../")
@@ -322,5 +336,5 @@
       (do
         (log/info :message "Automatic updates disabled" :channel channel :sha1 sha1)
         nil)
-      (doto (make-updater channel sha1 downloaded-sha1 platform install-dir launcher-path)
+      (doto (make-updater channel sha1 downloaded-sha1 platform install-dir launcher-path protected-dirs)
         (start-timer! initial-update-delay update-delay)))))
