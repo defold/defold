@@ -42,8 +42,8 @@ public class Start extends Application {
                     Method init = glprofile.getMethod("initSingleton");
                     init.invoke(null);
                     final EditorApplication app = new EditorApplication(Thread.currentThread().getContextClassLoader());
-                    app.waitForClojureNamespaces();
                     try {
+                        app.waitForClojureNamespaces();
                         Platform.runLater(() -> {
                                 try {
                                     List<String> params = getParameters().getRaw();
