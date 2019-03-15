@@ -158,7 +158,7 @@
       true
       (throw exception))))
 
-(defn async-bob-build! [render-reload-progress! render-save-progress! render-build-progress! task-canceled? render-build-error! bob-commands bob-args project changes-view callback!]
+(defn async-bob-build! [render-reload-progress! render-save-progress! render-build-progress! task-cancelled? render-build-error! bob-commands bob-args project changes-view callback!]
   (disk-availability/push-busy!)
   (try
     ;; We need to save because bob reads from FS.
@@ -181,7 +181,7 @@
                        (let [evaluation-context (g/make-evaluation-context)]
                          (future
                            (try
-                             (let [result (bob/bob-build! project evaluation-context bob-commands bob-args render-build-progress! task-canceled?)]
+                             (let [result (bob/bob-build! project evaluation-context bob-commands bob-args render-build-progress! task-cancelled?)]
                                (render-build-progress! progress/done)
                                (ui/run-later
                                  (try
