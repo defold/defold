@@ -37,7 +37,6 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/builtins.zip lib/builtins.zip
 
 jar cfM lib/android-res.zip -C $DYNAMO_HOME/ext/share/java/ res
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/armv7-android/classes.dex lib/classes.dex
-cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-android/classes.dex lib/classes.dex
 cp -v $DYNAMO_HOME/ext/share/java/android.jar lib/android.jar
 
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/dlib.jar lib/dlib.jar

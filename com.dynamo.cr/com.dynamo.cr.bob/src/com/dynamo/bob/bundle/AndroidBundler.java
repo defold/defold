@@ -168,19 +168,6 @@ public class AndroidBundler implements IBundler {
         if (bundleArm64Exes.size() > 1) {
             throw new IOException("Invalid number of arm64-v8a binaries for Android when bundling: " + bundleArm64Exes.size());
         }
-        
-        System.out.println("-----------------------------------------");
-        System.out.println("armv7 classes.dex files:");
-        for (String filename : classesDexFilenames) {
-			System.out.println("armv7: " + filename);
-		}
-        System.out.println("-----------------------------------------");
-        System.out.println("arm64 classes.dex files:");
-        for (String filename : classesDex64Filenames) {
-			System.out.println("arm64: " + filename);
-		}
-        System.out.println("-----------------------------------------");
-        
         File bundleArm64Exe = bundleArm64Exes.get(0);
 
         File appDir = new File(bundleDir, title);
@@ -396,9 +383,6 @@ public class AndroidBundler implements IBundler {
             File fileArm64 = new File(strippedpathArm64);
             fileArm64.deleteOnExit();
             FileUtils.copyFile(fileArm64, zipOut);
-
-            logger.log(Level.INFO, "Android Armv7 binary: " + getFileDescription(fileArmv7));
-            logger.log(Level.INFO, "Android Arm64 binary: " + getFileDescription(fileArm64));
         } finally {
             IOUtils.closeQuietly(zipIn);
             IOUtils.closeQuietly(zipOut);
