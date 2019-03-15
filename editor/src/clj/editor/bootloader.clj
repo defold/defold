@@ -21,15 +21,15 @@
                      (dorun (pmap require batch))
                      (when (contains? batch 'editor.boot)
                        (deliver boot-loaded? true)))
-                   (catch Exception e
-                     (deliver boot-loaded? e)
-                     (throw e))))]
+                   (catch Throwable t
+                     (deliver boot-loaded? t)
+                     (throw t))))]
     (reset! load-info [loader boot-loaded?])))
 
 (defn wait-until-editor-boot-loaded
   []
   (let [result @(second @load-info)]
-    (when (instance? Exception result)
+    (when (instance? Throwable result)
       (throw result))))
 
 (defn main
