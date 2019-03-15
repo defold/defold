@@ -394,9 +394,9 @@
    :download-update (ref progress/done)})
 
 (defn- cancel-task!
-  [key]
+  [keyword]
   (dosync
-    (let [progress-ref (key app-task-progress)]
+    (let [progress-ref (keyword app-task-progress)]
       (ref-set progress-ref (progress/cancel! @progress-ref)))))
 
 (def ^:private app-task-ui-priority
@@ -456,8 +456,8 @@
   (progress/throttle-render-progress
     (fn [progress] (render-task-progress! key progress))))
 
-(defn make-task-cancelled-query [key]
-  (fn [] (progress/cancelled? @(key app-task-progress))))
+(defn make-task-cancelled-query [keyword]
+  (fn [] (progress/cancelled? @(keyword app-task-progress))))
 
 (defn render-main-task-progress! [progress]
   (render-task-progress! :main progress))
@@ -538,11 +538,10 @@
           (launch-new-engine!))
 
         (and (targets/controllable-target? selected-target) (targets/remote-target? selected-target))
-        (do
-          (let [log-stream (engine/get-log-service-stream selected-target)]
-            (reset-console-stream! log-stream)
-            (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream)))
-            (reboot-engine! selected-target web-server debug?)))
+        (let [log-stream (engine/get-log-service-stream selected-target)]
+          (reset-console-stream! log-stream)
+          (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream)))
+          (reboot-engine! selected-target web-server debug?))
 
         :else
         (do
@@ -689,10 +688,11 @@ If you do not specifically require different script states, consider changing th
           render-reload-progress! (make-render-task-progress :resource-sync)
           render-save-progress! (make-render-task-progress :save-all)
           render-build-progress! (make-render-task-progress :build)
+          task-cancelled? (make-task-cancelled-query :build)
           bob-args (bob/build-html5-bob-args project prefs)]
       (clear-errors!)
       (console/clear-console!)
-      (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress!
+      (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! task-cancelled?
                              render-build-error! bob/build-html5-bob-commands bob-args project changes-view
                              (fn [successful?]
                                (when successful?
@@ -1558,7 +1558,7 @@ If you do not specifically require different script states, consider changing th
         render-build-progress! (make-render-task-progress :build)
         task-cancelled? (make-task-cancelled-query :build)
         bob-args (bob/bundle-bob-args prefs platform bundle-options)]
-    (when (not (.exists output-directory))
+    (when-not (.exists output-directory)
       (fs/create-directories! output-directory))
     (clear-errors!)
     (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! task-cancelled?
