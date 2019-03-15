@@ -1166,6 +1166,18 @@ namespace dmGui
         return 1;
     }
 
+    static inline Point3 GetPositionFromArgumentIndex(lua_State* L, int index)
+    {
+        Vector4* v4;
+        if ((v4 = dmScript::ToVector4(L, index)))
+        {
+            return Point3(v4->getXYZ());
+        }
+
+        Vector3* v3 = dmScript::CheckVector3(L, index);
+        return Point3(*v3);
+    }
+
     /*# creates a new box node
      * Dynamically create a new box node.
      *
@@ -1176,19 +1188,10 @@ namespace dmGui
      */
     static int LuaNewBoxNode(lua_State* L)
     {
-        Vector3 pos;
-        if (dmScript::IsVector4(L, 1))
-        {
-            Vector4* p4 = dmScript::CheckVector4(L, 1);
-            pos = Vector3(p4->getX(), p4->getY(), p4->getZ());
-        }
-        else
-        {
-            pos = *dmScript::CheckVector3(L, 1);
-        }
+        Point3 pos = GetPositionFromArgumentIndex(L, 1);
         Vector3 size = *dmScript::CheckVector3(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
-        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_BOX, 0, 0x0);
+        return LuaDoNewNode(L, scene, pos, size, NODE_TYPE_BOX, 0, 0x0);
     }
 
     /*# creates a new text node
@@ -1201,16 +1204,7 @@ namespace dmGui
      */
     static int LuaNewTextNode(lua_State* L)
     {
-        Vector3 pos;
-        if (dmScript::IsVector4(L, 1))
-        {
-            Vector4* p4 = dmScript::CheckVector4(L, 1);
-            pos = Vector3(p4->getX(), p4->getY(), p4->getZ());
-        }
-        else
-        {
-            pos = *dmScript::CheckVector3(L, 1);
-        }
+        Point3 pos = GetPositionFromArgumentIndex(L, 1);
         const char* text = luaL_checkstring(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
         void* font = scene->m_DefaultFont;
@@ -1225,7 +1219,7 @@ namespace dmGui
             size.setY(metrics.m_MaxAscent + metrics.m_MaxDescent);
         }
 
-        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_TEXT, text, font);
+        return LuaDoNewNode(L, scene, pos, size, NODE_TYPE_TEXT, text, font);
     }
 
     /*# creates a new pie node
@@ -1238,19 +1232,10 @@ namespace dmGui
      */
     static int LuaNewPieNode(lua_State* L)
     {
-        Vector3 pos;
-        if (dmScript::IsVector4(L, 1))
-        {
-            Vector4* p4 = dmScript::CheckVector4(L, 1);
-            pos = Vector3(p4->getX(), p4->getY(), p4->getZ());
-        }
-        else
-        {
-            pos = *dmScript::CheckVector3(L, 1);
-        }
+        Point3 pos = GetPositionFromArgumentIndex(L, 1);
         Vector3 size = *dmScript::CheckVector3(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
-        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_PIE, 0, 0x0);
+        return LuaDoNewNode(L, scene, pos, size, NODE_TYPE_PIE, 0, 0x0);
     }
 
     /*# creates a new spine node
@@ -1263,19 +1248,10 @@ namespace dmGui
      */
     static int LuaNewSpineNode(lua_State* L)
     {
-        Vector3 pos;
-        if (dmScript::IsVector4(L, 1))
-        {
-            Vector4* p4 = dmScript::CheckVector4(L, 1);
-            pos = Vector3(p4->getX(), p4->getY(), p4->getZ());
-        }
-        else
-        {
-            pos = *dmScript::CheckVector3(L, 1);
-        }
+        Point3 pos = GetPositionFromArgumentIndex(L, 1);
 
         Scene* scene = GuiScriptInstance_Check(L);
-        HNode node = NewNode(scene, Point3(pos), Vector3(1,1,0), NODE_TYPE_SPINE);
+        HNode node = NewNode(scene, pos, Vector3(1,1,0), NODE_TYPE_SPINE);
         if (!node)
         {
             return luaL_error(L, "Out of nodes (max %d)", scene->m_Nodes.Capacity());
@@ -2447,11 +2423,11 @@ namespace dmGui
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void) n;
 
-        if (dmScript::IsVector4(L, 2))
+        Vector4* v4;
+        if ((v4 = dmScript::ToVector4(L, 2)))
         {
-            const Vector4 value = *(dmScript::CheckVector4(L, 2));
             Scene* scene = GuiScriptInstance_Check(L);
-            dmGui::SetNodeProperty(scene, hnode, dmGui::PROPERTY_SLICE9, value);
+            dmGui::SetNodeProperty(scene, hnode, dmGui::PROPERTY_SLICE9, *v4);
         }
         else
         {
@@ -4120,21 +4096,12 @@ namespace dmGui
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        Vector3 pos;
-        if (dmScript::IsVector4(L, 1))
-        {
-            Vector4* p4 = dmScript::CheckVector4(L, 1);
-            pos = Vector3(p4->getXYZ());
-        }
-        else
-        {
-            pos = *dmScript::CheckVector3(L, 1);
-        }
+        Point3 pos = GetPositionFromArgumentIndex(L, 1);
         dmhash_t particlefx = dmScript::CheckHashOrString(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
 
         // The default size comes from the CalculateNodeExtents()
-        HNode node = dmGui::NewNode(scene, Point3(pos), Vector3(1,1,0), NODE_TYPE_PARTICLEFX);
+        HNode node = dmGui::NewNode(scene, pos, Vector3(1,1,0), NODE_TYPE_PARTICLEFX);
         if (!node)
         {
             return DM_LUA_ERROR("Out of nodes (max %d)", scene->m_Nodes.Capacity());

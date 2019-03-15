@@ -263,14 +263,24 @@ TEST_F(ScriptVmathTest, TestMatrix4)
         for (uint32_t j = 0; j < 4; ++j)
             m.setElem((float) i, (float) j, (float) (i * 4 + j));
     dmScript::PushMatrix4(L, m);
-    ASSERT_TRUE(dmScript::IsMatrix4(L, -1));
-    Vectormath::Aos::Matrix4* mp = dmScript::CheckMatrix4(L, -1);
-    ASSERT_NE((void*)0x0, mp);
+
+    Vectormath::Aos::Matrix4* mp1 = dmScript::ToMatrix4(L, -1);
+    ASSERT_NE((void*)0x0, mp1);
     for (int i = 0; i < 4; ++i)
     {
         for (int j = 0; j < 4; ++j)
         {
-            ASSERT_EQ(m.getElem(i, j), mp->getElem(i, j));
+            ASSERT_EQ(m.getElem(i, j), mp1->getElem(i, j));
+        }
+    }
+
+    Vectormath::Aos::Matrix4* mp2 = dmScript::CheckMatrix4(L, -1);
+    ASSERT_NE((void*)0x0, mp2);
+    for (int i = 0; i < 4; ++i)
+    {
+        for (int j = 0; j < 4; ++j)
+        {
+            ASSERT_EQ(m.getElem(i, j), mp2->getElem(i, j));
         }
     }
 

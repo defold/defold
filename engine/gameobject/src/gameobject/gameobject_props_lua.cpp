@@ -153,7 +153,8 @@ namespace dmGameObject
         {
             if (lua_isstring(L, -2))
             {
-                switch(GetPropertyType(L, -1))
+                void* userdata = 0;
+                switch(GetPropertyType(L, -1, &userdata))
                 {
                     case PROPERTY_TYPE_NUMBER:
                         ++params.m_NumberCount;
@@ -190,8 +191,9 @@ namespace dmGameObject
         {
             if (lua_isstring(L, -2))
             {
+                void* userdata = 0;
                 dmhash_t id = dmHashString64(lua_tostring(L, -2));
-                switch(GetPropertyType(L, -1))
+                switch(GetPropertyType(L, -1, &userdata))
                 {
                     case PROPERTY_TYPE_NUMBER:
                         {

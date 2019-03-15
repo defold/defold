@@ -222,11 +222,6 @@ namespace dmScript
         return (Vectormath::Aos::Vector3*)GetLightUserData(L, index, SCRIPT_TYPE_NAME_VECTOR3);
     }
 
-    bool IsVector3(lua_State* L, int index)
-    {
-        return GetLightUserData(L, index, SCRIPT_TYPE_NAME_VECTOR3) != 0;
-    }
-
     static int Vector3_gc(lua_State *L)
     {
         Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
@@ -375,11 +370,6 @@ namespace dmScript
     Vectormath::Aos::Vector4* ToVector4(lua_State *L, int index)
     {
         return (Vectormath::Aos::Vector4*)GetLightUserData(L, index, SCRIPT_TYPE_NAME_VECTOR4);
-    }
-
-    bool IsVector4(lua_State *L, int index)
-    {
-        return GetLightUserData(L, index, SCRIPT_TYPE_NAME_VECTOR4) != 0;
     }
 
     static int Vector4_gc(lua_State *L)
@@ -541,11 +531,6 @@ namespace dmScript
         return (Vectormath::Aos::Quat*)GetLightUserData(L, index, SCRIPT_TYPE_NAME_QUAT);
     }
 
-    bool IsQuat(lua_State *L, int index)
-    {
-        return GetLightUserData(L, index, SCRIPT_TYPE_NAME_QUAT) != 0;
-    }
-
     static int Quat_gc(lua_State *L)
     {
         Vectormath::Aos::Quat* q = CheckQuat(L, 1);
@@ -669,11 +654,6 @@ namespace dmScript
     Vectormath::Aos::Matrix4* ToMatrix4(lua_State *L, int index)
     {
         return (Vectormath::Aos::Matrix4*)GetLightUserData(L, index, SCRIPT_TYPE_NAME_MATRIX4);
-    }
-
-    bool IsMatrix4(lua_State *L, int index)
-    {
-        return GetLightUserData(L, index, SCRIPT_TYPE_NAME_MATRIX4) != 0;
     }
 
     static int Matrix4_gc(lua_State *L)
