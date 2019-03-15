@@ -849,8 +849,9 @@
 
 (defn select-indices!
   [^TreeView tree-view indices]
-  (-> (.getSelectionModel tree-view)
-      (.selectIndices (int (first indices)) (int-array (rest indices)))))
+  (let [selection-model (.getSelectionModel tree-view)]
+    (doseq [^long index indices]
+      (.select selection-model index))))
 
 (extend-type TreeView
   CollectionView
