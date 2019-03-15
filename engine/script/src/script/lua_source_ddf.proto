@@ -5,15 +5,14 @@ option java_outer_classname = "Lua";
 
 message LuaSource
 {
-    // HTML platforms uses script (vanilla lua), all
-    // other platforms uses bytecode instead.
-    optional bytes script                               = 1;
+    // For now provide both script and bytecode to support the engine build option
+    // of compiling with vanilla lua.
+    required bytes script                               = 1;
 
     // Path to the original file; used for debugging.
     // Note that if bytecode is supplied from LuaJIT it will contain embedded
-    // chunk names that override this file name and this field is not used.
+    // chunk names that override this file name.
     required string filename                            = 2;
 
     optional bytes bytecode                             = 3;
-    optional bytes bytecode_64                          = 4;
 }

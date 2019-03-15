@@ -136,12 +136,6 @@ namespace dmScript
 
         luaL_openlibs(L);
 
-        // To support 'math.mod' even though it's been deprecated in 5.1 and removed in 5.2
-        lua_getglobal(L, "math");
-        lua_getfield(L, -1, "fmod");
-        lua_setfield(L, -2, "mod");
-        lua_pop(L, 1);
-
         InitializeHash(L);
         InitializeMsg(L);
         InitializeVmath(L);
