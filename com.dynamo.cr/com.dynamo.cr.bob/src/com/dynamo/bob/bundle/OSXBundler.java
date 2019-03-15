@@ -93,6 +93,8 @@ public class OSXBundler implements IBundler {
         infoData.put("exe-name", exeName);
         helper.format(infoData, "osx", "infoplist", new File(contentsDir, "Info.plist"));
 
+        BundleHelper.throwIfCanceled(canceled);
+
         // Copy icon
         copyIcon(projectProperties, new File(project.getRootDirectory()), resourcesDir);
 
