@@ -8,9 +8,9 @@
    (make msg size 0))
   ([msg size pos]
    (make msg size pos false))
-  ([msg size pos cancelable?]
+  ([msg size pos cancellable?]
    {:pre [(<= pos size)]}
-   {:message msg :size size :pos pos :cancelable cancelable? :canceled false}))
+   {:message msg :size size :pos pos :cancellable cancellable? :cancelled false}))
 
 (defn make-indeterminate [msg]
   (make msg 0))
@@ -49,11 +49,14 @@
   (and (pos? size)
        (= pos size)))
 
-(defn cancelable? [progress]
-  (:cancelable progress))
+(defn cancellable? [progress]
+  (:cancellable progress))
 
-(defn canceled? [progress]
-  (:canceled progress))
+(defn cancel! [progress]
+  (assoc progress :cancelled true))
+
+(defn cancelled? [progress]
+  (:cancelled progress))
 
 ;; ----------------------------------------------------------
 

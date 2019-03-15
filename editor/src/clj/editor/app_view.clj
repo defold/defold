@@ -393,12 +393,11 @@
    :fetch-libraries (ref progress/done)
    :download-update (ref progress/done)})
 
-(defn- cancel-task
+(defn- cancel-task!
   [key]
   (dosync
-    (let [progress-ref (key app-task-progress)
-          value @progress-ref]
-      (ref-set progress-ref (assoc value :canceled true)))))
+    (let [progress-ref (key app-task-progress)]
+      (ref-set progress-ref (progress/cancel! @progress-ref)))))
 
 (def ^:private app-task-ui-priority
   "Task priority in descending order (from highest to lowest)"
@@ -433,11 +432,11 @@
             (ui/visible! progress-hbox true)
             (ui/render-progress-bar! progress progress-bar)
             (ui/render-progress-percentage! progress progress-percentage-label)
-            (if (progress/cancelable? progress)
+            (if (progress/cancellable? progress)
               (do
                 (ui/visible! progress-cancel-button true)
                 (ui/managed! progress-cancel-button true)
-                (ui/on-action! progress-cancel-button (fn [_] (cancel-task key))))
+                (ui/on-action! progress-cancel-button (fn [_] (cancel-task! key))))
               (do
                 (ui/visible! progress-cancel-button false)
                 (ui/managed! progress-cancel-button false)
@@ -457,8 +456,8 @@
   (progress/throttle-render-progress
     (fn [progress] (render-task-progress! key progress))))
 
-(defn make-task-canceled-query [key]
-  (fn [] (progress/canceled? @(key app-task-progress))))
+(defn make-task-cancelled-query [key]
+  (fn [] (progress/cancelled? @(key app-task-progress))))
 
 (defn render-main-task-progress! [progress]
   (render-task-progress! :main progress))
@@ -595,7 +594,7 @@
         (error-reporting/report-exception! t)))))
 
 (defn- handle-build-results! [workspace build-errors-view build-results]
-  (let [{:keys [error _ artifact-map etags]} build-results]
+  (let [{:keys [error artifact-map etags]} build-results]
     (if (some? error)
       (do
         (build-errors-view/update-build-errors build-errors-view error)
@@ -1557,12 +1556,12 @@ If you do not specifically require different script states, consider changing th
         render-reload-progress! (make-render-task-progress :resource-sync)
         render-save-progress! (make-render-task-progress :save-all)
         render-build-progress! (make-render-task-progress :build)
-        task-canceled? (make-task-canceled-query :build)
+        task-cancelled? (make-task-cancelled-query :build)
         bob-args (bob/bundle-bob-args prefs platform bundle-options)]
     (when (not (.exists output-directory))
       (fs/create-directories! output-directory))
     (clear-errors!)
-    (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! task-canceled?
+    (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! task-cancelled?
                            render-build-error! bob/bundle-bob-commands bob-args project changes-view
                            (fn [successful?]
                              (when successful?
