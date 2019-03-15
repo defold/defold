@@ -1162,7 +1162,7 @@ run:
         catch(LibraryException le) {
             throw le;
         }
-        catch(Throwable e) {
+        catch(Exception e) {
             throw new LibraryException(e.getMessage(), e);
         }
    }
