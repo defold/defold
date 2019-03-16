@@ -2,6 +2,7 @@
 #include <string.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include "../dlib/dstrings.h"
 #include "../dlib/socket.h"
 #include "../dlib/thread.h"
 #include "../dlib/time.h"
@@ -11,17 +12,9 @@
 
 #include "../dlib/network_constants.h"
 
-
-#define JC_TEST_ASSERT_SOCKETEQm( _EXPECTED, _VALUE, _MSG )                         \
-    do { jc_test_increment_assertions();                                            \
-        if ( (_EXPECTED) != (_VALUE) ) {                                            \
-            JC_TEST_FAILm(_MSG);                                                    \
-            printf("Expected(%s), Actual(%s)", dmSocket::ResultToString(dmSocket::RESULT_OK), dmSocket::ResultToString(r)); \
-        }                                                                           \
-    } while(0);
-
-#define JC_TEST_ASSERT_SOCKET_EQ( _A, _B )  JC_TEST_ASSERT_SOCKETEQm( _A, _B, #_A " != " #_B )
-#define ASSERT_SOCKET_EQ                    JC_TEST_ASSERT_SOCKET_EQ
+template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSocket::Result r) {
+    return buffer + DM_SNPRINTF(buffer, buffer_len, "%s", dmSocket::ResultToString(r));
+}
 
 const uint16_t CONST_TEST_PORT = 8008;
 
@@ -908,7 +901,7 @@ TEST(Socket, ServerSocketIPv4)
 {
     dmSocket::Socket socket;
     dmSocket::Result r = dmSocket::New(dmSocket::DOMAIN_IPV4, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     const int port = 9000;
 
@@ -917,20 +910,20 @@ TEST(Socket, ServerSocketIPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Bind(socket, bindaddress, port);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Listen(socket, 1000);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Delete(socket);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 }
 
 TEST(Socket, ServerSocketIPv6)
 {
     dmSocket::Socket socket;
     dmSocket::Result r = dmSocket::New(dmSocket::DOMAIN_IPV6, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     const int port = 9000;
 
@@ -939,13 +932,13 @@ TEST(Socket, ServerSocketIPv6)
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Bind(socket, bindaddress, port);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Listen(socket, 1000);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Delete(socket);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 }
 
 TEST(Socket, ServerSocketIPv4_MultipleBind)
@@ -953,9 +946,9 @@ TEST(Socket, ServerSocketIPv4_MultipleBind)
     dmSocket::Socket socket1, socket2;
     dmSocket::Result r;
     r = dmSocket::New(dmSocket::DOMAIN_IPV4, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket1);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
     r = dmSocket::New(dmSocket::DOMAIN_IPV4, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket2);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     const int port = 9000;
 
@@ -968,17 +961,17 @@ TEST(Socket, ServerSocketIPv4_MultipleBind)
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Bind(socket1, bindaddress1, port);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Bind(socket2, bindaddress2, port);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_ADDRINUSE, r);
+    ASSERT_EQ(dmSocket::RESULT_ADDRINUSE, r);
 
     r = dmSocket::Delete(socket1);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Delete(socket2);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 }
 
 TEST(Socket, ServerSocketIPv6_MultipleBind)
@@ -986,9 +979,9 @@ TEST(Socket, ServerSocketIPv6_MultipleBind)
     dmSocket::Socket socket1, socket2;
     dmSocket::Result r;
     r = dmSocket::New(dmSocket::DOMAIN_IPV6, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket1);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
     r = dmSocket::New(dmSocket::DOMAIN_IPV6, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket2);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     const int port = 9000;
 
@@ -1001,26 +994,26 @@ TEST(Socket, ServerSocketIPv6_MultipleBind)
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Bind(socket1, bindaddress1, port);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Bind(socket2, bindaddress2, port);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_ADDRINUSE, r);
+    ASSERT_EQ(dmSocket::RESULT_ADDRINUSE, r);
 
     r = dmSocket::Delete(socket1);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Delete(socket2);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 }
 
 TEST(Socket, ServerSocketIPv4_Accept)
 {
     dmSocket::Socket socket;
     dmSocket::Result r = dmSocket::New(dmSocket::DOMAIN_IPV4, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::SetBlocking(socket, false);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     const int port = 9000;
 
@@ -1029,28 +1022,28 @@ TEST(Socket, ServerSocketIPv4_Accept)
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Bind(socket, bindaddress, port);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Listen(socket, 1000);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     dmSocket::Address address;
     dmSocket::Socket client_socket;
     r = dmSocket::Accept(socket, &address, &client_socket);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_WOULDBLOCK, r);
+    ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, r);
 
     r = dmSocket::Delete(socket);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 }
 
 TEST(Socket, ServerSocketIPv6_Accept)
 {
     dmSocket::Socket socket;
     dmSocket::Result r = dmSocket::New(dmSocket::DOMAIN_IPV6, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::SetBlocking(socket, false);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     const int port = 9000;
 
@@ -1059,18 +1052,18 @@ TEST(Socket, ServerSocketIPv6_Accept)
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Bind(socket, bindaddress, port);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Listen(socket, 1000);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     dmSocket::Address address;
     dmSocket::Socket client_socket;
     r = dmSocket::Accept(socket, &address, &client_socket);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_WOULDBLOCK, r);
+    ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, r);
 
     r = dmSocket::Delete(socket);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 }
 
 static void PrintFlags(uint32_t f) {
@@ -1116,41 +1109,41 @@ TEST(Socket, Timeout)
     const uint64_t timeout = 50 * 1000;
     dmSocket::Socket server_socket;
     dmSocket::Result r = dmSocket::New(dmSocket::DOMAIN_IPV6, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &server_socket); // This has to be rewritten
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::SetReuseAddress(server_socket, true);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     dmSocket::Address bindaddress;
     r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV6, &bindaddress, false, true);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
 	r = dmSocket::Bind(server_socket, bindaddress, 0);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Listen(server_socket, 1000);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     uint16_t port;
     dmSocket::Address address;
     r = dmSocket::GetName(server_socket, &address, &port); // We do this to get the port
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::GetHostByName(DM_LOOPBACK_ADDRESS_IPV6, &address, false, true); // We do this to get the address
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     dmSocket::Socket client_socket;
     r = dmSocket::New(dmSocket::DOMAIN_IPV6, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &client_socket); // This has to be rewritten
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::SetReceiveTimeout(client_socket, timeout);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::SetSendTimeout(client_socket, timeout);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Connect(client_socket, address, port);
-    ASSERT_SOCKET_EQ(dmSocket::RESULT_OK, r);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     int received;
     char buf[4096];
@@ -1160,7 +1153,7 @@ TEST(Socket, Timeout)
         uint64_t start = dmTime::GetTime();
         r = dmSocket::Receive(client_socket, buf, sizeof(buf), &received);
         uint64_t end = dmTime::GetTime();
-        ASSERT_SOCKET_EQ(dmSocket::RESULT_WOULDBLOCK, r);
+        ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, r);
         ASSERT_GE(end - start, timeout - 2500); // NOTE: Margin of 2500. Required on Linux
     }
 
@@ -1174,7 +1167,7 @@ TEST(Socket, Timeout)
             }
         }
         uint64_t end = dmTime::GetTime();
-        ASSERT_SOCKET_EQ(dmSocket::RESULT_WOULDBLOCK, r);
+        ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, r);
         ASSERT_GE(end - start, timeout - 2500); // NOTE: Margin of 2500. Required on Linux
     }
 
