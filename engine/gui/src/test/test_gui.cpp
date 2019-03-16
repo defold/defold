@@ -3137,19 +3137,16 @@ TEST_F(dmGuiTest, ScriptPicking)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
-#define JC_TEST_ASSERT_VECTOR4_EQm( _EXPECTED, _VALUE, _MSG )                         \
-    do { jc_test_increment_assertions();                                            \
-        Vector4 v1 = _EXPECTED;                                                     \
-        Vector4 v2 = _VALUE;                                                        \
-        bool equal = v1.getX() == v2.getX() && v1.getY() == v2.getY() && v1.getZ() == v2.getZ() && v1.getW() == v2.getW(); \
-        if ( !equal ) {                                                             \
-            JC_TEST_FAILm(_MSG);                                                    \
-            printf("Expected(%f, %f, %f, %f), Actual(%f, %f, %f, %f)", v1.getX(),v1.getY(),v1.getZ(),v1.getW(), v2.getX(),v2.getY(),v2.getZ(),v2.getW()); \
-        }                                                                           \
-    } while(0);
+template <> char* jc_test_print_value(char* buffer, size_t buffer_len, Vector4 v) {
+    return buffer + DM_SNPRINTF(buffer, buffer_len, "vector4(%.3f, %.3f, %.3f, %.3f)", v.getX(), v.getY(), v.getZ(), v.getW());
+}
 
-#define JC_TEST_ASSERT_VECTOR4_EQ( _A, _B )  JC_TEST_ASSERT_VECTOR4_EQm( _A, _B, #_A " != " #_B )
-#define ASSERT_VECTOR4_EQ                    JC_TEST_ASSERT_VECTOR4_EQ
+template <> int jc_test_cmp_EQ(Vector4 a, Vector4 b, const char* exprA, const char* exprB) {
+    bool equal = a.getX() == b.getX() && a.getY() == b.getY() && a.getZ() == b.getZ() && a.getW() == b.getW();
+    if (equal) return 1;
+    jc_test_log_failure(a, b, exprA, exprB, "==");
+    return 0;
+}
 
 TEST_F(dmGuiTest, CalculateNodeTransform)
 {
@@ -3198,9 +3195,9 @@ TEST_F(dmGuiTest, CalculateNodeTransform)
 
     dmGui::CalculateNodeTransform(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
 
-    ASSERT_VECTOR4_EQ( Vector4(4, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale );
-    ASSERT_VECTOR4_EQ( Vector4(4, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale );
-    ASSERT_VECTOR4_EQ( Vector4(4, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale );
 
     //
     dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_FIT);
@@ -3209,9 +3206,9 @@ TEST_F(dmGuiTest, CalculateNodeTransform)
 
     dmGui::CalculateNodeTransform(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
 
-    ASSERT_VECTOR4_EQ( Vector4(2, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale );
-    ASSERT_VECTOR4_EQ( Vector4(2, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale );
-    ASSERT_VECTOR4_EQ( Vector4(2, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(2, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(2, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(2, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale );
 
     //
     dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_ZOOM);
@@ -3220,9 +3217,9 @@ TEST_F(dmGuiTest, CalculateNodeTransform)
 
     dmGui::CalculateNodeTransform(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
 
-    ASSERT_VECTOR4_EQ( Vector4(4, 4, 1, 1), nn1->m_Node.m_LocalAdjustScale );
-    ASSERT_VECTOR4_EQ( Vector4(4, 4, 1, 1), nn2->m_Node.m_LocalAdjustScale );
-    ASSERT_VECTOR4_EQ( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 4, 1, 1), nn1->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 4, 1, 1), nn2->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale );
 }
 
 TEST_F(dmGuiTest, CalculateNodeTransformCached)
@@ -3273,9 +3270,9 @@ TEST_F(dmGuiTest, CalculateNodeTransformCached)
 
     dmGui::CalculateNodeTransformAndAlphaCached(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform, opacity);
 
-    ASSERT_VECTOR4_EQ( Vector4(4, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale );
-    ASSERT_VECTOR4_EQ( Vector4(4, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale );
-    ASSERT_VECTOR4_EQ( Vector4(4, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale );
 
     //
     dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_FIT);
@@ -3284,9 +3281,9 @@ TEST_F(dmGuiTest, CalculateNodeTransformCached)
 
     dmGui::CalculateNodeTransformAndAlphaCached(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform, opacity);
 
-    ASSERT_VECTOR4_EQ( Vector4(2, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale );
-    ASSERT_VECTOR4_EQ( Vector4(2, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale );
-    ASSERT_VECTOR4_EQ( Vector4(2, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(2, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(2, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(2, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale );
 
     //
     dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_ZOOM);
@@ -3295,9 +3292,9 @@ TEST_F(dmGuiTest, CalculateNodeTransformCached)
 
     dmGui::CalculateNodeTransformAndAlphaCached(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform, opacity);
 
-    ASSERT_VECTOR4_EQ( Vector4(4, 4, 1, 1), nn1->m_Node.m_LocalAdjustScale );
-    ASSERT_VECTOR4_EQ( Vector4(4, 4, 1, 1), nn2->m_Node.m_LocalAdjustScale );
-    ASSERT_VECTOR4_EQ( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 4, 1, 1), nn1->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 4, 1, 1), nn2->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale );
 }
 
 // Helper LUT to get readable form of adjustment mode.
@@ -3333,10 +3330,10 @@ static Vector4 _GET_NODE_SCENE_POSITION(dmGui::HScene scene, dmGui::HNode node)
         Vector4 expected = _GET_NODE_SCENE_POSITION(m_Scene, node); \
         dmGui::SetNodeParent(m_Scene, node, parent, true); \
         Vector4 actual_parented = _GET_NODE_SCENE_POSITION(m_Scene, node); \
-        ASSERT_VECTOR4_EQ( expected, actual_parented); \
+        ASSERT_EQ( expected, actual_parented); \
         dmGui::SetNodeParent(m_Scene, node, dmGui::INVALID_HANDLE, true); \
         Vector4 actual_unparented = _GET_NODE_SCENE_POSITION(m_Scene, node); \
-        ASSERT_VECTOR4_EQ( expected, actual_unparented); \
+        ASSERT_EQ( expected, actual_unparented); \
     }
 
 // Set adjustment mode for all "box sides" in dmGuiTest::ReparentKeepTrans
