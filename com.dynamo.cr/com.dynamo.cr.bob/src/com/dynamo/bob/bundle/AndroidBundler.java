@@ -63,13 +63,9 @@ public class AndroidBundler implements IBundler {
     @Override
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
 
-        BundleHelper.throwIfCanceled(canceled);
-
         BobProjectProperties projectProperties = project.getProjectProperties();
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         final boolean strip_executable = project.hasOption("strip-executable");
-
-        BundleHelper.throwIfCanceled(canceled);
 
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String exeName = BundleHelper.projectNameToBinaryName(title);
