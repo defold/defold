@@ -154,6 +154,9 @@
     :else
     (pr-str x)))
 
+(defn- blanks [n]
+  (apply str (repeat n \space)))
+
 (defn lua-value->structure-string
   "Returns string representing structure of a lua value. Tries to show contents
   of lua tables as close to lua data literals as possible. When same lua table
@@ -164,26 +167,31 @@
     (instance? LuaStructure x)
     (let [^LuaStructure ls x
           structure-refs (.-refs ls)]
-      (letfn [(structure-value+seen-refs->str+seen-refs [x seen-refs]
+      (letfn [(structure-value->str+seen-refs [indent x seen-refs]
                 (cond
                   (and (instance? LuaRef x) (not (contains? seen-refs x)))
-                  (ref+seen-refs->str+seen-refs x seen-refs)
+                  (ref->str+seen-refs indent x seen-refs)
 
                   (instance? LuaRef x)
                   [(lua-ref->identity-string x structure-refs) seen-refs]
 
                   :else
                   [(lua-value->identity-string x) seen-refs]))
-              (ref+seen-refs->str+seen-refs [ref seen-refs]
+              (ref->str+seen-refs [indent ref seen-refs]
                 (loop [acc-str-entries []
                        acc-seen-refs (conj seen-refs ref)
                        [e & es] (get structure-refs ref)
                        i 1]
                   (if (nil? e)
-                    [(format "{%s}" (string/join ", " acc-str-entries)) acc-seen-refs]
+                    [(str "{ -- " (lua-ref->identity-string ref structure-refs)
+                          (->> acc-str-entries
+                               (map #(str \newline (blanks (+ indent 2)) %))
+                               (string/join \,))
+                          \newline (blanks indent) \})
+                     acc-seen-refs]
                     (let [[k v] e
-                          [k-str k-seen-refs] (structure-value+seen-refs->str+seen-refs k acc-seen-refs)
-                          [v-str v-seen-refs] (structure-value+seen-refs->str+seen-refs v k-seen-refs)]
+                          [k-str k-seen-refs] (structure-value->str+seen-refs (+ indent 2) k acc-seen-refs)
+                          [v-str v-seen-refs] (structure-value->str+seen-refs (+ indent 2) v k-seen-refs)]
                       (recur (conj acc-str-entries
                                    (cond
                                      (= k i)
@@ -198,7 +206,7 @@
                              v-seen-refs
                              es
                              (inc i))))))]
-        (first (ref+seen-refs->str+seen-refs (.-value ls) #{}))))
+        (first (ref->str+seen-refs 0 (.-value ls) #{}))))
 
     :else
     (lua-value->identity-string x)))

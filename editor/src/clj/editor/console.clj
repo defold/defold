@@ -217,6 +217,7 @@
 ;; -----------------------------------------------------------------------------
 
 (g/defnode ConsoleNode
+  (property indent-type r/IndentType (default :two-spaces))
   (property cursor-ranges r/CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows r/InvalidatedRows (default []) (dynamic visible (g/constantly false)))
   (property modified-lines r/Lines (default [""]) (dynamic visible (g/constantly false)))
@@ -304,6 +305,7 @@
   (g/transact
     (concat
       (g/connect console-node :_node-id view-node :resource-node)
+      (g/connect console-node :indent-type view-node :indent-type)
       (g/connect console-node :cursor-ranges view-node :cursor-ranges)
       (g/connect console-node :invalidated-rows view-node :invalidated-rows)
       (g/connect console-node :lines view-node :lines)
