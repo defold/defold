@@ -168,10 +168,11 @@
                                 :source-paths ["sidecar"]}
                       :release {:jvm-opts          ["-Ddefold.build=release"]}
                       :dev     {:plugins           [[jonase/eastwood "0.3.5" :exclusions [org.clojure/clojure]]]
-                                :dependencies      [[org.clojure/test.check   "0.9.0"]
-                                                    [org.clojure/tools.trace  "0.7.9"]
-                                                    [clj-async-profiler-mg "0.4.0"]
+                                :dependencies      [[clj-async-profiler-mg "0.4.0"]
+                                                    [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
                                                     [criterium "0.4.3"]
+                                                    [org.clojure/test.check   "0.9.0"]
+                                                    [org.clojure/tools.trace  "0.7.9"]
                                                     [org.mockito/mockito-core "1.10.19"]
                                                     [ring "1.4.0"]]
                                 :repl-options      {:init-ns user}
