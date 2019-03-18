@@ -2898,7 +2898,9 @@ namespace dmGraphics
     void Flip(HContext context)
     {
         Vulkan::EndFrame();
+    #if (defined(__arm__) || defined(__arm64__))
         glfwSwapBuffers();
+    #endif
     }
 
     void SetSwapInterval(HContext /*context*/, uint32_t /*swap_interval*/)
