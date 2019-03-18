@@ -240,7 +240,11 @@
             <HBox id="progress-hbox" visible="false">
               <Label id="progress-percentage-label"/>
               <ProgressBar id="progress-bar" styleClass="really-small-progress-bar"/>
-              <Button id="progress-cancel-button" mnemonicParsing="false" styleClass="button-small" text="&#x2716;" visible="false"/>
+              <Button id="progress-cancel-button" mnemonicParsing="false" visible="false">
+                <graphic>
+                  <Region id="cross"/>
+                </graphic>
+              </Button>
             </HBox>
           </StackPane>
         </children>
