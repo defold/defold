@@ -5,7 +5,7 @@
 
 <AnchorPane id="gl-view-anchor-pane" xmlns="http://javafx.com/javafx/8">
     <children>
-        <Label id="scene-view-info-label" AnchorPane.topAnchor="15" AnchorPane.leftAnchor="30" />
+        <Label id="scene-view-info-label" mouseTransparent="true" AnchorPane.topAnchor="15" AnchorPane.leftAnchor="30" />
         <HBox id="toolbar" AnchorPane.topAnchor="15" AnchorPane.rightAnchor="15" />
     </children>
 </AnchorPane>
