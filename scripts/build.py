@@ -16,17 +16,17 @@ from ConfigParser import ConfigParser
     Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.6.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
-PACKAGES_HOST="protobuf-2.3.0 gtest-1.8.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.6.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
+PACKAGES_HOST="protobuf-2.3.0 gtest-1.8.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.0.5 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
-PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_DARWIN="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 vpx-1.7.0 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0".split()
-PACKAGES_WIN32="facebook-gameroom-2017-08-14 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77".split()
-PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
-PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
-PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.0.5 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_DARWIN="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-1.7.0 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0".split()
+PACKAGES_WIN32="facebook-gameroom-2017-08-14 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 bullet-2.77".split()
+PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
+PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
+PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0 bullet-2.77".split()
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
@@ -893,15 +893,13 @@ class Configuration(object):
             txts = missing.setdefault(plf, txts)
             txts = txts.append(txt)
         for plf in [['x86_64-win32', 'x86_64-win32'], ['x86_64-linux', 'x86_64-linux'], ['x86_64-darwin', 'x86_64-darwin']]:
-            luajit_path = join(cwd, '../../packages/luajit-2.1.0-beta3-%s.tar.gz' % (plf[0]))
+            luajit_path = join(cwd, '../../packages/luajit-2.0.5-%s.tar.gz' % (plf[0]))
             if not os.path.exists(luajit_path):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
             else:
                 self._extract(luajit_path, luajit_dir)
-                luajit_exe = format_exes('luajit-32', plf[1])[0]
-                luajit_exe_64 = format_exes('luajit-64', plf[1])[0]
+                luajit_exe = format_exes('luajit', plf[1])[0]
                 self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe)))
-                self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe_64)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe_64)))
         win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal', 'PVRTexLib', 'msvcr120'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
         osx_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['x86_64-darwin', 'x86_64-darwin']]])
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['x86_64-linux', 'x86_64-linux']]])
