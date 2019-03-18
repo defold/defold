@@ -332,10 +332,9 @@
 
 (g/defnk produce-scene
   [_node-id child-scenes]
-  (let [aabb (reduce geom/aabb-union (geom/null-aabb) (keep :aabb child-scenes))]
-    {:node-id  _node-id
-     :aabb     aabb
-     :children child-scenes}))
+  {:node-id  _node-id
+   :aabb     (reduce geom/aabb-union (geom/null-aabb) (keep :aabb child-scenes))
+   :children child-scenes})
 
 (g/defnk produce-node-outline
   [_node-id child-outlines]
