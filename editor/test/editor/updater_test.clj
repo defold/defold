@@ -71,7 +71,8 @@
     sha1
     (Platform/getHostPlatform)
     (io/file ".")
-    (io/file "no-launcher")))
+    (io/file "no-launcher")
+    []))
 
 (deftest no-update-on-client-when-no-update-on-server
   (with-server "test" "1"
@@ -116,7 +117,8 @@
                     "1"
                     Platform/JsWeb
                     (io/file ".")
-                    (io/file "no-launcher"))]
+                    (io/file "no-launcher")
+                    [])]
       (#'updater/check! updater)
       (is (true? (updater/can-download-update? updater)))
       (is (false? @(updater/download-and-extract! updater))))))
