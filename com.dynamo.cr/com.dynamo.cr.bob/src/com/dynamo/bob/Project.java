@@ -1118,17 +1118,15 @@ run:
                         boolean serverSha1Match = false;
                         if(code == 200) {
                             // GitHub uses eTags and we can check we have the up to date version by comparing SHA1 and server eTag if we get a 200 OK response
-                            if(sha1 != null)
-                                {
-                                    String serverETag = connection.getHeaderField("ETag");
-                                    if(serverETag != null)
-                                        {
-                                            if(sha1.equals(serverETag.replace("\"", ""))) {
-                                                // Reusing cached library
-                                                serverSha1Match = true;
-                                            }
-                                        }
+                            if (sha1 != null) {
+                                String serverETag = connection.getHeaderField("ETag");
+                                if (serverETag != null) {
+                                    if (sha1.equals(serverETag.replace("\"", ""))) {
+                                        // Reusing cached library
+                                        serverSha1Match = true;
+                                    }
                                 }
+                            }
                         }
                         if(!serverSha1Match) {
                             input = new BufferedInputStream(connection.getInputStream());

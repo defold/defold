@@ -394,9 +394,9 @@
    :download-update (ref progress/done)})
 
 (defn- cancel-task!
-  [keyword]
+  [task-key]
   (dosync
-    (let [progress-ref (keyword app-task-progress)]
+    (let [progress-ref (task-key app-task-progress)]
       (ref-set progress-ref (progress/cancel! @progress-ref)))))
 
 (def ^:private app-task-ui-priority
@@ -433,14 +433,14 @@
             (ui/render-progress-bar! progress progress-bar)
             (ui/render-progress-percentage! progress progress-percentage-label)
             (if (progress/cancellable? progress)
-              (do
-                (ui/visible! progress-cancel-button true)
-                (ui/managed! progress-cancel-button true)
-                (ui/on-action! progress-cancel-button (fn [_] (cancel-task! key))))
-              (do
-                (ui/visible! progress-cancel-button false)
-                (ui/managed! progress-cancel-button false)
-                (ui/on-action! progress-cancel-button identity)))))))))
+              (doto progress-cancel-button
+                (ui/visible! true)
+                (ui/managed! true)
+                (ui/on-action! (fn [_] (cancel-task! key))))
+              (doto progress-cancel-button
+                (ui/visible! false)
+                (ui/managed! false)
+                (ui/on-action! identity)))))))))
 
 (defn- render-task-progress! [key progress]
   (let [schedule-render-task-progress-ui (ref false)]
