@@ -620,15 +620,27 @@
                                                                                     (let [pfx-id (core/scope-of-type self-id ParticleFXNode)]
                                                                                       (attach-modifier pfx-id self-id child-id true)))}]}))
   (output aabb AABB (g/fnk [type emitter-key-size-x emitter-key-size-y emitter-key-size-z]
-                           (let [[x y z] (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z])
-                                 [w h d] (case type
-                                           :emitter-type-circle [x x x]
-                                           :emitter-type-box [x y z]
-                                           :emitter-type-sphere [x x x]
-                                           :emitter-type-cone [x y x]
-                                           :emitter-type-2dcone [x y x])]
-                             (geom/coords->aabb [(- w) (- h) (- d)]
-                                                [w h d]))))
+                           (let [[x y z] (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z])]
+                             (case type
+                               :emitter-type-circle
+                               (geom/coords->aabb [(- (/ x 2.0)) (- (/ x 2.0)) 0.0]
+                                                  [   (/ x 2.0)     (/ x 2.0)  0.0])
+
+                               :emitter-type-box
+                               (geom/coords->aabb [(- (/ x 2.0)) (- (/ y 2.0)) 0.0]
+                                                  [   (/ x 2.0)     (/ y 2.0)  0.0])
+
+                               :emitter-type-2dcone
+                               (geom/coords->aabb [(- (/ x 2.0)) 0.0 0.0]
+                                                  [   (/ x 2.0)    y 0.0])
+
+                               :emitter-type-cone
+                               (geom/coords->aabb [(- (/ x 2.0)) 0.0 0.0]
+                                                  [   (/ x 2.0)    y 0.0])
+
+                               :emitter-type-sphere
+                               (geom/coords->aabb [(- (/ x 2.0)) (- (/ x 2.0)) 0.0]
+                                                  [   (/ x 2.0)     (/ x 2.0)  0.0])))))
   (output emitter-sim-data g/Any :cached
           (g/fnk [animation texture-set gpu-texture material-shader]
             (when (and animation texture-set gpu-texture)
