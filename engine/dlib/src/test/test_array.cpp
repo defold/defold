@@ -1,6 +1,7 @@
 #include "dlib/array.h"
 
 #include <stdint.h>
+#include <stdlib.h> // rand
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
