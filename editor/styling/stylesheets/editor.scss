@@ -127,18 +127,37 @@ Links:
 
 #status-pane #progress-hbox #progress-cancel-button {
     -fx-background-color: $mid-grey;
-    -fx-text-fill: $bright-grey;
-    -fx-background-radius: 50%;
+    -cross-color: $bright-grey;
+    -fx-background-radius: 5em;
     -fx-border-width: 0;
     -fx-padding: 0;
-    -fx-min-width: 16;
-    -fx-min-height: 16;
+    -fx-min-width: 16px;
+    -fx-min-height: 16px;
+    -fx-content-display: center;
     &:hover {
         -fx-background-color: $mid-grey-light;
     }
     &:armed {
         -fx-background-color: $input-background;
-        -fx-text-fill: $defold-white;
+        -cross-color: $defold-white;
     }
 }
 
+#status-pane #progress-hbox #progress-cancel-button #cross {
+    -fx-background-color: -cross-color;
+    -fx-max-width: 9px;
+    -fx-max-height: 9px;
+    -fx-shape: "M 2 0
+                L  5  3
+                L  8  0
+                L 10  2
+                L  7  5
+                L 10  8
+                L  8 10
+                L  5  7
+                L  2 10
+                L  0  8
+                L  3  5
+                L  0  2
+                Z";
+}
