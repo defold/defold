@@ -198,6 +198,10 @@ namespace dmPhysics
     {
     }
 
+    void RayCast2D(HWorld2D world, const RayCastRequest& request, RayCastResponse& response)
+    {
+    }
+
     void SetDebugCallbacks2D(HContext2D context, const DebugCallbacks& callbacks)
     {
     }
