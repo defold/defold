@@ -128,11 +128,13 @@ Links:
 #status-pane #progress-hbox #progress-cancel-button {
     -fx-background-color: $mid-grey;
     -cross-color: $bright-grey;
-    -fx-background-radius: 5em;
+    -fx-background-radius: 50%;
     -fx-border-width: 0;
     -fx-padding: 0;
     -fx-min-width: 16px;
     -fx-min-height: 16px;
+    -fx-max-width: 16px;
+    -fx-max-height: 16px;
     -fx-content-display: center;
     &:hover {
         -fx-background-color: $mid-grey-light;
@@ -145,8 +147,8 @@ Links:
 
 #status-pane #progress-hbox #progress-cancel-button #cross {
     -fx-background-color: -cross-color;
-    -fx-max-width: 9px;
-    -fx-max-height: 9px;
+    -fx-max-width: 10px;
+    -fx-max-height: 10px;
     -fx-shape: "M 2 0
                 L  5  3
                 L  8  0
