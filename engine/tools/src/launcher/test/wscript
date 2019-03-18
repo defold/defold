@@ -3,11 +3,11 @@ import os
 
 def build(bld):
     test = bld.new_task_gen(features='cxx cprogram test',
-                            uselib='GTEST DLIB',
+                            uselib='DLIB',
                             uselib_local='launcherutil',
                             includes = ['.'],
                             target='test_launcher',
                             source='test_launcher.cpp')
 
     test.install_path = None
-    
+

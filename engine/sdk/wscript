@@ -18,7 +18,6 @@ def set_options(opt):
 
 def configure(conf):
     conf.check_tool('waf_dynamo')
-    conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_EXTENSION'] = 'extension'
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="SDK"')

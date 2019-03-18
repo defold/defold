@@ -22,7 +22,6 @@ def configure(conf):
 
     conf.env.append_value('CPPPATH', "default/src")
 
-    conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_BOLTS'] = 'bolts'
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'

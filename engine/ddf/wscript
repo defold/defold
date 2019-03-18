@@ -41,7 +41,6 @@ def configure(conf):
 
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_PROTOBUF'] = 'protobuf'
-    conf.env['LIB_GTEST'] = 'gtest'
     if conf.env.PLATFORM == 'linux':
         conf.env['LIB_PTHREAD'] = 'pthread'
 

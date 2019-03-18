@@ -21,7 +21,6 @@ def configure(conf):
 
     conf.env.append_value('CPPPATH', "default/src")
     conf.env.append_value('CPPPATH', "../src")
-    conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = 'dlib'
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="EXTENSION"')

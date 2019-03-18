@@ -39,7 +39,6 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib'])
 
     conf.env.append_value('CPPPATH', "default/src")
-    conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = ['dlib', 'axtls']
     conf.env['STATICLIB_DDF'] = 'ddf'
     conf.env['STATICLIB_RESOURCE'] = 'resource'

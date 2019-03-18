@@ -20,7 +20,6 @@ def configure(conf):
     conf.sub_config('src')
 
     conf.env.append_value('CPPPATH', "default/src")
-    conf.env['LIB_GTEST'] = 'gtest'
     conf.env['LIB_PVRTEXLIB'] = 'PVRTexLib'
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_DLIB_NOASAN'] = 'dlib_noasan'
