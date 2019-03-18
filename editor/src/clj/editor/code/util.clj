@@ -105,7 +105,7 @@
   ;; loading projects so it needs to be fast. String.split with regex is very
   ;; slow in comparison. I read that modern jvms are good at optimizing out the
   ;; .charAt call so this *should* be like a loop over a char array...
-  (let [arr (ArrayList. 1000)
+  (let [arr (ArrayList. 8192)
         len (.length text)
         sb (StringBuilder.)]
     (loop [i 0

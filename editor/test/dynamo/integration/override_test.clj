@@ -938,7 +938,7 @@
 
 (defn- all-system-nodes []
   (into []
-        (mapcat #(keys (:nodes (deref (second %)))))
+        (mapcat #(keys (:nodes (second %))))
         (:graphs @g/*the-system*)))
 
 (deftest symmetric-input-output-arcs

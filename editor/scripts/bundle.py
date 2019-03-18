@@ -17,6 +17,7 @@ import imp
 # If you update java version, don't forget to update it here too:
 # - /editor/bundle-resources/config at "launcher.jdk" key
 # - /scripts/build.py smoke_test, `java` variable
+# - /editor/src/clj/editor/updater.clj, `protected-dirs` let binding
 java_version = '11.0.1'
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
@@ -358,6 +359,10 @@ if __name__ == '__main__':
         init_command += [options.engine_sha1]
 
     exec_command(init_command)
+
+    build_ns_batches_command = ['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+release', 'build-ns-batches']
+    exec_command(build_ns_batches_command)
+
     check_reflections(java_cmd_env)
 
     if options.skip_tests:
