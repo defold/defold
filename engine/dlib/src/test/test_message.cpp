@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <vector>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>

@@ -5,7 +5,10 @@ from waf_dynamo import new_copy_task
 new_copy_task('luascript', '.lua', '.luac')
 
 def build(bld):
-    libs = 'SCRIPT EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT'
+    libs = 'SCRIPT EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT'.split()
+    if 'android' in bld.env['PLATFORM']:
+        libs.append('UNWIND')
+
     test_crash = bld.new_task_gen(features = 'cxx cprogram test',
                                      includes = '..',
                                      uselib = libs,
