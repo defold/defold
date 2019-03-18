@@ -136,11 +136,12 @@
                           error-string)]
     (str "ERROR:EVAL: " displayed-error)))
 
-(defn- eval-result->string [result]
+(defn- eval-result->lines [result]
   (->> result
        vals
        (map mobdebug/lua-value->structure-string)
-       (string/join ", ")))
+       (string/join "\n")
+       string/split-lines))
 
 (defn- on-eval-input
   [debug-view ^ActionEvent event]
@@ -151,20 +152,20 @@
       (.clear input)
       (assert (= :suspended (mobdebug/state debug-session)))
       (console/append-console-entry! :eval-expression code)
-      (let [ret (mobdebug/eval debug-session code frame)
-            [type line] (cond
-                          (= :bad-request (:error ret))
-                          [:eval-error "Bad request"]
+      (let [ret (mobdebug/eval debug-session code frame)]
+        (cond
+          (= :bad-request (:error ret))
+          (console/append-console-entry! :eval-error "Bad request")
 
-                          (string? (:error ret))
-                          [:eval-error (sanitize-eval-error (:error ret))]
+          (string? (:error ret))
+          (console/append-console-entry! :eval-error (sanitize-eval-error (:error ret)))
 
-                          (:result ret)
-                          [:eval-result (eval-result->string (:result ret))]
+          (:result ret)
+          (doseq [line (eval-result->lines (:result ret))]
+            (console/append-console-entry! :eval-result line))
 
-                          :else
-                          [:eval-error (str ret)])]
-        (console/append-console-entry! type line)))))
+          :else
+          (console/append-console-entry! :eval-error (str ret)))))))
 
 (defn- setup-tool-bar!
   [^Parent console-tool-bar]
