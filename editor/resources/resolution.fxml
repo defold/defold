@@ -4,18 +4,18 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<VBox id="resolution-dialog" prefWidth="300.0" spacing="12.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+<VBox id="resolution-dialog" prefWidth="300.0" spacing="12.0" stylesheets="@editor.css" styleClass="resolution-dialog" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
   <children>
-    <HBox spacing="10.0">
+    <HBox HBox.hgrow="ALWAYS">
         <children>
-            <Label prefWidth="100.0" text="Width:" wrapText="false" alignment="CENTER_RIGHT"/>
-            <TextField id="resolution-width" HBox.hgrow="ALWAYS">320</TextField>
+            <Label prefWidth="100.0" text="Width" wrapText="false" alignment="CENTER_RIGHT" styleClass="field-label"/>
+            <TextField id="resolution-width" maxWidth="Infinity" HBox.hgrow="ALWAYS">320</TextField>
         </children>
     </HBox>
-    <HBox spacing="10.0">
+    <HBox HBox.hgrow="ALWAYS">
         <children>
-            <Label prefWidth="100.0" text="Height:" wrapText="false" alignment="CENTER_RIGHT"/>
-            <TextField id="resolution-height" HBox.hgrow="ALWAYS">460</TextField>
+            <Label prefWidth="100.0" text="Height" wrapText="false" alignment="CENTER_RIGHT" styleClass="field-label"/>
+            <TextField id="resolution-height" maxWidth="Infinity" HBox.hgrow="ALWAYS">460</TextField>
         </children>
     </HBox>
     <HBox spacing="10.0" alignment="CENTER_RIGHT">

@@ -171,16 +171,28 @@
         width    (atom 320)
         height   (atom 420)]
     (ui/with-controls root [^TextField resolution-width ^TextField resolution-height ^Button ok ^Button cancel]
+      (let [validate-size-element (fn [^TextField element]
+                                    (let [value (field-expression/to-int (.getText element))
+                                          valid? (and (some? value) (> value 0))]
+                                      (if valid?
+                                        (ui/remove-style! element "error")
+                                        (ui/add-style! element "error"))
+                                      valid?))
+            do-validation (fn []
+                            (let [width-valid (validate-size-element resolution-width)
+                                  height-valid (validate-size-element resolution-height)
+                                  valid? (and width-valid height-valid)]
+                              (ui/enable! ok valid?)
+                              valid?))]
+        (ui/on-edit! resolution-width (fn [_old _new] (do-validation)))
+        (ui/on-edit! resolution-height (fn [_old _new] (do-validation))))
       (ui/on-action! ok (fn [_]
-                          (if-let [w (field-expression/to-int (.getText resolution-width))]
-                            (if-let [h (field-expression/to-int (.getText resolution-height))]
-                              (do
-                                (reset! width w)
-                                (reset! height h)
-                                (reset! result true)
-                                (.close stage))
-                              nil)
-                            nil)))
+                          (let [w (field-expression/to-int (.getText resolution-width))
+                                h (field-expression/to-int (.getText resolution-height))]
+                            (reset! width w)
+                            (reset! height h)
+                            (reset! result true)
+                            (.close stage))))
       (ui/on-action! cancel (fn [_]
                               (.close stage))))
     (ui/title! stage "Custom resolution")
