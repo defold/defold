@@ -12,7 +12,7 @@
                      [org.clojure/core.cache                      "0.6.5"]
                      [org.clojure/tools.cli                       "0.3.5"]
                      [org.clojure/tools.macro                     "0.1.5"]
-                     [org.clojure/tools.namespace                 "0.2.10"]
+                     [org.clojure/tools.namespace                 "0.2.11"]
                      [org.clojure/data.int-map                    "0.2.4"]
                      [org.clojure/data.json                       "0.2.6"]
                      [com.cognitect/transit-clj                   "0.8.285"
@@ -168,10 +168,11 @@
                                 :source-paths ["sidecar"]}
                       :release {:jvm-opts          ["-Ddefold.build=release"]}
                       :dev     {:plugins           [[jonase/eastwood "0.3.5" :exclusions [org.clojure/clojure]]]
-                                :dependencies      [[org.clojure/test.check   "0.9.0"]
-                                                    [org.clojure/tools.trace  "0.7.9"]
-                                                    [clj-async-profiler-mg "0.4.0"]
+                                :dependencies      [[clj-async-profiler-mg "0.4.0"]
+                                                    [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
                                                     [criterium "0.4.3"]
+                                                    [org.clojure/test.check   "0.9.0"]
+                                                    [org.clojure/tools.trace  "0.7.9"]
                                                     [org.mockito/mockito-core "1.10.19"]
                                                     [ring "1.4.0"]]
                                 :repl-options      {:init-ns user}

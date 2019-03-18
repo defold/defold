@@ -117,10 +117,10 @@
   (with-clean-system
     (let [[original override] (tx-nodes (g/make-nodes world [n (TestNode :val "original")]
                                                       (g/override n)))
-          basis (is/basis system)]
+          basis (g/now)]
       (is (= override (first (ig/get-overrides basis original))))
       (g/transact (g/delete-node original))
-      (let [basis (is/basis system)]
+      (let [basis (g/now)]
         (is (empty? (ig/get-overrides basis original)))
         (is (empty? (get-in basis [:graphs world :overrides])))))))
 

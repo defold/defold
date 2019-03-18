@@ -217,6 +217,7 @@
 ;; -----------------------------------------------------------------------------
 
 (g/defnode ConsoleNode
+  (property indent-type r/IndentType (default :two-spaces))
   (property cursor-ranges r/CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows r/InvalidatedRows (default []) (dynamic visible (g/constantly false)))
   (property modified-lines r/Lines (default [""]) (dynamic visible (g/constantly false)))
@@ -238,6 +239,7 @@
         gutter-background-color (view/color-lookup color-scheme "editor.gutter.background")
         gutter-shadow-color (view/color-lookup color-scheme "editor.gutter.shadow")
         gutter-eval-expression-color (view/color-lookup color-scheme "editor.gutter.eval.expression")
+        gutter-eval-error-color (view/color-lookup color-scheme "editor.gutter.eval.error")
         gutter-eval-result-color (view/color-lookup color-scheme "editor.gutter.eval.result")]
 
     ;; Draw gutter background and shadow when scrolled horizontally.
@@ -282,6 +284,12 @@
             (.setFont gc font)
             (.setFill gc gutter-eval-result-color)
             (.fillText gc "=" text-right text-y))
+
+          :eval-error
+          (let [text-y (+ ascent line-y)]
+            (.setFont gc font)
+            (.setFill gc gutter-eval-error-color)
+            (.fillText gc "!" text-right text-y))
           nil)))))
 
 (deftype ConsoleGutterView []
@@ -297,6 +305,7 @@
   (g/transact
     (concat
       (g/connect console-node :_node-id view-node :resource-node)
+      (g/connect console-node :indent-type view-node :indent-type)
       (g/connect console-node :cursor-ranges view-node :cursor-ranges)
       (g/connect console-node :invalidated-rows view-node :invalidated-rows)
       (g/connect console-node :lines view-node :lines)
@@ -431,6 +440,7 @@
        ["editor.background" background-color]
        ["editor.cursor" Color/TRANSPARENT]
        ["editor.gutter.eval.expression" (Color/valueOf "#DDDDDD")]
+       ["editor.gutter.eval.error" (Color/valueOf "#FF6161")]
        ["editor.gutter.eval.result" (Color/valueOf "#52575C")]
        ["editor.selection.background" selection-background-color]
        ["editor.selection.background.inactive" (.interpolate selection-background-color background-color 0.25)]
