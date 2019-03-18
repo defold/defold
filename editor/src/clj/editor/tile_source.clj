@@ -5,6 +5,7 @@
    [editor.app-view :as app-view]
    [editor.camera :as camera]
    [editor.collision-groups :as collision-groups]
+   [editor.colors :as colors]
    [editor.graph-util :as gu]
    [editor.image :as image]
    [editor.image-util :as image-util]
@@ -211,7 +212,7 @@
             (let [user-data (:user-data renderable)
                   {:keys [start-tile tile-source-attributes]} user-data
                   [[x0 y0] [x1 y1]] (tile-coords (+ (dec start-tile) frame) tile-source-attributes [sx sy])
-                  [cr cg cb ca] scene/selected-outline-color]
+                  [cr cg cb ca] colors/selected-outline-color]
               (.glColor4d gl cr cg cb ca)
               (.glBegin gl GL2/GL_LINE_LOOP)
               (.glVertex3d gl x0 y0 0)
@@ -230,14 +231,14 @@
 (g/defnk produce-animation-scene
   [_node-id gpu-texture updatable id anim-data tile-source-attributes start-tile]
   {:node-id    _node-id
-   :aabb       (geom/null-aabb)
+   :aabb       geom/null-aabb
    :renderable {:render-fn render-animation
                 :batch-key nil
                 :user-data {:gpu-texture gpu-texture
                             :tile-source-attributes tile-source-attributes
                             :anim-data   (get anim-data id)
                             :start-tile  start-tile}
-                :passes    [pass/outline pass/overlay]}
+                :passes    [pass/outline pass/overlay pass/selection]}
    :updatable  updatable})
 
 (g/defnode TileAnimationNode
@@ -321,7 +322,7 @@
   (if tile-source-attributes
     (let [{:keys [visual-width visual-height]} tile-source-attributes]
       (types/->AABB (Point3d. 0 0 0) (Point3d. visual-width visual-height 0)))
-    (geom/null-aabb)))
+    geom/null-aabb))
 
 (defn gen-tiles-vbuf
   [tile-source-attributes uv-transforms scale]

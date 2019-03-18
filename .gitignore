@@ -21,3 +21,10 @@ scripts/android-v4/.gradle/
 scripts/android-v4/.project
 scripts/android-v4/.settings/
 scripts/android-v4/build/
+
+# eastwood
+editor/.eastwood
+editor/eastwood-warnings.txt
+
+# This file is generated when starting editor in dev mode and when bundling
+editor/resources/sorted_clojure_ns_list.edn

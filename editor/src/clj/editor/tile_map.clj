@@ -221,9 +221,8 @@
                  (max-l max-x x1)
                  (max-l max-y y1)))
         {:vbuf (vtx/flip! vbuf)
-         :aabb (-> (geom/null-aabb)
-                   (geom/aabb-incorporate min-x min-y 0)
-                   (geom/aabb-incorporate max-x max-y 0))}))))
+         :aabb (geom/coords->aabb [min-x min-y 0]
+                                  [max-x max-y 0])}))))
 
 (g/defnk produce-layer-scene
   [_node-id id cell-map texture-set-data z gpu-texture shader blend-mode visible]
@@ -328,11 +327,11 @@
       (for [tile-layer (:layers tile-grid)]
         (make-layer-node self tile-layer)))))
 
-
 (g/defnk produce-scene
   [_node-id child-scenes]
   {:node-id  _node-id
-   :aabb     (reduce geom/aabb-union (geom/null-aabb) (keep :aabb child-scenes))
+   :aabb geom/null-aabb
+   :renderable {:passes [pass/selection]}
    :children child-scenes})
 
 (g/defnk produce-node-outline

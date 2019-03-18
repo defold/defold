@@ -82,7 +82,7 @@
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
-                            com.dynamo.engine.proto.Engine$Reboot
+                            com.dynamo.system.proto.System$Reboot
                             (zipmap (map #(keyword (str "arg" (inc %))) (range)) args))))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))
