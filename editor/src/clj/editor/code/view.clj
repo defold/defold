@@ -88,11 +88,31 @@
                                    [(mime-type->DataFormat mime-type) representation]))
                             representation-by-mime-type))))
 
-(defrecord GlyphMetrics [^FontStrike font-strike ^double line-height ^double ascent]
+(def ^:private ^:const min-cached-char-width
+  (double (inc Byte/MIN_VALUE)))
+
+(def ^:private ^:const max-cached-char-width
+  (double Byte/MAX_VALUE))
+
+(defn- make-char-width-cache [^FontStrike font-strike]
+  (let [cache (byte-array (inc (int Character/MAX_VALUE)) Byte/MIN_VALUE)]
+    (fn get-char-width [^Character character]
+      (let [ch (unchecked-char character)
+            i (unchecked-int ch)
+            cached-width (aget cache i)]
+        (if (= cached-width Byte/MIN_VALUE)
+          (let [width (Math/floor (.getCharAdvance font-strike ch))]
+            (when (and (<= min-cached-char-width width)
+                       (<= width max-cached-char-width))
+              (aset cache i (byte width)))
+            width)
+          cached-width)))))
+
+(defrecord GlyphMetrics [char-width-cache ^double line-height ^double ascent]
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
-  (char-width [_this character] (Math/floor (.getCharAdvance font-strike character))))
+  (char-width [_this character] (char-width-cache character)))
 
 (defn make-glyph-metrics
   ^GlyphMetrics [^Font font ^double line-height-factor]
@@ -103,7 +123,7 @@
                                 FontResource/AA_GREYSCALE)
         line-height (Math/ceil (* (inc (.getLineHeight font-metrics)) line-height-factor))
         ascent (Math/ceil (* (.getAscent font-metrics) line-height-factor))]
-    (->GlyphMetrics font-strike line-height ascent)))
+    (->GlyphMetrics (make-char-width-cache font-strike) line-height ascent)))
 
 (def ^:private default-editor-color-scheme
   (let [^Color foreground-color (Color/valueOf "#DDDDDD")
