@@ -121,7 +121,7 @@
       (is (= [:create-node :create-node :create-node :create-node
               :connect     :connect     :connect     :connect]  (map :type paste-tx-data)))
       (is (= 4 (count new-nodes-added)))
-      (is (= (g/node-value new-root :produces-value) "A string A string")))))
+      (is (= (g/node-value (g/node-id new-root) :produces-value) "A string A string")))))
 
 (deftest short-circuit
   (ts/with-clean-system
@@ -234,7 +234,7 @@
       (is (= 3 (count (:nodes paste-data))))
       (is (= [:create-node :create-node :connect :connect]  (map :type paste-tx-data)))
       (is (g/connected? (g/now) original-stopper :produces-value new-leaf :consumes-value))
-      (is (= "the one and only" (g/node-value new-root :produces-value))))))
+      (is (= "the one and only" (g/node-value (g/node-id new-root) :produces-value))))))
 
 (defrecord StructuredValue [a b c])
 

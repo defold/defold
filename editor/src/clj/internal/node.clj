@@ -77,7 +77,7 @@
 (def ^:private internal-keys #{:_node-id :_declared-properties :_properties :_output-jammers})
 
 (defn- filterm [pred m]
-  (into {} (filter pred m)))
+  (into {} (filter pred) m))
 
 (defprotocol NodeType)
 
@@ -350,10 +350,6 @@
   [node-type]
   (util/key-set (:property node-type)))
 
-(defn- node-value*
-  [node label evaluation-context]
-  (and node (gt/produce-value node label evaluation-context)))
-
 (defn- validate-evaluation-context-options [options]
   ;; :dry-run means no production functions will be called, useful speedup when tracing dependencies
   ;; :no-local-temp disables the non deterministic local caching of non :cached outputs, useful for stable results when debugging dependencies
@@ -408,23 +404,19 @@
   gathering inputs to call a production function, invoke the function,
   return the result, meanwhile collecting stats on cache hits and
   misses (for later cache update) in the evaluation-context."
-  [node-or-node-id label evaluation-context]
+  [node-id label evaluation-context]
   (validate-evaluation-context evaluation-context)
-  (let [basis (:basis evaluation-context)
-        node (if (gt/node-id? node-or-node-id) (gt/node-by-id-at basis node-or-node-id) node-or-node-id)]
-    (node-value* node label (apply-dry-run-cache evaluation-context))))
+  (when (some? node-id)
+    (let [basis (:basis evaluation-context)
+          node (gt/node-by-id-at basis node-id)]
+      (gt/produce-value node label (apply-dry-run-cache evaluation-context)))))
 
-(defn- node-property-value* [node label evaluation-context]
+(defn node-property-value* [node label evaluation-context]
+  (validate-evaluation-context evaluation-context)
   (let [basis (:basis evaluation-context)
         node-type (gt/node-type node basis)]
     (when-let [behavior (property-behavior node-type label)]
       ((:fn behavior) node evaluation-context))))
-
-(defn node-property-value [node-or-node-id label evaluation-context]
-  (validate-evaluation-context evaluation-context)
-  (let [basis (:basis evaluation-context)
-        node (if (gt/node-id? node-or-node-id) (gt/node-by-id-at basis node-or-node-id) node-or-node-id)]
-    (node-property-value* node label evaluation-context)))
 
 (def ^:dynamic *suppress-schema-warnings* false)
 
@@ -1525,7 +1517,8 @@
         true
         (if (contains? (all-properties type) output)
           (get properties output)
-          (node-value* (gt/node-by-id-at basis original-id) output evaluation-context)))))
+          (when-some [node (gt/node-by-id-at basis original-id)]
+            (gt/produce-value node output evaluation-context))))))
 
   gt/OverrideNode
   (clear-property [this basis property] (update this :properties dissoc property))
