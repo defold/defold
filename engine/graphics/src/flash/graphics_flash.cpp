@@ -1,6 +1,6 @@
 #include <string.h>
 #include <assert.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/log.h>
 

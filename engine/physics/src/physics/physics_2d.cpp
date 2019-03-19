@@ -928,6 +928,32 @@ namespace dmPhysics
         }
     }
 
+    void RayCast2D(HWorld2D world, const RayCastRequest& request, RayCastResponse& response)
+    {
+        DM_PROFILE(Physics, "RayCasts");
+
+        const Vectormath::Aos::Point3 from2d = Vectormath::Aos::Point3(request.m_From.getX(), request.m_From.getY(), 0.0);
+        const Vectormath::Aos::Point3 to2d = Vectormath::Aos::Point3(request.m_To.getX(), request.m_To.getY(), 0.0);
+        if (Vectormath::Aos::lengthSqr(to2d - from2d) <= 0.0f)
+        {
+            dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
+            return;
+        }
+
+        float scale = world->m_Context->m_Scale;
+        ProcessRayCastResultCallback2D callback;
+        callback.m_Context = world->m_Context;
+        b2Vec2 from;
+        ToB2(request.m_From, from, scale);
+        b2Vec2 to;
+        ToB2(request.m_To, to, scale);
+        callback.m_IgnoredUserData = request.m_IgnoredUserData;
+        callback.m_CollisionMask = request.m_Mask;
+        callback.m_Response.m_Hit = 0;
+        world->m_World.RayCast(&callback, from, to);
+        response = callback.m_Response;
+    }
+
     void SetDebugCallbacks2D(HContext2D context, const DebugCallbacks& callbacks)
     {
         context->m_DebugCallbacks = callbacks;
