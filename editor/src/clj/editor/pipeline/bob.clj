@@ -41,7 +41,7 @@
      (beginTask [_this name _steps]
        (error-reporting/catch-all!
          (swap! msg-stack-atom conj name)
-         (render-progress! (progress/make name 0 0 true))))
+         (render-progress! (progress/make-cancellable-indeterminate name))))
      (worked [_this _amount]
        ;; Bob reports misleading progress amounts.
        ;; We report only "busy" and the name of the task.
@@ -50,7 +50,7 @@
        (error-reporting/catch-all!
          (let [msg (peek (swap! msg-stack-atom pop))]
            (render-progress! (if (some? msg)
-                               (progress/make msg 0 0 true)
+                               (progress/make-cancellable-indeterminate msg)
                                progress/done))))))))
 
 (defn- ->graph-resource-scanner [ws]
