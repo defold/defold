@@ -254,7 +254,7 @@
   (-pop-suspend-callback! [this]))
 
 (deftype DebugSession [^Object lock
-                       ^:unsynchronized-mutable state
+                       ^:volatile-mutable state
                        ^Socket socket
                        ^BufferedReader in
                        ^PrintWriter out
@@ -317,8 +317,7 @@
 
 (defn state
   [^DebugSession debug-session]
-  (with-session debug-session
-    (-state debug-session)))
+  (-state debug-session))
 
 
 ;;--------------------------------------------------------------------
