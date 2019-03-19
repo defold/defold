@@ -555,39 +555,6 @@
    (assert target-id)
     (it/disconnect-sources basis target-id target-label)))
 
-(defn become
-  "Creates the transaction step to turn one kind of node into another, in a transaction. All properties and their values
-   will be carried over from source-node to new-node. The resulting node will still have
-   the same node-id.
-
-  Example:
-
-  `(transact (become counter (construct StringSource))`
-
-   Any input or output connections to labels that exist on both
-  source-node and new-node will continue to exist. Any connections to
-  labels that don't exist on new-node will be disconnected in the same
-  transaction."
-  [node-id new-node]
-  (assert node-id)
-  (it/become node-id new-node))
-
-(defn become!
-  "Creates the transaction step to turn one kind of node into another and applies it in a transaction. All properties and their values
-   will be carried over from source-node to new-node. The resulting node will still have
-   the same node-id.  Returns the transaction-result, (tx-result).
-
-  Example:
-
-  `(become! counter (construct StringSource)`
-
-   Any input or output connections to labels that exist on both
-  source-node and new-node will continue to exist. Any connections to
-  labels that don't exist on new-node will be disconnected in the same
-  transaction."
-  [source-node new-node]
-  (transact (become source-node new-node)))
-
 (defn set-property
   "Creates the transaction step to assign a value to a node's property (or properties) value(s).  It will take effect when the transaction
   is applies in a transact.
