@@ -1,5 +1,6 @@
 #include "script.h"
 
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
@@ -197,23 +198,28 @@ namespace dmScript
         {0,0}
     };
 
-    bool IsVector3(lua_State *L, int index)
+    static void* GetUserData(lua_State* L, int index, const char* type)
     {
-        void *p = lua_touserdata(L, index);
+        void* p = lua_touserdata(L, index);
         bool result = false;
         if (p != 0x0)
-        {  /* value is a userdata? */
+        {   // value is a userdata?
             if (lua_getmetatable(L, index))
-            {  /* does it have a metatable? */
-                lua_getfield(L, LUA_REGISTRYINDEX, SCRIPT_TYPE_NAME_VECTOR3);  /* get correct metatable */
+            {   // does it have a metatable?
+                lua_getfield(L, LUA_REGISTRYINDEX, type);  // get correct metatable
                 if (lua_rawequal(L, -1, -2))
-                {  /* does it have the correct mt? */
+                {   // does it have the correct mt?
                     result = true;
                 }
-                lua_pop(L, 2);  /* remove both metatables */
+                lua_pop(L, 2);  // remove both metatables
             }
         }
-        return result;
+        return result ? p : 0;
+    }
+
+    Vectormath::Aos::Vector3* ToVector3(lua_State* L, int index)
+    {
+        return (Vectormath::Aos::Vector3*)GetUserData(L, index, SCRIPT_TYPE_NAME_VECTOR3);
     }
 
     static int Vector3_gc(lua_State *L)
@@ -300,11 +306,10 @@ namespace dmScript
 
     static int Vector3_mul(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v;
+        Vectormath::Aos::Vector3* v = ToVector3(L, 1);
         float s;
-        if (IsVector3(L, 1))
+        if (v != 0)
         {
-            v = CheckVector3(L, 1);
             s = (float) luaL_checknumber(L, 2);
         }
         else
@@ -362,23 +367,9 @@ namespace dmScript
         {0,0}
     };
 
-    bool IsVector4(lua_State *L, int index)
+    Vectormath::Aos::Vector4* ToVector4(lua_State *L, int index)
     {
-        void *p = lua_touserdata(L, index);
-        bool result = false;
-        if (p != 0x0)
-        {  /* value is a userdata? */
-            if (lua_getmetatable(L, index))
-            {  /* does it have a metatable? */
-                lua_getfield(L, LUA_REGISTRYINDEX, SCRIPT_TYPE_NAME_VECTOR4);  /* get correct metatable */
-                if (lua_rawequal(L, -1, -2))
-                {  /* does it have the correct mt? */
-                    result = true;
-                }
-                lua_pop(L, 2);  /* remove both metatables */
-            }
-        }
-        return result;
+        return (Vectormath::Aos::Vector4*)GetUserData(L, index, SCRIPT_TYPE_NAME_VECTOR4);
     }
 
     static int Vector4_gc(lua_State *L)
@@ -474,11 +465,10 @@ namespace dmScript
 
     static int Vector4_mul(lua_State *L)
     {
-        Vectormath::Aos::Vector4* v;
+        Vectormath::Aos::Vector4* v = ToVector4(L, 1);
         float s;
-        if (IsVector4(L, 1))
+        if (v != 0)
         {
-            v = CheckVector4(L, 1);
             s = (float) luaL_checknumber(L, 2);
         }
         else
@@ -536,23 +526,9 @@ namespace dmScript
         {0,0}
     };
 
-    bool IsQuat(lua_State *L, int index)
+    Vectormath::Aos::Quat* ToQuat(lua_State *L, int index)
     {
-        void *p = lua_touserdata(L, index);
-        bool result = false;
-        if (p != 0x0)
-        {  /* value is a userdata? */
-            if (lua_getmetatable(L, index))
-            {  /* does it have a metatable? */
-                lua_getfield(L, LUA_REGISTRYINDEX, SCRIPT_TYPE_NAME_QUAT);  /* get correct metatable */
-                if (lua_rawequal(L, -1, -2))
-                {  /* does it have the correct mt? */
-                    result = true;
-                }
-                lua_pop(L, 2);  /* remove both metatables */
-            }
-        }
-        return result;
+        return (Vectormath::Aos::Quat*)GetUserData(L, index, SCRIPT_TYPE_NAME_QUAT);
     }
 
     static int Quat_gc(lua_State *L)
@@ -675,23 +651,9 @@ namespace dmScript
         {0,0}
     };
 
-    bool IsMatrix4(lua_State *L, int index)
+    Vectormath::Aos::Matrix4* ToMatrix4(lua_State *L, int index)
     {
-        void *p = lua_touserdata(L, index);
-        bool result = false;
-        if (p != 0x0)
-        {  /* value is a userdata? */
-            if (lua_getmetatable(L, index))
-            {  /* does it have a metatable? */
-                lua_getfield(L, LUA_REGISTRYINDEX, SCRIPT_TYPE_NAME_MATRIX4);  /* get correct metatable */
-                if (lua_rawequal(L, -1, -2))
-                {  /* does it have the correct mt? */
-                    result = true;
-                }
-                lua_pop(L, 2);  /* remove both metatables */
-            }
-        }
-        return result;
+        return (Vectormath::Aos::Matrix4*)GetUserData(L, index, SCRIPT_TYPE_NAME_MATRIX4);
     }
 
     static int Matrix4_gc(lua_State *L)
@@ -781,15 +743,15 @@ namespace dmScript
         else
         {
             m1 = *CheckMatrix4(L, 1);
-            if (IsMatrix4(L, 2))
+            Vectormath::Aos::Matrix4* m2 = ToMatrix4(L, 2);
+            Vectormath::Aos::Vector4* v = m2 != 0 ? 0 : ToVector4(L, 2);
+            if (m2 != 0)
             {
-                Vectormath::Aos::Matrix4 m2 = *CheckMatrix4(L, 2);
-                PushMatrix4(L, m1 * m2);
+                PushMatrix4(L, m1 * *m2);
             }
-            else if (IsVector4(L, 2))
+            else if (v != 0)
             {
-                Vectormath::Aos::Vector4 v = *CheckVector4(L, 2);
-                PushVector4(L, m1 * v);
+                PushVector4(L, m1 * *v);
             }
             else if (lua_isnumber(L, 2))
             {
@@ -2419,12 +2381,7 @@ namespace dmScript
 
     Vectormath::Aos::Vector3* CheckVector3(lua_State* L, int index)
     {
-        if (lua_type(L, index) == LUA_TUSERDATA)
-        {
-            return (Vectormath::Aos::Vector3*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_VECTOR3);
-        }
-        luaL_typerror(L, index, SCRIPT_TYPE_NAME_VECTOR3);
-        return 0x0;
+        return (Vectormath::Aos::Vector3*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_VECTOR3);
     }
 
     void PushVector4(lua_State* L, const Vectormath::Aos::Vector4& v)
@@ -2437,12 +2394,7 @@ namespace dmScript
 
     Vectormath::Aos::Vector4* CheckVector4(lua_State* L, int index)
     {
-        if (lua_type(L, index) == LUA_TUSERDATA)
-        {
-            return (Vectormath::Aos::Vector4*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_VECTOR4);
-        }
-        luaL_typerror(L, index, SCRIPT_TYPE_NAME_VECTOR4);
-        return 0x0;
+        return (Vectormath::Aos::Vector4*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_VECTOR4);
     }
 
     void PushQuat(lua_State* L, const Vectormath::Aos::Quat& q)
@@ -2455,12 +2407,7 @@ namespace dmScript
 
     Vectormath::Aos::Quat* CheckQuat(lua_State* L, int index)
     {
-        if (lua_type(L, index) == LUA_TUSERDATA)
-        {
-            return (Vectormath::Aos::Quat*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_QUAT);
-        }
-        luaL_typerror(L, index, SCRIPT_TYPE_NAME_QUAT);
-        return 0x0;
+        return (Vectormath::Aos::Quat*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_QUAT);
     }
 
     void PushMatrix4(lua_State* L, const Vectormath::Aos::Matrix4& m)
@@ -2473,11 +2420,6 @@ namespace dmScript
 
     Vectormath::Aos::Matrix4* CheckMatrix4(lua_State* L, int index)
     {
-        if (lua_type(L, index) == LUA_TUSERDATA)
-        {
-            return (Vectormath::Aos::Matrix4*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_MATRIX4);
-        }
-        luaL_typerror(L, index, SCRIPT_TYPE_NAME_MATRIX4);
-        return 0x0;
+        return (Vectormath::Aos::Matrix4*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_MATRIX4);
     }
 }

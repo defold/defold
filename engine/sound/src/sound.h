@@ -4,7 +4,7 @@
 #include <dlib/configfile.h>
 #include <ddf/ddf.h>
 
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 using namespace Vectormath::Aos;
 
 namespace dmSound

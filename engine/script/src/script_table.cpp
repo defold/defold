@@ -385,60 +385,56 @@ namespace dmScript
                     buffer += align_size;
 
                     float* f = (float*) (buffer);
-                    if (IsVector3(L, -1))
+                    Vectormath::Aos::Vector3* v3;
+                    Vectormath::Aos::Vector4* v4;
+                    Vectormath::Aos::Quat* q;
+                    Vectormath::Aos::Matrix4* m;
+                    if ((v3 = ToVector3(L, -1)))
                     {
-                        Vectormath::Aos::Vector3* v = CheckVector3(L, -1);
-
                         if (buffer_end - buffer < int32_t(sizeof(float) * 3))
                         {
                             luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                         }
 
                         *sub_type = (char) SUB_TYPE_VECTOR3;
-                        *f++ = v->getX();
-                        *f++ = v->getY();
-                        *f++ = v->getZ();
+                        *f++ = v3->getX();
+                        *f++ = v3->getY();
+                        *f++ = v3->getZ();
 
                         buffer += sizeof(float) * 3;
                     }
-                    else if (IsVector4(L, -1))
+                    else if ((v4 = ToVector4(L, -1)))
                     {
-                        Vectormath::Aos::Vector4* v = CheckVector4(L, -1);
-
                         if (buffer_end - buffer < int32_t(sizeof(float) * 4))
                         {
                             luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                         }
 
                         *sub_type = (char) SUB_TYPE_VECTOR4;
-                        *f++ = v->getX();
-                        *f++ = v->getY();
-                        *f++ = v->getZ();
-                        *f++ = v->getW();
+                        *f++ = v4->getX();
+                        *f++ = v4->getY();
+                        *f++ = v4->getZ();
+                        *f++ = v4->getW();
 
                         buffer += sizeof(float) * 4;
                     }
-                    else if (IsQuat(L, -1))
+                    else if ((q = ToQuat(L, -1)))
                     {
-                        Vectormath::Aos::Quat* v = CheckQuat(L, -1);
-
                         if (buffer_end - buffer < int32_t(sizeof(float) * 4))
                         {
                             luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                         }
 
                         *sub_type = (char) SUB_TYPE_QUAT;
-                        *f++ = v->getX();
-                        *f++ = v->getY();
-                        *f++ = v->getZ();
-                        *f++ = v->getW();
+                        *f++ = q->getX();
+                        *f++ = q->getY();
+                        *f++ = q->getZ();
+                        *f++ = q->getW();
 
                         buffer += sizeof(float) * 4;
                     }
-                    else if (IsMatrix4(L, -1))
+                    else if ((m = ToMatrix4(L, -1)))
                     {
-                        Vectormath::Aos::Matrix4* v = CheckMatrix4(L, -1);
-
                         if (buffer_end - buffer < int32_t(sizeof(float) * 16))
                         {
                             luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
@@ -447,7 +443,7 @@ namespace dmScript
                         *sub_type = (char) SUB_TYPE_MATRIX4;
                         for (uint32_t i = 0; i < 4; ++i)
                             for (uint32_t j = 0; j < 4; ++j)
-                                *f++ = v->getElem(i, j);
+                                *f++ = m->getElem(i, j);
 
                         buffer += sizeof(float) * 16;
                     }
