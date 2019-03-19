@@ -2,15 +2,12 @@
 
 #include <dlib/log.h>
 #include <dlib/math.h>
-#include <vectormath/ppu/cpp/vec_aos.h>
 
 #include "gamesys.h"
 #include "gamesys_ddf.h"
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
-
     dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory, dmGameSystemDDF::TileGrid* tile_grid_ddf,
                           TileGridResource* tile_grid, const char* filename, bool reload)
     {

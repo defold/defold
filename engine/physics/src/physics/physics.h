@@ -2,7 +2,7 @@
 #define PHYSICS_H
 
 #include <stdint.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/hash.h>
 #include <dlib/message.h>
@@ -965,7 +965,7 @@ namespace dmPhysics
         void* m_UserData;
         /// Bit field to filter out collision objects of the corresponding groups
         uint16_t m_Mask;
-        
+
         uint16_t _padding;
 
         /// User supplied id to identify this query when the response is handled
