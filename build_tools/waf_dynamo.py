@@ -1493,6 +1493,18 @@ def detect(conf):
         conf.env['LD'] = '%s/arm-linux-androideabi-ld' % (bin)
 
         conf.env['DX'] =  '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
+    elif 'linux' == build_util.get_target_os():
+        conf.find_program('gcc-5', var='GCC5', mandatory = False)
+        if conf.env.GCC5 and "gcc-5" in conf.env.GCC5:
+            conf.env.CXX = "g++-5"
+            conf.env.CC = "gcc-5"
+            conf.env.CPP = "cpp-5"
+            conf.env.AR = "gcc-ar-5"
+            conf.env.RANLIB = "gcc-ranlib-5"
+        else:
+            conf.env.CXX = "g++"
+            conf.env.CC = "gcc"
+            conf.env.CPP = "cpp"
 
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
