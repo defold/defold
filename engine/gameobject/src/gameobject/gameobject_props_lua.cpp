@@ -17,11 +17,11 @@ namespace dmGameObject
             case LUA_TBOOLEAN:
                 return PROPERTY_TYPE_BOOLEAN;
             case LUA_TUSERDATA:
-                if (dmScript::IsHash(L, index))
+                if ((*userdata = (void*)dmScript::ToHash(L, index)))
                 {
                     return PROPERTY_TYPE_HASH;
                 }
-                else if (dmScript::IsURL(L, index))
+                else if ((*userdata = (void*)dmScript::ToURL(L, index)))
                 {
                     return PROPERTY_TYPE_URL;
                 }
@@ -59,12 +59,12 @@ namespace dmGameObject
                 out_var.m_Number = lua_tonumber(L, index);
                 return PROPERTY_RESULT_OK;
             case PROPERTY_TYPE_HASH:
-                out_var.m_Hash = dmScript::CheckHash(L, index);
+                out_var.m_Hash = *(dmhash_t*)userdata;
                 return PROPERTY_RESULT_OK;
             case PROPERTY_TYPE_URL:
                 {
                     dmMessage::URL* url = (dmMessage::URL*) out_var.m_URL;
-                    *url = *dmScript::CheckURL(L, index);
+                    *url = *(dmMessage::URL*)userdata;
                 }
                 return PROPERTY_RESULT_OK;
             case PROPERTY_TYPE_VECTOR3:

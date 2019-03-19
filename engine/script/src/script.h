@@ -253,12 +253,12 @@ namespace dmScript
     void PushTable(lua_State*L, const char* data, uint32_t data_size);
 
     /**
-     * Check if the value at #index is a hash
+     * Returns a pointer to a hash at #index if it is the correct type
      * @param L Lua state
      * @param index Index of the value
      * @return pointer to hash  if the value at #index is a hash, null if not
      */
-    dmhash_t* IsHash(lua_State *L, int index);
+    dmhash_t* ToHash(lua_State *L, int index);
 
     /**
      * Push a hash value onto the supplied lua state, will increase the stack by 1.
@@ -321,12 +321,12 @@ namespace dmScript
     dmVMath::FloatVector* CheckVector(lua_State* L, int index);
 
     /**
-     * Check if the value at #index is a URL
+     * Get the value at index as a URL
      * @param L Lua state
      * @param index Index of the value
-     * @return true is value at #index is a URL
+     * @return pointer to the url if the value at #index is a hash, null if not
      */
-    bool IsURL(lua_State *L, int index);
+    dmMessage::URL* ToURL(lua_State *L, int index);
 
     /**
      * Push a URL value onto the supplied lua state, will increase the stack by 1

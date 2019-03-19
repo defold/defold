@@ -93,9 +93,9 @@ TEST_F(ScriptHashTest, TestHash)
     lua_pop(L, 1);
 
     dmScript::PushHash(L, dmHashString64("test"));
-    ASSERT_TRUE(dmScript::IsHash(L, -1));
+    ASSERT_TRUE(dmScript::ToHash(L, -1));
     lua_pop(L, 1);
-    ASSERT_FALSE(dmScript::IsHash(L, -1));
+    ASSERT_FALSE(dmScript::ToHash(L, -1));
 
     ASSERT_EQ(top, lua_gettop(L));
 }

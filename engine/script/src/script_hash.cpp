@@ -29,7 +29,7 @@ namespace dmScript
     #define SCRIPT_TYPE_NAME_HASH "hash"
     #define SCRIPT_HASH_TABLE "__script_hash_table"
 
-    dmhash_t* IsHash(lua_State *L, int index)
+    dmhash_t* ToHash(lua_State *L, int index)
     {
         void *p = lua_touserdata(L, index);
         dmhash_t* result = 0;
@@ -72,8 +72,7 @@ namespace dmScript
         int top = lua_gettop(L);
 
         dmhash_t hash;
-        dmhash_t* hash_ptr = IsHash(L, 1);
-        if(hash_ptr)
+        if(dmhash_t* hash_ptr = ToHash(L, 1))
         {
             hash = *hash_ptr;
         }
@@ -215,11 +214,9 @@ namespace dmScript
 
     dmhash_t CheckHash(lua_State* L, int index)
     {
-        dmhash_t* lua_hash = 0x0;
-        lua_hash = IsHash(L, index);
-        if (lua_hash)
+        if (dmhash_t* hash_ptr = ToHash(L, index))
         {
-            return *lua_hash;
+            return *hash_ptr;
         }
 
         luaL_typerror(L, index, SCRIPT_TYPE_NAME_HASH);
@@ -228,10 +225,9 @@ namespace dmScript
 
     dmhash_t CheckHashOrString(lua_State* L, int index)
     {
-        dmhash_t* lua_hash = IsHash(L, index);
-        if (lua_hash)
+        if (dmhash_t* hash_ptr = ToHash(L, index))
         {
-            return *lua_hash;
+            return *hash_ptr;
         }
         else if( lua_type(L, index) == LUA_TSTRING )
         {
@@ -253,9 +249,8 @@ namespace dmScript
             memcpy(buffer, (void*)s, dmMath::Min<uint32_t>(len, bufferlength));
             buffer[len < bufferlength ? len : bufferlength-1 ] = 0;
         }
-        else if (IsHash(L, index))
+        else if (dmhash_t* hash = ToHash(L, index))
         {
-            dmhash_t* hash = (dmhash_t*)lua_touserdata(L, index);
             const char* s = (const char*)dmHashReverse64(*hash, 0);
             if (s)
             {
@@ -302,9 +297,9 @@ namespace dmScript
 
     static const char* GetStringHelper(lua_State *L, int index, bool& allocated)
     {
-        if (dmScript::IsHash(L, index))
+        if (dmhash_t* hash_ptr = ToHash(L, index))
         {
-            dmhash_t hash = CheckHash(L, index);
+            dmhash_t hash = *hash_ptr;
             const char* reverse = (const char*) dmHashReverse64(hash, 0);
 
             allocated = true;

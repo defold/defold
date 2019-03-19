@@ -977,9 +977,12 @@ namespace dmGui
         (void) node;
 
         dmhash_t property_hash;
-        if (dmScript::IsHash(L, 2)) {
-           property_hash = dmScript::CheckHash(L, 2);
-        } else {
+        if (dmhash_t* hash_ptr = dmScript::ToHash(L, 2))
+        {
+           property_hash = *hash_ptr;
+        }
+        else
+        {
            property_hash = dmHashString64(luaL_checkstring(L, 2));
         }
 
@@ -1110,9 +1113,12 @@ namespace dmGui
         (void) node;
 
         dmhash_t property_hash;
-        if (dmScript::IsHash(L, 2)) {
-           property_hash = dmScript::CheckHash(L, 2);
-        } else {
+        if (dmhash_t* hash_ptr = dmScript::ToHash(L, 2))
+        {
+           property_hash = *hash_ptr;
+        }
+        else
+        {
            property_hash = dmHashString64(luaL_checkstring(L, 2));
         }
 

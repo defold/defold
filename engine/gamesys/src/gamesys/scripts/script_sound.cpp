@@ -71,10 +71,13 @@ namespace dmGameSystem
     }
 
     static dmhash_t CheckGroupName(lua_State* L, int index) {
-        if (lua_isstring(L, index)) {
+        if (lua_isstring(L, index))
+        {
             return dmHashString64(lua_tostring(L, index));
-        } else if (dmScript::IsHash(L, index)) {
-            return dmScript::CheckHash(L, index);
+        }
+        else if (dmhash_t* hash_ptr = dmScript::ToHash(L, index))
+        {
+            return *hash_ptr;
         }
         luaL_argerror(L, index, "hash or string expected");
         return (dmhash_t) 0;

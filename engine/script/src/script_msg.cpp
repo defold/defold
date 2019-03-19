@@ -34,10 +34,10 @@ namespace dmScript
 
     const uint32_t MAX_MESSAGE_DATA_SIZE = 2048;
 
-    bool IsURL(lua_State *L, int index)
+    dmMessage::URL* ToURL(lua_State *L, int index)
     {
         void *p = lua_touserdata(L, index);
-        bool result = false;
+        dmMessage::URL* result = 0;
         if (p != 0x0)
         {  /* value is a userdata? */
             if (lua_getmetatable(L, index))
@@ -45,7 +45,7 @@ namespace dmScript
                 lua_getfield(L, LUA_REGISTRYINDEX, SCRIPT_TYPE_NAME_URL);  /* get correct metatable */
                 if (lua_rawequal(L, -1, -2))
                 {  /* does it have the correct mt? */
-                    result = true;
+                    result = (dmMessage::URL*)p;
                 }
                 lua_pop(L, 2);  /* remove both metatables */
             }
@@ -162,8 +162,7 @@ namespace dmScript
         const char* key = luaL_checkstring(L, 2);
         if (strcmp("socket", key) == 0)
         {
-            dmhash_t* hash_ptr = IsHash(L, 3);
-            if (hash_ptr)
+            if (dmhash_t* hash_ptr = ToHash(L, 3))
             {
                 url->m_Socket = *hash_ptr;
             }
@@ -202,9 +201,9 @@ namespace dmScript
             {
                 url->m_Path = 0;
             }
-            else if (IsHash(L, 3))
+            else if (dmhash_t* hash_ptr = ToHash(L, 3))
             {
-                url->m_Path = CheckHash(L, 3);
+                url->m_Path = *hash_ptr;
             }
             else
             {
@@ -221,9 +220,9 @@ namespace dmScript
             {
                 url->m_Fragment = 0;
             }
-            else if (IsHash(L, 3))
+            else if (dmhash_t* hash_ptr = ToHash(L, 3))
             {
-                url->m_Fragment = CheckHash(L, 3);
+                url->m_Fragment = *hash_ptr;
             }
             else
             {
@@ -347,9 +346,9 @@ namespace dmScript
             }
             if (!lua_isnil(L, 1))
             {
-                if (IsHash(L, 1))
+                if (dmhash_t* hash_ptr = ToHash(L, 1))
                 {
-                    url.m_Socket = CheckHash(L, 1);
+                    url.m_Socket = *hash_ptr;
                 }
                 else
                 {
@@ -697,9 +696,9 @@ namespace dmScript
 
     int ResolveURL(lua_State* L, int index, dmMessage::URL* out_url, dmMessage::URL* out_default_url)
     {
-        if (dmScript::IsURL(L, index))
+        if (dmMessage::URL* url_ptr = dmScript::ToURL(L, index))
         {
-            *out_url = *CheckURL(L, index);
+            *out_url = *url_ptr;
             if (out_default_url != 0x0)
             {
                 dmMessage::ResetURL(*out_default_url);
@@ -793,10 +792,10 @@ namespace dmScript
                     }
                 }
             }
-            else if (IsHash(L, index))
+            else if (dmhash_t* hash_ptr = ToHash(L, index))
             {
                 out_url->m_Socket = default_url.m_Socket;
-                out_url->m_Path = CheckHash(L, index);
+                out_url->m_Path = *hash_ptr;
                 out_url->m_Fragment = 0;
             }
             else

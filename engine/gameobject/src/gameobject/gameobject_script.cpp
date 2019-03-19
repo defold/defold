@@ -1787,11 +1787,11 @@ namespace dmGameObject
         {
             valid_type = true;
         }
-        else if (dmScript::IsURL(L, 2))
+        else if (dmScript::ToURL(L, 2))
         {
             valid_type = true;
         }
-        else if (dmScript::IsHash(L, 2))
+        else if (dmScript::ToHash(L, 2))
         {
             valid_type = true;
         }

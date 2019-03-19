@@ -703,7 +703,7 @@ TEST_F(LuaTableTest, Hash)
     dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "h");
-    ASSERT_TRUE(dmScript::IsHash(L, -1));
+    ASSERT_TRUE(dmScript::ToHash(L, -1));
     dmhash_t hash2 = dmScript::CheckHash(L, -1);
     ASSERT_EQ(hash, hash2);
     lua_pop(L, 1);
@@ -733,7 +733,7 @@ TEST_F(LuaTableTest, URL)
     dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "url");
-    ASSERT_TRUE(dmScript::IsURL(L, -1));
+    ASSERT_TRUE(dmScript::ToURL(L, -1));
     dmMessage::URL url2 = *dmScript::CheckURL(L, -1);
     ASSERT_EQ(url.m_Socket, url2.m_Socket);
     ASSERT_EQ(url.m_Path, url2.m_Path);

@@ -447,9 +447,9 @@ namespace dmScript
 
                         buffer += sizeof(float) * 16;
                     }
-                    else if (IsHash(L, -1))
+                    else if (dmhash_t* hash_ptr = ToHash(L, -1))
                     {
-                        dmhash_t hash = CheckHash(L, -1);
+                        dmhash_t hash = *hash_ptr;
                         const uint32_t hash_size = sizeof(dmhash_t);
 
                         if (buffer_end - buffer < int32_t(hash_size))
@@ -462,9 +462,8 @@ namespace dmScript
                         memcpy(buffer, (const void*)&hash, hash_size);
                         buffer += hash_size;
                     }
-                    else if (IsURL(L, -1))
+                    else if (dmMessage::URL* url = ToURL(L, -1))
                     {
-                        dmMessage::URL* url = CheckURL(L, -1);
                         const uint32_t url_size = sizeof(dmMessage::URL);
 
                         if (buffer_end - buffer < int32_t(url_size))
