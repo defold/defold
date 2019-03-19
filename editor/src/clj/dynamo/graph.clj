@@ -230,10 +230,10 @@
 
 (defmacro deftype
   [symb & body]
-  (let [fqs           (symbol (str *ns*) (str symb))
-        key           (keyword fqs)]
+  (let [fully-qualified-node-type-symbol (symbol (str *ns*) (str symb))
+        key (keyword fully-qualified-node-type-symbol)]
     `(do
-       (in/register-value-type '~fqs ~key)
+       (in/register-value-type '~fully-qualified-node-type-symbol ~key)
        (def ~symb (in/register-value-type ~key (in/make-value-type '~symb ~key ~@body))))))
 
 (deftype Any        s/Any)
@@ -350,24 +350,24 @@
   Every node always implements dynamo.graph/Node."
   [symb & body]
   (binding [in/*autotypes* (atom {})]
-    (let [[symb forms]  (ctm/name-with-attributes symb body)
-          fqs           (symbol (str *ns*) (str symb))
-          node-type-def (in/process-node-type-forms fqs forms)
-          fn-paths      (in/extract-functions node-type-def)
-          fn-defs       (for [[path func] fn-paths]
-                          (list `def (in/dollar-name symb path) func))
-          fwd-decls     (map (fn [d] (list `declare (second d))) fn-defs)
+    (let [[symb forms] (ctm/name-with-attributes symb body)
+          fully-qualified-node-type-symbol (symbol (str *ns*) (str symb))
+          node-type-def (in/process-node-type-forms fully-qualified-node-type-symbol forms)
+          fn-paths (in/extract-functions node-type-def)
+          fn-defs (for [[path func] fn-paths]
+                    (list `def (in/dollar-name symb path) func))
+          fwd-decls (map (fn [d] (list `declare (second d))) fn-defs)
           node-type-def (util/update-paths node-type-def fn-paths
                                            (fn [path func curr]
                                              (assoc curr :fn (var-it (in/dollar-name symb path)))))
-          node-key      (:key node-type-def)
-          derivations   (for [tref (:supertypes node-type-def)]
-                          `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
-                             (derive ~node-key ~(:key (deref tref)))))
+          node-key (:key node-type-def)
+          derivations (for [tref (:supertypes node-type-def)]
+                        `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
+                           (derive ~node-key ~(:key (deref tref)))))
           node-type-def (update node-type-def :supertypes #(list `quote %))
           type-name (str symb)
           runtime-definer (symbol (str symb "*"))
-          type-regs     (for [[vtr ctor] @in/*autotypes*] `(in/register-value-type ~vtr ~ctor))]
+          type-regs (for [[vtr ctor] @in/*autotypes*] `(in/register-value-type ~vtr ~ctor))]
       ;; This try-block was an attempt to catch "Code too large" errors when method size exceeded 64kb in the JVM.
       ;; Surprisingly, the addition of the try-block stopped the error from happening, so leaving it here.
       ;; "Problem solved!" lol
@@ -857,21 +857,6 @@
    (graph-value (now) graph-id k))
   ([basis graph-id k]
    (get-in basis [:graphs graph-id :graph-values k])))
-
-;; ---------------------------------------------------------------------------
-;; Constructing property maps
-;; ---------------------------------------------------------------------------
-(defn adopt-properties
-  [node-id ps]
-  (update ps :properties #(util/map-vals (fn [prop] (assoc prop :node-id node-id)) %)))
-
-(defn aggregate-properties
-  [x & [y & ys]]
-  (if ys
-    (apply aggregate-properties (aggregate-properties x y) ys)
-    (-> x
-        (update :properties merge (:properties y))
-        (update :display-order #(into (or % []) (:display-order y))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Interrogating the Graph
