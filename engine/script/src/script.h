@@ -667,25 +667,6 @@ namespace dmScript
      */
     bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context);
 
-    /** Information about a function, in which file and at what line it is defined
-     * Use with GetLuaFunctionRefInfo
-     */
-    struct LuaFunctionInfo
-    {
-        const char* m_FileName;
-        const char* m_OptionalName;
-        int m_LineNumber;
-    };
-
-    /**
-     * Get information about where a Lua function is defined
-     * @param L lua state
-     * @param stack_index which index on the stack that contains the lua function ref
-     * @param out_function_info pointer to the function information that is filled out
-     * @return true on success, out_function_info is only touched if the function succeeds
-     */
-    bool GetLuaFunctionRefInfo(lua_State* L, int stack_index, LuaFunctionInfo* out_function_info);
-
     /**
      * Get an integer value at a specific key in a table.
      * @param L lua state
@@ -705,6 +686,18 @@ namespace dmScript
      * @return String value at key, or the default value if not found or invalid value type.
      */
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value);
+
+    /**
+     * Build a profiler function name string and calculate its hash.
+     * @param L lua state
+     * @param optional_callback_index Index of optional function ref on Lua stack - zero if no callback on stack
+     * @param source_file_name Default source file name (may be overriden by callback info)
+     * @param function_name Default function name (may be overriden by callback info)
+     * @param optional_message_name Optional message name
+     * @param out_profiler_hash Pointer to resulting string hash
+     * @return Pointer to internalized string - the string is safe to use until profiler in finalized, null if profiling is disabled
+     */
+    const char* GetProfilerString(lua_State* L, int optional_callback_index, const char* source_file_name, const char* function_name, const char* optional_message_name, uint32_t* out_profiler_hash);
 }
 
 

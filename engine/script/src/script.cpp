@@ -1393,31 +1393,11 @@ namespace dmScript
 
         int number_of_arguments = 1 + user_args_end - user_args_start; // instance + number of arguments that the user pushed
 
-        const char* function_name = "on_timer";
-        const char* function_source = "?";
-        char function_line_number_buffer[16];
-        if (dmProfile::g_IsInitialized)
-        {
-            dmScript::LuaFunctionInfo fi;
-            if (dmScript::GetLuaFunctionRefInfo(L, -(number_of_arguments + 1), &fi))
-            {
-                function_source = fi.m_FileName;
-                if (fi.m_OptionalName)
-                {
-                    function_name = fi.m_OptionalName;
-                }
-                else
-                {
-                    DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
-                    function_name = function_line_number_buffer;
-                }
-            }
-        }
-
-
         int ret;
         {
-            DM_PROFILE_FMT(Script, "%s@%s", function_name, function_source);
+            uint32_t profiler_hash = 0;
+            const char* profiler_string = GetProfilerString(L, -(number_of_arguments + 1), "?", "on_timer", 0, &profiler_hash);
+            DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
             ret = PCall(L, number_of_arguments, 0);
         }
 
@@ -1439,7 +1419,24 @@ namespace dmScript
         return true;
     }
 
-    bool GetLuaFunctionRefInfo(lua_State* L, int stack_index, LuaFunctionInfo* out_function_info)
+    /** Information about a function, in which file and at what line it is defined
+     * Use with GetLuaFunctionRefInfo
+     */
+    struct LuaFunctionInfo
+    {
+        const char* m_FileName;
+        const char* m_OptionalName;
+        int m_LineNumber;
+    };
+
+    /**
+     * Get information about where a Lua function is defined
+     * @param L lua state
+     * @param stack_index which index on the stack that contains the lua function ref
+     * @param out_function_info pointer to the function information that is filled out
+     * @return true on success, out_function_info is only touched if the function succeeds
+     */
+    static bool GetLuaFunctionRefInfo(lua_State* L, int stack_index, LuaFunctionInfo* out_function_info)
     {
         lua_Debug ar;
         lua_pushvalue(L, stack_index);
@@ -1451,6 +1448,71 @@ namespace dmScript
             return true;
         }
         return false;
+    }
+
+    static char* ConcatString(char* w_ptr, const char* w_ptr_end, const char* str)
+    {
+        while ((w_ptr != w_ptr_end) && *str)
+        {
+            *w_ptr++ = *str++;
+        }
+        return w_ptr;
+    }
+
+    const char* GetProfilerString(lua_State* L, int optional_callback_index, const char* source_file_name, const char* function_name, const char* optional_message_name, uint32_t* out_profiler_hash)
+    {
+        const char* profiler_string = 0;
+        if (dmProfile::g_IsInitialized)
+        {
+            char buffer[128];
+            char* w_ptr = buffer;
+            const char* w_ptr_end = &buffer[sizeof(buffer) - 1];
+
+            const char* function_source = source_file_name;
+
+            if (optional_callback_index != 0)
+            {
+                LuaFunctionInfo fi;
+                if (dmScript::GetLuaFunctionRefInfo(L, optional_callback_index, &fi))
+                {
+                    function_source = fi.m_FileName;
+                    if (fi.m_OptionalName)
+                    {
+                        w_ptr = ConcatString(w_ptr, w_ptr_end, fi.m_OptionalName);
+                    }
+                    else
+                    {
+                        char function_line_number_buffer[16];
+                        DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
+                        w_ptr = ConcatString(w_ptr, w_ptr_end, function_line_number_buffer);
+                    }
+                }
+                else
+                {
+                    w_ptr = ConcatString(w_ptr, w_ptr_end, "<unknown>");
+                }
+                
+            }
+            else
+            {
+                w_ptr = ConcatString(w_ptr, w_ptr_end, function_name);
+            }
+
+            if (optional_message_name)
+            {
+                w_ptr = ConcatString(w_ptr, w_ptr_end, "[");
+                w_ptr = ConcatString(w_ptr, w_ptr_end, optional_message_name);
+                w_ptr = ConcatString(w_ptr, w_ptr_end, "]");
+            }
+            w_ptr = ConcatString(w_ptr, w_ptr_end, "@");
+            w_ptr = ConcatString(w_ptr, w_ptr_end, function_source);
+            uint32_t str_len = (uint32_t)(w_ptr - buffer);
+            uint32_t hash = dmProfile::GetNameHash(buffer, str_len);
+            *w_ptr++ = 0;
+            profiler_string = dmProfile::Internalize(buffer, str_len, hash);
+            *out_profiler_hash = hash;
+        }
+        return profiler_string;
     }
 
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value)

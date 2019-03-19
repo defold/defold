@@ -409,6 +409,34 @@ namespace dmMessage
         return RESULT_OK;
     }
 
+    static char* ConcatString(char* w_ptr, const char* w_ptr_end, const char* str)
+    {
+        while ((w_ptr != w_ptr_end) && *str)
+        {
+            *w_ptr++ = *str++;
+        }
+        return w_ptr;
+    }
+
+    static const char* GetProfilerString(const char* socket_name, uint32_t* out_profiler_hash)
+    {
+        const char* profiler_string = 0;
+        if (dmProfile::g_IsInitialized)
+        {
+            char buffer[128];
+            char* w_ptr = buffer;
+            const char* w_ptr_end = &buffer[sizeof(buffer) - 1];
+            w_ptr = ConcatString(w_ptr, w_ptr_end, "Dispatch ");
+            w_ptr = ConcatString(w_ptr, w_ptr_end, socket_name);
+            uint32_t str_len = (uint32_t)(w_ptr - buffer);
+            *w_ptr++ = 0;
+            uint32_t hash = dmProfile::GetNameHash(buffer, str_len);
+            profiler_string = dmProfile::Internalize(buffer, str_len, hash);
+            *out_profiler_hash = hash;
+        }
+        return profiler_string;
+    }
+
     uint32_t InternalDispatch(HSocket socket, DispatchCallback dispatch_callback, void* user_ptr, bool blocking)
     {
         MessageSocket* s = AcquireSocket(socket);
@@ -432,7 +460,9 @@ namespace dmMessage
             }
         }
 
-        DM_PROFILE_FMT(Message, "Dispatch %s", s->m_Name);
+        uint32_t profiler_hash = 0;
+        const char* profiler_string = GetProfilerString(s->m_Name, &profiler_hash);
+        DM_PROFILE_DYN(Message, profiler_string, profiler_hash);
 
         uint32_t dispatch_count = 0;
 

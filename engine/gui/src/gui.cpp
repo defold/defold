@@ -1818,32 +1818,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
             Result result = RESULT_OK;
 
-            const char* function_source = scene->m_Script->m_SourceFileName;
-            const char* function_name = SCRIPT_FUNCTION_NAMES[script_function];
-            char function_line_number_buffer[16];
-
-            if (dmProfile::g_IsInitialized)
             {
-                if (custom_ref != LUA_NOREF)
-                {
-                    dmScript::LuaFunctionInfo fi;
-                    if (dmScript::GetLuaFunctionRefInfo(L, -5, &fi))
-                    {
-                        function_source = fi.m_FileName;
-                        if (fi.m_OptionalName)
-                        {
-                            function_name = fi.m_OptionalName;
-                        }
-                        else
-                        {
-                            DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
-                            function_name = function_line_number_buffer;
-                        }
-                    }
-                }
-            }
-            {
-                DM_PROFILE_FMT(Script, "%s%s%s%s@%s", function_name, message_name ? "[" : "", message_name ? message_name : "", message_name ? "]" : "", function_source);
+                uint32_t profiler_hash = 0;
+                const char* profiler_string = dmScript::GetProfilerString(L, -5, scene->m_Script->m_SourceFileName, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE], message_name, &profiler_hash);
+                DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
                 if (dmScript::PCall(L, arg_count, LUA_MULTRET) != 0)
                 {
                     assert(top == lua_gettop(L));
