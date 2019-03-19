@@ -20,8 +20,6 @@
 
 (def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas true))
 
-(def ^:dynamic *node-value-debug* nil)
-
 (defn trace-expr [self ctx output output-type deferred-expr]
   (if-let [tracer (:tracer ctx)]
     (let [node-id (gt/node-id self)]
@@ -290,8 +288,6 @@
                        " exists for node " (gt/node-id this)
                        " of type " (:name @node-type)
                        "\nIn production: " (get evaluation-context :in-production)))
-      (when *node-value-debug*
-        (println (nodevalstr this node-type label)))
       ((:fn beh) this evaluation-context)))
 
   gt/OverrideNode
@@ -1489,8 +1485,6 @@
   (produce-value [this output evaluation-context]
     (let [basis (:basis evaluation-context)
           type (gt/node-type this basis)]
-      (when *node-value-debug*
-        (println (nodevalstr this type output " (override node)")))
       (cond
         (= :_node-id output)
         node-id
