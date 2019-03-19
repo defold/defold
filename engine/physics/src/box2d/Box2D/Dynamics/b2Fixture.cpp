@@ -214,18 +214,16 @@ void b2Fixture::SetFilterData(const b2Filter& filter, int32 index)
     // Defold modifications. Added index
     m_filters[index * m_shape->m_filterPerChild] = filter;
 
-    // Defold modifications. Skip re-filtering of grid-shapes
-    // in order to avoid O(n^2) memory allocations
-    // see b2BroadPhase::BufferMove
-    // We don't support changing filters at run-time so the
-    // fix will hopefully have no impact
-    if (GetType() != b2Shape::e_grid)
-    {
-        Refilter();
-    }
+    // Defold modifications. If the body is a grid,
+    // we skip updating the proxy list since that will
+    // potentially expand the movement buffer.
+    // Instead, we just flag the entire body for
+    // filtering, which is what the argument passed into
+    // the function is for.
+    Refilter(GetType() != b2Shape::e_grid);
 }
 
-void b2Fixture::Refilter()
+void b2Fixture::Refilter(bool touchProxies)
 {
 	if (m_body == NULL)
 	{
@@ -245,6 +243,11 @@ void b2Fixture::Refilter()
 		}
 
 		edge = edge->next;
+	}
+
+	if (!touchProxies)
+	{
+		return;
 	}
 
 	b2World* world = m_body->GetWorld();

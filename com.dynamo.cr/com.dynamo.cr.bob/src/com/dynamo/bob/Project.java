@@ -508,9 +508,16 @@ public class Project {
         try {
             // Include built-in/default facebook and gms resources
             resourceDirectories.add(Bob.getPath("res/facebook"));
-            resourceDirectories.add(Bob.getPath("res/google-play-services"));
+            resourceDirectories.add(Bob.getPath("res/com.android.support.support-compat-27.1.1"));
+            resourceDirectories.add(Bob.getPath("res/com.android.support.support-core-ui-27.1.1"));
+            resourceDirectories.add(Bob.getPath("res/com.android.support.support-media-compat-27.1.1"));
+            resourceDirectories.add(Bob.getPath("res/com.google.android.gms.play-services-base-16.0.1"));
+            resourceDirectories.add(Bob.getPath("res/com.google.android.gms.play-services-basement-16.0.1"));
+            resourceDirectories.add(Bob.getPath("res/com.google.firebase.firebase-messaging-17.3.4"));
+
             extraPackages.add("com.facebook");
             extraPackages.add("com.google.android.gms");
+            extraPackages.add("com.google.android.gms.common");
 
             Map<String, String> aaptEnv = new HashMap<String, String>();
             if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
@@ -628,6 +635,13 @@ public class Project {
                 File resOutput = new File(tmpDir, "resources");
                 resOutput.delete();
                 resOutput.mkdir();
+                FileUtils.forceMkdir(new File(resOutput, "drawable"));
+                FileUtils.forceMkdir(new File(resOutput, "drawable-ldpi"));
+                FileUtils.forceMkdir(new File(resOutput, "drawable-mdpi"));
+                FileUtils.forceMkdir(new File(resOutput, "drawable-hdpi"));
+                FileUtils.forceMkdir(new File(resOutput, "drawable-xhdpi"));
+                FileUtils.forceMkdir(new File(resOutput, "drawable-xxhdpi"));
+                FileUtils.forceMkdir(new File(resOutput, "drawable-xxxhdpi"));
                 resOutput.deleteOnExit();
 
                 // <tmpDir>/rjava - Output directory of aapt, all R.java files will be stored here
@@ -646,6 +660,7 @@ public class Project {
                 manifestFile.deleteOnExit();
                 BundleHelper helper = new BundleHelper(this, Platform.Armv7Android, tmpDir, "");
                 helper.createAndroidManifest(getProjectProperties(), getRootDirectory(), manifestFile, resOutput, "dummy");
+                helper.copyAndroidIcons(resOutput);
 
                 // Run aapt to generate R.java files
                 generateRJava(resDirs, extraPackages, manifestFile, javaROutput);

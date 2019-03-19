@@ -614,8 +614,9 @@ if(a&&a.length>0)for(c in a[0])a[0].hasOwnProperty(c)&&-1===i.indexOf(c)&&i.push
                       }
                     } },
                 { title: "Type", data: function ( row, type, val, meta ) {
-                        var re = /(?:\.([^.]+))?$/;
-                        return re.exec(row.file)[1];
+                        var re = /(?:\.?([^.]+))?$/;
+                        var basename = row.file.substring(row.file.lastIndexOf('/')+1); // We always have a starting '/'
+                        return re.exec(basename)[1];
                     } },
                 { title: "Directory", data: function ( row, type, val, meta ) {
                         var dir = splitPath(row.file).dir;

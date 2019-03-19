@@ -85,6 +85,7 @@
             <proto dir="../../engine/script/src/script" file="script_doc_ddf.proto"/>
             <proto dir="../../engine/script/src" file="script/lua_source_ddf.proto"/>
             <proto dir="../../engine/script/src" file="script/ddf_script.proto"/>
+            <proto dir="../../engine/script/src" file="script/sys_ddf.proto"/>
         </parallel>
     </target>
 </project>
