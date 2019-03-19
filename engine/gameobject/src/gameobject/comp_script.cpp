@@ -112,8 +112,24 @@ namespace dmGameObject
                 ++arg_count;
             }
 
+            const char* profiler_string = 0;
+            uint32_t profiler_hash = 0;
+            if (dmProfile::g_IsInitialized)
             {
-                DM_PROFILE_FMT(Script, "%s@%s", SCRIPT_FUNCTION_NAMES[script_function], script->m_LuaModule->m_Source.m_Filename);
+                char buffer[128];
+                char* w_ptr = buffer;
+                const char* w_ptr_end = &buffer[sizeof(buffer) - 1];
+                w_ptr = dmStrAppend(w_ptr, w_ptr_end, SCRIPT_FUNCTION_NAMES[script_function]);
+                w_ptr = dmStrAppend(w_ptr, w_ptr_end, "@");
+                w_ptr = dmStrAppend(w_ptr, w_ptr_end, script->m_LuaModule->m_Source.m_Filename);
+                uint32_t str_len = (uint32_t)(w_ptr - buffer);
+                profiler_hash = dmProfile::GetNameHash(buffer, str_len);
+                *w_ptr++ = 0;
+                profiler_string = dmProfile::Internalize(buffer, str_len, profiler_hash);
+            }
+
+            {
+                DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
                 if (dmScript::PCall(L, arg_count, 0) != 0)
                 {
                     result = SCRIPT_RESULT_FAILED;
@@ -299,12 +315,16 @@ namespace dmGameObject
 
             dmScript::PushURL(L, params.m_Message->m_Sender);
 
-            const char* function_name = SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE];
-            const char* function_source = script_instance->m_Script->m_LuaModule->m_Source.m_Filename;
-            char function_line_number_buffer[16];
-
+            const char* profiler_string = 0;
+            uint32_t profiler_hash = 0;
             if (dmProfile::g_IsInitialized)
             {
+                char buffer[128];
+                char* w_ptr = buffer;
+                const char* w_ptr_end = &buffer[sizeof(buffer) - 1];
+
+                const char* function_source = script_instance->m_Script->m_LuaModule->m_Source.m_Filename;
+
                 if (is_callback)
                 {
                     dmScript::LuaFunctionInfo fi;
@@ -313,20 +333,43 @@ namespace dmGameObject
                         function_source = fi.m_FileName;
                         if (fi.m_OptionalName)
                         {
-                            function_name = fi.m_OptionalName;
+                            w_ptr = dmStrAppend(w_ptr, w_ptr_end, fi.m_OptionalName);
                         }
                         else
                         {
+                            char function_line_number_buffer[16];
                             DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
-                            function_name = function_line_number_buffer;
+                            w_ptr = dmStrAppend(w_ptr, w_ptr_end, function_line_number_buffer);
                         }
                     }
+                    else
+                    {
+                        w_ptr = dmStrAppend(w_ptr, w_ptr_end, "<unknown>");
+                    }
+                    
                 }
+                else
+                {
+                    w_ptr = dmStrAppend(w_ptr, w_ptr_end, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE]);
+                }
+                
+                if (message_name)
+                {
+                    w_ptr = dmStrAppend(w_ptr, w_ptr_end, "[");
+                    w_ptr = dmStrAppend(w_ptr, w_ptr_end, message_name);
+                    w_ptr = dmStrAppend(w_ptr, w_ptr_end, "]");
+                }
+                w_ptr = dmStrAppend(w_ptr, w_ptr_end, "@");
+                w_ptr = dmStrAppend(w_ptr, w_ptr_end, function_source);
+                uint32_t str_len = (uint32_t)(w_ptr - buffer);
+                profiler_hash = dmProfile::GetNameHash(buffer, str_len);
+                *w_ptr++ = 0;
+                profiler_string = dmProfile::Internalize(buffer, str_len, profiler_hash);
             }
 
             // An on_message function shouldn't return anything.
             {
-                DM_PROFILE_FMT(Script, "%s%s%s%s@%s", function_name, message_name ? "[" : "", message_name ? message_name : "", message_name ? "]" : "", function_source);
+                DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
                 if (dmScript::PCall(L, 4, 0) != 0)
                 {
                     result = UPDATE_RESULT_UNKNOWN_ERROR;
@@ -531,7 +574,22 @@ namespace dmGameObject
             int input_ret = lua_gettop(L) - arg_count;
             int ret;
             {
-                DM_PROFILE_FMT(Script, "%s@%s", SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT], script_instance->m_Script->m_LuaModule->m_Source.m_Filename);
+                const char* profiler_string = 0;
+                uint32_t profiler_hash = 0;
+                if (dmProfile::g_IsInitialized)
+                {
+                    char buffer[128];
+                    char* w_ptr = buffer;
+                    const char* w_ptr_end = &buffer[sizeof(buffer) - 1];
+                    w_ptr = dmStrAppend(w_ptr, w_ptr_end, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT]);
+                    w_ptr = dmStrAppend(w_ptr, w_ptr_end, "@");
+                    w_ptr = dmStrAppend(w_ptr, w_ptr_end, script_instance->m_Script->m_LuaModule->m_Source.m_Filename);
+                    uint32_t str_len = (uint32_t)(w_ptr - buffer);
+                    profiler_hash = dmProfile::GetNameHash(buffer, str_len);
+                    *w_ptr++ = 0;
+                    profiler_string = dmProfile::Internalize(buffer, str_len, profiler_hash);
+                }
+                DM_PROFILE_DYN(Message, profiler_string, profiler_hash);
                 ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
             }
             const char* function_name = SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT];

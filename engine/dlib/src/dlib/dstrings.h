@@ -52,4 +52,13 @@ size_t dmStrlCat(char *dst, const char *src, size_t size);
  */
 int dmStrCaseCmp(const char *s1, const char *s2);
 
+inline char* dmStrAppend(char* w_ptr, const char* w_ptr_end, const char* str)
+{
+	while ((w_ptr != w_ptr_end) && *str)
+	{
+		*w_ptr++ = *str++;
+	}
+	return w_ptr;
+}
+
 #endif //DM_DSTRINGS_H

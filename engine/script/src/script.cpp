@@ -1443,31 +1443,48 @@ namespace dmScript
 
         int number_of_arguments = 1 + user_args_end - user_args_start; // instance + number of arguments that the user pushed
 
-        const char* function_name = "on_timer";
-        const char* function_source = "?";
-        char function_line_number_buffer[16];
+        const char* profiler_string = 0;
+        uint32_t profiler_hash = 0;
         if (dmProfile::g_IsInitialized)
         {
+            char buffer[128];
+            char* w_ptr = buffer;
+            const char* w_ptr_end = &buffer[sizeof(buffer) - 1];
+
+            const char* function_source = "<unknown>";
             dmScript::LuaFunctionInfo fi;
             if (dmScript::GetLuaFunctionRefInfo(L, -(number_of_arguments + 1), &fi))
             {
                 function_source = fi.m_FileName;
                 if (fi.m_OptionalName)
                 {
-                    function_name = fi.m_OptionalName;
+                    w_ptr = dmStrAppend(w_ptr, w_ptr_end, fi.m_OptionalName);
                 }
                 else
                 {
+                    char function_line_number_buffer[16];
                     DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
-                    function_name = function_line_number_buffer;
+                    w_ptr = dmStrAppend(w_ptr, w_ptr_end, function_line_number_buffer);
                 }
             }
-        }
+            else
+            {
+                w_ptr = dmStrAppend(w_ptr, w_ptr_end, "<unknown>");
+            }
+            w_ptr = dmStrAppend(w_ptr, w_ptr_end, "@");
+            w_ptr = dmStrAppend(w_ptr, w_ptr_end, function_source);
+            uint32_t str_len = (uint32_t)(w_ptr - buffer);
+            profiler_hash = dmProfile::GetNameHash(buffer, str_len);
+            *w_ptr++ = 0;
+            profiler_string = dmProfile::Internalize(buffer, str_len, profiler_hash);
 
+
+
+        }
 
         int ret;
         {
-            DM_PROFILE_FMT(Script, "%s@%s", function_name, function_source);
+            DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
             ret = PCall(L, number_of_arguments, 0);
         }
 

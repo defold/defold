@@ -422,7 +422,21 @@ namespace dmMessage
             }
         }
 
-        DM_PROFILE_FMT(Message, "Dispatch %s", s->m_Name);
+        const char* profiler_string = 0;
+        uint32_t profiler_hash = 0;
+        if (dmProfile::g_IsInitialized)
+        {
+            char buffer[128];
+            char* w_ptr = buffer;
+            const char* w_ptr_end = &buffer[sizeof(buffer) - 1];
+            w_ptr = dmStrAppend(w_ptr, w_ptr_end, "Dispatch ");
+            w_ptr = dmStrAppend(w_ptr, w_ptr_end, s->m_Name);
+            uint32_t str_len = (uint32_t)(w_ptr - buffer);
+            *w_ptr++ = 0;
+            profiler_hash = dmProfile::GetNameHash(buffer, str_len);
+            profiler_string = dmProfile::Internalize(buffer, str_len, profiler_hash);
+        }
+        DM_PROFILE_DYN(Message, profiler_string, profiler_hash);
 
         uint32_t dispatch_count = 0;
 

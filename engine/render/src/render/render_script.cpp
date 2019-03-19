@@ -2802,8 +2802,33 @@ bail:
                 arg_count += 1;
             }
 
+            const char* profiler_string = 0;
+            uint32_t profiler_hash = 0;
+            if (dmProfile::g_IsInitialized)
             {
-                DM_PROFILE_FMT(Script, "%s%s%s%s@%s", RENDER_SCRIPT_FUNCTION_NAMES[script_function], message_name ? "[" : "", message_name ? message_name : "", message_name ? "]" : "", script->m_SourceFileName);
+                char buffer[128];
+                char* w_ptr = buffer;
+                const char* w_ptr_end = &buffer[sizeof(buffer) - 1];
+
+                w_ptr = dmStrAppend(w_ptr, w_ptr_end, RENDER_SCRIPT_FUNCTION_NAMES[script_function]);
+                
+                if (message_name)
+                {
+                    w_ptr = dmStrAppend(w_ptr, w_ptr_end, "[");
+                    w_ptr = dmStrAppend(w_ptr, w_ptr_end, message_name);
+                    w_ptr = dmStrAppend(w_ptr, w_ptr_end, "]");
+                }
+
+                w_ptr = dmStrAppend(w_ptr, w_ptr_end, "@");
+                w_ptr = dmStrAppend(w_ptr, w_ptr_end, script->m_SourceFileName);
+                uint32_t str_len = (uint32_t)(w_ptr - buffer);
+                profiler_hash = dmProfile::GetNameHash(buffer, str_len);
+                *w_ptr++ = 0;
+                profiler_string = dmProfile::Internalize(buffer, str_len, profiler_hash);
+            }
+
+            {
+                DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
                 if (dmScript::PCall(L, arg_count, 0) != 0)
                 {
                     assert(top == lua_gettop(L));
