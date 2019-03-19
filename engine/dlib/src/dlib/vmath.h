@@ -1,7 +1,7 @@
 #ifndef DM_VMATH_H
 #define DM_VMATH_H
 
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include "math.h"
 #include "trig_lookup.h"
 

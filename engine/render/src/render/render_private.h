@@ -1,7 +1,7 @@
 #ifndef RENDERINTERNAL_H
 #define RENDERINTERNAL_H
 
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/array.h>
 #include <dlib/message.h>
