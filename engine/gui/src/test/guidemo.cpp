@@ -4,7 +4,7 @@
 #include <graphics/glfw/glfw.h>
 #include "../gui.h"
 
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 using namespace Vectormath::Aos;
 
 #ifdef __MACH__

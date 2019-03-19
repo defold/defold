@@ -1,7 +1,7 @@
 #include <string.h>
 #include <math.h>
 #include <float.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/align.h>
 #include <dlib/memory.h>
@@ -965,7 +965,7 @@ namespace dmRender
                 dmRender::RenderListSubmit(render_context, render_list, write_ptr);
             }
         }
-        
+
         // Always update after flushing
         text_context.m_TextEntriesFlushed = text_context.m_TextEntries.Size();
     }
