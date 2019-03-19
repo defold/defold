@@ -997,6 +997,21 @@ TEST_F(dmRenderScriptTest, TestInstanceContext)
     ASSERT_FALSE(dmScript::IsInstanceValid(L));
 }
 
+TEST_F(dmRenderScriptTest, DeltaTime)
+{
+    const char* script = "function update(self, dt)\n"
+                    "assert (dt == 1122)\n"
+                    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 1122));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();

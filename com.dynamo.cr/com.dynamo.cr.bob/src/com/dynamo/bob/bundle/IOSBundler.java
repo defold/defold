@@ -36,7 +36,7 @@ import com.dynamo.bob.util.Exec.Result;
 public class IOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
 
-    private void copyIcon(BobProjectProperties projectProperties, String projectRoot, File appDir, String name, String outName)
+    private void copyImage(BobProjectProperties projectProperties, String projectRoot, File appDir, String name, String outName)
             throws IOException {
         String resource = projectProperties.getStringValue("ios", name);
         if (resource != null && resource.length() > 0) {
@@ -189,56 +189,45 @@ public class IOSBundler implements IBundler {
             new File(buildDir, "game.arcd").delete();
         }
 
-        // Copy icons
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_57x57", "Icon.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_114x114", "Icon@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_72x72", "Icon-72.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_144x144", "Icon-72@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_76x76", "Icon-76.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_152x152", "Icon-76@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_120x120", "Icon-60@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_180x180", "Icon-60@3x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_167x167", "Icon-167.png");
-
         // Copy launch images
         // iphone 3, 4, 5 portrait
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_320x480", "Default.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_640x960", "Default@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_640x1136", "Default-568h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_320x480", "Default.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_640x960", "Default@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_640x1136", "Default-568h@2x.png");
 
         // ipad portrait+landscape
         // backward compatibility with old game.project files with the incorrect launch image sizes
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_768x1004", "Default-Portrait-1024h.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_768x1024", "Default-Portrait-1024h.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1024x748", "Default-Landscape-1024h.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1024x768", "Default-Landscape-1024h.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_768x1004", "Default-Portrait-1024h.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_768x1024", "Default-Portrait-1024h.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_1024x748", "Default-Landscape-1024h.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_1024x768", "Default-Landscape-1024h.png");
 
         // iPhone 6, 7 and 8 (portrait+landscape)
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_750x1334", "Default-Portrait-667h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1334x750", "Default-Landscape-667h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_750x1334", "Default-Portrait-667h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_1334x750", "Default-Landscape-667h@2x.png");
 
         // iPhone 6 plus portrait+landscape
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1242x2208", "Default-Portrait-736h@3x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2208x1242", "Default-Landscape-736h@3x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_1242x2208", "Default-Portrait-736h@3x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_2208x1242", "Default-Landscape-736h@3x.png");
 
         // iPad retina portrait+landscape
         // backward compatibility with old game.project files with the incorrect launch image sizes
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1536x2008", "Default-Portrait-1024h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1536x2048", "Default-Portrait-1024h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1496", "Default-Landscape-1024h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1536", "Default-Landscape-1024h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_1536x2008", "Default-Portrait-1024h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_1536x2048", "Default-Portrait-1024h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_2048x1496", "Default-Landscape-1024h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_2048x1536", "Default-Landscape-1024h@2x.png");
 
         // iPad pro (10.5")
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1668x2224", "Default-Portrait-1112h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2224x1668", "Default-Landscape-1112h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_1668x2224", "Default-Portrait-1112h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_2224x1668", "Default-Landscape-1112h@2x.png");
 
         // iPad pro (12.9")
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x2732", "Default-Portrait-1366h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2732x2048", "Default-Landscape-1366h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_2048x2732", "Default-Portrait-1366h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_2732x2048", "Default-Landscape-1366h@2x.png");
 
         // iPhone X (portrait+landscape)
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1125x2436", "Default-Portrait-812h@3x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2436x1125", "Default-Landscape-812h@3x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_1125x2436", "Default-Portrait-812h@3x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_2436x1125", "Default-Landscape-812h@3x.png");
 
         List<String> applicationQueriesSchemes = new ArrayList<String>();
         List<String> urlSchemes = new ArrayList<String>();
@@ -294,6 +283,7 @@ public class IOSBundler implements IBundler {
 
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app");
         helper.format(properties, "ios", "infoplist", new File(appDir, "Info.plist"));
+        helper.copyIosIcons();
 
         // Copy bundle resources into .app folder
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
