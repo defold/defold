@@ -174,6 +174,7 @@ namespace dmLoadQueue
             dmConditionVariable::Signal(queue->m_WakeupCond);
         }
         dmThread::Join(queue->m_Thread);
+        dmConditionVariable::Delete(queue->m_WakeupCond);
         dmMutex::Delete(queue->m_Mutex);
         delete queue;
     }
