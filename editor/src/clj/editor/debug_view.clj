@@ -152,20 +152,21 @@
       (.clear input)
       (assert (= :suspended (mobdebug/state debug-session)))
       (console/append-console-entry! :eval-expression code)
-      (let [ret (mobdebug/eval debug-session code frame)]
-        (cond
-          (= :bad-request (:error ret))
-          (console/append-console-entry! :eval-error "Bad request")
+      (future
+        (let [ret (mobdebug/eval debug-session code frame)]
+          (cond
+            (= :bad-request (:error ret))
+            (console/append-console-entry! :eval-error "Bad request")
 
-          (string? (:error ret))
-          (console/append-console-entry! :eval-error (sanitize-eval-error (:error ret)))
+            (string? (:error ret))
+            (console/append-console-entry! :eval-error (sanitize-eval-error (:error ret)))
 
-          (:result ret)
-          (doseq [line (eval-result->lines (:result ret))]
-            (console/append-console-entry! :eval-result line))
+            (:result ret)
+            (doseq [line (eval-result->lines (:result ret))]
+              (console/append-console-entry! :eval-result line))
 
-          :else
-          (console/append-console-entry! :eval-error (str ret)))))))
+            :else
+            (console/append-console-entry! :eval-error (str ret))))))))
 
 (defn- setup-tool-bar!
   [^Parent console-tool-bar]
