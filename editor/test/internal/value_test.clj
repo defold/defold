@@ -119,14 +119,6 @@
                           (g/transact (it/update-property name1 :scalar (constantly "John") []))
                           (is (= "John Doe" (g/node-value combiner :derived-value)))))))
 
-  (testing "transmogrifying a node invalidates its cached value"
-    (ts/with-clean-system
-      (let [[name1 name2 combiner expensive] (build-sample-project world)]
-        (is (= "Jane Doe" (g/node-value combiner :derived-value)))
-        (expect-call-when combiner 'compute-derived-value
-                          (g/transact (it/become name1 (g/construct CacheTestNode)))
-                          (is (= "Jane Doe" (g/node-value combiner :derived-value)))))))
-
   (testing "cached values are distinct"
     (ts/with-clean-system
       (let [[name1 name2 combiner expensive] (build-sample-project world)]
