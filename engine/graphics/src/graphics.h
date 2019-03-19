@@ -2,7 +2,7 @@
 #define DM_GRAPHICS_H
 
 #include <stdint.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dmsdk/graphics/graphics.h>
 #include <ddf/ddf.h>
