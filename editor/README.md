@@ -80,8 +80,6 @@ Please note that Lein will introduce a nREPL dependency automagically, but its a
 `lein run` will launch the editor as well as providing a nrepl port
 for you to jack into
 
-**PLEASE NOTE:** 2 NREPL servers are started, you must connect to the first one!
-
 ## Building the Editor
 
 Use `scripts/bundle.py` to produce a bundled version of the editor.
