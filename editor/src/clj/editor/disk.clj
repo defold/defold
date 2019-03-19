@@ -171,7 +171,7 @@
                        (finally
                          (disk-availability/pop-busy!)))
                      (try
-                       (render-build-progress! (progress/make "Building..." 0 0 true))
+                       (render-build-progress! (progress/make-cancellable-indeterminate "Building..."))
                        ;; evaluation-context below is used to map
                        ;; project paths to resource node id:s. To be
                        ;; strictly correct, we should probably re-use
