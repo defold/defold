@@ -15,6 +15,9 @@
 (defn make-indeterminate [msg]
   (make msg 0))
 
+(defn make-cancellable-indeterminate [msg]
+  (make msg 0 0 true))
+
 (def done (make "Ready" 1 1))
 
 (defn with-message [p msg]
@@ -110,48 +113,6 @@
              (message progress)
              (* scale (:size parent-progress))
              (+ (* scale (:pos parent-progress)) (* (:pos progress) span)))))))))
-
-(comment
-  ;; silly nest-render-progress usage example
-
-  (defn morning-sub-task! [render-progress!]
-    (render-progress! (make "morning: make covfefe" 2 0))
-    (render-progress! (make "morning: have coffee" 2 1))
-    (render-progress! (make "morning: be happy" 2 2)))
-
-  (defn go-to-work-sub-task! [render-progress!]
-    (render-progress! (make "go-to-work: walk to subway" 4 0))
-    (render-progress! (make "go-to-work: wait for subway" 4 1))
-    (render-progress! (make "go-to-work: go by subway" 4 2))
-    (render-progress! (make "go-to-work: walk to work" 4 3))
-    (render-progress! (make "go-to-work: arrive at work" 4 4)))
-
-  (defn feed-kids! [render-progress!]
-    (loop [progress (make "feed-kids: feed" 20 0)]
-      (render-progress! progress)
-      (when-not (done? progress)
-        (recur (advance progress)))))
-
-  (defn evening-sub-task! [render-progress!]
-    (render-progress! (make "evening: make food" 5 0))
-    (feed-kids! (nest-render-progress render-progress! (make "" 5 1) 2))
-    (render-progress! (make "evening: eat" 5 3))
-    (render-progress! (make "evening: telly" 5 4))
-    (render-progress! (make "evening: sleep" 5 5)))
-
-  (defn parent-task! [render-progress!]
-    (render-progress! (make "parent: wake up" 5 0))
-    (morning-sub-task! (nest-render-progress render-progress! (make "" 5 0)))
-    (render-progress! (make "parent: morning over" 5 1))
-    (go-to-work-sub-task! (nest-render-progress render-progress! (make "" 5 1)))
-    (render-progress! (make "parent: workify" 5 2))
-    (render-progress! (make "parent: go home" 5 3))
-    (evening-sub-task! (nest-render-progress render-progress! (make "" 5 4)))
-    (render-progress! (make "parent: not to bad" 5 5)))
-
-  (parent-task! println-render-progress!))
-
-
 
 (defn progress-mapv
   ([f coll render-progress!]
