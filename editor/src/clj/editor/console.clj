@@ -9,25 +9,30 @@
             [editor.handler :as handler]
             [editor.resource :as resource]
             [editor.ui :as ui]
-            [editor.workspace :as workspace]
-            [util.thread-util :refer [preset!]])
-  (:import (editor.code.data Cursor CursorRange LayoutInfo Rect)
-           (java.util.regex MatchResult)
-           (javafx.beans.property SimpleStringProperty)
-           (javafx.scene Parent Scene)
-           (javafx.scene.canvas Canvas GraphicsContext)
-           (javafx.scene.control Button Tab TabPane TextField)
-           (javafx.scene.input Clipboard KeyCode KeyEvent MouseEvent ScrollEvent)
-           (javafx.scene.layout GridPane Pane)
-           (javafx.scene.paint Color)
-           (javafx.scene.text Font FontSmoothingType TextAlignment)))
+            [editor.workspace :as workspace])
+  (:import [clojure.lang PersistentQueue]
+           [editor.code.data Cursor CursorRange LayoutInfo Rect]
+           [java.util.regex MatchResult]
+           [javafx.beans.property SimpleStringProperty]
+           [javafx.scene Parent Scene]
+           [javafx.scene.canvas Canvas GraphicsContext]
+           [javafx.scene.control Button Tab TabPane TextField]
+           [javafx.scene.input Clipboard KeyCode KeyEvent MouseEvent ScrollEvent]
+           [javafx.scene.layout GridPane Pane]
+           [javafx.scene.paint Color]
+           [javafx.scene.text Font FontSmoothingType TextAlignment]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(def ^:private *pending (atom {:clear? false :entries []}))
-(def ^:private gutter-bubble-font (Font. "Source Sans Pro", 10.5))
-(def ^:private gutter-bubble-glyph-metrics (view/make-glyph-metrics gutter-bubble-font 1.0))
+(def ^:private pending-atom
+  (atom {:clear? false :entries PersistentQueue/EMPTY}))
+
+(def ^:private gutter-bubble-font
+  (Font. "Source Sans Pro", 10.5))
+
+(def ^:private gutter-bubble-glyph-metrics
+  (view/make-glyph-metrics gutter-bubble-font 1.0))
 
 (defn append-console-entry!
   "Append to the console. Callable from a background thread. If type is
@@ -35,17 +40,30 @@
   [type line]
   (assert (or (nil? type) (keyword? type)))
   (assert (string? line))
-  (swap! *pending update :entries conj [type line]))
+  (swap! pending-atom update :entries conj [type line]))
 
 (def append-console-line! (partial append-console-entry! nil))
 
 (defn clear-console!
   "Clear the console. Callable from a background thread."
   []
-  (reset! *pending {:clear? true :entries []}))
+  (reset! pending-atom {:clear? true :entries PersistentQueue/EMPTY}))
 
-(defn- flip-pending! []
-  (preset! *pending {:clear? false :entries []}))
+(defn- pop-n [coll n]
+  (let [max-n (min n (count coll))]
+    (loop [i 0
+           xs coll]
+      (if (= max-n i)
+        xs
+        (recur (inc i) (pop xs))))))
+
+(defn- dequeue-pending! [n]
+  (let [batch (first (swap-vals!
+                       pending-atom
+                       (fn [{:keys [entries]}]
+                         {:clear? false
+                          :entries (pop-n entries n)})))]
+    (update batch :entries #(take n %))))
 
 (defn show! [view-node]
   (let [canvas (g/node-value view-node :canvas)
@@ -392,7 +410,7 @@
           (partition-by #(nil? (first %)) entries)))
 
 (defn- repaint-console-view! [view-node workspace on-region-click! elapsed-time]
-  (let [{:keys [clear? entries]} (flip-pending!)]
+  (let [{:keys [clear? entries]} (dequeue-pending! 1000)]
     (when (or clear? (seq entries))
       (let [resource-map (g/node-value workspace :resource-map)
             ^LayoutInfo prev-layout (g/node-value view-node :layout)
