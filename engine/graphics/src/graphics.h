@@ -511,6 +511,15 @@ namespace dmGraphics
     void SetWindowSize(HContext context, uint32_t width, uint32_t height);
 
     /**
+     * Resizes a previously opened window. Only the window width and height will be changed with its framebuffer size
+     * changed accordingly. The game width and height will be kept as specified from initial boot.
+     * @param context Graphics context handle
+     * @param width New width of the window
+     * @param height New height of the window
+     */
+    void ResizeWindow(HContext context, uint32_t width, uint32_t height);
+
+    /**
      * Return the default texture filtering modes.
      * @param context Graphics context handle
      * @param out_min_filter Out parameter to write the default min filtering mode to

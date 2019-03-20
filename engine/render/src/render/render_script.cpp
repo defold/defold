@@ -795,7 +795,7 @@ namespace dmRender
      * @name render.set_render_target
      * @param render_target [type:render_target] render target to set. render.RENDER_TARGET_DEFAULT to set the default render target
      * @param [options] [type:table] optional table with behaviour parameters
-     * 
+     *
      * `transient`
      * : [type:number] Transient frame buffer types are only valid while the render target is active, i.e becomes undefined when a new target is set by a subsequent call to set_render_target.
      *  Default is all non-transient. Be aware that some hardware uses a combined depth stencil buffer and when this is the case both are considered non-transient if exclusively selected!
@@ -804,12 +804,12 @@ namespace dmRender
      * - `render.BUFFER_COLOR_BIT`
      * - `render.BUFFER_DEPTH_BIT`
      * - `render.BUFFER_STENCIL_BIT`
-     * 
+     *
      * @examples
      *
      * How to set a render target and draw to it and then switch back to the default render target
      * The render target defines the depth/stencil buffers as transient, when set_render_target is called the next time the buffers may be invalidated and allow for optimisations depending on driver support
-     * 
+     *
      * ```lua
      * function update(self, dt)
      *     -- set render target so all drawing is done to it
@@ -817,11 +817,11 @@ namespace dmRender
      *
      *     -- draw a predicate to the render target
      *     render.draw(self.my_pred)
-     * 
+     *
      *     -- set default render target. This also invalidates the depth and stencil buffers of the current target (self.my_render_target)
      *     --  which can be an optimisation on some hardware
      *     render.set_render_target(render.RENDER_TARGET_DEFAULT)
-     * 
+     *
      * end
      * ```
     */
@@ -859,7 +859,7 @@ namespace dmRender
                 {
                     transient_buffer_types |= luaL_checkint(L, -1);
                     lua_pop(L, 1);
-                }            
+                }
             }
             lua_pop(L, 2);
         }
@@ -880,7 +880,7 @@ namespace dmRender
      * @param render_target [type:render_target] render target to enable
      *
      * @deprecated Use render.set_render_target() instead
-     * 
+     *
      * @examples
      *
      * How to enable a render target and draw to it:
@@ -923,9 +923,9 @@ namespace dmRender
      *
      * @name render.disable_render_target
      * @param render_target [type:render_target] render target to disable
-     * 
+     *
      * @deprecated Use render.set_render_target() instead
-     * 
+     *
      * @examples
      *
      * How to disable a render target so we can draw to the screen:
@@ -2871,6 +2871,12 @@ bail:
             {
                 dmRenderDDF::DrawLine* dl = (dmRenderDDF::DrawLine*)message->m_Data;
                 Line3D(instance->m_RenderContext, dl->m_StartPoint, dl->m_EndPoint, dl->m_Color, dl->m_Color);
+                return;
+            }
+            else if (descriptor == dmRenderDDF::Resize::m_DDFDescriptor)
+            {
+                dmRenderDDF::Resize* resize_msg = (dmRenderDDF::Resize*)message->m_Data;
+                dmGraphics::ResizeWindow(instance->m_RenderContext->m_GraphicsContext, resize_msg->m_Width, resize_msg->m_Height);
                 return;
             }
         }
