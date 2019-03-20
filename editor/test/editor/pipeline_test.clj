@@ -1,36 +1,62 @@
 (ns editor.pipeline-test
-  (:require
-   [clojure.test :refer :all]
-   [clojure.java.io :as io]
-   [integration.test-util :as test-util]
-   [editor.fs :as fs]
-   [editor.pipeline :as pipeline]
-   [editor.protobuf :as protobuf]
-   [editor.progress :as progress]
-   [editor.resource :as resource]
-   [editor.workspace :as workspace]
-   [support.test-support :as ts])
-  (:import
-   [com.dynamo.sprite.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode]
-   [java.io ByteArrayOutputStream File]
-   [org.apache.commons.io IOUtils]))
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer :all]
+            [editor.build-target :as bt]
+            [editor.pipeline :as pipeline]
+            [editor.progress :as progress]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.workspace :as workspace]
+            [integration.test-util :as test-util]
+            [support.test-support :as ts])
+  (:import [com.dynamo.sprite.proto Sprite$SpriteDesc]
+           [java.io ByteArrayOutputStream]
+           [org.apache.commons.io IOUtils]))
 
 (def project-path "test/resources/custom_resources_project")
 
-(defn- make-asserting-build-target
-  [workspace id callback dep-resources & deps]
+(defn- mock-build-fn [resource _dep-resources user-data]
+  {:resource resource
+   :content (.getBytes (str user-data))})
+
+(defn- make-mock-build-target
+  [workspace id dep-resources & deps]
   (let [build-resource (workspace/make-build-resource (workspace/file-resource workspace (str "/resource-" id)))
-        user-data (str "user-data-" id)]
-    {:resource  build-resource
-     :build-fn  (fn [resource' dep-resources' user-data']
+        user-data (str id)]
+    (bt/update-build-target-key
+      {:resource build-resource
+       :build-fn mock-build-fn
+       :user-data user-data
+       :dep-resources dep-resources
+       :deps (vec deps)})))
+
+(defn- install-asserting-build-fn
+  [build-target callback]
+  (let [build-resource (:resource build-target)
+        dep-resources (:dep-resources build-target)
+        user-data (:user-data build-target)]
+    (assoc build-target
+      :callback callback
+      :build-fn (fn [resource' dep-resources' user-data']
                   (when callback (callback))
                   (is (= build-resource resource'))
                   (is (= dep-resources dep-resources'))
                   (is (= user-data user-data'))
-                  {:resource resource'
-                   :content (.getBytes id)})
-     :user-data user-data
-     :deps      (vec deps)}))
+                  (mock-build-fn resource' dep-resources' user-data')))))
+
+(defn- make-asserting-build-target
+  [workspace id callback dep-resources & deps]
+  (-> (apply make-mock-build-target workspace id dep-resources deps)
+      (install-asserting-build-fn callback)))
+
+(defn- update-asserting-build-target
+  [asserting-build-target]
+  (let [callback (:callback asserting-build-target)]
+
+    (-> asserting-build-target
+        (assoc :build-fn mock-build-fn)
+        bt/update-build-target-key
+        (install-asserting-build-fn callback))))
 
 (defmacro with-clean-system [& forms]
   `(ts/with-clean-system
@@ -87,19 +113,21 @@
             (let [build-results (pipeline-build! workspace build-targets)]
               (is (= 4 @build-fn-calls))
               (is (= "1" (content (first (:artifacts build-results)))))))))
-      (testing "invokes build-fn when the target key has changed (build-fn recreated)"
+      (testing "invokes build-fn when the target key has changed"
         (let [build-targets [(-> (make-asserting-build-target workspace "1" called! {})
-                               (assoc :build-fn (fn [resource' dep-resources' user-data']
-                                                  (called!)
-                                                  {:resource resource' :content (.getBytes "1")})))]
+                                 (assoc :user-data "X")
+                                 update-asserting-build-target)]
               _ (pipeline-build! workspace build-targets)
               build-results (pipeline-build! workspace build-targets)]
           (is (= 5 @build-fn-calls))
-          (is (= "1" (content (first (:artifacts build-results)))))
-          (let [build-results (pipeline-build! workspace
-                                               (assoc-in build-targets [0 :user-data] {:new-value 42}))]
+          (is (= "X" (content (first (:artifacts build-results)))))
+          (let [build-targets' (update build-targets 0 (fn [build-target]
+                                                         (-> build-target
+                                                             (assoc :user-data {:new-value 42})
+                                                             update-asserting-build-target)))
+                build-results (pipeline-build! workspace build-targets')]
             (is (= 6 @build-fn-calls))
-            (is (= "1" (content (first (:artifacts build-results))))))))
+            (is (= "{:new-value 42}" (content (first (:artifacts build-results))))))))
       (testing "fs is pruned"
         (let [files-before (doall (file-seq (workspace/build-path workspace)))
               build-results (pipeline-build! workspace [])

@@ -5,6 +5,7 @@
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.build-target :as bt]
             [editor.graph-util :as gu]
             [editor.core :as core]
             [editor.geom :as geom]
@@ -39,7 +40,6 @@
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.texture TextureLifecycle]
-           [editor.types AABB]
            [java.awt.image BufferedImage]
            [javax.vecmath Quat4d Vector3d]))
 
@@ -2157,14 +2157,15 @@
           deps-by-source (into {} (map #(let [res (:resource %)] [(resource/resource->proj-path (:resource res)) res]) dep-build-targets))
           resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get rt-pb-msg (first field))))) [field])) (:resource-fields def))
           dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-msg label) (get rt-pb-msg label)))]) resource-fields)]
-      [{:node-id   _node-id
-        :resource  (workspace/make-build-resource resource)
-        :build-fn  build-pb
-        :user-data {:pb            rt-pb-msg
-                    :pb-class      (:pb-class def)
-                    :def           def
-                    :dep-resources dep-resources}
-        :deps      dep-build-targets}])))
+      [(bt/update-build-target-key
+         {:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-pb
+          :user-data {:pb rt-pb-msg
+                      :pb-class (:pb-class def)
+                      :def def
+                      :dep-resources dep-resources}
+          :deps dep-build-targets})])))
 
 (defn- validate-max-nodes [_node-id max-nodes node-ids]
     (or (validation/prop-error :fatal _node-id :max-nodes (partial validation/prop-outside-range? [1 1024]) max-nodes "Max Nodes")

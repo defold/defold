@@ -3,6 +3,7 @@
             [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.build-target :as bt]
             [editor.code.script :as script]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
@@ -64,10 +65,11 @@
       (let [workspace (project/workspace (project/get-project _node-id))
             res-type  (workspace/get-resource-type workspace "sound")
             pb        {:sound source-path}
-            target    {:node-id  _node-id
-                       :resource (workspace/make-build-resource (resource/make-memory-resource workspace res-type (protobuf/map->str Sound$SoundDesc pb)))
-                       :build-fn build-raw-sound
-                       :deps     [target]}]
+            target    (bt/update-build-target-key
+                        {:node-id _node-id
+                         :resource (workspace/make-build-resource (resource/make-memory-resource workspace res-type (protobuf/map->str Sound$SoundDesc pb)))
+                         :build-fn build-raw-sound
+                         :deps [target]})]
         target)
       target)))
 
@@ -206,10 +208,13 @@
   (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
                                              (if-let [target (first source-build-targets)]
                                                (let [target (->> (assoc target :resource build-resource)
-                                                              (wrap-if-raw-sound _node-id))]
-                                                 [(assoc target :instance-data {:resource (:resource target)
-                                                                                :instance-msg rt-ddf-message
-                                                                                :transform transform})])
+                                                                 (wrap-if-raw-sound _node-id))]
+                                                 [(bt/update-build-target-key
+                                                    (assoc target
+                                                      :instance-data
+                                                      {:resource (:resource target)
+                                                       :instance-msg rt-ddf-message
+                                                       :transform transform}))])
                                                [])))
   (output _properties g/Properties :cached produce-component-properties))
 
@@ -352,11 +357,12 @@
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
         (when (not-empty dup-ids)
           (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
-      [{:node-id _node-id
-        :resource (workspace/make-build-resource resource)
-        :build-fn build-game-object
-        :user-data {:proto-msg proto-msg :instance-data (map :instance-data (flatten dep-build-targets))}
-        :deps (flatten dep-build-targets)}]))
+      [(bt/update-build-target-key
+         {:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-game-object
+          :user-data {:proto-msg proto-msg :instance-data (map :instance-data (flatten dep-build-targets))}
+          :deps (flatten dep-build-targets)})]))
 
 (g/defnk produce-scene [_node-id child-scenes]
   {:node-id _node-id

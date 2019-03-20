@@ -1,5 +1,6 @@
 (ns editor.rig
   (:require
+   [editor.build-target :as bt]
    [editor.defold-project :as project]
    [editor.pipeline :as pipeline]
    [editor.protobuf :as protobuf]
@@ -20,10 +21,11 @@
         ;; resource/resource-hash used to name the
         ;; corresponding "generated" build resource.
         skeleton-resource (resource/make-memory-resource workspace skeleton-type (protobuf/map->sha1-hex Rig$Skeleton skeleton))]
-    {:node-id   node-id
-     :resource  (workspace/make-build-resource skeleton-resource)
-     :build-fn  build-skeleton
-     :user-data {:skeleton skeleton}}))
+    (bt/update-build-target-key
+      {:node-id node-id
+       :resource (workspace/make-build-resource skeleton-resource)
+       :build-fn build-skeleton
+       :user-data {:skeleton skeleton}})))
 
 
 (defn- build-animation-set
@@ -37,10 +39,11 @@
         ;; resource/resource-hash used to name the
         ;; corresponding "generated" build resource.
         animation-set-resource (resource/make-memory-resource workspace animation-set-type (protobuf/map->sha1-hex Rig$AnimationSet animation-set))]
-    {:node-id   node-id
-     :resource  (workspace/make-build-resource animation-set-resource)
-     :build-fn  build-animation-set
-     :user-data {:animation-set animation-set}}))
+    (bt/update-build-target-key
+      {:node-id node-id
+       :resource (workspace/make-build-resource animation-set-resource)
+       :build-fn build-animation-set
+       :user-data {:animation-set animation-set}})))
 
 
 (defn- build-mesh-set
@@ -54,10 +57,11 @@
         ;; resource/resource-hash used to name the
         ;; corresponding "generated" build resource.
         mesh-set-resource (resource/make-memory-resource workspace mesh-set-type (protobuf/map->sha1-hex Rig$MeshSet mesh-set))]
-    {:node-id   node-id
-     :resource  (workspace/make-build-resource mesh-set-resource)
-     :build-fn  build-mesh-set
-     :user-data {:mesh-set mesh-set}}))
+    (bt/update-build-target-key
+      {:node-id node-id
+       :resource (workspace/make-build-resource mesh-set-resource)
+       :build-fn build-mesh-set
+       :user-data {:mesh-set mesh-set}})))
 
 (defn make-rig-scene-build-targets
   ([node-id resource pb dep-build-targets resource-keys]

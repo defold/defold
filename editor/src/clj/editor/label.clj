@@ -1,5 +1,6 @@
 (ns editor.label
   (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.colors :as colors]
             [editor.defold-project :as project]
             [editor.font :as font]
@@ -234,12 +235,13 @@
       (let [dep-build-targets (flatten dep-build-targets)
             deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
             dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:font font] [:material material]])]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-label
-          :user-data {:proto-msg pb-msg
-                      :dep-resources dep-resources}
-          :deps dep-build-targets}])))
+        [(bt/update-build-target-key
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-label
+            :user-data {:proto-msg pb-msg
+                        :dep-resources dep-resources}
+            :deps dep-build-targets})])))
 
 (g/defnode LabelNode
   (inherits resource-node/ResourceNode)

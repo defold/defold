@@ -1,5 +1,6 @@
 (ns editor.image
   (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.gl :as gl]
             [editor.gl.texture :as texture]
             [editor.image-util :as image-util]
@@ -28,22 +29,24 @@
 (defn make-texture-build-target
   [workspace node-id image-generator texture-profile compress?]
   (assert (contains? image-generator :sha1))
-  (let [texture-type     (workspace/get-resource-type workspace "texture")
+  (let [texture-type (workspace/get-resource-type workspace "texture")
         texture-resource (resource/make-memory-resource workspace texture-type (:sha1 image-generator))]
-    {:node-id   node-id
-     :resource  (workspace/make-build-resource texture-resource)
-     :build-fn  build-texture
-     :user-data {:content-generator image-generator
-                 :compress?         compress?
-                 :texture-profile   texture-profile}}))
+    (bt/update-build-target-key
+      {:node-id node-id
+       :resource (workspace/make-build-resource texture-resource)
+       :build-fn build-texture
+       :user-data {:content-generator image-generator
+                   :compress? compress?
+                   :texture-profile texture-profile}})))
 
 (g/defnk produce-build-targets [_node-id resource content-generator texture-profile build-settings]
-  [{:node-id   _node-id
-    :resource  (workspace/make-build-resource resource)
-    :build-fn  build-texture
-    :user-data {:content-generator content-generator
-                :compress?         (:compress? build-settings false)
-                :texture-profile   texture-profile}}])
+  [(bt/update-build-target-key
+     {:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-texture
+      :user-data {:content-generator content-generator
+                  :compress? (:compress? build-settings false)
+                  :texture-profile texture-profile}})])
 
 (defn- generate-gpu-texture [{:keys [texture-image]} request-id params unit]
   (texture/texture-image->gpu-texture request-id texture-image params unit))

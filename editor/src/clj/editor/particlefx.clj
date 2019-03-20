@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.build-target :as bt]
             [editor.camera :as camera]
             [editor.colors :as colors]
             [editor.core :as core]
@@ -669,12 +670,13 @@
                                     [field]))
                                 resource-fields)
         dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-data label) (get rt-pb-data label)))]) resource-fields)]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-pb
-      :user-data {:pb rt-pb-data
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
+    [(bt/update-build-target-key
+       {:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-pb
+        :user-data {:pb rt-pb-data
+                    :dep-resources dep-resources}
+        :deps dep-build-targets})]))
 
 (defn- render-pfx [^GL2 gl render-args renderables count])
 

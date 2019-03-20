@@ -1,6 +1,7 @@
 (ns editor.code.shader
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.code.resource :as r]
             [editor.gl.shader :as shader]
             [editor.protobuf :as protobuf]
@@ -82,10 +83,11 @@
      :content content}))
 
 (g/defnk produce-build-targets [_node-id resource lines]
-  [{:node-id _node-id
-    :resource (workspace/make-build-resource resource)
-    :build-fn build-shader
-    :user-data {:lines lines :resource-ext (resource/type-ext resource)}}])
+  [(bt/update-build-target-key
+     {:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-shader
+      :user-data {:lines lines :resource-ext (resource/type-ext resource)}})])
 
 (g/defnk produce-full-source [resource lines]
   (make-full-source (resource/type-ext resource) lines))

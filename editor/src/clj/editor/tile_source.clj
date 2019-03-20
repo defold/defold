@@ -3,6 +3,7 @@
    [clojure.string :as str]
    [dynamo.graph :as g]
    [editor.app-view :as app-view]
+   [editor.build-target :as bt]
    [editor.camera :as camera]
    [editor.collision-groups :as collision-groups]
    [editor.colors :as colors]
@@ -153,12 +154,13 @@
   (let [workspace (project/workspace (project/get-project _node-id))
         compress? (:compress-textures? build-settings false)
         texture-target (image/make-texture-build-target workspace _node-id packed-image-generator texture-profile compress?)]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-texture-set
-      :user-data {:texture-set texture-set
-                  :dep-resources [[:texture (:resource texture-target)]]}
-      :deps [texture-target]}]))
+    [(bt/update-build-target-key
+       {:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-texture-set
+        :user-data {:texture-set texture-set
+                    :dep-resources [[:texture (:resource texture-target)]]}
+        :deps [texture-target]})]))
 
 (g/defnk produce-anim-data [texture-set uv-transforms]
   (texture-set/make-anim-data texture-set uv-transforms))

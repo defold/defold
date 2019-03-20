@@ -1,6 +1,7 @@
 (ns editor.display-profiles
   (:require [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
@@ -96,12 +97,13 @@
     {:resource resource :content (protobuf/map->bytes (:pb-class pb-def) pb)}))
 
 (g/defnk produce-build-targets [_node-id resource pb-msg]
-  [{:node-id _node-id
-    :resource (workspace/make-build-resource resource)
-    :build-fn build-pb
-    :user-data {:pb pb-msg
-                :pb-class (:pb-class pb-def)}
-    :deps []}])
+  [(bt/update-build-target-key
+     {:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-pb
+      :user-data {:pb pb-msg
+                  :pb-class (:pb-class pb-def)}
+      :deps []})])
 
 (g/defnode DisplayProfilesNode
   (inherits resource-node/ResourceNode)

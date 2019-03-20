@@ -1,5 +1,6 @@
 (ns editor.cubemap
   (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.geom :as geom]
@@ -166,12 +167,13 @@
   (g/precluding-errors
     [(cubemap-images-missing-error _node-id cubemap-image-resources)
      (cubemap-image-sizes-error _node-id cubemap-image-sizes)]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-cubemap
-      :user-data {:image-generators cubemap-image-generators
-                  :texture-profile texture-profile
-                  :compress? (:compress? build-settings false)}}]))
+    [(bt/update-build-target-key
+       {:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-cubemap
+        :user-data {:image-generators cubemap-image-generators
+                    :texture-profile texture-profile
+                    :compress? (:compress? build-settings false)}})]))
 
 (defmacro cubemap-side-error [property]
   (let [prop-kw (keyword property)
