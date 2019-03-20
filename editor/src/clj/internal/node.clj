@@ -1247,11 +1247,10 @@
            original# (if (:original-id ~self-name)
                        (gt/node-by-id-at basis# (original-root basis# ~nodeid-sym))
                        ~self-name)]
-       (if-let [jammer# (get (:_output-jammers original#) ~transform)]
-         (let [jam-value# (jammer#)]
-           (if (ie/error? jam-value#)
-             (assoc jam-value# :_label ~transform :_node-id ~nodeid-sym)
-             jam-value#))
+       (if-some [jam-value# (get (:_output-jammers original#) ~transform)]
+         (if (ie/error? jam-value#)
+           (assoc jam-value# :_label ~transform :_node-id ~nodeid-sym)
+           jam-value#)
          ~forms))
     forms))
 
