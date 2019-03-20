@@ -14,4 +14,5 @@ if __name__ == "__main__":
     classpath = "%s/share/java/bob-light.jar" % dynamo_home
     ret = os.system("java -cp %s com.dynamo.bob.pipeline.TextureGenerator %s %s" % (classpath, args[0], options.output_file))
     if ret != 0:
-        raise Exception("Failed to compiled texture (%d)" % ret)
+        raise Exception("Failed to compile texture (%d)" % ret)
+
