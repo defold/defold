@@ -89,28 +89,28 @@
 (defn isa-node-type? [t]
   (instance? NodeTypeRef t))
 
-(defrecord NodeTypeImpl [name supertypes output input property input-dependencies property-display-order]
+(defrecord NodeTypeImpl [name supertypes output input property input-dependencies property-display-order cascade-deletes behavior property-behavior internal-property declared-property]
   NodeType
   Type)
 
 ;;; accessors for node type information
-
 (defn type-name                [nt]        (some-> nt deref :name))
 (defn supertypes               [nt]        (some-> nt deref :supertypes))
-(defn property-display-order   [nt]        (some-> nt deref :property-display-order))
-(defn all-properties           [nt]        (some-> nt deref :property))
-(defn declared-property-labels [nt]        (some-> nt deref :declared-property))
-(defn internal-property-labels [nt]        (some-> nt deref :internal-property))
-(defn declared-inputs          [nt]        (some-> nt deref :input))
 (defn declared-outputs         [nt]        (some-> nt deref :output))
-(defn cached-outputs           [nt]        (some-> nt deref :output (->> (filterm #(cached? (val %))) util/key-set)))
+(defn declared-inputs          [nt]        (some-> nt deref :input))
+(defn all-properties           [nt]        (some-> nt deref :property))
 (defn input-dependencies       [nt]        (some-> nt deref :input-dependencies))
+(defn property-display-order   [nt]        (some-> nt deref :property-display-order))
+(defn cascade-deletes          [nt]        (some-> nt deref :cascade-deletes))
+(defn behavior                 [nt label]  (some-> nt deref (get-in [:behavior label])))
+(defn property-behavior        [nt label]  (some-> nt deref (get-in [:property-behavior label])))
+(defn internal-property-labels [nt]        (some-> nt deref :internal-property))
+(defn declared-property-labels [nt]        (some-> nt deref :declared-property))
+
+(defn cached-outputs           [nt]        (some-> nt deref :output (->> (filterm #(cached? (val %))) util/key-set)))
 (defn substitute-for           [nt label]  (some-> nt deref (get-in [:input label :options :substitute])))
 (defn input-type               [nt label]  (some-> nt deref (get-in [:input label :value-type])))
 (defn input-cardinality        [nt label]  (if (has-flag? :array (get-in (deref nt) [:input label])) :many :one))
-(defn behavior                 [nt label]  (some-> nt deref (get-in [:behavior label])))
-(defn property-behavior        [nt label]  (some-> nt deref (get-in [:property-behavior label])))
-(defn cascade-deletes          [nt]        (some-> nt deref :cascade-deletes))
 (defn output-type              [nt label]  (some-> nt deref (get-in [:output label :value-type])))
 (defn output-arguments         [nt label]  (some-> nt deref (get-in [:output label :arguments])))
 (defn externs                  [nt]        (some-> nt deref :property (->> (filterm #(extern? (val %))) util/key-set)))
