@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdlib.h> // free
 #include <string.h>
 #include "../dlib/dstrings.h"
 #include "../dlib/socket.h"
