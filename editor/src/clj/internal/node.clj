@@ -50,9 +50,7 @@
 
 (defn ref? [x] (and x (extends? Ref (class x))))
 
-(defprotocol Type
-  (describe* [type])
-  (ref* [type]))
+(defprotocol Type)
 
 (defn- type? [x] (and (extends? Type (class x)) x))
 (defn- named? [x] (instance? clojure.lang.Named x))
@@ -93,9 +91,7 @@
 
 (defrecord NodeTypeImpl [name supertypes output input property input-dependencies property-display-order]
   NodeType
-  Type
-  (describe*              [this] (pr-str (select-keys this [:input :output :property])))
-  (ref*                   [this] (->NodeTypeRef key)))
+  Type)
 
 ;;; accessors for node type information
 
@@ -192,24 +188,21 @@
   (dispatch-value [_] dispatch-value)
   (schema [_] schema)
 
-  Type
-  (describe* [this] (when schema (s/explain schema))))
+  Type)
 
 (defrecord ClassType [dispatch-value ^Class class]
   ValueType
   (dispatch-value [_] dispatch-value)
   (schema [_] class)
 
-  Type
-  (describe* [this] (.getName class)))
+  Type)
 
 (defrecord ProtocolType [dispatch-value schema]
   ValueType
   (dispatch-value [_] dispatch-value)
   (schema [_] schema)
 
-  Type
-  (describe* [this] dispatch-value))
+  Type)
 
 (defn value-type? [x] (satisfies? ValueType x))
 
@@ -718,7 +711,7 @@
   [where original-form]
   (let [multivalued? (vector? original-form)
         form (if multivalued? (first original-form) original-form)
-        autotype (cond
+        autotype-form (cond
                    (util/protocol-symbol? form) `(->ProtocolType ~form (s/protocol ~form))
                    (util/class-symbol? form) `(->ClassType ~form ~form))
         typeref (cond
@@ -729,13 +722,13 @@
     (assert (not (nil? typeref))
             (str "defnode " where " requires a value type but was supplied with '"
                  original-form "' which cannot be used as a type"))
-    (when (and (ref? typeref) (nil? autotype))
+    (when (and (ref? typeref) (nil? autotype-form))
       (assert (not (nil? (deref typeref)))
               (str "defnode " where " requires a value type but was supplied with '"
                    original-form "' which cannot be used as a type")))
     (util/assert-form-kind "defnode" "registered value type"
                            (some-fn ref? value-type?) where typeref)
-    (when autotype
+    (when autotype-form
       ;; the next two steps look redundant but are not. when we build
       ;; the release bundle, macroexpansion happens during compilation.
       ;; we need type information for compilation
@@ -756,7 +749,7 @@
       ;; need to re-register the automatic types at runtime. defnode
       ;; emits code to do that, based on the types we smuggle out via
       ;; this (hacky) atom
-      (swap! *autotypes* assoc (:k typeref) autotype))
+      (swap! *autotypes* assoc (ref-key typeref) autotype-form))
     {:value-type typeref
      :flags (if multivalued? #{:collection} #{})}))
 
