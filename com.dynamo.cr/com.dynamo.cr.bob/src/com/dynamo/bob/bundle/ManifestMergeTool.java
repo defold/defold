@@ -21,7 +21,7 @@ import com.dynamo.bob.CompileExceptionError;
 public class ManifestMergeTool {
 
 	public enum Platform {
-		ANDROID, IOS, HTML5, UNKNOWN
+		ANDROID, IOS, OSX, HTML5, UNKNOWN
 	}
 
     private static class ILoggerWrapper implements ILogger {
@@ -54,6 +54,7 @@ public class ManifestMergeTool {
     }
 
     private static void mergeAndroid(File main, File[] libraries, File out) throws RuntimeException {
+        // Good explanation of merge rules: https://android.googlesource.com/platform/tools/base/+/jb-mr2-dev/manifest-merger/src/main/java/com/android/manifmerger/ManifestMerger.java
         // https://github.com/pixnet/android-platform-tools-base/blob/master/build-system/manifest-merger/src/main/java/com/android/manifmerger/ManifestMerger2.java
         // https://android.googlesource.com/platform/tools/base/+/master/build-system/manifest-merger/src/main/java/com/android/manifmerger/Merger.java
         logger.log(Level.INFO, "Merging manifests for Android");
@@ -80,9 +81,14 @@ public class ManifestMergeTool {
                 report.log(ManifestMergeTool.androidLogger);
             }
         } catch (ManifestMerger2.MergeFailureException e) {
-            throw new RuntimeException("Exception while merging manifests", e);
+            throw new RuntimeException("Exception while merging manifests: " + e.toString());
         }
     }
+
+    private static void mergePlist(File main, File[] libraries, File out) throws RuntimeException {
+        InfoPlistMerger merger = new InfoPlistMerger();
+        merger.merge(main, libraries, out)
+;    }
 
     public static void merge(Platform platform, File main, File output, List<File> libraries) throws RuntimeException {
         if (main == null) {
@@ -107,11 +113,13 @@ public class ManifestMergeTool {
             }
         }
 
-        if (platform == Platform.ANDROID) {
-        	mergeAndroid(main, libraries.toArray(new File[0]), output);
-        } else {
-        	throw new RuntimeException(String.format("Unsupported platform: %s", platform.toString()));
-        }
+        switch (platform) {
+            case ANDROID:  mergeAndroid(main, libraries.toArray(new File[0]), output); break;
+            case IOS:
+            case OSX:      mergePlist(main, libraries.toArray(new File[0]), output); break;
+            default:
+                throw new RuntimeException(String.format("Unsupported platform: %s", platform.toString()));
+        };
 
         logger.log(Level.INFO, "done");
     }
