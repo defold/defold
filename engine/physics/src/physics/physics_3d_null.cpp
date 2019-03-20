@@ -170,6 +170,10 @@ namespace dmPhysics
     {
     }
 
+    void RayCast3D(HWorld3D world, const RayCastRequest& request, RayCastResponse& response)
+    {
+    }
+
     void SetDebugCallbacks3D(HContext3D context, const DebugCallbacks& callbacks)
     {
     }
