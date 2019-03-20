@@ -30,7 +30,7 @@ public class ZipPublisher extends Publisher {
     @Override
     public void Publish() throws CompileExceptionError {
     	try {
-            String tempFilePrefix = "defold.resourcepack_" + this.platform + "_";
+	    	String tempFilePrefix = "defold.resourcepack_" + this.platform + "_";
 	    	this.resourcePackZip = File.createTempFile(tempFilePrefix, ".zip");
 	        FileOutputStream resourcePackOutputStream = new FileOutputStream(this.resourcePackZip);
 	        ZipOutputStream zipOutputStream = new ZipOutputStream(resourcePackOutputStream);
