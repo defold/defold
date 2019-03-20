@@ -277,8 +277,6 @@
   [node-type-ref & {:as args}]
   (in/construct node-type-ref args))
 
-(defn- var-it [it] (list `var it))
-
 (defmacro defnode
   "Given a name and a specification of behaviors, creates a node,
    and attendant functions.
@@ -358,7 +356,7 @@
         fwd-decls (map (fn [d] (list `declare (second d))) fn-defs)
         node-type-def (util/update-paths node-type-def fn-paths
                                          (fn [path func curr]
-                                           (assoc curr :fn (var-it (in/dollar-name symb path)))))
+                                           (assoc curr :fn (list `var (in/dollar-name symb path)))))
         node-key (:key node-type-def)
         derivations (for [tref (:supertypes node-type-def)]
                       `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
