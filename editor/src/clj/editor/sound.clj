@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [util.digest :as digest]
+            [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.outline :as outline]
@@ -38,10 +39,11 @@
 
 (g/defnk produce-source-build-targets [_node-id resource]
   (try
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-sound-source
-      :user-data {:content-hash (resource/resource->sha1-hex resource)}}]
+    [(bt/update-build-target-key
+       {:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-sound-source
+        :user-data {:content-hash (resource/resource->sha1-hex resource)}})]
     (catch IOException e
       (g/->error _node-id :resource :fatal resource (format "Couldn't read audio file %s" (resource/resource->proj-path resource))))))
 
@@ -113,12 +115,13 @@
             dep-resources (map (fn [[label resource]]
                                  [label (get deps-by-resource resource)])
                                [[:sound sound]])]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-sound
-          :user-data {:pb-msg pb-msg
-                      :dep-resources dep-resources}
-          :deps dep-build-targets}])))
+        [(bt/update-build-target-key
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-sound
+            :user-data {:pb-msg pb-msg
+                        :dep-resources dep-resources}
+            :deps dep-build-targets})])))
 
 (defn load-sound [project self resource sound]
   (g/set-property self

@@ -2,6 +2,7 @@
   ;; switch to released version once https://dev.clojure.org/jira/browse/DIMAP-15 has been fixed
   (:require [clojure.data.int-map-fixed :as int-map]
             [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.geom :as geom]
@@ -380,12 +381,13 @@
                                [label (get deps-by-resource resource)])
                              [[:tile-set tile-source]
                               [:material material]])]
-      [{:node-id _node-id
-        :resource (workspace/make-build-resource resource)
-        :build-fn build-tile-map
-        :user-data {:pb-msg pb-msg
-                    :dep-resources dep-resources}
-        :deps dep-build-targets}])))
+      [(bt/update-build-target-key
+         {:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-tile-map
+          :user-data {:pb-msg pb-msg
+                      :dep-resources dep-resources}
+          :deps dep-build-targets})])))
 
 (g/defnode TileMapNode
   (inherits resource-node/ResourceNode)

@@ -3,6 +3,7 @@
             [clojure.java.io :as io]
             [dynamo.graph :as g]
             [util.murmur :as murmur]
+            [editor.build-target :as bt]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
             [editor.fs :as fs]
@@ -87,11 +88,12 @@
   (io/make-writer        [this opts] (io/writer resource)))
 
 (defn- make-custom-build-target [node-id resource]
-  {:node-id node-id
-   :resource (workspace/make-build-resource (CustomResource. resource))
-   :build-fn build-custom-resource
-   ;; NOTE! Break build cache when resource content changes.
-   :user-data {:hash (murmur/hash64-bytes (resource-content resource))}})
+  (bt/update-build-target-key
+    {:node-id node-id
+     :resource (workspace/make-build-resource (CustomResource. resource))
+     :build-fn build-custom-resource
+     ;; NOTE! Break build cache when resource content changes.
+     :user-data {:hash (murmur/hash64-bytes (resource-content resource))}}))
 
 (defn- strip-trailing-slash [path]
   (string/replace path #"/*$" ""))
@@ -135,13 +137,14 @@
                                                        (when (resource-setting-connections-template (:path resource-setting))
                                                          [(:path resource-setting) (deps-by-source (:value resource-setting))]))
                                                      resource-settings))]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-game-project
-      :user-data {:settings-map settings-map
-                  :meta-settings (:settings clean-meta-info)
-                  :path->built-resource-settings path->built-resource-settings}
-      :deps dep-build-targets}]))
+    [(bt/update-build-target-key
+       {:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-game-project
+        :user-data {:settings-map settings-map
+                    :meta-settings (:settings clean-meta-info)
+                    :path->built-resource-settings path->built-resource-settings}
+        :deps dep-build-targets})]))
 
 (g/defnode GameProjectNode
   (inherits resource-node/ResourceNode)

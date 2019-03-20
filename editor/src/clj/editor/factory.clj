@@ -3,6 +3,7 @@
             [plumbing.core :as pc]
             [dynamo.graph :as g]
             [editor.colors :as colors]
+            [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
@@ -73,13 +74,14 @@
             dep-resources (map (fn [[label resource]]
                                  [label (get deps-by-resource resource)])
                                [[:prototype prototype]])]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-factory
-          :user-data {:pb-msg pb-msg
-                      :pb-type (get-in factory-types [factory-type :pb-type])
-                      :dep-resources dep-resources}
-          :deps dep-build-targets}])))
+        [(bt/update-build-target-key
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-factory
+            :user-data {:pb-msg pb-msg
+                        :pb-type (get-in factory-types [factory-type :pb-type])
+                        :dep-resources dep-resources}
+            :deps dep-build-targets})])))
 
 (defn load-factory
   [factory-type project self resource factory]

@@ -1,5 +1,6 @@
 (ns editor.protobuf-types
   (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.graph-util :as gu]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
@@ -44,11 +45,12 @@
   {:resource resource :content (protobuf/map->bytes (:pb-class user-data) (:pb user-data))})
 
 (g/defnk produce-build-targets [_node-id resource pb def]
-  [{:node-id _node-id
-    :resource (workspace/make-build-resource resource)
-    :build-fn build-pb
-    :user-data {:pb pb
-                :pb-class (:pb-class def)}}])
+  [(bt/update-build-target-key
+     {:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-pb
+      :user-data {:pb pb
+                  :pb-class (:pb-class def)}})])
 
 (g/defnk produce-form-data [_node-id pb def]
   (protobuf-forms/produce-form-data _node-id pb def))

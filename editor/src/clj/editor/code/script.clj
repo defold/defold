@@ -1,5 +1,6 @@
 (ns editor.code.script
   (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code-completion :as code-completion]
@@ -174,12 +175,13 @@
                            properties))))))
 
 (g/defnk produce-build-targets [_node-id resource lines user-properties modules dep-build-targets]
-  [{:node-id _node-id
-    :resource (workspace/make-build-resource resource)
-    :build-fn build-script
-    ;; Remove node-id etc from user-properties to avoid creating one build-target per use (override) of the script
-    :user-data {:lines lines :user-properties (clean-user-properties user-properties) :modules modules :proj-path (resource/proj-path resource)}
-    :deps dep-build-targets}])
+  [(bt/update-build-target-key
+     {:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-script
+      ;; Remove node-id etc from user-properties to avoid creating one build-target per use (override) of the script
+      :user-data {:lines lines :user-properties (clean-user-properties user-properties) :modules modules :proj-path (resource/proj-path resource)}
+      :deps dep-build-targets})])
 
 (g/defnk produce-completions [completion-info module-completion-infos]
   (code-completion/combine-completions completion-info module-completion-infos))
