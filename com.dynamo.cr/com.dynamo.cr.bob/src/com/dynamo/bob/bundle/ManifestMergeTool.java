@@ -20,9 +20,9 @@ import com.dynamo.bob.CompileExceptionError;
 
 public class ManifestMergeTool {
 
-	public enum Platform {
-		ANDROID, IOS, OSX, HTML5, UNKNOWN
-	}
+    public enum Platform {
+        ANDROID, IOS, OSX, UNKNOWN
+    }
 
     private static class ILoggerWrapper implements ILogger {
         private Logger logger;
@@ -79,6 +79,7 @@ public class ManifestMergeTool {
                 }
             } else {
                 report.log(ManifestMergeTool.androidLogger);
+                throw new RuntimeException("Failed to merge manifests: " + report.toString());
             }
         } catch (ManifestMerger2.MergeFailureException e) {
             throw new RuntimeException("Exception while merging manifests: " + e.toString());
@@ -86,7 +87,7 @@ public class ManifestMergeTool {
     }
 
     private static void mergePlist(File main, File[] libraries, File out) throws RuntimeException {
-        InfoPlistMerger merger = new InfoPlistMerger();
+        InfoPlistMerger merger = new InfoPlistMerger(logger);
         merger.merge(main, libraries, out)
 ;    }
 
@@ -133,10 +134,6 @@ public class ManifestMergeTool {
         File output = null;
         List<File> libraries = new ArrayList<>();
 
-        for (String arg : args) {
-            System.out.println("ARG: " + arg);
-        }
-
         Platform platform = Platform.UNKNOWN;
 
         int index = 0;
@@ -165,8 +162,6 @@ public class ManifestMergeTool {
                 }
             }
         }
-
-        // Find out the platform
 
         try {
             merge(platform, main, output, libraries);
