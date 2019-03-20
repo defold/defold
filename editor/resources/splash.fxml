@@ -19,6 +19,13 @@
          <Label id="launch-error" text="testing" visible="false" wrapText="true" />
          <Button id="error-button" text="Exit" visible="false" />
       </VBox>
+   </AnchorPane>
+   <AnchorPane id="footer" AnchorPane.bottomAnchor="76.0" AnchorPane.leftAnchor="109.0" AnchorPane.rightAnchor="109.0">
+      <VBox prefWidth="250.0" AnchorPane.leftAnchor="33.0" AnchorPane.topAnchor="115.0">
+         <Label id="version" text="No Version" visible="false" wrapText="true" />
+         <Label id="copyright" text="2009–2019 Midasplayer Technology AB." />
+         <Label id="rights-reserved" text="All rights reserved." />
+      </VBox>
       <ProgressBar AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" />
    </AnchorPane>
 </AnchorPane>
