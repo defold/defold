@@ -908,6 +908,12 @@ void _glfwPlatformRefreshWindowParams( void )
         contentRectBacking.size.height > contentRectFrame.size.height) {
         _glfwWin.highDPI = 1;
     }
+
+    NSRect contentRect =
+        [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
+    contentRect = [[_glfwWin.window contentView] convertRectToBacking:contentRect];
+    _glfwWin.width = contentRect.size.width;
+    _glfwWin.height = contentRect.size.height;
 }
 
 //========================================================================

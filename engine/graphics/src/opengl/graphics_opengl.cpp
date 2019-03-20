@@ -835,6 +835,15 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
     }
 
+    void ResizeWindow(HContext context, uint32_t width, uint32_t height)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            glfwSetWindowSize((int)width, (int)height);
+        }
+    }
+
     void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
     {
         out_min_filter = context->m_DefaultTextureMinFilter;
