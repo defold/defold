@@ -80,6 +80,9 @@ namespace dmScript
 #define SCRIPT_TYPE_NAME_BUFFER "buffer"
 #define SCRIPT_TYPE_NAME_BUFFERSTREAM "bufferstream"
 
+    static uint32_t SCRIPT_BUFFER_TYPE_HASH = 0;
+    static uint32_t SCRIPT_BUFFERSTREAM_TYPE_HASH = 0;
+
     typedef void (*FStreamSetter)(void* data, int index, lua_Number v);
     typedef lua_Number (*FStreamGetter)(void* data, int index);
 
@@ -915,6 +918,7 @@ namespace dmScript
         const char* m_Name;
         const luaL_reg* m_Methods;
         const luaL_reg* m_Metatable;
+        uint32_t* m_TypeHash;
     };
 
     void InitializeBuffer(lua_State* L)
@@ -924,26 +928,13 @@ namespace dmScript
         const uint32_t type_count = 2;
         BufferTypeStruct types[type_count] =
         {
-            {SCRIPT_TYPE_NAME_BUFFER, Buffer_methods, Buffer_meta},
-            {SCRIPT_TYPE_NAME_BUFFERSTREAM, Stream_methods, Stream_meta},
+            {SCRIPT_TYPE_NAME_BUFFER, Buffer_methods, Buffer_meta, &SCRIPT_BUFFER_TYPE_HASH},
+            {SCRIPT_TYPE_NAME_BUFFERSTREAM, Stream_methods, Stream_meta, &SCRIPT_BUFFERSTREAM_TYPE_HASH},
         };
-
+ 
         for (uint32_t i = 0; i < type_count; ++i)
         {
-            // create methods table, add it to the globals
-            luaL_register(L, types[i].m_Name, types[i].m_Methods);
-            int methods_index = lua_gettop(L);
-            // create metatable for the type, add it to the Lua registry
-            luaL_newmetatable(L, types[i].m_Name);
-            int metatable = lua_gettop(L);
-            // fill metatable
-            luaL_register(L, 0, types[i].m_Metatable);
-
-            lua_pushliteral(L, "__metatable");
-            lua_pushvalue(L, methods_index);// dup methods table
-            lua_settable(L, metatable);
-
-            lua_pop(L, 2);
+            *types[i].m_TypeHash = dmScript::RegisterUserType(L, types[i].m_Name, types[i].m_Methods, types[i].m_Metatable);
         }
         luaL_register(L, SCRIPT_LIB_NAME, Module_methods);
 

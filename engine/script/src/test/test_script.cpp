@@ -300,7 +300,7 @@ static const luaL_reg Test_meta[] =
 
 TEST_F(ScriptTest, TestUserType) {
     const char* type_name = "TestType";
-    dmScript::RegisterUserType(L, type_name, Test_methods, Test_meta);
+    uint32_t type_hash = dmScript::RegisterUserType(L, type_name, Test_methods, Test_meta);
 
     // Create an instance
     TestDummy* dummy = (TestDummy*)lua_newuserdata(L, sizeof(TestDummy));
@@ -332,8 +332,8 @@ TEST_F(ScriptTest, TestUserType) {
 
     // GetUserData
     uintptr_t user_data;
-    ASSERT_FALSE(dmScript::GetUserData(L, &user_data, "incorrect_type"));
-    ASSERT_TRUE(dmScript::GetUserData(L, &user_data, type_name));
+    ASSERT_FALSE(dmScript::GetUserData(L, &user_data, dmHashString32("incorrect_type")));
+    ASSERT_TRUE(dmScript::GetUserData(L, &user_data, type_hash));
     ASSERT_EQ(dummy->m_Dummy, user_data);
 
     // ResolvePath

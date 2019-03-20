@@ -39,10 +39,10 @@ namespace dmScript
         RESULT_MODULE_NOT_LOADED = -3,
     };
 
-    extern const char* META_TABLE_RESOLVE_PATH;
-    extern const char* META_TABLE_GET_URL;
-    extern const char* META_TABLE_GET_USER_DATA;
-    extern const char* META_TABLE_IS_VALID;
+    extern const char META_TABLE_RESOLVE_PATH[];
+    extern const char META_TABLE_GET_URL[];
+    extern const char META_TABLE_GET_USER_DATA[];
+    extern const char META_TABLE_IS_VALID[];
 
     /**
      * Implementor should return a Ref to the instance context table.
@@ -58,7 +58,7 @@ namespace dmScript
      *  [-1] ref to instance context table or LUA_NOREF
      *
      */
-    extern const char* META_GET_INSTANCE_CONTEXT_TABLE_REF;
+    extern const char META_GET_INSTANCE_CONTEXT_TABLE_REF[];
 
     /**
      * Create and return a new context.
@@ -357,7 +357,7 @@ namespace dmScript
      * @param out_user_data Pointer to a uintptr_t to be written to
      * @return true if the user data could be found
      */
-    bool GetUserData(lua_State* L, uintptr_t* out_user_data, const char* user_type);
+    bool GetUserData(lua_State* L, uintptr_t* out_user_data, uint32_t user_type_hash);
 
 
     /**
@@ -575,33 +575,14 @@ namespace dmScript
 
 
     /**
-     * Check if the object at the given index is of the specified user type.
-     * @param L lua state
-     * @param idx object index
-     * @param type user type
-     * @return true if the object has the specified type
-     */
-    bool IsUserType(lua_State* L, int idx, const char* type);
-
-    /**
-     * Check if the object at the given index is of the specified user type.
-     * This might result in lua errors so it should only be called from within a lua context.
-     * @param L lua state
-     * @param idx object index
-     * @param type user type
-     * @param error_message The error message to show if the type doesn't match. Set to null to show a generic type error message.
-     * @return the object if it has the specified type, 0 otherwise
-     */
-    void* CheckUserType(lua_State* L, int idx, const char* type, const char* error_message);
-
-    /**
      * Register a user type along with methods and meta methods.
      * @param L lua state
      * @param name user type name
      * @param methods array of methods
      * @param meta array of meta methods
+     * @result type_key
      */
-    void RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]);
+    uint32_t RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]);
 
     /**
      * This function wraps lua_pcall with the addition of specifying an error handler which produces a backtrace.
@@ -705,6 +686,11 @@ namespace dmScript
      * @return String value at key, or the default value if not found or invalid value type.
      */
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value);
+
+    uint32_t SetUserType(lua_State* L, int meta_table_index, const char* name);
+    uint32_t GetMetaTableType(lua_State* L, int user_data_index);
+    void* ToUserType(lua_State* L, int user_data_index, uint32_t type_hash);
+    void* CheckUserType(lua_State* L, int user_data_index, uint32_t type_hash, const char* error_message);
 }
 
 

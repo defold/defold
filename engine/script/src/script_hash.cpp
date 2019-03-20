@@ -28,24 +28,11 @@ namespace dmScript
 
     #define SCRIPT_TYPE_NAME_HASH "hash"
     #define SCRIPT_HASH_TABLE "__script_hash_table"
+    static uint32_t SCRIPT_HASH_TABLE_TYPE_HASH = 0;
 
     bool IsHash(lua_State *L, int index)
     {
-        void *p = lua_touserdata(L, index);
-        bool result = false;
-        if (p != 0x0)
-        {  /* value is a userdata? */
-            if (lua_getmetatable(L, index))
-            {  /* does it have a metatable? */
-                lua_getfield(L, LUA_REGISTRYINDEX, SCRIPT_TYPE_NAME_HASH);  /* get correct metatable */
-                if (lua_rawequal(L, -1, -2))
-                {  /* does it have the correct mt? */
-                    result = true;
-                }
-                lua_pop(L, 2);  /* remove both metatables */
-            }
-        }
-        return result;
+        return (dmhash_t*)dmScript::ToUserType(L, index, SCRIPT_HASH_TABLE_TYPE_HASH);
     }
 
     /*# hashes a string
@@ -214,15 +201,7 @@ namespace dmScript
 
     dmhash_t CheckHash(lua_State* L, int index)
     {
-        dmhash_t* lua_hash = 0x0;
-        if (IsHash(L, index))
-        {
-            lua_hash = (dmhash_t*)lua_touserdata(L, index);
-            return *lua_hash;
-        }
-
-        luaL_typerror(L, index, SCRIPT_TYPE_NAME_HASH);
-        return 0;
+        return *(dmhash_t*)dmScript::CheckUserType(L, index, SCRIPT_HASH_TABLE_TYPE_HASH, 0);
     }
 
     dmhash_t CheckHashOrString(lua_State* L, int index)
@@ -283,13 +262,6 @@ namespace dmScript
         return 1;
     }
 
-    static int Script_gc (lua_State *L)
-    {
-        dmhash_t hash = CheckHash(L, 1);
-        (void)hash;
-        return 0;
-    }
-
     static int Script_tostring(lua_State* L)
     {
         dmhash_t hash = CheckHash(L, 1);
@@ -311,7 +283,7 @@ namespace dmScript
     {
         if (dmScript::IsHash(L, index))
         {
-            dmhash_t hash = CheckHash(L, index);
+            dmhash_t hash = *(dmhash_t*)lua_touserdata(L, index);
             const char* reverse = (const char*) dmHashReverse64(hash, 0);
 
             allocated = true;
@@ -375,10 +347,9 @@ namespace dmScript
         int top = lua_gettop(L);
         luaL_newmetatable(L, SCRIPT_TYPE_NAME_HASH);
 
+        SCRIPT_HASH_TABLE_TYPE_HASH = dmScript::SetUserType(L, -1, SCRIPT_TYPE_NAME_HASH);
+
         luaL_openlib(L, 0x0, ScriptHash_methods, 0);
-        lua_pushstring(L, "__gc");
-        lua_pushcfunction(L, Script_gc);
-        lua_settable(L, -3);
 
         lua_pushstring(L, "__eq");
         lua_pushcfunction(L, Script_eq);
