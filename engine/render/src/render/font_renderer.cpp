@@ -344,11 +344,11 @@ namespace dmRender
         {
                 {"position", 0, 4, dmGraphics::TYPE_FLOAT, false},
                 {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
-                {"face_color", 2, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
-                {"outline_color", 3, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
-                {"shadow_color", 4, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
+                {"face_color", 2, 4, dmGraphics::TYPE_FLOAT, true},
+                {"outline_color", 3, 4, dmGraphics::TYPE_FLOAT, true},
+                {"shadow_color", 4, 4, dmGraphics::TYPE_FLOAT, true},
                 {"sdf_params", 5, 4, dmGraphics::TYPE_FLOAT, false},
-                {"layer_mask", 6, 3, dmGraphics::TYPE_UNSIGNED_BYTE, false},
+                {"layer_mask", 6, 3, dmGraphics::TYPE_FLOAT, false},
         };
 
         text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement), sizeof(GlyphVertex));
@@ -727,9 +727,21 @@ namespace dmRender
                         v6_layer_face.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + px_cell_offset_y) * recip_h;
 
                         #define SET_VERTEX_PARAMS(v) \
-                            v.m_FaceColor = face_color; \
-                            v.m_OutlineColor = outline_color; \
-                            v.m_ShadowColor = shadow_color; \
+                            v.m_FaceColor[0] = 1.0f; \
+                            v.m_FaceColor[1] = 1.0f; \
+                            v.m_FaceColor[2] = 1.0f; \
+                            v.m_FaceColor[3] = 1.0f; \
+                            v.m_OutlineColor[0] = 1.0f; \
+                            v.m_OutlineColor[1] = 1.0f; \
+                            v.m_OutlineColor[2] = 1.0f; \
+                            v.m_OutlineColor[3] = 1.0f; \
+                            v.m_ShadowColor[0] = 1.0f; \
+                            v.m_ShadowColor[1] = 1.0f; \
+                            v.m_ShadowColor[2] = 1.0f; \
+                            v.m_ShadowColor[3] = 1.0f; \
+                            //v.m_FaceColor = face_color; \
+                            //v.m_OutlineColor = outline_color; \
+                            //v.m_ShadowColor = shadow_color; \
                             v.m_SdfParams[0] = sdf_edge_value; \
                             v.m_SdfParams[1] = sdf_outline; \
                             v.m_SdfParams[2] = sdf_smoothing; \
@@ -746,9 +758,9 @@ namespace dmRender
                         v5_layer_face = v2_layer_face;
 
                         #define SET_VERTEX_LAYER_MASK(v,f,o,s) \
-                            v.m_LayerMasks[0] = f; \
-                            v.m_LayerMasks[1] = o; \
-                            v.m_LayerMasks[2] = s;
+                            v.m_LayerMasks[0] = 1.0f; \
+                            v.m_LayerMasks[1] = 1.0f; \
+                            v.m_LayerMasks[2] = 1.0f;
 
                         // Set outline vertices
                         if (HAS_LAYER(layer_mask,OUTLINE))
