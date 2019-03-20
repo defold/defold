@@ -675,7 +675,7 @@
      (list
       (set-property node-id :_output-jammers
                     (zipmap jammable-outputs
-                            (repeat (clojure.core/constantly defective-value))))
+                            (repeat defective-value)))
       (invalidate node-id)))))
 
 (defn mark-defective!

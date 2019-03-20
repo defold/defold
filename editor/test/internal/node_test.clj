@@ -110,7 +110,7 @@
       (let [[source] (tx-nodes (g/make-node world OverrideOutputNode))]
         (is (= "a-property" (g/node-value source :overridden)))
 
-        (g/transact (g/set-property source :_output-jammers {:overridden (constantly "Raspberry")}))
+        (g/transact (g/set-property source :_output-jammers {:overridden "Raspberry"}))
 
         (is (= "Raspberry" (g/node-value source :overridden)))
 
@@ -118,7 +118,7 @@
 
         (is (= "a-property" (g/node-value source :overridden)))
 
-        (g/transact (g/set-property source :_output-jammers {:something-else (constantly "Plaid")}))
+        (g/transact (g/set-property source :_output-jammers {:something-else "Plaid"}))
 
         (is (= "a-property" (g/node-value source :overridden))))))
 
@@ -127,7 +127,7 @@
       (let [[source] (tx-nodes (g/make-node world OverrideOutputNode))]
         (is (= "a-property" (g/node-value source :overridden)))
 
-        (g/transact (g/set-property source :_output-jammers {:overridden #(g/error-fatal "jammed")}))
+        (g/transact (g/set-property source :_output-jammers {:overridden (g/error-fatal "jammed")}))
 
         (is (g/error? (g/node-value source :overridden)))
         (is (= "jammed" (:message (g/node-value source :overridden))))))))
