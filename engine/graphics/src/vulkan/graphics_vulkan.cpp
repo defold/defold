@@ -220,8 +220,8 @@ namespace dmGraphics
 
         struct Context
         {
-            uint8_t                        m_CurrentFrameImageIx;
-            uint8_t                        m_CurrentFrameInFlight;
+            uint32_t                       m_CurrentFrameImageIx;
+            uint32_t                       m_CurrentFrameInFlight;
             uint32_t                       m_MaxDescriptorSets;
 
             VkInstance                     m_Instance;
