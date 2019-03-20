@@ -121,7 +121,7 @@ void GetMutableBundledIndexData(void*& arci_data, uint32_t& arci_size, uint32_t 
     uint8_t* cursor_entry = (uint8_t*)((uintptr_t)arci_data + entries_offset - num_lu_entries * DMRESOURCE_MAX_HASH);
     memcpy(cursor, RESOURCES_ARCI, sizeof(dmResourceArchive::ArchiveIndex)); // Copy header
     int lu_entries_to_copy = num_entries_to_keep;
-    for (int i = 0; i < entry_count; ++i)
+    for (uint32_t i = 0; i < entry_count; ++i)
     {
         dmResourceArchive::EntryData& e = entries[i];
         bool is_lu_entry = JAVA_TO_C(e.m_Flags) & dmResourceArchive::ENTRY_FLAG_LIVEUPDATE_DATA;
@@ -327,7 +327,7 @@ void PrintHash(const uint8_t* hash, uint32_t len)
 {
     char* buf = new char[len*2+1];
     buf[len] = '\0';
-    for (int i = 0; i < len; ++i)
+    for (uint32_t i = 0; i < len; ++i)
     {
         sprintf(buf+i*2, "%02X", hash[i]);
     }
