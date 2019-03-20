@@ -72,7 +72,7 @@
           (is (= 1 @build-fn-calls))
           (is (= "1" (content (first (:artifacts build-results))))))
         (testing "invokes build-fn when cache is explicitly cleared"
-          (workspace/reset-cache! workspace)
+          (workspace/clear-build-cache! workspace)
           (let [build-results (pipeline-build! workspace build-targets)]
             (is (= 2 @build-fn-calls))
             (is (= "1" (content (first (:artifacts build-results)))))))

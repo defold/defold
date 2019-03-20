@@ -82,6 +82,29 @@
 
 (def select-keys-deep #'internal.util/select-keys-deep)
 
+(defn deep-select [value-pred value]
+  (cond
+    (map? value)
+    (not-empty
+      (into (if (record? value)
+              {}
+              (empty value))
+            (keep (fn [[k v]]
+                    (when-some [v' (deep-select value-pred v)]
+                      [k v'])))
+            value))
+
+    (coll? value)
+    (not-empty
+      (into (sorted-map)
+            (keep-indexed (fn [i v]
+                            (when-some [v' (deep-select value-pred v)]
+                              [i v'])))
+            value))
+
+    (value-pred value)
+    value))
+
 (defn views-of-type [node-type]
   (keep (fn [node-id]
           (when (g/node-instance? node-type node-id)

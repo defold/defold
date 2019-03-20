@@ -20,7 +20,7 @@
 
 (set! *warn-on-reflection* true)
 
-(namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id produce-value node-by-id-at])
+(namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id node-id? produce-value node-by-id-at])
 
 (namespaces/import-vars [internal.graph.error-values error-info error-warning error-fatal ->error error? error-info? error-warning? error-fatal? error-aggregate flatten-errors package-errors precluding-errors unpack-errors worse-than])
 

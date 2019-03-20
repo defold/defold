@@ -107,6 +107,16 @@
                         meta-setting))
                     settings))))
 
+(defn remove-to-from-string [meta-info]
+  (update-in meta-info [:settings]
+             (fn [settings]
+               (map (fn [meta-setting]
+                      (if (contains? meta-setting :options)
+                        (let [type (:type meta-setting)]
+                          (dissoc meta-setting :from-string :to-string))
+                        meta-setting))
+                    settings))))
+
 (defn load-meta-info [reader]
   (-> (add-type-defaults (edn/read reader))
       (add-to-from-string)))
