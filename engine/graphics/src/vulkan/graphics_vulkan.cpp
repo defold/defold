@@ -1484,8 +1484,8 @@ namespace dmGraphics
             vk_copy_region.imageSubresource.baseArrayLayer = 0;
             vk_copy_region.imageSubresource.layerCount     = 1;
 
-            vk_copy_region.imageOffset.x = 0;
-            vk_copy_region.imageOffset.y = 0;
+            vk_copy_region.imageOffset.x = params.m_X;
+            vk_copy_region.imageOffset.y = params.m_Y;
             vk_copy_region.imageOffset.z = 0;
 
             vk_copy_region.imageExtent.width  = params.m_Width;
@@ -1587,17 +1587,23 @@ namespace dmGraphics
 
         static void UploadTexture(Texture* texture, const TextureParams params)
         {
-            // Todo: support sub-updates
-            assert(!params.m_SubUpdate);
-
             if (params.m_MipMap > 0)
             {
                 return;
             }
 
+            uint8_t bpp        = GetTextureFormatBPP(params.m_Format) >> 3;
+            size_t data_size   = params.m_DataSize;
             VkFormat vk_format = g_vulkan_texture_format_table[params.m_Format];
             uint16_t vk_width  = params.m_Width;
             uint16_t vk_height = params.m_Height;
+
+            if (params.m_SubUpdate)
+            {
+                data_size = params.m_Width * params.m_Height * bpp;
+                vk_width  = texture->m_Width;
+                vk_height = texture->m_Height;
+            }
 
             if (texture->m_Format != vk_format || texture->m_Width != vk_width || texture->m_Height != vk_height)
             {
@@ -1646,19 +1652,16 @@ namespace dmGraphics
                 VK_CHECK(vkCreateImageView(g_vk_context.m_LogicalDevice, &vk_view_create_info, 0, &texture->m_View));
             }
 
-            // Todo: support real metrics
-            uint8_t bpp = 32; // GetTextureFormatBPP(texture->m_Params.m_Format)
-
             GPUMemory staging_buffer_memory;
             VkBuffer  staging_buffer_handle;
 
-            CreateGPUBuffer(params.m_DataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            CreateGPUBuffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                 &staging_buffer_handle, &staging_buffer_memory);
 
             void* mapped_data_ptr;
-            vkMapMemory(g_vk_context.m_LogicalDevice, staging_buffer_memory.m_DeviceMemory, 0, params.m_DataSize, 0, &mapped_data_ptr);
-            memcpy(mapped_data_ptr, params.m_Data, params.m_DataSize);
+            vkMapMemory(g_vk_context.m_LogicalDevice, staging_buffer_memory.m_DeviceMemory, 0, data_size, 0, &mapped_data_ptr);
+            memcpy(mapped_data_ptr, params.m_Data, data_size);
             vkUnmapMemory(g_vk_context.m_LogicalDevice, staging_buffer_memory.m_DeviceMemory);
 
             TransitionImageLayout(texture->m_Image, texture->m_Format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -1926,8 +1929,12 @@ namespace dmGraphics
             assert(buffer);
             assert(dataSize);
 
-            // TODO: Updating data to exisiting buffer is not supported yet..
-            assert(buffer->m_GPUBuffer.m_DataSize == 0 || buffer->m_GPUBuffer.m_DataSize == dataSize);
+            if (buffer->m_GPUBuffer.m_DataSize && buffer->m_GPUBuffer.m_DataSize != dataSize)
+            {
+                vkDestroyBuffer(g_vk_context.m_LogicalDevice, buffer->m_Handle, 0);
+                vkFreeMemory(g_vk_context.m_LogicalDevice, buffer->m_GPUBuffer.m_DeviceMemory, 0);
+                buffer->m_Handle = NULL;
+            }
 
             if (buffer->m_Handle == NULL)
             {
