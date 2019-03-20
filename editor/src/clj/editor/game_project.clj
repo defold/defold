@@ -123,7 +123,8 @@
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]})
 
 (g/defnk produce-build-targets [_node-id resource settings-map meta-info custom-build-targets resource-settings dep-build-targets]
-  (let [dep-build-targets (vec (into (flatten dep-build-targets) custom-build-targets))
+  (let [clean-meta-info (settings-core/remove-to-from-string meta-info)
+        dep-build-targets (vec (into (flatten dep-build-targets) custom-build-targets))
         deps-by-source (into {} (map
                                   (fn [build-target]
                                     (let [build-resource (:resource build-target)
@@ -138,7 +139,7 @@
       :resource (workspace/make-build-resource resource)
       :build-fn build-game-project
       :user-data {:settings-map settings-map
-                  :meta-settings (:settings meta-info)
+                  :meta-settings (:settings clean-meta-info)
                   :path->built-resource-settings path->built-resource-settings}
       :deps dep-build-targets}]))
 

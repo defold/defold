@@ -586,6 +586,7 @@
       (do
         (workspace/artifact-map! workspace artifact-map)
         (workspace/etags! workspace etags)
+        (workspace/save-build-cache! workspace)
         (build-errors-view/clear-build-errors build-errors-view)
         build-results))))
 
@@ -663,7 +664,7 @@ If you do not specifically require different script states, consider changing th
   (enabled? [] (not @build-in-progress?))
   (run [project workspace prefs web-server build-errors-view console-view debug-view]
     (debug-view/detach! debug-view)
-    (workspace/reset-cache! workspace)
+    (workspace/clear-build-cache! workspace)
     (build-handler project workspace prefs web-server build-errors-view console-view)))
 
 (handler/defhandler :build-html5 :global
@@ -732,6 +733,7 @@ If you do not specifically require different script states, consider changing th
                       (do
                         (workspace/artifact-map! workspace artifact-map)
                         (workspace/etags! workspace etags)
+                        (workspace/save-build-cache! workspace)
                         (build-errors-view/clear-build-errors build-errors-view)
                         (try
                           (when-some [updated-build-resources (not-empty (updated-build-resources evaluation-context project old-etags etags "/game.project"))]

@@ -1,16 +1,14 @@
 (ns editor.pipeline
-  (:require
-   [clojure.java.io :as io]
-   [editor.fs :as fs]
-   [editor.resource :as resource]
-   [editor.progress :as progress]
-   [editor.protobuf :as protobuf]
-   [editor.workspace :as workspace]
-   [dynamo.graph :as g]
-   [util.digest :as digest])
-  (:import
-   (java.io File)
-   (java.util UUID)))
+  (:require [clojure.java.io :as io]
+            [dynamo.graph :as g]
+            [editor.build-target :as bt]
+            [editor.fs :as fs]
+            [editor.progress :as progress]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.workspace :as workspace]
+            [util.digest :as digest])
+  (:import [java.io File]))
 
 (set! *warn-on-reflection* true)
 
@@ -70,54 +68,58 @@
 
 ;;--------------------------------------------------------------------
 
-(defn- target-key
-  [target]
-  [(:resource (:resource target))
-   (:build-fn target)
-   (:user-data target)])
-
-(defn- build-targets-by-key
-  [build-targets]
-  (into {} (map #(let [key (target-key %)] [key (assoc % :key key)])) build-targets))
-
 (defn flatten-build-targets
   "Breadth first traversal / collection of build-targets and their child :deps,
-  skipping seen targets identified by target-key."
-  [build-targets]
-  (loop [targets build-targets
-         queue []
-         seen #{}
-         result (transient [])]
-    (if-let [t (first targets)]
-      (let [key (target-key t)]
-        (if (contains? seen key)
-          (recur (rest targets) queue seen result)
-          (recur (rest targets) (conj queue (flatten (:deps t))) (conj seen key) (conj! result t))))
-      (if-let [targets (first queue)]
-        (recur targets (rest queue) seen result)
-        (persistent! result)))))
+  skipping seen targets identified by build-target-key. The returned targets
+  contain the build-target-key."
+  ([build-targets]
+   (flatten-build-targets build-targets #{}))
+  ([build-targets seen-keys]
+   (assert (set? seen-keys))
+   (loop [targets build-targets
+          queue []
+          seen-keys seen-keys
+          result (transient [])]
+     (if-some [target (first targets)]
+       (let [key (bt/build-target-key target)]
+         (if (contains? seen-keys key)
+           (recur (rest targets)
+                  queue
+                  seen-keys
+                  result)
+           (recur (rest targets)
+                  (conj queue (flatten (:deps target)))
+                  (conj seen-keys key)
+                  (conj! result (assoc target :key key)))))
+       (if-some [targets (first queue)]
+         (recur targets
+                (rest queue)
+                seen-keys
+                result)
+         (persistent! result))))))
 
 (defn- make-build-targets-by-key
   [build-targets]
-  (->> build-targets
-       flatten-build-targets
-       build-targets-by-key))
+  (into {}
+        (map (juxt :key identity))
+        (flatten-build-targets build-targets)))
 
 (defn- make-dep-resources
   [deps build-targets-by-key]
   (into {}
         (map (fn [{:keys [resource] :as build-target}]
-               (let [key (target-key build-target)]
+               (let [key (bt/build-target-key build-target)]
                  [resource (:resource (get build-targets-by-key key))])))
         (flatten deps)))
 
-(defn prune-artifacts [artifacts build-targets-by-key]
+(defn prune-artifact-map [artifact-map build-targets-by-key]
   (into {}
-        (filter (fn [[resource result]] (contains? build-targets-by-key (:key result))))
-        artifacts))
+        (filter (fn [[_resource-path result]]
+                  (contains? build-targets-by-key (:key result))))
+        artifact-map))
 
-(defn- valid? [artifact]
-  (when-let [^File f (io/as-file (:resource artifact))]
+(defn- valid? [resource artifact]
+  (when-some [^File f (io/as-file resource)]
     (let [{:keys [mtime size]} artifact]
       (and (.exists f) (= mtime (.lastModified f)) (= size (.length f))))))
 
@@ -126,17 +128,17 @@
   (fs/create-parent-directories! (io/as-file (:resource artifact)))
   (let [^bytes content (:content artifact)]
     (with-open [out (io/output-stream (:resource artifact))]
-       (.write out content))
+      (.write out content))
     (let [^File target-f (io/as-file (:resource artifact))
           mtime (.lastModified target-f)
           size (.length target-f)]
       (-> artifact
-        (dissoc :content)
-        (assoc
-          :key key
-          :mtime mtime
-          :size size
-          :etag (digest/sha1-hex content))))))
+          (dissoc :content)
+          (assoc
+            :key key
+            :mtime mtime
+            :size size
+            :etag (digest/sha1-hex content))))))
 
 (defn- prune-build-dir! [build-dir build-targets-by-key]
   (let [targets (into #{} (map (fn [[_ target]] (io/as-file (:resource target)))) build-targets-by-key)]
@@ -160,7 +162,7 @@
 (defn build!
   [build-targets build-dir old-artifact-map render-progress!]
   (let [build-targets-by-key (make-build-targets-by-key build-targets)
-        pruned-old-artifacts (prune-artifacts old-artifact-map build-targets-by-key)
+        pruned-old-artifact-map (prune-artifact-map old-artifact-map build-targets-by-key)
         progress (atom (progress/make "" (count build-targets-by-key)))]
     (prune-build-dir! build-dir build-targets-by-key)
     (let [{cheap-build-targets false expensive-build-targets true} (group-by expensive? (vals build-targets-by-key))
@@ -169,8 +171,10 @@
           results (batched-pmap
                     (fn [build-target]
                       (let [{:keys [key node-id resource deps build-fn user-data]} build-target
-                            cached-artifact (when-let [artifact (get pruned-old-artifacts resource)]
-                                              (and (valid? artifact) artifact))
+                            resource-path (resource/proj-path resource)
+                            cached-artifact (when-some [artifact (get pruned-old-artifact-map resource-path)]
+                                              (when (valid? resource artifact)
+                                                (assoc artifact :resource resource)))
                             message (str "Building " (resource/proj-path resource))]
                         (render-progress! (swap! progress progress/with-message message))
                         (let [result (or cached-artifact
@@ -187,8 +191,12 @@
                           result)))
                     build-target-batches)
           {successful-results false error-results true} (group-by #(boolean (g/error? %)) results)
-          new-artifact-map (into {} (map (fn [a] [(:resource a) a])) successful-results)
-          etags (into {} (map (fn [a] [(resource/proj-path (:resource a)) (:etag a)])) successful-results)]
+          new-artifact-map (into {}
+                                 (map (fn [artifact]
+                                        [(resource/proj-path (:resource artifact))
+                                         (dissoc artifact :resource)]))
+                                 successful-results)
+          etags (workspace/artifact-map->etags new-artifact-map)]
       (cond-> {:artifacts successful-results
                :artifact-map new-artifact-map
                :etags etags}

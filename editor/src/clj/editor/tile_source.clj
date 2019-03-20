@@ -525,9 +525,8 @@
       (keep (fn [[prop-kw f]]
               (validation/prop-error :fatal node-id prop-kw f (get anim prop-kw) (properties/keyword->name prop-kw)))))))
 
-(defn- generate-texture-set-data [{:keys [tile-source-attributes animation-data collision-groups convex-hulls collision]}]
-  (let [animation-ddfs (mapv :ddf-message animation-data)]
-    (texture-set-gen/tile-source->texture-set-data tile-source-attributes convex-hulls collision-groups animation-ddfs)))
+(defn- generate-texture-set-data [{:keys [tile-source-attributes animation-ddfs collision-groups convex-hulls collision]}]
+  (texture-set-gen/tile-source->texture-set-data tile-source-attributes convex-hulls collision-groups animation-ddfs))
 
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
@@ -616,8 +615,11 @@
   (output texture-set-data-generator g/Any (g/fnk [image-resource tile-source-attributes animation-data collision-groups convex-hulls collision tile-count :as args]
                                              (or (when-let [errors (not-empty (mapcat #(check-anim-error tile-count %) animation-data))]
                                                    (g/error-aggregate errors))
-                                                 {:f generate-texture-set-data
-                                                  :args args})))
+                                                 (let [animation-ddfs (mapv :ddf-message animation-data)]
+                                                   {:f generate-texture-set-data
+                                                    :args (-> args
+                                                              (dissoc :animation-data)
+                                                              (assoc :animation-ddfs animation-ddfs))}))))
 
   (output texture-set-data g/Any :cached (g/fnk [texture-set-data-generator] (call-generator texture-set-data-generator)))
   (output layout-size g/Any (g/fnk [texture-set-data] (:size texture-set-data)))

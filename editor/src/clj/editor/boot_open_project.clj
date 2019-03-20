@@ -74,6 +74,7 @@
         (html-view/register-view-types workspace)))
     (resource-types/register-resource-types! workspace)
     (workspace/resource-sync! workspace)
+    (workspace/load-build-cache! workspace)
     workspace))
 
 (defn- async-reload!
