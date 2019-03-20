@@ -1204,7 +1204,7 @@ namespace dmGraphics
             vk_rasterizer.rasterizerDiscardEnable = VK_FALSE;
             vk_rasterizer.polygonMode             = VK_POLYGON_MODE_FILL;
             vk_rasterizer.lineWidth               = 1.0f;
-            vk_rasterizer.cullMode                = VK_CULL_MODE_BACK_BIT;
+            vk_rasterizer.cullMode                = VK_CULL_MODE_NONE;
             vk_rasterizer.frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE;
             vk_rasterizer.depthBiasEnable         = VK_FALSE;
             vk_rasterizer.depthBiasConstantFactor = 0.0f;
@@ -1285,8 +1285,8 @@ namespace dmGraphics
             VK_ZERO_MEMORY(&vk_depth_stencil_create_info, sizeof(vk_depth_stencil_create_info));
 
             vk_depth_stencil_create_info.sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-            vk_depth_stencil_create_info.depthTestEnable       = VK_TRUE;
-            vk_depth_stencil_create_info.depthWriteEnable      = VK_TRUE;
+            vk_depth_stencil_create_info.depthTestEnable       = VK_FALSE; // VK_TRUE;
+            vk_depth_stencil_create_info.depthWriteEnable      = VK_FALSE; // VK_TRUE;
             vk_depth_stencil_create_info.depthCompareOp        = VK_COMPARE_OP_LESS;
             vk_depth_stencil_create_info.depthBoundsTestEnable = VK_FALSE;
             vk_depth_stencil_create_info.minDepthBounds        = 0.0f;
