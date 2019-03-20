@@ -57,7 +57,7 @@
   (describe* [type])
   (ref* [type]))
 
-(defn type? [x] (and (extends? Type (class x)) x))
+(defn- type? [x] (and (extends? Type (class x)) x))
 (defn- named? [x] (instance? clojure.lang.Named x))
 
 ;;; ----------------------------------------
@@ -795,7 +795,7 @@
 (defmulti process-property-form first)
 
 (defmethod process-property-form 'dynamic [[_ label forms]]
-  (assert-symbol "dynamic" label)
+  (assert-symbol "dynamic" label) ; "dynamic" argument is for debug printing
   {:dynamics {(keyword label) {:fn (maybe-macroexpand forms)}}})
 
 (defmethod process-property-form 'value [[_ form]]
@@ -978,13 +978,11 @@
     :declared-property (into #{} (comp (remove (comp internal? val)) (map key)) property)
     :internal-property (into #{} (comp (filter (comp internal? val)) (map key)) property)))
 
-(defn- recursive-filter
-  [m k]
-  (filter #(and (map? %) (contains? % k)) (tree-seq map? vals m)))
-
 (defn- all-subtree-dependencies
   [tree]
-  (apply set/union (map :dependencies (recursive-filter tree :dependencies))))
+  (apply set/union (keep #(when (and (map? %) (contains? % :dependencies))
+                            (:dependencies %))
+                         (tree-seq map? vals tree))))
 
 (defn- merge-property-dependencies
   [tree]
