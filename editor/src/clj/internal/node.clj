@@ -42,9 +42,6 @@
   ([ctx-name expr dry-expr]
    `(if-not (:dry-run ~ctx-name) ~expr ~dry-expr)))
 
-(defn nodevalstr [this node-type label & t]
-  (apply str "\t" (:_node-id this) "\t"  (:name @node-type) label "\t" t))
-
 (prefer-method pp/code-dispatch clojure.lang.IPersistentMap clojure.lang.IDeref)
 (prefer-method pp/simple-dispatch clojure.lang.IPersistentMap clojure.lang.IDeref)
 
@@ -81,7 +78,7 @@
 
 (defprotocol NodeType)
 
-(defn node-type? [x] (satisfies? NodeType x))
+(defn- node-type? [x] (satisfies? NodeType x))
 
 (defrecord NodeTypeRef [k]
   Ref
@@ -147,32 +144,32 @@
   [reg k]
   (loop [type-name k]
     (cond
-      (ref? type-name) (recur (get reg (ref-key type-name)))
       (named? type-name) (recur (get reg type-name))
-      (symbol? type-name) (recur (util/vgr type-name))
       (type? type-name) type-name
+      (ref? type-name) (recur (get reg (ref-key type-name)))
+      (symbol? type-name) (recur (util/vgr type-name))
       (util/protocol? type-name) type-name
       (class? type-name) type-name
       :else nil)))
 
-(defn register-type
+(defn- register-type
   [reg-ref k type]
   (assert (named? k))
   (assert (or (type? type) (named? type) (util/schema? type) (util/protocol? type) (class? type)) (pr-str k type))
   (swap! reg-ref assoc k type)
   k)
 
-(defn unregister-type
+(defn- unregister-type
   [reg-ref k]
   (swap! reg-ref dissoc k))
 
 (defonce ^:private node-type-registry-ref (atom {}))
 
-(defn node-type-registry [] @node-type-registry-ref)
+(defn- node-type-registry [] @node-type-registry-ref)
 
-(defn node-type-resolve [k] (type-resolve (node-type-registry) k))
+(defn- node-type-resolve [k] (type-resolve (node-type-registry) k))
 
-(defn node-type [x]
+(defn- node-type [x]
   (cond
     (type? x) x
     (named? x) (or (node-type-resolve x) (throw (Exception. (str "Unable to resolve node type: " (pr-str x)))))
@@ -221,7 +218,7 @@
 
 (defonce ^:private value-type-registry-ref (atom {}))
 
-(defn value-type-registry [] @value-type-registry-ref)
+(defn- value-type-registry [] @value-type-registry-ref)
 
 (defrecord ValueTypeRef [k]
   Ref
@@ -255,8 +252,8 @@
 (defn value-type-resolve [k]
   (type-resolve (value-type-registry) k))
 
-(defn value-type-schema [vtr] (when (ref? vtr) (some-> vtr deref schema)))
-(defn value-type-dispatch-value [vtr] (when (ref? vtr) (some-> vtr deref dispatch-value)))
+(defn value-type-schema [value-type-ref] (when (ref? value-type-ref) (some-> value-type-ref deref schema)))
+(defn value-type-dispatch-value [value-type-ref] (when (ref? value-type-ref) (some-> value-type-ref deref dispatch-value)))
 
 ;;; ----------------------------------------
 ;;; Construction support
@@ -330,7 +327,7 @@
 ;;; ----------------------------------------
 ;;; Evaluating outputs
 
-(defn without [s exclusions] (reduce disj s exclusions))
+(defn- without [s exclusions] (reduce disj s exclusions))
 
 (defn- all-labels
   [node-type]
@@ -470,11 +467,11 @@
 (defn- alias-of [ns s]
   (get (ns-aliases ns) s))
 
-(defn localize
+(defn- localize
   ([ctor s] (ctor (str *ns*) s))
   ([ctor n s] (ctor n s)))
 
-(defn canonicalize [x]
+(defn- canonicalize [x]
   (cond
     (and (symbol? x) (namespace x))
     (do (assert (resolve x) (str "Unable to resolve symbol: " (pr-str x) " in this context"))
@@ -509,7 +506,7 @@
   [order label]
   (first (filter #(display-group? label %) order)))
 
-(defn join-display-groups
+(defn- join-display-groups
   "Given a display group and an 'order' in the rhs, see if there is a
   display group with the same label in the rhs. If so, attach its
   members to the original display group."
@@ -526,7 +523,7 @@
   (flatten
    (map #(if (ref? %) (property-display-order %) %) coll)))
 
-(defn node-type-name? [x]
+(defn- node-type-name? [x]
   (node-type-resolve (keyword (and (named? x) (canonicalize x)))))
 
 (defn merge-display-order
@@ -701,7 +698,7 @@
 
 (def ^:dynamic *autotypes* (atom {}))
 
-(defn- named->vtr
+(defn- named->value-type-ref
   [symbol-or-keyword]
   (->ValueTypeRef (keyword (canonicalize symbol-or-keyword))))
 
@@ -726,9 +723,9 @@
                    (util/class-symbol? form) `(->ClassType ~form ~form))
         typeref (cond
                   (ref? form) form
-                  (util/protocol-symbol? form) (named->vtr form)
-                  (util/class-symbol? form) (named->vtr (.getName ^Class (resolve form)))
-                  (named? form) (named->vtr form))]
+                  (util/protocol-symbol? form) (named->value-type-ref form)
+                  (util/class-symbol? form) (named->value-type-ref (.getName ^Class (resolve form)))
+                  (named? form) (named->value-type-ref form))]
     (assert (not (nil? typeref))
             (str "defnode " where " requires a value type but was supplied with '"
                  original-form "' which cannot be used as a type"))
@@ -742,7 +739,7 @@
       ;; the next two steps look redundant but are not. when we build
       ;; the release bundle, macroexpansion happens during compilation.
       ;; we need type information for compilation
-      (register-type value-type-registry-ref (:k typeref)
+      (register-type value-type-registry-ref (ref-key typeref)
                      (cond
                        (util/protocol-symbol? form)
                        (let [pval (util/vgr form)]
@@ -1340,7 +1337,7 @@
          (swap! local-temp# assoc [~nodeid-sym ~transform] (WeakReference. (if (= ~output-sym nil) ::nil ~output-sym))))
        ~forms)))
 
-(defn deduce-output-type-form
+(defn- deduce-output-type-form
   [self-name description transform]
   (let [schema (some-> (get-in description [:output transform :value-type]) value-type-schema)
         schema (if (get-in description [:output transform :flags :collection])
