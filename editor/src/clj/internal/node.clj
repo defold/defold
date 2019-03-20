@@ -689,8 +689,6 @@
         :else [flags options args])
       [flags options args])))
 
-(def ^:dynamic *autotypes* (atom {}))
-
 (defn- named->value-type-ref
   [symbol-or-keyword]
   (->ValueTypeRef (keyword (canonicalize symbol-or-keyword))))
@@ -712,8 +710,8 @@
   (let [multivalued? (vector? original-form)
         form (if multivalued? (first original-form) original-form)
         autotype-form (cond
-                   (util/protocol-symbol? form) `(->ProtocolType ~form (s/protocol ~form))
-                   (util/class-symbol? form) `(->ClassType ~form ~form))
+                        (util/protocol-symbol? form) `(->ProtocolType ~form (s/protocol ~form))
+                        (util/class-symbol? form) `(->ClassType ~form ~form))
         typeref (cond
                   (ref? form) form
                   (util/protocol-symbol? form) (named->value-type-ref form)
@@ -729,9 +727,8 @@
     (util/assert-form-kind "defnode" "registered value type"
                            (some-fn ref? value-type?) where typeref)
     (when autotype-form
-      ;; the next two steps look redundant but are not. when we build
-      ;; the release bundle, macroexpansion happens during compilation.
-      ;; we need type information for compilation
+      ;; When we build the release bundle, macroexpansion happens
+      ;; during compilation. we need type information for compilation
       (register-type value-type-registry-ref (ref-key typeref)
                      (cond
                        (util/protocol-symbol? form)
@@ -743,15 +740,13 @@
                        ;; expressed most naturally.
                        (util/class-symbol? form)
                        (let [cls (resolve form)]
-                         (->ClassType cls cls))))
-
-      ;; when we run the bundle, compilation is long past, we we
-      ;; need to re-register the automatic types at runtime. defnode
-      ;; emits code to do that, based on the types we smuggle out via
-      ;; this (hacky) atom
-      (swap! *autotypes* assoc (ref-key typeref) autotype-form))
-    {:value-type typeref
-     :flags (if multivalued? #{:collection} #{})}))
+                         (->ClassType cls cls)))))
+    (cond-> {:value-type typeref :flags (if multivalued? #{:collection} #{})}
+            ;; When we run the bundle, compilation is long past, we we
+            ;; need to re-register the automatic types at runtime. defnode
+            ;; emits code to do that, based on the types we collect here
+            (some? autotype-form)
+            (assoc :register-type-info {(ref-key typeref) autotype-form}))))
 
 (defn- macro-expression?
   [form]
@@ -821,13 +816,16 @@
         propdef (cond-> (process-property-forms forms)
                   (contains? internal-keys klabel)
                   (update :flags #(conj (or % #{}) :internal)))
+        register-type-info (:register-type-info propdef)
+        propdef (dissoc propdef :register-type-info)
         outdef (-> propdef
                  (dissoc :setter :dynamics :value)
                  (assoc :fn
                         (if-let [evaluator (-> propdef :value :fn)]
                           evaluator
                           `(dynamo.graph/fnk [~'this ~label] (get ~'this ~klabel)))))
-        desc {:property {klabel propdef}
+        desc {:register-type-info register-type-info
+              :property {klabel propdef}
               :property-order-decl (if (contains? internal-keys klabel) [] [klabel])
               :output {klabel outdef}}]
     desc))
@@ -839,19 +837,22 @@
   (assert-symbol "output" label)
   (let [type-form (first forms)
         base (parse-type-form "output" type-form)
+        register-type-info (:register-type-info base)
+        base (dissoc base :register-type-info)
         [flags options fn-forms] (parse-flags-and-options output-flags output-options (rest forms))
         abstract?                (contains? flags :abstract)]
     (assert (or abstract? (first fn-forms))
             (format "Output %s has no production function and is not abstract" label))
     (assert (not (next fn-forms))
             (format "Output %s seems to have something after the production function: " label (next fn-forms)))
-    {:output
+    {:register-type-info register-type-info
+     :output
      {(keyword label)
       (merge-with into base {:flags (into #{} (conj flags :explicit))
                              :options options
                              :fn (if abstract?
-                                        (abstract-function-form label type-form)
-                                        (maybe-macroexpand (first fn-forms)))})}}))
+                                   (abstract-function-form label type-form)
+                                   (maybe-macroexpand (first fn-forms)))})}}))
 
 (def ^:private input-flags #{:array :cascade-delete})
 (def ^:private input-options #{:substitute})
@@ -860,8 +861,11 @@
   (assert-symbol "input" label)
   (let [type-form (first forms)
         base (parse-type-form "input" type-form)
+        register-type-info (:register-type-info base)
+        base (dissoc base :register-type-info)
         [flags options _] (parse-flags-and-options input-flags input-options (rest forms))]
-    {:input
+    {:register-type-info register-type-info
+     :input
      {(keyword label)
       (merge-with into base {:flags flags :options options})}}))
 
@@ -892,6 +896,7 @@
     :input (merge-with merge (:input l) (:input r))
     :output (merge-with merge (:output l) (:output r))
     :supertypes (into (:supertypes l) (:supertypes r))
+    :register-type-info (into (or (:register-type-info l) {}) (:register-type-info r))
     ;; Display order gets resolved at runtime
     :property-order-decl (:property-order-decl r)
     :display-order-decl (:display-order-decl r)})
