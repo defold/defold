@@ -303,7 +303,7 @@ def default_flags(self):
                                       '-I%s/system/lib/libcxxabi/include' % EMSCRIPTEN_ROOT]) # gtest uses cxxabi.h and for some reason, emscripten doesn't find it (https://github.com/kripken/emscripten/issues/3484)
 
         # NOTE: Disabled lto for when upgrading to 1.35.23, see https://github.com/kripken/emscripten/issues/3616
-        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]'])
+        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]', '-s','ERROR_ON_UNDEFINED_SYMBOLS=1'])
 
     elif 'as3' == build_util.get_target_architecture() and 'web' == build_util.get_target_os():
         # NOTE: -g set on both C*FLAGS and LINKFLAGS
@@ -1188,6 +1188,13 @@ def linux_link_flags(self):
     if re.match('.*?linux', platform):
         self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm', '-ldl'])
 
+@feature('cprogram', 'cxxprogram')
+@before('apply_core')
+def osx_64_luajit(self):
+    # This is needed for 64 bit LuaJIT on OSX (See http://luajit.org/install.html "Embedding LuaJIT")
+    if self.env['PLATFORM'] == 'x86_64-darwin':
+        self.env.append_value('LINKFLAGS', ['-pagezero_size', '10000', '-image_base', '100000000'])
+
 @feature('swf')
 @after('apply_link')
 def as3_link_flags_emit(self):
@@ -1486,6 +1493,18 @@ def detect(conf):
         conf.env['LD'] = '%s/arm-linux-androideabi-ld' % (bin)
 
         conf.env['DX'] =  '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
+    elif 'linux' == build_util.get_target_os():
+        conf.find_program('gcc-5', var='GCC5', mandatory = False)
+        if conf.env.GCC5 and "gcc-5" in conf.env.GCC5:
+            conf.env.CXX = "g++-5"
+            conf.env.CC = "gcc-5"
+            conf.env.CPP = "cpp-5"
+            conf.env.AR = "gcc-ar-5"
+            conf.env.RANLIB = "gcc-ranlib-5"
+        else:
+            conf.env.CXX = "g++"
+            conf.env.CC = "gcc"
+            conf.env.CPP = "cpp"
 
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
@@ -1575,17 +1594,20 @@ def detect(conf):
     use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
     if build_util.get_target_os() == 'web':
         use_vanilla = True
+    if build_util.get_target_platform() == 'x86_64-linux':
+        # TODO: LuaJIT is currently broken on x86_64-linux
+        use_vanilla = True
+    if build_util.get_target_platform() == 'arm64-darwin':
+        # TODO: LuaJIT is currently not supported on arm64
+        # Note: There is some support in the head branch for LuaJit 2.1
+        use_vanilla = True
 
-    conf.env['LUA_BYTECODE_ENABLE_32'] = 'no'
-    conf.env['LUA_BYTECODE_ENABLE_64'] = 'no'
     if use_vanilla:
         conf.env['STATICLIB_LUA'] = 'lua'
+        conf.env['LUA_BYTECODE_ENABLE'] = 'no'
     else:
         conf.env['STATICLIB_LUA'] = 'luajit-5.1'
-        if build_util.get_target_platform() == 'x86_64-linux' or build_util.get_target_platform() == 'x86_64-win32' or build_util.get_target_platform() == 'x86_64-darwin' or build_util.get_target_platform() == 'arm64-android' or build_util.get_target_platform() == 'arm64-darwin':
-            conf.env['LUA_BYTECODE_ENABLE_64'] = 'yes'
-        else:
-            conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
+        conf.env['LUA_BYTECODE_ENABLE'] = 'yes'
 
 def configure(conf):
     detect(conf)

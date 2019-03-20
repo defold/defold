@@ -23,7 +23,7 @@ function update(self, dt)
         local next_pos = pos + dp
         go.set_position(pos)
         -- request ray cast
-        physics.ray_cast(prev_pos, next_pos, {self.target_group}, 1)
+        physics.raycast_async(prev_pos, next_pos, {self.target_group}, 1)
     end
 end
 

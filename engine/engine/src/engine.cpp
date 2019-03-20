@@ -2,7 +2,7 @@
 
 #include "engine_private.h"
 
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <sys/stat.h>
 
 #include <stdio.h>
@@ -29,6 +29,7 @@
 #include <render/render_ddf.h>
 #include <profiler/profiler.h>
 #include <particle/particle.h>
+#include <script/sys_ddf.h>
 #include <tracking/tracking.h>
 #include <tracking/tracking_ddf.h>
 #include <liveupdate/liveupdate.h>
@@ -1404,12 +1405,12 @@ bail:
         engine->m_RunResult.m_ExitCode = code;
     }
 
-    static void Reboot(HEngine engine, dmEngineDDF::Reboot* reboot)
+    static void Reboot(HEngine engine, dmSystemDDF::Reboot* reboot)
     {
         int argc = 0;
         engine->m_RunResult.m_Argv[argc++] = strdup("dmengine");
 
-        // This value should match the count in dmEngineDDF::Reboot
+        // This value should match the count in dmSystemDDF::Reboot
         const int ARG_COUNT = 6;
         char* args[ARG_COUNT] =
         {
@@ -1507,30 +1508,30 @@ bail:
 
             dmDDF::ResolvePointers(descriptor, message->m_Data);
 
-            if (descriptor == dmEngineDDF::Exit::m_DDFDescriptor)
+            if (descriptor == dmSystemDDF::Exit::m_DDFDescriptor)
             {
-                dmEngineDDF::Exit* ddf = (dmEngineDDF::Exit*) message->m_Data;
+                dmSystemDDF::Exit* ddf = (dmSystemDDF::Exit*) message->m_Data;
                 dmEngine::Exit(self, ddf->m_Code);
             }
-            else if (descriptor == dmEngineDDF::Reboot::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::Reboot::m_DDFDescriptor)
             {
-                dmEngineDDF::Reboot* reboot = (dmEngineDDF::Reboot*) message->m_Data;
+                dmSystemDDF::Reboot* reboot = (dmSystemDDF::Reboot*) message->m_Data;
                 dmEngine::Reboot(self, reboot);
             }
-            else if (descriptor == dmEngineDDF::ToggleProfile::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::ToggleProfile::m_DDFDescriptor)
             {
                 dmProfiler::ToggleProfiler();
             }
-            else if (descriptor == dmEngineDDF::TogglePhysicsDebug::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::TogglePhysicsDebug::m_DDFDescriptor)
             {
                 if(dLib::IsDebugMode())
                 {
                     self->m_PhysicsContext.m_Debug = !self->m_PhysicsContext.m_Debug;
                 }
             }
-            else if (descriptor == dmEngineDDF::StartRecord::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::StartRecord::m_DDFDescriptor)
             {
-                dmEngineDDF::StartRecord* start_record = (dmEngineDDF::StartRecord*) message->m_Data;
+                dmSystemDDF::StartRecord* start_record = (dmSystemDDF::StartRecord*) message->m_Data;
                 RecordData* record_data = &self->m_RecordData;
 
                 record_data->m_FramePeriod = start_record->m_FramePeriod;
@@ -1555,7 +1556,7 @@ bail:
                     record_data->m_Recorder = 0;
                 }
             }
-            else if (descriptor == dmEngineDDF::StopRecord::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::StopRecord::m_DDFDescriptor)
             {
                 RecordData* record_data = &self->m_RecordData;
                 if (record_data->m_Recorder)
@@ -1570,18 +1571,18 @@ bail:
                     dmLogError("No recording in progress");
                 }
             }
-            else if (descriptor == dmEngineDDF::SetUpdateFrequency::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor)
             {
-                dmEngineDDF::SetUpdateFrequency* m = (dmEngineDDF::SetUpdateFrequency*) message->m_Data;
+                dmSystemDDF::SetUpdateFrequency* m = (dmSystemDDF::SetUpdateFrequency*) message->m_Data;
                 SetUpdateFrequency(self, (uint32_t) m->m_Frequency);
             }
             else if (descriptor == dmEngineDDF::HideApp::m_DDFDescriptor)
             {
                 dmGraphics::IconifyWindow(self->m_GraphicsContext);
             }
-            else if (descriptor == dmEngineDDF::SetVsync::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::SetVsync::m_DDFDescriptor)
             {
-                dmEngineDDF::SetVsync* m = (dmEngineDDF::SetVsync*) message->m_Data;
+                dmSystemDDF::SetVsync* m = (dmSystemDDF::SetVsync*) message->m_Data;
                 SetSwapInterval(self, m->m_SwapInterval);
             }
             else if (descriptor == dmEngineDDF::RunScript::m_DDFDescriptor)

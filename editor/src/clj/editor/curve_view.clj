@@ -358,7 +358,8 @@
   (property select-fn Runnable)
   (input sub-selection g/Any)
   (input curve-handle g/Any)
-  (output input-handler Runnable :cached (g/constantly handle-input)))
+  (output input-handler Runnable :cached (g/constantly handle-input))
+  (output info-text g/Str (g/constantly nil)))
 
 (defn- pick-control-points [visible-curves picking-rect camera viewport]
   (let [aabb (geom/centered-rect->aabb picking-rect)]
@@ -454,7 +455,8 @@
                         (curve-aabb aabb))
                     aabb))
                 aabb)))
-    (geom/null-aabb) selected-node-properties))
+          geom/null-aabb
+          selected-node-properties))
 
 (g/defnk produce-selected-aabb [sub-selection-map selected-node-properties]
   (reduce (fn [aabb props]
@@ -466,7 +468,8 @@
                              aabb)]
                   (recur (rest props) aabb))
                 aabb)))
-          (geom/null-aabb) selected-node-properties))
+          geom/null-aabb
+          selected-node-properties))
 
 (g/defnode CurveView
   (inherits scene/SceneRenderer)
@@ -489,6 +492,7 @@
   (input background-id g/NodeID :cascade-delete)
   (input input-handlers Runnable :array)
   (input selected-node-properties g/Any)
+  (input tool-info-text g/Str)
   (input tool-renderables pass/RenderData :array)
   (input picking-rect Rect)
   (input sub-selection g/Any)
@@ -552,7 +556,7 @@
   (let [aabb (if (empty? selection)
                (g/node-value view :aabb)
                (g/node-value view :selected-aabb))]
-    (when (not= aabb (geom/null-aabb))
+    (when (geom/null-aabb? aabb)
       (let [graph (g/node-id->graph-id view)
             camera (g/node-feeding-into view :camera)
             viewport (g/node-value view :viewport)
@@ -626,6 +630,7 @@
                                                 (g/connect view-id :curve-handle controller :curve-handle)
                                                 (g/connect app-view :sub-selection controller :sub-selection)
                                                 (g/connect controller :input-handler view-id :input-handlers)
+                                                (g/connect controller :info-text view-id :tool-info-text)
 
                                                 (g/connect selection            :renderable                view-id          :tool-renderables)
                                                 (g/connect selection            :input-handler             view-id          :input-handlers)

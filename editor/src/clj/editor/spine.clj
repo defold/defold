@@ -1,6 +1,5 @@
 (ns editor.spine
   (:require [clojure.java.io :as io]
-            [clojure.string :as str]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [util.murmur :as murmur]
@@ -15,7 +14,6 @@
             [editor.defold-project :as project]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
             [editor.render :as render]
             [editor.validation :as validation]
@@ -32,10 +30,11 @@
             [internal.util :as util])
   (:import [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [com.defold.editor.pipeline BezierUtil RigUtil$Transform TextureSetGenerator$UVTransform]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+           [editor.gl.shader ShaderLifecycle]
+           [editor.types AABB]
            [com.jogamp.opengl GL GL2]
-           [javax.vecmath Matrix4d Point2d Point3d Quat4d Vector2d Vector3d Vector4d Tuple3d Tuple4d]
-           [editor.gl.shader ShaderLifecycle]))
+           [java.util HashSet]
+           [javax.vecmath Matrix4d Point2d Point3d Quat4d Vector3d Vector4d Tuple3d Tuple4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -774,10 +773,10 @@
 
 (shader/defshader spine-id-fragment-shader
   (varying vec2 var_texcoord0)
-  (uniform sampler2D texture)
+  (uniform sampler2D texture_sampler)
   (uniform vec4 id)
   (defn void main []
-    (setq vec4 color (texture2D texture var_texcoord0.xy))
+    (setq vec4 color (texture2D texture_sampler var_texcoord0.xy))
     (if (> color.a 0.05)
       (setq gl_FragColor id)
       (discard))))
@@ -817,40 +816,71 @@
   (assert (= (:pass render-args) pass/outline))
   (render/render-aabb-outline gl render-args ::spine-outline renderables rcount))
 
-(g/defnk produce-scene [_node-id aabb gpu-texture default-tex-params spine-scene-pb scene-structure]
-  (let [scene {:node-id _node-id
-               :aabb aabb}]
+(g/defnk produce-main-scene [_node-id aabb gpu-texture default-tex-params spine-scene-pb scene-structure]
+  (when (and gpu-texture scene-structure)
+    (let [blend-mode :blend-mode-alpha]
+      (assoc {:node-id _node-id :aabb aabb}
+             :renderable {:render-fn render-spine-scenes
+                          :tags #{:spine}
+                          :batch-key gpu-texture
+                          :select-batch-key _node-id
+                          :user-data {:spine-scene-pb spine-scene-pb
+                                      :scene-structure scene-structure
+                                      :gpu-texture gpu-texture
+                                      :tex-params default-tex-params
+                                      :blend-mode blend-mode}
+                          :passes [pass/transparent pass/selection]}))))
+
+(defn- make-spine-outline-scene [_node-id aabb]
+  {:aabb aabb
+   :node-id _node-id
+   :renderable {:render-fn render-spine-outlines
+                :tags #{:spine :outline}
+                :batch-key ::outline
+                :passes [pass/outline]}})
+
+(defn- make-spine-skeleton-scene [_node-id aabb gpu-texture scene-structure]
+  (let [scene {:node-id _node-id :aabb aabb}]
     (if (and gpu-texture scene-structure)
       (let [blend-mode :blend-mode-alpha]
-        (assoc scene
-               :renderable {:render-fn render-spine-scenes
-                            :tags #{:spine}
-                            :batch-key gpu-texture
-                            :select-batch-key _node-id
-                            :user-data {:spine-scene-pb spine-scene-pb
-                                        :scene-structure scene-structure
-                                        :gpu-texture gpu-texture
-                                        :tex-params default-tex-params
-                                        :blend-mode blend-mode}
-                            :passes [pass/transparent pass/selection]}
-               :children [{:aabb aabb
-                           :node-id _node-id
-                           :renderable {:render-fn render-spine-skeletons
-                                        :tags #{:spine :skeleton :outline}
-                                        :batch-key gpu-texture
-                                        :user-data {:scene-structure scene-structure}
-                                        :passes [pass/transparent]}}
-                          {:aabb aabb
-                           :node-id _node-id
-                           :renderable {:render-fn render-spine-outlines
-                                        :tags #{:spine :outline}
-                                        :batch-key ::outline
-                                        :passes [pass/outline]}}]))
+        {:aabb aabb
+         :node-id _node-id
+         :renderable {:render-fn render-spine-skeletons
+                      :tags #{:spine :skeleton :outline}
+                      :batch-key gpu-texture
+                      :user-data {:scene-structure scene-structure}
+                      :passes [pass/transparent]}})
       scene)))
+
+(g/defnk produce-scene [_node-id aabb main-scene gpu-texture scene-structure]
+  (if (some? main-scene)
+    (assoc main-scene :children [(make-spine-skeleton-scene _node-id aabb gpu-texture scene-structure)
+                                 (make-spine-outline-scene _node-id aabb)])
+    {:node-id _node-id :aabb geom/empty-bounding-box}))
 
 (defn- mesh->aabb [aabb mesh]
   (let [positions (partition 3 (:positions mesh))]
     (reduce (fn [aabb pos] (apply geom/aabb-incorporate aabb pos)) aabb positions)))
+
+(g/defnk produce-skin-aabbs [scene-structure spine-scene-pb]
+  (let [skin-names (:skins scene-structure)
+        skins (get-in spine-scene-pb [:mesh-set :mesh-entries])
+        meshes (get-in spine-scene-pb [:mesh-set :mesh-attachments])]
+    (into {}
+          (map (fn [skin-name]
+                 (let [skin-id (murmur/hash64 skin-name)
+                       skin (or (some (fn [skin] (when (= (:id skin) skin-id) skin)) skins)
+                                (first skins))] ; this is a bit ugly but matches what we do in renderable->meshes while rendering the scene
+                   (if-not (some? skin)
+                     [skin-name geom/empty-bounding-box]
+                     (let [mesh-slots (:mesh-slots skin)
+                           skin-meshes (into []
+                                             (keep (fn [{:keys [mesh-attachments active-index] :as _mesh-slot}]
+                                                     (get meshes (get mesh-attachments active-index -1))))
+                                             mesh-slots)
+                           skin-meshes-aabb (reduce mesh->aabb geom/empty-bounding-box skin-meshes)]
+                       [skin-name skin-meshes-aabb])))))
+          skin-names)))
 
 (g/defnode SpineSceneNode
   (inherits resource-node/ResourceNode)
@@ -895,8 +925,10 @@
   (output own-build-errors g/Any :cached produce-scene-own-build-errors)
   (output build-targets g/Any :cached produce-scene-build-targets)
   (output spine-scene-pb g/Any :cached produce-spine-scene-pb)
+  (output main-scene g/Any :cached produce-main-scene)
   (output scene g/Any :cached produce-scene)
-  (output aabb AABB :cached (g/fnk [spine-scene-pb] (reduce mesh->aabb (geom/null-aabb) (get-in spine-scene-pb [:mesh-set :mesh-attachments]))))
+  (output aabb AABB :cached (g/fnk [spine-scene-pb] (reduce mesh->aabb geom/null-aabb (get-in spine-scene-pb [:mesh-set :mesh-attachments]))))
+  (output skin-aabbs g/Any :cached produce-skin-aabbs)
   (output anim-data g/Any (gu/passthrough anim-data))
   (output scene-structure g/Any (gu/passthrough scene-structure))
   (output spine-anim-ids g/Any (g/fnk [scene-structure] (:animations scene-structure))))
@@ -982,9 +1014,9 @@
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :spine-scene-resource]
-                                            [:scene :spine-scene-scene]
+                                            [:main-scene :spine-main-scene]
+                                            [:skin-aabbs :spine-scene-skin-aabbs]
                                             [:spine-anim-ids :spine-anim-ids]
-                                            [:aabb :aabb]
                                             [:build-targets :dep-build-targets]
                                             [:anim-data :anim-data]
                                             [:scene-structure :scene-structure])))
@@ -1016,10 +1048,10 @@
 
   (input dep-build-targets g/Any :array)
   (input spine-scene-resource resource/Resource)
-  (input spine-scene-scene g/Any)
+  (input spine-main-scene g/Any)
+  (input spine-scene-skin-aabbs g/Any)
   (input scene-structure g/Any)
   (input spine-anim-ids g/Any)
-  (input aabb AABB)
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
   (input material-samplers g/Any)
@@ -1031,14 +1063,20 @@
                                  default-tex-params)))
   (output anim-ids g/Any :cached (g/fnk [anim-data] (vec (sort (keys anim-data)))))
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
-  (output scene g/Any :cached (g/fnk [spine-scene-scene material-shader tex-params skin]
-                                (when (some? material-shader)
-                                  (if (:renderable spine-scene-scene)
-                                    (-> spine-scene-scene
+  (output scene g/Any :cached (g/fnk [_node-id spine-main-scene spine-scene-skin-aabbs material-shader tex-params skin]
+                                (if (and (some? material-shader) (some? (:renderable spine-main-scene)))
+                                  (let [aabb (get spine-scene-skin-aabbs (if (= "" skin) "default" skin) geom/empty-bounding-box)
+                                        spine-scene-node-id (:node-id spine-main-scene)]
+                                    (-> spine-main-scene
                                         (assoc-in [:renderable :user-data :shader] material-shader)
                                         (update-in [:renderable :user-data :gpu-texture] texture/set-params tex-params)
-                                        (assoc-in [:renderable :user-data :skin] skin))
-                                    spine-scene-scene))))
+                                        (assoc-in [:renderable :user-data :skin] skin)
+                                        (assoc :aabb aabb)
+                                        (assoc :children [(make-spine-outline-scene spine-scene-node-id aabb)])))
+                                  (merge {:node-id _node-id
+                                          :renderable {:passes [pass/selection]}
+                                          :aabb geom/empty-bounding-box}
+                                         spine-main-scene))))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id own-build-errors spine-scene]
                                                      (cond-> {:node-id _node-id
                                                               :node-outline-key "Spine Model"
@@ -1051,8 +1089,7 @@
   (output model-pb g/Any produce-model-pb)
   (output save-value g/Any (gu/passthrough model-pb))
   (output own-build-errors g/Any :cached produce-model-own-build-errors)
-  (output build-targets g/Any :cached produce-model-build-targets)
-  (output aabb AABB (gu/passthrough aabb)))
+  (output build-targets g/Any :cached produce-model-build-targets))
 
 
 (defn load-spine-model [project self resource spine]
@@ -1146,6 +1183,42 @@
             (and (get content "bones") (get content "animations")))
     content))
 
+(defn accept-resource-json
+  [resource]
+  ;; This function tries to find the JSON elements that mark a spine scene
+  ;; without doing a full parse. This is a performance improvement for startup
+  ;; of large projects. A full parse is done if this function succeeds so there
+  ;; is no need to check if the content is valid JSON at this point.
+  (with-open [rdr (io/reader resource)]
+    (let [sb (StringBuilder.)]
+      (loop [done? false
+             inside-string? false
+             escape? false
+             strings (HashSet.)
+             c (.read rdr)]
+        (if done?
+          true
+          (if (= -1 c)
+            false
+            (if escape?
+              (do
+                (.append sb (char c))
+                (recur done? inside-string? false strings (.read rdr)))
+              (case c
+                92 (recur done? inside-string? true strings (.read rdr)) ;; \
+                34 (if inside-string? ;; "
+                     (do
+                       (.add strings (.toString sb))
+                       (.setLength sb 0)
+                       (recur (or (and (.contains strings "skeleton") (.contains strings "spine"))
+                                  (and (.contains strings "bones") (.contains strings "animations")))
+                              false escape? strings (.read rdr)))
+                     (recur done? true escape? strings (.read rdr)))
+                (do
+                  (when inside-string?
+                    (.append sb (char c)))
+                  (recur done? inside-string? escape? strings (.read rdr)))))))))))
+
 (defn- tx-first-created [tx-data]
   (get-in (first tx-data) [:node :_node-id]))
 
@@ -1185,4 +1258,4 @@
             (recur (rest bones) (conj tx-data bone-tx-data) (assoc bone-ids name bone-id)))
           tx-data)))))
 
-(json/register-json-loader ::spine-scene accept-spine-scene-json load-spine-scene-json)
+(json/register-json-loader ::spine-scene accept-spine-scene-json accept-resource-json load-spine-scene-json)

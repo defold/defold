@@ -109,7 +109,7 @@
   (when (not (string/blank? params))
     (into {}
           (map (fn [param]
-                 (let [[k v] (string/split param #"=")]
+                 (let [[k ^String v] (string/split param #"=")]
                    [(keyword k) (URLDecoder/decode v "UTF-8")])))
           (string/split params #"&"))))
 
@@ -123,6 +123,13 @@
         resource (g/node-value resource-id :resource)]
     {:command   :open
      :user-data {:resources [resource]}}))
+
+(defmethod url->command "add-dependency"
+  [^URI uri {:keys [project]}]
+  (let [params (query-params->map (.getQuery uri))
+        dep-url (:url params)]
+    {:command   :add-dependency
+     :user-data {:dep-url dep-url}}))
 
 (defmethod url->command :default
   [^URI uri _]

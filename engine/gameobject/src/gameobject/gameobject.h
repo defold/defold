@@ -2,7 +2,7 @@
 #define GAMEOBJECT_H
 
 #include <stdint.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/easing.h>
 #include <dlib/hash.h>

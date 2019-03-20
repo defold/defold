@@ -14,6 +14,7 @@
             [editor.input :as i]
             [editor.math :as math]
             [editor.properties :as properties]
+            [editor.render :as render]
             [editor.resource :as resource]
             [editor.rulers :as rulers]
             [editor.scene-async :as scene-async]
@@ -27,6 +28,7 @@
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
+            [internal.util :as util]
             [service.log :as log]
             [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
@@ -39,6 +41,7 @@
            [javafx.embed.swing SwingFXUtils]
            [javafx.geometry HPos VPos]
            [javafx.scene Node Parent]
+           [javafx.scene.control Label]
            [javafx.scene.image ImageView WritableImage]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
@@ -83,7 +86,7 @@
                    :batch-key ::error}]}])
 
 (defn substitute-scene [error]
-  {:aabb       (geom/null-aabb)
+  {:aabb       geom/null-aabb
    :renderable {:render-fn render-error
                 :user-data {:error error}
                 :batch-key ::error
@@ -106,14 +109,6 @@
    (.glReadPixels gl 0 0 w h GL2/GL_BGRA GL/GL_UNSIGNED_BYTE (IntBuffer/wrap (.getDataStorage ^IntegerComponentRaster (.getRaster image))))
    (.restore psm gl)
    image))
-
-(def outline-color colors/bright-grey)
-(def selected-outline-color colors/defold-turquoise)
-
-(defn select-color [pass selected object-color]
-  (if (= pass pass/outline)
-    (if selected selected-outline-color outline-color)
-    object-color))
 
 (defn vp-dims [^Region viewport]
   (types/dimensions viewport))
@@ -232,19 +227,39 @@
     (merge render-args
            (math/derive-render-transforms world view projection' texture))))
 
-(def render-mode-transitions {:normal :picking-color
+(def render-mode-transitions {:normal :aabbs
+                              :aabbs :picking-color
                               :picking-color :picking-rect
                               :picking-rect :normal})
 (def render-mode-atom (atom :normal))
 (def last-picking-rect (atom nil))
+(def render-mode-passes {:normal pass/render-passes
+                         :aabbs pass/render-passes
+                         :picking-color pass/selection-passes
+                         :picking-rect pass/selection-passes})
+(def render-mode-batch-key {:normal :batch-key
+                            :aabbs (constantly nil)
+                            :picking-color :select-batch-key
+                            :picking-rect :select-batch-key})
+
+(defn- render-aabb [^GL2 gl render-args renderables rcount]
+  (render/render-aabb-outline gl render-args ::renderable-aabb renderables rcount))
+
+(defn- make-aabb-renderables [renderables]
+  (into []
+        (comp
+          (filter :aabb)
+          (map #(assoc % :render-fn render-aabb)))
+        renderables))
 
 (defn render! [^GLContext context renderables updatable-states viewport pass->render-args]
   (let [^GL2 gl (.getGL context)
-        render-mode @render-mode-atom]
+        render-mode @render-mode-atom
+        batch-key (render-mode-batch-key render-mode)]
     (gl/gl-clear gl 0.0 0.0 0.0 1)
     (.glColor4f gl 1.0 1.0 1.0 1.0)
     (gl-viewport gl viewport)
-    (doseq [pass (if (= render-mode :normal) pass/render-passes pass/selection-passes)
+    (doseq [pass (render-mode-passes render-mode)
             :let [pass-render-args (cond-> (pass->render-args pass)
                                      (and (= render-mode :picking-rect)
                                           (some? @last-picking-rect))
@@ -252,7 +267,9 @@
                   pass-renderables (-> (get renderables pass)
                                        (assoc-updatable-states updatable-states))]]
       (setup-pass gl pass pass-render-args)
-      (batch-render gl pass-render-args pass-renderables :batch-key))))
+      (if (= render-mode :aabbs)
+        (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) batch-key)
+        (batch-render gl pass-render-args pass-renderables batch-key)))))
 
 (defn- apply-pass-overrides
   [pass renderable]
@@ -295,9 +312,9 @@
         world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))
         local-transform-unscaled (doto (Matrix4d. local-transform) (.setScale 1.0))
         local-rotation (doto (Quat4d.) (.set local-transform-unscaled))
+        world-translation (math/transform parent-world-transform (math/translation local-transform))
         world-rotation (doto (Quat4d. parent-world-rotation) (.mul local-rotation))
-        world-scale (math/multiply-vector parent-world-scale
-                                          (math/scale local-transform))
+        world-scale (math/multiply-vector parent-world-scale (math/scale local-transform))
         appear-selected? (some? (some selection-set node-id-path)) ; Child nodes appear selected if parent is.
         picking-node-id (or (:picking-node-id scene) (peek node-id-path))
         flat-renderable (-> scene
@@ -308,14 +325,15 @@
                                    :picking-id (alloc-picking-id! picking-node-id)
                                    :tags (:tags renderable)
                                    :render-fn (:render-fn renderable)
-                                   :world-scale world-scale
+                                   :world-translation world-translation
                                    :world-rotation world-rotation
+                                   :world-scale world-scale
                                    :world-transform world-transform
                                    :parent-world-transform parent-world-transform
                                    :selected appear-selected?
                                    :user-data (:user-data renderable)
                                    :batch-key (:batch-key renderable)
-                                   :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world-transform)
+                                   :aabb (geom/aabb-transform ^AABB (:aabb scene geom/null-aabb) world-transform)
                                    :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable))
                                    :pass-overrides {pass/outline {:render-key (outline-render-key view-proj world-transform (:index renderable) (:topmost? renderable) appear-selected?)}}))
         visible? (and (not (contains? hidden-node-outline-key-paths node-outline-key-path))
@@ -445,29 +463,31 @@
         pass/all-passes))
 
 (g/defnk produce-renderables-screen-aabb+picking-node-id [scene-render-data ^Region viewport camera]
-  (into []
-        (comp
-          cat
-          (keep (fn [renderable]
-                  (when-some [aabb (:aabb renderable)]
-                    (when-not (= aabb (geom/null-aabb))
-                      (let [picking-node-id (:picking-node-id renderable)
-                            corners (geom/aabb->corners aabb)
-                            projected-corners (mapv (partial c/camera-project camera viewport) corners)
-                            projected-aabb ^AABB (reduce (fn [aabb ^Point3d pt]
-                                                           (geom/aabb-incorporate aabb pt))
-                                                         (geom/null-aabb)
-                                                         projected-corners)
-                            aabb-min ^Point3d (.min projected-aabb)
-                            aabb-max ^Point3d (.max projected-aabb)
-                            aabb-rect (types/rect (.x aabb-min)
-                                                  (.y aabb-min)
-                                                  (- (.x aabb-max) (.x aabb-min))
-                                                  (- (.y aabb-max) (.y aabb-min)))]
-                        [aabb-rect picking-node-id]))))))
-        (vals (:renderables scene-render-data))))
+  (let [renderables-by-pass (:renderables scene-render-data)]
+    (into []
+          (comp
+            cat
+            (keep (fn [renderable]
+                    (when-some [aabb (:aabb renderable)]
+                      (when-not (geom/null-aabb? aabb)
+                        (let [picking-node-id (:picking-node-id renderable)
+                              projected-aabb ^AABB (transduce (map (partial c/camera-project camera viewport))
+                                                              (completing geom/aabb-incorporate)
+                                                              geom/null-aabb
+                                                              (geom/aabb->corners aabb))
+                              aabb-min ^Point3d (.min projected-aabb)
+                              aabb-max ^Point3d (.max projected-aabb)
+                              aabb-rect (types/rect (.x aabb-min)
+                                                    (.y aabb-min)
+                                                    (- (.x aabb-max) (.x aabb-min))
+                                                    (- (.y aabb-max) (.y aabb-min)))]
+                          [aabb-rect picking-node-id]))))))
+          [(get renderables-by-pass pass/selection)
+           (get renderables-by-pass pass/opaque-selection)])))
 
 (g/defnode SceneRenderer
+  (property info-label Label (dynamic visible (g/constantly false)))
+
   (input active-view g/NodeID)
   (input scene g/Any :substitute substitute-scene)
   (input selection g/Any)
@@ -483,10 +503,19 @@
   (output aux-render-data g/Any :cached produce-aux-render-data)
 
   (output selected-renderables g/Any :cached (g/fnk [scene-render-data] (:selected-renderables scene-render-data)))
-  (output selected-aabb AABB :cached (g/fnk [selected-renderables scene]
-                                       (if (empty? selected-renderables)
-                                         (:aabb scene)
-                                         (reduce geom/aabb-union (geom/null-aabb) (map :aabb selected-renderables)))))
+  (output selected-aabb AABB :cached (g/fnk [scene-render-data scene]
+                                       (let [renderables (sequence cat (vals (:renderables scene-render-data)))
+                                             {selected-aabbs true nonselected-aabbs false} (util/group-into {} [] :selected :aabb renderables)]
+                                         (cond
+                                           (seq selected-aabbs)
+                                           (reduce geom/aabb-union geom/null-aabb selected-aabbs)
+
+                                           (some? (:default-aabb scene))
+                                           (:default-aabb scene)
+
+                                           :else
+                                           (reduce geom/aabb-union geom/null-aabb (concat selected-aabbs nonselected-aabbs))))))
+
   (output renderables-screen-aabb+picking-node-id g/Any :cached produce-renderables-screen-aabb+picking-node-id)
   (output selected-updatables g/Any :cached (g/fnk [selected-renderables]
                                               (into {}
@@ -614,7 +643,7 @@
           (reset! last-picking-rect picking-rect)
           (doseq [pass [pass/opaque-selection pass/selection]]
             (let [pass-render-args (picking-render-args (pass->render-args pass) viewport picking-rect)
-                  pass-renderables (get renderables pass)]
+                  pass-renderables (vec (render-sort (get renderables pass)))]
               (setup-pass gl pass pass-render-args)
               (batch-render gl pass-render-args pass-renderables :select-batch-key)))
           (.glFlush gl)
@@ -702,12 +731,15 @@
 
   (input input-handlers Runnable :array)
   (input picking-rect Rect)
+  (input tool-info-text g/Str)
   (input tool-renderables pass/RenderData :array :substitute substitute-render-data)
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)
   (input updatables g/Any)
   (input selected-updatables g/Any)
   (output inactive? g/Bool (g/fnk [_node-id active-view] (not= _node-id active-view)))
+  (output info-text g/Str (g/fnk [scene tool-info-text]
+                            (or tool-info-text (:info-text scene))))
   (output tool-renderables g/Any produce-tool-renderables)
   (output active-tool g/Keyword (gu/passthrough active-tool))
   (output manip-space g/Keyword (gu/passthrough manip-space))
@@ -723,7 +755,7 @@
                                              {:renderables (reduce (partial merge-with into)
                                                                    {}
                                                                    tool-renderables)})))
-  
+
   (output picking-selection g/Any :cached produce-selection)
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
@@ -733,7 +765,14 @@
     (let [image-view (g/node-value node-id :image-view evaluation-context)]
       (when-not (ui/inside-hidden-tab? image-view)
         (let [drawable (g/node-value node-id :drawable evaluation-context)
-              async-copy-state-atom (g/node-value node-id :async-copy-state evaluation-context)]
+              async-copy-state-atom (g/node-value node-id :async-copy-state evaluation-context)
+              info-label (g/node-value node-id :info-label evaluation-context)
+              info-text (g/node-value node-id :info-text evaluation-context)]
+          (when (some? info-label)
+            (if (empty? info-text)
+              (ui/visible! info-label false)
+              (do (ui/text! info-label info-text)
+                  (ui/visible! info-label true))))
           (when (and (some? drawable) (some? async-copy-state-atom))
             (update-image-view! image-view drawable async-copy-state-atom evaluation-context)))))))
 
@@ -835,23 +874,33 @@
                     (g/set-property camera-node :local-camera end-camera)))))
     (g/transact (g/set-property camera-node :local-camera end-camera))))
 
+(defn- fudge-empty-aabb [^AABB aabb]
+  (if-not (geom/empty-aabb? aabb)
+    aabb
+    (let [min-p ^Point3d (.min aabb)
+          max-p ^Point3d (.max aabb)]
+      (geom/coords->aabb [(- (.x min-p) 1.0)
+                          (- (.y min-p) 1.0)
+                          (- (.z min-p) 1.0)]
+                         [(+ (.x max-p) 1.0)
+                          (+ (.y max-p) 1.0)
+                          (+ (.z max-p) 1.0)]))))
+
 (defn frame-selection [view animate?]
-  (when-let [aabb (g/node-value view :selected-aabb)]
-    (let [graph (g/node-id->graph-id view)
-          camera (view->camera view)
-          viewport (g/node-value view :viewport)
-          local-cam (g/node-value camera :local-camera)
-          end-camera (c/camera-orthographic-frame-aabb local-cam viewport aabb)]
-      (set-camera! camera local-cam end-camera animate?))))
+  (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))
+        camera (view->camera view)
+        viewport (g/node-value view :viewport)
+        local-cam (g/node-value camera :local-camera)
+        end-camera (c/camera-orthographic-frame-aabb local-cam viewport aabb)]
+    (set-camera! camera local-cam end-camera animate?)))
 
 (defn realign-camera [view animate?]
-  (when-let [aabb (g/node-value view :selected-aabb)]
-    (let [graph (g/node-id->graph-id view)
-          camera (view->camera view)
-          viewport (g/node-value view :viewport)
-          local-cam (g/node-value camera :local-camera)
-          end-camera (c/camera-orthographic-realign local-cam viewport aabb)]
-      (set-camera! camera local-cam end-camera animate?))))
+  (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))
+        camera (view->camera view)
+        viewport (g/node-value view :viewport)
+        local-cam (g/node-value camera :local-camera)
+        end-camera (c/camera-orthographic-realign local-cam viewport aabb)]
+    (set-camera! camera local-cam end-camera animate?)))
 
 (handler/defhandler :frame-selection :global
   (active? [app-view] (active-scene-view app-view))
@@ -1137,6 +1186,8 @@
   (let [view-id (g/make-node! scene-graph SceneView :updatable-states {})
         scene-view-pane (make-scene-view-pane view-id opts)]
     (ui/children! parent [scene-view-pane])
+    (ui/with-controls scene-view-pane [scene-view-info-label]
+      (g/set-property! view-id :info-label scene-view-info-label))
     view-id))
 
 (g/defnk produce-frame [all-renderables ^Region viewport pass->render-args ^GLAutoDrawable drawable]
@@ -1169,6 +1220,7 @@
   (input updatables g/Any)
   (input selected-updatables g/Any)
   (input picking-rect Rect)
+  (input tool-info-text g/Str)
   (input tool-renderables pass/RenderData :array)
   (output tool-renderables g/Any produce-tool-renderables)
   (output inactive? g/Bool (g/constantly false))
@@ -1247,6 +1299,7 @@
                     (g/connect app-view-id     :hidden-node-outline-key-paths view-id         :hidden-node-outline-key-paths)
 
                     (g/connect tool-controller :input-handler                 view-id         :input-handlers)
+                    (g/connect tool-controller :info-text                     view-id         :tool-info-text)
                     (g/connect tool-controller :renderables                   view-id         :tool-renderables)
                     (g/connect view-id         :active-tool                   tool-controller :active-tool)
                     (g/connect view-id         :manip-space                   tool-controller :manip-space)
@@ -1343,8 +1396,7 @@
 
   (output transform-properties g/Any :abstract)
   (output transform Matrix4d :cached produce-transform)
-  (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform}))
-  (output aabb AABB :cached (g/constantly (geom/null-aabb))))
+  (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform})))
 
 (defmethod scene-tools/manip-movable? ::SceneNode [node-id]
   (contains? (g/node-value node-id :transform-properties) :position))

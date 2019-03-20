@@ -19,39 +19,39 @@ namespace dmProfileRender
 /**
  * The on-screen profiler stores a copy of a profiled frame locally and tries
  * to be as efficitent as possible by only storing the necessary data.
- * 
+ *
  * It also has a recording buffer where recorded frames are stored.
- * 
+ *
  * A base frame (ProfileFrame) is a struct containing all the data related to
  * a sampled frame. It tries to be as minimal as possible, ie it does not
  * contain the actual number of scopes and samples etc in this basic struct.
- * 
+ *
  * The base frame (ProfileFrame) extended by either a ProfileSnapshot which
  * is the data structure used for recorded profile frames and includes the
  * number of scopes and counters etc in the frame.
- * 
+ *
  * The profiler (RenderProfile) also has a ProfileFrame but instead of direct
  * numbers for scopes and counters count it derives the counts from its lookup tables.
- * 
+ *
  * Extra data such as filtered values for elapsed times and "last seen" information
  * is separated and only present in the RenderProfile, not in the actual frames.
- * 
+ *
  * The lookup-by-hash and allocation information for data in the RenderProfile is
  * built on demand as a new frame is built from a frame sample on the go or when
  * picking up and displaying a frame from the recording buffer.
- * 
+ *
  * The RenderProfile is created with a pre-defined number of sample/scopes/counters
  * available and no memory allocation is done when processing a frame.
- * 
+ *
  * When recording profile frames only one malloc() call is done per recorded frame
  * to reduce overhead and keep the data compact.
- * 
+ *
  * The profiler sorts the data on filtered values and keeps the coloring of sample
  * names consistent in an effort to reduce flickering and samples moving around to fast.
- * 
+ *
  * It also automatically adjust the layout depending on the aspect ratio of the
  * profiler display area (which is directly derived from the window/screen size).
- * 
+ *
  * Some terms:
  *  -   Scope           High level scope such as "Engine" and "Script", the first parameter to DM_PROFILE(Physics, <all samples>)
  *  -   Counter         A counter - ie DM_COUNTER("DrawCalls", 1)
@@ -64,25 +64,25 @@ namespace dmProfileRender
  *                      buffers for sampled data. It also holds information of filtered values, sorting and a
  *                      recording buffer (array of ProfileSnapshot)
  */
-    static const int CHAR_HEIGHT  = 16;
-    static const int CHAR_WIDTH   = 8;
-    static const int CHAR_BORDER  = 1;
-    static const int LINE_SPACING = CHAR_HEIGHT + CHAR_BORDER * 2;
+    static const int CHARACTER_HEIGHT  = 16;
+    static const int CHARACTER_WIDTH   = 8;
+    static const int CHARACTER_BORDER  = 1;
+    static const int LINE_SPACING = CHARACTER_HEIGHT + CHARACTER_BORDER * 2;
     static const int BORDER_SIZE  = 8;
 
-    static const int SCOPES_NAME_WIDTH  = 17 * CHAR_WIDTH;
-    static const int SCOPES_TIME_WIDTH  = 6 * CHAR_WIDTH;
-    static const int SCOPES_COUNT_WIDTH = 3 * CHAR_WIDTH;
+    static const int SCOPES_NAME_WIDTH  = 17 * CHARACTER_WIDTH;
+    static const int SCOPES_TIME_WIDTH  = 6 * CHARACTER_WIDTH;
+    static const int SCOPES_COUNT_WIDTH = 3 * CHARACTER_WIDTH;
 
     static const int PORTRAIT_SAMPLE_FRAMES_NAME_LENGTH = 40;
     static const int LANDSCAPE_SAMPLE_FRAMES_NAME_LENGTH = 60;
-    static const int PORTRAIT_SAMPLE_FRAMES_NAME_WIDTH  = PORTRAIT_SAMPLE_FRAMES_NAME_LENGTH * CHAR_WIDTH;
-    static const int LANDSCAPE_SAMPLE_FRAMES_NAME_WIDTH  = LANDSCAPE_SAMPLE_FRAMES_NAME_LENGTH * CHAR_WIDTH;
-    static const int SAMPLE_FRAMES_TIME_WIDTH  = 6 * CHAR_WIDTH;
-    static const int SAMPLE_FRAMES_COUNT_WIDTH = 3 * CHAR_WIDTH;
+    static const int PORTRAIT_SAMPLE_FRAMES_NAME_WIDTH  = PORTRAIT_SAMPLE_FRAMES_NAME_LENGTH * CHARACTER_WIDTH;
+    static const int LANDSCAPE_SAMPLE_FRAMES_NAME_WIDTH  = LANDSCAPE_SAMPLE_FRAMES_NAME_LENGTH * CHARACTER_WIDTH;
+    static const int SAMPLE_FRAMES_TIME_WIDTH  = 6 * CHARACTER_WIDTH;
+    static const int SAMPLE_FRAMES_COUNT_WIDTH = 3 * CHARACTER_WIDTH;
 
-    static const int COUNTERS_NAME_WIDTH  = 15 * CHAR_WIDTH;
-    static const int COUNTERS_COUNT_WIDTH = 12 * CHAR_WIDTH;
+    static const int COUNTERS_NAME_WIDTH  = 15 * CHARACTER_WIDTH;
+    static const int COUNTERS_COUNT_WIDTH = 12 * CHARACTER_WIDTH;
 
     enum DisplayMode
     {
@@ -108,8 +108,8 @@ namespace dmProfileRender
     }
 
     // These hashes are used so we can filter out the time the engine is waiting for frame buffer flip
-    static const TNameHash VSYNC_WAIT_NAME_HASH   = GetCombinedHash(dmProfile::GetNameHash("VSync"), dmProfile::GetNameHash("Wait"));
-    static const TNameHash ENGINE_FRAME_NAME_HASH = GetCombinedHash(dmProfile::GetNameHash("Engine"), dmProfile::GetNameHash("Frame"));
+    static const TNameHash VSYNC_WAIT_NAME_HASH   = GetCombinedHash(dmProfile::GetNameHash("VSync", (uint32_t)strlen("VSync")), dmProfile::GetNameHash("Wait", (uint32_t)strlen("Wait")));
+    static const TNameHash ENGINE_FRAME_NAME_HASH = GetCombinedHash(dmProfile::GetNameHash("Engine", (uint32_t)strlen("Engine")), dmProfile::GetNameHash("Frame", (uint32_t)strlen("Frame")));
 
     //  float *r, *g, *b; /* red, green, blue in [0,1] */
     //  float h, s, l;    /* hue in [0,360]; saturation, light in [0,1] */
@@ -1178,8 +1178,8 @@ namespace dmProfileRender
     {
         if (display_mode == DISPLAYMODE_MINIMIZED)
         {
-            Position p(BORDER_SIZE, display_size.h - (BORDER_SIZE + CHAR_HEIGHT + CHAR_BORDER * 2));
-            Size s(display_size.w - (BORDER_SIZE * 2), CHAR_HEIGHT + CHAR_BORDER * 2);
+            Position p(BORDER_SIZE, display_size.h - (BORDER_SIZE + CHARACTER_HEIGHT + CHARACTER_BORDER * 2));
+            Size s(display_size.w - (BORDER_SIZE * 2), CHARACTER_HEIGHT + CHARACTER_BORDER * 2);
             return Area(p, s);
         }
         Position p(BORDER_SIZE, BORDER_SIZE);
@@ -1189,7 +1189,7 @@ namespace dmProfileRender
 
     static Area GetHeaderArea(DisplayMode display_mode, const Area& profiler_area)
     {
-        Size s(profiler_area.s.w, CHAR_HEIGHT + CHAR_BORDER * 2);
+        Size s(profiler_area.s.w, CHARACTER_HEIGHT + CHARACTER_BORDER * 2);
         Position p(profiler_area.p.x, profiler_area.p.y + profiler_area.s.h - s.h);
         return Area(p, s);
     }
@@ -1205,7 +1205,7 @@ namespace dmProfileRender
     {
         const int count = dmMath::Max(scopes_count, counters_count);
 
-        Size s(SCOPES_NAME_WIDTH + CHAR_WIDTH + SCOPES_TIME_WIDTH + CHAR_WIDTH + SCOPES_COUNT_WIDTH, LINE_SPACING * (1 + count));
+        Size s(SCOPES_NAME_WIDTH + CHARACTER_WIDTH + SCOPES_TIME_WIDTH + CHARACTER_WIDTH + SCOPES_COUNT_WIDTH, LINE_SPACING * (1 + count));
         if (display_mode == DISPLAYMODE_LANDSCAPE)
         {
             Position p(details_area.p.x, details_area.p.y + details_area.s.h - s.h);
@@ -1224,7 +1224,7 @@ namespace dmProfileRender
         if (display_mode == DISPLAYMODE_LANDSCAPE || display_mode == DISPLAYMODE_PORTRAIT)
         {
             const int count = dmMath::Max(scopes_count, counters_count);
-            Size s(COUNTERS_NAME_WIDTH + CHAR_WIDTH + COUNTERS_COUNT_WIDTH, LINE_SPACING * (1 + count));
+            Size s(COUNTERS_NAME_WIDTH + CHARACTER_WIDTH + COUNTERS_COUNT_WIDTH, LINE_SPACING * (1 + count));
             Position p(details_area.p.x, details_area.p.y);
             return Area(p, s);
         }
@@ -1235,8 +1235,8 @@ namespace dmProfileRender
     {
         if (display_mode == DISPLAYMODE_LANDSCAPE)
         {
-            Size s(details_area.s.w - (scopes_area.s.w + CHAR_WIDTH), details_area.s.h);
-            Position p(scopes_area.p.x + scopes_area.s.w + CHAR_WIDTH, details_area.p.y + details_area.s.h - s.h);
+            Size s(details_area.s.w - (scopes_area.s.w + CHARACTER_WIDTH), details_area.s.h);
+            Position p(scopes_area.p.x + scopes_area.s.w + CHARACTER_WIDTH, details_area.p.y + details_area.s.h - s.h);
             return Area(p, s);
         }
         else if (display_mode == DISPLAYMODE_PORTRAIT)
@@ -1253,7 +1253,7 @@ namespace dmProfileRender
     static Area GetSampleFramesArea(DisplayMode display_mode, int sample_frames_name_width, const Area& samples_area)
     {
         const int offset_y = LINE_SPACING;
-        const int offset_x = sample_frames_name_width + CHAR_WIDTH + SAMPLE_FRAMES_TIME_WIDTH + CHAR_WIDTH + SAMPLE_FRAMES_COUNT_WIDTH + CHAR_WIDTH;
+        const int offset_x = sample_frames_name_width + CHARACTER_WIDTH + SAMPLE_FRAMES_TIME_WIDTH + CHARACTER_WIDTH + SAMPLE_FRAMES_COUNT_WIDTH + CHARACTER_WIDTH;
 
         Position p(samples_area.p.x + offset_x, samples_area.p.y);
         Size s(samples_area.s.w - offset_x, samples_area.s.h - offset_y);
@@ -1332,7 +1332,7 @@ namespace dmProfileRender
 
         params.m_Text = buffer;
         params.m_WorldTransform.setElem(3, 0, header_area.p.x);
-        params.m_WorldTransform.setElem(3, 1, header_area.p.y + CHAR_HEIGHT);
+        params.m_WorldTransform.setElem(3, 1, header_area.p.y + CHARACTER_HEIGHT);
         dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
         if (render_profile->m_ViewMode == PROFILER_VIEW_MODE_MINIMIZED)
@@ -1358,8 +1358,8 @@ namespace dmProfileRender
             params.m_WorldTransform.setElem(3, 1, y);
 
             int name_x  = scopes_area.p.x;
-            int time_x  = name_x + SCOPES_NAME_WIDTH + CHAR_WIDTH;
-            int count_x = time_x + SCOPES_TIME_WIDTH + CHAR_WIDTH;
+            int time_x  = name_x + SCOPES_NAME_WIDTH + CHARACTER_WIDTH;
+            int count_x = time_x + SCOPES_TIME_WIDTH + CHARACTER_WIDTH;
 
             params.m_FaceColor = TITLE_FACE_COLOR;
             params.m_Text      = render_profile->m_ScopeOverflow ? "*Scopes:" : "Scopes:";
@@ -1413,7 +1413,7 @@ namespace dmProfileRender
             params.m_WorldTransform.setElem(3, 1, y);
 
             int name_x  = counters_area.p.x;
-            int count_x = name_x + COUNTERS_NAME_WIDTH + CHAR_WIDTH;
+            int count_x = name_x + COUNTERS_NAME_WIDTH + CHARACTER_WIDTH;
 
             params.m_FaceColor = TITLE_FACE_COLOR;
             params.m_Text      = render_profile->m_CounterOverflow ? "*Counters:" : "Counters:";
@@ -1450,8 +1450,8 @@ namespace dmProfileRender
             params.m_WorldTransform.setElem(3, 1, y);
 
             int name_x   = samples_area.p.x;
-            int time_x   = name_x + SAMPLE_FRAMES_NAME_WIDTH + CHAR_WIDTH;
-            int count_x  = time_x + SAMPLE_FRAMES_TIME_WIDTH + CHAR_WIDTH;
+            int time_x   = name_x + SAMPLE_FRAMES_NAME_WIDTH + CHARACTER_WIDTH;
+            int count_x  = time_x + SAMPLE_FRAMES_TIME_WIDTH + CHARACTER_WIDTH;
             int frames_x = sample_frames_area.p.x;
 
             params.m_FaceColor = TITLE_FACE_COLOR;
@@ -1564,7 +1564,7 @@ namespace dmProfileRender
                         w = 0.5f;
                     }
 
-                    dmRender::Square2d(render_context, x, y - CHAR_HEIGHT, x + w, y, Vector4(col[0], col[1], col[2], 1.0f));
+                    dmRender::Square2d(render_context, x, y - CHARACTER_HEIGHT, x + w, y, Vector4(col[0], col[1], col[2], 1.0f));
 
                     sample_index = sample->m_PreviousSampleIndex;
                 }

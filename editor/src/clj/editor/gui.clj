@@ -96,9 +96,9 @@
 (shader/defshader fragment-shader
   (varying vec2 var_texcoord0)
   (varying vec4 var_color)
-  (uniform sampler2D texture)
+  (uniform sampler2D texture_sampler)
   (defn void main []
-    (setq gl_FragColor (* var_color (texture2D texture var_texcoord0.xy)))))
+    (setq gl_FragColor (* var_color (texture2D texture_sampler var_texcoord0.xy)))))
 
 ; TODO - macro of this
 (def shader (shader/make-shader ::shader vertex-shader fragment-shader))
@@ -113,10 +113,10 @@
 
 (shader/defshader gui-id-fragment-shader
   (varying vec2 var_texcoord0)
-  (uniform sampler2D texture)
+  (uniform sampler2D texture_sampler)
   (uniform vec4 id)
   (defn void main []
-    (setq vec4 color (texture2D texture var_texcoord0.xy))
+    (setq vec4 color (texture2D texture_sampler var_texcoord0.xy))
     (if (> color.a 0.05)
       (setq gl_FragColor id)
       (discard))))
@@ -138,9 +138,6 @@
 
 (def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
 
-(def color (scene/select-color pass/outline false [1.0 1.0 1.0]))
-(def selected-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
-
 (defn- ->color-vtx-vb [vs colors vcount]
   (let [vb (->color-vtx vcount)
         vs (mapv (comp vec concat) vs colors)]
@@ -151,9 +148,6 @@
         vs (mapv (comp vec concat) vs uvs colors)]
     (persistent! (reduce conj! vb vs))))
 
-(def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0 1.0]))
-(def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0 1.0]))
-
 (defn- gen-lines-vb
   [renderables]
   (let [vcount (transduce (map (comp count :line-data :user-data)) + renderables)]
@@ -161,8 +155,8 @@
       (vtx2/flip! (reduce (fn [vb {:keys [world-transform user-data selected] :as renderable}]
                             (let [{:keys [line-data line-color]} user-data
                                   [r g b a] (or line-color
-                                                (and selected selected-outline-color)
-                                                outline-color)]
+                                                (and selected colors/selected-outline-color)
+                                                colors/outline-color)]
                               (reduce (fn [vb [x y z]]
                                         (color-vtx-put! vb x y z r g b a))
                                       vb
@@ -723,27 +717,21 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$YAnchor))))
 
   (output gpu-texture TextureLifecycle (g/constantly nil))
-  (output aabb-size g/Any (gu/passthrough size))
-  (output aabb g/Any :cached (g/fnk [pivot aabb-size transform scene-children]
-                                    (let [offset-fn (partial mapv + (pivot-offset pivot aabb-size))
+  (output aabb g/Any :cached (g/fnk [pivot size]
+                                    (let [offset-fn (partial mapv + (pivot-offset pivot size))
                                           [min-x min-y _] (offset-fn [0 0 0])
-                                          [max-x max-y _] (offset-fn aabb-size)
-                                          self-aabb (-> (geom/null-aabb)
-                                                        (geom/aabb-incorporate min-x min-y 0)
-                                                        (geom/aabb-incorporate max-x max-y 0)
-                                                        (geom/aabb-transform transform))]
-                                      (transduce (comp (keep :aabb)
-                                                       (map #(geom/aabb-transform % transform)))
-                                                 geom/aabb-union self-aabb scene-children))))
+                                          [max-x max-y _] (offset-fn size)]
+                                      (geom/coords->aabb [min-x min-y 0]
+                                                         [max-x max-y 0]))))
+
   (output scene-renderable-user-data g/Any (g/constantly nil))
   (output scene-renderable g/Any :cached
-          (g/fnk [_node-id child-index layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data aabb]
+          (g/fnk [_node-id child-index layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data]
             (let [clipping-state (:clipping-state scene-renderable-user-data)
                   gpu-texture (or gpu-texture (:gpu-texture scene-renderable-user-data))
                   material-shader (get scene-renderable-user-data :override-material-shader material-shader)]
               {:render-fn render-tris
                :tags (set/union #{:gui} (:renderable-tags scene-renderable-user-data))
-               :aabb aabb
                :passes [pass/transparent pass/selection]
                :user-data (assoc scene-renderable-user-data
                                  :blend-mode blend-mode
@@ -761,10 +749,9 @@
                :pass-overrides {pass/outline {:batch-key ::outline}}})))
 
   (output scene-outline-renderable g/Any :cached
-          (g/fnk [_node-id child-index layer-index scene-renderable-user-data aabb]
+          (g/fnk [_node-id child-index layer-index scene-renderable-user-data]
               {:render-fn render-lines
                :tags (set/union #{:gui :outline} (:renderable-tags scene-renderable-user-data))
-               :aabb aabb
                :passes [pass/outline]
                :user-data (select-keys scene-renderable-user-data [:line-data])
                :batch-key nil
@@ -1295,7 +1282,7 @@
                                                (concat
                                                  (for [[from to] [[:node-ids :node-ids]
                                                                   [:node-outline :template-outline]
-                                                                  [:template-scene :template-scene]
+                                                                  [:scene :template-scene]
                                                                   [:build-targets :template-build-targets]
                                                                   [:build-errors :child-build-errors]
                                                                   [:resource :template-resource]
@@ -1359,8 +1346,10 @@
   (output node-overrides g/Any :cached (g/fnk [id _overridden-properties template-overrides]
                                               (-> {id _overridden-properties}
                                                 (merge template-overrides))))
-  (output aabb g/Any (g/fnk [template-scene transform]
-                       (geom/aabb-transform (:aabb template-scene (geom/null-aabb)) transform)))
+  (output aabb g/Any (g/fnk [template-scene]
+                       (if (some? template-scene)
+                         (:aabb template-scene)
+                         geom/empty-bounding-box)))
   (output scene-children g/Any (g/fnk [_node-id id template-scene]
                                  (if-let [child-scenes (:children (add-renderable-tags template-scene #{:gui}))]
                                    (mapv (partial scene/claim-child-scene (:node-id template-scene) _node-id id) child-scenes)
@@ -1434,15 +1423,19 @@
                                  (:spine-scene-pb (or (spine-scene-infos spine-scene)
                                                       (spine-scene-infos "")))))
   (output gpu-texture TextureLifecycle (g/constantly nil))
-  (output scene-renderable-user-data g/Any :cached
-    (g/fnk [spine-scene-scene spine-skin color+alpha clipping-mode clipping-inverted clipping-visible]
-      (let [user-data (assoc (get-in spine-scene-scene [:renderable :user-data])
-                        :color color+alpha
-                        :renderable-tags #{:gui-spine}
-                        :skin spine-skin)]
-        (cond-> user-data
-          (not= :clipping-mode-none clipping-mode)
-          (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
+
+  (output aabb g/Any (g/fnk [spine-scene-infos spine-scene spine-skin pivot]
+                       (or (get-in spine-scene-infos [spine-scene :spine-skin-aabbs (if (= spine-skin "") "default" spine-skin)])
+                           geom/empty-bounding-box)))
+
+  (output scene-renderable-user-data g/Any :cached (g/fnk [spine-scene-scene spine-skin color+alpha clipping-mode clipping-inverted clipping-visible]
+                                                     (let [user-data (assoc (get-in spine-scene-scene [:renderable :user-data])
+                                                                            :color color+alpha
+                                                                            :renderable-tags #{:gui-spine}
+                                                                            :skin spine-skin)]
+                                                       (cond-> user-data
+                                                               (not= :clipping-mode-none clipping-mode)
+                                                               (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
 
   (output bone-node-msgs g/Any :cached (g/fnk [node-msgs spine-scene-structure spine-scene-pb adjust-mode]
                                          (let [pb-msg (first node-msgs)
@@ -1530,14 +1523,10 @@
                                                                 (cond->
                                                                     layer-index (assoc :layer-index layer-index)))))))))
   (output gpu-texture TextureLifecycle (g/constantly nil))
-  (output aabb g/Any :cached (g/fnk [transform source-scene scene-children]
-                                    (let [self-aabb (or (some-> source-scene
-                                                          :aabb
-                                                          (geom/aabb-transform transform))
-                                                      (geom/null-aabb))]
-                                      (transduce (comp (keep :aabb)
-                                                   (map #(geom/aabb-transform % transform)))
-                                        geom/aabb-union self-aabb scene-children))))
+  (output aabb g/Any :cached (g/fnk [source-scene]
+                               (if (some? source-scene)
+                                 (:aabb source-scene)
+                                 geom/empty-bounding-box)))
   (output scene g/Any :cached (g/fnk [_node-id id aabb transform source-scene scene-children color+alpha inherit-alpha]
                                      (let [scene (if source-scene
                                                    (let [updatable (assoc (:updatable source-scene) :node-id _node-id)]
@@ -1741,14 +1730,15 @@
     {name {:spine-anim-ids (into (sorted-set) spine-anim-ids)
            :spine-skin-ids (into (sorted-set) (:skins spine-scene-structure))}}))
 
-(g/defnk produce-spine-scene-infos [name spine-scene spine-scene-pb spine-scene-scene spine-scene-structure]
+(g/defnk produce-spine-scene-infos [_node-id name spine-scene spine-scene-pb spine-scene-scene spine-scene-structure spine-skin-aabbs]
   ;; If the referenced spine-scene-resource is missing, we don't return an entry.
   ;; This will cause every usage to fall back on the no-spine-scene entry for "".
   ;; NOTE: the no-spine-scene entry uses an instance of SpineSceneNode with an empty name.
   ;; It does not have any data, but it should still return an entry.
   (when (or (and (= "" name) (nil? spine-scene))
             (every? some? [spine-scene-pb spine-scene-scene spine-scene-structure]))
-    {name {:spine-scene-pb spine-scene-pb
+    {name {:spine-skin-aabbs spine-skin-aabbs
+           :spine-scene-pb spine-scene-pb
            :spine-scene-scene spine-scene-scene
            :spine-scene-structure spine-scene-structure}}))
 
@@ -1766,6 +1756,7 @@
                      [:build-targets :dep-build-targets]
                      [:spine-anim-ids :spine-anim-ids]
                      [:scene :spine-scene-scene]
+                     [:skin-aabbs :spine-skin-aabbs]
                      [:scene-structure :spine-scene-structure]
                      [:spine-scene-pb :spine-scene-pb])))
             (dynamic error (g/fnk [_node-id spine-scene]
@@ -1779,6 +1770,7 @@
   (input spine-anim-ids g/Any :substitute (constantly nil))
   (input dep-build-targets g/Any)
   (input spine-scene-scene g/Any :substitute (constantly nil))
+  (input spine-skin-aabbs g/Any :substitute (constantly nil))
   (input spine-scene-structure g/Any :substitute (constantly nil))
   (input spine-scene-pb g/Any :substitute (constantly nil))
 
@@ -1938,9 +1930,9 @@
   (output node-outline outline/OutlineData :cached
           (gen-outline-fnk "Nodes" nil 0 true (mapv (fn [[nt kw]] {:node-type nt :tx-attach-fn (gen-gui-node-attach-fn kw)}) node-type->kw)))
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
-                                     {:node-id _node-id
-                                      :aabb (reduce geom/aabb-union (geom/null-aabb) (map :aabb child-scenes))
-                                      :children child-scenes}))
+                                {:node-id _node-id
+                                 :aabb geom/null-aabb
+                                 :children child-scenes}))
   (input ids g/Str :array)
   (output id-counts NameCounts :cached (g/fnk [ids] (frequencies ids)))
   (input node-msgs g/Any :array)
@@ -2088,11 +2080,12 @@
                        (into {}))]
       (sort-children node-order scene))))
 
-(g/defnk produce-scene [_node-id scene-dims aabb child-scenes]
+(g/defnk produce-scene [_node-id scene-dims child-scenes]
   (let [w (:width scene-dims)
         h (:height scene-dims)
         scene {:node-id _node-id
-               :aabb aabb
+               :aabb geom/null-aabb
+               :default-aabb (geom/coords->aabb [0 0 0] [w h 0])
                :renderable {:render-fn render-lines
                             :tags #{:gui :gui-bounds}
                             :passes [pass/transparent]
@@ -2316,13 +2309,6 @@
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (input samplers [g/KeywordMap])
   (output samplers [g/KeywordMap] (gu/passthrough samplers))
-  (output aabb AABB :cached (g/fnk [scene-dims child-scenes]
-                                   (let [w (:width scene-dims)
-                                         h (:height scene-dims)
-                                         scene-aabb (-> (geom/null-aabb)
-                                                      (geom/aabb-incorporate 0 0 0)
-                                                      (geom/aabb-incorporate w h 0))]
-                                     (reduce geom/aabb-union scene-aabb (map :aabb child-scenes)))))
   (output pb-msg g/Any :cached produce-pb-msg)
   (output rt-pb-msg g/Any :cached produce-rt-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
@@ -2352,8 +2338,6 @@
                                        (let [node-tree-scene (get layout-scenes current-layout default-scene)]
                                          (:children node-tree-scene))))
   (output scene g/Any :cached produce-scene)
-  (output template-scene g/Any :cached (g/fnk [scene child-scenes]
-                                         (assoc scene :aabb (reduce geom/aabb-union (geom/null-aabb) (keep :aabb child-scenes)))))
   (output scene-dims g/Any :cached (g/fnk [project-settings current-layout display-profiles]
                                           (or (some #(and (= current-layout (:name %)) (first (:qualifiers %))) display-profiles)
                                               (let [w (get project-settings ["display" "width"])
