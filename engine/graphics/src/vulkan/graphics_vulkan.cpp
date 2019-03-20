@@ -39,6 +39,8 @@ bool g_ForceVertexReloadFail = false;
 
 namespace dmGraphics
 {
+    uint32_t GetTextureFormatBPP(TextureFormat format);
+
     namespace Vulkan
     {
         // This is not an enum. Queue families are index values
@@ -101,7 +103,7 @@ namespace dmGraphics
         {
             VkSemaphore m_ImageAvailable;
             VkSemaphore m_RenderFinished;
-            // VkFence     m_SubmitFence;
+            VkFence     m_SubmitFence;
         };
 
         struct GPUMemory
@@ -1136,7 +1138,9 @@ namespace dmGraphics
         {
             for (uint32_t i = 0; i < vertexDeclaration->m_StreamCount; ++i)
             {
-                inputs[i] = g_vk_context.m_VertexStreamDescriptors[vertexDeclaration->m_Streams[i].m_DescriptorIndex];
+                uint16_t ix = vertexDeclaration->m_Streams[i].m_DescriptorIndex;
+                VkVertexInputAttributeDescription desc = g_vk_context.m_VertexStreamDescriptors[vertexDeclaration->m_Streams[i].m_DescriptorIndex];
+                inputs[i] = desc;
             }
         }
 
@@ -1917,10 +1921,16 @@ namespace dmGraphics
             VK_ZERO_MEMORY(&vk_create_semaphore_info,sizeof(vk_create_semaphore_info));
             vk_create_semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
+            VkFenceCreateInfo vk_create_fence_info;
+            VK_ZERO_MEMORY(&vk_create_fence_info, sizeof(vk_create_fence_info));
+            vk_create_fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+            vk_create_fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
             for(uint8_t i=0; i < g_vk_max_frames_in_flight; i++)
             {
                 VK_CHECK(vkCreateSemaphore(g_vk_context.m_LogicalDevice, &vk_create_semaphore_info, 0, &g_vk_context.m_FrameResources[i].m_ImageAvailable));
                 VK_CHECK(vkCreateSemaphore(g_vk_context.m_LogicalDevice, &vk_create_semaphore_info, 0, &g_vk_context.m_FrameResources[i].m_RenderFinished));
+                VK_CHECK(vkCreateFence(g_vk_context.m_LogicalDevice, &vk_create_fence_info, 0, &g_vk_context.m_FrameResources[i].m_SubmitFence));
             }
         }
 
@@ -2589,8 +2599,15 @@ namespace dmGraphics
         	uint32_t* vk_frame_image_ptr = (uint32_t*) &g_vk_context.m_CurrentFrameImageIx;
         	uint32_t  vk_frame_image     = 0;
 
+            FrameResource& current_frame_resource = g_vk_context.m_FrameResources[g_vk_context.m_CurrentFrameInFlight];
+
+            /*
+            VK_CHECK(vkWaitForFences(g_vk_context.m_LogicalDevice, 1, &current_frame_resource.m_SubmitFence, VK_TRUE, UINT64_MAX));
+            VK_CHECK(vkResetFences(g_vk_context.m_LogicalDevice, 1, &current_frame_resource.m_SubmitFence));
+            */
+
             vkAcquireNextImageKHR(g_vk_context.m_LogicalDevice, g_vk_context.m_SwapChain, UINT64_MAX,
-                g_vk_context.m_FrameResources[g_vk_context.m_CurrentFrameInFlight].m_ImageAvailable, VK_NULL_HANDLE, vk_frame_image_ptr);
+                current_frame_resource.m_ImageAvailable, VK_NULL_HANDLE, vk_frame_image_ptr);
 
             vk_frame_image = *vk_frame_image_ptr;
 
@@ -2653,7 +2670,8 @@ namespace dmGraphics
             vk_submit_info.signalSemaphoreCount = 1;
             vk_submit_info.pSignalSemaphores    = &current_frame_resource.m_RenderFinished;
 
-            VK_CHECK(vkQueueSubmit(g_vk_context.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE));
+            //VK_CHECK(vkQueueSubmit(g_vk_context.m_GraphicsQueue, 1, &vk_submit_info, current_frame_resource.m_SubmitFence));
+            VK_CHECK(vkQueueSubmit(g_vk_context.m_GraphicsQueue, 1, &vk_submit_info, 0));
 
             VkPresentInfoKHR vk_present_info;
             vk_present_info.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
