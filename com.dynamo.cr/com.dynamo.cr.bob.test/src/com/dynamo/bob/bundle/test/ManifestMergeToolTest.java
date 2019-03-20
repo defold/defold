@@ -26,6 +26,7 @@ public class ManifestMergeToolTest {
 
     private String contentRoot;
     private Platform platform;
+    private File root;
     private File main;
     private File target;
     List<File> libraries;
@@ -38,9 +39,33 @@ public class ManifestMergeToolTest {
     }
 
     protected void createDefaultFiles() throws IOException {
-
         // These are the base manifest files
-        createFile(contentRoot, "builtins/manifests/ios/Info.plist", "");
+        String iosManifest = ""
+                + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+                + "<plist version=\"1.0\">\n"
+                + "<dict>\n"
+                + "        <key>NSAppTransportSecurity</key>\n"
+                + "        <dict>\n"
+                + "            <key>NSExceptionDomains</key>\n"
+                + "            <dict>\n"
+                + "                <key>foobar.net</key>\n"
+                + "                <dict>\n"
+                + "                    <key>testproperty</key>\n"
+                + "                    <true/>\n"
+                + "                </dict>\n"
+                + "            </dict>\n"
+                + "        </dict>\n"
+                + "        <key>INT</key>\n"
+                + "        <integer>8</integer>\n"
+                + "        <key>REAL</key>\n"
+                + "        <real>8.0</real>\n"
+                + "        <key>BASE64</key>\n"
+                + "        <data>SEVMTE8gV09STEQ=</data>\n"
+                + "</dict>\n"
+                + "</plist>\n";
+
+        createFile(contentRoot, "builtins/manifests/ios/Info.plist", iosManifest);
 
         String androidManifest = ""
                 + "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
@@ -58,22 +83,30 @@ public class ManifestMergeToolTest {
 
         createFile(contentRoot, "builtins/manifests/android/AndroidManifest.xml", androidManifest);
 
-        this.target = new File(contentRoot, "builtins/manifests/android/AndroidManifestMerged.xml");
-        this.main = new File(contentRoot, "builtins/manifests/android/AndroidManifest.xml");
-        this.libraries = new ArrayList<File>();
-        this.libraries.add(new File(contentRoot, "builtins/manifests/android/AndroidManifestLib.xml"));
+        if (platform == Platform.Armv7Android) {
+            this.target = new File(contentRoot, "builtins/manifests/android/AndroidManifestMerged.xml");
+            this.main = new File(contentRoot, "builtins/manifests/android/AndroidManifest.xml");
+            this.libraries = new ArrayList<File>();
+            this.libraries.add(new File(contentRoot, "builtins/manifests/android/AndroidManifestLib.xml"));
+        } else if (platform == Platform.Armv7Darwin) {
+            this.target = new File(contentRoot, "builtins/manifests/ios/InfoMerged.plist");
+            this.main = new File(contentRoot, "builtins/manifests/ios/Info.plist");
+            this.libraries = new ArrayList<File>();
+            this.libraries.add(new File(contentRoot, "builtins/manifests/ios/InfoLib.plist"));
+        }
     }
 
     @Parameters
     public static Collection<Platform[]> data() {
-        //Platform[][] data = new Platform[][] { {Platform.Armv7Android}, {Platform.Armv7Darwin}};
-        Platform[][] data = new Platform[][] { {Platform.Armv7Android} };
+        Platform[][] data = new Platform[][] { {Platform.Armv7Android}, {Platform.Armv7Darwin}};
         return Arrays.asList(data);
     }
 
     public ManifestMergeToolTest(Platform platform) throws IOException {
         this.platform = platform;
-        contentRoot = Files.createTempDirectory(null).toFile().getAbsolutePath();
+        root = Files.createTempDirectory("defoldmergetest").toFile();
+        root.deleteOnExit();
+        contentRoot = root.getAbsolutePath();
     }
 
     private String readFile(File file) throws IOException {
@@ -180,4 +213,114 @@ public class ManifestMergeToolTest {
         }
     }
 
+
+    @Test
+    public void testMergeIOS() throws IOException {
+        if (platform != Platform.Armv7Darwin) {
+            return;
+        }
+
+        createDefaultFiles();
+
+        String libManifest = ""
+                + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+                + "<plist version=\"1.0\">\n"
+                + "<dict>\n"
+                + "    <key>NSAppTransportSecurity</key>\n"
+                + "    <dict>\n"
+                + "        <key>NSExceptionDomains</key>\n"
+                + "        <dict>\n"
+                + "            <key>facebook.com</key>\n"
+                + "            <dict>\n"
+                + "                <key>NSIncludesSubdomains</key>\n"
+                + "                <true/>\n"
+                + "                <key>NSThirdPartyExceptionRequiresForwardSecrecy</key>\n"
+                + "                <false/>\n"
+                + "            </dict>\n"
+                + "        </dict>\n"
+                + "    </dict>\n"
+                + "    <key>INT</key>\n"
+                + "    <integer>42</integer>\n"
+                + "</dict>\n"
+                + "</plist>\n";
+
+        createFile(contentRoot, "builtins/manifests/ios/InfoLib.plist", libManifest);
+
+        String expected = ""
+                + "<?xml version=\"1.0\"?>\n"
+                + "<!DOCTYPE plist SYSTEM \"file://localhost/System/Library/DTDs/PropertyList.dtd\">\n"
+                + "<plist version=\"1.0\">\n"
+                + "    <dict>\n"
+                + "        <key>NSAppTransportSecurity</key>\n"
+                + "        <dict>\n"
+                + "            <key>NSExceptionDomains</key>\n"
+                + "            <dict>\n"
+                + "                <key>foobar.net</key>\n"
+                + "                <dict>\n"
+                + "                    <key>testproperty</key>\n"
+                + "                    <true/>\n"
+                + "                </dict>\n"
+                + "\n"
+                + "                <key>facebook.com</key>\n"
+                + "                <dict>\n"
+                + "                    <key>NSIncludesSubdomains</key>\n"
+                + "                    <true/>\n"
+                + "\n"
+                + "                    <key>NSThirdPartyExceptionRequiresForwardSecrecy</key>\n"
+                + "                    <false/>\n"
+                + "                </dict>\n"
+                + "            </dict>\n"
+                + "        </dict>\n"
+                + "\n"
+                + "        <key>INT</key>\n"
+                + "        <integer>8</integer>\n"
+                + "\n"
+                + "        <key>REAL</key>\n"
+                + "        <real>8.0</real>\n"
+                + "\n"
+                + "        <key>BASE64</key>\n"
+                + "        <data>SEVMTE8gV09STEQ=</data>\n"
+                + "\n"
+                + "        <key>INT</key>\n"
+                + "        <integer>42</integer>\n"
+                + "    </dict>\n"
+                + "</plist>\n";
+
+        createFile(contentRoot, "builtins/manifests/ios/InfoExpected.plist", expected);
+
+
+        ManifestMergeTool.merge(ManifestMergeTool.Platform.IOS, this.main, this.target, this.libraries);
+
+        String merged = readFile(target);
+        assertEquals(expected, merged);
+    }
+
+    @Test
+    public void testMergeIOSMixedTypes() throws IOException {
+        if (platform != Platform.Armv7Darwin) {
+            return;
+        }
+
+        createDefaultFiles();
+
+        String libManifest = ""
+                + "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+                + "<plist version=\"1.0\">\n"
+                + "<dict>\n"
+                + "    <key>INT</key>\n"
+                + "    <data>42</data>\n"
+                + "</dict>\n"
+                + "</plist>\n";
+
+        createFile(contentRoot, "builtins/manifests/ios/InfoLib.plist", libManifest);
+
+        try {
+            ManifestMergeTool.merge(ManifestMergeTool.Platform.IOS, this.main, this.target, this.libraries);
+            assertTrue(false); // We shouldn't get here!
+        } catch (RuntimeException e) {
+            assertTrue(true);
+        }
+    }
 }

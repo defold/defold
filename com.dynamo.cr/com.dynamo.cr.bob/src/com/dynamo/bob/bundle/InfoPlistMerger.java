@@ -15,8 +15,13 @@ import java.util.logging.Logger;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
 
-public class InfoPlistMerger {
+class PlistMergeException extends Exception {
+    PlistMergeException(String message) {
+        super(message);
+    }
+}
 
+public class InfoPlistMerger {
     private static Logger logger;
 
     InfoPlistMerger(Logger logger) {
@@ -24,7 +29,7 @@ public class InfoPlistMerger {
     }
 
     // Merges the lib onto base, using the merging rules from https://developer.android.com/studio/build/manifest-merge.html
-    public static boolean mergePlists(XMLPropertyListConfiguration base, XMLPropertyListConfiguration lib) {
+    public static void mergePlists(XMLPropertyListConfiguration base, XMLPropertyListConfiguration lib) throws PlistMergeException {
         boolean errors = false;
 
         Iterator<String> it = lib.getKeys();
@@ -75,20 +80,14 @@ public class InfoPlistMerger {
                         baseArray.addAll(libArray);
                     }
                     else {
-                        InfoPlistMerger.logger.log(Level.SEVERE, String.format("Plist contains unknown type for key '%s': %s", key, baseValue.getClass().getName()));
-                        errors = true;
-                        continue;
+                        throw new PlistMergeException(String.format("Plist contains unknown type for key '%s': %s", key, baseValue.getClass().getName()));
                     }
 
                 } else { // if the value classes differ, then raise an error!
-                    InfoPlistMerger.logger.log(Level.SEVERE, String.format("Plist contains conflicting types for key '%s': %s vs %s", key, baseValue.getClass().getName(), libValue.getClass().getName()));
-                    errors = true;
-                    continue;
+                    throw new PlistMergeException(String.format("Plist contains conflicting types for key '%s': %s vs %s", key, baseValue.getClass().getName(), libValue.getClass().getName()));
                 }
             }
         }
-
-        return !errors;
     }
 
     private static XMLPropertyListConfiguration loadPlist(File file) {
@@ -101,21 +100,8 @@ public class InfoPlistMerger {
         }
     }
 
-    private static void print(XMLPropertyListConfiguration plist) {
-        Iterator<String> it = plist.getKeys();
-        while (it.hasNext()) {
-            String key = it.next();
-            System.out.println("KEY: " + key);
-            Object o = plist.getProperty(key);
-            System.out.println("	Object: " + o.getClass().toString());
-            System.out.println("			" + o.toString());
-        }
-    }
-
     public static void merge(File main, File[] libraries, File out) throws RuntimeException {
         XMLPropertyListConfiguration basePlist = loadPlist(main);
-
-        print(basePlist);
 
         // For error reporting/troubleshooting
         String paths = "\n" + main.getAbsolutePath();
@@ -123,8 +109,10 @@ public class InfoPlistMerger {
         for (File library : libraries) {
             paths += "\n" + library.getAbsolutePath();
             XMLPropertyListConfiguration libraryPlist = loadPlist(library);
-            if (!mergePlists(basePlist, libraryPlist)) {
-                throw new RuntimeException(String.format("Errors merging plists: %s", paths));
+            try {
+                mergePlists(basePlist, libraryPlist);
+            } catch (PlistMergeException e) {
+                throw new RuntimeException(String.format("Errors merging plists: %s:\n%s", paths, e.toString()));
             }
         }
 
