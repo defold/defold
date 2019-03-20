@@ -708,8 +708,10 @@ class Configuration(object):
             for engine_name in format_exes(n, self.target_platform):
                 engine = join(bin_dir, engine_name)
                 self.upload_file(engine, '%s/%s' % (full_archive_path, engine_name))
-                if self._strip_engine(engine):
-                    self.upload_file(engine, '%s/stripped/%s' % (full_archive_path, engine_name))
+                engine_stripped = join(bin_dir, engine_name + "_stripped")
+                shutil.copy2(engine, engine_stripped)
+                if self._strip_engine(engine_stripped):
+                    self.upload_file(engine_stripped, '%s/stripped/%s' % (full_archive_path, engine_name))
 
             if 'web' in self.target_platform:
                 self.upload_file(join(bin_dir, 'defold_sound.swf'), join(full_archive_path, 'defold_sound.swf'))
