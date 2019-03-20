@@ -1241,17 +1241,20 @@
       (recur basis orig-id)
       node-id)))
 
+(defn transform-jammer [basis node node-id transform]
+  (let [original (if (:original-id node)
+                   (gt/node-by-id-at basis (original-root basis node-id))
+                   node)]
+    (when-some [jam-value (get (:_output-jammers original) transform)]
+      (if (ie/error? jam-value)
+        (assoc jam-value :_label transform :_node-id node-id)
+        jam-value))))
+
 (defn- check-jammed-form [self-name ctx-name nodeid-sym transform forms]
   (if (jammable? transform)
-    `(let [basis# (:basis ~ctx-name)
-           original# (if (:original-id ~self-name)
-                       (gt/node-by-id-at basis# (original-root basis# ~nodeid-sym))
-                       ~self-name)]
-       (if-some [jam-value# (get (:_output-jammers original#) ~transform)]
-         (if (ie/error? jam-value#)
-           (assoc jam-value# :_label ~transform :_node-id ~nodeid-sym)
-           jam-value#)
-         ~forms))
+    `(if-some [jam-value# (transform-jammer (:basis ~ctx-name) ~self-name ~nodeid-sym ~transform)]
+       jam-value#
+       ~forms)
     forms))
 
 (defn- property-has-default-getter?       [description label] (not (get-in description [:property label :value])))
