@@ -51,6 +51,11 @@
    :rotation rotation
    :data (or (:content save-data) "")})
 
+(defn- build-raw-sound [resource dep-resources user-data]
+  (let [pb (:pb user-data)
+        pb (assoc pb :sound (resource/proj-path (second (first dep-resources))))]
+    {:resource resource :content (protobuf/map->bytes Sound$SoundDesc pb)}))
+
 (defn- wrap-if-raw-sound [_node-id target]
   (let [resource (:resource (:resource target))
         source-path (resource/proj-path resource)
@@ -61,10 +66,7 @@
             pb        {:sound source-path}
             target    {:node-id  _node-id
                        :resource (workspace/make-build-resource (resource/make-memory-resource workspace res-type (protobuf/map->str Sound$SoundDesc pb)))
-                       :build-fn (fn [resource dep-resources user-data]
-                                   (let [pb (:pb user-data)
-                                         pb (assoc pb :sound (resource/proj-path (second (first dep-resources))))]
-                                     {:resource resource :content (protobuf/map->bytes Sound$SoundDesc pb)}))
+                       :build-fn build-raw-sound
                        :deps     [target]}]
         target)
       target)))
