@@ -46,12 +46,15 @@ namespace dmGameSystem
 
         inline void SetColor(uint32_t color)
         {
-            m_Color = color;
+            m_Color[0] = (float) (color & 0xff000000);
+            m_Color[1] = (float) (color & 0x00ff0000);
+            m_Color[2] = (float) (color & 0x0000ff00);
+            m_Color[3] = (float) (color & 0x000000ff);
         }
 
         float    m_Position[3];
         float    m_UV[2];
-        uint32_t m_Color;
+        float    m_Color[4];
     };
 
     struct GuiRenderObject
