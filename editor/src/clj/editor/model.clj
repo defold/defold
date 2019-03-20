@@ -1,9 +1,9 @@
 (ns editor.model
   (:require [clojure.string :as str]
             [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.geom :as geom]
-            [editor.gl.texture :as texture]
             [editor.gl.pass :as pass]
             [editor.graph-util :as gu]
             [editor.image :as image]
@@ -18,8 +18,7 @@
             [util.digest :as digest])
   (:import [com.dynamo.model.proto ModelProto$Model ModelProto$ModelDesc]
            [editor.gl.shader ShaderLifecycle]
-           [editor.types AABB]
-           [java.awt.image BufferedImage]))
+           [editor.types AABB]))
 
 (set! *warn-on-reflection* true)
 
@@ -84,12 +83,13 @@
             deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
             dep-resources (into (res-fields->resources pb-msg deps-by-source [:rig-scene :material])
                             (filter second (res-fields->resources pb-msg deps-by-source [[:textures]])))]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-pb
-          :user-data {:pb pb-msg
-                      :dep-resources dep-resources}
-          :deps dep-build-targets}])))
+        [(bt/update-build-target-key
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-pb
+            :user-data {:pb pb-msg
+                        :dep-resources dep-resources}
+            :deps dep-build-targets})])))
 
 (g/defnk produce-gpu-textures [_node-id samplers gpu-texture-generators]
   (into {} (map (fn [unit-index sampler {tex-fn :f tex-args :args}]

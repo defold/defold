@@ -3,6 +3,7 @@
             [clojure.java.io :as io]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.graph-util :as gu]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -481,15 +482,16 @@
                              (remove nil?)
                              (not-empty))]
         (g/error-aggregate errors))
-      [{:node-id _node-id
-        :resource (workspace/make-build-resource resource)
-        :build-fn build-font
-        :user-data {:font font
-                    :type type
-                    :pb-msg pb-msg
-                    :font-resource-map font-resource-map
-                    :font-resource-hashes font-resource-hashes}
-        :deps (flatten dep-build-targets)}]))
+      [(bt/update-build-target-key
+         {:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-font
+          :user-data {:font font
+                      :type type
+                      :pb-msg pb-msg
+                      :font-resource-map font-resource-map
+                      :font-resource-hashes font-resource-hashes}
+          :deps (flatten dep-build-targets)})]))
 
 (g/defnode FontSourceNode
   (inherits resource-node/ResourceNode)

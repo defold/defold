@@ -166,3 +166,10 @@
           .getMessageDigest
           .digest
           digest/bytes->hex))))
+
+(defn build-target-key? [value]
+  (and (string? value)
+       (= 40 (count value))))
+
+(defn update-build-target-key [build-target]
+  (assoc build-target :key (build-target-key build-target)))

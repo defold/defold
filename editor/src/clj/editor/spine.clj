@@ -3,6 +3,7 @@
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [util.murmur :as murmur]
+            [editor.build-target :as bt]
             [editor.graph-util :as gu]
             [editor.geom :as geom]
             [editor.material :as material]
@@ -999,12 +1000,13 @@
           deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
           dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:spine-scene spine-scene-resource] [:material material-resource]])
           model-pb (update model-pb :skin (fn [skin] (or skin "")))]
-      [{:node-id _node-id
-        :resource (workspace/make-build-resource resource)
-        :build-fn build-spine-model
-        :user-data {:proto-msg model-pb
-                    :dep-resources dep-resources}
-        :deps dep-build-targets}])))
+      [(bt/update-build-target-key
+         {:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-spine-model
+          :user-data {:proto-msg model-pb
+                      :dep-resources dep-resources}
+          :deps dep-build-targets})])))
 
 (g/defnode SpineModelNode
   (inherits resource-node/ResourceNode)

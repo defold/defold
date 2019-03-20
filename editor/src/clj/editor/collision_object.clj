@@ -3,6 +3,7 @@
    [clojure.string :as s]
    [dynamo.graph :as g]
    [editor.app-view :as app-view]
+   [editor.build-target :as bt]
    [editor.collision-groups :as collision-groups]
    [editor.defold-project :as project]
    [editor.geom :as geom]
@@ -653,12 +654,13 @@
                          (map #(format "%s shapes are not supported in %s physics" (shape-type-label %) supported-physics-type))
                          (map #(g/->error _node-id :shapes :fatal shapes %)))
                    shapes))]
-      [{:node-id _node-id
-        :resource (workspace/make-build-resource resource)
-        :build-fn build-collision-object
-        :user-data {:pb-msg pb-msg
-                    :dep-resources dep-resources}
-        :deps dep-build-targets}])))
+      [(bt/update-build-target-key
+         {:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-collision-object
+          :user-data {:pb-msg pb-msg
+                      :dep-resources dep-resources}
+          :deps dep-build-targets})])))
 
 (g/defnk produce-collision-group-color
   [collision-groups-data group]

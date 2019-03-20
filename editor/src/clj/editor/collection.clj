@@ -4,6 +4,7 @@
             [schema.core :as s]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.build-target :as bt]
             [editor.protobuf :as protobuf]
             [editor.graph-util :as gu]
             [editor.dialogs :as dialogs]
@@ -182,9 +183,12 @@
   (output build-targets g/Any (g/fnk [build-resource source-build-targets build-error ddf-message transform]
                                      (let [target (assoc (first source-build-targets)
                                                          :resource build-resource)]
-                                       [(assoc target :instance-data {:resource (:resource target)
-                                                                      :instance-msg ddf-message
-                                                                      :transform transform})])))
+                                       [(bt/update-build-target-key
+                                          (assoc target
+                                            :instance-data
+                                            {:resource (:resource target)
+                                             :instance-msg ddf-message
+                                             :transform transform}))])))
   (output build-error g/Err (g/constantly nil))
 
   (output scene g/Any :cached (g/fnk [_node-id id transform scene child-scenes]
@@ -367,15 +371,16 @@
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
         (when (not-empty dup-ids)
           (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
-    (let [sub-build-targets (flatten sub-build-targets)
-         dep-build-targets (flatten dep-build-targets)
-         instance-data (map :instance-data dep-build-targets)
-         instance-data (reduce concat instance-data (map #(get-in % [:user-data :instance-data]) sub-build-targets))]
-     [{:node-id _node-id
-       :resource (workspace/make-build-resource resource)
-       :build-fn build-collection
-       :user-data {:name name :instance-data instance-data :scale-along-z scale-along-z}
-       :deps (vec (reduce into dep-build-targets (map :deps sub-build-targets)))}])))
+      (let [sub-build-targets (flatten sub-build-targets)
+            dep-build-targets (flatten dep-build-targets)
+            instance-data (map :instance-data dep-build-targets)
+            instance-data (reduce concat instance-data (map #(get-in % [:user-data :instance-data]) sub-build-targets))]
+        [(bt/update-build-target-key
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-collection
+            :user-data {:name name :instance-data instance-data :scale-along-z scale-along-z}
+            :deps (vec (reduce into dep-build-targets (map :deps sub-build-targets)))})])))
 
 (declare CollectionInstanceNode)
 
@@ -471,7 +476,12 @@
             base-id (str id path-sep)
             instance-data (get-in build-targets [0 :user-data :instance-data])
             child-ids (reduce (fn [child-ids data] (into child-ids (:children (:instance-msg data)))) #{} instance-data)]
-        (assoc-in build-targets [0 :user-data :instance-data] (map #(flatten-instance-data % base-id transform child-ids ddf-properties) instance-data)))))
+        (update build-targets 0
+                (fn [build-target]
+                  (bt/update-build-target-key
+                    (assoc-in build-target [:user-data :instance-data]
+                              (map #(flatten-instance-data % base-id transform child-ids ddf-properties)
+                                   instance-data))))))))
 
 (g/defnk produce-coll-inst-outline [_node-id id source-resource source-outline source-id source-resource]
   (-> {:node-id _node-id

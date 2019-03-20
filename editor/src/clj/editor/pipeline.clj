@@ -58,20 +58,20 @@
 (defn make-protobuf-build-target
   [resource dep-build-targets pb-class pb-msg pb-resource-fields]
   (let [dep-build-targets (flatten dep-build-targets)
-        resource-keys     (make-resource-props dep-build-targets pb-msg pb-resource-fields)]
-    {:resource  (workspace/make-build-resource resource)
-     :build-fn  build-protobuf
-     :user-data {:pb-class      pb-class
-                 :pb-msg        (reduce dissoc pb-msg resource-keys)
-                 :resource-keys resource-keys}
-     :deps      dep-build-targets}))
+        resource-keys (make-resource-props dep-build-targets pb-msg pb-resource-fields)]
+    (bt/update-build-target-key
+      {:resource (workspace/make-build-resource resource)
+       :build-fn build-protobuf
+       :user-data {:pb-class pb-class
+                   :pb-msg (reduce dissoc pb-msg resource-keys)
+                   :resource-keys resource-keys}
+       :deps dep-build-targets})))
 
 ;;--------------------------------------------------------------------
 
 (defn flatten-build-targets
   "Breadth first traversal / collection of build-targets and their child :deps,
-  skipping seen targets identified by build-target-key. The returned targets
-  contain the build-target-key."
+  skipping seen targets identified by the :key of each build-target."
   ([build-targets]
    (flatten-build-targets build-targets #{}))
   ([build-targets seen-keys]
@@ -81,7 +81,8 @@
           seen-keys seen-keys
           result (transient [])]
      (if-some [target (first targets)]
-       (let [key (bt/build-target-key target)]
+       (let [key (:key target)]
+         (assert (bt/build-target-key? key))
          (if (contains? seen-keys key)
            (recur (rest targets)
                   queue
@@ -90,7 +91,7 @@
            (recur (rest targets)
                   (conj queue (flatten (:deps target)))
                   (conj seen-keys key)
-                  (conj! result (assoc target :key key)))))
+                  (conj! result target))))
        (if-some [targets (first queue)]
          (recur targets
                 (rest queue)
@@ -107,9 +108,9 @@
 (defn- make-dep-resources
   [deps build-targets-by-key]
   (into {}
-        (map (fn [{:keys [resource] :as build-target}]
-               (let [key (bt/build-target-key build-target)]
-                 [resource (:resource (get build-targets-by-key key))])))
+        (map (fn [{:keys [key resource] :as _build-target}]
+               (assert (bt/build-target-key? key))
+               [resource (:resource (get build-targets-by-key key))]))
         (flatten deps)))
 
 (defn prune-artifact-map [artifact-map build-targets-by-key]
