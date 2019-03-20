@@ -342,7 +342,7 @@
 
   (output content g/Any :cached produce-content)
   (output aabb AABB :cached (g/fnk [meshes]
-                              (loop [aabb (geom/null-aabb)
+                              (loop [aabb geom/null-aabb
                                      meshes meshes]
                                 (if-let [m (first meshes)]
                                   (let [^floats ps (:positions m)

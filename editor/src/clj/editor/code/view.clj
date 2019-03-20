@@ -17,28 +17,29 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s])
-  (:import (com.defold.control ListView)
-           (com.sun.javafx.font FontResource FontStrike PGFont)
-           (com.sun.javafx.geom.transform BaseTransform)
-           (com.sun.javafx.perf PerformanceTracker)
-           (com.sun.javafx.tk Toolkit)
-           (com.sun.javafx.util Utils)
-           (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect)
-           (java.util Collection)
-           (java.util.regex Pattern)
-           (javafx.beans.binding ObjectBinding)
-           (javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty)
-           (javafx.beans.value ChangeListener)
-           (javafx.geometry HPos Point2D VPos)
-           (javafx.scene Node Parent Scene)
-           (javafx.scene.canvas Canvas GraphicsContext)
-           (javafx.scene.control Button CheckBox PopupControl Tab TextField)
-           (javafx.scene.input Clipboard DataFormat KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent)
-           (javafx.scene.layout ColumnConstraints GridPane Pane Priority)
-           (javafx.scene.paint Color LinearGradient Paint)
-           (javafx.scene.shape Rectangle)
-           (javafx.scene.text Font FontSmoothingType TextAlignment)
-           (javafx.stage Stage)))
+  (:import [com.defold.control ListView]
+           [com.sun.javafx.font FontResource FontStrike PGFont]
+           [com.sun.javafx.geom.transform BaseTransform]
+           [com.sun.javafx.perf PerformanceTracker]
+           [com.sun.javafx.scene.text FontHelper]
+           [com.sun.javafx.tk Toolkit]
+           [com.sun.javafx.util Utils]
+           [editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect]
+           [java.util Collection]
+           [java.util.regex Pattern]
+           [javafx.beans.binding ObjectBinding]
+           [javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty]
+           [javafx.beans.value ChangeListener]
+           [javafx.geometry HPos Point2D VPos]
+           [javafx.scene Node Parent Scene]
+           [javafx.scene.canvas Canvas GraphicsContext]
+           [javafx.scene.control Button CheckBox PopupControl Tab TextField]
+           [javafx.scene.input Clipboard DataFormat KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent]
+           [javafx.scene.layout ColumnConstraints GridPane Pane Priority]
+           [javafx.scene.paint Color LinearGradient Paint]
+           [javafx.scene.shape Rectangle]
+           [javafx.scene.text Font FontSmoothingType TextAlignment]
+           [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -87,20 +88,42 @@
                                    [(mime-type->DataFormat mime-type) representation]))
                             representation-by-mime-type))))
 
-(defrecord GlyphMetrics [^FontStrike font-strike ^double line-height ^double ascent]
+(def ^:private ^:const min-cached-char-width
+  (double (inc Byte/MIN_VALUE)))
+
+(def ^:private ^:const max-cached-char-width
+  (double Byte/MAX_VALUE))
+
+(defn- make-char-width-cache [^FontStrike font-strike]
+  (let [cache (byte-array (inc (int Character/MAX_VALUE)) Byte/MIN_VALUE)]
+    (fn get-char-width [^Character character]
+      (let [ch (unchecked-char character)
+            i (unchecked-int ch)
+            cached-width (aget cache i)]
+        (if (= cached-width Byte/MIN_VALUE)
+          (let [width (Math/floor (.getCharAdvance font-strike ch))]
+            (when (and (<= min-cached-char-width width)
+                       (<= width max-cached-char-width))
+              (aset cache i (byte width)))
+            width)
+          cached-width)))))
+
+(defrecord GlyphMetrics [char-width-cache ^double line-height ^double ascent]
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
-  (char-width [_this character] (Math/floor (.getCharAdvance font-strike character))))
+  (char-width [_this character] (char-width-cache character)))
 
 (defn make-glyph-metrics
   ^GlyphMetrics [^Font font ^double line-height-factor]
   (let [font-loader (.getFontLoader (Toolkit/getToolkit))
         font-metrics (.getFontMetrics font-loader font)
-        font-strike (.getStrike ^PGFont (.impl_getNativeFont font) BaseTransform/IDENTITY_TRANSFORM FontResource/AA_GREYSCALE)
+        font-strike (.getStrike ^PGFont (FontHelper/getNativeFont font)
+                                BaseTransform/IDENTITY_TRANSFORM
+                                FontResource/AA_GREYSCALE)
         line-height (Math/ceil (* (inc (.getLineHeight font-metrics)) line-height-factor))
         ascent (Math/ceil (* (.getAscent font-metrics) line-height-factor))]
-    (->GlyphMetrics font-strike line-height ascent)))
+    (->GlyphMetrics (make-char-width-cache font-strike) line-height ascent)))
 
 (def ^:private default-editor-color-scheme
   (let [^Color foreground-color (Color/valueOf "#DDDDDD")

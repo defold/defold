@@ -281,9 +281,10 @@ namespace dmGameSystem
         Vector3 scale;
         if (top >= 5 && !lua_isnil(L, 5))
         {
-            if (dmScript::IsVector3(L, 5))
+            Vector3* v = dmScript::ToVector3(L, 5);
+            if (v != 0)
             {
-                scale = *dmScript::CheckVector3(L, 5);
+                scale = *v;
             }
             else
             {

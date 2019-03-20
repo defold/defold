@@ -16,18 +16,20 @@ from ConfigParser import ConfigParser
     Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
-PACKAGES_HOST="protobuf-2.3.0 gtest-1.8.0 cg-3.1 vpx-1.7.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 tremolo-0.0.8".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.6.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
+PACKAGES_HOST="protobuf-2.3.0 gtest-1.8.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.0.5 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.0.5 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_DARWIN="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-1.7.0 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0".split()
-PACKAGES_WIN32="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
+PACKAGES_WIN32="facebook-gameroom-2017-08-14 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 bullet-2.77".split()
 PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
 PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
-PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 google-play-services-4.0.30 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0 bullet-2.77".split()
+
+DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL="https://s3-eu-west-1.amazonaws.com/defold-packages"
 CDN_UPLOAD_URL="s3://d.defold.com/archive"
@@ -198,6 +200,7 @@ class Configuration(object):
 
         self.dynamo_home = dynamo_home if dynamo_home else join(os.getcwd(), 'tmp', 'dynamo_home')
         self.ext = join(self.dynamo_home, 'ext')
+        self.dmsdk = join(self.dynamo_home, 'sdk')
         self.defold = normpath(join(dirname(abspath(__file__)), '..'))
         self.eclipse_home = eclipse_home if eclipse_home else join(home, 'eclipse')
         self.defold_root = os.getcwd()
@@ -348,6 +351,9 @@ class Configuration(object):
         print("Installing common packages")
         for p in PACKAGES_ALL:
             self._extract_tgz(self._make_package_path('common', p), self.ext)
+
+        for p in DMSDK_PACKAGES_ALL:
+            self._extract_tgz(self._make_package_path('common', p), self.dmsdk)
 
         # TODO: Make sure the order of install does not affect the outcome!
 
@@ -543,7 +549,7 @@ class Configuration(object):
         return self.host != self.target_platform
 
     def is_desktop_target(self):
-        return self.target_platform in ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32']
+        return self.target_platform in ['x86_64-linux', 'x86_64-darwin', 'x86_64-win32']
 
     # package the native SDK, return the path to the zip file
     def _package_platform_sdk(self, platform):
@@ -616,7 +622,6 @@ class Configuration(object):
             # Android Jars (external)
             external_jars = ("facebooksdk.jar",
                              "bolts-android-1.2.0.jar",
-                             "google-play-services.jar",
                              "android-support-v4.jar",
                              "android-support-multidex.jar",
                              "android.jar",
@@ -887,7 +892,7 @@ class Configuration(object):
             txts = []
             txts = missing.setdefault(plf, txts)
             txts = txts.append(txt)
-        for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32'], ['x86_64-linux', 'x86_64-linux'], ['x86_64-darwin', 'x86_64-darwin']]:
+        for plf in [['x86_64-win32', 'x86_64-win32'], ['x86_64-linux', 'x86_64-linux'], ['x86_64-darwin', 'x86_64-darwin']]:
             luajit_path = join(cwd, '../../packages/luajit-2.0.5-%s.tar.gz' % (plf[0]))
             if not os.path.exists(luajit_path):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
@@ -1669,7 +1674,7 @@ instructions.configure=\
         config = ConfigParser()
         config.read(info['config'])
         overrides = {'bootstrap.resourcespath': info['resources_path']}
-        java = join('Defold.app', 'Contents', 'Resources', 'packages', 'jre', 'bin', 'java')
+        java = join('Defold.app', 'Contents', 'Resources', 'packages', 'jdk11.0.1', 'bin', 'java')
         jar = self._get_config(config, 'launcher', 'jar', overrides)
         vmargs = self._get_config(config, 'launcher', 'vmargs', overrides).split(',') + ['-Ddefold.log.dir=.']
         vmargs = filter(lambda x: not str.startswith(x, '-Ddefold.update.url='), vmargs)
@@ -1677,7 +1682,7 @@ instructions.configure=\
         game_project = '../../editor/test/resources/geometry_wars/game.project'
         args = [java, '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test_prefs.json', game_project]
         robot_jar = '%s/ext/share/java/defold-robot.jar' % self.dynamo_home
-        robot_args = [java, '-jar', robot_jar, '-s', '../../share/smoke_test.json', '-o', 'result']
+        robot_args = [java, '-jar', robot_jar, '-s', '../../share/smoke-test.edn', '-o', 'result']
         print('Running robot: %s' % robot_args)
         robot_proc = subprocess.Popen(robot_args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
         time.sleep(2)

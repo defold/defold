@@ -6,7 +6,7 @@
 #include <dlib/profile.h>
 #include <dlib/hash.h>
 #include <dlib/align.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dlib/array.h>
 #include <dlib/index_pool.h>
 #include <dlib/time.h>
@@ -589,7 +589,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #if !defined(__EMSCRIPTEN__)
         glfwSetWindowTitle(params->m_Title);
 #endif
-        
+
         glfwSetWindowSizeCallback(OnWindowResize);
         glfwSetWindowCloseCallback(OnWindowClose);
         glfwSetWindowFocusCallback(OnWindowFocus);

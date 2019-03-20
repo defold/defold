@@ -24,4 +24,3 @@ message RunScript
 {
     required dmLuaDDF.LuaModule module = 1;
 }
-
