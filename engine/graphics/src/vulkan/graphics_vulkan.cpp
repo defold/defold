@@ -226,8 +226,11 @@ namespace dmGraphics
             uint32_t                       m_CurrentFrameInFlight;
             uint32_t                       m_MaxDescriptorSets;
 
+            bool m_IsDrawing;
+
             VkInstance                     m_Instance;
             VkPhysicalDevice               m_PhysicalDevice;
+            VkPhysicalDeviceProperties     m_PhysicalDeviceProperties;
             VkDevice                       m_LogicalDevice;
             VkQueue                        m_PresentQueue;
             VkQueue                        m_GraphicsQueue;
@@ -642,6 +645,8 @@ namespace dmGraphics
             }
 
             g_vk_context.m_PhysicalDevice = vk_selected_device;
+
+            vkGetPhysicalDeviceProperties(g_vk_context.m_PhysicalDevice, &g_vk_context.m_PhysicalDeviceProperties);
 
             return true;
         }
@@ -2079,11 +2084,12 @@ namespace dmGraphics
         {
             for (uint16_t i=0; i < program->m_ImageSamplers.Size(); i++)
             {
-                ShaderImageSampler& sampler_uniform = program->m_ImageSamplers[i];
+                ShaderImageSampler& sampler = program->m_ImageSamplers[i];
+                ShaderUniform& uniform      = program->m_Uniforms[sampler.m_UniformIndex];
 
-                if (sampler_uniform.m_IsDirty)
+                if (sampler.m_IsDirty)
                 {
-                    Texture* texture = g_vk_context.m_Textures[sampler_uniform.m_TextureUnit];
+                    Texture* texture = g_vk_context.m_Textures[sampler.m_TextureUnit];
 
                     VkDescriptorImageInfo vk_image_info;
                     vk_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -3560,7 +3566,7 @@ namespace dmGraphics
 
     uint32_t GetMaxTextureSize(HContext context)
     {
-        return 1024;
+        return Vulkan::g_vk_context.m_PhysicalDeviceProperties.limits.maxImageDimension2D;
     }
 
     HTexture NewTexture(HContext context, const TextureCreationParams& params)
