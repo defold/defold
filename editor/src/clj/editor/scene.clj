@@ -819,10 +819,14 @@
            :world-pos world-pos
            :world-dir world-dir)))
 
-(defn- active-scene-view [app-view]
-  (let [view (g/node-value app-view :active-view)]
-    (when (and view (g/node-instance? SceneView view))
-      view)))
+(defn- active-scene-view
+  ([app-view]
+   (g/with-auto-evaluation-context evaluation-context
+     (active-scene-view app-view evaluation-context)))
+  ([app-view evaluation-context]
+   (let [view (g/node-value app-view :active-view evaluation-context)]
+     (when (and view (g/node-instance? SceneView view))
+       view))))
 
 (defn- play-handler [view-id]
   (let [play-mode (g/node-value view-id :play-mode)
@@ -837,11 +841,13 @@
         (g/set-property view-id :active-updatable-ids selected-updatable-ids)))))
 
 (handler/defhandler :scene-play :global
-  (active? [app-view] (when-let [view (active-scene-view app-view)]
-                        (seq (g/node-value view :updatables))))
-  (enabled? [app-view] (when-let [view (active-scene-view app-view)]
-                         (let [selected (g/node-value view :selected-updatables)]
-                           (not (empty? selected)))))
+  (active? [app-view evaluation-context]
+           (when-let [view (active-scene-view app-view evaluation-context)]
+             (seq (g/node-value view :updatables evaluation-context))))
+  (enabled? [app-view evaluation-context]
+            (when-let [view (active-scene-view app-view evaluation-context)]
+              (let [selected (g/node-value view :selected-updatables evaluation-context)]
+                (not (empty? selected)))))
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (play-handler view))))
 
@@ -853,10 +859,12 @@
       (g/set-property view-id :updatable-states {}))))
 
 (handler/defhandler :scene-stop :global
-  (active? [app-view] (when-let [view (active-scene-view app-view)]
-                        (seq (g/node-value view :updatables))))
-  (enabled? [app-view] (when-let [view (active-scene-view app-view)]
-                         (seq (g/node-value view :active-updatables))))
+  (active? [app-view evaluation-context]
+           (when-let [view (active-scene-view app-view evaluation-context)]
+             (seq (g/node-value view :updatables evaluation-context))))
+  (enabled? [app-view evaluation-context]
+            (when-let [view (active-scene-view app-view evaluation-context)]
+              (seq (g/node-value view :active-updatables evaluation-context))))
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (stop-handler view))))
 
@@ -903,15 +911,18 @@
     (set-camera! camera local-cam end-camera animate?)))
 
 (handler/defhandler :frame-selection :global
-  (active? [app-view] (active-scene-view app-view))
-  (enabled? [app-view] (when-let [view (active-scene-view app-view)]
-                         (let [selected (g/node-value view :selection)]
-                           (not (empty? selected)))))
+  (active? [app-view evaluation-context]
+           (active-scene-view app-view evaluation-context))
+  (enabled? [app-view evaluation-context]
+            (when-let [view (active-scene-view app-view evaluation-context)]
+              (let [selected (g/node-value view :selection evaluation-context)]
+                (not (empty? selected)))))
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (frame-selection view true))))
 
 (handler/defhandler :realign-camera :global
-  (active? [app-view] (active-scene-view app-view))
+  (active? [app-view evaluation-context]
+           (active-scene-view app-view evaluation-context))
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (realign-camera view true))))
 
@@ -920,14 +931,15 @@
   (g/set-property! app-view :manip-space manip-space))
 
 (handler/defhandler :set-manip-space :global
-  (enabled? [app-view user-data] (let [active-tool (g/node-value app-view :active-tool)]
-                                   (contains? (scene-tools/supported-manip-spaces active-tool)
-                                              (:manip-space user-data))))
+  (enabled? [app-view user-data evaluation-context]
+            (let [active-tool (g/node-value app-view :active-tool evaluation-context)]
+              (contains? (scene-tools/supported-manip-spaces active-tool)
+                         (:manip-space user-data))))
   (run [app-view user-data] (set-manip-space! app-view (:manip-space user-data)))
   (state [app-view user-data] (= (g/node-value app-view :manip-space) (:manip-space user-data))))
 
 (handler/defhandler :toggle-move-whole-pixels :global
-  (active? [app-view] (active-scene-view app-view))
+  (active? [app-view evaluation-context] (active-scene-view app-view evaluation-context))
   (state [prefs] (scene-tools/move-whole-pixels? prefs))
   (run [prefs] (scene-tools/set-move-whole-pixels! prefs (not (scene-tools/move-whole-pixels? prefs)))))
 

@@ -208,7 +208,7 @@
   (run [view-node] (view/move! view-node :selection :file-end)))
 
 (handler/defhandler :copy :console-view
-  (enabled? [view-node] (view/has-selection? view-node))
+  (enabled? [view-node evaluation-context] (view/has-selection? view-node evaluation-context))
   (run [view-node clipboard] (view/copy! view-node clipboard)))
 
 (handler/defhandler :select-all :console-view

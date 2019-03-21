@@ -393,15 +393,15 @@
 
 (defn- node->node-tree
   ([node]
-    (node->node-tree (g/now) node))
+   (node->node-tree (g/now) node))
   ([basis node]
-    (if (g/node-instance? basis NodeTree node)
-      node
-      (recur basis (core/scope basis node)))))
+   (if (g/node-instance? basis NodeTree node)
+     node
+     (recur basis (core/scope basis node)))))
 
 (defn- node->gui-scene
   ([node]
-    (node->gui-scene (g/now) node))
+   (node->gui-scene (g/now) node))
   ([basis node]
    (cond
      (g/node-instance? basis GuiSceneNode node)
@@ -554,12 +554,12 @@
   (property color types/Color (default [1 1 1 1])
             (dynamic visible (g/fnk [type] (not= type :type-template)))
             (dynamic edit-type (g/constantly {:type types/Color
-                                          :ignore-alpha? true})))
+                                              :ignore-alpha? true})))
   (property alpha g/Num (default 1.0)
             (dynamic edit-type (g/constantly {:type :slider
-                                          :min 0.0
-                                          :max 1.0
-                                          :precision 0.01})))
+                                              :min 0.0
+                                              :max 1.0
+                                              :precision 0.01})))
   (property inherit-alpha g/Bool (default true))
 
   (property layer g/Str
@@ -1132,20 +1132,20 @@
   (property text-tracking g/Num (default 0.0))
   (property outline types/Color (default [1 1 1 1])
             (dynamic edit-type (g/constantly {:type types/Color
-                                          :ignore-alpha? true})))
+                                              :ignore-alpha? true})))
   (property outline-alpha g/Num (default 1.0)
     (dynamic edit-type (g/constantly {:type :slider
-                                  :min 0.0
-                                  :max 1.0
-                                  :precision 0.01})))
+                                      :min 0.0
+                                      :max 1.0
+                                      :precision 0.01})))
   (property shadow types/Color (default [1 1 1 1])
             (dynamic edit-type (g/constantly {:type types/Color
-                                          :ignore-alpha? true})))
+                                              :ignore-alpha? true})))
   (property shadow-alpha g/Num (default 1.0)
     (dynamic edit-type (g/constantly {:type :slider
-                                  :min 0.0
-                                  :max 1.0
-                                  :precision 0.01})))
+                                      :min 0.0
+                                      :max 1.0
+                                      :precision 0.01})))
 
   (display-order (into base-display-order [:text :line-break :font :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
@@ -2626,10 +2626,10 @@
                                             node)]
                                (make-add-handler scene parent "Spine Scenes..." spine/spine-scene-icon add-spine-scenes-handler {})))
         particlefx-resource-option (if (some #(g/node-instance? % node) [GuiSceneNode ParticleFXResources])
-                            (let [parent (if (= node scene)
-                                           (g/node-value scene :particlefx-resources-node)
-                                           node)]
-                              (make-add-handler scene parent "Particle FX..." particlefx/particle-fx-icon add-particlefx-resources-handler {})))]
+                                     (let [parent (if (= node scene)
+                                                    (g/node-value scene :particlefx-resources-node)
+                                                    node)]
+                                       (make-add-handler scene parent "Particle FX..." particlefx/particle-fx-icon add-particlefx-resources-handler {})))]
     (filter some? (conj node-options texture-option font-option layer-option layout-option spine-scene-option particlefx-resource-option))))
 
 (defn- unused-display-profiles [scene]
@@ -2935,14 +2935,19 @@
   (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
                      (move-child-node! selected 1))))
 
-(defn- resource->gui-scene [project resource]
-  (let [res-node (some->> resource
-                   (project/get-resource-node project))]
-    (when (and res-node (g/node-instance? GuiSceneNode res-node))
-      res-node)))
+(defn- resource->gui-scene
+  ([project resource]
+   (g/with-auto-evaluation-context evaluation-context
+     (resource->gui-scene project resource)))
+  ([project resource evaluation-context]
+   (let [res-node (when resource
+                    (project/get-resource-node project resource evaluation-context))]
+     (when (and res-node (g/node-instance? GuiSceneNode res-node))
+       res-node))))
 
 (handler/defhandler :set-gui-layout :workbench
-  (active? [project active-resource] (boolean (resource->gui-scene project active-resource)))
+  (active? [project active-resource evaluation-context]
+           (boolean (resource->gui-scene project active-resource evaluation-context)))
   (run [project active-resource user-data] (when user-data
                                              (when-let [scene (resource->gui-scene project active-resource)]
                                                (g/transact (g/set-property scene :visible-layout user-data)))))
