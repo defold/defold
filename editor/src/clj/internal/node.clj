@@ -1143,20 +1143,28 @@
       `(error-checked-input-value ~forms ~nodeid-sym ~input)
       `(error-substituted-input-value ~forms ~sub))))
 
+(defn error-checked-array-input-value [input-array node-id input]
+  (if (some #(instance? ErrorValue %) input-array)
+    (let [serious-errors (filter #(ie/worse-than :info %) input-array)]
+      (if (empty? serious-errors)
+        (mapv #(if (instance? ErrorValue %) (:value %) %) input-array)
+        (ie/error-aggregate serious-errors :_node-id node-id :_label input)))
+    input-array))
+
+(defn error-substituted-array-input-value [input-array substitute-fn]
+  (if (some #(instance? ErrorValue %) input-array)
+    (let [serious-errors (filter #(ie/worse-than :info %) input-array)]
+      (if (empty? serious-errors)
+        (mapv #(if (instance? ErrorValue %) (:value %) %) input-array)
+        (util/apply-if-fn substitute-fn input-array)))
+    input-array))
+
 (defn- maybe-substitute-error-in-array-form
   [nodeid-sym description input forms]
-  (let [sub (get-in description [:input input :options :substitute] ::no-sub) ; nil is a valid substitute literal
-        input-array (gensym)
-        serious-errors (gensym)]
-    `(let [~input-array ~forms]
-       (if (some #(instance? ErrorValue %) ~input-array)
-         (let [~serious-errors (filter #(ie/worse-than :info %) ~input-array)]
-           (if (empty? ~serious-errors)
-             (mapv #(if (instance? ErrorValue %) (:value %) %) ~input-array)
-             ~(if (not= ::no-sub sub)
-                `(util/apply-if-fn ~sub ~input-array)
-                `(ie/error-aggregate ~serious-errors :_node-id ~nodeid-sym :_label ~input))))
-         ~input-array))))
+  (let [sub (get-in description [:input input :options :substitute] ::no-sub)] ; nil is a valid substitute literal
+    (if (= ::no-sub sub)
+      `(error-checked-array-input-value ~forms ~nodeid-sym ~input)
+      `(error-substituted-array-input-value ~forms ~sub))))
 
 (defn- call-with-error-checked-fnky-arguments-form
   [self-name ctx-name nodeid-sym label description arguments runtime-fnk-expr & [supplied-arguments]]
