@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdlib.h> // posix_memalign
 #ifdef __linux__
 #include <malloc.h>
 #endif

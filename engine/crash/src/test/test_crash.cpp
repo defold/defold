@@ -64,7 +64,7 @@ TEST_F(dmCrashTest, TestLoad)
     ASSERT_EQ(0, strcmp(info.m_Territory, dmCrash::GetSysField(d, dmCrash::SYSFIELD_TERRITORY)));
 
     uint32_t addresses = dmCrash::GetBacktraceAddrCount(d);
-    ASSERT_GT(addresses, 2);
+    ASSERT_GE(addresses, 2);
     for (uint32_t i=0;i!=addresses;i++)
     {
         // DEF-3128: Skip the last one, since it might be 0 on Win32
