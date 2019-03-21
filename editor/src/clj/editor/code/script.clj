@@ -175,7 +175,7 @@
                            properties))))))
 
 (g/defnk produce-build-targets [_node-id resource lines user-properties modules dep-build-targets]
-  [(bt/update-build-target-key
+  [(bt/with-content-hash
      {:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-script

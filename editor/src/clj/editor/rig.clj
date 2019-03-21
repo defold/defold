@@ -21,7 +21,7 @@
         ;; resource/resource-hash used to name the
         ;; corresponding "generated" build resource.
         skeleton-resource (resource/make-memory-resource workspace skeleton-type (protobuf/map->sha1-hex Rig$Skeleton skeleton))]
-    (bt/update-build-target-key
+    (bt/with-content-hash
       {:node-id node-id
        :resource (workspace/make-build-resource skeleton-resource)
        :build-fn build-skeleton
@@ -39,7 +39,7 @@
         ;; resource/resource-hash used to name the
         ;; corresponding "generated" build resource.
         animation-set-resource (resource/make-memory-resource workspace animation-set-type (protobuf/map->sha1-hex Rig$AnimationSet animation-set))]
-    (bt/update-build-target-key
+    (bt/with-content-hash
       {:node-id node-id
        :resource (workspace/make-build-resource animation-set-resource)
        :build-fn build-animation-set
@@ -57,7 +57,7 @@
         ;; resource/resource-hash used to name the
         ;; corresponding "generated" build resource.
         mesh-set-resource (resource/make-memory-resource workspace mesh-set-type (protobuf/map->sha1-hex Rig$MeshSet mesh-set))]
-    (bt/update-build-target-key
+    (bt/with-content-hash
       {:node-id node-id
        :resource (workspace/make-build-resource mesh-set-resource)
        :build-fn build-mesh-set

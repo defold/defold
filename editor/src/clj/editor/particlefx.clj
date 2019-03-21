@@ -670,7 +670,7 @@
                                     [field]))
                                 resource-fields)
         dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-data label) (get rt-pb-data label)))]) resource-fields)]
-    [(bt/update-build-target-key
+    [(bt/with-content-hash
        {:node-id _node-id
         :resource (workspace/make-build-resource resource)
         :build-fn build-pb

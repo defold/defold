@@ -45,7 +45,7 @@
   {:resource resource :content (protobuf/map->bytes (:pb-class user-data) (:pb user-data))})
 
 (g/defnk produce-build-targets [_node-id resource pb def]
-  [(bt/update-build-target-key
+  [(bt/with-content-hash
      {:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-pb

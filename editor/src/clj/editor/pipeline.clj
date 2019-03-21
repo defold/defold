@@ -59,7 +59,7 @@
   [resource dep-build-targets pb-class pb-msg pb-resource-fields]
   (let [dep-build-targets (flatten dep-build-targets)
         resource-keys (make-resource-props dep-build-targets pb-msg pb-resource-fields)]
-    (bt/update-build-target-key
+    (bt/with-content-hash
       {:resource (workspace/make-build-resource resource)
        :build-fn build-protobuf
        :user-data {:pb-class pb-class
@@ -71,52 +71,53 @@
 
 (defn flatten-build-targets
   "Breadth first traversal / collection of build-targets and their child :deps,
-  skipping seen targets identified by the :key of each build-target."
+  skipping seen targets identified by the :content-hash of each build-target."
   ([build-targets]
    (flatten-build-targets build-targets #{}))
-  ([build-targets seen-keys]
-   (assert (set? seen-keys))
+  ([build-targets seen-content-hashes]
+   (assert (set? seen-content-hashes))
    (loop [targets build-targets
           queue []
-          seen-keys seen-keys
+          seen seen-content-hashes
           result (transient [])]
      (if-some [target (first targets)]
-       (let [key (:key target)]
-         (assert (bt/build-target-key? key))
-         (if (contains? seen-keys key)
+       (let [content-hash (:content-hash target)]
+         (assert (bt/content-hash? content-hash))
+         (if (contains? seen content-hash)
            (recur (rest targets)
                   queue
-                  seen-keys
+                  seen
                   result)
            (recur (rest targets)
                   (conj queue (flatten (:deps target)))
-                  (conj seen-keys key)
+                  (conj seen content-hash)
                   (conj! result target))))
        (if-some [targets (first queue)]
          (recur targets
                 (rest queue)
-                seen-keys
+                seen
                 result)
          (persistent! result))))))
 
-(defn- make-build-targets-by-key
+(defn- make-build-targets-by-content-hash
   [build-targets]
   (into {}
-        (map (juxt :key identity))
+        (map (juxt :content-hash identity))
         (flatten-build-targets build-targets)))
 
 (defn- make-dep-resources
-  [deps build-targets-by-key]
+  [deps build-targets-by-content-hash]
   (into {}
-        (map (fn [{:keys [key resource] :as _build-target}]
-               (assert (bt/build-target-key? key))
-               [resource (:resource (get build-targets-by-key key))]))
+        (map (fn [{:keys [content-hash resource] :as _build-target}]
+               (assert (bt/content-hash? content-hash))
+               [resource (:resource (get build-targets-by-content-hash content-hash))]))
         (flatten deps)))
 
-(defn prune-artifact-map [artifact-map build-targets-by-key]
+(defn prune-artifact-map [artifact-map build-targets-by-content-hash]
   (into {}
         (filter (fn [[_resource-path result]]
-                  (contains? build-targets-by-key (:key result))))
+                  (contains? build-targets-by-content-hash
+                             (:content-hash result))))
         artifact-map))
 
 (defn- valid? [resource artifact]
@@ -124,7 +125,7 @@
     (let [{:keys [mtime size]} artifact]
       (and (.exists f) (= mtime (.lastModified f)) (= size (.length f))))))
 
-(defn- to-disk! [artifact key]
+(defn- to-disk! [artifact content-hash]
   (assert (some? (:content artifact)))
   (fs/create-parent-directories! (io/as-file (:resource artifact)))
   (let [^bytes content (:content artifact)]
@@ -136,13 +137,16 @@
       (-> artifact
           (dissoc :content)
           (assoc
-            :key key
+            :content-hash content-hash
             :mtime mtime
             :size size
             :etag (digest/sha1-hex content))))))
 
-(defn- prune-build-dir! [build-dir build-targets-by-key]
-  (let [targets (into #{} (map (fn [[_ target]] (io/as-file (:resource target)))) build-targets-by-key)]
+(defn- prune-build-dir! [build-dir build-targets-by-content-hash]
+  (let [targets (into #{}
+                      (map (fn [[_ target]]
+                             (io/as-file (:resource target))))
+                      build-targets-by-content-hash)]
     (fs/create-directories! build-dir)
     (doseq [^File f (file-seq build-dir)]
       (when (and (not (.isDirectory f)) (not (contains? targets f)))
@@ -162,16 +166,16 @@
 
 (defn build!
   [build-targets build-dir old-artifact-map render-progress!]
-  (let [build-targets-by-key (make-build-targets-by-key build-targets)
-        pruned-old-artifact-map (prune-artifact-map old-artifact-map build-targets-by-key)
-        progress (atom (progress/make "" (count build-targets-by-key)))]
-    (prune-build-dir! build-dir build-targets-by-key)
-    (let [{cheap-build-targets false expensive-build-targets true} (group-by expensive? (vals build-targets-by-key))
+  (let [build-targets-by-content-hash (make-build-targets-by-content-hash build-targets)
+        pruned-old-artifact-map (prune-artifact-map old-artifact-map build-targets-by-content-hash)
+        progress (atom (progress/make "" (count build-targets-by-content-hash)))]
+    (prune-build-dir! build-dir build-targets-by-content-hash)
+    (let [{cheap-build-targets false expensive-build-targets true} (group-by expensive? (vals build-targets-by-content-hash))
           build-target-batches (into (partition-all cheap-batch-size cheap-build-targets)
                                      (partition-all expensive-batch-size expensive-build-targets))
           results (batched-pmap
                     (fn [build-target]
-                      (let [{:keys [key node-id resource deps build-fn user-data]} build-target
+                      (let [{:keys [content-hash node-id resource deps build-fn user-data]} build-target
                             resource-path (resource/proj-path resource)
                             cached-artifact (when-some [artifact (get pruned-old-artifact-map resource-path)]
                                               (when (valid? resource artifact)
@@ -179,7 +183,7 @@
                             message (str "Building " (resource/proj-path resource))]
                         (render-progress! (swap! progress progress/with-message message))
                         (let [result (or cached-artifact
-                                         (let [dep-resources (make-dep-resources deps build-targets-by-key)
+                                         (let [dep-resources (make-dep-resources deps build-targets-by-content-hash)
                                                build-result (build-fn resource dep-resources user-data)]
                                            ;; Error results are assumed to be error-aggregates.
                                            ;; We need to inject the node-id of the source build
@@ -187,7 +191,7 @@
                                            ;; not have access to the node-id.
                                            (if (g/error? build-result)
                                              (update build-result :causes (partial map #(assoc % :_node-id node-id)))
-                                             (to-disk! build-result key))))]
+                                             (to-disk! build-result content-hash))))]
                           (render-progress! (swap! progress progress/advance))
                           result)))
                     build-target-batches)

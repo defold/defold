@@ -88,7 +88,7 @@
   (io/make-writer        [this opts] (io/writer resource)))
 
 (defn- make-custom-build-target [node-id resource]
-  (bt/update-build-target-key
+  (bt/with-content-hash
     {:node-id node-id
      :resource (workspace/make-build-resource (CustomResource. resource))
      :build-fn build-custom-resource
@@ -137,7 +137,7 @@
                                                        (when (resource-setting-connections-template (:path resource-setting))
                                                          [(:path resource-setting) (deps-by-source (:value resource-setting))]))
                                                      resource-settings))]
-    [(bt/update-build-target-key
+    [(bt/with-content-hash
        {:node-id _node-id
         :resource (workspace/make-build-resource resource)
         :build-fn build-game-project
