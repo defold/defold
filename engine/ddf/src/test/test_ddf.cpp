@@ -696,7 +696,7 @@ TEST(PointerOffset, ResolvePointers)
     TestDDF::ResolvePointers srcmsg;
     srcmsg.set_data((uint8_t*)values, strlen(values)+1);
     srcmsg.set_name(name);
-    for( int i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
+    for( size_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
         srcmsg.add_names(names[i]);
     }
 
@@ -719,7 +719,7 @@ TEST(PointerOffset, ResolvePointers)
     ASSERT_TRUE( uintptr_t(msg->m_Data.m_Data) <= (msg_size - (strlen(values)+1)) ); // the offset should be between [0, sizeof message - value length]
     ASSERT_STREQ( values, (const char*)((uintptr_t)msg + (uintptr_t)msg->m_Data.m_Data));
     ASSERT_STREQ( name, (const char*)((uintptr_t)msg + (uintptr_t)msg->m_Name));
-    for( int i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
+    for( size_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
         uintptr_t* nameoffsets = (uintptr_t*)((uintptr_t)msg + (uintptr_t)msg->m_Names.m_Data);
         ASSERT_STREQ( names[i], (const char*) ((uintptr_t)msg + nameoffsets[i]));
     }
@@ -729,7 +729,7 @@ TEST(PointerOffset, ResolvePointers)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
     ASSERT_STREQ( values, (const char*)msg->m_Data.m_Data);
     ASSERT_STREQ( name, (const char*)msg->m_Name);
-    for( int i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
+    for( size_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
         ASSERT_STREQ( names[i], (const char*)msg->m_Names[i]);
     }
 

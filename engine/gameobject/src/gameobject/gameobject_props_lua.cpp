@@ -95,7 +95,7 @@ namespace dmGameObject
             case PROPERTY_TYPE_BOOLEAN:
                 out_var.m_Bool = (bool) lua_toboolean(L, index);
                 return PROPERTY_RESULT_OK;
-            case PROPERTY_TYPE_COUNT:
+            default:
                 return PROPERTY_RESULT_UNSUPPORTED_TYPE;
         }
     }

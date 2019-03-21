@@ -578,10 +578,6 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
 
         if( p.m_ExpectedOk )
         {
-            int j = 0;
-
-            j = 0;
-
             // Check that the buffer before the write area is intact
             for( uint32_t i = 1; i <= p.m_DstOffset; ++i)
             {

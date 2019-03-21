@@ -64,7 +64,7 @@ static void DeleteRigData(dmRigDDF::MeshSet* mesh_set, dmRigDDF::Skeleton* skele
 {
     if (animation_set != 0x0)
     {
-        for (int anim_idx = 0; anim_idx < animation_set->m_Animations.m_Count; ++anim_idx)
+        for (uint32_t anim_idx = 0; anim_idx < animation_set->m_Animations.m_Count; ++anim_idx)
         {
             dmRigDDF::RigAnimation& anim = animation_set->m_Animations.m_Data[anim_idx];
             DeleteRigAnimation(anim);
@@ -84,7 +84,7 @@ static void DeleteRigData(dmRigDDF::MeshSet* mesh_set, dmRigDDF::Skeleton* skele
     {
         // Delete mesh attachments and their data
         uint32_t mesh_count = mesh_set->m_MeshAttachments.m_Count;
-        for (int i = 0; i < mesh_count; ++i)
+        for (uint32_t i = 0; i < mesh_count; ++i)
         {
             dmRigDDF::Mesh& mesh = mesh_set->m_MeshAttachments.m_Data[i];
             if (mesh.m_NormalsIndices.m_Count > 0)   { delete [] mesh.m_NormalsIndices.m_Data; }
@@ -101,11 +101,11 @@ static void DeleteRigData(dmRigDDF::MeshSet* mesh_set, dmRigDDF::Skeleton* skele
 
         // Delete mesh entries and their slot data
         uint32_t mesh_entry_count = mesh_set->m_MeshEntries.m_Count;
-        for (int i = 0; i < mesh_entry_count; ++i)
+        for (uint32_t i = 0; i < mesh_entry_count; ++i)
         {
             dmRigDDF::MeshEntry& mesh_entry = mesh_set->m_MeshEntries.m_Data[i];
             uint32_t mesh_slot_count = mesh_entry.m_MeshSlots.m_Count;
-            for (int j = 0; j < mesh_slot_count; j++) {
+            for (uint32_t j = 0; j < mesh_slot_count; j++) {
                 dmRigDDF::MeshSlot& mesh_slot = mesh_entry.m_MeshSlots.m_Data[j];
                 if (mesh_slot.m_MeshAttachments.m_Count > 0) { delete [] mesh_slot.m_MeshAttachments.m_Data; }
                 if (mesh_slot.m_SlotColor.m_Count > 0) { delete [] mesh_slot.m_SlotColor.m_Data; }
@@ -869,7 +869,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             };
 
             // Loop over all tracks and pick appropriet offset entries from list above.
-            for (int i = 0; i < track_count; ++i)
+            for (uint32_t i = 0; i < track_count; ++i)
             {
                 dmRigDDF::MeshAnimationTrack& anim_track = anim8.m_MeshTracks.m_Data[i];
                 anim_track.m_MeshSlot               = i;
@@ -878,7 +878,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
 
                 anim_track.m_OrderOffset.m_Data = new int32_t[samples];
                 anim_track.m_OrderOffset.m_Count = samples;
-                for (int j = 0; j < samples; ++j)
+                for (uint32_t j = 0; j < samples; ++j)
                 {
                     anim_track.m_OrderOffset.m_Data[j] = track_entries[i*samples+j];
                 }
@@ -944,11 +944,11 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
 
         // Every slot will get two attachment points.
         // Make all slot attachment point to -1, ie no meshes attached/visible
-        for (int i = 0; i < mesh_set->m_MeshEntries.m_Count; i++) {
+        for (uint32_t i = 0; i < mesh_set->m_MeshEntries.m_Count; i++) {
             mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data = new dmRigDDF::MeshSlot[mesh_set->m_SlotCount];
             mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Count = mesh_set->m_SlotCount;
 
-            for (int j = 0; j < mesh_set->m_SlotCount; j++) {
+            for (uint32_t j = 0; j < mesh_set->m_SlotCount; j++) {
                 mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_Id = j;
                 mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data = new uint32_t[2];
                 mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Count = 2;
@@ -961,7 +961,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         mesh_set->m_MaxBoneCount = bone_count + 1;
 
         // Allocate mesh attachments, one for each regular skin, and 5 extra for "draw_order_skin".
-        int available_mesh_count = 3 + 5;
+        uint32_t available_mesh_count = 3 + 5;
         mesh_set->m_MeshAttachments.m_Data = new dmRigDDF::Mesh[available_mesh_count];
         mesh_set->m_MeshAttachments.m_Count = 0;
 
@@ -980,7 +980,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         mesh_set->m_BoneList.m_Count = bone_count;
         animation_set->m_BoneList.m_Data = mesh_set->m_BoneList.m_Data;
         animation_set->m_BoneList.m_Count = bone_count;
-        for (int i = 0; i < bone_count; ++i)
+        for (uint32_t i = 0; i < bone_count; ++i)
         {
             mesh_set->m_BoneList.m_Data[i] = bone_count-i-1;
         }
