@@ -1820,7 +1820,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
             {
                 uint32_t profiler_hash = 0;
-                const char* profiler_string = dmScript::GetProfilerString(L, -5, scene->m_Script->m_SourceFileName, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE], message_name, &profiler_hash);
+                const char* profiler_string = dmScript::GetProfilerString(L, custom_ref != LUA_NOREF ? -5 : 0, scene->m_Script->m_SourceFileName, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE], message_name, &profiler_hash);
                 DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
                 if (dmScript::PCall(L, arg_count, LUA_MULTRET) != 0)
                 {

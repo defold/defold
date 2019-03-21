@@ -304,7 +304,7 @@ namespace dmGameObject
             // An on_message function shouldn't return anything.
             {
                 uint32_t profiler_hash = 0;
-                const char* profiler_string = dmScript::GetProfilerString(L, -5, script_instance->m_Script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE], message_name, &profiler_hash);
+                const char* profiler_string = dmScript::GetProfilerString(L, is_callback ? -5 : 0, script_instance->m_Script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE], message_name, &profiler_hash);
                 DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
                 if (dmScript::PCall(L, 4, 0) != 0)
                 {
