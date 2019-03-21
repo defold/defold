@@ -1331,13 +1331,14 @@
           [input-sym argument-forms]
           forms)))
 
+(defn input-error-aggregate [input-value node-id label]
+  (when-some [input-errors (not-empty (filter #(instance? ErrorValue %) (vals input-value)))]
+    (ie/error-aggregate input-errors :_node-id node-id :_label label)))
+
 (defn- input-error-check-form [self-name ctx-name description label nodeid-sym input-sym tail]
   (if (contains? internal-keys label)
     tail
-    `(let [input-errors# (filter #(instance? ErrorValue %) (vals ~input-sym))]
-       (if (empty? input-errors#)
-         ~tail
-         (ie/error-aggregate input-errors# :_node-id ~nodeid-sym :_label ~label)))))
+    `(or (input-error-aggregate ~input-sym ~nodeid-sym ~label) ~tail)))
 
 (defn- call-production-function-form [self-name ctx-name description transform input-sym nodeid-sym output-sym forms]
   `(let [~output-sym ~(input-error-check-form self-name ctx-name description transform nodeid-sym input-sym
