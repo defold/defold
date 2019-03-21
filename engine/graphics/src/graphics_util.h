@@ -2,7 +2,7 @@
 #define DM_GRAPHICS_UTIL_H
 
 #include <dlib/endian.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 namespace dmGraphics
 {

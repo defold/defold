@@ -15,7 +15,8 @@ from ConfigParser import ConfigParser
     Build utility for installing external packages, building engine, editor and cr
     Run build.py --help for help
 """
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.6.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a moltenvk-1.0.30 vulkan-1.1.92".split()
+
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.6.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a moltenvk-1.0.30 vulkan-1.1.92".split()
 PACKAGES_HOST="protobuf-2.3.0 gtest-1.8.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.0.5 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.0.5 tremolo-0.0.8 bullet-2.77".split()
@@ -27,6 +28,8 @@ PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luaj
 PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.92".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0 bullet-2.77".split()
+
+DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL="https://s3-eu-west-1.amazonaws.com/defold-packages"
 CDN_UPLOAD_URL="s3://d.defold.com/archive"
@@ -197,6 +200,7 @@ class Configuration(object):
 
         self.dynamo_home = dynamo_home if dynamo_home else join(os.getcwd(), 'tmp', 'dynamo_home')
         self.ext = join(self.dynamo_home, 'ext')
+        self.dmsdk = join(self.dynamo_home, 'sdk')
         self.defold = normpath(join(dirname(abspath(__file__)), '..'))
         self.eclipse_home = eclipse_home if eclipse_home else join(home, 'eclipse')
         self.defold_root = os.getcwd()
@@ -347,6 +351,9 @@ class Configuration(object):
         print("Installing common packages")
         for p in PACKAGES_ALL:
             self._extract_tgz(self._make_package_path('common', p), self.ext)
+
+        for p in DMSDK_PACKAGES_ALL:
+            self._extract_tgz(self._make_package_path('common', p), self.dmsdk)
 
         # TODO: Make sure the order of install does not affect the outcome!
 
@@ -701,8 +708,10 @@ class Configuration(object):
             for engine_name in format_exes(n, self.target_platform):
                 engine = join(bin_dir, engine_name)
                 self.upload_file(engine, '%s/%s' % (full_archive_path, engine_name))
-                if self._strip_engine(engine):
-                    self.upload_file(engine, '%s/stripped/%s' % (full_archive_path, engine_name))
+                engine_stripped = join(bin_dir, engine_name + "_stripped")
+                shutil.copy2(engine, engine_stripped)
+                if self._strip_engine(engine_stripped):
+                    self.upload_file(engine_stripped, '%s/stripped/%s' % (full_archive_path, engine_name))
 
             if 'web' in self.target_platform:
                 self.upload_file(join(bin_dir, 'defold_sound.swf'), join(full_archive_path, 'defold_sound.swf'))
@@ -1169,41 +1178,52 @@ instructions.configure=\
             self._log(output)
             sys.exit(process.returncode)
 
+    # Get archive files for a single release/sha1
+    def _get_files(self, bucket, sha1):
+        root = urlparse.urlparse(self.archive_path).path[1:]
+        base_prefix = os.path.join(root, sha1)
+        files = []
+        prefix = os.path.join(base_prefix, 'engine')
+        for x in bucket.list(prefix = prefix):
+            if x.name[-1] != '/':
+                # Skip directory "keys". When creating empty directories
+                # a psudeo-key is created. Directories isn't a first-class object on s3
+                if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$', x.name):
+                    name = os.path.relpath(x.name, base_prefix)
+                    files.append({'name': name, 'path': '/' + x.name})
+
+        prefix = os.path.join(base_prefix, 'bob')
+        for x in bucket.list(prefix = prefix):
+            if x.name[-1] != '/':
+                # Skip directory "keys". When creating empty directories
+                # a psudeo-key is created. Directories isn't a first-class object on s3
+                if re.match('.*(/bob.jar)$', x.name):
+                    name = os.path.relpath(x.name, base_prefix)
+                    files.append({'name': name, 'path': '/' + x.name})
+
+        prefix = os.path.join(base_prefix, self.channel, 'editor')
+        for x in bucket.list(prefix = prefix):
+            if x.name[-1] != '/':
+                # Skip directory "keys". When creating empty directories
+                # a psudeo-key is created. Directories isn't a first-class object on s3
+                if re.match('.*(/Defold-*)$', x.name):
+                    name = os.path.relpath(x.name, base_prefix)
+                    files.append({'name': name, 'path': '/' + x.name})
+        return files
+
+    def _get_single_release(self, version_tag, sha1):
+        u = urlparse.urlparse(self.archive_path)
+        bucket = self._get_s3_bucket(u.hostname)
+        files = self._get_files(bucket, sha1)
+
+        return {'tag': version_tag,
+                'sha1': sha1,
+                'abbrevsha1': sha1[:7],
+                'files': files}
+
     def _get_tagged_releases(self):
         u = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(u.hostname)
-
-        def get_files(sha1):
-            root = urlparse.urlparse(self.archive_path).path[1:]
-            base_prefix = os.path.join(root, sha1)
-            files = []
-            prefix = os.path.join(base_prefix, 'engine')
-            for x in bucket.list(prefix = prefix):
-                if x.name[-1] != '/':
-                    # Skip directory "keys". When creating empty directories
-                    # a psudeo-key is created. Directories isn't a first-class object on s3
-                    if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$', x.name):
-                        name = os.path.relpath(x.name, base_prefix)
-                        files.append({'name': name, 'path': '/' + x.name})
-
-            prefix = os.path.join(base_prefix, 'bob')
-            for x in bucket.list(prefix = prefix):
-                if x.name[-1] != '/':
-                    # Skip directory "keys". When creating empty directories
-                    # a psudeo-key is created. Directories isn't a first-class object on s3
-                    if re.match('.*(/bob.jar)$', x.name):
-                        name = os.path.relpath(x.name, base_prefix)
-                        files.append({'name': name, 'path': '/' + x.name})
-
-            prefix = os.path.join(base_prefix, self.channel, 'editor')
-            for x in bucket.list(prefix = prefix):
-                if x.name[-1] != '/':
-                    # Skip directory "keys". When creating empty directories
-                    # a psudeo-key is created. Directories isn't a first-class object on s3
-                    if re.match('.*(/Defold-*)$', x.name):
-                        name = os.path.relpath(x.name, base_prefix)
-                        files.append({'name': name, 'path': '/' + x.name})
-            return files
 
         tags = self.exec_shell_command("git for-each-ref --sort=taggerdate --format '%(*objectname) %(refname)' refs/tags").split('\n')
         tags.reverse()
@@ -1216,7 +1236,7 @@ instructions.configure=\
             sha1, tag = m.groups()
             epoch = self.exec_shell_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
             date = datetime.fromtimestamp(float(epoch))
-            files = get_files(sha1)
+            files = self._get_files(bucket, sha1)
             if len(files) > 0:
                 releases.append({'tag': tag,
                                  'sha1': sha1,
@@ -1282,12 +1302,12 @@ instructions.configure=\
         </div>
 
         <script id="templ-releases" type="text/html">
-            <h2>Editor {{editor.version}}</h2>
-            {{#editor.stable}}
+            <h2>{{release.channel}} {{release.version}}</h2>
+            {{#release.editor}}
                 <p>
                     <a href="{{url}}" class="btn btn-primary" style="width: 20em;" role="button">Download for {{name}}</a>
                 </p>
-            {{/editor.stable}}
+            {{/release.editor}}
 
             {{#has_releases}}
                 <h2>Releases</h2>
@@ -1391,6 +1411,9 @@ instructions.configure=\
             # Move artifacts to a separate page?
             model['releases'] = self._get_tagged_releases()
             model['has_releases'] = True
+        else:
+            model['releases'] = self._get_single_release(self.version, self._git_sha1())
+            model['has_releases'] = True
 
         # NOTE
         # - The stable channel is based on the latest tag
@@ -1407,19 +1430,16 @@ instructions.configure=\
             if response[0] != 'y':
                 return
 
-        # Pick editor URLs from the current SHA1 build.
-        model['editor'] = {'stable': [ dict(name='macOS 10.7+', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-darwin.dmg' % release_sha1),
-                                       dict(name='Windows', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-win32.zip' % release_sha1),
-                                       dict(name='Ubuntu 16.04+', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-linux.zip' % release_sha1)] }
+        model['release'] = { 'channel': "Unknown", 'version': self.version }
+        if self.channel:
+            model['release']['channel'] = self.channel.capitalize()
 
         # We handle the stable channel seperately, since we want it to point
         # to the editor-dev release (which uses the latest stable engine).
         if self.channel == "stable":
-            model['editor'] = {'stable': [ dict(name='macOS 10.7+', url='https://www.defold.com/download/editor2/Defold-x86_64-darwin.dmg'),
-                                           dict(name='Windows', url='https://www.defold.com/download/editor2/Defold-x86_64-win32.zip'),
-                                           dict(name='Ubuntu 16.04+', url='https://www.defold.com/download/editor2/Defold-x86_64-linux.zip')] }
-
-        model['editor']['version'] = self.version
+            model['release'] = {'editor': [ dict(name='macOS 10.7+', url='https://www.defold.com/download/editor2/Defold-x86_64-darwin.dmg'),
+                                            dict(name='Windows', url='https://www.defold.com/download/editor2/Defold-x86_64-win32.zip'),
+                                            dict(name='Ubuntu 16.04+', url='https://www.defold.com/download/editor2/Defold-x86_64-linux.zip')] }
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html

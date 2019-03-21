@@ -4,13 +4,11 @@
 #include <stdint.h>
 #include <dmsdk/script/script.h>
 
-#include <vectormath/cpp/vectormath_aos.h>
 #include <dlib/buffer.h>
 #include <dlib/vmath.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/configfile.h>
-#include <dlib/json.h>
 #include <dlib/log.h>
 #include <resource/resource.h>
 #include <ddf/ddf.h>
@@ -48,17 +46,17 @@ namespace dmScript
 
     /**
      * Implementor should return a Ref to the instance context table.
-     * 
+     *
      * CAUTION! The implementation should *NOT* create a new ref, it
      * should return an existing one. If it does not have one, it should
      * return LUA_NOREF
-     * 
+     *
      * Lua stack on entry
      *  [-1] instance
-     * 
+     *
      * Lua stack on exit
      *  [-1] ref to instance context table or LUA_NOREF
-     * 
+     *
      */
     extern const char* META_GET_INSTANCE_CONTEXT_TABLE_REF;
 
@@ -78,7 +76,7 @@ namespace dmScript
 
     /**
      * Use a ScriptExtension to hook into various callbacks of the script lifetime
-     * 
+     *
      * For callbacks you do not care for, set them to 0x0
      */
     struct ScriptExtension
@@ -156,7 +154,7 @@ namespace dmScript
      * Register a script extension to the context.
      * The script_extensions lifetime should wrap the lifetime of the context,
      * usually you would supply a pointer to a static instance of the script_extension
-     * 
+     *
      * @param context script context
      * @param script_extension the implementation of the HScriptExtension
      */
@@ -176,15 +174,15 @@ namespace dmScript
 
     /**
      * Set value by key using in the context table of active HContext
-     * 
+     *
      * Expects Initialize(context) to have been called
      *
      * @param L Lua state
-     * 
+     *
      * Lua stack on entry
      *  [-2] key
      *  [-1] value
-     * 
+     *
      * Lua stack on exit
     */
     void SetContextValue(HContext context);
@@ -193,12 +191,12 @@ namespace dmScript
      * Get value by key using from context table of active HContext
      *
      * Expects Initialize(context) to have been called
-     * 
+     *
      * @param L Lua state
-     * 
+     *
      * Lua stack on entry
      *  [-1] key
-     * 
+     *
      * Lua stack on exit
      *  [-1] value or LUA_NIL
     */
@@ -323,98 +321,6 @@ namespace dmScript
     dmVMath::FloatVector* CheckVector(lua_State* L, int index);
 
     /**
-     * Check if the value at #index is a vector3
-     * @param L Lua state
-     * @param index Index of the value
-     * @return true if value at #index is a vector3
-     */
-    bool IsVector3(lua_State *L, int index);
-
-    /**
-     * Push a Vector3 value onto the supplied lua state, will increase the stack by 1.
-     * @param L Lua state
-     * @param v Vector3 value to push
-     */
-    void PushVector3(lua_State* L, const Vectormath::Aos::Vector3& v);
-
-    /**
-     * Check if the value in the supplied index on the lua stack is a Vector3.
-     * @param L Lua state
-     * @param index Index of the value
-     * @return The Vector3 value
-     */
-    Vectormath::Aos::Vector3* CheckVector3(lua_State* L, int index);
-
-    /**
-     * Check if the value at #index is a vector4
-     * @param L Lua state
-     * @param index Index of the value
-     * @return true if value at #index is a vector4
-     */
-    bool IsVector4(lua_State *L, int index);
-
-    /**
-     * Push a Vector4 value onto the supplied lua state, will increase the stack by 1.
-     * @param L Lua state
-     * @param v Vector4 value to push
-     */
-    void PushVector4(lua_State* L, const Vectormath::Aos::Vector4& v);
-
-    /**
-     * Check if the value in the supplied index on the lua stack is a Vector4.
-     * @param L Lua state
-     * @param index Index of the value
-     * @return The Vector4 value
-     */
-    Vectormath::Aos::Vector4* CheckVector4(lua_State* L, int index);
-
-    /**
-     * Check if the value at #index is a quat
-     * @param L Lua state
-     * @param index Index of the value
-     * @return true if value at #index is a quat
-     */
-    bool IsQuat(lua_State *L, int index);
-
-    /**
-     * Push a quaternion value onto the supplied lua state, will increase the stack by 1.
-     * @param L Lua state
-     * @param q Quaternion value to push
-     */
-    void PushQuat(lua_State* L, const Vectormath::Aos::Quat& q);
-
-    /**
-     * Check if the value in the supplied index on the lua stack is a quaternion.
-     * @param L Lua state
-     * @param index Index of the value
-     * @return The quat value
-     */
-    Vectormath::Aos::Quat* CheckQuat(lua_State* L, int index);
-
-    /**
-     * Check if the value at #index is a matrix4
-     * @param L Lua state
-     * @param index Index of the value
-     * @return true if value at #index is a matrix4
-     */
-    bool IsMatrix4(lua_State *L, int index);
-
-    /**
-     * Push a matrix4 value onto the supplied lua state, will increase the stack by 1.
-     * @param L Lua state
-     * @param m Matrix4 value to push
-     */
-    void PushMatrix4(lua_State* L, const Vectormath::Aos::Matrix4& m);
-
-    /**
-     * Check if the value in the supplied index on the lua stack is a matrix4.
-     * @param L Lua state
-     * @param index Index of the value
-     * @return The matrix4 value
-     */
-    Vectormath::Aos::Matrix4* CheckMatrix4(lua_State* L, int index);
-
-    /**
      * Check if the value at #index is a URL
      * @param L Lua state
      * @param index Index of the value
@@ -457,7 +363,7 @@ namespace dmScript
     /**
      * Returns an identifier that identifies the current instance set by SetInstance().
      * The id is guarranteed to be unique among the currently alive script instances.
-     * 
+     *
      * @param L Lua state
      * @return unique identifier for the instance
      */
@@ -466,7 +372,7 @@ namespace dmScript
     /**
      * Create a "world" for this script, normally this matches a GO collection,
      * GUI scene or a RenderWorld.
-     * 
+     *
      * @param context Script context
      * @return the script world
      */
@@ -474,23 +380,23 @@ namespace dmScript
 
     /**
      * Delete the script world
-     * 
+     *
      * @param script_world The script world created with NewScriptWorld
      */
     void DeleteScriptWorld(HScriptWorld script_world);
 
     /**
      * Update the script world
-     * 
+     *
      * @param script_world the script world created with NewScriptWorld
      * @param dt the delta time in the world in seconds
      */
     void UpdateScriptWorld(HScriptWorld script_world, float dt);
- 
+
     /**
      * Sets up the instance with associated data, expects SetInstance to have been
      * called prior to this function
-     * 
+     *
      * @param script_world the script world
      */
     void InitializeInstance(HScriptWorld script_world);
@@ -498,24 +404,24 @@ namespace dmScript
     /**
      * Removes the instance associated data, expects SetInstance to have been
      * called prior to this function
-     * 
+     *
      * @param script_world the script world
      */
     void FinalizeInstance(HScriptWorld script_world);
 
     /**
      * Set value by key using the META_GET_INSTANCE_CONTEXT_TABLE_REF meta table function
-     * 
+     *
      * Expects SetInstance() to have been set with an value that has a meta table
      * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
      *
      * @param L Lua state
      * @return true if the value could be store under the key
-     * 
+     *
      * Lua stack on entry
      *  [-2] key
      *  [-1] value
-     * 
+     *
      * Lua stack on exit
     */
     bool SetInstanceContextValue(lua_State* L);
@@ -525,12 +431,12 @@ namespace dmScript
      *
      * Expects SetInstance() to have been set with an value that has a meta table
      * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
-     * 
+     *
      * @param L Lua state
-     * 
+     *
      * Lua stack on entry
      *  [-1] key
-     * 
+     *
      * Lua stack on exit
      *  [-1] value or LUA_NIL
     */
@@ -539,46 +445,46 @@ namespace dmScript
     /**
      * Creates a reference to the value at top of stack, the ref is done in the
      * current instances context table.
-     * 
+     *
      * Expects SetInstance() to have been set with an value that has a meta table
      * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
-     * 
+     *
      * @param L Lua state
      * @return lua ref to value or LUA_NOREF
-     * 
+     *
      * Lua stack on entry
      *  [-1] value
-     * 
+     *
      * Lua stack on exit
     */
     int RefInInstance(lua_State* L);
 
     /**
      * Deletes the instance local lua reference
-     * 
+     *
      * Expects SetInstance() to have been set with an value that has a meta table
      * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
-     * 
+     *
      * @param L Lua state
      * @param ref the instance local ref
-     * 
+     *
      * Lua stack on entry
-     * 
+     *
      * Lua stack on exit
      */
     void UnrefInInstance(lua_State* L, int ref);
 
     /**
      * Resolves the instance local ref and pushes it to top of stack
-     * 
+     *
      * Expects SetInstance() to have been set with an value that has a meta table
      * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
-     * 
+     *
      * @param L Lua state
      * @param ref the instance local ref
-     * 
+     *
      * Lua stack on entry
-     * 
+     *
      * Lua stack on exit
      *  [-1] value or LUA_NIL
      */
@@ -588,25 +494,25 @@ namespace dmScript
 
     /**
      * Set value by key in the context table associated with the script world
-     * 
+     *
      * @param script_world the script world created with NewScriptWorld
-     * 
+     *
      * Lua stack on entry
      *  [-2] key
      *  [-1] value
-     * 
+     *
      * Lua stack on exit
     */
     void SetScriptWorldContextValue(HScriptWorld script_world);
 
     /**
      * Get value by key from the context table associated with the script world
-     * 
+     *
      * @param script_world the script world created with NewScriptWorld
-     * 
+     *
      * Lua stack on entry
      *  [-1] key
-     * 
+     *
      * Lua stack on exit
      *  [-1] value
     */
@@ -712,17 +618,6 @@ namespace dmScript
      */
     int LuaLoad(lua_State *L, dmLuaDDF::LuaSource* source);
 
-    /**
-     * Convert a JSON document to Lua table.
-     * @param L lua state
-     * @param doc JSON document
-     * @param index index of JSON node
-     * @param error_str_out if an error is encountered, the error string is written to this argument
-     * @param error_str_size size of error_str_out
-     * @return index of next JSON node to handle
-     */
-    int JsonToLua(lua_State*L, dmJson::Document* doc, int index, char* error_str_out, size_t error_str_size);
-
     /** Gets the number of references currently kept
      * @return the total number of references in the game
     */
@@ -743,10 +638,10 @@ namespace dmScript
     /** Register a Lua callback. Stores the current Lua state plus references to the
      * script instance (self) and the callback Expects SetInstance() to have been called
      * prior to using this method.
-     * 
+     *
      * The allocated data is created on the Lua stack and references are made against the
      * instances own context table.
-     * 
+     *
      * If the callback is not explicitly deleted with DeleteCallback() the references and
      * data will stay around until the script instance is deleted.
      */
@@ -767,7 +662,7 @@ namespace dmScript
     /** Invokes a Lua callback. User can pass a custom function for pushing extra Lua arguments
      * to the stack, prior to the call
      * Returns true on success and false on failure. In case of failure, an error will be logged.
-     * 
+     *
      * The function takes care of setting up and restoring the current instance.
      */
     bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context);

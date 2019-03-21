@@ -1,6 +1,6 @@
 #include <string.h>
 #include <assert.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
@@ -213,6 +213,19 @@ namespace dmGraphics
             main.m_DepthBufferSize = buffer_size;
             main.m_StencilBuffer = new char[buffer_size];
             main.m_StencilBufferSize = buffer_size;
+            if (context->m_WindowResizeCallback)
+                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, width, height);
+        }
+    }
+
+    void ResizeWindow(HContext context, uint32_t width, uint32_t height)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            context->m_WindowWidth = width;
+            context->m_WindowHeight = height;
+
             if (context->m_WindowResizeCallback)
                 context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, width, height);
         }

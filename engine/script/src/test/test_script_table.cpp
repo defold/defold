@@ -580,11 +580,15 @@ TEST_F(LuaTableTest, Vector3)
     dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "v");
-    ASSERT_TRUE(dmScript::IsVector3(L, -1));
-    Vectormath::Aos::Vector3* v = dmScript::CheckVector3(L, -1);
-    ASSERT_EQ(1, v->getX());
-    ASSERT_EQ(2, v->getY());
-    ASSERT_EQ(3, v->getZ());
+    Vectormath::Aos::Vector3* v1 = dmScript::ToVector3(L, -1);
+    ASSERT_EQ(1, v1->getX());
+    ASSERT_EQ(2, v1->getY());
+    ASSERT_EQ(3, v1->getZ());
+
+    Vectormath::Aos::Vector3* v2 = dmScript::CheckVector3(L, -1);
+    ASSERT_EQ(1, v2->getX());
+    ASSERT_EQ(2, v2->getY());
+    ASSERT_EQ(3, v2->getZ());
     lua_pop(L, 1);
 
     lua_pop(L, 1);
@@ -604,12 +608,17 @@ TEST_F(LuaTableTest, Vector4)
     dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "v");
-    ASSERT_TRUE(dmScript::IsVector4(L, -1));
-    Vectormath::Aos::Vector4* v = dmScript::CheckVector4(L, -1);
-    ASSERT_EQ(1, v->getX());
-    ASSERT_EQ(2, v->getY());
-    ASSERT_EQ(3, v->getZ());
-    ASSERT_EQ(4, v->getW());
+    Vectormath::Aos::Vector4* v1 = dmScript::ToVector4(L, -1);
+    ASSERT_EQ(1, v1->getX());
+    ASSERT_EQ(2, v1->getY());
+    ASSERT_EQ(3, v1->getZ());
+    ASSERT_EQ(4, v1->getW());
+
+    Vectormath::Aos::Vector4* v2 = dmScript::CheckVector4(L, -1);
+    ASSERT_EQ(1, v2->getX());
+    ASSERT_EQ(2, v2->getY());
+    ASSERT_EQ(3, v2->getZ());
+    ASSERT_EQ(4, v2->getW());
     lua_pop(L, 1);
 
     lua_pop(L, 1);
@@ -629,12 +638,17 @@ TEST_F(LuaTableTest, Quat)
     dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "v");
-    ASSERT_TRUE(dmScript::IsQuat(L, -1));
-    Vectormath::Aos::Quat* v = dmScript::CheckQuat(L, -1);
-    ASSERT_EQ(1, v->getX());
-    ASSERT_EQ(2, v->getY());
-    ASSERT_EQ(3, v->getZ());
-    ASSERT_EQ(4, v->getW());
+    Vectormath::Aos::Quat* v1 = dmScript::ToQuat(L, -1);
+    ASSERT_EQ(1, v1->getX());
+    ASSERT_EQ(2, v1->getY());
+    ASSERT_EQ(3, v1->getZ());
+    ASSERT_EQ(4, v1->getW());
+
+    Vectormath::Aos::Quat* v2 = dmScript::CheckQuat(L, -1);
+    ASSERT_EQ(1, v2->getX());
+    ASSERT_EQ(2, v2->getY());
+    ASSERT_EQ(3, v2->getZ());
+    ASSERT_EQ(4, v2->getW());
     lua_pop(L, 1);
 
     lua_pop(L, 1);
@@ -658,11 +672,15 @@ TEST_F(LuaTableTest, Matrix4)
     dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "v");
-    ASSERT_TRUE(dmScript::IsMatrix4(L, -1));
-    Vectormath::Aos::Matrix4* v = dmScript::CheckMatrix4(L, -1);
+    Vectormath::Aos::Matrix4* m1 = dmScript::ToMatrix4(L, -1);
     for (uint32_t i = 0; i < 4; ++i)
         for (uint32_t j = 0; j < 4; ++j)
-            ASSERT_EQ(i * 4 + j, v->getElem(i, j));
+            ASSERT_EQ(i * 4 + j, m1->getElem(i, j));
+
+    Vectormath::Aos::Matrix4* m2 = dmScript::CheckMatrix4(L, -1);
+    for (uint32_t i = 0; i < 4; ++i)
+        for (uint32_t j = 0; j < 4; ++j)
+            ASSERT_EQ(i * 4 + j, m2->getElem(i, j));
     lua_pop(L, 1);
 
     lua_pop(L, 1);

@@ -30,6 +30,7 @@
            [javafx.beans.binding ObjectBinding]
            [javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty]
            [javafx.beans.value ChangeListener]
+           [javafx.event EventHandler]
            [javafx.geometry HPos Point2D VPos]
            [javafx.scene Node Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
@@ -88,11 +89,31 @@
                                    [(mime-type->DataFormat mime-type) representation]))
                             representation-by-mime-type))))
 
-(defrecord GlyphMetrics [^FontStrike font-strike ^double line-height ^double ascent]
+(def ^:private ^:const min-cached-char-width
+  (double (inc Byte/MIN_VALUE)))
+
+(def ^:private ^:const max-cached-char-width
+  (double Byte/MAX_VALUE))
+
+(defn- make-char-width-cache [^FontStrike font-strike]
+  (let [cache (byte-array (inc (int Character/MAX_VALUE)) Byte/MIN_VALUE)]
+    (fn get-char-width [^Character character]
+      (let [ch (unchecked-char character)
+            i (unchecked-int ch)
+            cached-width (aget cache i)]
+        (if (= cached-width Byte/MIN_VALUE)
+          (let [width (Math/floor (.getCharAdvance font-strike ch))]
+            (when (and (<= min-cached-char-width width)
+                       (<= width max-cached-char-width))
+              (aset cache i (byte width)))
+            width)
+          cached-width)))))
+
+(defrecord GlyphMetrics [char-width-cache ^double line-height ^double ascent]
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
-  (char-width [_this character] (Math/floor (.getCharAdvance font-strike character))))
+  (char-width [_this character] (char-width-cache character)))
 
 (defn make-glyph-metrics
   ^GlyphMetrics [^Font font ^double line-height-factor]
@@ -103,7 +124,7 @@
                                 FontResource/AA_GREYSCALE)
         line-height (Math/ceil (* (inc (.getLineHeight font-metrics)) line-height-factor))
         ascent (Math/ceil (* (.getAscent font-metrics) line-height-factor))]
-    (->GlyphMetrics font-strike line-height ascent)))
+    (->GlyphMetrics (make-char-width-cache font-strike) line-height ascent)))
 
 (def ^:private default-editor-color-scheme
   (let [^Color foreground-color (Color/valueOf "#DDDDDD")
@@ -2301,6 +2322,24 @@
                          :else
                          :not-focused)))))
 
+;; JavaFX generally reports wrong key-typed events when typing tilde on Swedish
+;; keyboard layout, which is a problem when writing Lua because it uses ~ for negation,
+;; so typing "AltGr ` =" inserts "~¨=" instead of "~="
+;; Original JavaFX issue: https://bugs.openjdk.java.net/browse/JDK-8183521
+;; See also: https://github.com/javafxports/openjdk-jfx/issues/358
+
+(defn- wrap-disallow-diaeresis-after-tilde
+  ^EventHandler [^EventHandler handler]
+  (let [last-event-volatile (volatile! nil)]
+    (ui/event-handler event
+      (let [^KeyEvent new-event event
+            ^KeyEvent prev-event @last-event-volatile]
+        (vreset! last-event-volatile event)
+        (when-not (and (some? prev-event)
+                       (= "~" (.getCharacter prev-event))
+                       (= "¨" (.getCharacter new-event)))
+          (.handle handler event))))))
+
 (defn- make-view! [graph parent resource-node opts]
   (let [^Tab tab (:tab opts)
         app-view (:app-view opts)
@@ -2349,7 +2388,8 @@
       (.setFocusTraversable true)
       (.setCursor javafx.scene.Cursor/TEXT)
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (handle-key-pressed! view-node event)))
-      (.addEventHandler KeyEvent/KEY_TYPED (ui/event-handler event (handle-key-typed! view-node event)))
+      (.addEventHandler KeyEvent/KEY_TYPED (wrap-disallow-diaeresis-after-tilde
+                                             (ui/event-handler event (handle-key-typed! view-node event))))
       (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-mouse-pressed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-moved! view-node event)))
