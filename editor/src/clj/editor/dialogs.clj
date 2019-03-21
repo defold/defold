@@ -155,11 +155,12 @@
                            (reset! result-atom true)
                            (ui/close! stage)))
        (ui/on-action! cancel (fn [_]
-                               (ui/close! stage))))
-     (when-let [pref-width (:pref-width options)]
-       (.setPrefWidth root pref-width))
-     (ui/title! stage (get options :title "Please Confirm"))
-     (.setScene stage scene)
+                               (ui/close! stage)))
+       (when-let [pref-width (:pref-width options)]
+         (.setPrefWidth root pref-width))
+       (ui/title! stage (get options :title "Please Confirm"))
+       (.setScene stage scene)
+       (.requestFocus ok))
      (ui/show-and-wait! stage)
      @result-atom)))
 
