@@ -1,8 +1,10 @@
 (ns editor.build-target-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.defold-project :as project]
+            [editor.game-project :as game-project]
             [editor.pipeline :as pipeline]
             [editor.placeholder-resource :refer [PlaceholderResourceNode]]
             [editor.resource :as resource]
@@ -11,7 +13,7 @@
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]])
   (:import [com.google.protobuf ByteString]
-           [java.io File StringWriter]
+           [java.io StringWriter]
            [java.net URI]
            [javax.vecmath Matrix4d]))
 
@@ -28,6 +30,13 @@
   (let [resource-type (workspace/get-resource-type workspace "lua")]
     (resource/make-memory-resource workspace resource-type source)))
 
+(defn- make-fake-file-resource [workspace path text]
+  (let [root-dir (workspace/project-path workspace)]
+    (test-util/make-fake-file-resource workspace
+                                       (.getPath root-dir)
+                                       (io/file root-dir path)
+                                       (.getBytes text "UTF-8"))))
+
 (deftest digest-strings
   ;; Here we test the strings that will be hashed during the digest process.
   ;; Note that the actual digest process writes these strings to a special
@@ -39,7 +48,9 @@
           zip-resource (workspace/find-resource workspace  "/builtins/graphics/particle_blob.png")
           zip-resource-node (project/get-resource-node project zip-resource)
           memory-resource (make-lua-memory-resource workspace "return {key = 123}")
-          build-resource (workspace/make-build-resource memory-resource)]
+          build-resource (workspace/make-build-resource memory-resource)
+          fake-file-resource (make-fake-file-resource workspace "docs/readme.txt" "Defold")
+          custom-resource (game-project/->CustomResource fake-file-resource)]
       (is (resource/exists? file-resource))
       (is (g/node-id? file-resource-node))
       (is (resource/exists? zip-resource))
@@ -65,6 +76,8 @@
           (= result (digest-string value))
 
           "#dg/BuildResource -479253108" build-resource
+          "#dg/CustomResource 991186313" custom-resource
+          "#dg/FakeFileResource 991186313" fake-file-resource
           "#dg/FileResource 2064822056" file-resource
           "#dg/MemoryResource -479253108" memory-resource
           "#dg/ZipResource 1001491596" zip-resource))
@@ -76,7 +89,6 @@
           "#dg/Bytes [0, 32, 64]" (byte-array [0 32 64])
           "#dg/ByteString [65, 66, 67]" (ByteString/copyFrom "ABC" "UTF-8")
           "#dg/Class java.io.StringWriter" StringWriter
-          "#dg/File \"readme.txt\"" (File. "readme.txt")
           "#dg/Function editor.build-target/content-hash" bt/content-hash
           "#dg/Matrix4d [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]" (doto (Matrix4d.) .setIdentity)
           "#dg/URI \"https://www.defold.com\"" (URI. "https://www.defold.com")))
