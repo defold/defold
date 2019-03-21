@@ -1278,29 +1278,30 @@
   `(let [~ctx-name (mark-in-production ~ctx-name ~(:name description) ~nodeid-sym ~transform)]
      ~forms))
 
+(defn check-caches! [evaluation-context node node-id transform]
+  (let [local @(:local evaluation-context)
+        global (:cache evaluation-context)
+        cache-key [node-id transform]]
+    (cond
+      (contains? local cache-key)
+      [true (trace-expr node evaluation-context transform :cache (fn [] (get local cache-key)))]
+
+      (contains? global cache-key)
+      [true (trace-expr node evaluation-context transform :cache
+                        (fn []
+                          (when-some [cached-result (get global cache-key)]
+                            (swap! (:hits evaluation-context) conj cache-key)
+                            cached-result)))])))
+
 (defn- check-caches-form [self-name ctx-name nodeid-sym description transform local-cache-sym forms]
-  (gensyms [local global local-temp local-temp-res key]
+  (gensyms [local global local-temp local-temp-res cache-key]
            (if (get-in description [:output transform :flags :cached])
-             `(let [~local-cache-sym (:local ~ctx-name)
-                    ~local (deref ~local-cache-sym)
-                    ~global (:cache ~ctx-name)
-                    ~key [~nodeid-sym ~transform]]
-                (cond
-                  (contains? ~local ~key)
-                  ~(with-tracer-calls-form self-name ctx-name transform :cache
-                     `(get ~local ~key))
-
-                  (contains? ~global ~key)
-                  ~(with-tracer-calls-form self-name ctx-name transform :cache
-                     `(if-some [cached# (get ~global ~key)]
-                        (do (swap! (:hits ~ctx-name) conj ~key)
-                            cached#)))
-
-                  true
-                  ~forms))
+             `(if-some [[hit# result#] (check-caches! ~ctx-name ~self-name ~nodeid-sym ~transform)]
+                result#
+                ~forms)
              `(let [~local-temp (some-> (:local-temp ~ctx-name) deref)
-                    ~key [~nodeid-sym ~transform]
-                    weak# ^WeakReference (get ~local-temp ~key)]
+                    ~cache-key [~nodeid-sym ~transform]
+                    weak# ^WeakReference (get ~local-temp ~cache-key)]
                 (if-some [~local-temp-res (and weak# (.get weak#))]
                   ~(with-tracer-calls-form self-name ctx-name transform :cache
                      `(if (= ~local-temp-res ::nil) nil ~local-temp-res))
@@ -1330,7 +1331,7 @@
 (defn- cache-output-form [ctx-name description transform nodeid-sym output-sym local-cache-sym forms]
   (if (contains? (get-in description [:output transform :flags]) :cached)
     `(do
-       (swap! ~local-cache-sym assoc [~nodeid-sym ~transform] ~output-sym)
+       (swap! (:local ~ctx-name) assoc [~nodeid-sym ~transform] ~output-sym)
        ~forms)
     `(do
        (when-let [local-temp# (:local-temp ~ctx-name)]
