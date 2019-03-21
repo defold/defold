@@ -9,7 +9,7 @@
             [editor.types :as types])
   (:import com.jogamp.opengl.GL2
            [editor.types AABB Camera]
-           [java.nio ByteBuffer DoubleBuffer]
+           [java.nio ByteBuffer ByteOrder DoubleBuffer]
            [javax.vecmath Matrix3d Point3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -21,7 +21,9 @@
 (def z-axis-color colors/scene-grid-z-axis)
 
 (defn- make-grid-vertex-buffer [_1 _2]
-  (.asDoubleBuffer (ByteBuffer/allocateDirect (* 3 8))))
+  (-> (ByteBuffer/allocateDirect (* 3 8))
+    (.order (ByteOrder/nativeOrder))
+    (.asDoubleBuffer)))
 
 (scene-cache/register-object-cache! ::grid-vertex make-grid-vertex-buffer identity identity)
 
