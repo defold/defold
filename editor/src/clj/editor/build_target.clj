@@ -31,7 +31,7 @@
 
 (defn- node-id-data-representation [node-id]
   (if-some [node-type (g/node-type* node-id)]
-    (pair (symbol (:k (g/node-type* node-id)))
+    (pair (symbol (:k node-type))
           (g/node-value node-id :sha256))
     (throw (ex-info (str "Unknown node id in build target: " node-id)
                     {:node-id node-id}))))
@@ -143,23 +143,23 @@
   (digest! [value writer]
     (digest-tagged! 'Class (symbol (.getName value)) writer)))
 
-(defn build-target-key-components [build-target]
+(defn content-hash-components [build-target]
   [(system/defold-engine-sha1)
    (:resource (:resource build-target))
    (:build-fn build-target)
    (:user-data build-target)])
 
-(defn build-target-key
+(defn content-hash
   ^String [build-target]
   (with-open [digest-output-stream (digest/make-digest-output-stream "SHA-1")
               writer (OutputStreamWriter. digest-output-stream)]
-    (let [key-components (build-target-key-components build-target)]
+    (let [content-hash-components (content-hash-components build-target)]
       (try
-        (digest! key-components writer)
+        (digest! content-hash-components writer)
         (catch Throwable error
-          (throw (ex-info (str "Failed to digest build target key for resource: " (resource/proj-path (:resource build-target)))
+          (throw (ex-info (str "Failed to digest content for resource: " (resource/proj-path (:resource build-target)))
                           {:build-target build-target
-                           :key-components key-components}
+                           :content-hash-components content-hash-components}
                           error))))
       (.flush writer)
       (-> digest-output-stream
@@ -167,9 +167,9 @@
           .digest
           digest/bytes->hex))))
 
-(defn build-target-key? [value]
+(defn content-hash? [value]
   (and (string? value)
        (= 40 (count value))))
 
-(defn update-build-target-key [build-target]
-  (assoc build-target :key (build-target-key build-target)))
+(defn with-content-hash [build-target]
+  (assoc build-target :content-hash (content-hash build-target)))

@@ -183,7 +183,7 @@
   (output build-targets g/Any (g/fnk [build-resource source-build-targets build-error ddf-message transform]
                                      (let [target (assoc (first source-build-targets)
                                                          :resource build-resource)]
-                                       [(bt/update-build-target-key
+                                       [(bt/with-content-hash
                                           (assoc target
                                             :instance-data
                                             {:resource (:resource target)
@@ -375,7 +375,7 @@
             dep-build-targets (flatten dep-build-targets)
             instance-data (map :instance-data dep-build-targets)
             instance-data (reduce concat instance-data (map #(get-in % [:user-data :instance-data]) sub-build-targets))]
-        [(bt/update-build-target-key
+        [(bt/with-content-hash
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
             :build-fn build-collection
@@ -478,7 +478,7 @@
             child-ids (reduce (fn [child-ids data] (into child-ids (:children (:instance-msg data)))) #{} instance-data)]
         (update build-targets 0
                 (fn [build-target]
-                  (bt/update-build-target-key
+                  (bt/with-content-hash
                     (assoc-in build-target [:user-data :instance-data]
                               (map #(flatten-instance-data % base-id transform child-ids ddf-properties)
                                    instance-data))))))))

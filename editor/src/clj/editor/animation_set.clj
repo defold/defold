@@ -71,7 +71,7 @@
      :content (protobuf/map->bytes Rig$AnimationSet animation-set-with-hash-ids)}))
 
 (g/defnk produce-animation-set-build-target [_node-id resource animation-set]
-  (bt/update-build-target-key
+  (bt/with-content-hash
     {:node-id _node-id
      :resource (workspace/make-build-resource resource)
      :build-fn build-animation-set

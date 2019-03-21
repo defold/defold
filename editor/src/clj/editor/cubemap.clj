@@ -167,7 +167,7 @@
   (g/precluding-errors
     [(cubemap-images-missing-error _node-id cubemap-image-resources)
      (cubemap-image-sizes-error _node-id cubemap-image-sizes)]
-    [(bt/update-build-target-key
+    [(bt/with-content-hash
        {:node-id _node-id
         :resource (workspace/make-build-resource resource)
         :build-fn build-cubemap

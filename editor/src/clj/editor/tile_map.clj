@@ -381,7 +381,7 @@
                                [label (get deps-by-resource resource)])
                              [[:tile-set tile-source]
                               [:material material]])]
-      [(bt/update-build-target-key
+      [(bt/with-content-hash
          {:node-id _node-id
           :resource (workspace/make-build-resource resource)
           :build-fn build-tile-map

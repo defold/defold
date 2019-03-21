@@ -67,7 +67,7 @@
 
 (g/defnk produce-build-targets
   [_node-id resource pb-msg]
-  [(bt/update-build-target-key
+  [(bt/with-content-hash
      {:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-camera
