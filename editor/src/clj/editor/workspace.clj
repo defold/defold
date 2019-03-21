@@ -2,22 +2,22 @@
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
 ordinary paths."
   (:require [clojure.java.io :as io]
-            [clojure.string :as string]
             [clojure.set :as set]
+            [clojure.string :as string]
+            [clojure.tools.reader.edn :as edn]
             [dynamo.graph :as g]
-            [editor.resource :as resource]
+            [editor.fs :as fs]
+            [editor.library :as library]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
+            [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
-            [editor.library :as library]
-            [editor.graph-util :as gu]
             [editor.url :as url]
             [service.log :as log])
-  (:import [java.io ByteArrayOutputStream File FilterOutputStream]
+  (:import [java.io File PushbackReader]
            [java.net URI]
-           [java.util.zip ZipEntry ZipInputStream]
-           [org.apache.commons.io FilenameUtils]
-           [editor.resource FileResource]))
+           [editor.resource FileResource]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -368,9 +368,48 @@ ordinary paths."
 (defn etags! [workspace etags]
   (g/user-data! workspace ::etags etags))
 
-(defn reset-cache! [workspace]
-  (g/user-data! workspace ::artifact-map nil)
-  (g/user-data! workspace ::etags nil))
+(defn- artifact-map-file
+  ^File [workspace]
+  (io/file (build-path workspace) ".artifact-map"))
+
+(defn- try-read-artifact-map [^File file]
+  (when (.exists file)
+    (try
+      (with-open [reader (PushbackReader. (io/reader file))]
+        (edn/read reader))
+      (catch Exception error
+        (log/warn :msg "Failed to read artifact map. Build cache invalidated." :exception error)
+        nil))))
+
+(defn artifact-map->etags [artifact-map]
+  (when (seq artifact-map)
+    (into {}
+          (map (juxt key (comp :etag val)))
+          artifact-map)))
+
+(defn load-build-cache! [workspace]
+  (let [file (artifact-map-file workspace)
+        artifact-map (try-read-artifact-map file)
+        etags (artifact-map->etags artifact-map)]
+    (artifact-map! workspace artifact-map)
+    (etags! workspace etags)
+    nil))
+
+(defn save-build-cache! [workspace]
+  (let [file (artifact-map-file workspace)
+        artifact-map (artifact-map workspace)]
+    (if (empty? artifact-map)
+      (fs/delete-file! file)
+      (let [saved-artifact-map (into (sorted-map) artifact-map)]
+        (fs/create-file! file (pr-str saved-artifact-map))))
+    nil))
+
+(defn clear-build-cache! [workspace]
+  (let [file (artifact-map-file workspace)]
+    (artifact-map! workspace nil)
+    (etags! workspace nil)
+    (fs/delete-file! file)
+    nil))
 
 (defn make-workspace [graph project-path build-settings]
   (g/make-node! graph Workspace
