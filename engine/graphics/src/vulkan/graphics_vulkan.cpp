@@ -165,8 +165,6 @@ namespace dmGraphics
 
         struct ShaderImageSampler
         {
-            uint16_t m_Set;
-            uint16_t m_Binding;
             uint16_t m_UniformIndex;
             uint16_t m_IsDirty;
             uint16_t m_TextureUnit;
@@ -2101,13 +2099,15 @@ namespace dmGraphics
 
                     vk_descriptor_write.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                     vk_descriptor_write.dstSet          = program->m_DescriptorSet;
-                    vk_descriptor_write.dstBinding      = sampler_uniform.m_Binding;
+                    vk_descriptor_write.dstBinding      = uniform.m_Binding;
                     vk_descriptor_write.dstArrayElement = 0;
                     vk_descriptor_write.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
                     vk_descriptor_write.descriptorCount = 1;
                     vk_descriptor_write.pImageInfo      = &vk_image_info;
 
                     vkUpdateDescriptorSets(g_vk_context.m_LogicalDevice, 1, &vk_descriptor_write, 0, 0);
+
+                    sampler.m_IsDirty = false;
                 }
             }
 
@@ -2172,8 +2172,8 @@ namespace dmGraphics
                 pblock.m_NameHash            = vpblock.m_NameHash;
                 pblock.m_UniformIndices      = new uint16_t[pblock.m_UniformIndicesCount];
                 memcpy(pblock.m_UniformIndices, vpblock.m_UniformIndices, sizeof(uint16_t));
-                program->m_UniformBlocks.Push(pblock);
 
+                program->m_UniformBlocks.Push(pblock);
                 next_binding++;
             }
 
@@ -2185,13 +2185,10 @@ namespace dmGraphics
                 if (u.m_DataType == TYPE_SAMPLER_2D)
                 {
                     ShaderImageSampler vsampler;
-                    vsampler.m_Set          = u.m_Set;
-                    vsampler.m_Binding      = u.m_Binding;
                     vsampler.m_UniformIndex = i;
                     vsampler.m_IsDirty      = 1;
 
                     program->m_ImageSamplers.Push(vsampler);
-
                     next_binding++;
                 }
             }
@@ -2200,12 +2197,14 @@ namespace dmGraphics
             uint16_t uniform_binding_offset = program->m_VertexProgram->m_Uniforms.Size();
             uint16_t sampler_binding_offset = program->m_ImageSamplers.Size();
 
+            uint16_t stage_binding_offset = next_binding;
+
             for (uint16_t i=0; i < program->m_FragmentProgram->m_UniformBlocks.Size(); i++)
             {
                 ShaderUniformBlock fsblock = program->m_FragmentProgram->m_UniformBlocks[i];
                 ProgramUniformBlock pblock;
                 pblock.m_Set                 = fsblock.m_Set;
-                pblock.m_Binding             = fsblock.m_Binding + block_binding_offset;
+                pblock.m_Binding             = fsblock.m_Binding + stage_binding_offset;
                 pblock.m_UniformIndicesCount = fsblock.m_UniformIndicesCount;
                 pblock.m_NameHash            = fsblock.m_NameHash;
                 pblock.m_UniformIndices      = new uint16_t[pblock.m_UniformIndicesCount];
@@ -2218,31 +2217,26 @@ namespace dmGraphics
                 }
 
                 program->m_UniformBlocks.Push(pblock);
-
-                next_binding++;
             }
 
             for (uint16_t i=0; i < program->m_FragmentProgram->m_Uniforms.Size(); i++)
             {
                 ShaderUniform u = program->m_FragmentProgram->m_Uniforms[i];
-                program->m_Uniforms.Push(u);
 
                 if (u.m_DataType == TYPE_SAMPLER_2D)
                 {
                     ShaderImageSampler fsampler;
-                    fsampler.m_Set          = u.m_Set;
-                    fsampler.m_Binding      = next_binding; // u.m_Binding; // maybe + sampler_binding_offset
                     fsampler.m_UniformIndex = i + uniform_binding_offset;
                     fsampler.m_IsDirty      = 1;
                     program->m_ImageSamplers.Push(fsampler);
-
-                    next_binding++;
+                    u.m_Binding += stage_binding_offset;
                 }
+                program->m_Uniforms.Push(u);
             }
 
             // Create layout bindings for all resources that we can bind with this shader
             program->m_LayoutBindingsIndices.SetCapacity(program->m_UniformBlocks.Size() + program->m_ImageSamplers.Size());
-            program->m_LayoutBindingsIndices.SetSize(0);
+            program->m_LayoutBindingsIndices.SetSize(program->m_UniformBlocks.Size() + program->m_ImageSamplers.Size());
 
             for (uint16_t i=0; i < program->m_UniformBlocks.Size(); i++)
             {
@@ -2266,7 +2260,7 @@ namespace dmGraphics
                         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT);
                 }
 
-                program->m_LayoutBindingsIndices.Push(block_layout_index);
+                program->m_LayoutBindingsIndices[block.m_Binding] = block_layout_index;
 
                 CreateGPUBuffer(block_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -2278,22 +2272,24 @@ namespace dmGraphics
 
             for (uint16_t i=0; i < program->m_ImageSamplers.Size(); i++)
             {
-                ShaderImageSampler& sampler   = program->m_ImageSamplers[i];
+                ShaderImageSampler& sampler = program->m_ImageSamplers[i];
+                ShaderUniform& u            = program->m_Uniforms[sampler.m_UniformIndex];
+
                 uint16_t sampler_layout_index = 0;
                 sampler.m_TextureUnit         = 0;
 
                 if (i < sampler_binding_offset)
                 {
-                    sampler_layout_index = GetDescriptorSetLayoutBindingIndex(sampler.m_Binding,
+                    sampler_layout_index = GetDescriptorSetLayoutBindingIndex(u.m_Binding,
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT);
                 }
                 else
                 {
-                    sampler_layout_index = GetDescriptorSetLayoutBindingIndex(sampler.m_Binding,
+                    sampler_layout_index = GetDescriptorSetLayoutBindingIndex(u.m_Binding,
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
                 }
 
-                program->m_LayoutBindingsIndices.Push(sampler_layout_index);
+                program->m_LayoutBindingsIndices[u.m_Binding] = sampler_layout_index;
             }
         }
 
@@ -2423,6 +2419,7 @@ namespace dmGraphics
         static inline void SetUniformValue(Program* program, uint16_t uniformIndex, void* data, size_t data_size)
         {
             dmArray<ProgramUniformBlock>& blocks = program->m_UniformBlocks;
+            ShaderUniform& uniform = program->m_Uniforms[uniformIndex];
 
             // Find the uniform blocks that hold the data for a specific uniform
             // Note: We might want to rearrange this relationship later..
@@ -2434,7 +2431,7 @@ namespace dmGraphics
 
                     if (block_index == uniformIndex)
                     {
-                        memcpy(blocks[i].m_UniformData, data, data_size);
+                        memcpy(blocks[i].m_UniformData + uniform.m_BlockOffset, data, data_size);
                         blocks[i].m_IsDirty = 1;
                     }
                 }
