@@ -125,9 +125,9 @@
 (def ^:private interaction-event-types
   #{KeyEvent/KEY_PRESSED
     KeyEvent/KEY_RELEASED
+    MouseEvent/MOUSE_DRAGGED
     MouseEvent/MOUSE_PRESSED
-    MouseEvent/MOUSE_RELEASED
-    MouseEvent/MOUSE_DRAGGED})
+    MouseEvent/MOUSE_RELEASED})
 
 (defn load-stage [workspace project prefs dashboard-client updater newly-created?]
   (let [^VBox root (ui/load-fxml "editor.fxml")
