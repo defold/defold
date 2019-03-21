@@ -768,8 +768,9 @@
               async-copy-state-atom (g/node-value node-id :async-copy-state evaluation-context)
               info-label (g/node-value node-id :info-label evaluation-context)
               info-text (g/node-value node-id :info-text evaluation-context)]
-          (when (some? info-label)
-            (if (empty? info-text)
+          (when (instance? Label info-label)
+            (if (or (g/error? info-text)
+                    (empty? info-text))
               (ui/visible! info-label false)
               (do (ui/text! info-label info-text)
                   (ui/visible! info-label true))))
