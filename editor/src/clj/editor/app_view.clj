@@ -557,6 +557,7 @@
   (reset! build-in-progress? true)
   (future
     (try
+      (render-build-progress! (progress/make "Building project..." 1))
       (let [extra-build-targets (when debug?
                                   (debug-view/build-targets project evaluation-context))
             build-results (ui/with-progress [_ render-build-progress!]
@@ -575,6 +576,7 @@
               (reset! build-in-progress? false)))))
       (catch Throwable t
         (reset! build-in-progress? false)
+        (render-build-progress! progress/done)
         (error-reporting/report-exception! t)))))
 
 (defn- handle-build-results! [workspace build-errors-view build-results]
