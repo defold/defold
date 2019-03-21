@@ -30,8 +30,6 @@ public class InfoPlistMerger {
 
     // Merges the lib onto base, using the merging rules from https://developer.android.com/studio/build/manifest-merge.html
     public static void mergePlists(XMLPropertyListConfiguration base, XMLPropertyListConfiguration lib) throws PlistMergeException {
-        boolean errors = false;
-
         Iterator<String> it = lib.getKeys();
         while (it.hasNext()) {
             String key = it.next();
