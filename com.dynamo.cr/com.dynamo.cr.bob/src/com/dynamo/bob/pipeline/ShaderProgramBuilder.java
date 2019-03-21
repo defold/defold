@@ -253,90 +253,102 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
         int uniformIndex = 0;
 
+        System.out.println("================");
+        System.out.println("Compiling shader");
+
         if (uboNode != null) {
             Iterator<JsonNode> uniformBlockIt = uboNode.getElements();
             while (uniformBlockIt.hasNext()) {
                 JsonNode uniformBlock = uniformBlockIt.next();
+                JsonNode bindingNode  = uniformBlock.get("binding");
 
-                System.out.println("UBO [" + uniformBlock.get("name").asText() + "]");
-                System.out.println(" type       : " + uniformBlock.get("type").asText());
-                System.out.println(" block_size : " + uniformBlock.get("block_size").asInt());
-                System.out.println(" set        : " + uniformBlock.get("set").asInt());
-                System.out.println(" binding    : " + uniformBlock.get("binding").asInt());
+                if (bindingNode != null)
+                {
+                    System.out.println("UBO [" + uniformBlock.get("name").asText() + "]");
+                    System.out.println(" type       : " + uniformBlock.get("type").asText());
+                    System.out.println(" block_size : " + uniformBlock.get("block_size").asInt());
+                    System.out.println(" set        : " + uniformBlock.get("set").asInt());
+                    System.out.println(" binding    : " + bindingNode.asInt());
 
-                ShaderDesc.UniformBlock.Builder uniformBlockBuilder = ShaderDesc.UniformBlock.newBuilder();
+                    ShaderDesc.UniformBlock.Builder uniformBlockBuilder = ShaderDesc.UniformBlock.newBuilder();
 
-                uniformBlockBuilder.setName(uniformBlock.get("name").asText());
-                uniformBlockBuilder.setSet(uniformBlock.get("set").asInt());
-                uniformBlockBuilder.setBinding(uniformBlock.get("binding").asInt());
+                    uniformBlockBuilder.setName(uniformBlock.get("name").asText());
+                    uniformBlockBuilder.setSet(uniformBlock.get("set").asInt());
+                    uniformBlockBuilder.setBinding(bindingNode.asInt());
 
-                JsonNode typeNode = typesNode.get(uniformBlock.get("type").asText());
-                JsonNode membersNode = typeNode.get("members");
+                    JsonNode typeNode = typesNode.get(uniformBlock.get("type").asText());
+                    JsonNode membersNode = typeNode.get("members");
 
-                for (Iterator<JsonNode> iter = membersNode.getElements(); iter.hasNext(); uniformIndex++) {
-                    JsonNode uniformNode = iter.next();
-                    String uniformNodeName = uniformNode.get("name").asText();
-                    String uniformNodeType = uniformNode.get("type").asText();
-                    int uniformNodeOffset  = uniformNode.get("offset").asInt();
+                    for (Iterator<JsonNode> iter = membersNode.getElements(); iter.hasNext(); uniformIndex++) {
+                        JsonNode uniformNode = iter.next();
+                        String uniformNodeName = uniformNode.get("name").asText();
+                        String uniformNodeType = uniformNode.get("type").asText();
+                        int uniformNodeOffset  = uniformNode.get("offset").asInt();
 
-                    System.out.println("  Uniform [" + uniformNodeName + "]");
-                    System.out.println("    Type   :" + uniformNodeType);
-                    System.out.println("    Offset :" + Integer.toString(uniformNodeOffset));
+                        System.out.println("  Uniform [" + uniformNodeName + "]");
+                        System.out.println("    Type   :" + uniformNodeType);
+                        System.out.println("    Offset :" + Integer.toString(uniformNodeOffset));
 
-                    ShaderDesc.Uniform.Builder uniformBuilder = ShaderDesc.Uniform.newBuilder();
-                    ShaderDesc.UniformType uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_UNKNOWN;
+                        ShaderDesc.Uniform.Builder uniformBuilder = ShaderDesc.Uniform.newBuilder();
+                        ShaderDesc.UniformType uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_UNKNOWN;
 
-                    if (uniformNodeType.equals("vec2")) {
-                        uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_VEC2;
-                    } else if (uniformNodeType.equals("vec3")) {
-                        uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_VEC3;
-                    } else if (uniformNodeType.equals("vec4")) {
-                        uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_VEC4;
-                    } else if (uniformNodeType.equals("mat2")) {
-                        uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_MAT2;
-                    } else if (uniformNodeType.equals("mat3")) {
-                        uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_MAT3;
-                    } else if (uniformNodeType.equals("mat4")) {
-                        uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_MAT4;
+                        if (uniformNodeType.equals("vec2")) {
+                            uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_VEC2;
+                        } else if (uniformNodeType.equals("vec3")) {
+                            uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_VEC3;
+                        } else if (uniformNodeType.equals("vec4")) {
+                            uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_VEC4;
+                        } else if (uniformNodeType.equals("mat2")) {
+                            uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_MAT2;
+                        } else if (uniformNodeType.equals("mat3")) {
+                            uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_MAT3;
+                        } else if (uniformNodeType.equals("mat4")) {
+                            uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_MAT4;
+                        }
+
+                        uniformBlockBuilder.addUniformIndices(uniformIndex);
+                        uniformBuilder.setName(uniformNodeName);
+                        uniformBuilder.setType(uniformType);
+                        uniformBuilder.setOffset(uniformNodeOffset);
+                        builder.addUniforms(uniformBuilder);
                     }
 
-                    uniformBlockBuilder.addUniformIndices(uniformIndex);
-                    uniformBuilder.setName(uniformNodeName);
-                    uniformBuilder.setType(uniformType);
-                    uniformBuilder.setOffset(uniformNodeOffset);
-                    builder.addUniforms(uniformBuilder);
+                    builder.addUniformBlocks(uniformBlockBuilder);
                 }
-
-                builder.addUniformBlocks(uniformBlockBuilder);
             }
         }
 
         if (texturesNode != null) {
             for (Iterator<JsonNode> iter = texturesNode.getElements(); iter.hasNext();) {
                 JsonNode textureNode   = iter.next();
-                String textureNodeType = textureNode.get("type").asText();
-                String textureNodeName = textureNode.get("name").asText();
-                int textureNodeSet     = textureNode.get("set").asInt();
-                int textureNodeBinding = textureNode.get("binding").asInt();
+                JsonNode bindingNode   = textureNode.get("binding");
 
-                System.out.println("  Texture [" + textureNodeName + "]");
-                System.out.println("    Type    :" + textureNodeType);
-                System.out.println("    Set     :" + Integer.toString(textureNodeSet));
-                System.out.println("    Binding :" + Integer.toString(textureNodeBinding));
-
-                ShaderDesc.Uniform.Builder uniformBuilder = ShaderDesc.Uniform.newBuilder();
-                ShaderDesc.UniformType uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_SAMPLER2D;
-
-                if (!textureNodeType.equals("sampler2D"))
+                if (bindingNode != null)
                 {
-                    throw new CompileExceptionError("Unsupported texture type: " + textureNodeType, null);
-                }
+                    String textureNodeType = textureNode.get("type").asText();
+                    String textureNodeName = textureNode.get("name").asText();
+                    int textureNodeSet     = textureNode.get("set").asInt();
+                    int textureNodeBinding = bindingNode.asInt();
 
-                uniformBuilder.setName(textureNodeName);
-                uniformBuilder.setType(uniformType);
-                uniformBuilder.setSet(textureNodeSet);
-                uniformBuilder.setBinding(textureNodeBinding);
-                builder.addUniforms(uniformBuilder);
+                    System.out.println("  Texture [" + textureNodeName + "]");
+                    System.out.println("    Type    :" + textureNodeType);
+                    System.out.println("    Set     :" + Integer.toString(textureNodeSet));
+                    System.out.println("    Binding :" + Integer.toString(textureNodeBinding));
+
+                    ShaderDesc.Uniform.Builder uniformBuilder = ShaderDesc.Uniform.newBuilder();
+                    ShaderDesc.UniformType uniformType = ShaderDesc.UniformType.UNIFORM_TYPE_SAMPLER2D;
+
+                    if (!textureNodeType.equals("sampler2D"))
+                    {
+                        throw new CompileExceptionError("Unsupported texture type: " + textureNodeType, null);
+                    }
+
+                    uniformBuilder.setName(textureNodeName);
+                    uniformBuilder.setType(uniformType);
+                    uniformBuilder.setSet(textureNodeSet);
+                    uniformBuilder.setBinding(textureNodeBinding);
+                    builder.addUniforms(uniformBuilder);
+                }
             }
         }
 
