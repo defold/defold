@@ -1,6 +1,5 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include "../dlib/atomic.h"

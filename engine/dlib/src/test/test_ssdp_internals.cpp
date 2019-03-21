@@ -196,9 +196,9 @@ TEST_F(dmSSDPInternalTest, New)
 
     // Test
     ASSERT_EQ(dmSSDP::RESULT_OK, actual);
-    ASSERT_EQ(1800, instance->m_MaxAge);
-    ASSERT_EQ(1, instance->m_Announce);
-    ASSERT_EQ(900, instance->m_AnnounceInterval);
+    ASSERT_EQ(1800u, instance->m_MaxAge);
+    ASSERT_EQ(1u, instance->m_Announce);
+    ASSERT_EQ(900u, instance->m_AnnounceInterval);
     ASSERT_TRUE(instance->m_HttpServer != NULL);
 
     // Teardown
@@ -303,7 +303,7 @@ TEST_F(dmSSDPInternalTest, UpdateListeningSockets)
     dmSocket::IfAddr interfaces[dmSSDP::SSDP_MAX_LOCAL_ADDRESSES];
     memset(interfaces, 0, sizeof(interfaces));
     uint32_t interface_count = GetInterfaces(interfaces, dmSSDP::SSDP_MAX_LOCAL_ADDRESSES);
-    ASSERT_GE(interface_count, 1); // "There are no IPv4 interface(s) available"
+    ASSERT_GE(1u, interface_count); // "There are no IPv4 interface(s) available"
 
     dmSSDP::UpdateListeningSockets(instance, interfaces, interface_count);
 

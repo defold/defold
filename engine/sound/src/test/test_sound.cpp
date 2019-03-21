@@ -390,7 +390,7 @@ TEST_P(dmSoundVerifyTest, Mix)
         ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as, 24);
     }
 
-    ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput.Size() % 2);
+    ASSERT_EQ(0u, g_LoopbackDevice->m_AllOutput.Size() % 2);
     for (uint32_t i = 2 * n; i < g_LoopbackDevice->m_AllOutput.Size() / 2; ++i) {
         ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput[2 * i]);
         ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput[2 * i + 1]);
@@ -409,7 +409,7 @@ TEST_P(dmSoundVerifyTest, Mix)
 
     int expected_queued = (frame_count * 44100) / ((int) mix_rate * params.m_BufferFrameCount)
                             + dmMath::Min(1U, (frame_count * 44100) % ((int) mix_rate * params.m_BufferFrameCount));
-    ASSERT_EQ(g_LoopbackDevice->m_TotalBuffersQueued, expected_queued);
+    ASSERT_EQ(g_LoopbackDevice->m_TotalBuffersQueued, (uint32_t)expected_queued);
 
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -825,7 +825,7 @@ TEST_P(dmSoundVerifyWavTest, Mix)
     ASSERT_NE((dmSound::HSoundInstance) 0, instance);
 
     uint64_t tend = dmTime::GetTime();
-    ASSERT_GT(250, tend-tstart);
+    ASSERT_GT(250u, tend-tstart);
 
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);

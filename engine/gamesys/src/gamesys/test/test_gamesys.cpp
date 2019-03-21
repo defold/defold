@@ -184,7 +184,7 @@ TEST_P(ComponentTest, Test)
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, component_name, 0));
 
-    for (int i = 0; i < sizeof(update_after_reload)/sizeof(update_after_reload[0]); ++i)
+    for (size_t i = 0; i < sizeof(update_after_reload)/sizeof(update_after_reload[0]); ++i)
     {
         if(strcmp(update_after_reload[i], component_name) == 0)
         {

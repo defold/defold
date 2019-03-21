@@ -54,7 +54,7 @@ TEST(dmSys, GetApplicationSupportPath)
     struct stat stat_data;
     int ret = stat(path, &stat_data);
     ASSERT_EQ(0, ret);
-    ASSERT_EQ(S_IFDIR, stat_data.st_mode & S_IFDIR);
+    ASSERT_EQ((uint32_t)S_IFDIR, stat_data.st_mode & S_IFDIR);
 }
 
 int g_Argc;

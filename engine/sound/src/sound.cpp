@@ -724,7 +724,7 @@ namespace dmSound
         frames[instance->m_FrameCount] = frames[instance->m_FrameCount-1];
 
         Ramp ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
-        for (int i = 0; i < mix_buffer_count; i++)
+        for (uint32_t i = 0; i < mix_buffer_count; i++)
         {
             float gain = ramp.GetValue(i);
             float mix = frac * range_recip;
@@ -771,7 +771,7 @@ namespace dmSound
         frames[2 * instance->m_FrameCount + 1] = frames[2 * instance->m_FrameCount - 1];
 
         Ramp ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
-        for (int i = 0; i < mix_buffer_count; i++)
+        for (uint32_t i = 0; i < mix_buffer_count; i++)
         {
             float gain = ramp.GetValue(i);
             float mix = frac * range_recip;
@@ -810,7 +810,7 @@ namespace dmSound
         assert(instance->m_FrameCount == mix_buffer_count);
         T* frames = (T*) instance->m_Frames;
         Ramp ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
-        for (int i = 0; i < mix_buffer_count; i++)
+        for (uint32_t i = 0; i < mix_buffer_count; i++)
         {
             float gain = ramp.GetValue(i);
             float s = frames[i];
@@ -827,7 +827,7 @@ namespace dmSound
         assert(instance->m_FrameCount == mix_buffer_count);
         T* frames = (T*) instance->m_Frames;
         Ramp ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
-        for (int i = 0; i < mix_buffer_count; i++)
+        for (uint32_t i = 0; i < mix_buffer_count; i++)
         {
             float gain = ramp.GetValue(i);
             float s1 = frames[2 * i];

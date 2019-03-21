@@ -6,7 +6,7 @@
 
 static void ASSERT_MD5(uint8_t* expected, const dmMD5::Digest& d)
 {
-    for (int i = 0; i < sizeof(d.m_Digest); ++i) {
+    for (size_t i = 0; i < sizeof(d.m_Digest); ++i) {
         ASSERT_EQ(expected[i], d.m_Digest[i]);
     }
 }

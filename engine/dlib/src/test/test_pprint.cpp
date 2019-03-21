@@ -41,7 +41,7 @@ TEST(dmPPrint, Indent)
 
 TEST(dmPPrint, Truncate1)
 {
-    char buf[2] = { 0xff, 0xff };
+    char buf[2] = { (char)0xff, (char)0xff };
     dmPPrint::Printer p(buf, sizeof(buf) - 1);
     p.Printf("%d", 1234);
     ASSERT_STREQ("", buf);
@@ -50,7 +50,7 @@ TEST(dmPPrint, Truncate1)
 
 TEST(dmPPrint, Truncate2)
 {
-    char buf[3] = { 0xff, 0xff, 0xff };
+    char buf[3] = { (char)0xff, (char)0xff, (char)0xff };
     dmPPrint::Printer p(buf, sizeof(buf) - 1);
     p.Printf("%d", 1234);
     ASSERT_STREQ("1", buf);
@@ -59,7 +59,7 @@ TEST(dmPPrint, Truncate2)
 
 TEST(dmPPrint, Truncate3)
 {
-    char buf[3] = { 0xff, 0xff, 0xff };
+    char buf[3] = { (char)0xff, (char)0xff, (char)0xff };
     dmPPrint::Printer p(buf, sizeof(buf) - 1);
     p.SetIndent(1);
     p.Printf("%d", 1234);

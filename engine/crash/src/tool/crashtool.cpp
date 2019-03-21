@@ -169,7 +169,7 @@ uintptr_t GetProcessBaseAddress(PlatformInfo& pinfo, DWORD processID)
             {
             	fprintf(stderr, "Failed to get module filename");
             }
-            
+
             fprintf(stderr, "module: %s\n", path);
 
             MODULEINFO info;
@@ -396,6 +396,7 @@ int main(int argc, char** argv)
                     platform = PLATFORM_LINUX;
             }
     	}
+        (void)platform; // for later use
 
         printf("\n");
         printf("%26s: %d\n", "SIG", dmCrash::GetSignum(dump));

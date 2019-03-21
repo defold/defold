@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string>
+#include <string.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include "../dlib/lz4.h"
@@ -102,7 +102,7 @@ TEST(dmLZ4, Stress)
 
         r = dmLZ4::DecompressBufferFast(compressed, compressed_size, decompressed, ref_len);
         ASSERT_EQ(dmLZ4::RESULT_OK, r);
-        ASSERT_EQ(memcmp(ref, decompressed, ref_len), 0);
+        ASSERT_EQ(0, memcmp(ref, decompressed, ref_len));
 
         // NOTE: If an assert fails above, we will get a mem leak report as well as
         //       the assert error. But it doesn't really matter for testing.
