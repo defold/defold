@@ -48,8 +48,8 @@ namespace dmRender
         float    m_FaceColor[4];
         float    m_OutlineColor[4];
         float    m_ShadowColor[4];
-        float    m_SdfParams[4];
         float    m_LayerMasks[3];
+        float    m_SdfParams[4];
     };
 
     /**

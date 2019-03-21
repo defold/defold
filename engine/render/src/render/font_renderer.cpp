@@ -347,8 +347,8 @@ namespace dmRender
                 {"face_color", 2, 4, dmGraphics::TYPE_FLOAT, true},
                 {"outline_color", 3, 4, dmGraphics::TYPE_FLOAT, true},
                 {"shadow_color", 4, 4, dmGraphics::TYPE_FLOAT, true},
-                {"sdf_params", 5, 4, dmGraphics::TYPE_FLOAT, false},
-                {"layer_mask", 6, 3, dmGraphics::TYPE_FLOAT, false},
+                {"layer_mask", 5, 3, dmGraphics::TYPE_FLOAT, false},
+                {"sdf_params", 6, 4, dmGraphics::TYPE_FLOAT, false},
         };
 
         text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement), sizeof(GlyphVertex));
@@ -739,6 +739,9 @@ namespace dmRender
                             v.m_ShadowColor[1] = 1.0f; \
                             v.m_ShadowColor[2] = 1.0f; \
                             v.m_ShadowColor[3] = 1.0f; \
+                            v.m_LayerMasks[0] = 1.0f; \
+                            v.m_LayerMasks[1] = 1.0f; \
+                            v.m_LayerMasks[2] = 1.0f; \
                             //v.m_FaceColor = face_color; \
                             //v.m_OutlineColor = outline_color; \
                             //v.m_ShadowColor = shadow_color; \
@@ -757,10 +760,14 @@ namespace dmRender
                         v4_layer_face = v3_layer_face;
                         v5_layer_face = v2_layer_face;
 
+                        /*
                         #define SET_VERTEX_LAYER_MASK(v,f,o,s) \
-                            v.m_LayerMasks[0] = 1.0f; \
-                            v.m_LayerMasks[1] = 1.0f; \
-                            v.m_LayerMasks[2] = 1.0f;
+                            v.m_LayerMasks[0] = f; \
+                            v.m_LayerMasks[1] = o; \
+                            v.m_LayerMasks[2] = s;
+                            */
+
+                        #define SET_VERTEX_LAYER_MASK(v,f,o,s)
 
                         // Set outline vertices
                         if (HAS_LAYER(layer_mask,OUTLINE))
