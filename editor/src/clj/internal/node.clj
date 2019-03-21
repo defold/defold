@@ -32,15 +32,15 @@
               result))))
     (deferred-expr)))
 
-(defn- with-tracer-calls-form [self-name ctx-name output-name output-type expr]
-  `(trace-expr ~self-name ~ctx-name ~output-name ~output-type
+(defn- with-tracer-calls-form [node-sym evaluation-context-sym output-name output-type expr]
+  `(trace-expr ~node-sym ~evaluation-context-sym ~output-name ~output-type
                (fn [] ~expr)))
 
 (defn- check-dry-run-form
-  ([ctx-name expr]
-   `(when-not (:dry-run ~ctx-name) ~expr))
-  ([ctx-name expr dry-expr]
-   `(if-not (:dry-run ~ctx-name) ~expr ~dry-expr)))
+  ([evaluation-context-sym expr]
+   `(when-not (:dry-run ~evaluation-context-sym) ~expr))
+  ([evaluation-context-sym expr dry-expr]
+   `(if-not (:dry-run ~evaluation-context-sym) ~expr ~dry-expr)))
 
 (prefer-method pp/code-dispatch clojure.lang.IPersistentMap clojure.lang.IDeref)
 (prefer-method pp/simple-dispatch clojure.lang.IPersistentMap clojure.lang.IDeref)
@@ -305,8 +305,8 @@
 (defn- assert-no-extra-args
   [node-type-ref args]
   (let [args-without-properties (set/difference
-                                 (util/key-set args)
-                                 (util/key-set (:property (deref node-type-ref))))]
+                                  (util/key-set args)
+                                  (util/key-set (:property (deref node-type-ref))))]
     (assert (empty? args-without-properties) (str "You have given values for properties " args-without-properties ", but those don't exist on nodes of type " (:name node-type-ref)))))
 
 (defn construct
@@ -368,11 +368,11 @@
                  :hits (atom [])
                  :in-production #{})
 
-    (not (:no-local-temp options))
-    (assoc :local-temp (atom {}))
+          (not (:no-local-temp options))
+          (assoc :local-temp (atom {}))
 
-    (not (contains? options :tx-data-context))
-    (assoc :tx-data-context (atom {}))))
+          (not (contains? options :tx-data-context))
+          (assoc :tx-data-context (atom {}))))
 
 (defn- validate-evaluation-context [evaluation-context]
   (assert (some? (:basis evaluation-context)))
@@ -382,10 +382,10 @@
 
 (defn- apply-dry-run-cache [evaluation-context]
   (cond-> evaluation-context
-    (:dry-run evaluation-context)
-    (assoc :local (atom @(:local evaluation-context))
-           :local-temp (some-> (:local-temp evaluation-context) deref atom)
-           :hits (atom @(:hits evaluation-context)))))
+          (:dry-run evaluation-context)
+          (assoc :local (atom @(:local evaluation-context))
+                 :local-temp (some-> (:local-temp evaluation-context) deref atom)
+                 :hits (atom @(:hits evaluation-context)))))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
@@ -435,24 +435,24 @@
 (defn- check-single-type
   [out in]
   (or
-   (= s/Any in)
-   (= out in)
-   (and (class? in) (class? out) (.isAssignableFrom ^Class in out))))
+    (= s/Any in)
+    (= out in)
+    (and (class? in) (class? out) (.isAssignableFrom ^Class in out))))
 
 (defn type-compatible?
   [output-typeref input-typeref]
   (or (not *check-schemas*)
-    (let [output-schema (value-type-schema output-typeref)
-          input-schema (value-type-schema input-typeref)
-          out-t-pl? (coll? output-schema)
-          in-t-pl?  (coll? input-schema)]
-      (or
-        (= s/Any input-schema)
-        (and out-t-pl? (= [s/Any] input-schema))
-        (and (= out-t-pl? in-t-pl? true) (check-single-type (first output-schema) (first input-schema)))
-        (and (= out-t-pl? in-t-pl? false) (check-single-type output-schema input-schema))
-        (and (instance? Maybe input-schema) (type-compatible? output-schema (:schema input-schema)))
-        (and (instance? ConditionalSchema input-schema) (some #(type-compatible? output-schema %) (map second (:preds-and-schemas input-schema))))))))
+      (let [output-schema (value-type-schema output-typeref)
+            input-schema (value-type-schema input-typeref)
+            out-t-pl? (coll? output-schema)
+            in-t-pl?  (coll? input-schema)]
+        (or
+          (= s/Any input-schema)
+          (and out-t-pl? (= [s/Any] input-schema))
+          (and (= out-t-pl? in-t-pl? true) (check-single-type (first output-schema) (first input-schema)))
+          (and (= out-t-pl? in-t-pl? false) (check-single-type output-schema input-schema))
+          (and (instance? Maybe input-schema) (type-compatible? output-schema (:schema input-schema)))
+          (and (instance? ConditionalSchema input-schema) (some #(type-compatible? output-schema %) (map second (:preds-and-schemas input-schema))))))))
 
 ;;; ----------------------------------------
 ;;; Node type implementation
@@ -514,7 +514,7 @@
   becomes [:x :y :a :b :c :z]"
   [coll]
   (flatten
-   (map #(if (ref? %) (property-display-order %) %) coll)))
+    (map #(if (ref? %) (property-display-order %) %) coll)))
 
 (defn- node-type-name? [x]
   (node-type-resolve (keyword (and (named? x) (canonicalize x)))))
@@ -584,11 +584,11 @@
 (defn- verify-inputs-for-outputs
   [description]
   (let [available-arguments (all-available-arguments description)]
-   (doseq [[output {:keys [arguments]}] (:output description)
-           :let [missing-args (set/difference arguments available-arguments)]]
-     (assert (empty? missing-args)
-             (str "Node " (:name description) " must have inputs, properties or outputs for the label(s) "
-                  missing-args ", because they are needed by the output '" (name output) "'."))))
+    (doseq [[output {:keys [arguments]}] (:output description)
+            :let [missing-args (set/difference arguments available-arguments)]]
+      (assert (empty? missing-args)
+              (str "Node " (:name description) " must have inputs, properties or outputs for the label(s) "
+                   missing-args ", because they are needed by the output '" (name output) "'."))))
   description)
 
 (defn- verify-labels
@@ -611,18 +611,18 @@
    (dependency-seq desc #{} inputs))
   ([desc seen inputs]
    (disj
-    (reduce
-     (fn [dependencies argument]
-       (conj
-        (if (not (seen argument))
-          (if-let [recursive (get-in desc [:output argument :dependencies])]
-            (into dependencies (dependency-seq desc (conj seen argument) recursive))
-            dependencies)
-          dependencies)
-        argument))
-     #{}
-     inputs)
-    :this)))
+     (reduce
+       (fn [dependencies argument]
+         (conj
+           (if (not (seen argument))
+             (if-let [recursive (get-in desc [:output argument :dependencies])]
+               (into dependencies (dependency-seq desc (conj seen argument) recursive))
+               dependencies)
+             dependencies)
+           argument))
+       #{}
+       inputs)
+     :this)))
 
 (defn- description->input-dependencies
   [{:keys [output] :as description}]
@@ -642,8 +642,8 @@
 (defn- transform-properties-plumbing-map [description]
   (let [labels (ordinary-property-labels description)]
     (zipmap labels
-      (map (fn [label]
-             {:fn (node-property-value-function-form description label)}) labels))))
+            (map (fn [label]
+                   {:fn (node-property-value-function-form description label)}) labels))))
 
 (defn- attach-property-behaviors
   [description]
@@ -673,8 +673,8 @@
   (let [format-string (str "Node %d does not supply a production function for the abstract '" label "' output. Add (output " label " " type " your-function) to the definition")]
     `(pc/fnk [~'this]
              (throw (AssertionError.
-                     (format ~format-string
-                      (gt/node-id ~'this)))))))
+                      (format ~format-string
+                              (gt/node-id ~'this)))))))
 
 (defn- parse-flags-and-options
   [allowed-flags allowed-options args]
@@ -814,16 +814,16 @@
   (assert-symbol "property" label)
   (let [klabel (keyword label)
         propdef (cond-> (process-property-forms forms)
-                  (contains? internal-keys klabel)
-                  (update :flags #(conj (or % #{}) :internal)))
+                        (contains? internal-keys klabel)
+                        (update :flags #(conj (or % #{}) :internal)))
         register-type-info (:register-type-info propdef)
         propdef (dissoc propdef :register-type-info)
         outdef (-> propdef
-                 (dissoc :setter :dynamics :value)
-                 (assoc :fn
-                        (if-let [evaluator (-> propdef :value :fn)]
-                          evaluator
-                          `(dynamo.graph/fnk [~'this ~label] (get ~'this ~klabel)))))
+                   (dissoc :setter :dynamics :value)
+                   (assoc :fn
+                          (if-let [evaluator (-> propdef :value :fn)]
+                            evaluator
+                            `(dynamo.graph/fnk [~'this ~label] (get ~'this ~klabel)))))
         desc {:register-type-info register-type-info
               :property {klabel propdef}
               :property-order-decl (if (contains? internal-keys klabel) [] [klabel])
@@ -912,19 +912,19 @@
   [tree]
   (assoc tree :property-display-order
          `(merge-display-order ~(:display-order-decl tree) ~(:property-order-decl tree)
-                                 ~@(map property-display-order (:supertypes tree)))))
+                               ~@(map property-display-order (:supertypes tree)))))
 
 (defn- wrap-when
   [tree key-pred val-pred xf]
   (walk/postwalk
-   (fn [f]
-     (if (vector? f)
-       (let [[k v] f]
-         (if (and (key-pred k) (val-pred v))
-           [k (xf v)]
-           f))
-       f))
-   tree))
+    (fn [f]
+      (if (vector? f)
+        (let [[k v] f]
+          (if (and (key-pred k) (val-pred v))
+            [k (xf v)]
+            f))
+        f))
+    tree))
 
 (defn- wrap-constant-fns
   [tree]
@@ -937,14 +937,14 @@
 (defn- extract-fn-arguments
   [tree]
   (walk/postwalk
-   (fn [f]
-     (if (and (map? f) (contains? f :fn))
-       (let [args (util/inputs-needed (:fn f))]
-         (-> f
-             (update :arguments #(into-set % args))
-             (update :dependencies #(into-set % args))))
-       f))
-   tree))
+    (fn [f]
+      (if (and (map? f) (contains? f :fn))
+        (let [args (util/inputs-needed (:fn f))]
+          (-> f
+              (update :arguments #(into-set % args))
+              (update :dependencies #(into-set % args))))
+        f))
+    tree))
 
 (defn- prop+args [[pname pdef]]
   (into #{pname} (:arguments pdef)))
@@ -970,8 +970,8 @@
 (defn- attach-declared-internal-property
   [{:keys [property] :as description}]
   (assoc description
-    :declared-property (into #{} (comp (remove (comp internal? val)) (map key)) property)
-    :internal-property (into #{} (comp (filter (comp internal? val)) (map key)) property)))
+         :declared-property (into #{} (comp (remove (comp internal? val)) (map key)) property)
+         :internal-property (into #{} (comp (filter (comp internal? val)) (map key)) property)))
 
 (defn- all-subtree-dependencies
   [tree]
@@ -984,18 +984,18 @@
   (update tree :property
           (fn [properties]
             (reduce-kv
-             (fn [props pname pdef]
-               (update-in props [pname :dependencies] #(disj (into-set % (all-subtree-dependencies pdef)) pname)))
-             properties
-             properties))))
+              (fn [props pname pdef]
+                (update-in props [pname :dependencies] #(disj (into-set % (all-subtree-dependencies pdef)) pname)))
+              properties
+              properties))))
 
 (defn- apply-property-dependencies-to-outputs
   [tree]
   (reduce-kv
-   (fn [tree pname pdef]
-     (update-in tree [:output pname :dependencies] #(into-set % (:dependencies pdef))))
-   tree
-   (:property tree)))
+    (fn [tree pname pdef]
+      (update-in tree [:output pname :dependencies] #(into-set % (:dependencies pdef))))
+    tree
+    (:property tree)))
 
 (defn process-node-type-forms
   [fully-qualified-node-type-symbol forms]
@@ -1023,13 +1023,13 @@
 
 (defn- map-zipper [m]
   (zip/zipper
-   (fn [x] (or (map? x) (map? (nth x 1))))
-   (fn [x] (seq (if (map? x) x (nth x 1))))
-   (fn [x children]
-     (if (map? x)
-       (into {} children)
-       (assoc x 1 (into {} children))))
-   m))
+    (fn [x] (or (map? x) (map? (nth x 1))))
+    (fn [x] (seq (if (map? x) x (nth x 1))))
+    (fn [x children]
+      (if (map? x)
+        (into {} children)
+        (assoc x 1 (into {} children))))
+    m))
 
 (defn- key-path
   [z]
@@ -1047,11 +1047,11 @@
                what)))))
 
 (defn dollar-name [prefix path]
-    (->> path
-         (map name)
-         (interpose "$")
-         (apply str prefix "$")
-         symbol))
+  (->> path
+       (map name)
+       (interpose "$")
+       (apply str prefix "$")
+       symbol))
 
 ;;; ----------------------------------------
 ;;; Code generation
@@ -1093,8 +1093,8 @@
   [input node evaluation-context]
   (let [basis (:basis evaluation-context)
         [upstream-id output-label] (first (gt/sources basis (gt/node-id node) input))]
-     (when-let [upstream-node (and upstream-id (gt/node-by-id-at basis upstream-id))]
-       (gt/produce-value upstream-node output-label evaluation-context))))
+    (when-let [upstream-node (and upstream-id (gt/node-by-id-at basis upstream-id))]
+      (gt/produce-value upstream-node output-label evaluation-context))))
 
 (defn pull-first-input-with-substitute
   [input sub node evaluation-context]
@@ -1102,8 +1102,8 @@
   (pull-first-input-value input node evaluation-context))
 
 (defn- first-input-value-form
-  [self-name ctx-name input]
-  `(pull-first-input-value ~input ~self-name ~ctx-name))
+  [node-sym evaluation-context-sym input]
+  `(pull-first-input-value ~input ~node-sym ~evaluation-context-sym))
 
 (defn pull-input-values
   [input node evaluation-context]
@@ -1119,8 +1119,8 @@
   (pull-input-values input node evaluation-context))
 
 (defn- input-value-form
-  [self-name ctx-name input]
-  `(pull-input-values ~input ~self-name ~ctx-name))
+  [node-sym evaluation-context-sym input]
+  `(pull-input-values ~input ~node-sym ~evaluation-context-sym))
 
 (defn error-checked-input-value [input-value node-id input]
   (if (instance? ErrorValue input-value)
@@ -1137,10 +1137,10 @@
     input-value))
 
 (defn- maybe-substitute-error-in-value-form
-  [nodeid-sym description input forms]
+  [node-id-sym description input forms]
   (let [sub (get-in description [:input input :options :substitute] ::no-sub)] ; nil is a valid substitute literal
     (if (= ::no-sub sub)
-      `(error-checked-input-value ~forms ~nodeid-sym ~input)
+      `(error-checked-input-value ~forms ~node-id-sym ~input)
       `(error-substituted-input-value ~forms ~sub))))
 
 (defn error-checked-array-input-value [input-array node-id input]
@@ -1160,19 +1160,19 @@
     input-array))
 
 (defn- maybe-substitute-error-in-array-form
-  [nodeid-sym description input forms]
+  [node-id-sym description input forms]
   (let [sub (get-in description [:input input :options :substitute] ::no-sub)] ; nil is a valid substitute literal
     (if (= ::no-sub sub)
-      `(error-checked-array-input-value ~forms ~nodeid-sym ~input)
+      `(error-checked-array-input-value ~forms ~node-id-sym ~input)
       `(error-substituted-array-input-value ~forms ~sub))))
 
 (defn- call-with-error-checked-fnky-arguments-form
-  [self-name ctx-name nodeid-sym label description arguments runtime-fnk-expr & [supplied-arguments]]
-  (let [base-args {:_node-id `(gt/node-id ~self-name) :_basis `(:basis ~ctx-name)}
+  [node-sym evaluation-context-sym node-id-sym label description arguments runtime-fnk-expr & [supplied-arguments]]
+  (let [base-args {:_node-id `(gt/node-id ~node-sym) :_basis `(:basis ~evaluation-context-sym)}
         arglist (without arguments (keys supplied-arguments))
         argument-forms (zipmap arglist (map #(get base-args % (if (= label %)
-                                                                `(gt/get-property ~self-name (:basis ~ctx-name) ~label)
-                                                                (fnk-argument-form self-name ctx-name nodeid-sym label description %)))
+                                                                `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~label)
+                                                                (fnk-argument-form node-sym evaluation-context-sym node-id-sym label description %)))
                                             arglist))
         argument-forms (merge argument-forms supplied-arguments)]
     (if (empty? argument-forms)
@@ -1181,69 +1181,69 @@
              argument-errors# (filter #(instance? ErrorValue %) (vals arg-forms#))]
          (if (empty? argument-errors#)
            (~runtime-fnk-expr arg-forms#)
-           (ie/error-aggregate argument-errors# :_node-id ~nodeid-sym :_label ~label))))))
+           (ie/error-aggregate argument-errors# :_node-id ~node-id-sym :_label ~label))))))
 
 (defn- collect-base-property-value-form
-  [self-name ctx-name nodeid-sym description prop-name]
+  [node-sym evaluation-context-sym node-id-sym description prop-name]
   (let [property-definition (get-in description [:property prop-name])
         default? (not (:value property-definition))]
     (if default?
-      (with-tracer-calls-form self-name ctx-name prop-name :raw-property
-        (check-dry-run-form ctx-name `(gt/get-property ~self-name (:basis ~ctx-name) ~prop-name)))
-      (with-tracer-calls-form self-name ctx-name prop-name :property
-        (call-with-error-checked-fnky-arguments-form self-name ctx-name nodeid-sym prop-name description
+      (with-tracer-calls-form node-sym evaluation-context-sym prop-name :raw-property
+        (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~prop-name)))
+      (with-tracer-calls-form node-sym evaluation-context-sym prop-name :property
+        (call-with-error-checked-fnky-arguments-form node-sym evaluation-context-sym node-id-sym prop-name description
                                                      (get-in property-definition [:value :arguments])
-                                                     (check-dry-run-form ctx-name
+                                                     (check-dry-run-form evaluation-context-sym
                                                                          `(var ~(symbol (dollar-name (:name description) [:property prop-name :value])))
                                                                          `(constantly nil)))))))
 (defn- collect-property-value-form
-  [self-name ctx-name nodeid-sym description prop]
+  [node-sym evaluation-context-sym node-id-sym description prop]
   (let [property-definition (get-in description [:property prop])
         default? (not (:value property-definition))
         get-expr (if default?
-                   (with-tracer-calls-form self-name ctx-name prop :raw-property
-                     (check-dry-run-form ctx-name `(gt/get-property ~self-name (:basis ~ctx-name) ~prop)))
-                   (with-tracer-calls-form self-name ctx-name prop :property
-                     (call-with-error-checked-fnky-arguments-form self-name ctx-name nodeid-sym prop description
+                   (with-tracer-calls-form node-sym evaluation-context-sym prop :raw-property
+                     (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~prop)))
+                   (with-tracer-calls-form node-sym evaluation-context-sym prop :property
+                     (call-with-error-checked-fnky-arguments-form node-sym evaluation-context-sym node-id-sym prop description
                                                                   (get-in property-definition [:value :arguments])
-                                                                  (check-dry-run-form ctx-name
+                                                                  (check-dry-run-form evaluation-context-sym
                                                                                       `(var ~(dollar-name (:name description) [:property prop :value]))
                                                                                       `(constantly nil)))))]
     get-expr))
 
 (defn- fnk-argument-form
-  [self-name ctx-name nodeid-sym output description argument]
+  [node-sym evaluation-context-sym node-id-sym output description argument]
   (cond
     (= :this argument)
-    self-name
+    node-sym
 
     (= :_basis argument)
-    `(:basis ~ctx-name)
+    `(:basis ~evaluation-context-sym)
 
     (property-overloads-output? description argument output)
-    (collect-property-value-form self-name ctx-name nodeid-sym description argument)
+    (collect-property-value-form node-sym evaluation-context-sym node-id-sym description argument)
 
     (unoverloaded-output? description argument output)
-    `(gt/produce-value ~self-name ~argument ~ctx-name)
+    `(gt/produce-value ~node-sym ~argument ~evaluation-context-sym)
 
     (desc-has-property? description argument)
     (if (= output argument)
-      (with-tracer-calls-form self-name ctx-name argument :raw-property
-        (check-dry-run-form ctx-name `(gt/get-property ~self-name (:basis ~ctx-name) ~argument)))
-      (collect-property-value-form self-name ctx-name nodeid-sym description argument))
+      (with-tracer-calls-form node-sym evaluation-context-sym argument :raw-property
+        (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~argument)))
+      (collect-property-value-form node-sym evaluation-context-sym node-id-sym description argument))
 
     (has-multivalued-input? description argument)
     (maybe-substitute-error-in-array-form
-      nodeid-sym description argument
-      (input-value-form self-name ctx-name argument))
+      node-id-sym description argument
+      (input-value-form node-sym evaluation-context-sym argument))
 
     (has-singlevalued-input? description argument)
     (maybe-substitute-error-in-value-form
-      nodeid-sym description argument
-      (first-input-value-form self-name ctx-name argument))
+      node-id-sym description argument
+      (first-input-value-form node-sym evaluation-context-sym argument))
 
     (desc-has-output? description argument)
-    `(gt/produce-value ~self-name ~argument ~ctx-name)
+    `(gt/produce-value ~node-sym ~argument ~evaluation-context-sym)
 
     :else
     (assert false (str "A production function for " (:name description) " " output " needs an argument this node can't supply. There is no input, output, or property called " (pr-str argument)))))
@@ -1266,9 +1266,9 @@
         (assoc jam-value :_label transform :_node-id node-id)
         jam-value))))
 
-(defn- check-jammed-form [self-name ctx-name nodeid-sym transform forms]
+(defn- check-jammed-form [node-sym evaluation-context-sym node-id-sym transform forms]
   (if (jammable? transform)
-    `(if-some [jam-value# (transform-jammer (:basis ~ctx-name) ~self-name ~nodeid-sym ~transform)]
+    `(if-some [jam-value# (transform-jammer (:basis ~evaluation-context-sym) ~node-sym ~node-id-sym ~transform)]
        jam-value#
        ~forms)
     forms))
@@ -1276,13 +1276,13 @@
 (defn- property-has-default-getter?       [description label] (not (get-in description [:property label :value])))
 (defn- property-has-no-overriding-output? [description label] (not (desc-has-explicit-output? description label)))
 
-(defn- apply-default-property-shortcut-form [self-name ctx-name property-name description forms]
+(defn- apply-default-property-shortcut-form [node-sym evaluation-context-sym property-name description forms]
   (let [property? (and (desc-has-property? description property-name) (property-has-no-overriding-output? description property-name))
         default?  (and (property-has-default-getter? description property-name)
                        (property-has-no-overriding-output? description property-name))]
     (if default?
-      (with-tracer-calls-form self-name ctx-name property-name :raw-property
-        (check-dry-run-form ctx-name `(gt/get-property ~self-name (:basis ~ctx-name) ~property-name)))
+      (with-tracer-calls-form node-sym evaluation-context-sym property-name :raw-property
+        (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~property-name)))
       forms)))
 
 (defn mark-in-production [ctx node-type-name node-id label]
@@ -1290,8 +1290,8 @@
           (format "Cycle detected on node type %s and output %s" node-type-name label))
   (update ctx :in-production conj [node-id label]))
 
-(defn- mark-in-production-form [ctx-name nodeid-sym transform description forms]
-  `(let [~ctx-name (mark-in-production ~ctx-name ~(:name description) ~nodeid-sym ~transform)]
+(defn- mark-in-production-form [evaluation-context-sym node-id-sym transform description forms]
+  `(let [~evaluation-context-sym (mark-in-production ~evaluation-context-sym ~(:name description) ~node-id-sym ~transform)]
      ~forms))
 
 (defn check-caches! [evaluation-context node node-id transform]
@@ -1309,24 +1309,23 @@
                             (swap! (:hits evaluation-context) conj cache-key)
                             cached-result)))])))
 
-(defn- check-caches-form [self-name ctx-name nodeid-sym description transform local-cache-sym forms]
-  (gensyms [local global local-temp local-temp-res cache-key]
-           (if (get-in description [:output transform :flags :cached])
-             `(if-some [[hit# result#] (check-caches! ~ctx-name ~self-name ~nodeid-sym ~transform)]
-                result#
-                ~forms)
-             `(let [~local-temp (some-> (:local-temp ~ctx-name) deref)
-                    ~cache-key [~nodeid-sym ~transform]
-                    weak# ^WeakReference (get ~local-temp ~cache-key)]
-                (if-some [~local-temp-res (and weak# (.get weak#))]
-                  ~(with-tracer-calls-form self-name ctx-name transform :cache
-                     `(if (= ~local-temp-res ::nil) nil ~local-temp-res))
-                  ~forms)))))
+(defn- check-caches-form [node-sym evaluation-context-sym node-id-sym description transform forms]
+  (gensyms [local-temp-res]
+    (if (get-in description [:output transform :flags :cached])
+      `(if-some [[hit# result#] (check-caches! ~evaluation-context-sym ~node-sym ~node-id-sym ~transform)]
+         result#
+         ~forms)
+      `(let [local-temp# (some-> (:local-temp ~evaluation-context-sym) deref)
+             weak# ^WeakReference (get local-temp# [~node-id-sym ~transform])]
+         (if-some [~local-temp-res (and weak# (.get weak#))]
+           ~(with-tracer-calls-form node-sym evaluation-context-sym transform :cache
+              `(if (= ~local-temp-res ::nil) nil ~local-temp-res))
+           ~forms)))))
 
-(defn- gather-inputs-form [input-sym schema-sym self-name ctx-name nodeid-sym description transform production-function forms]
+(defn- gather-inputs-form [input-sym schema-sym node-sym evaluation-context-sym node-id-sym description transform production-function forms]
   (let [arg-names (get-in description [:output transform :arguments])
-        argument-forms (zipmap arg-names (map #(fnk-argument-form self-name ctx-name nodeid-sym transform description %) arg-names))
-        argument-forms (assoc argument-forms :_node-id nodeid-sym :_basis `(:basis ~ctx-name))]
+        argument-forms (zipmap arg-names (map #(fnk-argument-form node-sym evaluation-context-sym node-id-sym transform description %) arg-names))
+        argument-forms (assoc argument-forms :_node-id node-id-sym :_basis `(:basis ~evaluation-context-sym))]
     (list `let
           [input-sym argument-forms]
           forms)))
@@ -1335,28 +1334,28 @@
   (when-some [input-errors (not-empty (filter #(instance? ErrorValue %) (vals input-value)))]
     (ie/error-aggregate input-errors :_node-id node-id :_label label)))
 
-(defn- input-error-check-form [self-name ctx-name description label nodeid-sym input-sym tail]
+(defn- input-error-check-form [node-sym evaluation-context-sym description label node-id-sym input-sym tail]
   (if (contains? internal-keys label)
     tail
-    `(or (input-error-aggregate ~input-sym ~nodeid-sym ~label) ~tail)))
+    `(or (input-error-aggregate ~input-sym ~node-id-sym ~label) ~tail)))
 
-(defn- call-production-function-form [self-name ctx-name description transform input-sym nodeid-sym output-sym forms]
-  `(let [~output-sym ~(input-error-check-form self-name ctx-name description transform nodeid-sym input-sym
-                                              (check-dry-run-form ctx-name `((var ~(symbol (dollar-name (:name description) [:output transform]))) ~input-sym)))]
+(defn- call-production-function-form [node-sym evaluation-context-sym description transform input-sym node-id-sym output-sym forms]
+  `(let [~output-sym ~(input-error-check-form node-sym evaluation-context-sym description transform node-id-sym input-sym
+                                              (check-dry-run-form evaluation-context-sym `((var ~(symbol (dollar-name (:name description) [:output transform]))) ~input-sym)))]
      ~forms))
 
-(defn- cache-output-form [ctx-name description transform nodeid-sym output-sym local-cache-sym forms]
+(defn- cache-output-form [evaluation-context-sym description transform node-id-sym output-sym forms]
   (if (contains? (get-in description [:output transform :flags]) :cached)
     `(do
-       (swap! (:local ~ctx-name) assoc [~nodeid-sym ~transform] ~output-sym)
+       (swap! (:local ~evaluation-context-sym) assoc [~node-id-sym ~transform] ~output-sym)
        ~forms)
     `(do
-       (when-let [local-temp# (:local-temp ~ctx-name)]
-         (swap! local-temp# assoc [~nodeid-sym ~transform] (WeakReference. (if (= ~output-sym nil) ::nil ~output-sym))))
+       (when-let [local-temp# (:local-temp ~evaluation-context-sym)]
+         (swap! local-temp# assoc [~node-id-sym ~transform] (WeakReference. (if (= ~output-sym nil) ::nil ~output-sym))))
        ~forms)))
 
 (defn- deduce-output-type-form
-  [self-name description transform]
+  [node-sym description transform]
   (let [schema (some-> (get-in description [:output transform :value-type]) value-type-schema)
         schema (if (get-in description [:output transform :flags :collection])
                  (vector schema)
@@ -1364,94 +1363,102 @@
     `(s/maybe (s/conditional ie/error-value? ErrorValue :else ~schema)))) ; allow nil's and errors
 
 (defn report-schema-error
-  [node-type-name transform nodeid-sym output-sym output-schema validation-error]
-  (warn-output-schema nodeid-sym node-type-name transform output-sym output-schema validation-error)
+  [node-type-name transform node-id-sym output-sym output-schema validation-error]
+  (warn-output-schema node-id-sym node-type-name transform output-sym output-schema validation-error)
   (throw (ex-info "SCHEMA-VALIDATION"
-                  {:node-id nodeid-sym
+                  {:node-id node-id-sym
                    :type node-type-name
                    :output transform
                    :expected output-schema
                    :actual output-sym
                    :validation-error validation-error})))
 
-(defn- schema-check-output-form [self-name ctx-name description transform nodeid-sym output-sym forms]
+(defn schema-check-output [evaluation-context output-schema output node-type-name transform node-id]
+  (when-not (:dry-run evaluation-context)
+    (when-some [validation-error (s/check output-schema output)]
+      (report-schema-error node-type-name transform node-id output output-schema validation-error))))
+
+(defn- schema-check-output-form [node-sym evaluation-context-sym description transform node-id-sym output-sym forms]
   (if *check-schemas*
-    `(let [output-schema# ~(deduce-output-type-form self-name description transform)]
-       (try
-         (if-let [validation-error# (when-not (:dry-run ~ctx-name) (s/check output-schema# ~output-sym))]
-           (report-schema-error ~(:name description) ~transform ~nodeid-sym ~output-sym output-schema# validation-error#)
-           ~forms)
-         (catch IllegalArgumentException iae#
-           (throw (ex-info "MALFORMED-SCHEMA"
-                           {:transform ~transform :node-type ~(:name description)}
-                           iae#)))))
+    `(try
+       (schema-check-output ~evaluation-context-sym
+                            ~(deduce-output-type-form node-sym description transform)
+                            ~output-sym
+                            ~(:name description)
+                            ~transform
+                            ~node-id-sym)
+       ~forms
+       (catch IllegalArgumentException iae#
+         (throw (ex-info "MALFORMED-SCHEMA"
+                         {:transform ~transform :node-type ~(:name description)}
+                         iae#))))
     forms))
 
 (defn- node-property-value-function-form [description property]
-  (gensyms [self-name ctx-name nodeid-sym]
-    `(fn [~self-name ~ctx-name]
-       (let [~nodeid-sym (gt/node-id ~self-name)]
-         ~(collect-property-value-form self-name ctx-name nodeid-sym description property)))))
+  (gensyms [node-sym evaluation-context-sym node-id-sym]
+    `(fn [~node-sym ~evaluation-context-sym]
+       (let [~node-id-sym (gt/node-id ~node-sym)]
+         ~(collect-property-value-form node-sym evaluation-context-sym node-id-sym description property)))))
 
 (defn- node-output-value-function-form
   [description transform]
   (let [production-function (get-in description [:output transform :fn])
         tracer-output-type (if (desc-has-explicit-output? description transform) :output :property)]
-    (gensyms [self-name ctx-name nodeid-sym input-sym schema-sym output-sym local-cache-sym]
-      `(fn [~self-name ~ctx-name]
-         (let [~nodeid-sym (gt/node-id ~self-name)]
+    (gensyms [node-sym evaluation-context-sym node-id-sym input-sym schema-sym output-sym]
+      `(fn [~node-sym ~evaluation-context-sym]
+         (let [~node-id-sym (gt/node-id ~node-sym)]
            ~(if (= transform :this)
-              nodeid-sym
-              (check-jammed-form self-name ctx-name nodeid-sym transform
-                (apply-default-property-shortcut-form self-name ctx-name transform description
-                  (mark-in-production-form ctx-name nodeid-sym transform description
-                    (check-caches-form self-name ctx-name nodeid-sym description transform local-cache-sym
-                      (with-tracer-calls-form self-name ctx-name transform tracer-output-type
-                        (gather-inputs-form input-sym schema-sym self-name ctx-name nodeid-sym description transform production-function
-                          (call-production-function-form self-name ctx-name description transform input-sym nodeid-sym output-sym
-                            (schema-check-output-form self-name ctx-name description transform nodeid-sym output-sym
-                              (cache-output-form ctx-name description transform nodeid-sym output-sym local-cache-sym
+              node-id-sym
+              (check-jammed-form node-sym evaluation-context-sym node-id-sym transform
+                (apply-default-property-shortcut-form node-sym evaluation-context-sym transform description
+                  (mark-in-production-form evaluation-context-sym node-id-sym transform description
+                    (check-caches-form node-sym evaluation-context-sym node-id-sym description transform
+                      (with-tracer-calls-form node-sym evaluation-context-sym transform tracer-output-type
+                        (gather-inputs-form input-sym schema-sym node-sym evaluation-context-sym node-id-sym description transform production-function
+                          (call-production-function-form node-sym evaluation-context-sym description transform input-sym node-id-sym output-sym
+                            (schema-check-output-form node-sym evaluation-context-sym description transform node-id-sym output-sym
+                              (cache-output-form evaluation-context-sym description transform node-id-sym output-sym
                                 output-sym)))))))))))))))
-
+  
 (defn- assemble-properties-map-form
-  [nodeid-sym value-sym display-order]
+  [node-id-sym value-sym display-order]
   `(hash-map :properties ~value-sym
              :display-order ~display-order
-             :node-id ~nodeid-sym))
+             :node-id ~node-id-sym))
 
 (defn- property-dynamics
-  [self-name ctx-name nodeid-sym description property-name property-type value-form]
+  [node-sym evaluation-context-sym node-id-sym description property-name property-type value-form]
   (apply merge
          (for [[dynamic-label {:keys [arguments] :as dynamic}] (get property-type :dynamics)]
            {dynamic-label
-            (with-tracer-calls-form self-name ctx-name [property-name dynamic-label] :dynamic
-              (call-with-error-checked-fnky-arguments-form self-name ctx-name nodeid-sym dynamic-label description arguments
-                                                           (check-dry-run-form ctx-name
+            (with-tracer-calls-form node-sym evaluation-context-sym [property-name dynamic-label] :dynamic
+              (call-with-error-checked-fnky-arguments-form node-sym evaluation-context-sym node-id-sym dynamic-label description arguments
+                                                           (check-dry-run-form evaluation-context-sym
                                                                                `(var ~(dollar-name (:name description) [:property property-name :dynamics dynamic-label]))
                                                                                `(constantly nil))))})))
 
 (defn- property-value-exprs
-  [self-name ctx-name nodeid-sym description prop-name prop-type]
+  [node-sym evaluation-context-sym node-id-sym description prop-name prop-type]
   (let [basic-val `{:type ~(:value-type prop-type)
-                    :value ~(collect-base-property-value-form self-name ctx-name nodeid-sym description prop-name)
-                    :node-id ~nodeid-sym}]
+                    :value ~(collect-base-property-value-form node-sym evaluation-context-sym node-id-sym description prop-name)
+                    :node-id ~node-id-sym}]
     (if (not (empty? (:dynamics prop-type)))
-      (let [dyn-exprs (property-dynamics self-name ctx-name nodeid-sym description prop-name prop-type basic-val)]
+      (let [dyn-exprs (property-dynamics node-sym evaluation-context-sym node-id-sym description prop-name prop-type basic-val)]
         (merge basic-val dyn-exprs))
       basic-val)))
 
 (defn- declared-properties-function-form
   [description]
   (let [props (:property description)]
-    (gensyms [self-name ctx-name value-map nodeid-sym display-order]
-      `(fn [~self-name ~ctx-name]
-         (let [~nodeid-sym (gt/node-id ~self-name)
-               ~display-order (-> (gt/node-type ~self-name (:basis ~ctx-name))
-                                (property-display-order))
-               ~value-map ~(apply merge {}
-                                  (for [[p _] (filter (comp external-property? val) props)]
-                                    {p (property-value-exprs self-name ctx-name nodeid-sym description p (get props p))}))]
-           ~(check-dry-run-form ctx-name (assemble-properties-map-form nodeid-sym value-map display-order)))))))
+    (gensyms [node-sym evaluation-context-sym value-map-sym node-id-sym display-order]
+      `(fn [~node-sym ~evaluation-context-sym]
+         (let [~node-id-sym (gt/node-id ~node-sym)
+               ~display-order (-> (gt/node-type ~node-sym (:basis ~evaluation-context-sym))
+                                  (property-display-order))
+               ~value-map-sym ~(apply merge {}
+                                      (for [[p _] (filter (comp external-property? val) props)]
+                                        {p (property-value-exprs node-sym evaluation-context-sym node-id-sym description p (get props p))}))]
+           ~(check-dry-run-form evaluation-context-sym (assemble-properties-map-form node-id-sym value-map-sym display-order)))))))
 
 (defn- node-input-value-function-form
   [description input]
@@ -1512,13 +1519,13 @@
                         (let [prop-type (get-in props [:properties k :type])]
                           (if (nil? (s/check (prop-type->schema prop-type) v))
                             (cond-> props
-                              (and (= :_properties output)
-                                   (not (contains? static-props k)))
-                              (assoc-in [:properties k :value] v)
+                                    (and (= :_properties output)
+                                         (not (contains? static-props k)))
+                                    (assoc-in [:properties k :value] v)
 
-                              (contains? orig-props k)
-                              (assoc-in [:properties k :original-value]
-                                        (get-in orig-props [k :value])))
+                                    (contains? orig-props k)
+                                    (assoc-in [:properties k :original-value]
+                                              (get-in orig-props [k :value])))
                             props)))
                       props properties))))
 
