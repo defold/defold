@@ -411,13 +411,16 @@
                                           :suspension-state nil)))))
 
 (defn current-session
-  [debug-view]
-  (g/node-value debug-view :debug-session))
+  ([debug-view]
+   (g/with-auto-evaluation-context evaluation-context
+     (current-session debug-view evaluation-context)))
+  ([debug-view evaluation-context]
+   (g/node-value debug-view :debug-session evaluation-context)))
 
 (defn suspended?
-  [debug-view]
-  (and (current-session debug-view)
-       (some? (g/node-value debug-view :suspension-state))))
+  [debug-view evaluation-context]
+  (and (current-session debug-view evaluation-context)
+       (some? (g/node-value debug-view :suspension-state evaluation-context))))
 
 (def ^:private debugger-init-script "/_defold/debugger/start.lua")
 
@@ -461,35 +464,42 @@
     (mobdebug/done! debug-session)))
 
 (handler/defhandler :break :global
-  (enabled? [debug-view] (= :running (some-> (current-session debug-view) mobdebug/state)))
+  (enabled? [debug-view evaluation-context]
+            (= :running (some-> (current-session debug-view evaluation-context) mobdebug/state)))
   (run [debug-view] (mobdebug/suspend! (current-session debug-view))))
 
 (handler/defhandler :continue :global
-  (enabled? [debug-view] (= :suspended (some-> (current-session debug-view) mobdebug/state)))
+  (enabled? [debug-view evaluation-context]
+            (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
   (run [debug-view] (mobdebug/run! (current-session debug-view)
                                    (make-debugger-callbacks debug-view))))
 
 (handler/defhandler :step-over :global
-  (enabled? [debug-view] (= :suspended (some-> (current-session debug-view) mobdebug/state)))
+  (enabled? [debug-view evaluation-context]
+            (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
   (run [debug-view] (mobdebug/step-over! (current-session debug-view)
                                          (make-debugger-callbacks debug-view))))
 
 (handler/defhandler :step-into :global
-  (enabled? [debug-view] (= :suspended (some-> (current-session debug-view) mobdebug/state)))
+  (enabled? [debug-view evaluation-context]
+            (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
   (run [debug-view] (mobdebug/step-into! (current-session debug-view)
                                          (make-debugger-callbacks debug-view))))
 
 (handler/defhandler :step-out :global
-  (enabled? [debug-view] (= :suspended (some-> (current-session debug-view) mobdebug/state)))
+  (enabled? [debug-view evaluation-context]
+            (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
   (run [debug-view] (mobdebug/step-out! (current-session debug-view)
                                         (make-debugger-callbacks debug-view))))
 
 (handler/defhandler :detach-debugger :global
-  (enabled? [debug-view] (current-session debug-view))
+  (enabled? [debug-view evaluation-context]
+            (current-session debug-view evaluation-context))
   (run [debug-view] (mobdebug/done! (current-session debug-view))))
 
 (handler/defhandler :stop-debugger :global
-  (enabled? [debug-view] (current-session debug-view))
+  (enabled? [debug-view evaluation-context]
+            (current-session debug-view evaluation-context))
   (run [debug-view] (mobdebug/exit! (current-session debug-view))))
 
 (handler/defhandler :open-web-profiler :global

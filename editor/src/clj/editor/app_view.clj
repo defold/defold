@@ -172,13 +172,21 @@
 (defn- selection->single-resource [selection]
   (handler/adapt-single selection resource/Resource))
 
-(defn- context-resource-file [app-view selection]
-  (or (selection->single-openable-resource selection)
-      (g/node-value app-view :active-resource)))
+(defn- context-resource-file
+  ([app-view selection]
+   (g/with-auto-evaluation-context evaluation-context
+     (context-resource-file app-view selection evaluation-context)))
+  ([app-view selection evaluation-context]
+   (or (selection->single-openable-resource selection)
+       (g/node-value app-view :active-resource evaluation-context))))
 
-(defn- context-resource [app-view selection]
-  (or (selection->single-resource selection)
-      (g/node-value app-view :active-resource)))
+(defn- context-resource
+  ([app-view selection]
+   (g/with-auto-evaluation-context evaluation-context
+     (context-resource app-view selection evaluation-context)))
+  ([app-view selection evaluation-context]
+   (or (selection->single-resource selection)
+       (g/node-value app-view :active-resource evaluation-context))))
 
 (defn- disconnect-sources [target-node target-label]
   (for [[source-node source-label] (g/sources-of target-node target-label)]
@@ -344,8 +352,8 @@
     #{resource}
     (set (concat [resource] (mapcat collect-resources children)))))
 
-(defn- get-active-tabs [app-view]
-  (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane)]
+(defn- get-active-tabs [app-view evaluation-context]
+  (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane evaluation-context)]
     (.getTabs tab-pane)))
 
 (defn- make-render-build-error
@@ -620,9 +628,9 @@ If you do not specifically require different script states, consider changing th
         false)))
 
 (handler/defhandler :start-debugger :global
-  (enabled? [debug-view]
+  (enabled? [debug-view evaluation-context]
             (and (not @build-in-progress?)
-                 (nil? (debug-view/current-session debug-view))))
+                 (nil? (debug-view/current-session debug-view evaluation-context))))
   (run [project workspace prefs web-server build-errors-view console-view debug-view]
     (when (debugging-supported? project)
       (let [project-directory (io/file (workspace/project-path workspace))
@@ -641,9 +649,9 @@ If you do not specifically require different script states, consider changing th
                             (engine-build-errors/handle-build-error! (make-render-build-error build-errors-view) project evaluation-context build-engine-exception)))))))))
 
 (handler/defhandler :attach-debugger :global
-  (enabled? [debug-view prefs]
+  (enabled? [debug-view prefs evaluation-context]
             (and (not @build-in-progress?)
-                 (nil? (debug-view/current-session debug-view))
+                 (nil? (debug-view/current-session debug-view evaluation-context))
                  (let [target (targets/selected-target prefs)]
                    (and target (targets/controllable-target? target)))))
   (run [project workspace build-errors-view debug-view prefs]
@@ -705,10 +713,10 @@ If you do not specifically require different script states, consider changing th
                     build-resource)))
           (rseq (pipeline/flatten-build-targets build-targets)))))
 
-(defn- can-hot-reload? [debug-view prefs]
+(defn- can-hot-reload? [debug-view prefs evaluation-context]
   (when-some [target (targets/selected-target prefs)]
     (and (targets/controllable-target? target)
-         (not (debug-view/suspended? debug-view))
+         (not (debug-view/suspended? debug-view evaluation-context))
          (not @build-in-progress?))))
 
 (defn- hot-reload! [project prefs build-errors-view]
@@ -743,20 +751,22 @@ If you do not specifically require different script states, consider changing th
                                                        (.getMessage e))))))))))
 
 (handler/defhandler :hot-reload :global
-  (enabled? [debug-view prefs]
-            (can-hot-reload? debug-view prefs))
+  (enabled? [debug-view prefs evaluation-context]
+            (can-hot-reload? debug-view prefs evaluation-context))
   (run [project app-view prefs build-errors-view selection]
        (hot-reload! project prefs build-errors-view)))
 
 (handler/defhandler :close :global
-  (enabled? [app-view] (not-empty (get-active-tabs app-view)))
+  (enabled? [app-view evaluation-context]
+            (not-empty (get-active-tabs app-view evaluation-context)))
   (run [app-view]
     (let [tab-pane (g/node-value app-view :active-tab-pane)]
       (when-let [tab (ui/selected-tab tab-pane)]
         (remove-tab! tab-pane tab)))))
 
 (handler/defhandler :close-other :global
-  (enabled? [app-view] (not-empty (next (get-active-tabs app-view))))
+  (enabled? [app-view evaluation-context]
+            (not-empty (next (get-active-tabs app-view evaluation-context))))
   (run [app-view]
     (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane)]
       (when-let [selected-tab (ui/selected-tab tab-pane)]
@@ -769,7 +779,8 @@ If you do not specifically require different script states, consider changing th
             (remove-tab! tab-pane tab)))))))
 
 (handler/defhandler :close-all :global
-  (enabled? [app-view] (not-empty (get-active-tabs app-view)))
+  (enabled? [app-view evaluation-context]
+            (not-empty (get-active-tabs app-view evaluation-context)))
   (run [app-view]
     (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane)]
       (doseq [tab (vec (.getTabs tab-pane))]
@@ -801,9 +812,9 @@ If you do not specifically require different script states, consider changing th
     (configure-editor-tab-pane! new-tab-pane app-scene app-view)
     new-tab-pane))
 
-(defn open-tab-count
-  ^long [app-view]
-  (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)]
+(defn- open-tab-count
+  ^long [app-view evaluation-context]
+  (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split evaluation-context)]
     (loop [tab-panes (.getItems editor-tabs-split)
            tab-count 0]
       (if-some [^TabPane tab-pane (first tab-panes)]
@@ -811,13 +822,14 @@ If you do not specifically require different script states, consider changing th
                (+ tab-count (.size (.getTabs tab-pane))))
         tab-count))))
 
-(defn open-tab-pane-count
-  ^long [app-view]
-  (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)]
+(defn- open-tab-pane-count
+  ^long [app-view evaluation-context]
+  (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split evaluation-context)]
     (.size (.getItems editor-tabs-split))))
 
 (handler/defhandler :move-tab :global
-  (enabled? [app-view] (< 1 (open-tab-count app-view)))
+  (enabled? [app-view evaluation-context]
+            (< 1 (open-tab-count app-view evaluation-context)))
   (run [app-view user-data]
        (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
              source-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
@@ -830,7 +842,8 @@ If you do not specifically require different script states, consider changing th
          (.requestFocus dest-tab-pane))))
 
 (handler/defhandler :swap-tabs :global
-  (enabled? [app-view] (< 1 (open-tab-pane-count app-view)))
+  (enabled? [app-view evaluation-context]
+            (< 1 (open-tab-pane-count app-view evaluation-context)))
   (run [app-view user-data]
        (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
              active-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
@@ -850,7 +863,7 @@ If you do not specifically require different script states, consider changing th
          (.requestFocus other-tab-pane))))
 
 (handler/defhandler :join-tab-panes :global
-  (enabled? [app-view] (< 1 (open-tab-pane-count app-view)))
+  (enabled? [app-view evaluation-context] (< 1 (open-tab-pane-count app-view evaluation-context)))
   (run [app-view user-data]
        (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
              active-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
@@ -1202,17 +1215,13 @@ If you do not specifically require different script states, consider changing th
 
       (keymap/install-key-bindings! (.getScene stage) (g/node-value app-view :keymap))
 
-      (let [refresh-tick (java.util.concurrent.atomic.AtomicInteger. 0)
-            refresh-timer (ui/->timer "refresh-app-view"
+      (let [refresh-timer (ui/->timer "refresh-app-view"
                                       (fn [_ _]
                                         (when-not (ui/ui-disabled?)
-                                          (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)
-                                                tick (.getAndIncrement refresh-tick)]
+                                          (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)]
                                             (when refresh-requested?
-                                              (ui/user-data! app-scene ::ui/refresh-requested? false))
-                                            (when (or refresh-requested? (zero? (mod tick 20)))
-                                              (refresh-menus-and-toolbars! app-view app-scene))
-                                            (when (or refresh-requested? (zero? (mod tick 5)))
+                                              (ui/user-data! app-scene ::ui/refresh-requested? false)
+                                              (refresh-menus-and-toolbars! app-view app-scene)
                                               (refresh-views! app-view))
                                             (refresh-scene-views! app-view)
                                             (refresh-app-title! stage project)))))]
@@ -1388,29 +1397,35 @@ If you do not specifically require different script states, consider changing th
          (disk/async-save! render-reload-progress! render-save-progress! project changes-view))))
 
 (handler/defhandler :show-in-desktop :global
-  (active? [app-view selection] (context-resource app-view selection))
-  (enabled? [app-view selection] (when-let [r (context-resource app-view selection)]
-                                   (and (resource/abs-path r)
-                                        (or (resource/exists? r)
-                                            (empty? (resource/path r))))))
+  (active? [app-view selection evaluation-context]
+           (context-resource app-view selection evaluation-context))
+  (enabled? [app-view selection evaluation-context]
+            (when-let [r (context-resource app-view selection evaluation-context)]
+              (and (resource/abs-path r)
+                   (or (resource/exists? r)
+                       (empty? (resource/path r))))))
   (run [app-view selection] (when-let [r (context-resource app-view selection)]
                               (let [f (File. (resource/abs-path r))]
                                 (ui/open-file (fs/to-folder f))))))
 
 (handler/defhandler :referencing-files :global
-  (active? [app-view selection] (context-resource-file app-view selection))
-  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
-                                   (and (resource/abs-path r)
-                                        (resource/exists? r))))
+  (active? [app-view selection evaluation-context]
+           (context-resource-file app-view selection evaluation-context))
+  (enabled? [app-view selection evaluation-context]
+            (when-let [r (context-resource-file app-view selection evaluation-context)]
+              (and (resource/abs-path r)
+                   (resource/exists? r))))
   (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
                                                       (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Referencing Files" :selection :multiple :ok-label "Open" :filter (format "refs:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
 (handler/defhandler :dependencies :global
-  (active? [app-view selection] (context-resource-file app-view selection))
-  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
-                                   (and (resource/abs-path r)
-                                        (resource/exists? r))))
+  (active? [app-view selection evaluation-context]
+           (context-resource-file app-view selection evaluation-context))
+  (enabled? [app-view selection evaluation-context]
+            (when-let [r (context-resource-file app-view selection evaluation-context)]
+              (and (resource/abs-path r)
+                   (resource/exists? r))))
   (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
                                                       (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
@@ -1444,29 +1459,35 @@ If you do not specifically require different script states, consider changing th
                    (.putString s)))))
 
 (handler/defhandler :copy-project-path :global
-  (active? [app-view selection] (context-resource-file app-view selection))
-  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
-                                   (and (resource/proj-path r)
-                                        (resource/exists? r))))
+  (active? [app-view selection evaluation-context]
+           (context-resource-file app-view selection evaluation-context))
+  (enabled? [app-view selection evaluation-context]
+            (when-let [r (context-resource-file app-view selection evaluation-context)]
+              (and (resource/proj-path r)
+                   (resource/exists? r))))
   (run [selection app-view]
     (when-let [r (context-resource-file app-view selection)]
       (put-on-clipboard! (resource/proj-path r)))))
 
 (handler/defhandler :copy-full-path :global
-  (active? [app-view selection] (context-resource-file app-view selection))
-  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
-                                   (and (resource/abs-path r)
-                                        (resource/exists? r))))
+  (active? [app-view selection evaluation-context]
+           (context-resource-file app-view selection evaluation-context))
+  (enabled? [app-view selection evaluation-context]
+            (when-let [r (context-resource-file app-view selection evaluation-context)]
+              (and (resource/abs-path r)
+                   (resource/exists? r))))
   (run [selection app-view]
     (when-let [r (context-resource-file app-view selection)]
       (put-on-clipboard! (resource/abs-path r)))))
 
 (handler/defhandler :copy-require-path :global
-  (active? [app-view selection] (when-let [r (context-resource-file app-view selection)]
-                                  (= "lua" (resource/type-ext r))))
-  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
-                                   (and (resource/proj-path r)
-                                        (resource/exists? r))))
+  (active? [app-view selection evaluation-context]
+           (when-let [r (context-resource-file app-view selection evaluation-context)]
+             (= "lua" (resource/type-ext r))))
+  (enabled? [app-view selection evaluation-context]
+            (when-let [r (context-resource-file app-view selection evaluation-context)]
+              (and (resource/proj-path r)
+                   (resource/exists? r))))
   (run [selection app-view]
      (when-let [r (context-resource-file app-view selection)]
        (put-on-clipboard! (lua/path->lua-module (resource/proj-path r))))))

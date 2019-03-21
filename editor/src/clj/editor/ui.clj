@@ -4,6 +4,7 @@
    [clojure.set :as set]
    [clojure.string :as string]
    [clojure.xml :as xml]
+   [dynamo.graph :as g]
    [editor.error-reporting :as error-reporting]
    [editor.handler :as handler]
    [editor.jfx :as jfx]
@@ -54,7 +55,6 @@
 ;; stylesheet, and this requires Application to be running.
 (PlatformImpl/startup (fn []))
 
-(defonce text-cursor-white (ImageCursor. (jfx/get-image "text-cursor-white.png") 16.0 16.0))
 (defonce ^:dynamic *main-stage* (atom nil))
 
 ;; Slight hack to work around the fact that we have not yet found a
@@ -1460,13 +1460,13 @@
                last-visible-non-separator-item
                pending-separator)))))
 
-(defn- refresh-menu-item-state [^MenuItem menu-item command-contexts]
+(defn- refresh-menu-item-state [^MenuItem menu-item command-contexts evaluation-context]
   (condp instance? menu-item
     Menu
     (let [^Menu menu menu-item]
       (let [child-menu-items (seq (.getItems menu))]
         (doseq [child-menu-item child-menu-items]
-          (refresh-menu-item-state child-menu-item command-contexts))
+          (refresh-menu-item-state child-menu-item command-contexts evaluation-context))
         (let [visible (boolean (some #(and (not (instance? SeparatorMenuItem %)) (.isVisible ^MenuItem %)) child-menu-items))]
           (.setVisible menu visible))))
 
@@ -1474,14 +1474,17 @@
     (let [^CheckMenuItem check-menu-item menu-item
           command (keyword (.getId check-menu-item))
           user-data (user-data check-menu-item ::menu-user-data)
-          handler-ctx (handler/active command command-contexts user-data)]
+          handler-ctx (handler/active command command-contexts user-data evaluation-context)]
       (doto check-menu-item
-        (.setDisable (not (handler/enabled? handler-ctx)))
+        (.setDisable (not (handler/enabled? handler-ctx evaluation-context)))
         (.setSelected (boolean (handler/state handler-ctx)))))
 
     MenuItem
-    (let [handler-ctx (handler/active (keyword (.getId menu-item)) command-contexts (user-data menu-item ::menu-user-data))
-          disable (not (and handler-ctx (handler/enabled? handler-ctx)))]
+    (let [handler-ctx (handler/active (keyword (.getId menu-item))
+                                      command-contexts
+                                      (user-data menu-item ::menu-user-data)
+                                      evaluation-context)
+          disable (not (and handler-ctx (handler/enabled? handler-ctx evaluation-context)))]
       (.setDisable menu-item disable))))
 
 (defn- refresh-menu-item-styles [menu-items]
@@ -1493,9 +1496,9 @@
     (doseq [^Menu menu (filter #(instance? Menu %) visible-menu-items)]
       (refresh-menu-item-styles (.getItems menu)))))
 
-(defn- refresh-menubar-state [^MenuBar menubar current-command-contexts]
+(defn- refresh-menubar-state [^MenuBar menubar current-command-contexts evaluation-context]
   (doseq [^Menu m (.getMenus menubar)]
-    (refresh-menu-item-state m current-command-contexts)
+    (refresh-menu-item-state m current-command-contexts evaluation-context)
     ;; The system menu bar on osx seems to handle consecutive
     ;; separators and using .setVisible to hide a SeparatorMenuItem
     ;; makes the entire containing submenu appear empty.
@@ -1589,13 +1592,15 @@
        (doseq [child children]
          (.add (.getChildren control) child))))))
 
-(defn- refresh-toolbar-state [^Pane toolbar command-contexts]
-  (let [nodes (.getChildren toolbar)
-        ids (map #(.getId ^Node %) nodes)]
+(defn- refresh-toolbar-state [^Pane toolbar command-contexts evaluation-context]
+  (let [nodes (.getChildren toolbar)]
     (doseq [^Node n nodes
             :let [user-data (user-data n ::menu-user-data)
-                  handler-ctx (handler/active (keyword (.getId n)) command-contexts user-data)]]
-      (disable! n (not (handler/enabled? handler-ctx)))
+                  handler-ctx (handler/active (keyword (.getId n))
+                                              command-contexts
+                                              user-data
+                                              evaluation-context)]]
+      (disable! n (not (handler/enabled? handler-ctx evaluation-context)))
       (when (instance? ToggleButton n)
         (if (handler/state handler-ctx)
           (.setSelected ^Toggle n true)
@@ -1639,8 +1644,8 @@
 (defn- current-command-contexts [^Scene scene]
   (contexts scene))
 
-(defn refresh-menus!
-  [^Scene scene command->shortcut]
+(defn- refresh-menus!
+  [^Scene scene command->shortcut evaluation-context]
   (let [visible-command-contexts (visible-command-contexts scene)
         current-command-contexts (current-command-contexts scene)
         root (.getRoot scene)]
@@ -1654,21 +1659,22 @@
           (refresh-menubar-items?)
           (refresh-menubar-items! menu-bar menu visible-command-contexts command->shortcut))
 
-        (refresh-menubar-state menu-bar current-command-contexts)))))
+        (refresh-menubar-state menu-bar current-command-contexts evaluation-context)))))
 
-(defn refresh-toolbars!
-  [^Scene scene]
+(defn- refresh-toolbars!
+  [^Scene scene evaluation-context]
   (let [visible-command-contexts (visible-command-contexts scene)
         current-command-contexts (current-command-contexts scene)
         root (.getRoot scene)]
     (doseq [td (vals (user-data root ::toolbars))]
       (refresh-toolbar td visible-command-contexts)
-      (refresh-toolbar-state (:control td) current-command-contexts))))
+      (refresh-toolbar-state (:control td) current-command-contexts evaluation-context))))
 
 (defn refresh
   [^Scene scene]
-  (refresh-menus! scene (or (user-data scene :command->shortcut) {}))
-  (refresh-toolbars! scene))
+  (g/with-auto-evaluation-context evaluation-context
+    (refresh-menus! scene (or (user-data scene :command->shortcut) {}) evaluation-context)
+    (refresh-toolbars! scene evaluation-context)))
 
 (defn render-progress-bar! [progress ^ProgressBar bar]
   (let [frac (progress/fraction progress)]
