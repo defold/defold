@@ -1124,16 +1124,20 @@
 
 (defn- maybe-substitute-error-in-value-form
   [nodeid-sym description input forms]
-  (let [sub (get-in description [:input input :options :substitute] ::no-sub) ; nil is a valid substitute literal
-        input-val (gensym)]
-    `(let [~input-val ~forms]
-       (if (instance? ErrorValue ~input-val)
-         (if (ie/worse-than :info ~input-val)
-           ~(if (not= ::no-sub sub)
-              `(util/apply-if-fn ~sub ~input-val)
-              `(ie/error-aggregate [~input-val] :_node-id ~nodeid-sym :_label ~input))
-           (:value ~input-val))
-         ~input-val))))
+  (let [sub (get-in description [:input input :options :substitute] ::no-sub)] ; nil is a valid substitute literal
+    (if (= ::no-sub sub)
+      `(let [input-value# ~forms]
+         (if (instance? ErrorValue input-value#)
+           (if (ie/worse-than :info input-value#)
+             (ie/error-aggregate [input-value#] :_node-id ~nodeid-sym :_label ~input)
+             (:value input-value#))
+           input-value#))
+      `(let [input-value# ~forms]
+         (if (instance? ErrorValue input-value#)
+           (if (ie/worse-than :info input-value#)
+             (util/apply-if-fn ~sub input-value#)
+             (:value input-value#))
+           input-value#)))))
 
 (defn- maybe-substitute-error-in-array-form
   [nodeid-sym description input forms]

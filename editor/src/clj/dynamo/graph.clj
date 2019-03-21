@@ -351,6 +351,7 @@
         fully-qualified-node-type-symbol (symbol (str *ns*) (str symb))
         node-type-def (in/process-node-type-forms fully-qualified-node-type-symbol forms)
         fn-paths (in/extract-functions node-type-def)
+        _ (def last-node-type-def node-type-def)
         fn-defs (for [[path func] fn-paths]
                   (list `def (in/dollar-name symb path) func))
         fwd-decls (map (fn [d] (list `declare (second d))) fn-defs)
