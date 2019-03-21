@@ -224,8 +224,6 @@ namespace dmGraphics
             uint32_t                       m_CurrentFrameInFlight;
             uint32_t                       m_MaxDescriptorSets;
 
-            bool m_IsDrawing;
-
             VkInstance                     m_Instance;
             VkPhysicalDevice               m_PhysicalDevice;
             VkPhysicalDeviceProperties     m_PhysicalDeviceProperties;
@@ -2604,10 +2602,8 @@ namespace dmGraphics
 
             FrameResource& current_frame_resource = g_vk_context.m_FrameResources[g_vk_context.m_CurrentFrameInFlight];
 
-            /*
             VK_CHECK(vkWaitForFences(g_vk_context.m_LogicalDevice, 1, &current_frame_resource.m_SubmitFence, VK_TRUE, UINT64_MAX));
             VK_CHECK(vkResetFences(g_vk_context.m_LogicalDevice, 1, &current_frame_resource.m_SubmitFence));
-            */
 
             vkAcquireNextImageKHR(g_vk_context.m_LogicalDevice, g_vk_context.m_SwapChain, UINT64_MAX,
                 current_frame_resource.m_ImageAvailable, VK_NULL_HANDLE, vk_frame_image_ptr);
@@ -2673,8 +2669,7 @@ namespace dmGraphics
             vk_submit_info.signalSemaphoreCount = 1;
             vk_submit_info.pSignalSemaphores    = &current_frame_resource.m_RenderFinished;
 
-            //VK_CHECK(vkQueueSubmit(g_vk_context.m_GraphicsQueue, 1, &vk_submit_info, current_frame_resource.m_SubmitFence));
-            VK_CHECK(vkQueueSubmit(g_vk_context.m_GraphicsQueue, 1, &vk_submit_info, 0));
+            VK_CHECK(vkQueueSubmit(g_vk_context.m_GraphicsQueue, 1, &vk_submit_info, current_frame_resource.m_SubmitFence));
 
             VkPresentInfoKHR vk_present_info;
             vk_present_info.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -2688,8 +2683,8 @@ namespace dmGraphics
 
             VK_CHECK(vkQueuePresentKHR(g_vk_context.m_PresentQueue, &vk_present_info));
 
-            // NOTE: This should probably be removed when we have better frame syncing..
-            VK_CHECK(vkQueueWaitIdle(g_vk_context.m_PresentQueue));
+            // CPU-GPU synchronization variation
+            // VK_CHECK(vkQueueWaitIdle(g_vk_context.m_PresentQueue));
 
             g_vk_context.m_CurrentFrameInFlight = (g_vk_context.m_CurrentFrameInFlight + 1) % g_vk_max_frames_in_flight;
         }
