@@ -482,7 +482,7 @@
                              (remove nil?)
                              (not-empty))]
         (g/error-aggregate errors))
-      [(bt/update-build-target-key
+      [(bt/with-content-hash
          {:node-id _node-id
           :resource (workspace/make-build-resource resource)
           :build-fn build-font

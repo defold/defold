@@ -23,7 +23,7 @@
   [workspace id dep-resources & deps]
   (let [build-resource (workspace/make-build-resource (workspace/file-resource workspace (str "/resource-" id)))
         user-data (str id)]
-    (bt/update-build-target-key
+    (bt/with-content-hash
       {:resource build-resource
        :build-fn mock-build-fn
        :user-data user-data
@@ -49,13 +49,13 @@
   (-> (apply make-mock-build-target workspace id dep-resources deps)
       (install-asserting-build-fn callback)))
 
-(defn- update-asserting-build-target
+(defn- rehash-asserting-build-target
   [asserting-build-target]
   (let [callback (:callback asserting-build-target)]
 
     (-> asserting-build-target
         (assoc :build-fn mock-build-fn)
-        bt/update-build-target-key
+        bt/with-content-hash
         (install-asserting-build-fn callback))))
 
 (defmacro with-clean-system [& forms]
@@ -113,10 +113,10 @@
             (let [build-results (pipeline-build! workspace build-targets)]
               (is (= 4 @build-fn-calls))
               (is (= "1" (content (first (:artifacts build-results)))))))))
-      (testing "invokes build-fn when the target key has changed"
+      (testing "invokes build-fn when the content hash has changed"
         (let [build-targets [(-> (make-asserting-build-target workspace "1" called! {})
                                  (assoc :user-data "X")
-                                 update-asserting-build-target)]
+                                 rehash-asserting-build-target)]
               _ (pipeline-build! workspace build-targets)
               build-results (pipeline-build! workspace build-targets)]
           (is (= 5 @build-fn-calls))
@@ -124,7 +124,7 @@
           (let [build-targets' (update build-targets 0 (fn [build-target]
                                                          (-> build-target
                                                              (assoc :user-data {:new-value 42})
-                                                             update-asserting-build-target)))
+                                                             rehash-asserting-build-target)))
                 build-results (pipeline-build! workspace build-targets')]
             (is (= 6 @build-fn-calls))
             (is (= "{:new-value 42}" (content (first (:artifacts build-results))))))))

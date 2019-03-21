@@ -77,7 +77,7 @@
           "#dg/ByteString [65, 66, 67]" (ByteString/copyFrom "ABC" "UTF-8")
           "#dg/Class java.io.StringWriter" StringWriter
           "#dg/File \"readme.txt\"" (File. "readme.txt")
-          "#dg/Function editor.build-target/build-target-key" bt/build-target-key
+          "#dg/Function editor.build-target/content-hash" bt/content-hash
           "#dg/Matrix4d [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]" (doto (Matrix4d.) .setIdentity)
           "#dg/URI \"https://www.defold.com\"" (URI. "https://www.defold.com")))
 
@@ -156,21 +156,23 @@
                    (remove empty?))
              (completing
                (fn [all-build-targets resource-build-targets]
-                 (let [seen-keys (into #{} (map :key) all-build-targets)]
+                 (let [seen-content-hashes (into #{}
+                                                 (map :content-hash)
+                                                 all-build-targets)]
                    (into all-build-targets
                          (pipeline/flatten-build-targets
-                           resource-build-targets seen-keys)))))
+                           resource-build-targets seen-content-hashes)))))
              []
              (sort-by key
                       (g/node-value project :nodes-by-resource-path))))
 
-(defn- build-target-keys-by-path [project]
+(defn- build-target-content-hashes-by-path [project]
   (into (sorted-map)
         (map (juxt (comp resource/proj-path :resource)
-                   :key))
+                   :content-hash))
         (all-build-targets project)))
 
-(deftest build-target-keys-produce-no-errors
+(deftest build-targets-produce-no-errors
   (test-util/with-loaded-project project-path
     (let [resource-nodes-by-path (g/node-value project :nodes-by-resource-path)
           resource-results (keep (fn [[proj-path resource-node]]
@@ -181,35 +183,39 @@
           build-target-errors (into (sorted-map)
                                     (filter (comp g/error? second))
                                     resource-results)
-          build-target-key-errors (into (sorted-map)
-                                        (keep (fn [[resource-path build-targets]]
-                                                (when-not (g/error? build-targets)
-                                                  (try
-                                                    (pipeline/flatten-build-targets build-targets)
-                                                    nil
-                                                    (catch Throwable error
-                                                      [resource-path (g/error-fatal (.getMessage error))])))))
-                                        resource-results)]
+          flatten-errors (into (sorted-map)
+                               (keep (fn [[resource-path build-targets]]
+                                       (when-not (g/error? build-targets)
+                                         (try
+                                           (pipeline/flatten-build-targets build-targets)
+                                           nil
+                                           (catch Throwable error
+                                             [resource-path (g/error-fatal (.getMessage error))])))))
+                               resource-results)]
       (is (= {} build-target-errors))
-      (is (= {} build-target-key-errors)))))
+      (is (= {} flatten-errors)))))
 
-(deftest build-target-keys-are-unaffected-by-node-ids
-  ;; This test ensures the build target keys do not change in case a node id
-  ;; differs between editing sessions. If a node id is needed inside a build
-  ;; target, it must be in a map under a key that ends with "node-id". The
-  ;; node itself must have a :sha256 output. All resource nodes have this.
-  (let [session1-keys-by-path (test-util/with-loaded-project project-path
-                                (build-target-keys-by-path project))
-        session2-keys-by-path (with-clean-system
-                                (g/make-graph!) ; This causes all node ids to differ from session1.
-                                (let [workspace (test-util/setup-workspace! world project-path)
-                                      project (test-util/setup-project! workspace)]
-                                  (build-target-keys-by-path project)))]
-    (doseq [[path session1-key] session1-keys-by-path
-            :let [session2-key (session2-keys-by-path path)]]
-      (is (= session1-key session2-key)))))
+(deftest build-target-content-hashes-are-unaffected-by-node-ids
+  ;; This test ensures the build target content hashes do not change in case a
+  ;; node id differs between editing sessions. If a node id is needed inside a
+  ;; build target, it must be in a map under a key that ends with "node-id".
+  ;; The node itself must have a :sha256 output. All resource nodes have this.
+  (let [session1-content-hashes-by-path
+        (test-util/with-loaded-project project-path
+          (build-target-content-hashes-by-path project))
 
-(deftest build-target-keys-are-affected-by-engine-revision
+        session2-content-hashes-by-path
+        (with-clean-system
+          (g/make-graph!) ; This causes all node ids to differ from session1.
+          (let [workspace (test-util/setup-workspace! world project-path)
+                project (test-util/setup-project! workspace)]
+            (build-target-content-hashes-by-path project)))]
+
+    (doseq [[path session1-content-hash] session1-content-hashes-by-path
+            :let [session2-content-hash (session2-content-hashes-by-path path)]]
+      (is (= session1-content-hash session2-content-hash)))))
+
+(deftest build-target-content-hashes-are-affected-by-engine-revision
   ;; We cannot safely reuse build artifacts that were compiled for a different
   ;; version of the engine runtime, since external tools or libraries might have
   ;; been changed. The converse also hold true. We can safely reuse build
@@ -219,19 +225,23 @@
   ;; be reused as long as only the editor code has changed.
   (let [defold-engine-sha1 (system/defold-engine-sha1)]
     (try
-      (let [rev1-keys-by-path (with-clean-system
-                                (system/set-defold-engine-sha1! "1111111111111111111111111111111111111111")
-                                (let [workspace (test-util/setup-workspace! world project-path)
-                                      project (test-util/setup-project! workspace)]
-                                  (build-target-keys-by-path project)))
-            rev2-keys-by-path (with-clean-system
-                                (system/set-defold-engine-sha1! "2222222222222222222222222222222222222222")
-                                (let [workspace (test-util/setup-workspace! world project-path)
-                                      project (test-util/setup-project! workspace)]
-                                  (build-target-keys-by-path project)))]
-        (doseq [[path rev1-key] rev1-keys-by-path
-                :let [rev2-key (rev2-keys-by-path path)]]
-          (is (not= rev1-key rev2-key))))
+      (let [rev1-content-hashes-by-path
+            (with-clean-system
+              (system/set-defold-engine-sha1! "1111111111111111111111111111111111111111")
+              (let [workspace (test-util/setup-workspace! world project-path)
+                    project (test-util/setup-project! workspace)]
+                (build-target-content-hashes-by-path project)))
+
+            rev2-content-hashes-by-path
+            (with-clean-system
+              (system/set-defold-engine-sha1! "2222222222222222222222222222222222222222")
+              (let [workspace (test-util/setup-workspace! world project-path)
+                    project (test-util/setup-project! workspace)]
+                (build-target-content-hashes-by-path project)))]
+
+        (doseq [[path rev1-content-hash] rev1-content-hashes-by-path
+                :let [rev2-content-hash (rev2-content-hashes-by-path path)]]
+          (is (not= rev1-content-hash rev2-content-hash))))
       (finally
         (when (not-empty defold-engine-sha1)
           (system/set-defold-engine-sha1! defold-engine-sha1))))))

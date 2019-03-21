@@ -654,7 +654,7 @@
                          (map #(format "%s shapes are not supported in %s physics" (shape-type-label %) supported-physics-type))
                          (map #(g/->error _node-id :shapes :fatal shapes %)))
                    shapes))]
-      [(bt/update-build-target-key
+      [(bt/with-content-hash
          {:node-id _node-id
           :resource (workspace/make-build-resource resource)
           :build-fn build-collision-object

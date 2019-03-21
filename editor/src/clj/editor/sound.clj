@@ -39,7 +39,7 @@
 
 (g/defnk produce-source-build-targets [_node-id resource]
   (try
-    [(bt/update-build-target-key
+    [(bt/with-content-hash
        {:node-id _node-id
         :resource (workspace/make-build-resource resource)
         :build-fn build-sound-source
@@ -115,7 +115,7 @@
             dep-resources (map (fn [[label resource]]
                                  [label (get deps-by-resource resource)])
                                [[:sound sound]])]
-        [(bt/update-build-target-key
+        [(bt/with-content-hash
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
             :build-fn build-sound

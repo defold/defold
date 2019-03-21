@@ -2157,7 +2157,7 @@
           deps-by-source (into {} (map #(let [res (:resource %)] [(resource/resource->proj-path (:resource res)) res]) dep-build-targets))
           resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get rt-pb-msg (first field))))) [field])) (:resource-fields def))
           dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-msg label) (get rt-pb-msg label)))]) resource-fields)]
-      [(bt/update-build-target-key
+      [(bt/with-content-hash
          {:node-id _node-id
           :resource (workspace/make-build-resource resource)
           :build-fn build-pb

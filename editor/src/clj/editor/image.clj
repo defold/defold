@@ -31,7 +31,7 @@
   (assert (contains? image-generator :sha1))
   (let [texture-type (workspace/get-resource-type workspace "texture")
         texture-resource (resource/make-memory-resource workspace texture-type (:sha1 image-generator))]
-    (bt/update-build-target-key
+    (bt/with-content-hash
       {:node-id node-id
        :resource (workspace/make-build-resource texture-resource)
        :build-fn build-texture
@@ -40,7 +40,7 @@
                    :texture-profile texture-profile}})))
 
 (g/defnk produce-build-targets [_node-id resource content-generator texture-profile build-settings]
-  [(bt/update-build-target-key
+  [(bt/with-content-hash
      {:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-texture

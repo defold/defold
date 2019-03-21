@@ -83,7 +83,7 @@
             deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
             dep-resources (into (res-fields->resources pb-msg deps-by-source [:rig-scene :material])
                             (filter second (res-fields->resources pb-msg deps-by-source [[:textures]])))]
-        [(bt/update-build-target-key
+        [(bt/with-content-hash
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
             :build-fn build-pb

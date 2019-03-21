@@ -154,7 +154,7 @@
   (let [workspace (project/workspace (project/get-project _node-id))
         compress? (:compress-textures? build-settings false)
         texture-target (image/make-texture-build-target workspace _node-id packed-image-generator texture-profile compress?)]
-    [(bt/update-build-target-key
+    [(bt/with-content-hash
        {:node-id _node-id
         :resource (workspace/make-build-resource resource)
         :build-fn build-texture-set

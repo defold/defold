@@ -65,7 +65,7 @@
       (let [workspace (project/workspace (project/get-project _node-id))
             res-type  (workspace/get-resource-type workspace "sound")
             pb        {:sound source-path}
-            target    (bt/update-build-target-key
+            target    (bt/with-content-hash
                         {:node-id _node-id
                          :resource (workspace/make-build-resource (resource/make-memory-resource workspace res-type (protobuf/map->str Sound$SoundDesc pb)))
                          :build-fn build-raw-sound
@@ -209,7 +209,7 @@
                                              (if-let [target (first source-build-targets)]
                                                (let [target (->> (assoc target :resource build-resource)
                                                                  (wrap-if-raw-sound _node-id))]
-                                                 [(bt/update-build-target-key
+                                                 [(bt/with-content-hash
                                                     (assoc target
                                                       :instance-data
                                                       {:resource (:resource target)
@@ -357,7 +357,7 @@
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
         (when (not-empty dup-ids)
           (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
-      [(bt/update-build-target-key
+      [(bt/with-content-hash
          {:node-id _node-id
           :resource (workspace/make-build-resource resource)
           :build-fn build-game-object
