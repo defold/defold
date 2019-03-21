@@ -65,8 +65,9 @@
   (digest-raw! " " writer)
   (digest! value writer))
 
-(defn- digest-resource! [type-sym resource writer]
-  (digest-tagged! type-sym (resource/resource-hash resource) writer))
+(defn- digest-resource! [resource writer]
+  (let [tag-sym (symbol (.getSimpleName (class resource)))]
+    (digest-tagged! tag-sym (resource/resource-hash resource) writer)))
 
 (defn- digest-map-entry! [[key value] ^Writer writer]
   (digest! key writer)
@@ -74,6 +75,10 @@
   (if (node-id-entry? key value)
     (digest-tagged! 'Node (node-id-data-representation value) writer)
     (digest! value writer)))
+
+(defn- digest-map! [coll writer]
+  (let [sorted-sequence (if (sorted? coll) coll (sort-by key coll))]
+    (digest-sequence! "{" digest-map-entry! "}" sorted-sequence writer)))
 
 (let [simple-digestable-impl {:digest! print-method}
       simple-digestable-classes [nil
@@ -92,26 +97,6 @@
   com.google.protobuf.ByteString
   (digest! [value writer]
     (digest-sequence! "#dg/ByteString [" digest! "]" (.toByteArray value) writer))
-
-  editor.workspace.BuildResource
-  (digest! [value writer]
-    (digest-resource! 'BuildResource value writer))
-
-  editor.resource.FileResource
-  (digest! [value writer]
-    (digest-resource! 'FileResource value writer))
-
-  editor.resource.MemoryResource
-  (digest! [value writer]
-    (digest-resource! 'MemoryResource value writer))
-
-  editor.resource.ZipResource
-  (digest! [value writer]
-    (digest-resource! 'ZipResource value writer))
-
-  java.io.File
-  (digest! [value writer]
-    (digest-tagged! 'File (str value) writer))
 
   java.net.URI
   (digest! [value writer]
@@ -132,8 +117,9 @@
 
   java.util.Map
   (digest! [value writer]
-    (let [sorted-sequence (if (sorted? value) value (sort-by key value))]
-      (digest-sequence! "{" digest-map-entry! "}" sorted-sequence writer)))
+    (if (satisfies? resource/Resource value)
+      (digest-resource! value writer)
+      (digest-map! value writer)))
 
   java.util.List
   (digest! [value writer]
