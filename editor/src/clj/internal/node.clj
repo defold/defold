@@ -1122,22 +1122,26 @@
   [self-name ctx-name input]
   `(pull-input-values ~input ~self-name ~ctx-name))
 
+(defn error-checked-input-value [input-value node-id input]
+  (if (instance? ErrorValue input-value)
+    (if (ie/worse-than :info input-value)
+      (ie/error-aggregate [input-value] :_node-id node-id :_label input)
+      (:value input-value))
+    input-value))
+
+(defn error-substituted-input-value [input-value substitute-fn]
+  (if (instance? ErrorValue input-value)
+    (if (ie/worse-than :info input-value)
+      (util/apply-if-fn substitute-fn input-value)
+      (:value input-value))
+    input-value))
+
 (defn- maybe-substitute-error-in-value-form
   [nodeid-sym description input forms]
   (let [sub (get-in description [:input input :options :substitute] ::no-sub)] ; nil is a valid substitute literal
     (if (= ::no-sub sub)
-      `(let [input-value# ~forms]
-         (if (instance? ErrorValue input-value#)
-           (if (ie/worse-than :info input-value#)
-             (ie/error-aggregate [input-value#] :_node-id ~nodeid-sym :_label ~input)
-             (:value input-value#))
-           input-value#))
-      `(let [input-value# ~forms]
-         (if (instance? ErrorValue input-value#)
-           (if (ie/worse-than :info input-value#)
-             (util/apply-if-fn ~sub input-value#)
-             (:value input-value#))
-           input-value#)))))
+      `(error-checked-input-value ~forms ~nodeid-sym ~input)
+      `(error-substituted-input-value ~forms ~sub))))
 
 (defn- maybe-substitute-error-in-array-form
   [nodeid-sym description input forms]
