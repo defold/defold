@@ -545,23 +545,28 @@ namespace dmScript
     {
         DM_LUA_STACK_CHECK(L, 0);
         lua_pushvalue(L, user_data_index);
+        // [-1] user data
         lua_Integer type_hash = 0;
         if (lua_type(L, -1) == LUA_TUSERDATA)
         {
             if (lua_getmetatable(L, -1))
             {
                 // [-1] meta table
+                // [-2] user data
 
                 lua_pushinteger(L, SCRIPT_METATABLE_TYPE_HASH_KEY);
                 // [-1] SCRIPT_METATABLE_TYPE_HASH_KEY
                 // [-2] meta table
+                // [-3] user data
 
                 lua_rawget(L, -2);
                 // [-1] type hash
                 // [-2] meta table
+                // [-3] user data
 
                 type_hash = lua_tointeger(L, -1);
                 lua_pop(L, 2);
+                // [-1] user data
             }
         }
         lua_pop(L, 1);
@@ -592,8 +597,6 @@ namespace dmScript
         }
         return result;
     }
-
-
 
     static bool GetMetaFunction(lua_State* L, int index, const char* meta_table_key, size_t meta_table_key_length) {
         if (lua_getmetatable(L, index)) {
