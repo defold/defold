@@ -27,12 +27,11 @@ namespace dmScript
      */
 
     #define SCRIPT_TYPE_NAME_HASH "hash"
-    #define SCRIPT_HASH_TABLE "__script_hash_table"
-    static uint32_t SCRIPT_HASH_TABLE_TYPE_HASH = 0;
+    static uint32_t SCRIPT_HASH_TYPE_HASH = 0;
 
     bool IsHash(lua_State *L, int index)
     {
-        return (dmhash_t*)dmScript::ToUserType(L, index, SCRIPT_HASH_TABLE_TYPE_HASH);
+        return (dmhash_t*)dmScript::ToUserType(L, index, SCRIPT_HASH_TYPE_HASH);
     }
 
     /*# hashes a string
@@ -129,7 +128,7 @@ namespace dmScript
     {
         int top = lua_gettop(L);
 
-        lua_getglobal(L, SCRIPT_CONTEXT);
+        dmScript::GetGlobal(L, dmScript::SCRIPT_CONTEXT_HASH);
         Context* context = (Context*)lua_touserdata(L, -1);
         // [-1] context
         lua_pop(L, 1);
@@ -181,7 +180,7 @@ namespace dmScript
     void ReleaseHash(lua_State* L, dmhash_t hash)
     {
         int top = lua_gettop(L);
-        lua_getglobal(L, SCRIPT_CONTEXT);
+        dmScript::GetGlobal(L, dmScript::SCRIPT_CONTEXT_HASH);
         // [-1] context
         Context* context = (Context*)lua_touserdata(L, -1);
         lua_pop(L, 1);
@@ -201,7 +200,7 @@ namespace dmScript
 
     dmhash_t CheckHash(lua_State* L, int index)
     {
-        return *(dmhash_t*)dmScript::CheckUserType(L, index, SCRIPT_HASH_TABLE_TYPE_HASH, 0);
+        return *(dmhash_t*)dmScript::CheckUserType(L, index, SCRIPT_HASH_TYPE_HASH, 0);
     }
 
     dmhash_t CheckHashOrString(lua_State* L, int index)
@@ -357,7 +356,7 @@ namespace dmScript
         int top = lua_gettop(L);
         luaL_newmetatable(L, SCRIPT_TYPE_NAME_HASH);
 
-        SCRIPT_HASH_TABLE_TYPE_HASH = dmScript::SetUserType(L, -1, SCRIPT_TYPE_NAME_HASH);
+        SCRIPT_HASH_TYPE_HASH = dmScript::SetUserType(L, -1, SCRIPT_TYPE_NAME_HASH);
 
         luaL_openlib(L, 0x0, ScriptHash_methods, 0);
 
@@ -381,9 +380,6 @@ namespace dmScript
 
         lua_pushcfunction(L, Script_HashMD5);
         lua_setglobal(L, "hashmd5");
-
-        lua_newtable(L);
-        lua_setglobal(L, SCRIPT_HASH_TABLE);
 
         lua_pop(L, 1);
 

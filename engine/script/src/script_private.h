@@ -3,12 +3,12 @@
 
 #include <dlib/hashtable.h>
 
-#define SCRIPT_CONTEXT "__script_context"
 #define SCRIPT_MAIN_THREAD "__script_main_thread"
 #define SCRIPT_ERROR_HANDLER_VAR "__error_handler"
 
 namespace dmScript
 {
+    extern const uint32_t SCRIPT_CONTEXT_HASH;
 
 ///////////////////////////////////////////////////////////////
 // NOTE: Helper functions to get more logging on issue DEF-3714

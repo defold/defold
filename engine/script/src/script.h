@@ -74,6 +74,9 @@ namespace dmScript
      */
     void DeleteContext(HContext context);
 
+    void SetGlobal(lua_State* L, uint32_t name_hash);
+    void GetGlobal(lua_State*L, uint32_t name_hash);
+
     /**
      * Use a ScriptExtension to hook into various callbacks of the script lifetime
      *

@@ -295,7 +295,7 @@ union SaveLoadBuffer
             default_value = lua_tostring(L, 2);
         }
 
-        lua_getglobal(L, SCRIPT_CONTEXT);
+        dmScript::GetGlobal(L, dmScript::SCRIPT_CONTEXT_HASH);
         Context* context = (Context*) (dmConfigFile::HConfig)lua_touserdata(L, -1);
         dmConfigFile::HConfig config_file = 0;
         if (context)
@@ -383,7 +383,7 @@ union SaveLoadBuffer
         int top = lua_gettop(L);
         const char* filename = luaL_checkstring(L, 1);
 
-        lua_getglobal(L, SCRIPT_CONTEXT);
+        dmScript::GetGlobal(L, dmScript::SCRIPT_CONTEXT_HASH);
         Context* context = (Context*) (dmConfigFile::HConfig)lua_touserdata(L, -1);
         lua_pop(L, 1);
 

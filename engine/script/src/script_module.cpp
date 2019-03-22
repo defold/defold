@@ -118,7 +118,7 @@ namespace dmScript
         int top = lua_gettop(L);
         (void) top;
 
-        lua_getglobal(L, SCRIPT_CONTEXT);
+        dmScript::GetGlobal(L, dmScript::SCRIPT_CONTEXT_HASH);
         HContext context = (HContext)lua_touserdata(L, -1);
         lua_pop(L, 1);
 

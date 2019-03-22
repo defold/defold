@@ -39,7 +39,11 @@ namespace dmScript
      * @namespace builtins
      */
 
-    const char* INSTANCE_NAME = "__dm_script_instance__";
+    static const char INSTANCE_NAME[] = "__dm_script_instance__";
+    static uint32_t INSTANCE_NAME_HASH = dmHashBufferNoReverse32(INSTANCE_NAME, sizeof(INSTANCE_NAME));
+
+    static const char SCRIPT_CONTEXT[] = "__script_context";
+    const uint32_t SCRIPT_CONTEXT_HASH = dmHashBufferNoReverse32(SCRIPT_CONTEXT, sizeof(SCRIPT_CONTEXT));
 
     const char META_TABLE_RESOLVE_PATH[]             = "__resolve_path";
     const char META_TABLE_GET_URL[]                  = "__get_url";
@@ -170,7 +174,7 @@ namespace dmScript
         lua_pop(L, 1);
 
         lua_pushlightuserdata(L, (void*)context);
-        lua_setglobal(L, SCRIPT_CONTEXT);
+        dmScript::SetGlobal(L, SCRIPT_CONTEXT_HASH);
 
         lua_pushlightuserdata(L, (void*)L);
         lua_setglobal(L, SCRIPT_MAIN_THREAD);
@@ -470,14 +474,38 @@ namespace dmScript
         return 0;
     }
 
+    void SetGlobal(lua_State* L, uint32_t name_hash)
+    {
+        // [-1] instance
+
+        lua_pushinteger(L, (lua_Integer)name_hash);
+        // [-1] INSTANCE_NAMhaE_HASH
+        // [-2] instance
+
+        lua_insert(L, -2);
+        // [-1] instance
+        // [-2] INSTANCE_NAME_HASH
+
+        lua_settable(L, LUA_GLOBALSINDEX);
+    }
+
+    void GetGlobal(lua_State*L, uint32_t name_hash)
+    {
+        lua_pushinteger(L, (lua_Integer)name_hash);
+        // [-1] name_hash
+
+        lua_gettable(L, LUA_GLOBALSINDEX);
+        // [-1] instance
+    }
+
     void GetInstance(lua_State* L)
     {
-        lua_getglobal(L, INSTANCE_NAME);
+        GetGlobal(L, INSTANCE_NAME_HASH);
     }
 
     void SetInstance(lua_State* L)
     {
-        lua_setglobal(L, INSTANCE_NAME);
+        SetGlobal(L, INSTANCE_NAME_HASH);
     }
 
     bool IsInstanceValid(lua_State* L)
