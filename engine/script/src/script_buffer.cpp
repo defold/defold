@@ -101,30 +101,9 @@ namespace dmScript
         int                 m_BufferRef;// Holds a reference to the Lua object
     };
 
-    static bool IsBufferType(lua_State *L, int index, const char* type_name)
-    {
-        int top = lua_gettop(L);
-        void *p = lua_touserdata(L, index);
-        bool result = false;
-        if (p != 0x0)
-        {  /* value is a userdata? */
-            if (lua_getmetatable(L, index))
-            {  /* does it have a metatable? */
-                lua_getfield(L, LUA_REGISTRYINDEX, type_name);  /* get correct metatable */
-                if (lua_rawequal(L, -1, -2))
-                {  /* does it have the correct mt? */
-                    result = true;
-                }
-                lua_pop(L, 2);  /* remove both metatables */
-            }
-        }
-        assert(top == lua_gettop(L));
-        return result;
-    }
-
     bool IsBuffer(lua_State *L, int index)
     {
-        return IsBufferType(L, index, SCRIPT_TYPE_NAME_BUFFER);
+        return dmScript::GetMetaTableType(L, index) == SCRIPT_BUFFER_TYPE_HASH;
     }
 
     void PushBuffer(lua_State* L, const dmScript::LuaHBuffer& v)
@@ -141,8 +120,9 @@ namespace dmScript
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::CheckUserType(L, index, SCRIPT_BUFFER_TYPE_HASH, 0);
-            if( dmBuffer::IsBufferValid( buffer->m_Buffer ) ) {
+            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::ToUserType(L, index, SCRIPT_BUFFER_TYPE_HASH);
+            if( buffer && dmBuffer::IsBufferValid(buffer->m_Buffer))
+            {
                 return buffer;
             }
         }
@@ -153,7 +133,7 @@ namespace dmScript
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::CheckUserType(L, index, SCRIPT_BUFFERSTREAM_TYPE_HASH, 0);
+            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::CheckUserType(L, index, SCRIPT_BUFFER_TYPE_HASH, 0);
             if( dmBuffer::IsBufferValid( buffer->m_Buffer ) ) {
                 return buffer;
             }
@@ -165,7 +145,7 @@ namespace dmScript
 
     static bool IsStream(lua_State *L, int index)
     {
-        return IsBufferType(L, index, SCRIPT_TYPE_NAME_BUFFERSTREAM);
+        return dmScript::GetMetaTableType(L, index) == SCRIPT_BUFFERSTREAM_TYPE_HASH;
     }
 
     template<typename T>
@@ -282,7 +262,7 @@ namespace dmScript
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            BufferStream* stream = (BufferStream*)dmScript::CheckUserType(L, index, SCRIPT_TYPE_NAME_BUFFERSTREAM, 0);
+            BufferStream* stream = (BufferStream*)dmScript::CheckUserType(L, index, SCRIPT_BUFFERSTREAM_TYPE_HASH, 0);
             if (stream && dmBuffer::IsBufferValid(stream->m_Buffer))
             {
                 return stream;
