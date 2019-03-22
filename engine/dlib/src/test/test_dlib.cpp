@@ -568,4 +568,3 @@ int main(int argc, char **argv)
     jc_test_init(&argc, argv);
     return JC_TEST_RUN_ALL();
 }
-

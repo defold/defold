@@ -28,7 +28,7 @@
 (def ^:private ^:dynamic *paste-into-parent* nil)
 
 ;; TreeItem creator
-(defn- ^ObservableList list-children [parent]
+(defn- list-children ^ObservableList [parent]
   (let [children (:children parent)
         items (into-array TreeItem (map tree-item children))]
     (if (empty? children)

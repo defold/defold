@@ -10,6 +10,7 @@
 #include "condition_variable.h"
 #include "dstrings.h"
 #include <dlib/static_assert.h>
+#include <dlib/spinlock.h>
 
 namespace dmMessage
 {
@@ -95,12 +96,13 @@ namespace dmMessage
 
     struct MessageSocket
     {
+        uint32_t        m_RefCount; // Is protected by "g_MessageContext->m_Spinlock"
         dmhash_t        m_NameHash;
         Message*        m_Header;
         Message*        m_Tail;
         const char*     m_Name;
-        dmMutex::Mutex  m_Mutex;
-        dmConditionVariable::ConditionVariable m_Condition;
+        dmMutex::HMutex m_Mutex;
+        dmConditionVariable::HConditionVariable m_Condition;
         MemoryAllocator m_Allocator;
     };
 
@@ -109,7 +111,7 @@ namespace dmMessage
     struct MessageContext
     {
         dmHashTable64<MessageSocket> m_Sockets;
-        dmMutex::Mutex  m_Mutex;
+        dmSpinlock::lock_t m_Spinlock;
     };
 
     MessageContext* g_MessageContext = 0;
@@ -118,13 +120,8 @@ namespace dmMessage
     {
         MessageContext* ctx = new MessageContext;
         ctx->m_Sockets.SetCapacity(max_sockets, max_sockets);
-        ctx->m_Mutex = dmMutex::New();
+        dmSpinlock::Init(&ctx->m_Spinlock);
         return ctx;
-    }
-
-    static void Destroy(MessageContext* ctx)
-    {
-        dmMutex::Delete(ctx->m_Mutex);
     }
 
     // Until the Create/Destroy functions are exposed:
@@ -135,7 +132,6 @@ namespace dmMessage
         {
             if (g_MessageContext)
             {
-                Destroy(g_MessageContext);
                 delete g_MessageContext;
                 g_MessageContext = 0;
             }
@@ -159,16 +155,17 @@ namespace dmMessage
             return RESULT_SOCKET_EXISTS;
         }
 
-        DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
+        dmhash_t name_hash = dmHashString64(name);
+
+        DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
 
         if (g_MessageContext->m_Sockets.Full())
         {
             return RESULT_SOCKET_OUT_OF_RESOURCES;
         }
 
-        dmhash_t name_hash = dmHashString64(name);
-
         MessageSocket s;
+        s.m_RefCount = 1;
         s.m_Header = 0;
         s.m_Tail = 0;
         s.m_NameHash = name_hash;
@@ -182,55 +179,100 @@ namespace dmMessage
         return RESULT_OK;
     }
 
-    Result DeleteSocket(HSocket socket)
+    static void DisposeSocket(MessageSocket* s)
     {
-        DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
+        Message *message_object = s->m_Header;
+        while (message_object)
+        {
+            if (message_object->m_DestroyCallback)
+            {
+                message_object->m_DestroyCallback(message_object);
+            }
+            message_object = message_object->m_Next;
+        }
+
+        free((void*) s->m_Name);
+
+        MemoryPage* p = s->m_Allocator.m_FreePages;
+        while (p)
+        {
+            MemoryPage* next = p->m_NextPage;
+            delete p;
+            p = next;
+        }
+        p = s->m_Allocator.m_FullPages;
+        while (p)
+        {
+            MemoryPage* next = p->m_NextPage;
+            delete p;
+            p = next;
+        }
+        if (s->m_Allocator.m_CurrentPage)
+        {
+            delete s->m_Allocator.m_CurrentPage;
+        }
+
+        dmConditionVariable::Delete(s->m_Condition);
+
+        dmMutex::Delete(s->m_Mutex);
+
+        memset(s, 0, sizeof(*s));
+    }
+
+    static void ReleaseSocket(MessageSocket* s)
+    {
+        {
+            DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
+            --s->m_RefCount;
+
+            if (s->m_RefCount > 0)
+            {
+                return;
+            }
+        }
+        DisposeSocket(s);
+    }
+
+    static MessageSocket* AcquireSocket(HSocket socket)
+    {
+        DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
 
         MessageSocket* s = g_MessageContext->m_Sockets.Get(socket);
-        if (s != 0x0)
+
+        if (s == 0x0)
         {
-            dmMutex::Mutex mutex = s->m_Mutex;
-            dmMutex::Lock(mutex);
-
-            Message *message_object = s->m_Header;
-            while (message_object)
-            {
-                if (message_object->m_DestroyCallback) {
-                    message_object->m_DestroyCallback(message_object);
-                }
-                message_object = message_object->m_Next;
-            }
-
-            free((void*) s->m_Name);
-
-            MemoryPage* p = s->m_Allocator.m_FreePages;
-            while (p)
-            {
-                MemoryPage* next = p->m_NextPage;
-                delete p;
-                p = next;
-            }
-            p = s->m_Allocator.m_FullPages;
-            while (p)
-            {
-                MemoryPage* next = p->m_NextPage;
-                delete p;
-                p = next;
-            }
-            if (s->m_Allocator.m_CurrentPage)
-                delete s->m_Allocator.m_CurrentPage;
-
-            dmConditionVariable::Delete(s->m_Condition);
-
-            memset(s, 0, sizeof(*s));
-
-            dmMutex::Unlock(mutex);
-            dmMutex::Delete(mutex);
-
-            g_MessageContext->m_Sockets.Erase(socket);
-            return RESULT_OK;
+            return 0x0;
         }
-        return RESULT_SOCKET_NOT_FOUND;
+
+        assert(s->m_RefCount >= 1);
+
+        ++s->m_RefCount;
+
+        return s;
+    }
+
+    Result DeleteSocket(HSocket socket)
+    {
+        MessageSocket* s = 0x0;
+        {
+            DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
+            s = g_MessageContext->m_Sockets.Get(socket);
+            if (s == 0x0)
+            {
+                return RESULT_SOCKET_NOT_FOUND;
+            }
+
+            g_MessageContext->m_Sockets.Erase(s->m_NameHash);
+            --s->m_RefCount;
+
+            if(s->m_RefCount > 0)
+            {
+                // Defer deletion
+                return RESULT_OK;
+            }
+        }
+        DisposeSocket(s);
+        return RESULT_OK;
     }
 
     Result GetSocket(const char *name, HSocket* out_socket)
@@ -245,10 +287,10 @@ namespace dmMessage
         dmhash_t name_hash = dmHashString64(name);
         *out_socket = name_hash;
 
-        DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
+        DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
 
         MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(name_hash);
-        if( message_socket )
+        if (message_socket)
         {
             return RESULT_OK;
         }
@@ -257,7 +299,7 @@ namespace dmMessage
 
     const char* GetSocketName(HSocket socket)
     {
-        DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
+        DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
 
         MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(socket);
         if (message_socket != 0x0)
@@ -274,7 +316,7 @@ namespace dmMessage
     {
         if (socket != 0)
         {
-            DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
+            DM_SPINLOCK_SCOPED_LOCK(g_MessageContext->m_Spinlock);
             MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(socket);
             return message_socket != 0;
         }
@@ -285,12 +327,17 @@ namespace dmMessage
     {
         if (!socket)
             return false;
-        DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
-        MessageSocket* s = g_MessageContext->m_Sockets.Get(socket);
+        
+        MessageSocket* s = AcquireSocket(socket);
         if (s != 0)
         {
-            DM_MUTEX_SCOPED_LOCK(s->m_Mutex);
-            return s->m_Header != 0;
+            bool has_messages;
+            {
+                DM_MUTEX_SCOPED_LOCK(s->m_Mutex);
+                has_messages = s->m_Header != 0;
+            }
+            ReleaseSocket(s);
+            return has_messages;
         }
         return false;
     }
@@ -310,17 +357,13 @@ namespace dmMessage
             return RESULT_SOCKET_NOT_FOUND;
         }
 
-        dmMutex::Lock(g_MessageContext->m_Mutex);
-
-        MessageSocket* s = g_MessageContext->m_Sockets.Get(receiver->m_Socket);
+        MessageSocket* s = AcquireSocket(receiver->m_Socket);
         if (s == 0x0)
         {
-            dmMutex::Unlock(g_MessageContext->m_Mutex);
             return RESULT_SOCKET_NOT_FOUND;
         }
 
         dmMutex::Lock(s->m_Mutex);
-        dmMutex::Unlock(g_MessageContext->m_Mutex);
 
         MemoryAllocator* allocator = &s->m_Allocator;
         uint32_t data_size = sizeof(Message) + message_data_size;
@@ -342,6 +385,8 @@ namespace dmMessage
         new_message->m_DestroyCallback = destroy_callback;
         memcpy(&new_message->m_Data[0], message_data, message_data_size);
 
+        bool is_first_message = !s->m_Header;
+
         if (!s->m_Header)
         {
             s->m_Header = new_message;
@@ -353,26 +398,26 @@ namespace dmMessage
             s->m_Tail = new_message;
         }
 
-        dmConditionVariable::Signal(s->m_Condition);
+        if (is_first_message)
+        {
+            dmConditionVariable::Signal(s->m_Condition);
+        }
         dmMutex::Unlock(s->m_Mutex);
+
+        ReleaseSocket(s);
+
         return RESULT_OK;
     }
 
     uint32_t InternalDispatch(HSocket socket, DispatchCallback dispatch_callback, void* user_ptr, bool blocking)
     {
-        dmMutex::Lock(g_MessageContext->m_Mutex);
-
-        MessageSocket* s = g_MessageContext->m_Sockets.Get(socket);
+        MessageSocket* s = AcquireSocket(socket);
         if (s == 0)
         {
-            dmMutex::Unlock(g_MessageContext->m_Mutex);
             return 0;
         }
 
         dmMutex::Lock(s->m_Mutex);
-        dmMutex::Unlock(g_MessageContext->m_Mutex);
-
-        DM_PROFILE_FMT(Message, "Dispatch %s", s->m_Name);
 
         MemoryAllocator* allocator = &s->m_Allocator;
 
@@ -382,9 +427,13 @@ namespace dmMessage
                 dmConditionVariable::Wait(s->m_Condition, s->m_Mutex);
             } else {
                 dmMutex::Unlock(s->m_Mutex);
+                ReleaseSocket(s);
                 return 0;
             }
         }
+
+        DM_PROFILE_FMT(Message, "Dispatch %s", s->m_Name);
+
         uint32_t dispatch_count = 0;
 
         Message *message_object = s->m_Header;
@@ -418,6 +467,8 @@ namespace dmMessage
             p = next;
         }
         dmMutex::Unlock(s->m_Mutex);
+
+        ReleaseSocket(s);
 
         return dispatch_count;
     }
@@ -454,25 +505,38 @@ namespace dmMessage
         uint32_t path_size = 0;
         const char* fragment = 0x0;
         uint32_t fragment_size = 0;
-        const char* socket_end = strchr(uri, ':');
-        const char* fragment_start = strchr(uri, '#');
-        if (fragment_start != 0x0)
+
+        const char* socket_end = 0;
+        const char* fragment_start = 0;
+        const char* scan = uri;
+        while (*scan)
         {
-            if (fragment_start < socket_end)
+            switch(*scan)
             {
-                return RESULT_MALFORMED_URL;
+                case ':':
+                    if (socket_end != 0)
+                    {
+                        return RESULT_MALFORMED_URL;
+                    }
+                    if (fragment_start != 0)
+                    {
+                        return RESULT_MALFORMED_URL;
+                    }
+                    socket_end = scan;
+                    break;
+                case '#':
+                    if (fragment_start != 0)
+                    {
+                        return RESULT_MALFORMED_URL;
+                    }
+                    fragment_start = scan;
+                    break;
             }
-            if (fragment_start != strrchr(uri, '#'))
-            {
-                return RESULT_MALFORMED_URL;
-            }
-        }
+            ++scan;
+        };
+
         if (socket_end != 0x0)
         {
-            if (socket_end != strrchr(uri, ':'))
-            {
-                return RESULT_MALFORMED_URL;
-            }
             socket_size = socket_end - uri;
             if (socket_size >= 64)
             {
@@ -481,15 +545,17 @@ namespace dmMessage
             socket = uri;
             path = socket_end + 1;
         }
+
+        uint32_t uri_length = (uint32_t)(scan - uri);
         if (fragment_start != 0x0)
         {
             fragment = fragment_start + 1;
-            fragment_size = strlen(uri) - (fragment - uri);
+            fragment_size = uri_length - (fragment - uri);
             path_size = fragment_start - path;
         }
         else
         {
-            path_size = strlen(uri) - (path - uri);
+            path_size = uri_length - (path - uri);
         }
         out_url->m_Socket = socket;
         out_url->m_SocketSize = socket_size;

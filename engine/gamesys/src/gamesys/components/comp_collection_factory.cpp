@@ -10,7 +10,7 @@
 #include <dlib/log.h>
 #include <gameobject/gameobject.h>
 #include <gameobject/gameobject_ddf.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include "../gamesys.h"
 #include "../gamesys_private.h"

@@ -13,15 +13,16 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.defold-project :as project]
-            [editor.github :as github])
-  (:import [java.io File]
+            [editor.github :as github]
+            [editor.field-expression :as field-expression])
+  (:import [clojure.lang Named]
+           [java.io File]
            [java.util List Collection]
            [java.nio.file Path Paths]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
            [javafx.scene.control CheckBox Button Label ListView TextArea TextField Hyperlink]
-           [javafx.scene.input KeyCode KeyEvent]
-           [javafx.scene.input KeyEvent]
+           [javafx.scene.input KeyCode]
            [javafx.scene.layout HBox VBox Region]
            [javafx.scene.text Text TextFlow]
            [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]))
@@ -141,45 +142,125 @@
   ([text]
    (make-confirm-dialog text {}))
   ([text options]
-   (let [root     ^Region (ui/load-fxml "confirm.fxml")
-         stage    (if-let [owner-window (:owner-window options)]
-                    (ui/make-dialog-stage owner-window)
-                    (ui/make-dialog-stage))
-         scene    (Scene. root)
-         result   (atom false)]
+   (let [root ^Region (ui/load-fxml "confirm.fxml")
+         stage (if-let [owner-window (:owner-window options)]
+                 (ui/make-dialog-stage owner-window)
+                 (ui/make-dialog-stage))
+         scene (Scene. root)
+         result-atom (atom false)]
      (ui/with-controls root [^Label message ^Button ok ^Button cancel]
        (ui/text! message text)
        (ui/text! ok (get options :ok-label "OK"))
-       (.setDefaultButton ok true)
        (ui/text! cancel (get options :cancel-label "Cancel"))
-       (.setCancelButton cancel true)
        (ui/on-action! ok (fn [_]
-                           (reset! result true)
-                           (.close stage)))
+                           (reset! result-atom true)
+                           (ui/close! stage)))
        (ui/on-action! cancel (fn [_]
-                               (.close stage))))
+                               (ui/close! stage))))
      (when-let [pref-width (:pref-width options)]
        (.setPrefWidth root pref-width))
      (ui/title! stage (get options :title "Please Confirm"))
      (.setScene stage scene)
      (ui/show-and-wait! stage)
-     @result)))
+     @result-atom)))
 
-(defn make-pending-update-dialog
-  [^Stage owner]
+(defn make-resolution-dialog []
+  (let [root     ^Region (ui/load-fxml "resolution.fxml")
+        stage    (ui/make-dialog-stage)
+        scene    (Scene. root)
+        result   (atom false)
+        width    (atom 320)
+        height   (atom 420)]
+    (ui/with-controls root [^TextField resolution-width ^TextField resolution-height ^Button ok ^Button cancel]
+      (let [validate-size-element (fn [^TextField element]
+                                    (let [value (field-expression/to-int (.getText element))
+                                          valid? (and (some? value) (> value 0))]
+                                      (if valid?
+                                        (ui/remove-style! element "error")
+                                        (ui/add-style! element "error"))
+                                      valid?))
+            do-validation (fn []
+                            (let [width-valid (validate-size-element resolution-width)
+                                  height-valid (validate-size-element resolution-height)
+                                  valid? (and width-valid height-valid)]
+                              (ui/enable! ok valid?)
+                              valid?))]
+        (ui/on-edit! resolution-width (fn [_old _new] (do-validation)))
+        (ui/on-edit! resolution-height (fn [_old _new] (do-validation))))
+      (ui/on-action! ok (fn [_]
+                          (let [w (field-expression/to-int (.getText resolution-width))
+                                h (field-expression/to-int (.getText resolution-height))]
+                            (reset! width w)
+                            (reset! height h)
+                            (reset! result true)
+                            (.close stage))))
+      (ui/on-action! cancel (fn [_]
+                              (.close stage))))
+    (ui/title! stage "Custom resolution")
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+  [@result @width @height]))
+
+(defn make-update-failed-dialog [^Stage owner]
+  (let [root ^Parent (ui/load-fxml "update-failed-alert.fxml")
+        stage (ui/make-dialog-stage owner)
+        scene (Scene. root)]
+    (ui/title! stage "Update failed")
+    (ui/with-controls root [^Button quit ^Button open-site]
+      (ui/on-action! quit
+        (fn [_]
+          (ui/close! stage)))
+      (ui/on-action! open-site
+        (fn [_]
+          (ui/open-url "https://www.defold.com/")
+          (ui/close! stage))))
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)))
+
+(defn make-download-update-or-restart-dialog [^Stage owner]
+  (let [root ^Parent (ui/load-fxml "update-or-restart-alert.fxml")
+        stage (ui/make-dialog-stage owner)
+        scene (Scene. root)
+        result-atom (atom :cancel)
+        make-action-fn (fn action! [result]
+                         (fn [_]
+                           (reset! result-atom result)
+                           (ui/close! stage)))]
+    (ui/title! stage "Update Available")
+    (ui/with-controls root [^Button cancel ^Button restart ^Button download]
+      (ui/on-action! cancel (make-action-fn :cancel))
+      (ui/on-action! restart (make-action-fn :restart))
+      (ui/on-action! download (make-action-fn :download)))
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+    @result-atom))
+
+(defn make-platform-no-longer-supported-dialog [^Stage owner]
+  (let [root ^Parent (ui/load-fxml "platform-no-longer-supported-alert.fxml")
+        stage (ui/make-dialog-stage owner)
+        scene (Scene. root)]
+    (ui/title! stage "Update Available")
+    (ui/with-controls root [^Button close]
+      (ui/on-action! close (fn on-close! [_]
+                             (ui/close! stage))))
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)))
+
+(defn make-download-update-dialog [^Stage owner]
   (let [root ^Parent (ui/load-fxml "update-alert.fxml")
         stage (ui/make-dialog-stage owner)
         scene (Scene. root)
-        result (atom false)]
+        result-atom (atom false)]
     (ui/title! stage "Update Available")
     (ui/with-controls root [^Button ok ^Button cancel]
-      (.setDefaultButton ok true)
-      (ui/on-action! ok (fn on-ok! [_] (reset! result true) (.close stage)))
-      (.setCancelButton cancel true)
-      (ui/on-action! cancel (fn on-cancel! [_] (.close stage))))
+      (ui/on-action! ok (fn on-ok! [_]
+                          (reset! result-atom true)
+                          (ui/close! stage)))
+      (ui/on-action! cancel (fn on-cancel! [_]
+                              (ui/close! stage))))
     (.setScene stage scene)
     (ui/show-and-wait! stage)
-    @result))
+    @result-atom))
 
 (handler/defhandler ::report-error :dialog
   (run [sentry-id-promise]
@@ -194,8 +275,12 @@
   [ex-map]
   (->> (tree-seq :via :via ex-map)
        (drop 1)
-       (map (fn [{:keys [message ^Class type]}]
-              (format "%s: %s" (.getName type) (or message "Unknown"))))
+       (map (fn [{:keys [message type]}]
+              (let [type-name (cond
+                                (instance? Class type) (.getName ^Class type)
+                                (instance? Named type) (name type)
+                                :else (str type))]
+                (format "%s: %s" type-name (or message "Unknown")))))
        (str/join "\n")))
 
 (defn make-unexpected-error-dialog
@@ -471,11 +556,11 @@
         do-validation (fn []
                         (let [sanitized (some-> (not-empty (ui/text (:name controls))) sanitize-folder-name)
                               validation-msg (some-> sanitized validate)]
-                        (if (or (nil? sanitized) validation-msg)
-                          (do (ui/text! (:path controls) (or validation-msg ""))
-                              (ui/enable! (:ok controls) false))
-                          (do (ui/text! (:path controls) sanitized)
-                              (ui/enable! (:ok controls) true)))))]
+                          (if (or (nil? sanitized) validation-msg)
+                            (do (ui/text! (:path controls) (or validation-msg ""))
+                                (ui/enable! (:ok controls) false))
+                            (do (ui/text! (:path controls) sanitized)
+                                (ui/enable! (:ok controls) true)))))]
     (ui/title! stage "New Folder")
 
     (ui/on-action! (:ok controls) (fn [_] (close)))
@@ -522,8 +607,7 @@
       str/trim
       (str/replace #"[/\\]" "") ; strip path separators
       (str/replace #"[\"']" "") ; strip quotes
-      (str/replace #"^\.*" "") ; prevent hiding files (.dotfile)
-      ))
+      (str/replace #"^\.*" ""))) ; prevent hiding files (.dotfile)
 
 (defn sanitize-file-name [extension name]
   (-> name

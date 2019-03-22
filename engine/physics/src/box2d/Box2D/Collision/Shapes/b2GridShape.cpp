@@ -366,6 +366,13 @@ uint32 b2GridShape::CalculateCellMask(b2Fixture* fixture, uint32 row, uint32 col
     return mask;
 }
 
+void b2GridShape::ClearCellData()
+{
+    uint32 cellCount = m_rowCount * m_columnCount;
+    memset(m_cells, B2GRIDSHAPE_EMPTY_CELL, sizeof(Cell) * cellCount);
+    memset(m_cellFlags, 0x0, sizeof(CellFlags) * cellCount);
+}
+
 void b2GridShape::SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hull, b2GridShape::CellFlags flags)
 {
     assert(m_type == b2Shape::e_grid);

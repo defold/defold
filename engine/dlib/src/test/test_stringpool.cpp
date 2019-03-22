@@ -9,6 +9,7 @@
 #include <jc_test/jc_test.h>
 
 #include "dlib/stringpool.h"
+#include "dlib/hash.h"
 
 TEST(dmStringPool, Test01)
 {
@@ -28,7 +29,7 @@ TEST(dmStringPool, Test01)
         }
         n_allocated += n;
 
-        const char* s = dmStringPool::Add(pool, tmp.c_str());
+        const char* s = dmStringPool::Add(pool, tmp.c_str(), tmp.length(), dmHashBufferNoReverse32(tmp.c_str(), tmp.length()));
         strings[s] = std::string(s);
     }
 
@@ -41,8 +42,8 @@ TEST(dmStringPool, Test01)
         ASSERT_STREQ(value.c_str(), key);
 
         // Assert that we get the same pointer back
-        ASSERT_EQ((uintptr_t) key, (uintptr_t) dmStringPool::Add(pool, key));
-        ASSERT_EQ((uintptr_t) key, (uintptr_t) dmStringPool::Add(pool, value.c_str()));
+        ASSERT_EQ((uintptr_t) key, (uintptr_t) dmStringPool::Add(pool, key, strlen(key), dmHashBufferNoReverse32(key, strlen(key))));
+        ASSERT_EQ((uintptr_t) key, (uintptr_t) dmStringPool::Add(pool, value.c_str(), value.length(), dmHashBufferNoReverse32(value.c_str(), value.length())));
     }
 
     // Assert that at least 5 pages are allocated in string-pool

@@ -3,7 +3,6 @@
 #include <dlib/log.h>
 #include <dlib/webp.h>
 #include <dlib/time.h>
-#include <graphics/graphics_ddf.h>
 #include <graphics/graphics.h>
 
 namespace dmGameSystem

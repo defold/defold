@@ -16,8 +16,8 @@ namespace dmGraphics
 
     /// The graphics worker thread and synchronization objects, used for sequentially processing async graphics jobs
     static dmThread::Thread m_JobThread = 0x0;
-    static dmMutex::Mutex  m_ConsumerThreadMutex;
-    static dmConditionVariable::ConditionVariable m_ConsumerThreadCondition;
+    static dmMutex::HMutex  m_ConsumerThreadMutex;
+    static dmConditionVariable::HConditionVariable m_ConsumerThreadCondition;
     static volatile bool m_Active = false;
 
     /// Job input and output queues

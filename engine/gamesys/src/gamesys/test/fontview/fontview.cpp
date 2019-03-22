@@ -150,8 +150,8 @@ namespace dmFontView
             }\
 
             REGISTER_RESOURCE_TYPE("fontc", 0, dmGameSystem::ResFontMapCreate, 0, dmGameSystem::ResFontMapDestroy, dmGameSystem::ResFontMapRecreate, 0);
-            REGISTER_RESOURCE_TYPE("vpc", 0, dmGameSystem::ResVertexProgramCreate, 0, dmGameSystem::ResVertexProgramDestroy, dmGameSystem::ResVertexProgramRecreate, 0);
-            REGISTER_RESOURCE_TYPE("fpc", 0, dmGameSystem::ResFragmentProgramCreate, 0, dmGameSystem::ResFragmentProgramDestroy, dmGameSystem::ResFragmentProgramRecreate, 0);
+            REGISTER_RESOURCE_TYPE("vpc", dmGameSystem::ResVertexProgramPreload, dmGameSystem::ResVertexProgramCreate, 0, dmGameSystem::ResVertexProgramDestroy, dmGameSystem::ResVertexProgramRecreate, 0);
+            REGISTER_RESOURCE_TYPE("fpc", dmGameSystem::ResFragmentProgramPreload, dmGameSystem::ResFragmentProgramCreate, 0, dmGameSystem::ResFragmentProgramDestroy, dmGameSystem::ResFragmentProgramRecreate, 0);
             REGISTER_RESOURCE_TYPE("materialc", 0, dmGameSystem::ResMaterialCreate, 0, dmGameSystem::ResMaterialDestroy, 0, 0);
 
     #undef REGISTER_RESOURCE_TYPE

@@ -488,7 +488,7 @@
             name="Material"
             proto-message-class="com.dynamo.render.proto.Material$MaterialDesc"
             resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.MaterialRefactorParticipant"
-            template-data="name: &apos;unnamed&apos; vertex_program: &apos;&apos; fragment_program: &apos;&apos;"
+            template-data="name: &apos;unnamed&apos; vertex_program: &apos;&apos; fragment_program: &apos;&apos; vertex_space: VERTEX_SPACE_LOCAL "
             type-class="material">
          <references>
             <reference-type-class

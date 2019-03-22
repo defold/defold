@@ -40,7 +40,18 @@
           (types/rect l t w h)
           nil))))
   ([r1 :- Rect r2 :- Rect & rs :- [Rect]]
-    (reduce intersect (intersect r1 r2) rs)))
+   (reduce intersect (intersect r1 r2) rs)))
+
+(defn rect-empty? [^Rect r]
+  (or (zero? (.width r))
+      (zero? (.height r))))
+
+(defn intersect? [^Rect r ^Rect r2]
+  (let [no-intersection (or (< (+ (.x r) (.width r)) (.x r2))
+                            (< (+ (.x r2) (.width r2)) (.x r))
+                            (< (+ (.y r) (.height r)) (.y r2))
+                            (< (+ (.y r2) (.height r2)) (.y r)))]
+    (not no-intersection)))
 
 (s/defn split-rect-| :- [Rect]
   "Splits the rectangle such that the side slices extend to the top and bottom"
@@ -219,10 +230,28 @@
 ; -------------------------------------
 ; 3D geometry
 ; -------------------------------------
-(s/defn null-aabb :- AABB
-  []
-  (types/->AABB (Point3d. Integer/MAX_VALUE Integer/MAX_VALUE Integer/MAX_VALUE)
-             (Point3d. Integer/MIN_VALUE Integer/MIN_VALUE Integer/MIN_VALUE)))
+(def ^AABB null-aabb (types/->AABB (Point3d. Integer/MAX_VALUE Integer/MAX_VALUE Integer/MAX_VALUE)
+                                   (Point3d. Integer/MIN_VALUE Integer/MIN_VALUE Integer/MIN_VALUE)))
+
+(defn null-aabb? [^AABB aabb]
+  (= aabb null-aabb))
+
+(defn make-aabb [^Point3d a ^Point3d b]
+  (let [minx (Math/min (.x a) (.x b))
+        miny (Math/min (.y a) (.y b))
+        minz (Math/min (.z a) (.z b))
+        maxx (Math/max (.x a) (.x b))
+        maxy (Math/max (.y a) (.y b))
+        maxz (Math/max (.z a) (.z b))]
+    (types/->AABB (Point3d. minx miny minz)
+                  (Point3d. maxx maxy maxz))))
+
+(defn- coords->Point3d [coords]
+  (Point3d. (double-array (if (= (count coords) 3) coords (conj coords 0)))))
+
+(defn coords->aabb [min-coords max-coords]
+  (make-aabb (coords->Point3d min-coords)
+             (coords->Point3d max-coords)))
 
 (s/defn aabb-incorporate :- AABB
   ([^AABB aabb :- AABB
@@ -244,15 +273,14 @@
 (s/defn aabb-union :- AABB
   ([aabb1 :- AABB] aabb1)
   ([aabb1 :- AABB aabb2 :- AABB]
-    (let [null (null-aabb)]
-      (cond
-        (= aabb1 null) aabb2
-        (= aabb2 null) aabb1
-        true (-> aabb1
-                (aabb-incorporate (types/min-p aabb2))
-                (aabb-incorporate (types/max-p aabb2))))))
+   (cond
+     (null-aabb? aabb1) aabb2
+     (null-aabb? aabb2) aabb1
+     :else (-> aabb1
+               (aabb-incorporate (types/min-p aabb2))
+               (aabb-incorporate (types/max-p aabb2)))))
   ([aabb1 :- AABB aabb2 :- AABB & aabbs :- [AABB]]
-    (aabb-union (aabb-union aabb1 aabb2) aabbs)))
+   (aabb-union (aabb-union aabb1 aabb2) aabbs)))
 
 (s/defn aabb-contains?
   [^AABB aabb :- AABB ^Point3d p :- Point3d]
@@ -280,9 +308,8 @@
         y0 (.y bounds)
         x1 (+ x0 (.width bounds))
         y1 (+ y0 (.height bounds))]
-    (-> (null-aabb)
-        (aabb-incorporate (Point3d. x0 y0 0))
-        (aabb-incorporate (Point3d. x1 y1 0)))))
+    (make-aabb (Point3d. x0 y0 0)
+               (Point3d. x1 y1 0))))
 
 (s/defn centered-rect->aabb :- AABB
   [^Rect centered-rect :- Rect]
@@ -292,19 +319,22 @@
         y2 (+ y1 (* 0.5 (.height centered-rect)))
         x1 (- x1 (* 0.5 (.width centered-rect)))
         y1 (- y1 (* 0.5 (.height centered-rect)))]
-    (-> (null-aabb)
-        (aabb-incorporate (Point3d. x1 y1 0))
-        (aabb-incorporate (Point3d. x2 y2 0)))))
+    (make-aabb (Point3d. x1 y1 0)
+               (Point3d. x2 y2 0))))
 
-(def unit-bounding-box
-  (-> (null-aabb)
-    (aabb-incorporate  1  1  1)
-    (aabb-incorporate -1 -1 -1)))
+(def empty-bounding-box (coords->aabb [0 0 0] [0 0 0]))
+
+(defn empty-aabb? [^AABB aabb]
+  (let [min-p ^Point3d (.min aabb)
+        max-p ^Point3d (.max aabb)]
+    (or (= (.x min-p) (.x max-p))
+        (= (.y min-p) (.y max-p))
+        (= (.z min-p) (.z max-p)))))
 
 ;; From Graphics Gems:
 ;; https://github.com/erich666/GraphicsGems/blob/master/gems/TransBox.c
 (defn aabb-transform [^AABB aabb ^Matrix4d transform]
-  (if (= aabb (null-aabb))
+  (if (null-aabb? aabb)
     aabb
     (let [min-p  (as-array (.min aabb))
           max-p  (as-array (.max aabb))
@@ -325,6 +355,17 @@
               (recur i (inc j)))
             (recur (inc i) 0))))
       (types/->AABB (Point3d. min-p') (Point3d. max-p')))))
+
+(defn aabb->corners [^AABB aabb]
+  (let [mn ^Point3d (.min aabb)
+        mx ^Point3d (.max aabb)
+        xs [(.x mn) (.x mx)]
+        ys [(.y mn) (.y mx)]
+        zs [(.z mn) (.z mx)]]
+    (for [x [0 1]
+          y [0 1]
+          z [0 1]]
+      (Point3d. (xs x) (ys y) (zs z)))))
 
 ; -------------------------------------
 ; Primitive shapes as vertex arrays

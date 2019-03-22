@@ -500,15 +500,6 @@ namespace dmScript
             message_id = CheckHash(L, 2);
         }
 
-        if (!dmMessage::IsSocketValid(receiver.m_Socket))
-        {
-            char receiver_buffer[64];
-            url_tostring(&receiver, receiver_buffer, 64);
-            char sender_buffer[64];
-            url_tostring(&sender, sender_buffer, 64);
-            return luaL_error(L, "Could not send message '%s' from '%s' to '%s'.", dmHashReverseSafe64(message_id), sender_buffer, receiver_buffer);
-        }
-
         DM_ALIGNED(16) char data[MAX_MESSAGE_DATA_SIZE];
         uint32_t data_size = 0;
 
@@ -552,7 +543,15 @@ namespace dmScript
         assert(top == lua_gettop(L));
 
         dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t) desc, data, data_size, 0);
-        if (result != dmMessage::RESULT_OK)
+        if (result == dmMessage::RESULT_SOCKET_NOT_FOUND)
+        {
+            char receiver_buffer[64];
+            url_tostring(&receiver, receiver_buffer, 64);
+            char sender_buffer[64];
+            url_tostring(&sender, sender_buffer, 64);
+            return luaL_error(L, "Could not send message '%s' from '%s' to '%s'.", dmHashReverseSafe64(message_id), sender_buffer, receiver_buffer);
+        }
+        else if (result != dmMessage::RESULT_OK)
         {
             return luaL_error(L, "Could not send message to %s.", dmMessage::GetSocketName(receiver.m_Socket));
         }
@@ -715,13 +714,25 @@ namespace dmScript
         }
         else
         {
-            // Initial check for global urls to avoid resolving etc
+
+            const char* url = 0;
+            dmMessage::StringURL string_url;
+            dmMessage::Result parse_url_result;
             if (lua_isstring(L, index))
             {
-                dmMessage::StringURL string_url;
-                const char* url = lua_tostring(L, index);
-                dmMessage::Result result = dmMessage::ParseURL(url, &string_url);
-                if (result == dmMessage::RESULT_OK)
+                // Make sure we get and parse the url only once
+                url = lua_tostring(L, index);
+                parse_url_result = dmMessage::ParseURL(url, &string_url);
+                if (parse_url_result != dmMessage::RESULT_OK)
+                {
+                    url = 0;
+                }
+            }
+
+            // Initial check for global urls to avoid resolving etc
+            if (url != 0)
+            {
+                if (parse_url_result == dmMessage::RESULT_OK)
                 {
                     if (IsURLGlobal(&string_url))
                     {
@@ -765,14 +776,11 @@ namespace dmScript
             {
                 *out_url = default_url;
             }
-            else if (lua_isstring(L, index))
+            else if (url != 0)
             {
-                const char* url = lua_tostring(L, index);
-
                 dmMessage::ResetURL(*out_url);
-                dmMessage::StringURL string_url;
-                dmMessage::Result result = dmMessage::ParseURL(url, &string_url);
-                if (result == dmMessage::RESULT_OK)
+                dmMessage::Result result = parse_url_result;
+                if (parse_url_result == dmMessage::RESULT_OK)
                 {
                     result = ResolveURL(L, url, out_url, &default_url);
                 }

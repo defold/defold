@@ -24,7 +24,7 @@
             [editor.pipeline :as pipeline]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.pipeline.tex-gen :as tex-gen]
-            [editor.scene :as scene]
+            [editor.scene-picking :as scene-picking]
             [editor.texture-set :as texture-set]
             [editor.outline :as outline]
             [editor.validation :as validation]
@@ -61,9 +61,9 @@
 
 (shader/defshader pos-uv-frag
   (varying vec2 var_texcoord0)
-  (uniform sampler2D texture)
+  (uniform sampler2D texture_sampler)
   (defn void main []
-    (setq gl_FragColor (texture2D texture var_texcoord0.xy))))
+    (setq gl_FragColor (texture2D texture_sampler var_texcoord0.xy))))
 
 ; TODO - macro of this
 (def atlas-shader (shader/make-shader ::atlas-shader pos-uv-vert pos-uv-frag))
@@ -86,7 +86,7 @@
 (defn render-image-outline
   [^GL2 gl render-args renderables]
   (doseq [renderable renderables]
-    (render-rect gl (-> renderable :user-data :rect) (if (:selected renderable) scene/selected-outline-color scene/outline-color)))
+    (render-rect gl (-> renderable :user-data :rect) (if (:selected renderable) colors/selected-outline-color colors/outline-color)))
   (doseq [renderable renderables]
     (when (= (-> renderable :updatable :state :frame) (-> renderable :user-data :order))
       (render-rect gl (-> renderable :user-data :rect) colors/defold-pink))))
@@ -97,11 +97,14 @@
     pass/outline
     (render-image-outline gl render-args renderables)))
 
-(defn- render-image-selections
+(defn- render-image-selection
   [^GL2 gl render-args renderables n]
-  (condp = (:pass render-args)
-    pass/selection
-    (run! #(render-rect gl (-> % :user-data :rect) [1.0 1.0 1.0 1.0]) renderables)))
+  (assert (= (:pass render-args) pass/selection))
+  (assert (= n 1))
+  (let [renderable (first renderables)
+        picking-id (:picking-id renderable)
+        id-color (scene-picking/picking-id->color picking-id)]
+    (render-rect gl (-> renderable :user-data :rect) id-color)))
 
 (g/defnk produce-image-scene
   [_node-id image-resource order image-path->rect animation-updatable]
@@ -118,9 +121,8 @@
                   :passes [pass/outline]}
      :children [{:aabb aabb
                  :node-id _node-id
-                 :renderable {:render-fn render-image-selections
+                 :renderable {:render-fn render-image-selection
                               :tags #{:atlas}
-                              :batch-key ::atlas-image
                               :user-data {:rect rect}
                               :passes [pass/selection]}}]
      :updatable animation-updatable}))
@@ -275,12 +277,7 @@
 
 (defn render-animation
   [^GL2 gl render-args renderables n]
-  (condp = (:pass render-args)
-    pass/selection
-    nil
-
-    pass/overlay
-    (texture-set/render-animation-overlay gl render-args renderables n ->texture-vtx atlas-shader)))
+  (texture-set/render-animation-overlay gl render-args renderables n ->texture-vtx atlas-shader))
 
 (g/defnk produce-animation-updatable
   [_node-id id anim-data]
@@ -289,7 +286,7 @@
 (g/defnk produce-animation-scene
   [_node-id id child-scenes gpu-texture updatable anim-data]
   {:node-id    _node-id
-   :aabb       (reduce geom/aabb-union (geom/null-aabb) (keep :aabb child-scenes))
+   :aabb       geom/null-aabb
    :renderable {:render-fn render-animation
                 :tags #{:atlas}
                 :batch-key nil
@@ -416,7 +413,7 @@
             {:keys [vbuf gpu-texture]} user-data
             vertex-binding (vtx/use-with ::atlas-binding vbuf atlas-shader)]
         (gl/with-gl-bindings gl render-args [gpu-texture atlas-shader vertex-binding]
-          (shader/set-uniform atlas-shader gl "texture" 0)
+          (shader/set-uniform atlas-shader gl "texture_sampler" 0)
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6))))))
 
 (defn- render-atlas-outline
@@ -427,7 +424,7 @@
       (let [{:keys [aabb]} renderable
             [x0 y0] (math/vecmath->clj (types/min-p aabb))
             [x1 y1] (math/vecmath->clj (types/max-p aabb))
-            [cr cg cb ca] scene/outline-color]
+            [cr cg cb ca] colors/outline-color]
         (.glColor4d gl cr cg cb ca)
         (.glBegin gl GL2/GL_QUADS)
         (.glVertex3d gl x0 y0 0)
@@ -437,9 +434,10 @@
         (.glEnd gl)))))
 
 (g/defnk produce-scene
-  [_node-id aabb layout-size gpu-texture child-scenes]
+  [_node-id aabb layout-size gpu-texture child-scenes texture-profile]
   (let [[width height] layout-size]
     {:aabb aabb
+     :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))
      :renderable {:render-fn render-atlas
                   :user-data {:gpu-texture gpu-texture
                               :vbuf        (gen-renderable-vertex-buffer width height)}
@@ -555,7 +553,7 @@
 
   (output aabb             AABB                (g/fnk [layout-size]
                                                  (if (= [0 0] layout-size)
-                                                   (geom/null-aabb)
+                                                   geom/null-aabb
                                                    (let [[w h] layout-size]
                                                      (types/->AABB (Point3d. 0 0 0) (Point3d. w h 0))))))
 

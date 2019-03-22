@@ -69,3 +69,13 @@ def build(bld):
                                              embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest resources.public resources.manifest_hash')
 
     test_resource_archive.install_path = None
+
+    test_block_allocator = bld.new_task_gen(features = 'cxx cprogram test',
+                                     includes = '../../../src',
+                                     uselib = 'GTEST DLIB THREAD',
+                                     uselib_local = 'resource',
+                                     target = 'test_block_allocator',
+                                     source = 'test_block_allocator.cpp')
+
+    test_block_allocator.install_path = None
+

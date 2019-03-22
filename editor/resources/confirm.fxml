@@ -9,8 +9,8 @@
     <Label id="message" text="Message" wrapText="true"/>
     <HBox spacing="10.0" alignment="CENTER_RIGHT">
         <children>
-          <Button id="cancel" minWidth="80.0" mnemonicParsing="false" text="Cancel" AnchorPane.rightAnchor="0.0" AnchorPane.bottomAnchor="0.0" />
-          <Button id="ok" minWidth="80.0" mnemonicParsing="false" text="OK" AnchorPane.rightAnchor="0.0" AnchorPane.bottomAnchor="0.0" />
+          <Button id="cancel" minWidth="80.0" mnemonicParsing="false" text="Cancel" cancelButton="true" />
+          <Button id="ok" minWidth="80.0" mnemonicParsing="false" text="OK" defaultButton="true" />
         </children>
       </HBox>
     </children>

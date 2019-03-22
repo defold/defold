@@ -604,7 +604,7 @@ namespace dmRender
      *     self.my_render_target = render.render_target("my_target", {[render.BUFFER_COLOR_BIT] = color_params, [render.BUFFER_DEPTH_BIT] = depth_params })
      * end
      *
-     * function update(self)
+     * function update(self, dt)
      *     -- enable target so all drawing is done to it
      *     render.enable_render_target(self.my_render_target)
      *
@@ -625,6 +625,7 @@ namespace dmRender
 
         const char* required_keys[] = { "format", "width", "height" };
         uint32_t buffer_type_flags = 0;
+        uint32_t max_tex_size = dmGraphics::GetMaxTextureSize(i->m_RenderContext->m_GraphicsContext);
         luaL_checktype(L, 2, LUA_TTABLE);
         dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
         dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
@@ -731,6 +732,14 @@ namespace dmRender
                 lua_pop(L, 1);
             }
             lua_pop(L, 1);
+
+            if (creation_params[index].m_Width > max_tex_size || creation_params[index].m_Height > max_tex_size)
+            {
+                lua_pop(L, 1);
+                assert(top == lua_gettop(L));
+                return luaL_error(L, "Render target (type %s) of width %d and height %d is greater than max supported texture size %d for this platform.",
+                    dmGraphics::GetBufferTypeLiteral((dmGraphics::BufferType)buffer_type), creation_params[index].m_Width, creation_params[index].m_Height, max_tex_size);
+            }
         }
 
         dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
@@ -786,7 +795,7 @@ namespace dmRender
      * @name render.set_render_target
      * @param render_target [type:render_target] render target to set. render.RENDER_TARGET_DEFAULT to set the default render target
      * @param [options] [type:table] optional table with behaviour parameters
-     * 
+     *
      * `transient`
      * : [type:number] Transient frame buffer types are only valid while the render target is active, i.e becomes undefined when a new target is set by a subsequent call to set_render_target.
      *  Default is all non-transient. Be aware that some hardware uses a combined depth stencil buffer and when this is the case both are considered non-transient if exclusively selected!
@@ -795,24 +804,24 @@ namespace dmRender
      * - `render.BUFFER_COLOR_BIT`
      * - `render.BUFFER_DEPTH_BIT`
      * - `render.BUFFER_STENCIL_BIT`
-     * 
+     *
      * @examples
      *
      * How to set a render target and draw to it and then switch back to the default render target
      * The render target defines the depth/stencil buffers as transient, when set_render_target is called the next time the buffers may be invalidated and allow for optimisations depending on driver support
-     * 
+     *
      * ```lua
-     * function update(self)
+     * function update(self, dt)
      *     -- set render target so all drawing is done to it
      *     render.set_render_target(self.my_render_target, { transient = [render.BUFFER_DEPTH_BIT, render.BUFFER_STENCIL_BIT] } )
      *
      *     -- draw a predicate to the render target
      *     render.draw(self.my_pred)
-     * 
+     *
      *     -- set default render target. This also invalidates the depth and stencil buffers of the current target (self.my_render_target)
      *     --  which can be an optimisation on some hardware
      *     render.set_render_target(render.RENDER_TARGET_DEFAULT)
-     * 
+     *
      * end
      * ```
     */
@@ -850,7 +859,7 @@ namespace dmRender
                 {
                     transient_buffer_types |= luaL_checkint(L, -1);
                     lua_pop(L, 1);
-                }            
+                }
             }
             lua_pop(L, 2);
         }
@@ -871,13 +880,13 @@ namespace dmRender
      * @param render_target [type:render_target] render target to enable
      *
      * @deprecated Use render.set_render_target() instead
-     * 
+     *
      * @examples
      *
      * How to enable a render target and draw to it:
      *
      * ```lua
-     * function update(self)
+     * function update(self, dt)
      *     -- enable target so all drawing is done to it
      *     render.enable_render_target(self.my_render_target)
      *
@@ -914,15 +923,15 @@ namespace dmRender
      *
      * @name render.disable_render_target
      * @param render_target [type:render_target] render target to disable
-     * 
+     *
      * @deprecated Use render.set_render_target() instead
-     * 
+     *
      * @examples
      *
      * How to disable a render target so we can draw to the screen:
      *
      * ```lua
-     * function update(self)
+     * function update(self, dt)
      *     -- enable target so all drawing is done to it
      *     render.enable_render_target(self.my_render_target)
      *
@@ -1000,7 +1009,7 @@ namespace dmRender
      * @examples
      *
      * ```lua
-     * function update(self)
+     * function update(self, dt)
      *     -- enable target so all drawing is done to it
      *     render.enable_render_target(self.my_render_target)
      *
@@ -1052,7 +1061,7 @@ namespace dmRender
      * @examples
      *
      * ```lua
-     * function update(self)
+     * function update(self, dt)
      *     render.enable_texture(0, self.my_render_target, render.BUFFER_COLOR_BIT)
      *     -- draw a predicate with the render target available as texture 0 in the predicate
      *     -- material shader.
@@ -1284,7 +1293,7 @@ namespace dmRender
      *     self.my_pred = render.predicate({hash("my_tag")})
      * end
      *
-     * function update(self)
+     * function update(self, dt)
      *     -- draw everything in the my_pred predicate
      *     render.draw(self.my_pred)
      * end
@@ -1332,7 +1341,7 @@ namespace dmRender
      * @examples
      *
      * ```lua
-     * function update(self)
+     * function update(self, dt)
      *     -- draw debug visualization
      *     render.draw_debug3d()
      * end
@@ -1355,11 +1364,9 @@ namespace dmRender
      */
     int RenderScript_DrawDebug2d(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG2D)))
-            return 0;
-        else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        RenderScriptInstance_Check(L);
+        dmLogOnceWarning("render.draw_debug2d is deprecated and will be removed in future versions, please use render.draw_debug3d instead.");
+        return 0;
     }
 
     /*# sets the view matrix
@@ -1379,7 +1386,7 @@ namespace dmRender
      *   self.projection = vmath.matrix4()
      * end
      *
-     * function update(self)
+     * function update(self, dt)
      *   -- set the view to the stored view value
      *   render.set_view(self.view)
      *   -- now we can draw with this view
@@ -1551,9 +1558,9 @@ namespace dmRender
      * The blended RGBA values of a pixel comes from the following equations:
      *
      * - R<sub>d</sub> = min(k<sub>R</sub>, R<sub>s</sub> * s<sub>R</sub> + R<sub>d</sub> * d<sub>R</sub>)
-     * - G<sub>d</sub> = min(k<sub>G</sub>, G<sub>s</sub> * s<sub>G</sub> + G<sub>d</sub> * d<sub>R</sub>)
+     * - G<sub>d</sub> = min(k<sub>G</sub>, G<sub>s</sub> * s<sub>G</sub> + G<sub>d</sub> * d<sub>G</sub>)
      * - B<sub>d</sub> = min(k<sub>B</sub>, B<sub>s</sub> * s<sub>B</sub> + B<sub>d</sub> * d<sub>B</sub>)
-     * - A<sub>d</sub> = min(k<sub>A</sub>, A<sub>s</sub> * s<sub>B</sub> + A<sub>d</sub> * d<sub>A</sub>)
+     * - A<sub>d</sub> = min(k<sub>A</sub>, A<sub>s</sub> * s<sub>A</sub> + A<sub>d</sub> * d<sub>A</sub>)
      *
      * Blend function `(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA)` is useful for
      * drawing with transparency when the drawn objects are sorted from farthest to nearest.
@@ -2798,6 +2805,12 @@ bail:
                 }
                 dmScript::PushURL(L, message->m_Sender);
             }
+            else if (script_function == RENDER_SCRIPT_FUNCTION_UPDATE)
+            {
+                float* dt = (float*)args;
+                lua_pushnumber(L, (lua_Number) *dt);
+                arg_count += 1;
+            }
 
             {
                 DM_PROFILE_FMT(Script, "%s%s%s%s@%s", RENDER_SCRIPT_FUNCTION_NAMES[script_function], message_name ? "[" : "", message_name ? message_name : "", message_name ? "]" : "", script->m_SourceFileName);
@@ -2860,6 +2873,12 @@ bail:
                 Line3D(instance->m_RenderContext, dl->m_StartPoint, dl->m_EndPoint, dl->m_Color, dl->m_Color);
                 return;
             }
+            else if (descriptor == dmRenderDDF::Resize::m_DDFDescriptor)
+            {
+                dmRenderDDF::Resize* resize_msg = (dmRenderDDF::Resize*)message->m_Data;
+                dmGraphics::ResizeWindow(instance->m_RenderContext->m_GraphicsContext, resize_msg->m_Width, resize_msg->m_Height);
+                return;
+            }
         }
         context->m_Result = RunScript(instance, RENDER_SCRIPT_FUNCTION_ONMESSAGE, message);
     }
@@ -2881,7 +2900,7 @@ bail:
 
         dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
 
-        RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, 0x0);
+        RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, (void*)&dt);
 
         if (instance->m_CommandBuffer.Size() > 0)
             ParseCommands(instance->m_RenderContext, &instance->m_CommandBuffer.Front(), instance->m_CommandBuffer.Size());

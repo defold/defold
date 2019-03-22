@@ -14,7 +14,7 @@
 
 #include <script/script.h>
 
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 using namespace Vectormath::Aos;
 
 /**
@@ -379,6 +379,15 @@ namespace dmGui
         PIEBOUNDS_ELLIPSE   = 1,
     };
 
+    // This enum denotes what kind of texture type the m_Texture pointer is referencing.
+    enum NodeTextureType
+    {
+        NODE_TEXTURE_TYPE_NONE,
+        NODE_TEXTURE_TYPE_TEXTURE,
+        NODE_TEXTURE_TYPE_TEXTURE_SET,
+        NODE_TEXTURE_TYPE_DYNAMIC
+    };
+
     /**
      * Container of input related information.
      */
@@ -551,7 +560,7 @@ namespace dmGui
      * @param original_height Original Height of the texture
      * @return Outcome of the operation
      */
-    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset, uint32_t original_width, uint32_t original_height);
+    Result AddTexture(HScene scene, const char* texture_name, void* texture, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height);
 
     /**
      * Removes a texture with the specified name from the scene.
@@ -657,7 +666,7 @@ namespace dmGui
      * @param particlefx_name Name of the particlefx that will be used in the gui scripts
      */
     void RemoveParticlefx(HScene scene, const char* particlefx_name);
-    
+
     /**
      * Adds a spine scene with the specified name to the scene.
      * @note Any nodes connected to the same spine_scene_name will also be connected to the new spine scene. This makes this function O(n), where n is #nodes.
@@ -936,7 +945,7 @@ namespace dmGui
     void SetNodeTextTracking(HScene scene, HNode node, float tracking);
     float GetNodeTextTracking(HScene scene, HNode node);
 
-    void* GetNodeTexture(HScene scene, HNode node);
+    void* GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut);
     dmhash_t GetNodeTextureId(HScene scene, HNode node);
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);
