@@ -386,7 +386,7 @@ This must be submitted to the driver for compilation before you can use it. See
 (defrecord ShaderLifecycle [request-id verts frags uniforms]
   GlBind
   (bind [_this gl render-args]
-    (let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags])]
+    (let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags (map first uniforms)])]
       (.glUseProgram ^GL2 gl program)
       (when-not (zero? program)
         (doseq [[name val] uniforms
@@ -404,13 +404,13 @@ This must be submitted to the driver for compilation before you can use it. See
 
   ShaderVariables
   (get-attrib-location [this gl name]
-    (when-let [[program _] (scene-cache/request-object! ::shader request-id gl [verts frags])]
+    (when-let [[program _] (scene-cache/request-object! ::shader request-id gl [verts frags (map first uniforms)])]
       (if (zero? program)
         -1
         (gl/gl-get-attrib-location ^GL2 gl program name))))
 
   (set-uniform [this gl name val]
-    (when-let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags])]
+    (when-let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags (map first uniforms)])]
       (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
         (let [loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]
           (try
@@ -461,15 +461,15 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
                   [(str "#line " (count code-directive-lines))]
                   code-non-directive-lines))))
 
-(defn- make-shader-program [^GL2 gl [verts frags uniforms]]
+(defn- make-shader-program [^GL2 gl [verts frags uniform-names]]
   (let [vs (make-vertex-shader gl verts)]
     (try
       (let [fs (make-fragment-shader gl frags)]
         (try
           (let [program (make-program gl vs fs)
                 uniform-locs (into {}
-                                   (map (fn [[uniform-name _]] [uniform-name (.glGetUniformLocation ^GL2 gl program uniform-name)]))
-                                   uniforms)]
+                                   (map (fn [uniform-name] [uniform-name (.glGetUniformLocation ^GL2 gl program uniform-name)]))
+                                   uniform-names)]
             [program uniform-locs])
           (finally
             (delete-shader gl fs)))) ; flag shaders for deletion: they will be deleted immediately, or when we delete the program to which they are attached
