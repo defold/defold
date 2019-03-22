@@ -145,7 +145,7 @@ TEST(Socket, BitDifference_Equal)
     instance1.m_address[3] = 0xe6;
     instance2.m_address[3] = 0xe6;
 
-    ASSERT_EQ(0, dmSocket::BitDifference(instance1, instance2));
+    ASSERT_EQ(0U, dmSocket::BitDifference(instance1, instance2));
 }
 
 TEST(Socket, NetworkOrder)
