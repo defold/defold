@@ -1413,18 +1413,16 @@
     (gensyms [node-sym evaluation-context-sym node-id-sym arguments-sym schema-sym output-sym]
       `(fn [~node-sym ~evaluation-context-sym]
          (let [~node-id-sym (gt/node-id ~node-sym)]
-           ~(if (= transform :this)
-              node-id-sym
-              (check-jammed-form node-sym evaluation-context-sym node-id-sym transform
-                (apply-default-property-shortcut-form node-sym evaluation-context-sym transform description
-                  (mark-in-production-form evaluation-context-sym node-id-sym transform description
-                    (check-caches-form node-sym evaluation-context-sym node-id-sym description transform
-                      (with-tracer-calls-form node-sym evaluation-context-sym transform tracer-output-type
-                        (gather-arguments-form arguments-sym schema-sym node-sym evaluation-context-sym node-id-sym description transform production-function
-                          (call-production-function-form node-sym evaluation-context-sym description transform arguments-sym node-id-sym output-sym
-                            (schema-check-output-form node-sym evaluation-context-sym description transform node-id-sym output-sym
-                              (cache-output-form evaluation-context-sym description transform node-id-sym output-sym
-                                output-sym)))))))))))))))
+           ~(check-jammed-form node-sym evaluation-context-sym node-id-sym transform
+              (apply-default-property-shortcut-form node-sym evaluation-context-sym transform description
+                (mark-in-production-form evaluation-context-sym node-id-sym transform description
+                  (check-caches-form node-sym evaluation-context-sym node-id-sym description transform
+                    (with-tracer-calls-form node-sym evaluation-context-sym transform tracer-output-type
+                      (gather-arguments-form arguments-sym schema-sym node-sym evaluation-context-sym node-id-sym description transform production-function
+                        (call-production-function-form node-sym evaluation-context-sym description transform arguments-sym node-id-sym output-sym
+                          (schema-check-output-form node-sym evaluation-context-sym description transform node-id-sym output-sym
+                            (cache-output-form evaluation-context-sym description transform node-id-sym output-sym
+                              output-sym))))))))))))))
   
 (defn- assemble-properties-map-form
   [node-id-sym value-sym display-order]
