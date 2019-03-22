@@ -193,7 +193,7 @@ namespace dmGui
 
     static bool LuaIsNode(lua_State *L, int index)
     {
-        return dmScript::GetMetaTableType(L, index) == NODE_PROXY_TYPE_HASH;
+        return dmScript::GetUserType(L, index) == NODE_PROXY_TYPE_HASH;
     }
 
     static bool IsValidNode(HScene scene, HNode node)

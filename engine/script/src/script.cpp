@@ -541,6 +541,60 @@ namespace dmScript
         return type_hash;
     }
 
+    uint32_t GetUserType(lua_State* L, int user_data_index)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        lua_pushvalue(L, user_data_index);
+        lua_Integer type_hash = 0;
+        if (lua_type(L, -1) == LUA_TUSERDATA)
+        {
+            if (lua_getmetatable(L, -1))
+            {
+                // [-1] meta table
+
+                lua_pushinteger(L, SCRIPT_METATABLE_TYPE_HASH_KEY);
+                // [-1] SCRIPT_METATABLE_TYPE_HASH_KEY
+                // [-2] meta table
+
+                lua_rawget(L, -2);
+                // [-1] type hash
+                // [-2] meta table
+
+                type_hash = lua_tointeger(L, -1);
+                lua_pop(L, 2);
+            }
+        }
+        lua_pop(L, 1);
+        return (uint32_t)type_hash;
+    }
+
+    void* ToUserType(lua_State* L, int user_data_index, uint32_t type_hash)
+    {
+        if (GetUserType(L, user_data_index) == type_hash)
+        {
+            return lua_touserdata(L, user_data_index);
+        }
+        return 0;
+    }
+
+    void* CheckUserType(lua_State* L, int user_data_index, uint32_t type_hash, const char* error_message)
+    {
+        void* result = ToUserType(L, user_data_index, type_hash);
+        if (result == 0)
+        {
+            if (error_message == 0x0) {
+                const char* type = (const char*)dmHashReverse32(type_hash, 0);
+                luaL_typerror(L, user_data_index, type);
+            }
+            else {
+                luaL_error(L, "%s", error_message);
+            }
+        }
+        return result;
+    }
+
+
+
     static bool GetMetaFunction(lua_State* L, int index, const char* meta_table_key, size_t meta_table_key_length) {
         if (lua_getmetatable(L, index)) {
             lua_pushlstring(L, meta_table_key, meta_table_key_length);
@@ -1526,79 +1580,4 @@ namespace dmScript
         return r;
     }
 
-
-    void SetMetaTableType(lua_State* L, int meta_table_index, uint32_t type_hash)
-    {
-        DM_LUA_STACK_CHECK(L, 0);
-
-        lua_pushvalue(L, meta_table_index);
-        // [-1] meta table
-
-        lua_pushinteger(L, SCRIPT_METATABLE_TYPE_HASH_KEY);
-        // [-1] SCRIPT_METATABLE_TYPE_HASH_KEY
-        // [-2] meta table
-
-        lua_pushinteger(L, (lua_Integer)type_hash);
-        // [-1] type_hash
-        // [-2] SCRIPT_METATABLE_TYPE_HASH_KEY
-        // [-3] meta table
-
-        lua_settable(L, -3);
-        // [-1] meta table
-
-        lua_pop(L, 1);
-    }
-
-    uint32_t GetMetaTableType(lua_State* L, int user_data_index)
-    {
-        DM_LUA_STACK_CHECK(L, 0);
-        lua_pushvalue(L, user_data_index);
-        lua_Integer type_hash = 0;
-        if (lua_type(L, -1) == LUA_TUSERDATA)
-        {
-            if (lua_getmetatable(L, -1))
-            {
-                // [-1] meta table
-
-                lua_pushinteger(L, SCRIPT_METATABLE_TYPE_HASH_KEY);
-                // [-1] SCRIPT_METATABLE_TYPE_HASH_KEY
-                // [-2] meta table
-
-                lua_rawget(L, -2);
-                // [-1] type hash
-                // [-2] meta table
-
-                type_hash = lua_tointeger(L, -1);
-                lua_pop(L, 2);
-            }
-        }
-        lua_pop(L, 1);
-        return (uint32_t)type_hash;
-    }
-
-    void* ToUserType(lua_State* L, int user_data_index, uint32_t type_hash)
-    {
-        if (GetMetaTableType(L, user_data_index) == type_hash)
-        {
-            return lua_touserdata(L, user_data_index);
-        }
-        return 0;
-    }
-
-    void* CheckUserType(lua_State* L, int user_data_index, uint32_t type_hash, const char* error_message)
-    {
-        void* result = ToUserType(L, user_data_index, type_hash);
-        if (result == 0)
-        {
-            if (error_message == 0x0) {
-                const char* type = (const char*)dmHashReverse32(type_hash, 0);
-                luaL_typerror(L, user_data_index, type);
-            }
-            else {
-                luaL_error(L, "%s", error_message);
-            }
-        }
-        return result;
-    }
-
-}
+} // dmScript

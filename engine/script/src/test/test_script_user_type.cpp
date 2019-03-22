@@ -160,7 +160,7 @@ TEST_F(ScriptUserTypeTest, TestIsUserType)
     UserType* object = NewUserType(L);
     PushUserType(L, object);
 
-    ASSERT_TRUE(dmScript::GetMetaTableType(L, -1) == USERTYPE_HASH);
+    ASSERT_TRUE(dmScript::GetUserType(L, -1) == USERTYPE_HASH);
 
     PopUserType(L);
     DeleteUserType(L, object);

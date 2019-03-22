@@ -103,7 +103,7 @@ namespace dmScript
 
     bool IsBuffer(lua_State *L, int index)
     {
-        return dmScript::GetMetaTableType(L, index) == SCRIPT_BUFFER_TYPE_HASH;
+        return dmScript::GetUserType(L, index) == SCRIPT_BUFFER_TYPE_HASH;
     }
 
     void PushBuffer(lua_State* L, const dmScript::LuaHBuffer& v)
@@ -145,7 +145,7 @@ namespace dmScript
 
     static bool IsStream(lua_State *L, int index)
     {
-        return dmScript::GetMetaTableType(L, index) == SCRIPT_BUFFERSTREAM_TYPE_HASH;
+        return dmScript::GetUserType(L, index) == SCRIPT_BUFFERSTREAM_TYPE_HASH;
     }
 
     template<typename T>

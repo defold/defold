@@ -74,7 +74,7 @@ namespace dmScript
 
     static ScriptUserType GetType(lua_State* L, int index)
     {
-        uint32_t type_hash = dmScript::GetMetaTableType(L, index);
+        uint32_t type_hash = dmScript::GetUserType(L, index);
         for (uint32_t i = 0; i < SCRIPT_TYPE_UNKNOWN; ++i)
         {
             if (TYPE_HASHES[i] == type_hash)
@@ -87,7 +87,7 @@ namespace dmScript
 
     bool IsVector(lua_State *L, int index)
     {
-        return dmScript::GetMetaTableType(L, index) == TYPE_HASHES[SCRIPT_TYPE_VECTOR];
+        return dmScript::GetUserType(L, index) == TYPE_HASHES[SCRIPT_TYPE_VECTOR];
     }
 
     static const luaL_reg Vector_methods[] =
@@ -171,7 +171,7 @@ namespace dmScript
 
     static void* GetUserData(lua_State* L, int index, lua_Integer type_hash)
     {
-        if (dmScript::GetMetaTableType(L, index) == type_hash)
+        if (dmScript::GetUserType(L, index) == type_hash)
         {
             return lua_touserdata(L, index);
         }

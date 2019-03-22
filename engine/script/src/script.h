@@ -573,6 +573,14 @@ namespace dmScript
      */
     bool ModuleLoaded(HContext context, dmhash_t path_hash);
 
+    /**
+     * Sets the type key in the table to the type name.
+     * @param L lua state
+     * @param meta_table_index the stack index of the meta table
+     * @param name user type name
+     * @result type_key the hash key registered for this user type
+     */
+    uint32_t SetUserType(lua_State* L, int meta_table_index, const char* name);
 
     /**
      * Register a user type along with methods and meta methods.
@@ -580,9 +588,36 @@ namespace dmScript
      * @param name user type name
      * @param methods array of methods
      * @param meta array of meta methods
-     * @result type_key
+     * @result type_key the hash key registered for this user type
      */
     uint32_t RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]);
+
+    /**
+     * Gets the type key of a user datas meta table.
+     * @param L lua state
+     * @param user_data_index the stack index of the user data
+     * @result type_key the hash key for the user data meta table, 0 if type is not set
+     */
+    uint32_t GetUserType(lua_State* L, int user_data_index);
+
+    /**
+     * Validates type of user data and returns pointer to it.
+     * @param L lua state
+     * @param user_data_index the stack index of the user data
+     * @param type_hash the type of the user data we require
+     * @result pointer to the user data, 0 if the value at user_data_index is not the correct type
+     */
+    void* ToUserType(lua_State* L, int user_data_index, uint32_t type_hash);
+
+    /**
+     * Validates type of user data and returns pointer to it.
+     * @param L lua state
+     * @param user_data_index the stack index of the user data
+     * @param type_hash the type of the user data we require
+     * @param error_message luaL_error error message to output if data is not correct type, if 0 a lua typeerror is issued
+     * @result pointer to the user data, a lua error is issued if the value at user_data_index is not the correct type
+     */
+    void* CheckUserType(lua_State* L, int user_data_index, uint32_t type_hash, const char* error_message);
 
     /**
      * This function wraps lua_pcall with the addition of specifying an error handler which produces a backtrace.
@@ -687,11 +722,6 @@ namespace dmScript
      */
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value);
 
-    uint32_t SetUserType(lua_State* L, int meta_table_index, const char* name);
-    uint32_t GetMetaTableType(lua_State* L, int user_data_index);
-    void* ToUserType(lua_State* L, int user_data_index, uint32_t type_hash);
-    void* CheckUserType(lua_State* L, int user_data_index, uint32_t type_hash, const char* error_message);
-}
-
+} // dmScript
 
 #endif // DM_SCRIPT_H
