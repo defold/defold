@@ -2,8 +2,6 @@
 #include <stdlib.h>
 #include <map>
 #include <string>
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
 #include "dlib/configfile.h"
 #include "dlib/dstrings.h"
 #include "dlib/time.h"
@@ -14,6 +12,9 @@
 #include "dlib/http_client_private.h"
 #include "dlib/http_cache_verify.h"
 #include "testutil.h"
+
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 int g_HttpPort = -1;
 int g_HttpPortSSL = -1;
