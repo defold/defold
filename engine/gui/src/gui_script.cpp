@@ -105,7 +105,7 @@ namespace dmGui
 
     static int GuiScriptInstance_index(lua_State *L)
     {
-        Scene* i = GuiScriptInstance_Check(L, 1);
+        Scene* i = (Scene*)lua_touserdata(L, 1);
         assert(i);
 
         // Try to find value in instance data
@@ -119,7 +119,7 @@ namespace dmGui
     {
         int top = lua_gettop(L);
 
-        Scene* i = GuiScriptInstance_Check(L, 1);
+        Scene* i = (Scene*)lua_touserdata(L, 1);
         assert(i);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_DataReference);

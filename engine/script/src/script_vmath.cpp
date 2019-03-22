@@ -2044,8 +2044,8 @@ namespace dmScript
             float t = (float) luaL_checknumber(L, 1);
             if (type1 == SCRIPT_TYPE_QUAT && type2 == SCRIPT_TYPE_QUAT)
             {
-                Vectormath::Aos::Quat* q1 = (Vectormath::Aos::Quat*)luaL_checkudata(L, 2, SCRIPT_TYPE_NAME_QUAT);
-                Vectormath::Aos::Quat* q2 = (Vectormath::Aos::Quat*)luaL_checkudata(L, 3, SCRIPT_TYPE_NAME_QUAT);
+                Vectormath::Aos::Quat* q1 = (Vectormath::Aos::Quat*)lua_touserdata(L, 2);
+                Vectormath::Aos::Quat* q2 = (Vectormath::Aos::Quat*)lua_touserdata(L, 3);
                 PushQuat(L, Vectormath::Aos::slerp(t, *q1, *q2));
                 return 1;
             }

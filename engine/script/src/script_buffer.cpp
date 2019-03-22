@@ -141,7 +141,7 @@ namespace dmScript
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_BUFFER);
+            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::CheckUserType(L, index, SCRIPT_BUFFER_TYPE_HASH, 0);
             if( dmBuffer::IsBufferValid( buffer->m_Buffer ) ) {
                 return buffer;
             }
@@ -153,7 +153,7 @@ namespace dmScript
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_BUFFER);
+            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::CheckUserType(L, index, SCRIPT_BUFFERSTREAM_TYPE_HASH, 0);
             if( dmBuffer::IsBufferValid( buffer->m_Buffer ) ) {
                 return buffer;
             }
@@ -269,8 +269,9 @@ namespace dmScript
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            BufferStream* stream = (BufferStream*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_BUFFERSTREAM);
-            if( dmBuffer::IsBufferValid( stream->m_Buffer ) ) {
+            BufferStream* stream = (BufferStream*)dmScript::ToUserType(L, index, SCRIPT_BUFFERSTREAM_TYPE_HASH);
+            if (stream && dmBuffer::IsBufferValid(stream->m_Buffer))
+            {
                 return stream;
             }
         }
@@ -281,8 +282,9 @@ namespace dmScript
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            BufferStream* stream = (BufferStream*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_BUFFERSTREAM);
-            if( dmBuffer::IsBufferValid( stream->m_Buffer ) ) {
+            BufferStream* stream = (BufferStream*)dmScript::CheckUserType(L, index, SCRIPT_TYPE_NAME_BUFFERSTREAM, 0);
+            if (stream && dmBuffer::IsBufferValid(stream->m_Buffer))
+            {
                 return stream;
             }
             luaL_error(L, "The buffer handle is invalid");

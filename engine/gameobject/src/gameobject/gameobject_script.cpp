@@ -227,7 +227,7 @@ namespace dmGameObject
 
     static int ScriptInstance_index(lua_State *L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
         (void) i;
         assert(i);
 
@@ -242,7 +242,7 @@ namespace dmGameObject
     {
         int top = lua_gettop(L);
 
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
         (void) i;
         assert(i);
 
