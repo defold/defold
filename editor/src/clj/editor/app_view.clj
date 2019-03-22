@@ -335,6 +335,7 @@
 
 (def ^:const prefs-window-dimensions "window-dimensions")
 (def ^:const prefs-split-positions "split-positions")
+(def ^:const prefs-hidden-panes "hidden-panes")
 
 (handler/defhandler :quit :global
   (enabled? [] true)
@@ -380,24 +381,49 @@
                           "right-split"
                           "assets-split"])
 
-(defn store-split-positions! [^Stage stage prefs]
-  (let [^Node root (.getRoot (.getScene stage))
-        controls (ui/collect-controls root split-ids)
-        div-pos (into {} (map (fn [[id ^SplitPane sp]] [id (.getDividerPositions sp)]) controls))]
-    (prefs/set-prefs prefs prefs-split-positions div-pos)))
+(defn- existing-split-panes [^Scene scene]
+  (into {}
+        (keep (fn [split-id]
+                (when-some [control (.lookup scene (str "#" split-id))]
+                  [(keyword split-id) control])))
+        split-ids))
 
-(defn restore-split-positions! [^Stage stage prefs]
-  (when-let [div-pos (prefs/get-prefs prefs prefs-split-positions nil)]
-    (let [^Node root (.getRoot (.getScene stage))
-          controls (ui/collect-controls root split-ids)
-          div-pos (if (vector? div-pos)
-                    (zipmap (map keyword legacy-split-ids) div-pos)
-                    div-pos)]
-      (doseq [[k pos] div-pos
-              :let [^SplitPane sp (get controls k)]
-              :when sp]
-        (.setDividerPositions sp (into-array Double/TYPE pos))
-        (.layout sp)))))
+(defn- stored-split-positions [prefs]
+  (if-some [split-positions (prefs/get-prefs prefs prefs-split-positions nil)]
+    (if (vector? split-positions) ; Legacy preference format
+      (zipmap (map keyword legacy-split-ids)
+              split-positions)
+      split-positions)
+    {}))
+
+(defn store-split-positions! [^Scene scene prefs]
+  (let [split-positions (into (stored-split-positions prefs)
+                              (map (fn [[id ^SplitPane sp]]
+                                     [id (.getDividerPositions sp)]))
+                              (existing-split-panes scene))]
+    (prefs/set-prefs prefs prefs-split-positions split-positions)))
+
+(defn restore-split-positions! [^Scene scene prefs]
+  (let [split-positions (stored-split-positions prefs)
+        split-panes (existing-split-panes scene)]
+    (doseq [[id positions] split-positions]
+      (when-some [^SplitPane split-pane (get split-panes id)]
+        (.setDividerPositions split-pane (double-array positions))
+        (.layout split-pane)))))
+
+(defn stored-hidden-panes [prefs]
+  (prefs/get-prefs prefs prefs-hidden-panes #{}))
+
+(defn store-hidden-panes! [^Scene scene prefs]
+  (let [hidden-panes (into #{}
+                           (remove (partial pane-visible? scene))
+                           (keys split-info-by-pane-kw))]
+    (prefs/set-prefs prefs prefs-hidden-panes hidden-panes)))
+
+(defn restore-hidden-panes! [^Scene scene prefs]
+  (let [hidden-panes (stored-hidden-panes prefs)]
+    (doseq [pane-kw hidden-panes]
+      (set-pane-visible! scene pane-kw false))))
 
 (handler/defhandler :logout :global
   (enabled? [dashboard-client] (login/can-sign-out? dashboard-client))
