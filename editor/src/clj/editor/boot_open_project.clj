@@ -216,14 +216,16 @@
       (ui/user-data! scene ::ui/refresh-requested? true)
 
       (ui/run-later
-        (app-view/restore-split-positions! stage prefs))
+        (app-view/restore-split-positions! scene prefs)
+        (app-view/restore-hidden-panes! scene prefs))
 
       (ui/on-closing! stage (fn [_]
                               (let [result (or (empty? (project/dirty-save-data project))
                                              (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))]
                                 (when result
                                   (app-view/store-window-dimensions stage prefs)
-                                  (app-view/store-split-positions! stage prefs))
+                                  (app-view/store-split-positions! scene prefs)
+                                  (app-view/store-hidden-panes! scene prefs))
                                 result)))
 
       (ui/on-closed! stage (fn [_]
