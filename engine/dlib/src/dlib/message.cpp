@@ -409,6 +409,9 @@ namespace dmMessage
         return RESULT_OK;
     }
 
+    // Fast length limited string concatenation that assume we already point to
+    // the end of the string. Returns the new end of the string so we do not need
+    // to calculate the length of the input string or output string
     static char* ConcatString(char* w_ptr, const char* w_ptr_end, const char* str)
     {
         while ((w_ptr != w_ptr_end) && *str)
@@ -418,6 +421,7 @@ namespace dmMessage
         return w_ptr;
     }
 
+    // Low level string concatenation to void the overhead of DM_SNPRINTF and having to call strlen
     static const char* GetProfilerString(const char* socket_name, uint32_t* out_profiler_hash)
     {
         const char* profiler_string = 0;

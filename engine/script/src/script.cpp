@@ -1450,6 +1450,9 @@ namespace dmScript
         return false;
     }
 
+    // Fast length limited string concatenation that assume we already point to
+    // the end of the string. Returns the new end of the string so we do not need
+    // to calculate the length of the input string or output string
     static char* ConcatString(char* w_ptr, const char* w_ptr_end, const char* str)
     {
         while ((w_ptr != w_ptr_end) && *str)
@@ -1459,6 +1462,14 @@ namespace dmScript
         return w_ptr;
     }
 
+    /**
+    * To reduce the overhead of the profiler when calling lua functions we avoid using DM_SNPRINTF.
+    * DM_SNPRINTF uses vsnprintf with variable number of arguments but we only need string concatenation for
+    * the most part. Also, we use our knownledge when building the string to get the string length directly
+    * without resorting to strlen.
+    * Building this string is particularly expensive on low end devices and using this more optimal way reduces
+    * the overhead of the profiler when enabled.
+    */
     const char* GetProfilerString(lua_State* L, int optional_callback_index, const char* source_file_name, const char* function_name, const char* optional_message_name, uint32_t* out_profiler_hash)
     {
         const char* profiler_string = 0;
