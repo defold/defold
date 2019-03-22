@@ -2,8 +2,6 @@
 #include <stdlib.h>
 #include <map>
 #include <string>
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
 #include "../dlib/time.h"
 #include "../dlib/socket.h"
 #include "../dlib/math.h"
@@ -11,6 +9,8 @@
 #include "../dlib/dstrings.h"
 #include "../dlib/web_server.h"
 #include "../dlib/hash.h"
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 class dmWebServerTest: public jc_test_base_class
 {
