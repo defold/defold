@@ -2,8 +2,6 @@
 #include <stdlib.h>
 #include <string>
 #include <map>
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
 #include "../dlib/array.h"
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
@@ -13,6 +11,8 @@
 #include "../dlib/time.h"
 #include "../dlib/path.h"
 #include "../dlib/sys.h"
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 TEST(dmLog, Init)
 {

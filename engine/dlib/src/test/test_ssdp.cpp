@@ -1,16 +1,17 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 #include <string>
 #include <map>
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
 #include "../dlib/ssdp.h"
 #include "../dlib/time.h"
 #include "../dlib/log.h"
 #include "../dlib/dstrings.h"
 #include "../dlib/hash.h"
 #include "../dlib/socket.h"
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 static const char* DEVICE_DESC_STATIC =
     "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
