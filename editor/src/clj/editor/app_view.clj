@@ -565,6 +565,7 @@
   (reset! build-in-progress? true)
   (future
     (try
+      (render-build-progress! (progress/make "Building project..." 1))
       (let [extra-build-targets (when debug?
                                   (debug-view/build-targets project evaluation-context))
             build-results (ui/with-progress [_ render-build-progress!]
@@ -583,6 +584,7 @@
               (reset! build-in-progress? false)))))
       (catch Throwable t
         (reset! build-in-progress? false)
+        (render-build-progress! progress/done)
         (error-reporting/report-exception! t)))))
 
 (defn- handle-build-results! [workspace build-errors-view build-results]
@@ -594,6 +596,7 @@
       (do
         (workspace/artifact-map! workspace artifact-map)
         (workspace/etags! workspace etags)
+        (workspace/save-build-cache! workspace)
         (build-errors-view/clear-build-errors build-errors-view)
         build-results))))
 
@@ -671,7 +674,7 @@ If you do not specifically require different script states, consider changing th
   (enabled? [] (not @build-in-progress?))
   (run [project workspace prefs web-server build-errors-view console-view debug-view]
     (debug-view/detach! debug-view)
-    (workspace/reset-cache! workspace)
+    (workspace/clear-build-cache! workspace)
     (build-handler project workspace prefs web-server build-errors-view console-view)))
 
 (handler/defhandler :build-html5 :global
@@ -740,6 +743,7 @@ If you do not specifically require different script states, consider changing th
                       (do
                         (workspace/artifact-map! workspace artifact-map)
                         (workspace/etags! workspace etags)
+                        (workspace/save-build-cache! workspace)
                         (build-errors-view/clear-build-errors build-errors-view)
                         (try
                           (when-some [updated-build-resources (not-empty (updated-build-resources evaluation-context project old-etags etags "/game.project"))]
