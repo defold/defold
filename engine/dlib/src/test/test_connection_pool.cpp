@@ -1,6 +1,4 @@
 #include <stdint.h>
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
 #include <vector>
 #include <set>
 #include <dlib/configfile.h>
@@ -8,6 +6,8 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include "testutil.h"
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 int g_HttpPort = -1;
 
