@@ -100,18 +100,19 @@ namespace dmGui
                     m_Playback              == other.m_Playback;
             }
 
+            uint32_t m_Start : 13;
+            uint32_t m_End : 13;
+            uint32_t m_Playback : 4;
+            uint32_t : 2;
             uint16_t m_OriginalTextureWidth;
             uint16_t m_OriginalTextureHeight;
-            uint16_t m_Start : 13;
-            uint16_t m_End : 13;
             uint8_t  m_FPS;
-            uint8_t  m_Playback : 4;
         } m_State;
 
         const float* m_TexCoords;
-        uint32_t m_FlipHorizontal : 1;
-        uint32_t m_FlipVertical : 1;
-        uint32_t m_Padding : 8;
+        uint8_t m_FlipHorizontal : 1;
+        uint8_t m_FlipVertical : 1;
+        uint8_t : 6;
     };
 
     enum FetchTextureSetAnimResult
