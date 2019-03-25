@@ -67,8 +67,6 @@
 (def ^:private unjammable?         (partial has-flag? :unjammable))
 (def ^:private explicit?           (partial has-flag? :explicit))
 
-(def ^:private internal-keys #{:_node-id :_declared-properties :_properties :_output-jammers})
-
 (defn- filterm [pred m]
   (into {} (filter pred) m))
 
@@ -947,7 +945,7 @@
 
 (defn- attach-declared-properties
   [description]
-  (let [publics (apply disj (reduce into #{} (map prop+args (:property description))) internal-keys)]
+  (let [publics (apply disj (reduce into #{} (map prop+args (:property description))) intrinsic-properties)]
     (assoc-in description [:output :_declared-properties]
               {:value-type (->ValueTypeRef :dynamo.graph/Properties)
                :flags #{:cached}
@@ -1331,7 +1329,7 @@
           forms)))
 
 (defn- argument-error-check-form [node-sym evaluation-context-sym description label node-id-sym arguments-sym tail]
-  (if (contains? internal-keys label)
+  (if (= :_properties label)
     tail
     `(or (argument-error-aggregate ~arguments-sym ~node-id-sym ~label) ~tail)))
 
