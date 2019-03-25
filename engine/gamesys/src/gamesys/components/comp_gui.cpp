@@ -1665,14 +1665,14 @@ namespace dmGameSystem
                 return dmGui::FETCH_ANIMATION_INVALID_PLAYBACK;
 
             out_data->m_TexCoords = (const float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
-            out_data->m_Start = animation->m_Start;
-            out_data->m_End = animation->m_End;
-            out_data->m_OriginalTextureWidth = dmGraphics::GetOriginalTextureWidth(texture_set_res->m_Texture);
-            out_data->m_OriginalTextureHeight = dmGraphics::GetOriginalTextureHeight(texture_set_res->m_Texture);
-            out_data->m_FPS = animation->m_Fps;
+            out_data->m_State.m_Start = animation->m_Start;
+            out_data->m_State.m_End = animation->m_End;
+            out_data->m_State.m_OriginalTextureWidth = dmGraphics::GetOriginalTextureWidth(texture_set_res->m_Texture);
+            out_data->m_State.m_OriginalTextureHeight = dmGraphics::GetOriginalTextureHeight(texture_set_res->m_Texture);
+            out_data->m_State.m_Playback = ddf_playback_map.m_Table[playback_index];
+            out_data->m_State.m_FPS = animation->m_Fps;
             out_data->m_FlipHorizontal = animation->m_FlipHorizontal;
             out_data->m_FlipVertical = animation->m_FlipVertical;
-            out_data->m_Playback = ddf_playback_map.m_Table[playback_index];
             return dmGui::FETCH_ANIMATION_OK;
         }
         else

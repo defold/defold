@@ -73,33 +73,45 @@ namespace dmGui
      */
     struct TextureSetAnimDesc
     {
+        struct State;
+
         inline void Init()
         {
-            m_State = 0;
-            m_Playback = PLAYBACK_ONCE_FORWARD;
+            m_State.m_OriginalTextureWidth = 0;
+            m_State.m_OriginalTextureHeight = 0;
+            m_State.m_Start = 0;
+            m_State.m_End = 0;
+            m_State.m_FPS = 0;
+            m_State.m_Playback = PLAYBACK_ONCE_FORWARD;
             m_TexCoords = 0;
             m_FlipHorizontal = 0;
             m_FlipVertical = 0;
         }
 
-        union
+        struct State
         {
-            struct
+            inline bool IsEqual(const TextureSetAnimDesc::State other)
             {
-                uint64_t m_Start : 13;
-                uint64_t m_End : 13;
-                uint64_t m_OriginalTextureWidth : 13;
-                uint64_t m_OriginalTextureHeight : 13;
-                uint64_t m_FPS : 8;
-                uint64_t m_Playback : 4;
-            };
-            uint64_t m_State;
-        };
+                return m_Start              == other.m_Start &&
+                    m_End                   == other.m_End &&
+                    m_OriginalTextureWidth  == other.m_OriginalTextureWidth &&
+                    m_OriginalTextureHeight == other.m_OriginalTextureHeight &&
+                    m_FPS                   == other.m_FPS &&
+                    m_Playback              == other.m_Playback;
+            }
+
+            uint16_t m_OriginalTextureWidth;
+            uint16_t m_OriginalTextureHeight;
+            uint16_t m_Start : 13;
+            uint16_t m_End : 13;
+            uint8_t  m_FPS;
+            uint8_t  m_Playback : 4;
+        } m_State;
 
         const float* m_TexCoords;
         uint32_t m_FlipHorizontal : 1;
         uint32_t m_FlipVertical : 1;
-        uint32_t m_Padding : 14;
+        uint32_t m_Padding : 8;
     };
 
     enum FetchTextureSetAnimResult
