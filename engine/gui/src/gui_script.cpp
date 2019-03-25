@@ -301,7 +301,7 @@ namespace dmGui
     {
         NodeProxy* np1 = (NodeProxy*)dmScript::ToUserType(L, 1, NODE_PROXY_TYPE_HASH);
         NodeProxy* np2 = (NodeProxy*)dmScript::ToUserType(L, 2, NODE_PROXY_TYPE_HASH);
-        if (np1 == 0 || np2 == 0)
+        if (np1 == 0 || np2 == 0)
         {
             lua_pushboolean(L, 0);
             return 1;
