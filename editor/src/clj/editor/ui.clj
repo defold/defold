@@ -1017,16 +1017,23 @@
   ([^Scene scene all-selections?]
    (node-contexts (or (focus-owner scene) (.getRoot scene)) all-selections?)))
 
-(defn select-items [items options command-contexts]
-  (some-> (handler/active :select-items command-contexts {:items items
-                                                          :options options})
-    handler/run))
-
 (defn execute-command
   [command-contexts command user-data]
-  (when-let [handler-ctx (handler/active command command-contexts user-data)]
-    (when (handler/enabled? handler-ctx)
-      (handler/run handler-ctx))))
+  (let [handler-ctx (handler/active command command-contexts user-data)]
+    (cond
+      (nil? handler-ctx)
+      ::not-active
+
+      (not (handler/enabled? handler-ctx))
+      ::not-enabled
+
+      :else
+      (let [ret (handler/run handler-ctx)]
+        (user-data! (main-scene) ::refresh-requested? true)
+        ret))))
+
+(defn- select-items [items options command-contexts]
+  (execute-command command-contexts :select-items {:items items :options options}))
 
 (defn invoke-handler
   ([command-contexts command]
@@ -1214,12 +1221,12 @@
   ([^Node node command user-data all-selections? success-fn]
    (let [user-data (or user-data {})
          command-contexts (node-contexts node all-selections?)]
-     (when-let [handler-ctx (handler/active command command-contexts user-data)]
-       (when (handler/enabled? handler-ctx)
-         (let [result (handler/run handler-ctx)]
-           (when success-fn
-             (success-fn))
-           result))))))
+     (let [ret (execute-command command-contexts command user-data)]
+       (when (and (not= ::not-active ret)
+                  (not= ::not-enabled ret)
+                  (some? success-fn))
+         (success-fn)
+         ret)))))
 
 (defn bind-action!
   ([^Node node command]
@@ -1349,7 +1356,8 @@
 
 (defn invalidate-menubar-item!
   [id]
-  (swap! invalid-menubar-items conj id))
+  (swap! invalid-menubar-items conj id)
+  (user-data! (main-scene) ::refresh-requested? true))
 
 (defn- clear-invalidated-menubar-items!
   []
@@ -1554,10 +1562,7 @@
                                                    (observe (.valueProperty cb) (fn [this old new]
                                                                                   (when new
                                                                                     (let [command-contexts (contexts scene)]
-                                                                                      (when-let [handler-ctx (handler/active (:command new) command-contexts (:user-data new))]
-                                                                                        (when (handler/enabled? handler-ctx)
-                                                                                          (handler/run handler-ctx)
-                                                                                          (user-data! scene ::refresh-requested? true)))))))
+                                                                                      (execute-command command-contexts (:command new) (:user-data new))))))
                                                    (.add (.getChildren hbox) (jfx/get-image-view (:icon menu-item) 16))
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
@@ -1576,11 +1581,7 @@
                                                      (.setGraphic button (jfx/get-image-view icon 16)))
                                                    (when command
                                                      (on-action! button (fn [event]
-                                                                          (let [command-contexts (contexts scene)]
-                                                                            (when-let [handler-ctx (handler/active command command-contexts user-data)]
-                                                                              (when (handler/enabled? handler-ctx)
-                                                                                (handler/run handler-ctx)
-                                                                                (user-data! scene ::refresh-requested? true)))))))
+                                                                          (execute-command (contexts scene) command user-data))))
                                                    button)))]
                           (when command
                             (.setId child (name command)))

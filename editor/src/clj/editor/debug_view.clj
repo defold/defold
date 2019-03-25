@@ -21,9 +21,8 @@
            [editor.debugging.mobdebug LuaStructure]
            [java.nio.file Files]
            [java.util Collection]
-           [javafx.beans.value ChangeListener]
            [javafx.event ActionEvent]
-           [javafx.scene Parent]
+           [javafx.scene Parent Scene]
            [javafx.scene.control Button Label ListView SplitPane TreeItem TreeView TextField]
            [javafx.scene.layout HBox Pane Priority]
            [org.apache.commons.io FilenameUtils]))
@@ -112,6 +111,7 @@
   (property suspension-state g/Any)
 
   (property root Parent)
+  (property scene Scene)
 
   (input active-resource resource/Resource)
 
@@ -353,8 +353,9 @@
   debug-view)
 
 (defn make-view!
-  [app-view view-graph project ^Parent root open-resource-fn]
+  [app-view view-graph project root scene open-resource-fn]
   (let [view-id (setup-view! (g/make-node! view-graph DebugView
+                                           :scene scene
                                            :open-resource-fn (make-open-resource-fn project open-resource-fn))
                              app-view)
         timer (make-update-timer project view-id)]
@@ -371,6 +372,7 @@
 
 (defn show!
   [debug-view]
+  (ui/user-data! (g/node-value debug-view :scene) ::ui/refresh-requested? true)
   (ui/with-controls (g/node-value debug-view :root) [tool-tabs]
     (ui/select-tab! tool-tabs "console-tab")))
 
@@ -387,7 +389,10 @@
                      (update-suspension-state! debug-view debug-session)
                      (show! debug-view)))
    :on-resumed   (fn [debug-session]
-                   (ui/run-later (g/set-property! debug-view :suspension-state nil)))})
+                   (ui/run-later
+                     (ui/user-data! (g/node-value debug-view :scene)
+                                    ::ui/refresh-requested? true)
+                     (g/set-property! debug-view :suspension-state nil)))})
 
 (def ^:private mobdebug-port 8172)
 
@@ -406,6 +411,8 @@
                          (show! debug-view)))
                      (fn [debug-session]
                        (ui/run-now
+                         (ui/user-data! (g/node-value debug-view :scene)
+                                        ::ui/refresh-requested? true)
                          (g/set-property! debug-view
                                           :debug-session nil
                                           :suspension-state nil)))))
