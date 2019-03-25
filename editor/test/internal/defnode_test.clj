@@ -429,7 +429,6 @@
     (let [node (g/construct ExternNode)]
       (is (= "/foo" (:external-resource node)))
       (is (contains? (g/declared-property-labels ExternNode) :external-resource))
-      (is (contains? (g/externs ExternNode) :external-resource))
       (is (some #{:external-resource} (keys node))))))
 
 (g/defnk string-production-fnk [this integer-input] "produced string")

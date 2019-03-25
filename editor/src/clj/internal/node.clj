@@ -64,7 +64,7 @@
 
 (def ^:private cached?             (partial has-flag? :cached))
 (def ^:private cascade-deletes?    (partial has-flag? :cascade-delete))
-(def ^:private extern?             (partial has-flag? :unjammable))
+(def ^:private unjammable?         (partial has-flag? :unjammable))
 (def ^:private explicit?           (partial has-flag? :explicit))
 
 (def ^:private internal-keys #{:_node-id :_declared-properties :_properties :_output-jammers})
@@ -110,7 +110,6 @@
 (defn input-cardinality        [nt label]  (if (has-flag? :array (get-in (deref nt) [:input label])) :many :one))
 (defn output-type              [nt label]  (some-> nt deref (get-in [:output label :value-type])))
 (defn output-arguments         [nt label]  (some-> nt deref (get-in [:output label :arguments])))
-(defn externs                  [nt]        (some-> nt deref :property (->> (filterm #(extern? (val %))) util/key-set)))
 (defn property-setter          [nt label]  (some-> nt deref (get-in [:property label :setter :fn]) util/var-get-recursive))
 (defn property-type            [nt label]  (some-> nt deref (get-in [:property label :value-type])))
 (defn has-input?               [nt label]  (some-> nt deref (get :input) (contains? label)))
@@ -125,8 +124,8 @@
 
 (defn jammable-output-labels [nt]
   (into #{}
-        (keep (fn [[label {:keys [flags]}]]
-                (when-not (contains? flags :unjammable)
+        (keep (fn [[label outdef]]
+                (when-not (unjammable? outdef)
                   label)))
         (declared-outputs nt)))
 
@@ -1249,8 +1248,6 @@
     :else
     (assert false (str "A production function for " (:name description) " " output " needs an argument this node can't supply. There is no input, output, or property called " (pr-str argument)))))
 
-(def ^:private jammable? (complement internal-keys))
-
 (defn original-root [basis node-id]
   (let [node (gt/node-by-id-at basis node-id)
         orig-id (:original-id node)]
@@ -1267,11 +1264,11 @@
         (assoc jam-value :_label transform :_node-id node-id)
         jam-value))))
 
-(defn- check-jammed-form [node-sym evaluation-context-sym node-id-sym transform forms]
-  (if (jammable? transform)
+(defn- check-jammed-form [node-sym evaluation-context-sym node-id-sym transform description forms]
+  (if (unjammable? (get-in description [:output transform]))
+    forms
     `(or (transform-jammer (:basis ~evaluation-context-sym) ~node-sym ~node-id-sym ~transform)
-         ~forms)
-    forms))
+         ~forms)))
 
 (defn- property-has-default-getter?       [description label] (not (get-in description [:property label :value])))
 (defn- property-has-no-overriding-output? [description label] (not (desc-has-explicit-output? description label)))
@@ -1412,7 +1409,7 @@
     (gensyms [node-sym evaluation-context-sym node-id-sym arguments-sym schema-sym output-sym]
       `(fn [~node-sym ~evaluation-context-sym]
          (let [~node-id-sym (gt/node-id ~node-sym)]
-           ~(check-jammed-form node-sym evaluation-context-sym node-id-sym transform
+           ~(check-jammed-form node-sym evaluation-context-sym node-id-sym transform description
               (apply-default-property-shortcut-form node-sym evaluation-context-sym transform description
                 (mark-in-production-form evaluation-context-sym node-id-sym transform description
                   (check-caches-form node-sym evaluation-context-sym node-id-sym description transform
