@@ -1,5 +1,6 @@
 (ns internal.defnode-test
   (:require [clojure.test :refer :all]
+            [clojure.set :as set]
             [dynamo.graph :as g]
             [internal.graph.types :as gt]
             [internal.node :as in]
@@ -296,8 +297,8 @@
       (is (:a-property (-> node g/node-type g/declared-property-labels)))
       (is (some #{:a-property} (keys node)))))
 
-  (testing "_node-id is an internal property"
-    (is (= #{:_node-id :_output-jammers} (g/internal-property-labels SinglePropertyNode)))
+  (testing "_node-id and :_output-jammers are intrinsic, non-declared properties"
+    (is (= #{} (set/intersection #{:_node-id :_output-jammers} (g/declared-property-labels SinglePropertyNode))))
     (is (= #{:a-property} (g/declared-property-labels SinglePropertyNode))))
 
   (testing "two properties"
