@@ -943,7 +943,7 @@
 (defn- prop+args [[pname pdef]]
   (into #{pname} (:arguments pdef)))
 
-(defn- attach-declared-properties
+(defn- attach-declared-properties-output
   [description]
   (let [publics (apply disj (reduce into #{} (map prop+args (:property description))) intrinsic-properties)]
     (assoc-in description [:output :_declared-properties]
@@ -1005,7 +1005,7 @@
       extract-fn-arguments
       merge-property-dependencies
       apply-property-dependencies-to-outputs
-      attach-declared-properties
+      attach-declared-properties-output
       attach-input-dependencies
       attach-property-behaviors
       attach-output-behaviors
