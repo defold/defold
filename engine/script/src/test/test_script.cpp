@@ -670,7 +670,7 @@ static TestScriptExtension* GetTestScriptExtension(dmScript::HContext context)
     lua_State* L = dmScript::GetLuaState(context);
     DM_LUA_STACK_CHECK(L, 0);
 
-    lua_pushstring(L, "__TestScriptExtension__");
+    lua_pushinteger(L, (lua_Integer)dmHashBuffer32("__TestScriptExtension__", strlen("__TestScriptExtension__")));
     dmScript::GetContextValue(context);
     int ref = lua_tonumber(L, 1);
     lua_pop(L, 1);
@@ -689,7 +689,7 @@ void TestScriptExtensionInitialize(dmScript::HContext context)
     memset(extension, 0, sizeof(TestScriptExtension));
     extension->m_SelfRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
     extension->m_InitializeCalled = 1;
-    lua_pushstring(L, "__TestScriptExtension__");
+    lua_pushinteger(L, (lua_Integer)dmHashBuffer32("__TestScriptExtension__", strlen("__TestScriptExtension__")));
     lua_pushnumber(L, extension->m_SelfRef);
     dmScript::SetContextValue(context);
 }
@@ -710,7 +710,7 @@ static void TestScriptExtensionFinalize(dmScript::HContext context)
 
     TestScriptExtension* extension = GetTestScriptExtension(context);
     ++extension->m_FinalizedCalled = 1;
-    lua_pushstring(L, "__TestScriptExtension__");
+    lua_pushinteger(L, (lua_Integer)dmHashBuffer32("__TestScriptExtension__", strlen("__TestScriptExtension__")));
     lua_pushnil(L);
     dmScript::SetContextValue(context);
     dmScript::Unref(L, LUA_REGISTRYINDEX, extension->m_SelfRef);
