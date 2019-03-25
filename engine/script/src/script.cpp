@@ -659,9 +659,10 @@ namespace dmScript
     bool GetURL(lua_State* L, dmMessage::URL& out_url) {
         DM_LUA_STACK_CHECK(L, 0);
         GetInstance(L);
-        if (GetMetaFunction(L, -1, META_TABLE_GET_URL, sizeof(META_TABLE_GET_URL) - 1)) {
-            lua_pushvalue(L, -2);
-            lua_call(L, 1, 1);
+
+        int res = luaL_callmeta(L, -1, META_TABLE_GET_URL);
+        if (res == 1)
+        {
             out_url = *CheckURL(L, -1);
             lua_pop(L, 2);
             return true;
