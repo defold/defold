@@ -169,18 +169,9 @@ namespace dmScript
         {0,0}
     };
 
-    static void* GetUserData(lua_State* L, int index, lua_Integer type_hash)
-    {
-        if (dmScript::GetUserType(L, index) == type_hash)
-        {
-            return lua_touserdata(L, index);
-        }
-        return 0;
-    }
-
     Vectormath::Aos::Vector3* ToVector3(lua_State* L, int index)
     {
-        return (Vectormath::Aos::Vector3*)GetUserData(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR3]);
+        return (Vectormath::Aos::Vector3*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR3]);
     }
 
     static int Vector3_tostring(lua_State *L)
@@ -294,9 +285,9 @@ namespace dmScript
 
     static int Vector3_eq(lua_State *L)
     {
-        Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
-        Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
-        lua_pushboolean(L, v1->getX() == v2->getX() && v1->getY() == v2->getY() && v1->getZ() == v2->getZ());
+        Vectormath::Aos::Vector3* v1 = ToVector3(L, 1);
+        Vectormath::Aos::Vector3* v2 = ToVector3(L, 2);
+        lua_pushboolean(L, v1 && v2 && v1->getX() == v2->getX() && v1->getY() == v2->getY() && v1->getZ() == v2->getZ());
         return 1;
     }
 
@@ -320,7 +311,7 @@ namespace dmScript
 
     Vectormath::Aos::Vector4* ToVector4(lua_State *L, int index)
     {
-        return (Vectormath::Aos::Vector4*)GetUserData(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR4]);
+        return (Vectormath::Aos::Vector4*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR4]);
     }
 
     static int Vector4_tostring(lua_State *L)
@@ -443,9 +434,9 @@ namespace dmScript
 
     static int Vector4_eq(lua_State *L)
     {
-        Vectormath::Aos::Vector4* v1 = CheckVector4(L, 1);
-        Vectormath::Aos::Vector4* v2 = CheckVector4(L, 2);
-        lua_pushboolean(L, v1->getX() == v2->getX() && v1->getY() == v2->getY() && v1->getZ() == v2->getZ() && v1->getW() == v2->getW());
+        Vectormath::Aos::Vector4* v1 = ToVector4(L, 1);
+        Vectormath::Aos::Vector4* v2 = ToVector4(L, 2);
+        lua_pushboolean(L, v1 && v2 && v1->getX() == v2->getX() && v1->getY() == v2->getY() && v1->getZ() == v2->getZ() && v1->getW() == v2->getW());
         return 1;
     }
 
@@ -469,7 +460,7 @@ namespace dmScript
 
     Vectormath::Aos::Quat* ToQuat(lua_State *L, int index)
     {
-        return (Vectormath::Aos::Quat*)GetUserData(L, index, TYPE_HASHES[SCRIPT_TYPE_QUAT]);
+        return (Vectormath::Aos::Quat*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_QUAT]);
     }
 
     static int Quat_tostring(lua_State *L)
@@ -561,9 +552,9 @@ namespace dmScript
 
     static int Quat_eq(lua_State *L)
     {
-        Vectormath::Aos::Quat* q1 = CheckQuat(L, 1);
-        Vectormath::Aos::Quat* q2 = CheckQuat(L, 2);
-        lua_pushboolean(L, q1->getX() == q2->getX() && q1->getY() == q2->getY() && q1->getZ() == q2->getZ() && q1->getW() == q2->getW());
+        Vectormath::Aos::Quat* q1 = ToQuat(L, 1);
+        Vectormath::Aos::Quat* q2 = ToQuat(L, 2);
+        lua_pushboolean(L, q1 && q2 && q1->getX() == q2->getX() && q1->getY() == q2->getY() && q1->getZ() == q2->getZ() && q1->getW() == q2->getW());
         return 1;
     }
 
@@ -584,7 +575,7 @@ namespace dmScript
 
     Vectormath::Aos::Matrix4* ToMatrix4(lua_State *L, int index)
     {
-        return (Vectormath::Aos::Matrix4*)GetUserData(L, index, TYPE_HASHES[SCRIPT_TYPE_MATRIX4]);
+        return (Vectormath::Aos::Matrix4*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_MATRIX4]);
     }
 
     static int Matrix4_tostring(lua_State *L)
@@ -706,9 +697,10 @@ namespace dmScript
 
     static int Matrix4_eq(lua_State *L)
     {
-        Vectormath::Aos::Matrix4* m1 = CheckMatrix4(L, 1);
-        Vectormath::Aos::Matrix4* m2 = CheckMatrix4(L, 2);
+        Vectormath::Aos::Matrix4* m1 = ToMatrix4(L, 1);
+        Vectormath::Aos::Matrix4* m2 = ToMatrix4(L, 2);
         lua_pushboolean(L,
+            m1 && m2 &&
             m1->getElem(0, 0) == m2->getElem(0, 0) && m1->getElem(1, 0) == m2->getElem(1, 0) && m1->getElem(2, 0) == m2->getElem(2, 0) && m1->getElem(3, 0) == m2->getElem(3, 0) &&
             m1->getElem(0, 1) == m2->getElem(0, 1) && m1->getElem(1, 1) == m2->getElem(1, 1) && m1->getElem(2, 1) == m2->getElem(2, 1) && m1->getElem(3, 1) == m2->getElem(3, 1) &&
             m1->getElem(0, 2) == m2->getElem(0, 2) && m1->getElem(1, 2) == m2->getElem(1, 2) && m1->getElem(2, 2) == m2->getElem(2, 2) && m1->getElem(3, 2) == m2->getElem(3, 2) &&

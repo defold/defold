@@ -255,19 +255,10 @@ namespace dmScript
     {
         void* userdata_1 = lua_touserdata(L, 1);
         void* userdata_2 = lua_touserdata(L, 2);
-        if (userdata_1 == userdata_2)
-        {
-            // At least on of the values must be a hash according to
-            // Lua spec, so if they are both pointing to the same memory
-            // they are both hashes and equal
-            lua_pushboolean(L, 1);
-        }
-        else
-        {
-            dmhash_t hash1 = CheckHash(L, 1);
-            dmhash_t hash2 = CheckHash(L, 2);
-            lua_pushboolean(L, hash1 == hash2);
-        }
+        // At least on of the values must be a hash according to
+        // Lua spec and we always de-duplicate hashes when creat
+        // so we can simply do equality check on pointers.
+        lua_pushboolean(L, userdata_1 == userdata_2);
         return 1;
     }
 

@@ -226,9 +226,9 @@ namespace dmScript
 
     static int URL_eq(lua_State *L)
     {
-        dmMessage::URL* url1 = CheckURL(L, 1);
-        dmMessage::URL* url2 = CheckURL(L, 2);
-        lua_pushboolean(L, url1->m_Socket == url2->m_Socket && url1->m_Path == url2->m_Path && url1->m_Fragment == url2->m_Fragment);
+        dmMessage::URL* url1 = (dmMessage::URL*)ToUserType(L, 1, SCRIPT_URL_TYPE_HASH);
+        dmMessage::URL* url2 = (dmMessage::URL*)ToUserType(L, 2, SCRIPT_URL_TYPE_HASH);
+        lua_pushboolean(L, url1 && url2 && url1->m_Socket == url2->m_Socket && url1->m_Path == url2->m_Path && url1->m_Fragment == url2->m_Fragment);
         return 1;
     }
 

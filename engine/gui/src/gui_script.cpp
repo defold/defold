@@ -299,20 +299,14 @@ namespace dmGui
 
     static int NodeProxy_eq(lua_State *L)
     {
-        if (!LuaIsNode(L, 1))
+        NodeProxy* np1 = (NodeProxy*)dmScript::ToUserType(L, 1, NODE_PROXY_TYPE_HASH);
+        NodeProxy* np2 = (NodeProxy*)dmScript::ToUserType(L, 2, NODE_PROXY_TYPE_HASH);
+        if (np1 == 0 || np2 == 0)
         {
             lua_pushboolean(L, 0);
             return 1;
         }
 
-        if (!LuaIsNode(L, 2))
-        {
-            lua_pushboolean(L, 0);
-            return 1;
-        }
-
-        NodeProxy* np1 = NodeProxy_Check(L, 1);
-        NodeProxy* np2 = NodeProxy_Check(L, 2);
         if (np1->m_Scene != np2->m_Scene)
         {
             lua_pushboolean(L, 0);
