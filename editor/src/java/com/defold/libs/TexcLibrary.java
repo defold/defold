@@ -5,6 +5,7 @@ import java.nio.Buffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.defold.editor.Platform;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 
@@ -14,14 +15,21 @@ public class TexcLibrary {
     static {
         try {
             ResourceUnpacker.unpackResources();
-	    /*
-	     * On Linux, libtexc_shared.so is dependent on libPVRTexLib.so, but
-	     * no matter how we change java.library.path/jna, libPVRTexLib.so is only
-	     * looked for in system libraries (according to strace). Seems the system properties
-	     * cannot be changed at runtime. So instead we explicitly load the dependency
-	     * from where it was unpacked.
-	     * This step is apparently not necessary on macos/windows, but doesn't hurt.
-	     */
+            /*
+             * On Linux, libtexc_shared.so is dependent on libPVRTexLib.so, but
+             * no matter how we change java.library.path/jna, libPVRTexLib.so is
+             * only looked for in system libraries (according to strace). Seems
+             * the system properties cannot be changed at runtime. So instead we
+             * explicitly load the dependency from where it was unpacked. This
+             * step is apparently not necessary on macos/windows, but doesn't
+             * hurt.
+             *
+             * Another hack for Windows: Sometimes PVRTexLib dependency msvcr120
+             * does not load correctly so we need to load it explicitly here.
+             */
+            if(Platform.getJavaPlatform().getOs().toLowerCase().contains("win32")) {
+                System.load(ResourceUnpacker.getUnpackedLibraryPath("msvcr120").toString());
+            }
             System.load(ResourceUnpacker.getUnpackedLibraryPath("PVRTexLib").toString());
             Native.register("texc_shared");
         } catch (Exception e) {
