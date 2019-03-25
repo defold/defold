@@ -181,8 +181,8 @@ dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void* texture_set_p
     out_data->Init();
     static float uv_quad[] = {0,1,0,0, 1,0,1,1};
     out_data->m_TexCoords = &uv_quad[0];
-    out_data->m_End = 1;
-    out_data->m_FPS = 30;
+    out_data->m_State.m_End = 1;
+    out_data->m_State.m_FPS = 30;
     out_data->m_FlipHorizontal = 1;
     return dmGui::FETCH_ANIMATION_OK;
 }
