@@ -2939,7 +2939,7 @@
 (defn- resource->gui-scene
   ([project resource]
    (g/with-auto-evaluation-context evaluation-context
-     (resource->gui-scene project resource)))
+     (resource->gui-scene project resource evaluation-context)))
   ([project resource evaluation-context]
    (let [res-node (when resource
                     (project/get-resource-node project resource evaluation-context))]

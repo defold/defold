@@ -1082,14 +1082,19 @@ If you do not specifically require different script states, consider changing th
   ([app-view node-ids]
    (select app-view (g/node-value app-view :active-resource-node) node-ids))
   ([app-view resource-node node-ids]
-   (let [project-id (g/node-value app-view :project-id)
-         open-resource-nodes (g/node-value app-view :open-resource-nodes)]
-     (project/select project-id resource-node node-ids open-resource-nodes))))
+   (g/with-auto-evaluation-context evaluation-context
+     (ui/user-data! (.getScene ^Stage (g/node-value app-view :stage evaluation-context))
+                    ::ui/refresh-requested? true)
+     (let [project-id (g/node-value app-view :project-id evaluation-context)
+           open-resource-nodes (g/node-value app-view :open-resource-nodes evaluation-context)]
+       (project/select project-id resource-node node-ids open-resource-nodes)))))
 
 (defn select!
   ([app-view node-ids]
    (select! app-view node-ids (gensym)))
   ([app-view node-ids op-seq]
+   (ui/user-data! (.getScene ^Stage (g/node-value app-view :stage))
+                  ::ui/refresh-requested? true)
    (g/transact
      (concat
        (g/operation-sequence op-seq)
@@ -1100,14 +1105,17 @@ If you do not specifically require different script states, consider changing th
   ([app-view sub-selection]
    (sub-select! app-view sub-selection (gensym)))
   ([app-view sub-selection op-seq]
-   (let [project-id (g/node-value app-view :project-id)
-         active-resource-node (g/node-value app-view :active-resource-node)
-         open-resource-nodes (g/node-value app-view :open-resource-nodes)]
-     (g/transact
-       (concat
-         (g/operation-sequence op-seq)
-         (g/operation-label "Select")
-         (project/sub-select project-id active-resource-node sub-selection open-resource-nodes))))))
+   (g/with-auto-evaluation-context evaluation-context
+     (ui/user-data! (.getScene ^Stage (g/node-value app-view :stage evaluation-context))
+                    ::ui/refresh-requested? true)
+     (let [project-id (g/node-value app-view :project-id evaluation-context)
+           active-resource-node (g/node-value app-view :active-resource-node evaluation-context)
+           open-resource-nodes (g/node-value app-view :open-resource-nodes evaluation-context)]
+       (g/transact
+         (concat
+           (g/operation-sequence op-seq)
+           (g/operation-label "Select")
+           (project/sub-select project-id active-resource-node sub-selection open-resource-nodes)))))))
 
 (defn- make-title
   ([] "Defold Editor 2.0")

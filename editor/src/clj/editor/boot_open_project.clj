@@ -126,7 +126,6 @@
 (def ^:private interaction-event-types
   #{KeyEvent/KEY_PRESSED
     KeyEvent/KEY_RELEASED
-    MouseEvent/MOUSE_DRAGGED
     MouseEvent/MOUSE_PRESSED
     MouseEvent/MOUSE_RELEASED})
 
@@ -181,6 +180,7 @@
           debug-view           (debug-view/make-view! app-view *view-graph*
                                                       project
                                                       root
+                                                      scene
                                                       open-resource)]
       (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
 
@@ -206,6 +206,11 @@
                        (ui/event-handler e
                          (when (contains? interaction-event-types (.getEventType ^InputEvent e))
                            (ui/user-data! scene ::ui/refresh-requested? true))))
+
+      (ui/observe (.focusedProperty stage)
+                  (fn [_ _ focused]
+                    (when focused
+                      (ui/user-data! scene ::ui/refresh-requested? true))))
 
       (ui/user-data! scene ::ui/refresh-requested? true)
 
