@@ -65,9 +65,7 @@
 (def ^:private cached?             (partial has-flag? :cached))
 (def ^:private cascade-deletes?    (partial has-flag? :cascade-delete))
 (def ^:private extern?             (partial has-flag? :unjammable))
-(def ^:private internal?           (partial has-flag? :internal))
 (def ^:private explicit?           (partial has-flag? :explicit))
-(def ^:private external-property?  (complement internal?))
 
 (def ^:private internal-keys #{:_node-id :_declared-properties :_properties :_output-jammers})
 
@@ -89,7 +87,7 @@
 (defn isa-node-type? [t]
   (instance? NodeTypeRef t))
 
-(defrecord NodeTypeImpl [name supertypes output input property input-dependencies property-display-order cascade-deletes behavior property-behavior internal-property declared-property]
+(defrecord NodeTypeImpl [name supertypes output input property input-dependencies property-display-order cascade-deletes behavior property-behavior declared-property]
   NodeType
   Type)
 
@@ -104,7 +102,6 @@
 (defn cascade-deletes          [nt]        (some-> nt deref :cascade-deletes))
 (defn behavior                 [nt label]  (some-> nt deref (get-in [:behavior label])))
 (defn property-behavior        [nt label]  (some-> nt deref (get-in [:property-behavior label])))
-(defn internal-property-labels [nt]        (some-> nt deref :internal-property))
 (defn declared-property-labels [nt]        (some-> nt deref :declared-property))
 
 (defn cached-outputs           [nt]        (some-> nt deref :output (->> (filterm #(cached? (val %))) util/key-set)))
@@ -771,6 +768,8 @@
    (list 'extern '_output-jammers :dynamo.graph/KeywordMap)
    (list 'output '_overridden-properties :dynamo.graph/KeywordMap `(dynamo.graph/fnk [~'this ~'_basis] (gt/overridden-properties ~'this ~'_basis)))])
 
+(def ^:private intrinsic-properties #{:_node-id :_output-jammers})
+
 (defn- maybe-inject-intrinsics
   [forms]
   (if (some #(= 'inherits %) (map first forms))
@@ -813,9 +812,7 @@
 (defmethod process-as 'property [[_ label & forms]]
   (assert-symbol "property" label)
   (let [klabel (keyword label)
-        propdef (cond-> (process-property-forms forms)
-                        (contains? internal-keys klabel)
-                        (update :flags #(conj (or % #{}) :internal)))
+        propdef (process-property-forms forms)
         register-type-info (:register-type-info propdef)
         propdef (dissoc propdef :register-type-info)
         outdef (-> propdef
@@ -826,7 +823,7 @@
                             `(dynamo.graph/fnk [~'this ~label] (get ~'this ~klabel)))))
         desc {:register-type-info register-type-info
               :property {klabel propdef}
-              :property-order-decl (if (contains? internal-keys klabel) [] [klabel])
+              :property-order-decl (if (contains? intrinsic-properties klabel) [] [klabel])
               :output {klabel outdef}}]
     desc))
 
@@ -967,11 +964,13 @@
   [{:keys [input] :as description}]
   (assoc description :cascade-deletes (into #{} (comp (filter (comp cascade-deletes? val)) (map key)) input)))
 
-(defn- attach-declared-internal-property
+(defn- attach-declared-property
   [{:keys [property] :as description}]
   (assoc description
-         :declared-property (into #{} (comp (remove (comp internal? val)) (map key)) property)
-         :internal-property (into #{} (comp (filter (comp internal? val)) (map key)) property)))
+         :declared-property (into #{}
+                                  (comp (map key)
+                                        (remove intrinsic-properties))
+                                  property)))
 
 (defn- all-subtree-dependencies
   [tree]
@@ -1016,7 +1015,7 @@
       attach-input-behaviors
       attach-declared-properties-behavior
       attach-cascade-deletes
-      attach-declared-internal-property
+      attach-declared-property
       verify-inputs-for-dynamics
       verify-inputs-for-outputs
       verify-labels))
@@ -1460,7 +1459,7 @@
                ~display-order (-> (gt/node-type ~node-sym (:basis ~evaluation-context-sym))
                                   (property-display-order))
                ~value-map-sym ~(apply merge {}
-                                      (for [[p _] (filter (comp external-property? val) props)]
+                                      (for [[p _] (remove (comp intrinsic-properties key) props)]
                                         {p (property-value-exprs node-sym evaluation-context-sym node-id-sym description p (get props p))}))]
            ~(check-dry-run-form evaluation-context-sym (assemble-properties-map-form node-id-sym value-map-sym display-order)))))))
 
