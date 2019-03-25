@@ -1088,15 +1088,12 @@ If you do not specifically require different script states, consider changing th
                               :id ::edit-end}]}
                  {:label "View"
                   :id ::view
-                  :children [{:label "Assets Pane"
-                              :command :show-pane-left
-                              :check true}
-                             {:label "Tools Pane"
-                              :command :show-pane-bottom
-                              :check true}
-                             {:label "Properties Pane"
-                              :command :show-pane-right
-                              :check true}
+                  :children [{:label "Toggle Assets Pane"
+                              :command :toggle-pane-left}
+                             {:label "Toggle Tools Pane"
+                              :command :toggle-pane-bottom}
+                             {:label "Toggle Properties Pane"
+                              :command :toggle-pane-right}
                              {:label :separator
                               :id ::view-end}
                              {:label "Show Console"
@@ -1551,20 +1548,17 @@ If you do not specifically require different script states, consider changing th
                                                       (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
-(handler/defhandler :show-pane-left :global
-  (state [^Stage main-stage] (pane-visible? (.getScene main-stage) :left))
+(handler/defhandler :toggle-pane-left :global
   (run [^Stage main-stage]
        (let [main-scene (.getScene main-stage)]
          (set-pane-visible! main-scene :left (not (pane-visible? main-scene :left))))))
 
-(handler/defhandler :show-pane-right :global
-  (state [^Stage main-stage] (pane-visible? (.getScene main-stage) :right))
+(handler/defhandler :toggle-pane-right :global
   (run [^Stage main-stage]
        (let [main-scene (.getScene main-stage)]
          (set-pane-visible! main-scene :right (not (pane-visible? main-scene :right))))))
 
-(handler/defhandler :show-pane-bottom :global
-  (state [^Stage main-stage] (pane-visible? (.getScene main-stage) :bottom))
+(handler/defhandler :toggle-pane-bottom :global
   (run [^Stage main-stage]
        (let [main-scene (.getScene main-stage)]
          (set-pane-visible! main-scene :bottom (not (pane-visible? main-scene :bottom))))))
