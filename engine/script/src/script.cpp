@@ -661,14 +661,25 @@ namespace dmScript
         GetInstance(L);
 
         int res = luaL_callmeta(L, -1, META_TABLE_GET_URL);
-        if (res == 1)
+        if (res != 1)
         {
-            out_url = *CheckURL(L, -1);
+            lua_pop(L, 1);
+            return false;
+        }
+        // We either get the URL or not, if the return value is
+        // non-null it must be an URL or we have done bad coding
+        // on our end and did not follow the contract of META_TABLE_GET_URL
+        dmMessage::URL* url = (dmMessage::URL*)lua_touserdata(L, -1);
+        if (url)
+        {
+            out_url = *url;
             lua_pop(L, 2);
             return true;
         }
-        lua_pop(L, 1);
-        return false;
+
+        // If the URL is null, we call CheckURL to trigger a proper
+        // lua type error.
+        (void)CheckURL(L, -1);
     }
 
     bool GetUserData(lua_State* L, uintptr_t* out_user_data, uint32_t user_type_hash) {
