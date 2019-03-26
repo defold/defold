@@ -252,65 +252,66 @@
       (is (false? (sync/flow-in-progress? git))))))
 
 (deftest cancel-flow-from-partially-staged-rename-test
-  (let [old-path "src/old-dir/file.txt"
-        new-path "src/new-dir/file.txt"
-        modified-path "src/modified.txt"
-        setup-remote (fn []
-                       (let [git (gt/new-git)]
-                         (gt/create-file git ".gitignore" ".internal")
-                         (gt/create-file git old-path "A file that already existed in the repo, and will be renamed.")
-                         (gt/create-file git modified-path "A file that already existed in the repo.")
-                         (-> git (.add) (.addFilepattern ".gitignore") (.call))
-                         (-> git (.add) (.addFilepattern old-path) (.call))
-                         (-> git (.add) (.addFilepattern modified-path) (.call))
-                         (-> git (.commit) (.setMessage "message") (.call))
-                         git))
-        setup-local (fn [remote-git]
-                      (let [git (gt/clone remote-git)]
-                        (gt/create-file git modified-path "A file that already existed in the repo, with changes.")
-                        (gt/move-file git old-path new-path)
-                        (let [{:keys [missing modified untracked]} (git/status git)]
-                          (is (= #{modified-path} modified))
-                          (is (= #{old-path} missing))
-                          (is (= #{new-path} untracked)))
-                        git))
-        file-status (fn [git]
-                      (select-keys (git/status git) [:added :changed :missing :modified :removed :untracked]))
-        advance! (fn [!flow]
-                   (swap! !flow sync/advance-flow progress/null-render-progress!))
-        run-command! (fn [!flow command selection]
-                       (test-util/handler-run command [{:name :sync :env {:selection selection :!flow !flow}}] {})
-                       @!flow)
-        perform-test! (fn [local-git staged-change unstaged-change]
-                        (git/stage-change! local-git staged-change)
-                        (let [status-before (file-status local-git)
-                              !flow (sync/begin-flow! local-git (git/credentials (make-prefs)))]
-                          (is (= :pull/done (:state (advance! !flow))))
-                          (is (= :push/start (:state (swap! !flow assoc :state :push/start))))
-                          (let [{:keys [modified staged state]} (advance! !flow)]
-                            (is (= :push/staging state))
-                            (is (= #{(git/make-modify-change modified-path)
-                                     unstaged-change} modified))
-                            (is (= #{staged-change} staged)))
-                          (let [{:keys [modified staged state]} (run-command! !flow :unstage-change [staged-change])]
-                            (is (= :push/staging state))
-                            (is (= #{(git/make-modify-change modified-path)
-                                     (git/make-rename-change old-path new-path)} modified))
-                            (is (= #{} staged)))
-                          (sync/cancel-flow! !flow)
-                          (is (= status-before (file-status local-git)))))]
-    (testing "Renamed file, only stage add"
-      (gt/with-git [remote-git (setup-remote)
-                    local-git (setup-local remote-git)
-                    staged-change (git/make-add-change new-path)
-                    unstaged-change (git/make-delete-change old-path)]
-        (perform-test! local-git staged-change unstaged-change)))
-    (testing "Renamed file, only stage delete"
-      (gt/with-git [remote-git (setup-remote)
-                    local-git (setup-local remote-git)
-                    staged-change (git/make-delete-change old-path)
-                    unstaged-change (git/make-add-change new-path)]
-        (perform-test! local-git staged-change unstaged-change)))))
+  (test-util/with-loaded-project
+    (let [old-path "src/old-dir/file.txt"
+          new-path "src/new-dir/file.txt"
+          modified-path "src/modified.txt"
+          setup-remote (fn []
+                         (let [git (gt/new-git)]
+                           (gt/create-file git ".gitignore" ".internal")
+                           (gt/create-file git old-path "A file that already existed in the repo, and will be renamed.")
+                           (gt/create-file git modified-path "A file that already existed in the repo.")
+                           (-> git (.add) (.addFilepattern ".gitignore") (.call))
+                           (-> git (.add) (.addFilepattern old-path) (.call))
+                           (-> git (.add) (.addFilepattern modified-path) (.call))
+                           (-> git (.commit) (.setMessage "message") (.call))
+                           git))
+          setup-local (fn [remote-git]
+                        (let [git (gt/clone remote-git)]
+                          (gt/create-file git modified-path "A file that already existed in the repo, with changes.")
+                          (gt/move-file git old-path new-path)
+                          (let [{:keys [missing modified untracked]} (git/status git)]
+                            (is (= #{modified-path} modified))
+                            (is (= #{old-path} missing))
+                            (is (= #{new-path} untracked)))
+                          git))
+          file-status (fn [git]
+                        (select-keys (git/status git) [:added :changed :missing :modified :removed :untracked]))
+          advance! (fn [!flow]
+                     (swap! !flow sync/advance-flow progress/null-render-progress!))
+          run-command! (fn [!flow command selection]
+                         (test-util/handler-run command [{:name :sync :env {:selection selection :!flow !flow}}] {})
+                         @!flow)
+          perform-test! (fn [local-git staged-change unstaged-change]
+                          (git/stage-change! local-git staged-change)
+                          (let [status-before (file-status local-git)
+                                !flow (sync/begin-flow! local-git (git/credentials (make-prefs)))]
+                            (is (= :pull/done (:state (advance! !flow))))
+                            (is (= :push/start (:state (swap! !flow assoc :state :push/start))))
+                            (let [{:keys [modified staged state]} (advance! !flow)]
+                              (is (= :push/staging state))
+                              (is (= #{(git/make-modify-change modified-path)
+                                       unstaged-change} modified))
+                              (is (= #{staged-change} staged)))
+                            (let [{:keys [modified staged state]} (run-command! !flow :unstage-change [staged-change])]
+                              (is (= :push/staging state))
+                              (is (= #{(git/make-modify-change modified-path)
+                                       (git/make-rename-change old-path new-path)} modified))
+                              (is (= #{} staged)))
+                            (sync/cancel-flow! !flow)
+                            (is (= status-before (file-status local-git)))))]
+      (testing "Renamed file, only stage add"
+        (gt/with-git [remote-git (setup-remote)
+                      local-git (setup-local remote-git)
+                      staged-change (git/make-add-change new-path)
+                      unstaged-change (git/make-delete-change old-path)]
+          (perform-test! local-git staged-change unstaged-change)))
+      (testing "Renamed file, only stage delete"
+        (gt/with-git [remote-git (setup-remote)
+                      local-git (setup-local remote-git)
+                      staged-change (git/make-delete-change old-path)
+                      unstaged-change (git/make-add-change new-path)]
+          (perform-test! local-git staged-change unstaged-change))))))
 
 (deftest interactive-cancel-test
   (testing "Success"

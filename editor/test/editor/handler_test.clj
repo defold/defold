@@ -25,34 +25,37 @@
       handler/run)))
 
 (deftest run-test
-  (handler/defhandler :open :global
-    (enabled? [instances] (every? #(= % :foo) instances))
-    (run [instances] 123))
-  (are [inst exp] (= exp (enabled? :open [(handler/->context :global {:instances [inst]})] {}))
-       :foo true
-       :bar false)
-  (is (= 123 (run :open [(handler/->context :global {:instances [:foo]})] {}))))
+  (test-util/with-loaded-project
+    (handler/defhandler :open :global
+      (enabled? [instances] (every? #(= % :foo) instances))
+      (run [instances] 123))
+    (are [inst exp] (= exp (enabled? :open [(handler/->context :global {:instances [inst]})] {}))
+         :foo true
+         :bar false)
+    (is (= 123 (run :open [(handler/->context :global {:instances [:foo]})] {})))))
 
 (deftest context
-  (handler/defhandler :c1 :global
-    (active? [global-context] true)
-    (enabled? [global-context] true)
-    (run [global-context]
-         (when global-context
-           :c1)))
-  (handler/defhandler :c2 :local
-    (active? [local-context] true)
-    (enabled? [local-context] true)
-    (run [local-context]
-         (when local-context
-           :c2)))
+  (test-util/with-loaded-project
+    (handler/defhandler :c1 :global
+      (active? [global-context] true)
+      (enabled? [global-context] true)
+      (run [global-context]
+           (when global-context
+             :c1)))
 
-  (let [global-context (handler/->context :global {:global-context true})
-        local-context (handler/->context :local {:local-context true})]
-    (is (enabled? :c1 [local-context global-context] {}))
-    (is (not (enabled? :c1 [local-context] {})))
-    (is (enabled? :c2 [local-context global-context] {}))
-    (is (not (enabled? :c2 [global-context] {})))))
+    (handler/defhandler :c2 :local
+      (active? [local-context] true)
+      (enabled? [local-context] true)
+      (run [local-context]
+           (when local-context
+             :c2)))
+
+    (let [global-context (handler/->context :global {:global-context true})
+          local-context (handler/->context :local {:local-context true})]
+      (is (enabled? :c1 [local-context global-context] {}))
+      (is (not (enabled? :c1 [local-context] {})))
+      (is (enabled? :c2 [local-context global-context] {}))
+      (is (not (enabled? :c2 [global-context] {}))))))
 
 (defrecord StaticSelection [selection]
   handler/SelectionProvider
@@ -73,63 +76,67 @@
       (= t Keyword) (keyword this))))
 
 (deftest selection-test
-  (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})]
-    (handler/defhandler :c1 :global
-      (active? [selection] selection)
-      (run [selection]
-           (handler/adapt selection Keyword)))
-    (doseq [[local-selection expected-selection] [[["b"] [:b]]
-                                                  [[] []]
-                                                  [nil [:a]]]]
-      (let [local (handler/->context :local {:local-context true} (when local-selection
-                                                                            (->StaticSelection local-selection)) [])]
-        (is (= expected-selection (run :c1 [local global] {})))))))
+  (test-util/with-loaded-project
+    (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})]
+      (handler/defhandler :c1 :global
+        (active? [selection] selection)
+        (run [selection]
+             (handler/adapt selection Keyword)))
+      (doseq [[local-selection expected-selection] [[["b"] [:b]]
+                                                    [[] []]
+                                                    [nil [:a]]]]
+        (let [local (handler/->context :local {:local-context true} (when local-selection
+                                                                              (->StaticSelection local-selection)) [])]
+          (is (= expected-selection (run :c1 [local global] {}))))))))
 
 (deftest selection-context
-  (let [[global local] (mapv #(handler/->context % {} (->StaticSelection [:a]) {}) [:global :local])]
-    (handler/defhandler :c1 :global
-      (active? [selection selection-context] (and (= :global selection-context) selection))
-      (run [selection]
-           nil))
-    (is (enabled? :c1 [global] {}))
-    (is (not (enabled? :c1 [local] {})))
-    (is (enabled? :c1 [local global] {}))))
+  (test-util/with-loaded-project
+    (let [[global local] (mapv #(handler/->context % {} (->StaticSelection [:a]) {}) [:global :local])]
+      (handler/defhandler :c1 :global
+        (active? [selection selection-context] (and (= :global selection-context) selection))
+        (run [selection]
+             nil))
+      (is (enabled? :c1 [global] {}))
+      (is (not (enabled? :c1 [local] {})))
+      (is (enabled? :c1 [local global] {})))))
 
 (deftest erroneous-handler
-  (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})]
-    (handler/defhandler :erroneous :global
-      (active? [does-not-exist] true)
-      (enabled? [does-not-exist] true)
-      (run [does-not-exist] (throw (Exception. "should never happen"))))
-    (log/without-logging
-      (is (not (enabled? :erroneous [global] {})))
-      (is (nil? (run :erroneous [global] {}))))))
+  (test-util/with-loaded-project
+    (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})]
+      (handler/defhandler :erroneous :global
+        (active? [does-not-exist] true)
+        (enabled? [does-not-exist] true)
+        (run [does-not-exist] (throw (Exception. "should never happen"))))
+      (log/without-logging
+        (is (not (enabled? :erroneous [global] {})))
+        (is (nil? (run :erroneous [global] {})))))))
 
 (deftest throwing-handler
-  (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})
-        throwing-enabled? (test-util/make-call-logger (fn [selection] (throw (Exception. "Thrown from enabled?"))))
-        throwing-run (test-util/make-call-logger (fn [selection] (throw (Exception. "Thrown from run"))))]
-    (handler/enable-disabled-handlers!)
-    (handler/defhandler :throwing :global
-      (active? [selection] true)
-      (enabled? [selection] (throwing-enabled? selection))
-      (run [selection] (throwing-run selection)))
-    (log/without-logging
-      (testing "The enabled? function will not be called anymore if it threw an exception."
-        (is (not (enabled? :throwing [global] {})))
-        (is (not (enabled? :throwing [global] {})))
-        (is (= 1 (count (test-util/call-logger-calls throwing-enabled?)))))
-      (testing "The command can be repeated even though an exception was thrown during run."
-        (is (nil? (run :throwing [global] {})))
-        (is (nil? (run :throwing [global] {})))
-        (is (= 2 (count (test-util/call-logger-calls throwing-run)))))
-      (testing "Disabled handlers can be re-enabled during development."
-        (is (= 1 (count (test-util/call-logger-calls throwing-enabled?))))
-        (enabled? :throwing [global] {})
-        (is (= 1 (count (test-util/call-logger-calls throwing-enabled?))))
-        (handler/enable-disabled-handlers!)
-        (enabled? :throwing [global] {})
-        (is (= 2 (count (test-util/call-logger-calls throwing-enabled?))))))))
+  (test-util/with-loaded-project
+    (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})
+          throwing-enabled? (test-util/make-call-logger (fn [selection] (throw (Exception. "Thrown from enabled?"))))
+          throwing-run (test-util/make-call-logger (fn [selection] (throw (Exception. "Thrown from run"))))]
+      (handler/enable-disabled-handlers!)
+      (handler/defhandler :throwing :global
+        (active? [selection] true)
+        (enabled? [selection] (throwing-enabled? selection))
+        (run [selection] (throwing-run selection)))
+      (log/without-logging
+        (testing "The enabled? function will not be called anymore if it threw an exception."
+          (is (not (enabled? :throwing [global] {})))
+          (is (not (enabled? :throwing [global] {})))
+          (is (= 1 (count (test-util/call-logger-calls throwing-enabled?)))))
+        (testing "The command can be repeated even though an exception was thrown during run."
+          (is (nil? (run :throwing [global] {})))
+          (is (nil? (run :throwing [global] {})))
+          (is (= 2 (count (test-util/call-logger-calls throwing-run)))))
+        (testing "Disabled handlers can be re-enabled during development."
+          (is (= 1 (count (test-util/call-logger-calls throwing-enabled?))))
+          (enabled? :throwing [global] {})
+          (is (= 1 (count (test-util/call-logger-calls throwing-enabled?))))
+          (handler/enable-disabled-handlers!)
+          (enabled? :throwing [global] {})
+          (is (= 2 (count (test-util/call-logger-calls throwing-enabled?)))))))))
 
 (defprotocol AProtocol)
 
