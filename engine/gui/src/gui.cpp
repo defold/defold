@@ -1512,15 +1512,18 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                             anim->m_Backwards ^= 1;
                         }
                     } else {
-                        if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
+                        if (!anim->m_AnimationCompleteCalled)
                         {
                             // NOTE: Very important to set m_AnimationCompleteCalled to 1
                             // before invoking the call-back. The call-back could potentially
                             // start a new animation that could reuse the same animation slot.
                             anim->m_AnimationCompleteCalled = 1;
-                            anim->m_AnimationComplete(scene, anim->m_Node, true, anim->m_Userdata1, anim->m_Userdata2);
 
-                            if (anim->m_Easing.release_callback != 0x0)
+                            if (anim->m_AnimationComplete)
+                            {
+                                anim->m_AnimationComplete(scene, anim->m_Node, true, anim->m_Userdata1, anim->m_Userdata2);
+                            }
+                            if (anim->m_Easing.release_callback)
                             {
                                 anim->m_Easing.release_callback(&anim->m_Easing);
                             }
@@ -2312,12 +2315,15 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
             if (anim->m_Node == node)
             {
-                if(!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
+                if(!anim->m_AnimationCompleteCalled)
                 {
                     anim->m_AnimationCompleteCalled = 1;
-                    anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+                    if (anim->m_AnimationComplete)
+                    {
+                        anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+                    }
 
-                    if (anim->m_Easing.release_callback != 0x0)
+                    if (anim->m_Easing.release_callback)
                     {
                         anim->m_Easing.release_callback(&anim->m_Easing);
                     }
@@ -3552,8 +3558,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             Vector4* base_value = &n->m_Node.m_Properties[pd->m_Property];
 
             if (pd->m_Component == 0xff) {
+                dmEasing::ReleaseCurve release_easing = easing.release_callback;
+                easing.release_callback = 0;
                 for (int j = 0; j < 4; ++j) {
                     // Only run callback for the lastcomponent
+                    if (j == 3)
+                    {
+                        easing.release_callback = release_easing;
+                    }
                     AnimateComponent(scene, node, ((float*) base_value) + j, to.getElem(j), easing, playback, duration, delay,
                                     j == 3 ? animation_complete : 0, j == 3 ? userdata1 : 0, j == 3 ? userdata2 : 0);
                 }
