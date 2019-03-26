@@ -1549,14 +1549,32 @@ namespace dmGui
             lua_pop(L, 1);
         }
 
+        lua_Number offset = 0.0, playback_rate = 1.0;
+
+        if (top > 3) // table with args
+        {
+            luaL_checktype(L, 4, LUA_TTABLE);
+            lua_pushvalue(L, 4);
+
+            lua_getfield(L, -1, "offset");
+            offset = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "playback_rate");
+            playback_rate = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
         if (lua_isstring(L, 2))
         {
             const char* anim_id = luaL_checkstring(L, 2);
             Result r;
             if(cbk != 0x0)
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, 0.0f, 1.0f, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, offset, playback_rate, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
             else
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, 0.0f, 1.0f);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, offset, playback_rate);
             if (r != RESULT_OK)
             {
                 luaL_error(L, "Animation '%s' invalid for node '%s' (no animation set)", anim_id, dmHashReverseSafe64(n->m_NameHash));
@@ -1567,9 +1585,9 @@ namespace dmGui
             dmhash_t anim_id = dmScript::CheckHash(L, 2);
             Result r;
             if(cbk != 0x0)
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, 0.0f, 1.0f, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, offset, playback_rate, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
             else
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, 0.0f, 1.0f);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, offset, playback_rate);
             if (r != RESULT_OK)
             {
                 luaL_error(L, "Animation '%s' invalid for node '%s' (no animation set)", dmHashReverseSafe64(anim_id), dmHashReverseSafe64(n->m_NameHash));

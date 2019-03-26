@@ -1480,8 +1480,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 // NOTE: We add dt to elapsed before we calculate t.
                 // Example: 60 updates with dt=1/60.0 should result in a complete animation
                 anim->m_Elapsed += dt*anim->m_PlaybackRate;
+
                 // Clamp elapsed to duration if we are closer than half a time step
-                anim->m_Elapsed = dmMath::Select(anim->m_Elapsed + dt * 0.5f - anim->m_Duration, anim->m_Duration, anim->m_Elapsed);
+                anim->m_Elapsed = dmMath::Select(anim->m_Elapsed + dt * anim->m_PlaybackRate * 0.5f - anim->m_Duration, anim->m_Duration, anim->m_Elapsed);
                 // Calculate normalized time if elapsed has not yet reached duration, otherwise it's set to 1 (animation complete)
                 float t = 1.0f;
                 if (anim->m_Duration != 0)
@@ -3531,7 +3532,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return (SizeMode) n->m_Node.m_SizeMode;
     }
 
-    static void AnimateComponent(HScene scene,
+    static Animation* AnimateComponent(HScene scene,
                                  HNode node,
                                  float* value,
                                  float to,
@@ -3539,7 +3540,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                                  Playback playback,
                                  float duration,
                                  float delay,
-                                 float offset,
+                                 // float offset,
                                  float playback_rate,
                                  AnimationComplete animation_complete,
                                  void* userdata1,
@@ -3570,7 +3571,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             if (scene->m_Animations.Full())
             {
                 dmLogWarning("Out of animation resources (%d)", scene->m_Animations.Size());
-                return;
+                return NULL;
             }
             animation_index = scene->m_Animations.Size();
             scene->m_Animations.SetSize(animation_index+1);
@@ -3594,6 +3595,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         animation.m_Backwards = 0;
 
         scene->m_Animations[animation_index] = animation;
+        return &scene->m_Animations[animation_index];
     }
 
     void AnimateNodeHash(HScene scene,
@@ -3620,11 +3622,11 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             if (pd->m_Component == 0xff) {
                 for (int j = 0; j < 4; ++j) {
                     // Only run callback for the lastcomponent
-                    AnimateComponent(scene, node, ((float*) base_value) + j, to.getElem(j), easing, playback, duration, delay, 0.0, 1.0f,
+                    AnimateComponent(scene, node, ((float*) base_value) + j, to.getElem(j), easing, playback, duration, delay, 1.0f,
                                     j == 3 ? animation_complete : 0, j == 3 ? userdata1 : 0, j == 3 ? userdata2 : 0);
                 }
             } else {
-                AnimateComponent(scene, node, ((float*) base_value) + pd->m_Component, to.getElem(pd->m_Component), easing, playback, duration, delay, 0.0, 1.0f, animation_complete, userdata1, userdata2);
+                AnimateComponent(scene, node, ((float*) base_value) + pd->m_Component, to.getElem(pd->m_Component), easing, playback, duration, delay, 1.0f, animation_complete, userdata1, userdata2);
             }
         } else {
             dmLogError("property '%s' not found", dmHashReverseSafe64(property));
@@ -3739,20 +3741,34 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     || anim_desc.m_State.m_Playback == dmGui::PLAYBACK_LOOP_PINGPONG)
             anim_frames = dmMath::Max((uint64_t)1, anim_frames * 2 - 2);
 
-        AnimateComponent(
+        // Convert offset into elapsed time, needed for GUI animation system.
+        float elapsed = offset;
+        float duration = (float) anim_frames / (float) anim_desc.m_State.m_FPS;
+        if (anim_desc.m_State.m_Playback == PLAYBACK_ONCE_PINGPONG || anim_desc.m_State.m_Playback == PLAYBACK_LOOP_PINGPONG) {
+            elapsed /= 2.0f;
+        }
+        elapsed = elapsed * duration;
+
+        Animation* anim = AnimateComponent(
                 scene,
                 node,
                 &n->m_Node.m_FlipbookAnimPosition,
                 1.0f,
                 dmEasing::Curve(dmEasing::TYPE_LINEAR),
                 (Playback) anim_desc.m_State.m_Playback,
-                (float) anim_frames / (float) anim_desc.m_State.m_FPS,
+                duration,
                 0.0f,
-                offset,
                 playback_rate,
                 anim_complete_callback,
                 callback_userdata1,
                 callback_userdata2);
+
+        // We force some of the animation properties here to simulate
+        // elapsed time for flipbook animations that has offset.
+        anim->m_From = 0.0f,
+        anim->m_FirstUpdate = 0.0f;
+        anim->m_Elapsed = elapsed;
+        n->m_Node.m_FlipbookAnimPosition = offset;
     }
 
     static inline FetchTextureSetAnimResult FetchTextureSetAnim(HScene scene, InternalNode* n, dmhash_t anim)

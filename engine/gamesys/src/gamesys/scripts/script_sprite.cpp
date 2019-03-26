@@ -376,7 +376,7 @@ namespace dmGameSystem
             {"set_constant",    SpriteComp_SetConstant},
             {"reset_constant",  SpriteComp_ResetConstant},
             {"set_scale",       SpriteComp_SetScale},
-            {"play_flipbook",  SpriteComp_PlayFlipBook},
+            {"play_flipbook",   SpriteComp_PlayFlipBook},
             {0, 0}
     };
 
