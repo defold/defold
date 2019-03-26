@@ -153,7 +153,6 @@ public class HTML5Bundler implements IBundler {
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.JsWeb);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        BobProjectProperties metaProperties = getPropertiesMeta();
 
         BundleHelper.throwIfCanceled(canceled);
         Boolean localLaunch = project.option("local-launch", "false").equals("true");
@@ -195,7 +194,6 @@ public class HTML5Bundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
         File projectRoot = new File(project.getRootDirectory());
         URL splashImage = getResource(projectProperties, projectRoot, "html5", "splash_image", "splash_image.png");
-        String version = projectProperties.getStringValue("project", "version", "0.0");
         File appDir = new File(bundleDirectory, title);
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
 
@@ -212,15 +210,9 @@ public class HTML5Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
         Map<String, Object> infoData = new HashMap<String, Object>();
-        infoData.put("DEFOLD_ENGINE", enginePrefix + ".js");
-        infoData.put("DEFOLD_BINARY_PREFIX", enginePrefix);
-        infoData.put("DEFOLD_DISPLAY_WIDTH", projectProperties.getIntValue("display", "width", metaProperties.getIntValue("display", "width.default")));
-        infoData.put("DEFOLD_DISPLAY_HEIGHT", projectProperties.getIntValue("display", "height", metaProperties.getIntValue("display", "height.default")));
+        infoData.put("exe-name", enginePrefix);
         infoData.put("DEFOLD_SPLASH_IMAGE", getName(splashImage));
-        infoData.put("DEFOLD_SPLIT", String.format("%s/%s", SplitFileDir, SplitFileJson));
         infoData.put("DEFOLD_HEAP_SIZE", customHeapSize);
-
-        infoData.put("DEFOLD_APP_TITLE", String.format("%s %s", title, version));
 
         // Check if game has configured a Facebook App ID
         String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
@@ -250,6 +242,17 @@ public class HTML5Bundler implements IBundler {
         infoData.put("DEFOLD_DEV_INIT", devInit);
         infoData.put("DEFOLD_DEV_HEAD", devHead);
         infoData.put("DEFOLD_DEV_INLINE", inlineHtml);
+
+        /// Legacy properties for backwards compatibility
+        {
+            infoData.put("DEFOLD_DISPLAY_WIDTH", projectProperties.getIntValue("display", "width"));
+            infoData.put("DEFOLD_DISPLAY_HEIGHT", projectProperties.getIntValue("display", "height"));
+
+            String version = projectProperties.getStringValue("project", "version", "0.0");
+            infoData.put("DEFOLD_APP_TITLE", String.format("%s %s", title, version));
+
+            infoData.put("DEFOLD_BINARY_PREFIX", enginePrefix); // replaced by "exe-name"
+        }
 
         BundleHelper.throwIfCanceled(canceled);
         FileUtils.deleteDirectory(appDir);
@@ -334,19 +337,6 @@ public class HTML5Bundler implements IBundler {
                 generator.close();
             }
             IOUtils.closeQuietly(writer);
-        }
-    }
-
-    private static BobProjectProperties getPropertiesMeta() throws IOException {
-        BobProjectProperties meta = new BobProjectProperties();
-        InputStream is = Bob.class.getResourceAsStream("meta.properties");
-        try {
-            meta.load(is);
-            return meta;
-        } catch (ParseException e) {
-            throw new RuntimeException("Failed to parse meta.properties", e);
-        } finally {
-            IOUtils.closeQuietly(is);
         }
     }
 }
