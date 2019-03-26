@@ -925,9 +925,9 @@
 
 (defn get-property
   "Gets the value of a property that is managed by the functions in the code.data module."
-   ([view-node prop-kw]
-    (g/with-auto-evaluation-context evaluation-context
-      (get-property view-node prop-kw evaluation-context)))
+  ([view-node prop-kw]
+   (g/with-auto-evaluation-context evaluation-context
+     (get-property view-node prop-kw evaluation-context)))
   ([view-node prop-kw evaluation-context]
    (case prop-kw
      :invalidated-row
