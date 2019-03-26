@@ -1291,7 +1291,7 @@
   `(let [~evaluation-context-sym (mark-in-production ~evaluation-context-sym ~node-id-sym ~label)]
      ~forms))
 
-(defn check-caches! [evaluation-context node node-id label]
+(defn check-caches! [evaluation-context node-id label]
   (let [local @(:local evaluation-context)
         global (:cache evaluation-context)
         cache-key [node-id label]]
@@ -1311,10 +1311,10 @@
         weak-cached-value ^WeakReference (get local-temp [node-id label])]
     (and weak-cached-value (.get weak-cached-value))))
 
-(defn- check-caches-form [node-sym evaluation-context-sym node-id-sym description label forms]
+(defn- check-caches-form [evaluation-context-sym node-id-sym description label forms]
   (gensyms [result-sym]
     (if (get-in description [:output label :flags :cached])
-      `(if-some [[~result-sym] (check-caches! ~evaluation-context-sym ~node-sym ~node-id-sym ~label)]
+      `(if-some [[~result-sym] (check-caches! ~evaluation-context-sym ~node-id-sym ~label)]
          ~result-sym
          ~forms)
       `(if-some [~result-sym (check-local-temp-cache ~evaluation-context-sym ~node-id-sym ~label)]
@@ -1330,13 +1330,13 @@
           [arguments-sym argument-forms]
           forms)))
 
-(defn- argument-error-check-form [node-sym evaluation-context-sym description label node-id-sym arguments-sym tail]
+(defn- argument-error-check-form [evaluation-context-sym description label node-id-sym arguments-sym tail]
   (if (= :_properties label)
     tail
     `(or (argument-error-aggregate ~arguments-sym ~node-id-sym ~label) ~tail)))
 
-(defn- call-production-function-form [node-sym evaluation-context-sym description label arguments-sym node-id-sym output-sym forms]
-  `(let [~output-sym ~(argument-error-check-form node-sym evaluation-context-sym description label node-id-sym arguments-sym
+(defn- call-production-function-form [evaluation-context-sym description label arguments-sym node-id-sym output-sym forms]
+  `(let [~output-sym ~(argument-error-check-form evaluation-context-sym description label node-id-sym arguments-sym
                                                  (check-dry-run-form evaluation-context-sym `((var ~(symbol (dollar-name (:name description) [:output label]))) ~arguments-sym)))]
      ~forms))
 
@@ -1357,7 +1357,7 @@
        ~forms)))
 
 (defn- deduce-output-type-form
-  [node-sym description label]
+  [description label]
   (let [schema (some-> (get-in description [:output label :value-type]) value-type-schema)
         schema (if (get-in description [:output label :flags :collection])
                  (vector schema)
@@ -1379,11 +1379,11 @@
       (catch IllegalArgumentException iae
         (throw (ex-info "MALFORMED-SCHEMA" {:transform label :node-type (node-type-name evaluation-context node-id)} iae))))))
 
-(defn- schema-check-output-form [node-sym evaluation-context-sym description label node-id-sym output-sym forms]
+(defn- schema-check-output-form [evaluation-context-sym description label node-id-sym output-sym forms]
   (if *check-schemas*
     `(do
        (schema-check-output ~evaluation-context-sym
-                            ~(deduce-output-type-form node-sym description label)
+                            ~(deduce-output-type-form description label)
                             ~output-sym
                             ~label
                             ~node-id-sym)
@@ -1406,11 +1406,11 @@
            ~(check-jammed-form node-sym evaluation-context-sym node-id-sym label description
               (apply-default-property-shortcut-form node-sym evaluation-context-sym node-id-sym label description
                 (mark-in-production-form evaluation-context-sym node-id-sym label description
-                  (check-caches-form node-sym evaluation-context-sym node-id-sym description label
+                  (check-caches-form evaluation-context-sym node-id-sym description label
                     (with-tracer-calls-form evaluation-context-sym node-id-sym label tracer-output-type
                       (gather-arguments-form arguments-sym schema-sym node-sym evaluation-context-sym node-id-sym description label production-function
-                        (call-production-function-form node-sym evaluation-context-sym description label arguments-sym node-id-sym output-sym
-                          (schema-check-output-form node-sym evaluation-context-sym description label node-id-sym output-sym
+                        (call-production-function-form evaluation-context-sym description label arguments-sym node-id-sym output-sym
+                          (schema-check-output-form evaluation-context-sym description label node-id-sym output-sym
                             (cache-output-form evaluation-context-sym description label node-id-sym output-sym
                               output-sym))))))))))))))
   
