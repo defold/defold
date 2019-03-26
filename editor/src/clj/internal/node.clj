@@ -1253,7 +1253,7 @@
       (recur basis orig-id)
       node-id)))
 
-(defn transform-jammer [basis node node-id transform]
+(defn output-jammer [basis node node-id transform]
   (let [original (if (:original-id node)
                    (gt/node-by-id-at basis (original-root basis node-id))
                    node)]
@@ -1265,7 +1265,7 @@
 (defn- check-jammed-form [node-sym evaluation-context-sym node-id-sym transform description forms]
   (if (unjammable? (get-in description [:output transform]))
     forms
-    `(or (transform-jammer (:basis ~evaluation-context-sym) ~node-sym ~node-id-sym ~transform)
+    `(or (output-jammer (:basis ~evaluation-context-sym) ~node-sym ~node-id-sym ~transform)
          ~forms)))
 
 (defn- property-has-default-getter?       [description label] (not (get-in description [:property label :value])))
