@@ -95,8 +95,8 @@
         (is (= 1 (count (.getItems (first menu-items)))))))))
 
 (deftest toolbar-test
-  (test-util/with-loaded-project
-    (ui/run-now
+  (ui/run-now
+    (test-util/with-loaded-project
       (ui/extend-menu ::my-menu nil
                       [{:label "Open"
                         :command :open
@@ -131,8 +131,8 @@
         (is (= 2 (count (.getChildren root))))))))
 
 (deftest menubar-test
-  (test-util/with-loaded-project
-    (ui/run-now
+  (ui/run-now
+    (test-util/with-loaded-project
       (ui/extend-menu ::my-menu nil
                       [{:label "File"
                         :children
