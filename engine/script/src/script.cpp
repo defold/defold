@@ -116,7 +116,7 @@ namespace dmScript
                 break;
             }
             default:
-                return luaL_error(L, "wrong number of arguments");
+                return DM_LUA_ERROR("wrong number of arguments");
         }
         return 1;
     }
