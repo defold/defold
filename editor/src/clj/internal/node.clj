@@ -1275,12 +1275,15 @@
         (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~property-name)))
       forms)))
 
+(defn- node-type-name [evaluation-context node-id]
+  (let [basis (:basis evaluation-context)
+        node (gt/node-by-id-at basis node-id)]
+    (type-name (gt/node-type node basis))))
+
 (defn mark-in-production [evaluation-context node-id label]
   (assert (not (contains? (:in-production evaluation-context) [node-id label]))
           (format "Cycle detected on node type %s and output %s"
-                  (let [basis (:basis evaluation-context)
-                        node (gt/node-by-id-at basis node-id)]
-                    (type-name (gt/node-type node basis)))
+                  (node-type-name evaluation-context node-id)
                   label))
   (update evaluation-context :in-production conj [node-id label]))
 
@@ -1361,44 +1364,30 @@
                  schema)]
     `(s/maybe (s/conditional ie/error-value? ErrorValue :else ~schema)))) ; allow nil's and errors
 
-(defn report-schema-error
-  [node-type-name label node-id-sym output-sym output-schema validation-error]
-  (warn-output-schema node-id-sym node-type-name label output-sym output-schema validation-error)
-  (throw (ex-info "SCHEMA-VALIDATION"
-                  {:node-id node-id-sym
-                   :type node-type-name
-                   :output label
-                   :expected output-schema
-                   :actual output-sym
-                   :validation-error validation-error})))
-
 (defn schema-check-output [evaluation-context output-schema output label node-id]
   (when-not (:dry-run evaluation-context)
-    (when-some [validation-error (s/check output-schema output)]
-      (let [basis (:basis evaluation-context)
-            node (gt/node-by-id-at basis node-id)
-            node-type-name (type-name (gt/node-type node basis))]
-        (report-schema-error node-type-name label node-id output output-schema validation-error)))))
-
-(defn schema-check-exception [evaluation-context node-id label cause]
-  (let [basis (:basis evaluation-context)
-        node (gt/node-by-id-at basis node-id)
-        node-type-name (type-name (gt/node-type node basis))]
-    (ex-info "MALFORMED-SCHEMA"
-             {:transform label :node-type node-type-name}
-             cause)))
+    (try
+      (when-some [validation-error (s/check output-schema output)]
+        (warn-output-schema node-id (node-type-name evaluation-context node-id) label output output validation-error)
+        (throw (ex-info "SCHEMA-VALIDATION"
+                        {:node-id node-id
+                         :type node-type-name
+                         :output label
+                         :expected output-schema
+                         :actual output
+                         :validation-error validation-error})))
+      (catch IllegalArgumentException iae
+        (throw (ex-info "MALFORMED-SCHEMA" {:transform label :node-type (node-type-name evaluation-context node-id)} iae))))))
 
 (defn- schema-check-output-form [node-sym evaluation-context-sym description label node-id-sym output-sym forms]
   (if *check-schemas*
-    `(try
+    `(do
        (schema-check-output ~evaluation-context-sym
                             ~(deduce-output-type-form node-sym description label)
                             ~output-sym
                             ~label
                             ~node-id-sym)
-       ~forms
-       (catch IllegalArgumentException iae#
-         (throw (schema-check-exception ~evaluation-context-sym ~node-id-sym ~label iae#))))
+       ~forms)
     forms))
 
 (defn- node-property-value-function-form [description property]
