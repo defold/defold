@@ -420,17 +420,6 @@
                  (eval '(dynamo.graph/defnode BadProperty
                           (property no-schema (fn [] "no value type provided"))))))))
 
-(g/defnode ExternNode
-  (property internal-resource g/Str (default "/bar"))
-  (extern external-resource g/Str (default "/foo")))
-
-(deftest node-externs
-  (testing "Nodes can have externs"
-    (let [node (g/construct ExternNode)]
-      (is (= "/foo" (:external-resource node)))
-      (is (contains? (g/declared-property-labels ExternNode) :external-resource))
-      (is (some #{:external-resource} (keys node))))))
-
 (g/defnk string-production-fnk [this integer-input] "produced string")
 (g/defnk integer-production-fnk [this] 42)
 
