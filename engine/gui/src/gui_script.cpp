@@ -1554,9 +1554,9 @@ namespace dmGui
             const char* anim_id = luaL_checkstring(L, 2);
             Result r;
             if(cbk != 0x0)
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, 0.0f, 1.0f, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
             else
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, 0.0f, 1.0f);
             if (r != RESULT_OK)
             {
                 luaL_error(L, "Animation '%s' invalid for node '%s' (no animation set)", anim_id, dmHashReverseSafe64(n->m_NameHash));
@@ -1567,9 +1567,9 @@ namespace dmGui
             dmhash_t anim_id = dmScript::CheckHash(L, 2);
             Result r;
             if(cbk != 0x0)
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, 0.0f, 1.0f, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
             else
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, 0.0f, 1.0f);
             if (r != RESULT_OK)
             {
                 luaL_error(L, "Animation '%s' invalid for node '%s' (no animation set)", dmHashReverseSafe64(anim_id), dmHashReverseSafe64(n->m_NameHash));
@@ -4026,6 +4026,92 @@ namespace dmGui
         return 1;
     }
 
+    int LuaGetFlipbookCursor(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode node;
+        LuaCheckNode(L, 1, &node);
+
+        if (dmGui::GetNodeIsBone(scene, node))
+        {
+            return luaL_error(L, "cannot get cursor for bone");
+        }
+
+        float cursor = dmGui::GetNodeFlipbookCursor(scene, node);
+        lua_pushnumber(L, cursor);
+
+        return 1;
+    }
+
+    int LuaSetFlipbookCursor(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode node;
+        LuaCheckNode(L, 1, &node);
+
+        if (dmGui::GetNodeIsBone(scene, node))
+        {
+            return luaL_error(L, "cannot set cursor for bone");
+        }
+
+        float cursor = luaL_checknumber(L, 2);
+
+        if (RESULT_OK != dmGui::SetNodeFlipbookCursor(scene, node, cursor))
+        {
+            return luaL_error(L, "failed to set flipbook cursor for gui node");
+        }
+
+        return 0;
+    }
+
+    int LuaGetFlipbookPlaybackRate(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode node;
+        LuaCheckNode(L, 1, &node);
+
+        if (dmGui::GetNodeIsBone(scene, node))
+        {
+            return luaL_error(L, "cannot get playback rate for bone");
+        }
+
+        float playback_rate = dmGui::GetNodeFlipbookPlaybackRate(scene, node);
+        lua_pushnumber(L, playback_rate);
+
+        return 1;
+    }
+
+    int LuaSetFlipbookPlaybackRate(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        HNode node;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &node);
+
+        if(dmGui::GetNodeIsBone(scene, node))
+        {
+            return luaL_error(L, "cannot set playback rate for bone");
+        }
+
+        float playback_rate = luaL_checknumber(L, 2);
+
+        if (RESULT_OK != SetNodeFlipbookPlaybackRate(scene, node, playback_rate))
+        {
+            return luaL_error(L, "failed to set flipbook playback rate for gui node");
+        }
+
+        return 0;
+    }
+
+
+
     /*# sets the playback rate of the animation on a spine node
      * This is only useful for spine nodes. Sets the playback rate of the animation on a spine node. Must be positive.
      *
@@ -4466,8 +4552,12 @@ namespace dmGui
         {"get_spine_animation",  LuaGetSpineAnimation},
         {"set_spine_cursor", LuaSetSpineCursor},
         {"get_spine_cursor", LuaGetSpineCursor},
+        {"get_flipbook_cursor", LuaGetFlipbookCursor},
+        {"set_flipbook_cursor", LuaSetFlipbookCursor},
         {"set_spine_playback_rate", LuaSetSpinePlaybackRate},
         {"get_spine_playback_rate", LuaGetSpinePlaybackRate},
+        {"get_flipbook_playback_rate", LuaGetFlipbookPlaybackRate},
+        {"set_flipbook_playback_rate", LuaSetFlipbookPlaybackRate},
         {"new_particlefx_node",  LuaNewParticlefxNode},
         {"set_particlefx",  LuaSetParticlefx},
         {"get_particlefx",  LuaGetParticlefx},

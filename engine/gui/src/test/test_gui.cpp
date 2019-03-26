@@ -858,7 +858,7 @@ TEST_F(dmGuiTest, NodeTextureType)
     ASSERT_EQ(node_texture_type, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET);
 
     // Test NODE_TEXTURE_TYPE_TEXTURE_SET: Playing flipbook animation
-    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0x0);
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0.0f, 1.0f, 0x0);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
@@ -876,7 +876,7 @@ TEST_F(dmGuiTest, NodeTextureType)
     ASSERT_EQ(node_texture_type, dmGui::NODE_TEXTURE_TYPE_TEXTURE);
 
     // Test NODE_TEXTURE_TYPE_TEXTURE: Playing flipbook animation should not work!
-    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta2", 0x0);
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta2", 0.0f, 1.0f, 0x0);
     ASSERT_EQ(r, dmGui::RESULT_INVAL_ERROR);
     ASSERT_EQ(dmGui::GetNodeFlipbookAnimId(m_Scene, node), 0);
 
@@ -929,7 +929,7 @@ TEST_F(dmGuiTest, FlipbookAnim)
     uint64_t fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
     ASSERT_EQ(0, dmGui::GetNodeFlipbookAnimId(m_Scene, node));
 
-    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0x0);
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0.0f, 1.0f, 0x0);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
@@ -956,7 +956,7 @@ TEST_F(dmGuiTest, FlipbookAnim)
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
     ASSERT_EQ(0, fb_id);
 
-    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0x0);
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0.0f, 1.0f, 0x0);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
@@ -5771,7 +5771,7 @@ TEST_F(dmGuiTest, PlayNodeParticlefxAdjustModeStretch)
     dmGui::InternalNode* n = dmGui::GetNode(m_Scene, node_pfx);
 
     n->m_Node.m_AdjustMode = (uint32_t) dmGui::ADJUST_MODE_STRETCH;
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));    
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
     ASSERT_EQ(dmGui::ADJUST_MODE_FIT, (dmGui::AdjustMode)n->m_Node.m_AdjustMode);
 
     dmGui::FinalScene(m_Scene);

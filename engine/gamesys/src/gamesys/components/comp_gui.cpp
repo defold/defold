@@ -221,7 +221,7 @@ namespace dmGameSystem
 
                 if(texture_anim_name != NULL)
                 {
-                    gui_result = dmGui::PlayNodeFlipbookAnim(scene, n, texture_anim_name);
+                    gui_result = dmGui::PlayNodeFlipbookAnim(scene, n, texture_anim_name, 0.0f, 1.0f);
                     if (gui_result != dmGui::RESULT_OK)
                     {
                         dmLogError("The texture animation '%s' in texture '%s' could not be set for '%s', result: %d.", texture_anim_name, texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);

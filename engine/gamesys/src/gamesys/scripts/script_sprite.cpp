@@ -331,6 +331,24 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
+        lua_Number offset = 0.0, playback_rate = 1.0;
+
+        if (top > 3) // table with args
+        {
+            luaL_checktype(L, 4, LUA_TTABLE);
+            lua_pushvalue(L, 4);
+
+            lua_getfield(L, -1, "offset");
+            offset = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "playback_rate");
+            playback_rate = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
         if (top > 2)
         {
             if (lua_isfunction(L, 3))
@@ -341,8 +359,11 @@ namespace dmGameSystem
             }
         }
 
+
         dmGameSystemDDF::PlayAnimation msg;
         msg.m_Id = id_hash;
+        msg.m_Offset = offset;
+        msg.m_PlaybackRate = playback_rate;
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
