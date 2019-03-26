@@ -3737,7 +3737,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         // Last part should be up for discussion, due to: DEF-1540
         if (anim_desc.m_State.m_Playback == dmGui::PLAYBACK_ONCE_PINGPONG
                     || anim_desc.m_State.m_Playback == dmGui::PLAYBACK_LOOP_PINGPONG)
-            anim_frames = dmMath::Max(1llu, anim_frames * 2 - 2);
+            anim_frames = dmMath::Max((uint64_t)1, anim_frames * 2 - 2);
 
         AnimateComponent(
                 scene,
