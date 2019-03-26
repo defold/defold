@@ -1275,13 +1275,17 @@
         (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~property-name)))
       forms)))
 
-(defn mark-in-production [ctx node-type-name node-id label]
+(defn mark-in-production [ctx node-id label]
   (assert (not (contains? (:in-production ctx) [node-id label]))
-          (format "Cycle detected on node type %s and output %s" node-type-name label))
+          (format "Cycle detected on node type %s and output %s"
+                  (let [basis (:basis ctx)
+                        node (gt/node-by-id-at basis node-id)]
+                    (type-name (gt/node-type node basis)))
+                  label))
   (update ctx :in-production conj [node-id label]))
 
 (defn- mark-in-production-form [evaluation-context-sym node-id-sym label description forms]
-  `(let [~evaluation-context-sym (mark-in-production ~evaluation-context-sym ~(:name description) ~node-id-sym ~label)]
+  `(let [~evaluation-context-sym (mark-in-production ~evaluation-context-sym ~node-id-sym ~label)]
      ~forms))
 
 (defn check-caches! [evaluation-context node node-id label]
@@ -1368,10 +1372,21 @@
                    :actual output-sym
                    :validation-error validation-error})))
 
-(defn schema-check-output [evaluation-context output-schema output node-type-name label node-id]
+(defn schema-check-output [evaluation-context output-schema output label node-id]
   (when-not (:dry-run evaluation-context)
     (when-some [validation-error (s/check output-schema output)]
-      (report-schema-error node-type-name label node-id output output-schema validation-error))))
+      (let [basis (:basis evaluation-context)
+            node (gt/node-by-id-at basis node-id)
+            node-type-name (type-name (gt/node-type node basis))]
+        (report-schema-error node-type-name label node-id output output-schema validation-error)))))
+
+(defn schema-check-exception [evaluation-context node-id label cause]
+  (let [basis (:basis evaluation-context)
+        node (gt/node-by-id-at basis node-id)
+        node-type-name (type-name (gt/node-type node basis))]
+    (ex-info "MALFORMED-SCHEMA"
+             {:transform label :node-type node-type-name}
+             cause)))
 
 (defn- schema-check-output-form [node-sym evaluation-context-sym description label node-id-sym output-sym forms]
   (if *check-schemas*
@@ -1379,14 +1394,11 @@
        (schema-check-output ~evaluation-context-sym
                             ~(deduce-output-type-form node-sym description label)
                             ~output-sym
-                            ~(:name description)
                             ~label
                             ~node-id-sym)
        ~forms
        (catch IllegalArgumentException iae#
-         (throw (ex-info "MALFORMED-SCHEMA"
-                         {:transform ~label :node-type ~(:name description)}
-                         iae#))))
+         (throw (schema-check-exception ~evaluation-context-sym ~node-id-sym ~label iae#))))
     forms))
 
 (defn- node-property-value-function-form [description property]
@@ -1446,8 +1458,7 @@
     (gensyms [node-sym evaluation-context-sym value-map-sym node-id-sym display-order]
       `(fn [~node-sym ~evaluation-context-sym]
          (let [~node-id-sym (gt/node-id ~node-sym)
-               ~display-order (-> (gt/node-type ~node-sym (:basis ~evaluation-context-sym))
-                                  (property-display-order))
+               ~display-order (property-display-order (gt/node-type ~node-sym (:basis ~evaluation-context-sym)))
                ~value-map-sym ~(apply merge {}
                                       (for [[p _] (remove (comp intrinsic-properties key) props)]
                                         {p (property-value-exprs node-sym evaluation-context-sym node-id-sym description p (get props p))}))]
