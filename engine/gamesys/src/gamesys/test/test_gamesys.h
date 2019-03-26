@@ -1,6 +1,3 @@
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
-
 #include <resource/resource.h>
 
 #include <hid/hid.h>
@@ -10,6 +7,9 @@
 #include <rig/rig.h>
 
 #include "gamesys/gamesys.h"
+
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 struct Params
 {

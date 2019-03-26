@@ -1,6 +1,3 @@
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
-
 #include <assert.h>
 
 #include <dlib/http_client.h>
@@ -9,6 +6,9 @@
 #include <dlib/profile.h>
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
+
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 #define CONTENT_ROOT "src/test/build/default"
 

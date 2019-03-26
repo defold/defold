@@ -14,6 +14,7 @@
 #include <ddf/ddf.h>
 #include <gameobject/gameobject_ddf.h>
 
+
 namespace dmGameSystem
 {
     void DumpResourceRefs(dmGameObject::HCollection collection);
