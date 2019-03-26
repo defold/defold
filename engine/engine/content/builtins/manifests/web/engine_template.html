@@ -6,7 +6,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
 	<!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
 
-	<title>{{DEFOLD_APP_TITLE}}</title>
+	<title>{{project.title}} {{project.version}}</title>
 	<style>
 	/* Disable user selection to avoid strange bug in Chrome on Windows:
 	* Selecting a text outside the canvas, then clicking+draging would
@@ -58,7 +58,7 @@
 		background-color: rgb(245, 245, 245);
 		height: 20px;
 		/* Progress same width as canvas. */
-		width: {{DEFOLD_DISPLAY_WIDTH}}px;
+		width: {{display.width}}px;
 		bottom: 0px;
 	}
 
@@ -86,7 +86,7 @@
 	<div id="fb-root" class="fb-root"></div>
 
 	<div id="app-container" class="canvas-app-container">
-		<canvas id="canvas" class="canvas-app-canvas" tabindex="1" width="{{DEFOLD_DISPLAY_WIDTH}}" height="{{DEFOLD_DISPLAY_HEIGHT}}"></canvas>
+		<canvas id="canvas" class="canvas-app-canvas" tabindex="1" width="{{display.width}}" height="{{display-height}}"></canvas>
 	</div>
 
 	<button id="fullscreen" class="button">Fullscreen</button>
@@ -118,7 +118,7 @@
 		// dmengine*.wasm is hardcoded in the built JS loader for WASM,
 		// we need to replace it here with the correct project name.
 		if (path == "dmengine.wasm" || path == "dmengine_release.wasm" || path == "dmengine_headless.wasm") {
-			path = "{{DEFOLD_BINARY_PREFIX}}.wasm";
+			path = "{{exe-name}}.wasm";
 		}
 		return scriptDirectory + path;
 	};
@@ -127,9 +127,9 @@
 		var engineJS = document.createElement('script');
 		engineJS.type = 'text/javascript';
 		if (Module['isWASMSupported']) {
-		    engineJS.src = '{{DEFOLD_BINARY_PREFIX}}_wasm.js';
+		    engineJS.src = '{{exe-name}}_wasm.js';
 		} else {
-		    engineJS.src = '{{DEFOLD_BINARY_PREFIX}}_asmjs.js';
+		    engineJS.src = '{{exe-name}}_asmjs.js';
 		}
 		document.head.appendChild(engineJS);
 	}
