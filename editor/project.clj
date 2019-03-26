@@ -39,7 +39,10 @@
                      [org.codehaus.jackson/jackson-mapper-asl     "1.9.13"]
                      [org.eclipse.jgit/org.eclipse.jgit           "4.2.0.201601211800-r"
                       :exclusions [org.apache.httpcomponents/httpclient]] ; jgit -> 4.3.6, amazonica -> 4.5.2
-                     [clj-antlr                                   "0.2.2"]
+                     [clj-antlr                                   "0.2.2"
+                      :exclusions [org.antlr/antlr4 org.antlr/antlr4-runtime]]
+                     [org.antlr/antlr4 "4.7.2"]
+                     [org.antlr/antlr4-runtime "4.7.2"]
                      [org.apache.commons/commons-compress         "1.18"]
 
                      [net.java.dev.jna/jna                        "4.1.0"]
