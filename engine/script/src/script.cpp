@@ -479,12 +479,12 @@ namespace dmScript
         // [-1] instance
 
         lua_pushinteger(L, (lua_Integer)name_hash);
-        // [-1] INSTANCE_NAMhaE_HASH
+        // [-1] name_hash
         // [-2] instance
 
         lua_insert(L, -2);
         // [-1] instance
-        // [-2] INSTANCE_NAME_HASH
+        // [-2] name_hash
 
         lua_settable(L, LUA_GLOBALSINDEX);
     }
@@ -541,8 +541,7 @@ namespace dmScript
         // [-3] meta table
 
         lua_settable(L, -3);
-        // [-1] SCRIPT_METATABLE_TYPE_HASH_KEY
-        // [-2] meta table
+        // [-1] meta table
 
         lua_pop(L, 1);
 

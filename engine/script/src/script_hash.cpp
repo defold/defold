@@ -255,7 +255,7 @@ namespace dmScript
     {
         void* userdata_1 = lua_touserdata(L, 1);
         void* userdata_2 = lua_touserdata(L, 2);
-        // At least on of the values must be a hash according to
+        // At least one of the values must be a hash according to
         // Lua spec and we always de-duplicate hashes when created
         // so we can simply do equality check on pointers.
         lua_pushboolean(L, userdata_1 == userdata_2);
