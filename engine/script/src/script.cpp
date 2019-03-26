@@ -51,8 +51,8 @@ namespace dmScript
     const char META_TABLE_IS_VALID[]                 = "__is_valid";
     const char META_GET_INSTANCE_CONTEXT_TABLE_REF[] = "__get_instance_context_table_ref";
 
-    const char* SCRIPT_METATABLE_TYPE_HASH_KEY_NAME = "__dmengine_type";
-    static const uint32_t SCRIPT_METATABLE_TYPE_HASH_KEY = dmHashBufferNoReverse32(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME, strlen(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME));
+    const char SCRIPT_METATABLE_TYPE_HASH_KEY_NAME[] = "__dmengine_type";
+    static const uint32_t SCRIPT_METATABLE_TYPE_HASH_KEY = dmHashBufferNoReverse32(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME, sizeof(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME) - 1);
 
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
@@ -175,7 +175,6 @@ namespace dmScript
 
         lua_pushlightuserdata(L, (void*)context);
         SCRIPT_CONTEXT_HASH = dmScript::SetGlobal(L, SCRIPT_CONTEXT);
-        assert(0 != GetScriptContext(L));
 
         lua_pushlightuserdata(L, (void*)L);
         lua_setglobal(L, SCRIPT_MAIN_THREAD);
