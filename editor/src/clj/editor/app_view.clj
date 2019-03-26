@@ -61,7 +61,7 @@
            [javafx.embed.swing SwingFXUtils]
            [javafx.event ActionEvent Event EventHandler]
            [javafx.fxml FXMLLoader]
-           [javafx.geometry Insets Pos]
+           [javafx.geometry Orientation]
            [javafx.scene Scene Node Parent]
            [javafx.scene.control Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy ProgressBar Tooltip]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
@@ -91,6 +91,12 @@
   (let [{:keys [pane-id split-id]} (split-info-by-pane-kw pane-kw)]
     (some? (.lookup main-scene (str "#" split-id " #" pane-id)))))
 
+(defn- split-pane-length
+  ^double [^SplitPane split-pane]
+  (condp = (.getOrientation split-pane)
+    Orientation/HORIZONTAL (.getWidth split-pane)
+    Orientation/VERTICAL (.getHeight split-pane)))
+
 (defn- set-pane-visible! [^Scene main-scene pane-kw visible?]
   (let [{:keys [index pane-id split-id]} (split-info-by-pane-kw pane-kw)
         ^SplitPane split (.lookup main-scene (str "#" split-id))
@@ -98,18 +104,28 @@
     (cond
       (and (nil? pane) visible?)
       (let [user-data-key (keyword "hidden-pane" pane-id)
-            {:keys [pane divider-position]} (ui/user-data split user-data-key)
-            divider-index (max 0 (dec index))]
+            {:keys [pane size]} (ui/user-data split user-data-key)
+            divider-index (max 0 (dec index))
+            divider-position (max 0.0
+                                  (min (if (zero? index)
+                                         (/ size (split-pane-length split))
+                                         (- 1.0 (/ size (split-pane-length split))))
+                                       1.0))]
+        (ui/user-data! split user-data-key nil)
         (.add (.getItems split) index pane)
         (.setDividerPosition split divider-index divider-position)
-        (ui/user-data! split user-data-key nil))
+        (.layout split))
 
       (and (some? pane) (not visible?))
       (let [user-data-key (keyword "hidden-pane" pane-id)
             divider-index (max 0 (dec index))
-            divider-position (get (.getDividerPositions split) divider-index)]
+            divider-position (get (.getDividerPositions split) divider-index)
+            size (if (zero? index)
+                   (Math/floor (* divider-position (split-pane-length split)))
+                   (Math/ceil (* (- 1.0 divider-position) (split-pane-length split))))]
+        (ui/user-data! split user-data-key {:pane pane :size size})
         (.remove (.getItems split) pane)
-        (ui/user-data! split user-data-key {:pane pane :divider-position divider-position})))
+        (.layout split)))
     nil))
 
 (defn- select-tool-tab! [tab-id ^Scene main-scene ^TabPane tool-tab-pane]
