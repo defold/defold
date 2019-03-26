@@ -38,6 +38,12 @@
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/OpenAL32.dll"  "x86_64-win32/bin/OpenAL32.dll"
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/wrap_oal.dll"  "x86_64-win32/bin/wrap_oal.dll"
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/PVRTexLib.dll" "x86_64-win32/lib/PVRTexLib.dll"
+   ;; msvcr120.dll is a dependency of PVRTexLib.dll. Because we unpack all these
+   ;; files to a random temporary directory which is not in the Windows search
+   ;; path we need to explicitly load all libraries "bottom up" to make sure we
+   ;; are using, and Windows can find, our versions. For this reason we have
+   ;; calls to System.load in TexcLibrary.java both in the editor and Bob. If
+   ;; you add any new dlls, make sure that they are properly loaded!
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/msvcr120.dll"  "x86_64-win32/lib/msvcr120.dll"
 
    "${DYNAMO-HOME}/ext/bin/x86_64-linux/luajit"               "x86_64-linux/bin/luajit"
