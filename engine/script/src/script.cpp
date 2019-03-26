@@ -40,10 +40,10 @@ namespace dmScript
      */
 
     static const char INSTANCE_NAME[] = "__dm_script_instance__";
-    static uint32_t INSTANCE_NAME_HASH = dmHashBufferNoReverse32(INSTANCE_NAME, sizeof(INSTANCE_NAME));
+    static uint32_t INSTANCE_NAME_HASH = 0;
 
     static const char SCRIPT_CONTEXT[] = "__script_context";
-    const uint32_t SCRIPT_CONTEXT_HASH = dmHashBufferNoReverse32(SCRIPT_CONTEXT, sizeof(SCRIPT_CONTEXT));
+    static uint32_t SCRIPT_CONTEXT_HASH = 0;
 
     const char META_TABLE_RESOLVE_PATH[]             = "__resolve_path";
     const char META_TABLE_GET_URL[]                  = "__get_url";
@@ -174,7 +174,8 @@ namespace dmScript
         lua_pop(L, 1);
 
         lua_pushlightuserdata(L, (void*)context);
-        dmScript::SetGlobal(L, SCRIPT_CONTEXT_HASH);
+        SCRIPT_CONTEXT_HASH = dmScript::SetGlobal(L, SCRIPT_CONTEXT);
+        assert(0 != GetScriptContext(L));
 
         lua_pushlightuserdata(L, (void*)L);
         lua_setglobal(L, SCRIPT_MAIN_THREAD);
@@ -474,8 +475,30 @@ namespace dmScript
         return 0;
     }
 
-    void SetGlobal(lua_State* L, uint32_t name_hash)
+    HContext GetScriptContext(lua_State* L)
     {
+        GetGlobal(L, SCRIPT_CONTEXT_HASH);
+        HContext context = (HContext)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        return context;
+    }
+
+    uint32_t SetGlobal(lua_State* L, const char* name)
+    {
+        size_t name_length = strlen(name);
+        uint32_t name_hash = dmHashBuffer32(name, name_length);
+        // [-1] instance
+
+        lua_pushlstring(L, name, name_length);
+        // [-1] name
+        // [-2] instance
+
+        lua_pushvalue(L, -2);
+        // [-1] instance
+        // [-2] name
+        // [-3] instance
+
+        lua_settable(L, LUA_GLOBALSINDEX);
         // [-1] instance
 
         lua_pushinteger(L, (lua_Integer)name_hash);
@@ -487,6 +510,8 @@ namespace dmScript
         // [-2] name_hash
 
         lua_settable(L, LUA_GLOBALSINDEX);
+
+        return name_hash;
     }
 
     void GetGlobal(lua_State*L, uint32_t name_hash)
@@ -505,7 +530,7 @@ namespace dmScript
 
     void SetInstance(lua_State* L)
     {
-        SetGlobal(L, INSTANCE_NAME_HASH);
+        INSTANCE_NAME_HASH = SetGlobal(L, INSTANCE_NAME);
     }
 
     bool IsInstanceValid(lua_State* L)
@@ -679,6 +704,7 @@ namespace dmScript
         // If the URL is null, we call CheckURL to trigger a proper
         // lua type error.
         (void)CheckURL(L, -1);
+        return false;
     }
 
     bool GetUserData(lua_State* L, uintptr_t* out_user_data, uint32_t user_type_hash) {

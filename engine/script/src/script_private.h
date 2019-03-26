@@ -8,8 +8,6 @@
 
 namespace dmScript
 {
-    extern const uint32_t SCRIPT_CONTEXT_HASH;
-
 ///////////////////////////////////////////////////////////////
 // NOTE: Helper functions to get more logging on issue DEF-3714
 #define PUSH_TABLE_LOGGER_CAPACITY 128
@@ -66,6 +64,8 @@ namespace dmScript
         int                         m_ContextTableRef;
         bool                        m_EnableExtensions;
     };
+
+    HContext GetScriptContext(lua_State* L);
 
     bool ResolvePath(lua_State* L, const char* path, uint32_t path_size, dmhash_t& out_hash);
 

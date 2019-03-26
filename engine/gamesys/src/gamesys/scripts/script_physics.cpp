@@ -23,7 +23,7 @@ extern "C"
 }
 
 static const char PHYSICS_CONTEXT_NAME[] = "__PhysicsContext";
-static uint32_t PHYSICS_CONTEXT_HASH = dmHashBufferNoReverse32(PHYSICS_CONTEXT_NAME, sizeof(PHYSICS_CONTEXT_NAME));
+static uint32_t PHYSICS_CONTEXT_HASH = 0;
 
 namespace dmGameSystem
 {
@@ -386,7 +386,7 @@ namespace dmGameSystem
         if (result)
         {
             lua_pushlightuserdata(L, physics_context);
-            dmScript::SetGlobal(L, PHYSICS_CONTEXT_HASH);
+            PHYSICS_CONTEXT_HASH = dmScript::SetGlobal(L, PHYSICS_CONTEXT_NAME);
         }
         else
         {

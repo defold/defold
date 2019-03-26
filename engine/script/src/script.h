@@ -74,7 +74,20 @@ namespace dmScript
      */
     void DeleteContext(HContext context);
 
-    void SetGlobal(lua_State* L, uint32_t name_hash);
+    /**
+     * Sets the value at top of stack as a global accessible value
+     * under the name supplied and under the hash of the name
+     * @param L lua state
+     * @param name name of the global value
+     * @return name_hash the hash of the name
+     */
+    uint32_t SetGlobal(lua_State* L, const char* name);
+
+    /**
+     * Gets the global value and puts it at top of stack
+     * @param L lua state
+     * @param name_hash the hash of the name returned by SetGlobal
+     */
     void GetGlobal(lua_State*L, uint32_t name_hash);
 
     /**

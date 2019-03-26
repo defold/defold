@@ -485,9 +485,8 @@ namespace dmScript
         uint32_t data_size = 0;
 
         const dmDDF::Descriptor* desc = 0x0;
-        dmScript::GetGlobal(L, dmScript::SCRIPT_CONTEXT_HASH);
-        HContext context = (HContext)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        HContext context = dmScript::GetScriptContext(L);
+
         if (context != 0)
         {
             desc = dmDDF::GetDescriptorFromHash(message_id);

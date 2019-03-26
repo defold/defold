@@ -128,10 +128,7 @@ namespace dmScript
     {
         int top = lua_gettop(L);
 
-        dmScript::GetGlobal(L, dmScript::SCRIPT_CONTEXT_HASH);
-        Context* context = (Context*)lua_touserdata(L, -1);
-        // [-1] context
-        lua_pop(L, 1);
+        HContext context = dmScript::GetScriptContext(L);
 
         dmHashTable64<int>* instances = &context->m_HashInstances;
         int* refp = instances->Get(hash);
@@ -180,10 +177,7 @@ namespace dmScript
     void ReleaseHash(lua_State* L, dmhash_t hash)
     {
         int top = lua_gettop(L);
-        dmScript::GetGlobal(L, dmScript::SCRIPT_CONTEXT_HASH);
-        // [-1] context
-        Context* context = (Context*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        HContext context = dmScript::GetScriptContext(L);
         dmHashTable64<int>* instances = &context->m_HashInstances;
         int* refp = instances->Get(hash);
         if (refp != 0x0)
