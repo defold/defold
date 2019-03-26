@@ -102,6 +102,7 @@
 
 (g/defnode AppView
   (property stage Stage)
+  (property scene Scene)
   (property editor-tabs-split SplitPane)
   (property active-tab-pane TabPane)
   (property tool-tab-pane TabPane)
@@ -1083,8 +1084,7 @@ If you do not specifically require different script states, consider changing th
    (select app-view (g/node-value app-view :active-resource-node) node-ids))
   ([app-view resource-node node-ids]
    (g/with-auto-evaluation-context evaluation-context
-     (ui/user-data! (.getScene ^Stage (g/node-value app-view :stage evaluation-context))
-                    ::ui/refresh-requested? true)
+     (ui/user-data! (g/node-value app-view :scene evaluation-context) ::ui/refresh-requested? true)
      (let [project-id (g/node-value app-view :project-id evaluation-context)
            open-resource-nodes (g/node-value app-view :open-resource-nodes evaluation-context)]
        (project/select project-id resource-node node-ids open-resource-nodes)))))
@@ -1093,8 +1093,7 @@ If you do not specifically require different script states, consider changing th
   ([app-view node-ids]
    (select! app-view node-ids (gensym)))
   ([app-view node-ids op-seq]
-   (ui/user-data! (.getScene ^Stage (g/node-value app-view :stage))
-                  ::ui/refresh-requested? true)
+   (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
    (g/transact
      (concat
        (g/operation-sequence op-seq)
@@ -1106,8 +1105,7 @@ If you do not specifically require different script states, consider changing th
    (sub-select! app-view sub-selection (gensym)))
   ([app-view sub-selection op-seq]
    (g/with-auto-evaluation-context evaluation-context
-     (ui/user-data! (.getScene ^Stage (g/node-value app-view :stage evaluation-context))
-                    ::ui/refresh-requested? true)
+     (ui/user-data! (g/node-value app-view :scene evaluation-context) ::ui/refresh-requested? true)
      (let [project-id (g/node-value app-view :project-id evaluation-context)
            active-resource-node (g/node-value app-view :active-resource-node evaluation-context)
            open-resource-nodes (g/node-value app-view :open-resource-nodes evaluation-context)]
@@ -1212,6 +1210,7 @@ If you do not specifically require different script states, consider changing th
     (let [editor-tab-pane (TabPane.)
           app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView
                                                                      :stage stage
+                                                                     :scene app-scene
                                                                      :editor-tabs-split editor-tabs-split
                                                                      :active-tab-pane editor-tab-pane
                                                                      :tool-tab-pane tool-tab-pane
