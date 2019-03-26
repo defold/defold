@@ -787,7 +787,7 @@
   (is/node-value @*the-system* node-id label evaluation-context))
 
 (defn node-value
-  "Pull a value from a node's output, identified by `label`.
+  "Pull a value from a node's output (or property), identified by `label`.
   The value may be cached or it may be computed on demand. This is
   transparent to the caller.
 
@@ -800,9 +800,6 @@
   The system cache is only updated automatically if the context was left
   out. If passed explicitly, you will need to update the cache
   manually by calling update-cache-from-evaluation-context!.
-
-  The label must exist as a defined transform on the node, or an
-  AssertionError will result.
 
   Example:
 
