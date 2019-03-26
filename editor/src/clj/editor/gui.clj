@@ -601,6 +601,7 @@
   (output particlefx-resource-names GuiResourceNames (gu/passthrough particlefx-resource-names))
   (input child-scenes g/Any :array)
   (input child-indices NodeIndex :array)
+  (output child-indices g/Any (gu/passthrough child-indices))
   (output node-outline-link resource/Resource (g/constantly nil))
   (output node-outline-children [outline/OutlineData] :cached (g/fnk [child-outlines]
                                                                      (vec (sort-by :child-index child-outlines))))
@@ -1926,6 +1927,7 @@
 
   (input child-scenes g/Any :array)
   (input child-indices NodeIndex :array)
+  (output child-indices g/Any (gu/passthrough child-indices))
   (output child-scenes g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
   (output node-outline outline/OutlineData :cached
           (gen-outline-fnk "Nodes" nil 0 true (mapv (fn [[nt kw]] {:node-type nt :tx-attach-fn (gen-gui-node-attach-fn kw)}) node-type->kw)))
@@ -2023,6 +2025,7 @@
   (output layer->index g/Any :cached (g/fnk [ordered-layer-names]
                                        (zipmap ordered-layer-names (range))))
   (input child-indices NodeIndex :array)
+  (output child-indices g/Any (gu/passthrough child-indices))
   (output node-outline outline/OutlineData :cached (gen-outline-fnk "Layers" "Layers" 3 true [])))
 
 (g/defnode LayoutsNode
@@ -2233,9 +2236,11 @@
   (input script-resource resource/Resource)
 
   (input node-tree g/NodeID)
+  (output node-tree g/NodeID (gu/passthrough node-tree))
   (input fonts-node g/NodeID)
   (input textures-node g/NodeID)
   (input layers-node g/NodeID)
+  (output layers-node g/NodeID (gu/passthrough layers-node))
   (input layouts-node g/NodeID)
   (input spine-scenes-node g/NodeID)
   (input particlefx-resources-node g/NodeID)

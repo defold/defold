@@ -46,7 +46,8 @@ When a node is added to a Scope, the node's :_node-id output will be
 connected to the Scope's :nodes input.
 
 When a Scope is deleted, all nodes within that scope will also be deleted."
-  (input nodes g/Any :array :cascade-delete))
+  (input nodes g/Any :array :cascade-delete)
+  (output nodes g/Any (g/fnk [nodes] nodes)))
 
 (defn scope
   ([node-id]

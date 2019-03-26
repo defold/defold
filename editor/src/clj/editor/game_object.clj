@@ -152,6 +152,7 @@
   (display-order [:id :url :path scene/SceneNode])
 
   (input source-resource resource/Resource)
+  (output source-resource resource/Resource (gu/passthrough source-resource))
   (input source-properties g/Properties :substitute {:properties {}})
   (input scene g/Any)
   (input source-build-targets g/Any)
@@ -309,6 +310,7 @@
                                       (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")))))
 
   (input source-id g/NodeID :cascade-delete)
+  (output source-id g/NodeID (g/fnk [source-id] source-id))
   (output ddf-properties+decls MapEntry :cached
           (g/fnk [source-properties]
                  (let [prop-order (into {} (map-indexed (fn [i k] [k i]) (:display-order source-properties)))
@@ -411,6 +413,7 @@
   (input dep-build-targets g/Any :array)
   (input base-url g/Str)
 
+  (output embed-ddf g/Any (gu/passthrough embed-ddf))
   (output base-url g/Str (gu/passthrough base-url))
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output proto-msg g/Any produce-proto-msg)

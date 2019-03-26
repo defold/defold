@@ -658,7 +658,7 @@
 
 (defn- attach-input-behaviors
   [description]
-  (update description :behavior merge (transform-inputs-plumbing-map description)))
+  description #_(update description :behavior merge (transform-inputs-plumbing-map description)))
 
 (defn- abstract-function-form
   [label type]

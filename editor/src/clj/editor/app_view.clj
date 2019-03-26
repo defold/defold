@@ -122,6 +122,7 @@
   (input sub-selections-by-resource-node g/Any)
   (input debugger-execution-locations g/Any)
 
+  (output project-id g/NodeID (gu/passthrough project-id))
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
   (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
   (output active-tab Tab (g/fnk [^TabPane active-tab-pane] (some-> active-tab-pane ui/selected-tab)))

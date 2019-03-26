@@ -22,7 +22,8 @@
             (set (fn [evaluation-context self _old-value new-value]
                    (let [project (project/get-project (:basis evaluation-context) self)]
                      (:tx-data (project/connect-resource-node evaluation-context project new-value self [[:value :value-input]]))))))
-  (input value-input g/Str))
+  (input value-input g/Str)
+  (output value-input g/Str (g/fnk [value-input] value-input)))
 
 (g/defnode BNode
   (inherits resource-node/ResourceNode)

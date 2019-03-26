@@ -397,6 +397,7 @@
 (g/defnode Node
   (property id g/Str)
   (input id-prefix g/Str)
+  (output id-prefix g/Str (g/fnk [id-prefix] id-prefix))
   (output id g/Str (g/fnk [id-prefix id] (str id-prefix id)))
   (output node-ids IDMap (g/fnk [_node-id id] {id _node-id}))
   (output node-overrides g/Any (g/fnk [id _properties] (properties->overrides id _properties))))
@@ -422,6 +423,7 @@
 (g/defnode Scene
   (inherits SceneResourceNode)
   (input node-tree g/NodeID :cascade-delete)
+  (output node-tree g/NodeID (g/fnk [node-tree] node-tree))
   (input layouts g/NodeID :array :cascade-delete)
   (input id-prefix g/Str)
   (output id-prefix g/Str (g/fnk [id-prefix] id-prefix))
@@ -493,7 +495,8 @@
                                          (for [[from to] [[:_node-id :node-tree]]]
                                            (g/connect node-tree-or from self to)))))))))))
   (input node-tree g/NodeID :cascade-delete)
-  (input id-prefix g/Str))
+  (input id-prefix g/Str)
+  (output id-prefix g/Str (g/fnk [id-prefix] id-prefix)))
 
 (def ^:private node-tree-inputs [[:_node-id :nodes]
                                  [:node-ids :node-ids]
@@ -691,6 +694,7 @@
                                            (concat set-prop-data conn-data))))
                            [])))))))
   (input instance g/NodeID :cascade-delete)
+  (output instance g/NodeID (g/fnk [instance] instance))
   (input script-properties g/Properties)
   (output _properties g/Properties (g/fnk [_declared-properties script-properties]
                                      (-> _declared-properties

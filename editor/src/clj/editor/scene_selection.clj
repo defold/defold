@@ -175,6 +175,9 @@
   (input picking-selection g/Any)
   (input root-id g/NodeID)
 
+  (output selection g/Any (g/fnk [selection] selection))
+  (output picking-selection g/Any (g/fnk [picking-selection] picking-selection))
+  (output root-id g/NodeID (g/fnk [root-id] root-id))
   (output picking-rect Rect :cached (g/fnk [start current] (calc-picking-rect start current)))
   (output renderable pass/RenderData :cached (g/fnk [start current] {pass/overlay [{:world-transform (Matrix4d. geom/Identity4d)
                                                                                     :render-fn render-selection-box

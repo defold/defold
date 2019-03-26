@@ -75,6 +75,7 @@
             (dynamic read-only? (g/constantly true)))
   (input base-url g/Str)
   (input source-id g/NodeID :cascade-delete)
+  (output source-id g/NodeID (gu/passthrough source-id))
   (input id-counts g/Any))
 
 (defn- child-go-go [go-id child-id]
@@ -420,6 +421,7 @@
   (input ref-coll-ddf g/Any :array)
   (input child-scenes g/Any :array)
   (input ids g/Str :array)
+  (output ids g/Any (g/fnk [ids] ids))
   (input sub-build-targets g/Any :array)
   (input dep-build-targets g/Any :array)
   (input base-url g/Str)

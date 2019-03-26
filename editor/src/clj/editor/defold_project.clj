@@ -595,7 +595,9 @@
                                                                  (->> all-sub-selections
                                                                    (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
                                                                    (into {})))))
+  (output resources g/Any (gu/passthrough resources))
   (output resource-map g/Any (gu/passthrough resource-map))
+  (output resource-types g/Any (gu/passthrough resource-types))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-id+resources] (make-resource-nodes-by-path-map node-id+resources)))
   (output save-data g/Any :cached (g/fnk [save-data] (filterv #(and % (:content %)) save-data)))
   (output dirty-save-data g/Any :cached (g/fnk [save-data] (filterv #(and (:dirty? %)

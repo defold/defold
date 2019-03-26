@@ -358,6 +358,8 @@
   (property select-fn Runnable)
   (input sub-selection g/Any)
   (input curve-handle g/Any)
+  (output sub-selection g/Any (g/fnk [sub-selection] sub-selection))
+  (output curve-handle g/Any (g/fnk [curve-handle] curve-handle))
   (output input-handler Runnable :cached (g/constantly handle-input))
   (output info-text g/Str (g/constantly nil)))
 
@@ -496,6 +498,7 @@
   (input tool-renderables pass/RenderData :array)
   (input picking-rect Rect)
   (input sub-selection g/Any)
+  (output sub-selection g/Any (g/fnk [sub-selection] sub-selection))
 
   (output all-renderables g/Any :cached (g/fnk [aux-render-data curve-renderables cp-renderables tool-renderables]
                                           (reduce (partial merge-with into)

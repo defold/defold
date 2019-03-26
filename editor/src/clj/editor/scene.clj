@@ -496,6 +496,7 @@
   (input hidden-renderable-tags types/RenderableTags)
   (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
 
+  (output camera Camera (gu/passthrough camera))
   (output viewport Region :abstract)
   (output all-renderables g/Any :abstract)
 
