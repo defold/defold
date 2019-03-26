@@ -18,9 +18,9 @@
 
 (def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas true))
 
-(defn trace-expr [self ctx output output-type deferred-expr]
-  (if-let [tracer (:tracer ctx)]
-    (let [node-id (gt/node-id self)]
+(defn trace-expr [node evaluation-context output output-type deferred-expr]
+  (if-let [tracer (:tracer evaluation-context)]
+    (let [node-id (gt/node-id node)]
       (tracer :begin node-id output-type output)
       (let [[result e] (try [(deferred-expr) nil] (catch Exception e [nil e]))]
         (if e
@@ -1275,14 +1275,14 @@
         (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~property-name)))
       forms)))
 
-(defn mark-in-production [ctx node-id label]
-  (assert (not (contains? (:in-production ctx) [node-id label]))
+(defn mark-in-production [evaluation-context node-id label]
+  (assert (not (contains? (:in-production evaluation-context) [node-id label]))
           (format "Cycle detected on node type %s and output %s"
-                  (let [basis (:basis ctx)
+                  (let [basis (:basis evaluation-context)
                         node (gt/node-by-id-at basis node-id)]
                     (type-name (gt/node-type node basis)))
                   label))
-  (update ctx :in-production conj [node-id label]))
+  (update evaluation-context :in-production conj [node-id label]))
 
 (defn- mark-in-production-form [evaluation-context-sym node-id-sym label description forms]
   `(let [~evaluation-context-sym (mark-in-production ~evaluation-context-sym ~node-id-sym ~label)]
