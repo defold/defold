@@ -3746,7 +3746,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 1.0f,
                 dmEasing::Curve(dmEasing::TYPE_LINEAR),
                 (Playback) anim_desc.m_State.m_Playback,
-                (float) anim_frames / (float) anim_desc.m_FPS,
+                (float) anim_frames / (float) anim_desc.m_State.m_FPS,
                 0.0f,
                 offset,
                 playback_rate,
