@@ -18,9 +18,9 @@
 
 (def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas true))
 
-(defn trace-expr [node evaluation-context output output-type deferred-expr]
+(defn trace-expr [evaluation-context node-id output output-type deferred-expr]
   (if-let [tracer (:tracer evaluation-context)]
-    (let [node-id (gt/node-id node)]
+    (do
       (tracer :begin node-id output-type output)
       (let [[result e] (try [(deferred-expr) nil] (catch Exception e [nil e]))]
         (if e
@@ -30,8 +30,8 @@
               result))))
     (deferred-expr)))
 
-(defn- with-tracer-calls-form [node-sym evaluation-context-sym output-name output-type expr]
-  `(trace-expr ~node-sym ~evaluation-context-sym ~output-name ~output-type
+(defn- with-tracer-calls-form [evaluation-context-sym node-id-sym output-name output-type expr]
+  `(trace-expr ~evaluation-context-sym ~node-id-sym ~output-name ~output-type
                (fn [] ~expr)))
 
 (defn- check-dry-run-form
@@ -1181,9 +1181,9 @@
   (let [property-definition (get-in description [:property prop-name])
         default? (not (:value property-definition))]
     (if default?
-      (with-tracer-calls-form node-sym evaluation-context-sym prop-name :raw-property
+      (with-tracer-calls-form evaluation-context-sym node-id-sym prop-name :raw-property
         (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~prop-name)))
-      (with-tracer-calls-form node-sym evaluation-context-sym prop-name :property
+      (with-tracer-calls-form evaluation-context-sym node-id-sym prop-name :property
         (call-with-error-checked-fnky-arguments-form node-sym evaluation-context-sym node-id-sym prop-name description
                                                      (get-in property-definition [:value :arguments])
                                                      (check-dry-run-form evaluation-context-sym
@@ -1194,9 +1194,9 @@
   (let [property-definition (get-in description [:property prop])
         default? (not (:value property-definition))
         get-expr (if default?
-                   (with-tracer-calls-form node-sym evaluation-context-sym prop :raw-property
+                   (with-tracer-calls-form evaluation-context-sym node-id-sym prop :raw-property
                      (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~prop)))
-                   (with-tracer-calls-form node-sym evaluation-context-sym prop :property
+                   (with-tracer-calls-form evaluation-context-sym node-id-sym prop :property
                      (call-with-error-checked-fnky-arguments-form node-sym evaluation-context-sym node-id-sym prop description
                                                                   (get-in property-definition [:value :arguments])
                                                                   (check-dry-run-form evaluation-context-sym
@@ -1221,7 +1221,7 @@
 
     (desc-has-property? description argument)
     (if (= output argument)
-      (with-tracer-calls-form node-sym evaluation-context-sym argument :raw-property
+      (with-tracer-calls-form evaluation-context-sym node-id-sym argument :raw-property
         (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~argument)))
       (collect-property-value-form node-sym evaluation-context-sym node-id-sym description argument))
 
@@ -1266,12 +1266,12 @@
 (defn- property-has-default-getter?       [description label] (not (get-in description [:property label :value])))
 (defn- property-has-no-overriding-output? [description label] (not (desc-has-explicit-output? description label)))
 
-(defn- apply-default-property-shortcut-form [node-sym evaluation-context-sym property-name description forms]
+(defn- apply-default-property-shortcut-form [node-sym evaluation-context-sym node-id-sym property-name description forms]
   (let [property? (and (desc-has-property? description property-name) (property-has-no-overriding-output? description property-name))
         default?  (and (property-has-default-getter? description property-name)
                        (property-has-no-overriding-output? description property-name))]
     (if default?
-      (with-tracer-calls-form node-sym evaluation-context-sym property-name :raw-property
+      (with-tracer-calls-form evaluation-context-sym node-id-sym property-name :raw-property
         (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~property-name)))
       forms)))
 
@@ -1297,10 +1297,10 @@
         cache-key [node-id label]]
     (cond
       (contains? local cache-key)
-      [(trace-expr node evaluation-context label :cache (fn [] (get local cache-key)))]
+      [(trace-expr evaluation-context node-id label :cache (fn [] (get local cache-key)))]
 
       (contains? global cache-key)
-      [(trace-expr node evaluation-context label :cache
+      [(trace-expr evaluation-context node-id label :cache
                    (fn []
                      (when-some [cached-result (get global cache-key)]
                        (swap! (:hits evaluation-context) conj cache-key)
@@ -1318,7 +1318,7 @@
          ~result-sym
          ~forms)
       `(if-some [~result-sym (check-local-temp-cache ~evaluation-context-sym ~node-id-sym ~label)]
-         ~(with-tracer-calls-form node-sym evaluation-context-sym label :cache
+         ~(with-tracer-calls-form evaluation-context-sym node-id-sym label :cache
             `(if (= ~result-sym ::cached-nil) nil ~result-sym))
          ~forms))))
 
@@ -1404,10 +1404,10 @@
       `(fn [~node-sym ~evaluation-context-sym]
          (let [~node-id-sym (gt/node-id ~node-sym)]
            ~(check-jammed-form node-sym evaluation-context-sym node-id-sym label description
-              (apply-default-property-shortcut-form node-sym evaluation-context-sym label description
+              (apply-default-property-shortcut-form node-sym evaluation-context-sym node-id-sym label description
                 (mark-in-production-form evaluation-context-sym node-id-sym label description
                   (check-caches-form node-sym evaluation-context-sym node-id-sym description label
-                    (with-tracer-calls-form node-sym evaluation-context-sym label tracer-output-type
+                    (with-tracer-calls-form evaluation-context-sym node-id-sym label tracer-output-type
                       (gather-arguments-form arguments-sym schema-sym node-sym evaluation-context-sym node-id-sym description label production-function
                         (call-production-function-form node-sym evaluation-context-sym description label arguments-sym node-id-sym output-sym
                           (schema-check-output-form node-sym evaluation-context-sym description label node-id-sym output-sym
@@ -1425,7 +1425,7 @@
   (apply merge
          (for [[dynamic-label {:keys [arguments] :as dynamic}] (get property-type :dynamics)]
            {dynamic-label
-            (with-tracer-calls-form node-sym evaluation-context-sym [property-name dynamic-label] :dynamic
+            (with-tracer-calls-form evaluation-context-sym node-id-sym [property-name dynamic-label] :dynamic
               (call-with-error-checked-fnky-arguments-form node-sym evaluation-context-sym node-id-sym dynamic-label description arguments
                                                            (check-dry-run-form evaluation-context-sym
                                                                                `(var ~(dollar-name (:name description) [:property property-name :dynamics dynamic-label]))
