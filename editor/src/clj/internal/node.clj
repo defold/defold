@@ -760,9 +760,9 @@
     form))
 
 (def ^:private node-intrinsics
-  [(list 'extern '_node-id :dynamo.graph/NodeID)
+  [(list 'property '_node-id :dynamo.graph/NodeID :unjammable)
+   (list 'property '_output-jammers :dynamo.graph/KeywordMap :unjammable)
    (list 'output '_properties :dynamo.graph/Properties `(dynamo.graph/fnk [~'_declared-properties] ~'_declared-properties))
-   (list 'extern '_output-jammers :dynamo.graph/KeywordMap)
    (list 'output '_overridden-properties :dynamo.graph/KeywordMap `(dynamo.graph/fnk [~'this ~'_basis] (gt/overridden-properties ~'this ~'_basis)))])
 
 (def ^:private intrinsic-properties #{:_node-id :_output-jammers})
@@ -788,23 +788,23 @@
 (defmethod process-property-form 'default [[_ form]]
   {:default {:fn (maybe-macroexpand form)}})
 
+(def ^:private allowed-property-flags #{:unjammable})
+(def ^:private allowed-property-options #{})
+
 (defn- process-property-forms
-  [[type-form & body-forms]]
-  (apply merge-with merge
-         (parse-type-form "property" type-form)
-         (for [b body-forms]
-           (process-property-form b))))
+  [[type-form & forms]]
+  (let [type-info (parse-type-form "property" type-form)
+        [flags options body-forms] (parse-flags-and-options allowed-property-flags allowed-property-options forms)]
+    (apply merge-with into
+           type-info
+           {:flags flags :options options}
+           (for [b body-forms]
+             (process-property-form b)))))
 
 (defmulti process-as first)
 
 (defn- mark-unjammable [flags]
   (conj (or flags #{}) :unjammable))
-
-(defmethod process-as 'extern [[_ label & forms]]
-  (assert-symbol "extern" label)
-  (-> (process-as (list* 'property label forms))
-      (update-in [:property (keyword label) :flags] mark-unjammable)
-      (update-in [:output (keyword label) :flags] mark-unjammable)))
 
 (defmethod process-as 'property [[_ label & forms]]
   (assert-symbol "property" label)
@@ -824,8 +824,8 @@
               :output {klabel outdef}}]
     desc))
 
-(def ^:private output-flags #{:cached :abstract :unjammable})
-(def ^:private output-options #{})
+(def ^:private allowed-output-flags #{:cached :abstract :unjammable})
+(def ^:private allowed-output-options #{})
 
 (defmethod process-as 'output [[_ label & forms]]
   (assert-symbol "output" label)
@@ -833,7 +833,7 @@
         base (parse-type-form "output" type-form)
         register-type-info (:register-type-info base)
         base (dissoc base :register-type-info)
-        [flags options fn-forms] (parse-flags-and-options output-flags output-options (rest forms))
+        [flags options fn-forms] (parse-flags-and-options allowed-output-flags allowed-output-options (rest forms))
         abstract?                (contains? flags :abstract)]
     (assert (or abstract? (first fn-forms))
             (format "Output %s has no production function and is not abstract" label))

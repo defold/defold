@@ -12,7 +12,7 @@
 (g/defnode OrdinaryNode
   (property a-property g/Str (default "a"))
   (property b-property g/Int (default 0))
-  (extern   external-ref g/Str (default "/foo"))
+  (property external-ref g/Str :unjammable (default "/foo"))
 
   (output catted g/Str (g/fnk [a-property b-property] (str a-property b-property)))
   (output upper  g/Str :cached (g/fnk [a-property] (.toUpperCase a-property))))
@@ -59,7 +59,7 @@
           downstream    :duplicated
           prop-consumer :duplicated)))))
 
-(deftest defective-node-excludes-externs
+(deftest defective-node-excludes-unjammable-properties
   (with-clean-system
     (let [[node] (tx-nodes (g/make-node world OrdinaryNode))]
       (is (= "/foo" (g/node-value node :external-ref)))
