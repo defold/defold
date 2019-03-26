@@ -27,7 +27,7 @@ public class TexcLibrary {
              * Another hack for Windows: Sometimes PVRTexLib dependency msvcr120
              * does not load correctly so we need to load it explicitly here.
              */
-            if(Platform.getJavaPlatform().getOs().toLowerCase().contains("win32")) {
+            if(Platform.getJavaPlatform().getOs().equals("win32")) {
                 System.load(ResourceUnpacker.getUnpackedLibraryPath("msvcr120").toString());
             }
             System.load(ResourceUnpacker.getUnpackedLibraryPath("PVRTexLib").toString());
