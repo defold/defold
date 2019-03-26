@@ -257,10 +257,10 @@
         project-path  (if custom-path? (first forms) project-path)
         forms         (if custom-path? (next forms) forms)]
     `(let [[system# ~'workspace ~'project] (load-system-and-project ~project-path)
-           ~'system (is/clone-system system#)
-           ~'cache  (:cache ~'system)
+           system-clone# (is/clone-system system#)
+           ~'cache  (:cache system-clone#)
            ~'world  (g/node-id->graph-id ~'workspace)]
-       (binding [g/*the-system* (atom ~'system)]
+       (binding [g/*the-system* (atom system-clone#)]
          (let [~'app-view (setup-app-view! ~'project)]
            ~@forms)))))
 

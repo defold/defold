@@ -445,7 +445,7 @@ public class Project {
 
     static Map<Platform, Class<? extends IBundler>> bundlers;
     static {
-        bundlers = new HashMap<Platform, Class<? extends IBundler>>();
+        bundlers = new HashMap<>();
         bundlers.put(Platform.X86_64Darwin, OSXBundler.class);
         bundlers.put(Platform.X86_64Linux, LinuxBundler.class);
         bundlers.put(Platform.X86Win32, Win32Bundler.class);
@@ -487,13 +487,14 @@ public class Project {
         } else {
             bundleDir = new File(getRootDirectory(), getBuildDirectory());
         }
+        BundleHelper.throwIfCanceled(monitor);
         bundleDir.mkdirs();
-        bundler.bundleApplication(this, bundleDir);
+        bundler.bundleApplication(this, bundleDir, monitor);
         m.worked(1);
         m.done();
     }
 
-    static boolean anyFailing(Collection<TaskResult> results) {
+    private static boolean anyFailing(Collection<TaskResult> results) {
         for (TaskResult taskResult : results) {
             if (!taskResult.isOk()) {
                 return true;
@@ -508,9 +509,16 @@ public class Project {
         try {
             // Include built-in/default facebook and gms resources
             resourceDirectories.add(Bob.getPath("res/facebook"));
-            resourceDirectories.add(Bob.getPath("res/google-play-services"));
+            resourceDirectories.add(Bob.getPath("res/com.android.support.support-compat-27.1.1"));
+            resourceDirectories.add(Bob.getPath("res/com.android.support.support-core-ui-27.1.1"));
+            resourceDirectories.add(Bob.getPath("res/com.android.support.support-media-compat-27.1.1"));
+            resourceDirectories.add(Bob.getPath("res/com.google.android.gms.play-services-base-16.0.1"));
+            resourceDirectories.add(Bob.getPath("res/com.google.android.gms.play-services-basement-16.0.1"));
+            resourceDirectories.add(Bob.getPath("res/com.google.firebase.firebase-messaging-17.3.4"));
+
             extraPackages.add("com.facebook");
             extraPackages.add("com.google.android.gms");
+            extraPackages.add("com.google.android.gms.common");
 
             Map<String, String> aaptEnv = new HashMap<String, String>();
             if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
@@ -546,20 +554,6 @@ public class Project {
         } catch (Exception e) {
             throw new CompileExceptionError(null, -1, "Failed building Android resources to R.java: " + e.getMessage());
         }
-    }
-    
-    public Platform getPlatform() throws CompileExceptionError {
-        String pair = option("platform", null);
-        Platform p = Platform.getHostPlatform();
-        if (pair != null) {
-            p = Platform.get(pair);
-        }
-
-        if (p == null) {
-            throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
-        }
-        
-        return p;
     }
 
     public String[] getPlatformStrings() throws CompileExceptionError {
@@ -642,6 +636,13 @@ public class Project {
                 File resOutput = new File(tmpDir, "resources");
                 resOutput.delete();
                 resOutput.mkdir();
+                FileUtils.forceMkdir(new File(resOutput, "drawable"));
+                FileUtils.forceMkdir(new File(resOutput, "drawable-ldpi"));
+                FileUtils.forceMkdir(new File(resOutput, "drawable-mdpi"));
+                FileUtils.forceMkdir(new File(resOutput, "drawable-hdpi"));
+                FileUtils.forceMkdir(new File(resOutput, "drawable-xhdpi"));
+                FileUtils.forceMkdir(new File(resOutput, "drawable-xxhdpi"));
+                FileUtils.forceMkdir(new File(resOutput, "drawable-xxxhdpi"));
                 resOutput.deleteOnExit();
 
                 // <tmpDir>/rjava - Output directory of aapt, all R.java files will be stored here
@@ -660,6 +661,7 @@ public class Project {
                 manifestFile.deleteOnExit();
                 BundleHelper helper = new BundleHelper(this, Platform.Armv7Android, tmpDir, "");
                 helper.createAndroidManifest(getProjectProperties(), getRootDirectory(), manifestFile, resOutput, "dummy");
+                helper.copyAndroidIcons(resOutput);
 
                 // Run aapt to generate R.java files
                 generateRJava(resDirs, extraPackages, manifestFile, javaROutput);
@@ -742,94 +744,114 @@ public class Project {
         validateBuildResourceMapping();
         List<TaskResult> result = new ArrayList<TaskResult>();
 
+        BundleHelper.throwIfCanceled(monitor);
+
         monitor.beginTask("", 100);
 
+        loop:
         for (String command : commands) {
-            if (command.equals("build")) {
+            BundleHelper.throwIfCanceled(monitor);
+            switch (command) {
+                case "build": {
 
-                // Do early test if report files are writeable before we start building
-                boolean generateReport = this.hasOption("build-report") || this.hasOption("build-report-html");
-                FileWriter fileJSONWriter = null;
-                FileWriter fileHTMLWriter = null;
+                    // Do early test if report files are writable before we start building
+                    boolean generateReport = this.hasOption("build-report") || this.hasOption("build-report-html");
+                    FileWriter fileJSONWriter = null;
+                    FileWriter fileHTMLWriter = null;
 
-                if (this.hasOption("build-report")) {
-                    String reportJSONPath = this.option("build-report", "report.json");
-                    File reportJSONFile = new File(reportJSONPath);
-                    fileJSONWriter = new FileWriter(reportJSONFile);
-                }
-                if (this.hasOption("build-report-html")) {
-                    String reportHTMLPath = this.option("build-report-html", "report.html");
-                    File reportHTMLFile = new File(reportHTMLPath);
-                    fileHTMLWriter = new FileWriter(reportHTMLFile);
-                }
+                    if (this.hasOption("build-report")) {
+                        String reportJSONPath = this.option("build-report", "report.json");
+                        File reportJSONFile = new File(reportJSONPath);
+                        fileJSONWriter = new FileWriter(reportJSONFile);
+                    }
+                    if (this.hasOption("build-report-html")) {
+                        String reportHTMLPath = this.option("build-report-html", "report.html");
+                        File reportHTMLFile = new File(reportHTMLPath);
+                        fileHTMLWriter = new FileWriter(reportHTMLFile);
+                    }
 
-                IProgress m = monitor.subProgress(99);
-                m.beginTask("Building...", newTasks.size());
-                result = runTasks(m);
-                m.done();
-                if (anyFailing(result)) {
+                    IProgress m = monitor.subProgress(99);
+                    BundleHelper.throwIfCanceled(monitor);
+                    m.beginTask("Building...", newTasks.size());
+                    result = runTasks(m);
+                    m.done();
+                    if (anyFailing(result)) {
+                        break loop;
+                    }
+                    BundleHelper.throwIfCanceled(monitor);
+
+                    final String[] platforms = getPlatformStrings();
+                    // Get or build engine binary
+                    boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
+                    if (buildRemoteEngine) {
+
+                        final String variant = this.option("variant", Bob.VARIANT_RELEASE);
+                        final Boolean withSymbols = this.hasOption("with-symbols");
+
+                        Map<String, String> appmanifestOptions = new HashMap<>();
+                        appmanifestOptions.put("baseVariant", variant);
+                        appmanifestOptions.put("withSymbols", withSymbols.toString());
+
+                        buildEngine(monitor, platforms, appmanifestOptions);
+                    } else {
+                        // Remove the remote built executables in the build folder, they're still in the cache
+                        cleanEngine(monitor, platforms);
+                    }
+
+                    BundleHelper.throwIfCanceled(monitor);
+
+                    // Generate and save build report
+                    if (generateReport) {
+                        IProgress mrep = monitor.subProgress(1);
+                        mrep.beginTask("Generating report...", 1);
+                        ReportGenerator rg = new ReportGenerator(this);
+                        String reportJSON = rg.generateJSON();
+
+                        // Save JSON report
+                        if (this.hasOption("build-report")) {
+                            fileJSONWriter.write(reportJSON);
+                            fileJSONWriter.close();
+                        }
+
+                        // Save HTML report
+                        if (this.hasOption("build-report-html")) {
+                            String reportHTML = rg.generateHTML(reportJSON);
+                            fileHTMLWriter.write(reportHTML);
+                            fileHTMLWriter.close();
+                        }
+                        mrep.done();
+                    }
+
                     break;
                 }
-
-                final String[] platforms = getPlatformStrings();
-                // Get or build engine binary
-                boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
-                if (buildRemoteEngine) {
-
-                    final String variant = this.option("variant", Bob.VARIANT_RELEASE);
-                    final Boolean withSymbols = this.hasOption("with-symbols");
-
-                    Map<String, String> appmanifestOptions = new HashMap<>();
-                    appmanifestOptions.put("baseVariant", variant);
-                    appmanifestOptions.put("withSymbols", withSymbols.toString());
-
-                    buildEngine(monitor, platforms, appmanifestOptions);
-                } else {
-                    // Remove the remote built executables in the build folder, they're still in the cache
-                    cleanEngine(monitor, platforms);
-                }
-
-                // Generate and save build report
-                if (generateReport) {
-                    IProgress mrep = monitor.subProgress(1);
-                    mrep.beginTask("Generating report...", 1);
-                    ReportGenerator rg = new ReportGenerator(this);
-                    String reportJSON = rg.generateJSON();
-
-                    // Save JSON report
-                    if (this.hasOption("build-report")) {
-                        fileJSONWriter.write(reportJSON);
-                        fileJSONWriter.close();
+                case "clean": {
+                    IProgress m = monitor.subProgress(1);
+                    m.beginTask("Cleaning...", newTasks.size());
+                    for (Task<?> t : newTasks) {
+                        List<IResource> outputs = t.getOutputs();
+                        for (IResource r : outputs) {
+                            BundleHelper.throwIfCanceled(monitor);
+                            r.remove();
+                            m.worked(1);
+                        }
                     }
-
-                    // Save HTML report
-                    if (this.hasOption("build-report-html")) {
-                        String reportHTML = rg.generateHTML(reportJSON);
-                        fileHTMLWriter.write(reportHTML);
-                        fileHTMLWriter.close();
-                    }
-                    mrep.done();
+                    m.done();
+                    break;
                 }
-
-            } else if (command.equals("clean")) {
-                IProgress m = monitor.subProgress(1);
-                m.beginTask("Cleaning...", newTasks.size());
-                for (Task<?> t : newTasks) {
-                    List<IResource> outputs = t.getOutputs();
-                    for (IResource r : outputs) {
-                        r.remove();
-                        m.worked(1);
-                    }
+                case "distclean": {
+                    IProgress m = monitor.subProgress(1);
+                    m.beginTask("Cleaning...", newTasks.size());
+                    BundleHelper.throwIfCanceled(monitor);
+                    FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
+                    m.worked(1);
+                    m.done();
+                    break;
                 }
-                m.done();
-            } else if (command.equals("distclean")) {
-                IProgress m = monitor.subProgress(1);
-                m.beginTask("Cleaning...", newTasks.size());
-                FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
-                m.worked(1);
-                m.done();
-            } else if (command.equals("bundle")) {
-                bundle(monitor);
+                case "bundle": {
+                    bundle(monitor);
+                    break;
+                }
+                default: break;
             }
         }
 
@@ -840,29 +862,29 @@ public class Project {
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    List<TaskResult> runTasks(IProgress monitor) throws IOException {
+    private List<TaskResult> runTasks(IProgress monitor) throws IOException {
 
         // set of all completed tasks. The set includes both task run
         // in this session and task already completed (output already exists with correct signatures, see below)
         // the set also contains failed tasks
-        Set<Task> completedTasks = new HashSet<Task>();
+        Set<Task> completedTasks = new HashSet<>();
 
         // the set of all output files generated
         // in this or previous session
-        Set<IResource> completedOutputs = new HashSet<IResource>();
+        Set<IResource> completedOutputs = new HashSet<>();
 
-        List<TaskResult> result = new ArrayList<TaskResult>();
+        List<TaskResult> result = new ArrayList<>();
 
-        List<Task<?>> tasks = new ArrayList<Task<?>>(newTasks);
+        List<Task<?>> tasks = new ArrayList<>(newTasks);
         // set of *all* possible output files
-        Set<IResource> allOutputs = new HashSet<IResource>();
+        Set<IResource> allOutputs = new HashSet<>();
         for (Task<?> task : newTasks) {
             allOutputs.addAll(task.getOutputs());
         }
         newTasks.clear();
 
         // Keep track of the paths for all outputs
-        outputs = new HashMap<String, EnumSet<OutputFlags>>(allOutputs.size());
+        outputs = new HashMap<>(allOutputs.size());
         for (IResource res : allOutputs) {
             outputs.put(res.getAbsPath(), EnumSet.noneOf(OutputFlags.class));
         }
@@ -876,10 +898,10 @@ public class Project {
 run:
         while (completedTasks.size() < tasks.size()) {
             for (Task<?> task : tasks) {
+                BundleHelper.throwIfCanceled(monitor);
                 // deps are the task input files generated by another task not yet completed,
                 // i.e. "solve" the dependency graph
-                Set<IResource> deps = new HashSet<IResource>();
-                deps.addAll(task.getInputs());
+                Set<IResource> deps = new HashSet<>(task.getInputs());
                 deps.retainAll(allOutputs);
                 deps.removeAll(completedOutputs);
                 if (deps.size() > 0) {
@@ -1033,108 +1055,115 @@ run:
      * @throws IOException
      */
     public void resolveLibUrls(IProgress progress) throws IOException, LibraryException {
-        String libPath = getLibPath();
-        File libDir = new File(libPath);
-        // Clean lib dir first
-        //FileUtils.deleteQuietly(libDir);
-        FileUtils.forceMkdir(libDir);
-        // Download libs
-        List<File> libFiles = LibraryUtil.convertLibraryUrlsToFiles(libPath, libUrls);
-        int count = this.libUrls.size();
-        IProgress subProgress = progress.subProgress(count);
-        subProgress.beginTask("Download archives", count);
-        for (int i = 0; i < count; ++i) {
-            if (progress.isCanceled()) {
-                break;
-            }
-            File f = libFiles.get(i);
-            String sha1 = null;
+        try {
+            String libPath = getLibPath();
+            File libDir = new File(libPath);
+            // Clean lib dir first
+            //FileUtils.deleteQuietly(libDir);
+            FileUtils.forceMkdir(libDir);
+            // Download libs
+            List<File> libFiles = LibraryUtil.convertLibraryUrlsToFiles(libPath, libUrls);
+            int count = this.libUrls.size();
+            IProgress subProgress = progress.subProgress(count);
+            subProgress.beginTask("Download archives", count);
+            for (int i = 0; i < count; ++i) {
+                BundleHelper.throwIfCanceled(progress);
+                File f = libFiles.get(i);
+                String sha1 = null;
 
-            if (f.exists()) {
-                ZipFile zipFile = null;
+                if (f.exists()) {
+                    ZipFile zipFile = null;
 
-                try {
-                    zipFile = new ZipFile(f);
-                    sha1 = zipFile.getComment();
-                } finally {
-                    if (zipFile != null) {
-                        zipFile.close();
+                    try {
+                        zipFile = new ZipFile(f);
+                        sha1 = zipFile.getComment();
+                    } finally {
+                        if (zipFile != null) {
+                            zipFile.close();
+                        }
                     }
                 }
-            }
 
-            URL url = libUrls.get(i);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            if (sha1 != null) {
-                connection.addRequestProperty("If-None-Match", sha1);
-            }
+                URL url = libUrls.get(i);
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                if (sha1 != null) {
+                    connection.addRequestProperty("If-None-Match", sha1);
+                }
 
-            // Check if URL contains basic auth credentials
-            String basicAuthData = null;
-            try {
-                URI uri = new URI(url.toString());
-                basicAuthData = uri.getUserInfo();
-            } catch (URISyntaxException e1) {
-                // Ignored, could not get URI and basic auth data from URL.
-            }
+                // Check if URL contains basic auth credentials
+                String basicAuthData = null;
+                try {
+                    URI uri = new URI(url.toString());
+                    basicAuthData = uri.getUserInfo();
+                } catch (URISyntaxException e1) {
+                    // Ignored, could not get URI and basic auth data from URL.
+                }
 
-            // Pass correct headers along to server depending on auth alternative.
-            if (basicAuthData != null) {
-                String basicAuth = "Basic " + new String(new Base64().encode(basicAuthData.getBytes()));
-                connection.setRequestProperty("Authorization", basicAuth);
-            } else {
-                connection.addRequestProperty("X-Email", this.options.get("email"));
-                connection.addRequestProperty("X-Auth", this.options.get("auth"));
-            }
-
-            InputStream input = null;
-            try {
-                connection.connect();
-                int code = connection.getResponseCode();
-                if (code == 304) {
-                    // Reusing cached library
+                // Pass correct headers along to server depending on auth alternative.
+                if (basicAuthData != null) {
+                    String basicAuth = "Basic " + new String(new Base64().encode(basicAuthData.getBytes()));
+                    connection.setRequestProperty("Authorization", basicAuth);
                 } else {
-                    boolean serverSha1Match = false;
-                    if(code == 200) {
-                        // GitHub uses eTags and we can check we have the up to date version by comparing SHA1 and server eTag if we get a 200 OK response
-                        if(sha1 != null)
-                        {
-                            String serverETag = connection.getHeaderField("ETag");
-                            if(serverETag != null)
-                            {
-                                if(sha1.equals(serverETag.replace("\"", ""))) {
-                                    // Reusing cached library
-                                   serverSha1Match = true;
+                    connection.addRequestProperty("X-Email", this.options.get("email"));
+                    connection.addRequestProperty("X-Auth", this.options.get("auth"));
+                }
+
+                InputStream input = null;
+                try {
+                    connection.connect();
+                    int code = connection.getResponseCode();
+                    if (code == 304) {
+                        // Reusing cached library
+                    } else {
+                        boolean serverSha1Match = false;
+                        if(code == 200) {
+                            // GitHub uses eTags and we can check we have the up to date version by comparing SHA1 and server eTag if we get a 200 OK response
+                            if (sha1 != null) {
+                                String serverETag = connection.getHeaderField("ETag");
+                                if (serverETag != null) {
+                                    if (sha1.equals(serverETag.replace("\"", ""))) {
+                                        // Reusing cached library
+                                        serverSha1Match = true;
+                                    }
                                 }
                             }
                         }
-                    }
-                    if(!serverSha1Match) {
-                        input = new BufferedInputStream(connection.getInputStream());
-                        FileUtils.copyInputStreamToFile(input, f);
+                        if(!serverSha1Match) {
+                            input = new BufferedInputStream(connection.getInputStream());
+                            FileUtils.copyInputStreamToFile(input, f);
 
-                        try {
-                            ZipFile zip = new ZipFile(f);
-                            zip.close();
-                        } catch (ZipException e) {
-                            f.delete();
-                            throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
+                            try {
+                                ZipFile zip = new ZipFile(f);
+                                zip.close();
+                            } catch (ZipException e) {
+                                f.delete();
+                                throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
+                            }
                         }
                     }
+                    connection.disconnect();
+                } catch (ConnectException e) {
+                    throw new LibraryException(String.format("Connection refused by the server at %s", url.toString()), e);
+                } catch (FileNotFoundException e) {
+                    throw new LibraryException(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
+                } finally {
+                    if(input != null) {
+                        IOUtils.closeQuietly(input);
+                    }
+                    subProgress.worked(1);
                 }
-                connection.disconnect();
-            } catch (ConnectException e) {
-                throw new LibraryException(String.format("Connection refused by the server at %s", url.toString()), e);
-            } catch (FileNotFoundException e) {
-                throw new LibraryException(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
-            } finally {
-                if(input != null) {
-                    IOUtils.closeQuietly(input);
-                }
-                subProgress.worked(1);
             }
         }
-    }
+        catch(IOException ioe) {
+            throw ioe;
+        }
+        catch(LibraryException le) {
+            throw le;
+        }
+        catch(Exception e) {
+            throw new LibraryException(e.getMessage(), e);
+        }
+   }
 
     /**
      * Set option

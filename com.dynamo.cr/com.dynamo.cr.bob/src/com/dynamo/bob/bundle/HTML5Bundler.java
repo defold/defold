@@ -145,14 +145,16 @@ public class HTML5Bundler implements IBundler {
     }
 
     @Override
-    public void bundleApplication(Project project, File bundleDirectory)
+    public void bundleApplication(Project project, File bundleDirectory, ICanceled canceled)
             throws IOException, CompileExceptionError {
 
+        BundleHelper.throwIfCanceled(canceled);
         // Collect bundle/package resources to be included in bundle directory
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.JsWeb);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
 
+        BundleHelper.throwIfCanceled(canceled);
         Boolean localLaunch = project.option("local-launch", "false").equals("true");
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
@@ -162,6 +164,7 @@ public class HTML5Bundler implements IBundler {
         List<File> binsAsmjs = null;
         List<File> binsWasm = null;
 
+        BundleHelper.throwIfCanceled(canceled);
         // asmjs binaries
         {
             Platform targetPlatform = Platform.JsWeb;
@@ -175,6 +178,7 @@ public class HTML5Bundler implements IBundler {
             ;
         }
 
+        BundleHelper.throwIfCanceled(canceled);
         // wasm binaries
         {
             Platform targetPlatform = Platform.WasmWeb;
@@ -187,6 +191,7 @@ public class HTML5Bundler implements IBundler {
             }
         }
 
+        BundleHelper.throwIfCanceled(canceled);
         File projectRoot = new File(project.getRootDirectory());
         URL splashImage = getResource(projectProperties, projectRoot, "html5", "splash_image", "splash_image.png");
         File appDir = new File(bundleDirectory, title);
@@ -203,6 +208,7 @@ public class HTML5Bundler implements IBundler {
             customHeapSize = 256*1024*1024; // Same value as engine is compiled with; 268435456
         }
 
+        BundleHelper.throwIfCanceled(canceled);
         Map<String, Object> infoData = new HashMap<String, Object>();
         infoData.put("exe-name", enginePrefix);
         infoData.put("DEFOLD_SPLASH_IMAGE", getName(splashImage));
@@ -223,6 +229,7 @@ public class HTML5Bundler implements IBundler {
             infoData.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", projectProperties.getStringValue("html5", "archive_location_suffix", ""));
         }
 
+        BundleHelper.throwIfCanceled(canceled);
         String devInit = "";
         String devHead = "";
         String inlineHtml = "";
@@ -247,16 +254,19 @@ public class HTML5Bundler implements IBundler {
             infoData.put("DEFOLD_BINARY_PREFIX", enginePrefix); // replaced by "exe-name"
         }
 
+        BundleHelper.throwIfCanceled(canceled);
         FileUtils.deleteDirectory(appDir);
         File splitDir = new File(appDir, SplitFileDir);
         splitDir.mkdirs();
         createSplitFiles(buildDir, splitDir);
 
+        BundleHelper.throwIfCanceled(canceled);
         // Copy bundle resources into bundle directory
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
         // Copy engine binaries
         for (File bin : binsAsmjs) {
+            BundleHelper.throwIfCanceled(canceled);
             String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
             if (binExtension.equals("js")) {
                 FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_asmjs.js"));
@@ -266,6 +276,7 @@ public class HTML5Bundler implements IBundler {
         }
 
         for (File bin : binsWasm) {
+            BundleHelper.throwIfCanceled(canceled);
             String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
             if (binExtension.equals("js")) {
                 FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_wasm.js"));
@@ -276,6 +287,7 @@ public class HTML5Bundler implements IBundler {
             }
         }
 
+        BundleHelper.throwIfCanceled(canceled);
         // Flash audio swf
         FileUtils.copyFile(new File(Bob.getLibExecPath("js-web/defold_sound.swf")), new File(appDir, "defold_sound.swf"));
 

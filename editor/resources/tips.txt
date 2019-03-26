@@ -20,6 +20,11 @@ Did you know? You can edit files side by side: right-click on editor tab and sel
 Hold Alt and Drag to perform box selection in code editor!
 To move an object along its rotated axis, select Local Space from the Edit menu.
 
+# Tips
+
+To avoid breaking changes in [Library dependencies](https://www.defold.com/manuals/libraries/#_library_url) it is recommended to always depend on a versioned release instead of the latest code from the master branch.
+You can open the [Web Profiler](https://www.defold.com/manuals/profiling/#_the_web_profiler) from the Open Web Profiler menu option in the Debug menu.
+
 # Inspirational quotes
 
 Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away.\n— Antoine de Saint-Exupéry

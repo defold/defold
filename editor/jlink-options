@@ -1,0 +1,17 @@
+--add-modules=java.base
+--add-modules=java.desktop # editor use java.awt.*
+--add-modules=java.management # used by amazonica
+--add-modules=java.naming # used by slf4j
+--add-modules=java.scripting # needed for fxml
+--add-modules=java.sql # clojure needs it
+--add-modules=java.xml
+--add-modules=jdk.crypto.ec # needed for https to work
+--add-modules=jdk.httpserver # used by util.http-server
+--add-modules=jdk.unsupported # javafx uses Unsafe
+--add-modules=jdk.zipfs # used to extract packaged natives
+--add-modules=jdk.xml.dom # needed for web view (.md files)
+--add-modules=jdk.jsobject # needed for web view (.md files)
+--no-man-pages
+--dedup-legal-notices=error-if-not-same-content
+--no-header-files
+--compress=2 # 0 - no compression, 1 - constant string sharing, 2 - zip

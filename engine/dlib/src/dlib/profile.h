@@ -23,7 +23,7 @@
 /**
  * Profile macro.
  * scope_name is the scope name. Must be a literal
- * name is the sample name. Must be literal, to use non-literal name use DM_PROFILE_FMT
+ * name is the sample name. Must be literal, to use non-literal name use DM_PROFILE_DYN
  */
 #define DM_PROFILE(scope_name, name)
 #undef DM_PROFILE
@@ -31,11 +31,11 @@
 /**
  * Profile macro.
  * scope_name is the scope name. Must be a literal
- * fmt is the String format, uses printf formatting limited to 128 characters
- * Has overhead due to printf style formatting and hashing of the formatted string
+ * name is the sample name. Can be non-literal, use DM_PROFILE if you know it is a literal
+ * name_hash is the hash of the sample name obtained via dmProfile::GetNameHash()
  */
-#define DM_PROFILE_FMT(scope_name, fmt, ...)
-#undef DM_PROFILE_FMT
+#define DM_PROFILE_DYN(scope_name, name, name_hash)
+#undef DM_PROFILE_DYN
 
 /**
  * Profile counter macro
@@ -47,53 +47,44 @@
 
 /**
  * Profile counter macro for non-literal strings, caller must provide hash
- * name is the counter name.
- * name_hash is the hash generated with GetNameHash
+ * counter_index is counter index from AllocateCounter.
  * amount is the amount (integer) to add to the specific counter.
  */
-#define DM_COUNTER_DYN(name, name_hash, amount)
+#define DM_COUNTER_DYN(counter_index, amount)
 #undef DM_COUNTER_DYN
 
 #if defined(NDEBUG)
     #define DM_INTERNALIZE(name) 0
     #define DM_PROFILE_SCOPE(scope_instance_name, name)
     #define DM_PROFILE(scope_name, name)
-    #define DM_PROFILE_FMT(scope_name, fmt, ...)
+    #define DM_PROFILE_DYN(scope_name, name, name_hash)
     #define DM_COUNTER(name, amount)
-    #define DM_COUNTER_DYN(name, name_hash, amount)
+    #define DM_COUNTER_DYN(counter_index, amount)
 #else
     #define DM_INTERNALIZE(name) \
-        (dmProfile::g_IsInitialized ? dmProfile::Internalize(name) : 0)
+        (dmProfile::g_IsInitialized ? dmProfile::Internalize(name, (uint32_t)strlen(name), dmProfile::GetNameHash(name, (uint32_t)strlen(name))) : 0)
 
-    #define DM_PROFILE_SCOPE(scope, name, name_hash) \
-        dmProfile::ProfileScope DM_PROFILE_PASTE2(profile_scope, __LINE__)(scope, name, name_hash);
+    #define DM_PROFILE_SCOPE(scope_index, name, name_hash) \
+        dmProfile::ProfileScope DM_PROFILE_PASTE2(profile_scope, __LINE__)(scope_index, name, name_hash);
 
     #define DM_PROFILE(scope_name, name) \
-        static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : 0; \
-        static const uint32_t DM_PROFILE_PASTE2(hash, __LINE__)     = dmProfile::GetNameHash(name); \
-        DM_PROFILE_SCOPE(DM_PROFILE_PASTE2(scope, __LINE__), name, DM_PROFILE_PASTE2(hash, __LINE__))
+        static const uint32_t DM_PROFILE_PASTE2(scope_index, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : 0xffffffffu; \
+        static const uint32_t DM_PROFILE_PASTE2(hash, __LINE__)        = dmProfile::g_IsInitialized ? dmProfile::GetNameHash(name, (uint32_t)strlen(name)) : 0; \
+        DM_PROFILE_SCOPE(DM_PROFILE_PASTE2(scope_index, __LINE__), name, DM_PROFILE_PASTE2(hash, __LINE__))
 
-    #define DM_PROFILE_FMT(scope_name, fmt, ...) \
-        static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : 0; \
-        const char* DM_PROFILE_PASTE2(name, __LINE__)               = 0; \
-        static uint32_t DM_PROFILE_PASTE2(hash, __LINE__)           = 0; \
-        if (dmProfile::g_IsInitialized) { \
-            char buffer[128]; \
-            DM_SNPRINTF(buffer, sizeof(buffer), fmt, __VA_ARGS__); \
-            DM_PROFILE_PASTE2(name, __LINE__) = dmProfile::Internalize(buffer); \
-            DM_PROFILE_PASTE2(hash, __LINE__) = dmProfile::GetNameHash(buffer); \
-        } \
-        DM_PROFILE_SCOPE(DM_PROFILE_PASTE2(scope, __LINE__), DM_PROFILE_PASTE2(name, __LINE__), DM_PROFILE_PASTE2(hash, __LINE__))
+    #define DM_PROFILE_DYN(scope_name, name, name_hash) \
+        static const uint32_t DM_PROFILE_PASTE2(scope_index, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : 0xffffffffu; \
+        DM_PROFILE_SCOPE(DM_PROFILE_PASTE2(scope_index, __LINE__), name, name_hash)
 
     #define DM_COUNTER(name, amount) \
-        if (dmProfile::g_IsInitialized) { \
-            static const uint32_t DM_PROFILE_PASTE2(hash, __LINE__) = dmProfile::GetNameHash(name); \
-            dmProfile::AddCounterHash(name, DM_PROFILE_PASTE2(hash, __LINE__), amount); \
+        static uint32_t DM_PROFILE_PASTE2(counter_index, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateCounter(name) : 0xffffffffu; \
+        if (DM_PROFILE_PASTE2(counter_index, __LINE__) != 0xffffffffu) { \
+            dmProfile::AddCounterIndex(DM_PROFILE_PASTE2(counter_index, __LINE__), amount);\
         }
 
-    #define DM_COUNTER_DYN(name, name_hash, amount) \
-        if (dmProfile::g_IsInitialized) { \
-            dmProfile::AddCounterHash(name, name_hash, amount); \
+    #define DM_COUNTER_DYN(counter_index, amount) \
+        if (counter_index != 0xffffffffu) { \
+            dmProfile::AddCounterIndex(counter_index, amount); \
         }
 #endif
 
@@ -266,9 +257,9 @@ namespace dmProfile
     /**
      * Internal function
      * @param name
-     * @return #Scope
+     * @return global scope index
      */
-    Scope* AllocateScope(const char* name);
+    uint32_t AllocateScope(const char* name);
 
     /**
      * Internal function
@@ -280,16 +271,19 @@ namespace dmProfile
      * Create an internalized string. Use this function in DM_PROFILE if the
      * name isn't valid for the life-time of the application
      * @param string string to internalize
+     * @param string_length the length of the string to internalize
+     * @param string_hash the hash of the string to internalize
      * @return internalized string or 0 if profiling is not enabled
      */
-    const char* Internalize(const char* string);
+    const char* Internalize(const char* string, uint32_t string_length, uint32_t string_hash);
 
     /**
      * Generates a hash for the name
      * @param name string to hash
+     * @param string_length length of the name to hash 
      * @return the hash or 0 if profiling is not enabled
      */
-    uint32_t GetNameHash(const char* name);
+    uint32_t GetNameHash(const char* name, uint32_t string_length);
 
     /**
      * Add #amount to counter with #name
@@ -299,12 +293,18 @@ namespace dmProfile
     void AddCounter(const char* name, uint32_t amount);
 
     /**
-     * Add #amount to counter with prehashed name. Faster version of #AddCounter
+     * Creates a counter and returns the global index for the counter
      * @param name Counter name
-     * @param name Counter name hash
+     * @return the counter index
+     */  
+    uint32_t AllocateCounter(const char* name);
+
+    /**
+     * Add #amount to counter at the counter index. Faster version of #AddCounter
+     * @param counter_index Global counter index obtained with #AllocateCounter
      * @param amount Amount to add
      */
-    void AddCounterHash(const char* name, uint32_t name_hash, uint32_t amount);
+    void AddCounterIndex(uint32_t counter_index, uint32_t amount);
 
     /**
      * Get time for the frame total
@@ -340,11 +340,11 @@ namespace dmProfile
     {
         Sample* m_Sample;
         uint64_t m_StartTick;
-        inline ProfileScope(Scope* scope, const char* name, uint32_t name_hash)
+        inline ProfileScope(uint32_t scope_index, const char* name, uint32_t name_hash)
         {
-            if (g_IsInitialized)
+            if (scope_index != 0xffffffffu)
             {
-                StartScope(scope, name, name_hash);
+                StartScope(scope_index, name, name_hash);
             }
             else
             {
@@ -360,7 +360,7 @@ namespace dmProfile
             }
         }
 
-        void StartScope(Scope* scope, const char* name, uint32_t name_hash);
+        void StartScope(uint32_t scope_index, const char* name, uint32_t name_hash);
         void EndScope();
     };
 

@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <gtest/gtest.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include "render/render.h"
 #include "render/font_renderer.h"
@@ -13,18 +13,12 @@ using namespace Vectormath::Aos;
 
 namespace
 {
-    // NOTE: we don't generate actual bytecode for this test-data, so
-    // just pass in regular lua source instead.
     dmLuaDDF::LuaSource *LuaSourceFromString(const char *source)
     {
         static dmLuaDDF::LuaSource tmp;
         memset(&tmp, 0x00, sizeof(tmp));
         tmp.m_Script.m_Data = (uint8_t*)source;
         tmp.m_Script.m_Count = strlen(source);
-        tmp.m_Bytecode.m_Data = (uint8_t*)source;
-        tmp.m_Bytecode.m_Count = strlen(source);
-        tmp.m_Bytecode64.m_Data = (uint8_t*)source;
-        tmp.m_Bytecode64.m_Count = strlen(source);
         tmp.m_Filename = "render-dummy";
         return &tmp;
     }
@@ -1001,6 +995,21 @@ TEST_F(dmRenderScriptTest, TestInstanceContext)
     lua_pushnil(L);
     dmScript::SetInstance(L);
     ASSERT_FALSE(dmScript::IsInstanceValid(L));
+}
+
+TEST_F(dmRenderScriptTest, DeltaTime)
+{
+    const char* script = "function update(self, dt)\n"
+                    "assert (dt == 1122)\n"
+                    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 1122));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
 int main(int argc, char **argv)

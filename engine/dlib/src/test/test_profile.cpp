@@ -391,16 +391,26 @@ TEST(dmProfile, DynamicScope)
     dmProfile::HProfile profile = dmProfile::Begin();
     dmProfile::Release(profile);
 
+    char names[3][128];
+    DM_SNPRINTF(names[0], sizeof(names[0]), "%s@%s", "test.script", FUNCTION_NAMES[0]);
+    DM_SNPRINTF(names[1], sizeof(names[1]), "%s@%s", "test.script", FUNCTION_NAMES[1]);
+    DM_SNPRINTF(names[2], sizeof(names[2]), "%s@%s", "test.script", FUNCTION_NAMES[2]);
+    uint32_t names_hash[3] = {
+        dmProfile::GetNameHash(names[0], strlen(names[0])),
+        dmProfile::GetNameHash(names[1], strlen(names[1])),
+        dmProfile::GetNameHash(names[2], strlen(names[2]))
+    };
+
     for (uint i = 0; i < 10 ; ++i)
     {
         {
-            DM_PROFILE_FMT(Scope1, "%s@%s", "test.script", FUNCTION_NAMES[0]);
-            DM_PROFILE_FMT(Scope2, "%s@%s", "test.script", FUNCTION_NAMES[1]);
+            DM_PROFILE_DYN(Scope1, names[0], names_hash[0]);
+            DM_PROFILE_DYN(Scope2, names[1], names_hash[1]);
         }
         {
-            DM_PROFILE_FMT(Scope2, "%s@%s", "test.script", FUNCTION_NAMES[2]);
+            DM_PROFILE_DYN(Scope2, names[2], names_hash[2]);
         }
-        DM_PROFILE_FMT(Scope1, "%s@%s", "test.script", FUNCTION_NAMES[0]);
+        DM_PROFILE_DYN(Scope1, names[0], names_hash[0]);
     }
 
     std::vector<dmProfile::Sample> samples;
@@ -426,17 +436,17 @@ TEST(dmProfile, DynamicScope)
     for (size_t i = 0; i < samples.size(); i++)
     {
         dmProfile::Sample* sample = &samples[i];
-        if (sample->m_Scope->m_NameHash == dmProfile::GetNameHash("Scope1"))
+        if (sample->m_Scope->m_NameHash == dmProfile::GetNameHash("Scope1", (uint32_t)strlen("Scope1")))
         {
             ASSERT_STREQ(sample->m_Name, name0);
         }
-        else if (sample->m_Scope->m_NameHash == dmProfile::GetNameHash("Scope2"))
+        else if (sample->m_Scope->m_NameHash == dmProfile::GetNameHash("Scope2", (uint32_t)strlen("Scope2")))
         {
-            if (sample->m_NameHash == dmProfile::GetNameHash(name1))
+            if (sample->m_NameHash == dmProfile::GetNameHash(name1, (uint32_t)strlen(name1)))
             {
                 ASSERT_STREQ(sample->m_Name, name1);
             }
-            else if (sample->m_NameHash == dmProfile::GetNameHash(name2))
+            else if (sample->m_NameHash == dmProfile::GetNameHash(name2, (uint32_t)strlen(name2)))
             {
                 ASSERT_STREQ(sample->m_Name, name2);
             }

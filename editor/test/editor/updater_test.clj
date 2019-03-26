@@ -36,9 +36,7 @@
                           test-port channel))]
     (f)))
 
-(use-fixtures :once error-log-level-fixture)
-
-(use-fixtures :once test-urls-fixture)
+(use-fixtures :once error-log-level-fixture test-urls-fixture)
 
 (defn make-handler-resources [channel sha1]
   {(format "/editor2/channels/%s/update-v2.json" channel)
@@ -73,7 +71,8 @@
     sha1
     (Platform/getHostPlatform)
     (io/file ".")
-    (io/file "no-launcher")))
+    (io/file "no-launcher")
+    []))
 
 (deftest no-update-on-client-when-no-update-on-server
   (with-server "test" "1"
@@ -118,7 +117,8 @@
                     "1"
                     Platform/JsWeb
                     (io/file ".")
-                    (io/file "no-launcher"))]
+                    (io/file "no-launcher")
+                    [])]
       (#'updater/check! updater)
       (is (true? (updater/can-download-update? updater)))
       (is (false? @(updater/download-and-extract! updater))))))

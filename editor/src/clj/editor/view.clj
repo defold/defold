@@ -1,6 +1,5 @@
 (ns editor.view
-  (:require [dynamo.graph :as g]
-            [editor.resource :as resource]))
+  (:require [dynamo.graph :as g]))
 
 (g/defnode WorkbenchView
   (input resource-node g/NodeID)

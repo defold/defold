@@ -514,6 +514,22 @@
       :drawn-line-count drawn-line-count
       :dropped-line-count dropped-line-count)))
 
+(defn- x->doc-x
+  ^double [^LayoutInfo layout ^double x]
+  (- x (.x ^Rect (.canvas layout)) (.scroll-x layout)))
+
+(defn- y->doc-y
+  ^double [^LayoutInfo layout ^double y]
+  (- y (.y ^Rect (.canvas layout)) (.scroll-y layout)))
+
+(defn- doc-x->x
+  ^double [^LayoutInfo layout ^double doc-x]
+  (+ doc-x (.x ^Rect (.canvas layout)) (.scroll-x layout)))
+
+(defn- doc-y->y
+  ^double [^LayoutInfo layout ^double doc-y]
+  (+ doc-y (.y ^Rect (.canvas layout)) (.scroll-y layout)))
+
 (defn row->y
   ^double [^LayoutInfo layout ^long row]
   (+ (.scroll-y-remainder layout)
@@ -534,7 +550,7 @@
 
 (defn x->col
   ^long [^LayoutInfo layout ^double x ^String line]
-  (let [line-x (- x (.x ^Rect (.canvas layout)) (.scroll-x layout))
+  (let [line-x (x->doc-x layout x)
         line-length (count line)]
     (loop [col 0
            start-x 0.0]
@@ -957,6 +973,8 @@
                (Math/abs (- scroll-max ^double scroll-offset)))
           (+ scroll-min ^double margin)
           (- scroll-max ^double margin))))))
+
+(def scroll-nowhere (constantly nil))
 
 (defn- scroll-to-rect [scroll-x-fn scroll-y-fn ^LayoutInfo layout lines ^Rect target-rect]
   (let [canvas-rect ^Rect (.canvas layout)
@@ -1989,12 +2007,16 @@
 
 ;; -----------------------------------------------------------------------------
 
-(defn scroll [lines scroll-x scroll-y layout delta-x delta-y]
-  (let [new-scroll-x (limit-scroll-x layout (+ ^double scroll-x (Math/ceil delta-x)))
-        new-scroll-y (limit-scroll-y layout (count lines) (+ ^double scroll-y (Math/ceil delta-y)))]
-    (cond-> nil
-            (not= scroll-x new-scroll-x) (assoc :scroll-x new-scroll-x)
-            (not= scroll-y new-scroll-y) (assoc :scroll-y new-scroll-y))))
+(defn scroll [lines scroll-x scroll-y layout ^GestureInfo gesture-start delta-x delta-y]
+  ;; Disallow mouse wheel scrolling during middle-button box-selection.
+  (when (or (nil? gesture-start)
+            (not (and (= :box-selection (.type gesture-start))
+                      (= :middle (.button gesture-start)))))
+    (let [new-scroll-x (limit-scroll-x layout (+ ^double scroll-x (Math/ceil delta-x)))
+          new-scroll-y (limit-scroll-y layout (count lines) (+ ^double scroll-y (Math/ceil delta-y)))]
+      (cond-> nil
+              (not= scroll-x new-scroll-x) (assoc :scroll-x new-scroll-x)
+              (not= scroll-y new-scroll-y) (assoc :scroll-y new-scroll-y)))))
 
 (defn key-typed [indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed]
   (case typed
@@ -2067,8 +2089,17 @@
 
       nil)))
 
-(defn mouse-pressed [lines cursor-ranges regions ^LayoutInfo layout button click-count x y alt-key? shift-key? shortcut-key?]
-  (when (= :primary button)
+(defn- begin-box-selection [lines ^LayoutInfo layout button click-count x y]
+  (let [unadjusted-from-cursor (canvas->cursor layout lines x y)
+        from-cursor (adjust-cursor lines unadjusted-from-cursor)]
+    {:cursor-ranges [(Cursor->CursorRange from-cursor)]
+     :gesture-start (gesture-info :box-selection button click-count x y
+                                  :from-doc-x (x->doc-x layout x)
+                                  :from-doc-y (y->doc-y layout y))}))
+
+(defn mouse-pressed [lines cursor-ranges regions ^LayoutInfo layout ^LayoutInfo minimap-layout button click-count x y alt-key? shift-key? shortcut-key?]
+  (case button
+    :primary
     (cond
       ;; Click in the gutter to toggle breakpoints.
       (and (< ^double x (.x ^Rect (.canvas layout)))
@@ -2101,9 +2132,21 @@
       (assoc (scroll-y-once :down layout (count lines))
         :gesture-start (gesture-info :scroll-bar-y-hold-down button click-count x y))
 
-      ;; Ignore minimap clicks.
-      (rect-contains? (.minimap layout) x y)
-      nil
+      ;; Prepare to drag the visible minimap region.
+      (and (not alt-key?) (not shift-key?) (not shortcut-key?) (some-> (.minimap layout) (rect-contains? x y)))
+      (let [^Rect r (.canvas minimap-layout)
+            ^double document-line-height (line-height (.glyph layout))
+            ^double minimap-line-height (line-height (.glyph minimap-layout))
+            minimap-ratio (/ minimap-line-height document-line-height)
+            viewed-start-y (+ (* minimap-ratio (- (.scroll-y layout))) (.scroll-y minimap-layout))
+            viewed-height (Math/ceil (* minimap-ratio (.h r)))
+            viewed-range-rect (->Rect (.x r) viewed-start-y (.w r) viewed-height)]
+        (if (rect-contains? viewed-range-rect x y)
+          (when (= 1 click-count)
+            {:gesture-start (gesture-info :minimap-viewed-range-drag button click-count x y :scroll-y (.scroll-y layout))})
+          (let [clicked-row (y->row minimap-layout y)
+                target-cursor (adjust-cursor lines (->Cursor clicked-row 0))]
+            (scroll-to-cursor scroll-nowhere scroll-center layout lines target-cursor))))
 
       ;; Shift-click to extend the existing cursor range.
       (and shift-key? (not alt-key?) (not shortcut-key?) (= 1 click-count) (= 1 (count cursor-ranges)))
@@ -2115,9 +2158,7 @@
 
       ;; Move cursor and prepare for box selection.
       (and alt-key? (not shift-key?) (= 1 click-count))
-      (let [from-cursor (canvas->cursor layout lines x y)]
-        {:cursor-ranges [(Cursor->CursorRange (adjust-cursor lines from-cursor))]
-         :gesture-start (gesture-info :box-selection button click-count x y)})
+      (begin-box-selection lines layout button click-count x y)
 
       ;; Move cursor and prepare for drag-selection.
       (and (not alt-key?) (not shift-key?) (>= 3 ^long click-count))
@@ -2130,10 +2171,19 @@
                           (concat-cursor-ranges cursor-ranges [cursor-range])
                           [cursor-range])
          :gesture-start (gesture-info :cursor-range-selection button click-count x y
-                                      :reference-cursor-range cursor-range)}))))
+                                      :reference-cursor-range cursor-range)}))
 
-(defn- mouse-gesture [lines cursor-ranges ^LayoutInfo layout ^GestureInfo gesture-start x y]
-  (when (= :primary (:button gesture-start))
+    :middle
+    (cond
+      ;; Move cursor and prepare for box selection.
+      (and (not alt-key?) (not shift-key?) (not shortcut-key?) (= 1 click-count))
+      (begin-box-selection lines layout button click-count x y))
+
+    :secondary
+    nil))
+
+(defn- mouse-gesture [lines cursor-ranges ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start x y]
+  (when (not= :secondary (.button gesture-start))
     (case (.type gesture-start)
       ;; Dragging the horizontal scroll tab.
       :scroll-tab-x-drag
@@ -2156,6 +2206,27 @@
         (when (not= scroll-y (.scroll-y layout))
           {:scroll-y scroll-y}))
 
+      ;; Dragging the visible minimap region.
+      :minimap-viewed-range-drag
+      (let [^double start-scroll (:scroll-y gesture-start)
+            ^double document-line-height (line-height (.glyph layout))
+            ^double minimap-line-height (line-height (.glyph minimap-layout))
+            line-count (count lines)
+            canvas-height (.h ^Rect (.canvas layout))
+            document-height (* line-count document-line-height)
+            document-scroll-range (- document-height canvas-height)
+            minimap-ratio (/ minimap-line-height document-line-height)
+            minimap-document-height (* line-count minimap-line-height)
+            minimap-visible-document-height (min minimap-document-height canvas-height)
+            minimap-canvas-height (* minimap-ratio canvas-height)
+            minimap-scroll-range (- minimap-visible-document-height minimap-canvas-height)
+            screen-to-scroll-ratio (/ document-scroll-range minimap-scroll-range)
+            screen-delta (- ^double y ^double (:y gesture-start))
+            scroll-delta (Math/floor (* screen-delta screen-to-scroll-ratio))
+            scroll-y (limit-scroll-y layout line-count (- start-scroll scroll-delta))]
+        (when (not= scroll-y (.scroll-y layout))
+          {:scroll-y scroll-y}))
+
       ;; Continuous scroll up / down.
       (:scroll-bar-y-hold-up :scroll-bar-y-hold-down)
       {:gesture-start (assoc gesture-start :x x :y y)}
@@ -2163,11 +2234,13 @@
       ;; Box selection.
       :box-selection
       (let [^Rect canvas-rect (.canvas layout)
-            range-inverted? (< ^double x (.x gesture-start))
-            min-row (y->row layout (min ^double y (.y gesture-start)))
-            max-row (y->row layout (max ^double y (.y gesture-start)))
-            ^double min-x (if range-inverted? x (.x gesture-start))
-            ^double max-x (if range-inverted? (.x gesture-start) x)
+            from-x (doc-x->x layout (:from-doc-x gesture-start))
+            from-y (doc-y->y layout (:from-doc-y gesture-start))
+            range-inverted? (< ^double x from-x)
+            min-row (y->row layout (min ^double y from-y))
+            max-row (y->row layout (max ^double y from-y))
+            ^double min-x (if range-inverted? x from-x)
+            ^double max-x (if range-inverted? from-x x)
             line-min-x (- min-x (.x canvas-rect) (.scroll-x layout))
             glyph-metrics (.glyph layout)
             tab-stops (.tab-stops layout)
@@ -2229,7 +2302,7 @@
                  (scroll-to-any-cursor layout lines new-cursor-ranges))))
       nil)))
 
-(defn- element-at-position [lines visible-regions ^LayoutInfo layout x y]
+(defn- element-at-position [lines visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout x y]
   (cond
     ;; Horizontal scroll tab.
     (some-> (.scroll-tab-x layout) (rect-contains? x y))
@@ -2251,6 +2324,19 @@
            (> ^double y (+ (.y r) (* 0.5 (.h r))))))
     {:type :ui-element :ui-element :scroll-bar-y-down}
 
+    ;; Minimap.
+    (some-> (.minimap layout) (rect-contains? x y))
+    (let [^Rect r (.canvas minimap-layout)
+          ^double document-line-height (line-height (.glyph layout))
+          ^double minimap-line-height (line-height (.glyph minimap-layout))
+          minimap-ratio (/ minimap-line-height document-line-height)
+          viewed-start-y (+ (* minimap-ratio (- (.scroll-y layout))) (.scroll-y minimap-layout))
+          viewed-height (Math/ceil (* minimap-ratio (.h r)))
+          viewed-range-rect (->Rect (.x r) viewed-start-y (.w r) viewed-height)]
+      (if (rect-contains? viewed-range-rect x y)
+        {:type :ui-element :ui-element :minimap-viewed-range}
+        {:type :ui-element :ui-element :minimap}))
+
     :else
     (when-some [clickable-region (some (fn [region]
                                          (when (and (some? (:on-click! region))
@@ -2260,19 +2346,19 @@
                                        visible-regions)]
       {:type :region :region clickable-region})))
 
-(defn- mouse-hover [lines visible-regions ^LayoutInfo layout hovered-element x y]
-  (let [new-hovered-element (element-at-position lines visible-regions layout x y)]
+(defn- mouse-hover [lines visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout hovered-element x y]
+  (let [new-hovered-element (element-at-position lines visible-regions layout minimap-layout x y)]
     (when (not= hovered-element new-hovered-element)
       {:hovered-element new-hovered-element})))
 
-(defn mouse-moved [lines cursor-ranges visible-regions ^LayoutInfo layout ^GestureInfo gesture-start hovered-element x y]
+(defn mouse-moved [lines cursor-ranges visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start hovered-element x y]
   (if (some? gesture-start)
-    (mouse-gesture lines cursor-ranges layout gesture-start x y)
-    (mouse-hover lines visible-regions layout hovered-element x y)))
+    (mouse-gesture lines cursor-ranges layout minimap-layout gesture-start x y)
+    (mouse-hover lines visible-regions layout minimap-layout hovered-element x y)))
 
-(defn mouse-released [lines visible-regions ^LayoutInfo layout ^GestureInfo gesture-start button x y]
+(defn mouse-released [lines visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start button x y]
   (when (= button (some-> gesture-start :button))
-    (assoc (mouse-hover lines visible-regions layout ::force-evaluation x y)
+    (assoc (mouse-hover lines visible-regions layout minimap-layout ::force-evaluation x y)
       :gesture-start nil)))
 
 (defn mouse-exited [^GestureInfo gesture-start hovered-element]

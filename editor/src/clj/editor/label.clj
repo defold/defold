@@ -1,5 +1,7 @@
 (ns editor.label
   (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
+            [editor.colors :as colors]
             [editor.defold-project :as project]
             [editor.font :as font]
             [editor.geom :as geom]
@@ -15,7 +17,6 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
             [editor.scene-picking :as scene-picking]
             [editor.types :as types]
@@ -81,16 +82,13 @@
 
 ; Vertex generation
 
-(def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0]))
-(def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
-
 (defn- gen-lines-vb
   [renderables]
   (let [vcount (transduce (map (comp count :line-data :user-data)) + renderables)]
     (when (pos? vcount)
       (vtx/flip! (reduce (fn [vb {:keys [world-transform user-data selected] :as renderable}]
                            (let [line-data (:line-data user-data)
-                                 [r g b a] (get user-data :line-color (if (:selected renderable) selected-outline-color outline-color))]
+                                 [r g b a] (get user-data :line-color (if (:selected renderable) colors/selected-outline-color colors/outline-color))]
                              (reduce (fn [vb [x y z]]
                                        (color-vtx-put! vb x y z r g b a))
                                      vb
@@ -237,12 +235,13 @@
       (let [dep-build-targets (flatten dep-build-targets)
             deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
             dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:font font] [:material material]])]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-label
-          :user-data {:proto-msg pb-msg
-                      :dep-resources dep-resources}
-          :deps dep-build-targets}])))
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-label
+            :user-data {:proto-msg pb-msg
+                        :dep-resources dep-resources}
+            :deps dep-build-targets})])))
 
 (g/defnode LabelNode
   (inherits resource-node/ResourceNode)
@@ -321,9 +320,8 @@
                                     (let [offset-fn (partial mapv + (pivot-offset pivot aabb-size))
                                           [min-x min-y _] (offset-fn [0 0 0])
                                           [max-x max-y _] (offset-fn aabb-size)]
-                                      (-> (geom/null-aabb)
-                                        (geom/aabb-incorporate min-x min-y 0)
-                                        (geom/aabb-incorporate max-x max-y 0)))))
+                                      (geom/coords->aabb [min-x min-y 0]
+                                                         [max-x max-y 0]))))
   (output save-value g/Any (gu/passthrough pb-msg))
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets)

@@ -120,7 +120,7 @@
 
 (defn frustum-projection-aabb
   [planes]
-  (-> (geom/null-aabb)
+  (-> geom/null-aabb
     (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 2)))
     (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 3)))
     (geom/aabb-incorporate (frustum-plane-projection (nth planes 1) (nth planes 2)))

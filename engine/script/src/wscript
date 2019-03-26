@@ -38,10 +38,8 @@ def build(bld):
         script.source.remove(os.path.join('luasocket', 'wsocket.c'))
 
     # must not enable bytecode when building with --use-vanilla-lua
-    if bld.env.LUA_BYTECODE_ENABLE_32 == 'yes':
-        script.cxxflags = ['-DLUA_BYTECODE_ENABLE_32']
-    if bld.env.LUA_BYTECODE_ENABLE_64 == 'yes':
-        script.cxxflags = ['-DLUA_BYTECODE_ENABLE_64']
+    if bld.env.LUA_BYTECODE_ENABLE == 'yes':
+        script.cxxflags = ['-DLUA_BYTECODE_ENABLE']
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
@@ -51,7 +49,7 @@ def build(bld):
 
     bld.add_group()
 
-    apidoc_extract_task(bld, ['script.cpp','script_bitop.cpp','script_buffer.cpp','script_hash.cpp','script_html5_js.cpp','script_http.cpp','script_image.cpp','script_json.cpp','script_msg.cpp','script_sys.cpp','script_timer.cpp','script_vmath.cpp','script_zlib.cpp','luasocket/luasocket.doc_h'])
+    apidoc_extract_task(bld, ['script.cpp','script_bitop.cpp','script_buffer.cpp','script_hash.cpp','script_html5_js.cpp','script_http.cpp','script_image.cpp','script_json.cpp','script_msg.cpp','script_sys.cpp','script_timer.cpp','script_vmath.cpp','script_zlib.cpp','luasocket/luasocket.doc_h','script/sys_ddf.proto'])
 
     bld.install_files('${PREFIX}/include/script', 'script.h')
 
@@ -64,7 +62,7 @@ def build(bld):
          shell = True)
 
     bld.install_files('${PREFIX}/share/script', 'script/lua_source_ddf.proto script/ddf_script.proto')
-    bld.install_files('${PREFIX}/share/proto/script', 'script/ddf_script.proto')
+    bld.install_files('${PREFIX}/share/proto/script', 'script/ddf_script.proto script/sys_ddf.proto')
     bld.install_files('${PREFIX}/lib/python/script', '__init__.py')
 
 

@@ -975,18 +975,15 @@ int Facebook_Me(lua_State* L)
  * registered with Facebook Analytics.
  *
  * - `facebook.EVENT_ACHIEVED_LEVEL`
- * - `facebook.EVENT_ACTIVATED_APP`
  * - `facebook.EVENT_ADDED_PAYMENT_INFO`
  * - `facebook.EVENT_ADDED_TO_CART`
  * - `facebook.EVENT_ADDED_TO_WISHLIST`
  * - `facebook.EVENT_COMPLETED_REGISTRATION`
  * - `facebook.EVENT_COMPLETED_TUTORIAL`
- * - `facebook.EVENT_DEACTIVATED_APP`
  * - `facebook.EVENT_INITIATED_CHECKOUT`
  * - `facebook.EVENT_PURCHASED`
  * - `facebook.EVENT_RATED`
  * - `facebook.EVENT_SEARCHED`
- * - `facebook.EVENT_SESSION_INTERRUPTIONS`
  * - `facebook.EVENT_SPENT_CREDITS`
  * - `facebook.EVENT_TIME_BETWEEN_SESSIONS`
  * - `facebook.EVENT_UNLOCKED_ACHIEVEMENT`
@@ -1360,6 +1357,12 @@ int Facebook_ShowDialog(lua_State* L)
  /*# log this event when the user has entered their payment info
   *
   * @name facebook.EVENT_ADDED_PAYMENT_INFO
+  * @variable
+  */
+
+ /*# log this event when a person achieves specific levels you define within your application, business, or organization
+  *
+  * @name facebook.EVENT_ACHIEVED_LEVEL
   * @variable
   */
 

@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/hash.h>
 #include <dlib/message.h>
@@ -195,6 +195,10 @@ namespace dmPhysics
     }
 
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
+    {
+    }
+
+    void RayCast2D(HWorld2D world, const RayCastRequest& request, RayCastResponse& response)
     {
     }
 
