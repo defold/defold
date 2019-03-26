@@ -70,6 +70,10 @@
 (g/deftype MatchingBraces [[(s/one r/TCursorRange "brace") (s/one r/TCursorRange "counterpart")]])
 (g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
 (g/deftype ResizeReference (s/enum :bottom :top))
+(g/deftype VisibleWhitespace (s/enum :all :none :rogue))
+
+(defn- boolean->visible-whitespace [visible?]
+  (if visible? :all :rogue))
 
 (defn- enable-performance-tracker! [scene]
   (reset! *performance-tracker (PerformanceTracker/getSceneTracker scene)))
@@ -339,14 +343,19 @@
           (when inside-visible-end?
             (recur next-i next-x)))))))
 
-(defn- draw-code! [^GraphicsContext gc ^Font font ^LayoutInfo layout color-scheme lines syntax-info indent-type visible-whitespace?]
+(defn- draw-code! [^GraphicsContext gc ^Font font ^LayoutInfo layout color-scheme lines syntax-info indent-type visible-whitespace]
   (let [^Rect canvas-rect (.canvas layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
         drawn-line-count (.drawn-line-count layout)
         ^double ascent (data/ascent (.glyph layout))
         ^double line-height (data/line-height (.glyph layout))
-        foreground-color (color-lookup color-scheme "editor.foreground")]
+        visible-whitespace? (= :all visible-whitespace)
+        highlight-rogue-whitespace? (not= :none visible-whitespace)
+        foreground-color (color-lookup color-scheme "editor.foreground")
+        space-color (color-lookup color-scheme "editor.whitespace.space")
+        tab-color (color-lookup color-scheme "editor.whitespace.tab")
+        rogue-whitespace-color (color-lookup color-scheme "editor.whitespace.rogue")]
     (.setFont gc font)
     (.setTextAlign gc TextAlignment/LEFT)
     (loop [drawn-line-index 0
@@ -379,10 +388,7 @@
           (let [line-length (count line)
                 baseline-offset (Math/ceil (/ line-height 4.0))
                 visible-start-x (.x canvas-rect)
-                visible-end-x (+ visible-start-x (.w canvas-rect))
-                rogue-indent-color (color-lookup color-scheme "editor.whitespace.rogue")
-                space-color (color-lookup color-scheme "editor.whitespace.space")
-                tab-color (color-lookup color-scheme "editor.whitespace.tab")]
+                visible-end-x (+ visible-start-x (.w canvas-rect))]
             (loop [inside-leading-whitespace? true
                    i 0
                    x 0.0]
@@ -399,8 +405,10 @@
                       \space (let [sx (+ line-x (Math/floor (* (+ x next-x) 0.5)))
                                    sy (- line-y baseline-offset)]
                                (cond
-                                 (and inside-leading-whitespace? (= :tabs indent-type))
-                                 (do (.setFill gc rogue-indent-color)
+                                 (and highlight-rogue-whitespace?
+                                      inside-leading-whitespace?
+                                      (= :tabs indent-type))
+                                 (do (.setFill gc rogue-whitespace-color)
                                      (.fillRect gc sx sy 1.0 1.0))
 
                                  visible-whitespace?
@@ -410,8 +418,10 @@
                       \tab (let [sx (+ line-x x 2.0)
                                  sy (- line-y baseline-offset)]
                              (cond
-                               (and inside-leading-whitespace? (not= :tabs indent-type))
-                               (do (.setFill gc rogue-indent-color)
+                               (and highlight-rogue-whitespace?
+                                    inside-leading-whitespace?
+                                    (not= :tabs indent-type))
+                               (do (.setFill gc rogue-whitespace-color)
                                    (.fillRect gc sx sy (- next-x x 4.0) 1.0))
 
                                visible-whitespace?
@@ -483,7 +493,7 @@
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))))
 
-(defn- draw! [^GraphicsContext gc ^Font font gutter-view hovered-element ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?]
+(defn- draw! [^GraphicsContext gc ^Font font gutter-view hovered-element ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace]
   (let [^Rect canvas-rect (.canvas layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
@@ -523,7 +533,7 @@
                    (if line-has-text? (conj guide-positions guide-x) guide-positions))))))
 
     ;; Draw syntax-highlighted code.
-    (draw-code! gc font layout color-scheme lines syntax-info indent-type visible-whitespace?)
+    (draw-code! gc font layout color-scheme lines syntax-info indent-type visible-whitespace)
 
     ;; Draw minimap.
     (when visible-minimap?
@@ -750,12 +760,12 @@
                        (data/execution-marker lines (dec line) type))))
           debugger-execution-locations)))
 
-(g/defnk produce-canvas-repaint-info [canvas color-scheme cursor-range-draw-infos execution-markers font grammar gutter-view hovered-element indent-type invalidated-rows layout lines minimap-cursor-range-draw-infos minimap-layout regions repaint-trigger visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace? :as canvas-repaint-info]
+(g/defnk produce-canvas-repaint-info [canvas color-scheme cursor-range-draw-infos execution-markers font grammar gutter-view hovered-element indent-type invalidated-rows layout lines minimap-cursor-range-draw-infos minimap-layout regions repaint-trigger visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace :as canvas-repaint-info]
   canvas-repaint-info)
 
-(defn- repaint-canvas! [{:keys [^Canvas canvas font gutter-view hovered-element layout minimap-layout color-scheme lines regions cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap? execution-markers] :as _canvas-repaint-info} syntax-info]
+(defn- repaint-canvas! [{:keys [^Canvas canvas execution-markers font gutter-view hovered-element layout minimap-layout color-scheme lines regions cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace] :as _canvas-repaint-info} syntax-info]
   (let [regions (into [] cat [regions execution-markers])]
-    (draw! (.getGraphicsContext2D canvas) font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?))
+    (draw! (.getGraphicsContext2D canvas) font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace))
   nil)
 
 (g/defnk produce-cursor-repaint-info [canvas color-scheme cursor-opacity layout lines repaint-trigger visible-cursors :as cursor-repaint-info]
@@ -841,8 +851,8 @@
   (property font-size g/Num (default (g/constantly default-font-size)))
   (property line-height-factor g/Num (default 1.0))
   (property visible-indentation-guides? g/Bool (default false))
-  (property visible-whitespace? g/Bool (default false))
   (property visible-minimap? g/Bool (default false))
+  (property visible-whitespace VisibleWhitespace (default :none))
 
   (input completions g/Any)
   (input cursor-ranges r/CursorRanges)
@@ -2119,7 +2129,7 @@
     (.fillText gc (format "%.3f fps" fps) (- right 5.0) (+ top 16.0))))
 
 (defn repaint-view! [view-node elapsed-time {:keys [cursor-visible?] :as _opts}]
-  (assert (or (true? cursor-visible?) (false? cursor-visible?)))
+  (assert (boolean? cursor-visible?))
 
   ;; Since the elapsed time updates at 60 fps, we store it as user-data to avoid transaction churn.
   (g/user-data! view-node :elapsed-time elapsed-time)
@@ -2297,12 +2307,14 @@
                      (inc source-line-index)))))))))
 
 (defn make-property-change-setter
-  ^ChangeListener [node-id prop-kw]
-  (assert (integer? node-id))
-  (assert (keyword? prop-kw))
-  (reify ChangeListener
-    (changed [_this _observable _old new]
-      (g/set-property! node-id prop-kw new))))
+  (^ChangeListener [node-id prop-kw]
+   (make-property-change-setter node-id prop-kw identity))
+  (^ChangeListener [node-id prop-kw observable-value->node-value]
+   (assert (integer? node-id))
+   (assert (keyword? prop-kw))
+   (reify ChangeListener
+     (changed [_this _observable _old new]
+       (g/set-property! node-id prop-kw (observable-value->node-value new))))))
 
 (defn make-focus-change-listener
   ^ChangeListener [view-node parent canvas]
@@ -2363,7 +2375,7 @@
                                              :undo-grouping-info undo-grouping-info
                                              :visible-indentation-guides? (.getValue visible-indentation-guides-property)
                                              :visible-minimap? (.getValue visible-minimap-property)
-                                             :visible-whitespace? (.getValue visible-whitespace-property))
+                                             :visible-whitespace (boolean->visible-whitespace (.getValue visible-whitespace-property)))
                                app-view)
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
@@ -2435,7 +2447,7 @@
           highlighted-find-term-setter (make-property-change-setter view-node :highlighted-find-term)
           visible-indentation-guides-setter (make-property-change-setter view-node :visible-indentation-guides?)
           visible-minimap-setter (make-property-change-setter view-node :visible-minimap?)
-          visible-whitespace-setter (make-property-change-setter view-node :visible-whitespace?)]
+          visible-whitespace-setter (make-property-change-setter view-node :visible-whitespace boolean->visible-whitespace)]
       (.addListener find-case-sensitive-property find-case-sensitive-setter)
       (.addListener find-whole-word-property find-whole-word-setter)
       (.addListener font-size-property font-size-setter)
