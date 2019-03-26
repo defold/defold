@@ -460,13 +460,9 @@
     (.getTabs tab-pane)))
 
 (defn- make-render-build-error [main-scene tool-tab-pane build-errors-view]
-  (fn [errors]
-    (build-errors-view/update-build-errors build-errors-view errors)
+  (fn [error-value]
+    (build-errors-view/update-build-errors build-errors-view error-value)
     (show-build-errors! main-scene tool-tab-pane)))
-
-(defn- make-clear-build-errors
-  [build-errors-view]
-  (fn [] (build-errors-view/clear-build-errors build-errors-view)))
 
 (def ^:private remote-log-pump-thread (atom nil))
 (def ^:private console-stream (atom nil))
@@ -691,35 +687,35 @@
         (render-build-progress! progress/done)
         (error-reporting/report-exception! t)))))
 
-(defn- handle-build-results! [workspace build-errors-view build-results]
-  (let [{:keys [error artifacts artifact-map etags]} build-results]
+(defn- handle-build-results! [workspace render-build-error! build-results]
+  (let [{:keys [error artifact-map etags]} build-results]
     (if (some? error)
       (do
-        (build-errors-view/update-build-errors build-errors-view error)
+        (render-build-error! error)
         nil)
       (do
         (workspace/artifact-map! workspace artifact-map)
         (workspace/etags! workspace etags)
         (workspace/save-build-cache! workspace)
-        (build-errors-view/clear-build-errors build-errors-view)
         build-results))))
 
 (defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane]
   (let [project-directory (io/file (workspace/project-path workspace))
         evaluation-context (g/make-evaluation-context)
-        main-scene (.getScene ^Stage main-stage)]
+        main-scene (.getScene ^Stage main-stage)
+        render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
+    (build-errors-view/clear-build-errors build-errors-view)
     (async-build! project evaluation-context prefs {:debug? false} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
                   (fn [build-results engine-descriptor build-engine-exception]
                     (g/update-cache-from-evaluation-context! evaluation-context)
-                    (when (handle-build-results! workspace build-errors-view build-results)
+                    (when (handle-build-results! workspace render-build-error! build-results)
                       (when engine-descriptor
                         (show-console! main-scene tool-tab-pane)
                         (launch-built-project! engine-descriptor project-directory prefs web-server false))
                       (when build-engine-exception
                         (log/warn :exception build-engine-exception)
-                        (let [render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
-                          (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception))))))))
+                        (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception)))))))
 
 (handler/defhandler :build :global
   (enabled? [] (not @build-in-progress?))
@@ -737,27 +733,29 @@ If you do not specifically require different script states, consider changing th
         false)))
 
 (handler/defhandler :start-debugger :global
-  (enabled? [debug-view evaluation-context]
+  (enabled? [debug-view prefs evaluation-context]
             (and (not @build-in-progress?)
-                 (nil? (debug-view/current-session debug-view evaluation-context))))
+                 (nil? (debug-view/current-session debug-view evaluation-context))
+                 (not (some-> prefs targets/selected-target targets/controllable-target?))))
   (run [project workspace prefs web-server build-errors-view console-view debug-view main-stage tool-tab-pane]
     (when (debugging-supported? project)
-      (let [project-directory (io/file (workspace/project-path workspace))
+      (let [main-scene (.getScene ^Stage main-stage)
+            render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+            project-directory (io/file (workspace/project-path workspace))
             evaluation-context (g/make-evaluation-context)]
+        (build-errors-view/clear-build-errors build-errors-view)
         (async-build! project evaluation-context prefs {:debug? true} (workspace/artifact-map workspace)
                       (make-render-task-progress :build)
                       (fn [build-results engine-descriptor build-engine-exception]
                         (g/update-cache-from-evaluation-context! evaluation-context)
-                        (when (handle-build-results! workspace build-errors-view build-results)
+                        (when (handle-build-results! workspace render-build-error! build-results)
                           (when engine-descriptor
                             (when-let [target (launch-built-project! engine-descriptor project-directory prefs web-server true)]
                               (when (nil? (debug-view/current-session debug-view))
                                 (debug-view/start-debugger! debug-view project (:address target "localhost")))))
                           (when build-engine-exception
                             (log/warn :exception build-engine-exception)
-                            (let [main-scene (.getScene ^Stage main-stage)
-                                  render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
-                              (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception))))))))))
+                            (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception)))))))))
 
 (handler/defhandler :attach-debugger :global
   (enabled? [debug-view prefs evaluation-context]
@@ -765,15 +763,18 @@ If you do not specifically require different script states, consider changing th
                  (nil? (debug-view/current-session debug-view evaluation-context))
                  (let [target (targets/selected-target prefs)]
                    (and target (targets/controllable-target? target)))))
-  (run [project workspace build-errors-view debug-view prefs]
+  (run [project workspace prefs build-errors-view debug-view main-stage tool-tab-pane]
     (debug-view/detach! debug-view)
     (when (debugging-supported? project)
-      (let [evaluation-context (g/make-evaluation-context)]
+      (let [main-scene (.getScene ^Stage main-stage)
+            render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+            evaluation-context (g/make-evaluation-context)]
+        (build-errors-view/clear-build-errors build-errors-view)
         (async-build! project evaluation-context prefs {:debug? true :engine? false} (workspace/artifact-map workspace)
                       (make-render-task-progress :build)
                       (fn [build-results _ _]
                         (g/update-cache-from-evaluation-context! evaluation-context)
-                        (when (handle-build-results! workspace build-errors-view build-results)
+                        (when (handle-build-results! workspace render-build-error! build-results)
                           (let [target (targets/selected-target prefs)]
                             (when (targets/controllable-target? target)
                               (debug-view/attach! debug-view project target (:artifacts build-results)))))))))))
@@ -788,14 +789,12 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :build-html5 :global
   (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]
     (let [main-scene (.getScene ^Stage main-stage)
-          clear-errors! (make-clear-build-errors build-errors-view)
           render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
           render-reload-progress! (make-render-task-progress :resource-sync)
           render-save-progress! (make-render-task-progress :save-all)
           render-build-progress! (make-render-task-progress :build)
           bob-args (bob/build-html5-bob-args project prefs)]
-      (clear-errors!)
-      (console/clear-console!)
+      (build-errors-view/clear-build-errors build-errors-view)
       (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress!
                              render-build-error! bob/build-html5-bob-commands bob-args project changes-view
                              (fn [successful?]
@@ -831,29 +830,31 @@ If you do not specifically require different script states, consider changing th
          (not (debug-view/suspended? debug-view evaluation-context))
          (not @build-in-progress?))))
 
-(defn- hot-reload! [project prefs build-errors-view]
-  (let [evaluation-context (g/make-evaluation-context)
+(defn- hot-reload! [project prefs build-errors-view main-stage tool-tab-pane]
+  (let [main-scene (.getScene ^Stage main-stage)
+        evaluation-context (g/make-evaluation-context)
         target (targets/selected-target prefs)
         workspace (project/workspace project evaluation-context)
         old-artifact-map (workspace/artifact-map workspace)
         old-etags (workspace/etags workspace)
         render-build-progress! (make-render-task-progress :build)
+        render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
         opts {:debug? false :engine? false}]
     ;; NOTE: We must build the entire project even if we only want to reload a
     ;; subset of resources in order to maintain a functioning build cache.
     ;; If we decide to support hot reload of a subset of resources, we must
     ;; keep track of which resource versions have been loaded by the engine,
     ;; or we might miss resources that were recompiled but never reloaded.
+    (build-errors-view/clear-build-errors build-errors-view)
     (async-build! project evaluation-context prefs opts old-artifact-map render-build-progress!
                   (fn [{:keys [error artifact-map etags]} _ _]
                     (g/update-cache-from-evaluation-context! evaluation-context)
                     (if (some? error)
-                      (build-errors-view/update-build-errors build-errors-view error)
+                      (render-build-error! error)
                       (do
                         (workspace/artifact-map! workspace artifact-map)
                         (workspace/etags! workspace etags)
                         (workspace/save-build-cache! workspace)
-                        (build-errors-view/clear-build-errors build-errors-view)
                         (try
                           (when-some [updated-build-resources (not-empty (updated-build-resources evaluation-context project old-etags etags "/game.project"))]
                             (engine/reload-build-resources! target updated-build-resources))
@@ -866,8 +867,8 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :hot-reload :global
   (enabled? [debug-view prefs evaluation-context]
             (can-hot-reload? debug-view prefs evaluation-context))
-  (run [project app-view prefs build-errors-view selection]
-       (hot-reload! project prefs build-errors-view)))
+  (run [project app-view prefs build-errors-view selection main-stage tool-tab-pane]
+       (hot-reload! project prefs build-errors-view main-stage tool-tab-pane)))
 
 (handler/defhandler :close :global
   (enabled? [app-view evaluation-context]
@@ -1691,19 +1692,17 @@ If you do not specifically require different script states, consider changing th
       (query-and-open! workspace project app-view prefs term))))
 
 (handler/defhandler :search-in-files :global
-  (run [project app-view prefs search-results-view main-stage tool-tabs-pane]
+  (run [project app-view prefs search-results-view main-stage tool-tab-pane]
     (when-let [term (get-view-text-selection (g/node-value app-view :active-view-info))]
       (search-results-view/set-search-term! prefs term))
     (let [main-scene (.getScene ^Stage main-stage)
-          show-search-results-tab! (partial show-search-results! main-scene tool-tabs-pane)]
+          show-search-results-tab! (partial show-search-results! main-scene tool-tab-pane)]
       (search-results-view/show-search-in-files-dialog! search-results-view project prefs show-search-results-tab!))))
 
 (defn- bundle! [main-stage tool-tab-pane changes-view build-errors-view project prefs platform bundle-options]
   (g/user-data! project :last-bundle-options (assoc bundle-options :platform-key platform))
-  (console/clear-console!)
   (let [main-scene (.getScene ^Stage main-stage)
         output-directory ^File (:output-directory bundle-options)
-        clear-errors! (make-clear-build-errors build-errors-view)
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
         render-reload-progress! (make-render-task-progress :resource-sync)
         render-save-progress! (make-render-task-progress :save-all)
@@ -1711,7 +1710,7 @@ If you do not specifically require different script states, consider changing th
         bob-args (bob/bundle-bob-args prefs platform bundle-options)]
     (when (not (.exists output-directory))
       (fs/create-directories! output-directory))
-    (clear-errors!)
+    (build-errors-view/clear-build-errors build-errors-view)
     (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress!
                            render-build-error! bob/bundle-bob-commands bob-args project changes-view
                            (fn [successful?]

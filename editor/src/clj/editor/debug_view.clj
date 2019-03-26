@@ -55,7 +55,7 @@
   (boolean (some-> resource resource/resource-type :tags (contains? :debuggable))))
 
 (g/defnk update-available-controls!
-  [active-resource console-grid-pane debug-session right-pane suspension-state]
+  [active-resource ^Parent console-grid-pane debug-session right-pane suspension-state]
   (let [frames (:stack suspension-state)
         suspended? (some? frames)
         resource-debuggable? (debuggable-resource? active-resource)
@@ -73,7 +73,8 @@
         (ui/enable! step-in-debugger-button suspended?)
         (ui/enable! step-out-debugger-button suspended?)
         (ui/enable! step-over-debugger-button suspended?)
-        (ui/enable! debugger-prompt-field suspended?)))))
+        (ui/enable! debugger-prompt-field suspended?)))
+    (.layout console-grid-pane)))
 
 (g/defnk update-call-stack!
   [debug-session suspension-state right-pane]
