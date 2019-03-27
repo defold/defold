@@ -1472,6 +1472,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     anim->m_FirstUpdate = 0;
                     // Compensate Elapsed with Delay underflow
                     anim->m_Elapsed = -anim->m_Delay;
+                    anim->m_Delay = 0;
                 }
 
                 // NOTE: We add dt to elapsed before we calculate t.
