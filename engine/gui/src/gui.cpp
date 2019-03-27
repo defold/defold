@@ -3070,6 +3070,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         InternalNode* n = GetNode(scene, node);
 
+        cursor = dmMath::Clamp(cursor, 0.0f, 1.0f);
         n->m_Node.m_FlipbookAnimPosition = cursor;
         if (n->m_Node.m_FlipbookAnimHash) {
             Animation* anim = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
@@ -3734,14 +3735,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         TextureSetAnimDesc& anim_desc = n->m_Node.m_TextureSetAnimDesc;
         uint64_t anim_frames = (anim_desc.m_State.m_End - anim_desc.m_State.m_Start);
 
-        // Same logic as in comp_sprite how to handle ping pong animations.
-        // The animation duration should be double in length, but not count the mid and last frames.
-        // Last part should be up for discussion, due to: DEF-1540
+        // Ping pong for flipbook animations should result in double the
+        // animation duration.
         if (anim_desc.m_State.m_Playback == dmGui::PLAYBACK_ONCE_PINGPONG
                     || anim_desc.m_State.m_Playback == dmGui::PLAYBACK_LOOP_PINGPONG)
-            anim_frames = dmMath::Max((uint64_t)1, anim_frames * 2 - 2);
+            anim_frames = anim_frames * 2;
 
         // Convert offset into elapsed time, needed for GUI animation system.
+        offset = dmMath::Clamp(offset, 0.0f, 1.0f);
         float elapsed = offset;
         float duration = (float) anim_frames / (float) anim_desc.m_State.m_FPS;
         if (anim_desc.m_State.m_Playback == PLAYBACK_ONCE_PINGPONG || anim_desc.m_State.m_Playback == PLAYBACK_LOOP_PINGPONG) {

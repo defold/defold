@@ -748,6 +748,7 @@ namespace dmGameSystem
 
     static void SetCursor(SpriteComponent* component, float cursor)
     {
+        cursor = dmMath::Clamp(cursor, 0.0f, 1.0f);
         if (component->m_AnimPingPong) {
             cursor /= 2.0f;
         }
