@@ -45,6 +45,10 @@
   ^String []
   (System/getProperty "defold.resourcespath"))
 
+(defn defold-launcherpath
+  ^String []
+  (System/getProperty "defold.launcherpath"))
+
 (defn defold-editor-sha1
   ^String []
   (System/getProperty "defold.editor.sha1"))

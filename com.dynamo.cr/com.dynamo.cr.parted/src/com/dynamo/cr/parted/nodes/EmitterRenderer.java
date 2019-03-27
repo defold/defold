@@ -212,7 +212,7 @@ public class EmitterRenderer implements INodeRenderer<EmitterNode> {
             Matrix4d viewProj = new Matrix4d();
             viewProj.mul(renderContext.getRenderView().getProjectionTransform(), renderContext.getRenderView().getViewTransform());
             this.shader.setUniforms(gl, "view_proj", viewProj);
-            this.shader.setUniforms(gl, "DIFFUSE_TEXTURE", 0);
+            this.shader.setUniforms(gl, "texture_sampler", 0);
             this.shader.setUniforms(gl, "tint", new Vector4f(1.0f, 1.0f, 1.0f, 1.0f));
 
             setBlendFactors(BlendMode.valueOf(userData.blendMode), gl);

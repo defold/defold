@@ -263,14 +263,24 @@ TEST_F(ScriptVmathTest, TestMatrix4)
         for (uint32_t j = 0; j < 4; ++j)
             m.setElem((float) i, (float) j, (float) (i * 4 + j));
     dmScript::PushMatrix4(L, m);
-    ASSERT_TRUE(dmScript::IsMatrix4(L, -1));
-    Vectormath::Aos::Matrix4* mp = dmScript::CheckMatrix4(L, -1);
-    ASSERT_NE((void*)0x0, mp);
+
+    Vectormath::Aos::Matrix4* mp1 = dmScript::ToMatrix4(L, -1);
+    ASSERT_NE((void*)0x0, mp1);
     for (int i = 0; i < 4; ++i)
     {
         for (int j = 0; j < 4; ++j)
         {
-            ASSERT_EQ(m.getElem(i, j), mp->getElem(i, j));
+            ASSERT_EQ(m.getElem(i, j), mp1->getElem(i, j));
+        }
+    }
+
+    Vectormath::Aos::Matrix4* mp2 = dmScript::CheckMatrix4(L, -1);
+    ASSERT_NE((void*)0x0, mp2);
+    for (int i = 0; i < 4; ++i)
+    {
+        for (int j = 0; j < 4; ++j)
+        {
+            ASSERT_EQ(m.getElem(i, j), mp2->getElem(i, j));
         }
     }
 
@@ -290,6 +300,74 @@ TEST_F(ScriptVmathTest, TestMatrix4Fail)
     ASSERT_FALSE(RunString(L, "local m = vmath.matrix4()\nm.a = 1"));
     // mul
     ASSERT_FALSE(RunString(L, "local m = vmath.matrix4() * true"));
+}
+
+
+TEST_F(ScriptVmathTest, TestToValueFn)
+{
+    int top = lua_gettop(L);
+    Vectormath::Aos::Vector3 v3(1.0f, 2.0f, 3.0f);
+    dmScript::PushVector3(L, v3);
+    Vectormath::Aos::Vector3* pv3 = dmScript::ToVector3(L, -1);
+    ASSERT_NE((void*)0, pv3);
+    ASSERT_EQ(v3.getX(), pv3->getX());
+    ASSERT_EQ(v3.getY(), pv3->getY());
+    ASSERT_EQ(v3.getZ(), pv3->getZ());
+    ASSERT_EQ(0, dmScript::ToVector4(L, -1));
+    ASSERT_EQ(0, dmScript::ToQuat(L, -1));
+    ASSERT_EQ(0, dmScript::ToMatrix4(L, -1));
+    lua_pop(L, 1);
+
+    Vectormath::Aos::Vector4 v4(1.0f, 2.0f, 3.0f, 4.0f);
+    dmScript::PushVector4(L, v4);
+    Vectormath::Aos::Vector4* pv4 = dmScript::ToVector4(L, -1);
+    ASSERT_NE((void*)0, pv4);
+    ASSERT_EQ(v4.getX(), pv4->getX());
+    ASSERT_EQ(v4.getY(), pv4->getY());
+    ASSERT_EQ(v4.getZ(), pv4->getZ());
+    ASSERT_EQ(v4.getW(), pv4->getW());
+    ASSERT_EQ(0, dmScript::ToVector3(L, -1));
+    ASSERT_EQ(0, dmScript::ToQuat(L, -1));
+    ASSERT_EQ(0, dmScript::ToMatrix4(L, -1));
+    lua_pop(L, 1);
+
+    Vectormath::Aos::Quat q(1.0f, 2.0f, 3.0f, 4.0f);
+    dmScript::PushQuat(L, q);
+    Vectormath::Aos::Quat* pq = dmScript::ToQuat(L, -1);
+    ASSERT_NE((void*)0, pq);
+    ASSERT_EQ(q.getX(), pq->getX());
+    ASSERT_EQ(q.getY(), pq->getY());
+    ASSERT_EQ(q.getZ(), pq->getZ());
+    ASSERT_EQ(q.getW(), pq->getW());
+    ASSERT_EQ(0, dmScript::ToVector3(L, -1));
+    ASSERT_EQ(0, dmScript::ToVector4(L, -1));
+    ASSERT_EQ(0, dmScript::ToMatrix4(L, -1));
+    lua_pop(L, 1);
+
+
+    Vectormath::Aos::Matrix4 m;
+    for (uint32_t i = 0; i < 4; ++i)
+        for (uint32_t j = 0; j < 4; ++j)
+            m.setElem((float) i, (float) j, (float) (i * 4 + j));
+    dmScript::PushMatrix4(L, m);
+
+    Vectormath::Aos::Matrix4* pm = dmScript::ToMatrix4(L, -1);
+    ASSERT_NE((void*)0, pm);
+    ASSERT_EQ(0, dmScript::ToVector3(L, -1));
+    ASSERT_EQ(0, dmScript::ToVector4(L, -1));
+    ASSERT_EQ(0, dmScript::ToQuat(L, -1));
+
+    for (int i = 0; i < 4; ++i)
+    {
+        for (int j = 0; j < 4; ++j)
+        {
+            ASSERT_EQ(m.getElem(i, j), pm->getElem(i, j));
+        }
+    }
+
+    lua_pop(L, 1);
+
+    ASSERT_EQ(top, lua_gettop(L));
 }
 
 int main(int argc, char **argv)

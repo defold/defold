@@ -415,7 +415,7 @@
     (.setDisable text true)
     [wrapper update-ui-fn]))
 
-(defn- ^Point2D node-screen-coords [^Node node ^Point2D offset]
+(defn- node-screen-coords ^Point2D [^Node node ^Point2D offset]
   (let [scene (.getScene node)
         window (.getWindow scene)
         window-coords (Point2D. (.getX window) (.getY window))

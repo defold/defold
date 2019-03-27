@@ -39,13 +39,8 @@ namespace dmGameSystem
      * local function callback(self, id, response)
      *     local expected = self.resources[id]
      *     if response ~= nil and response.status == 200 then
-     *         if resource.verify_resource(self.manifest, expected, response.response) then
-     *             print("Successfully downloaded resource: " .. expected)
-     *             resource.store_resource(response.response)
-     *         else
-     *             print("Resource could not be verified: " .. expected)
-     *             -- error handling
-     *         end
+     *         print("Successfully downloaded resource: " .. expected)
+     *         resource.store_resource(response.response)
      *     else
      *         print("Failed to download resource: " .. expected)
      *         -- error handling

@@ -1,5 +1,6 @@
 (ns editor.debug
   (:require [editor.fs :as fs]
+            [editor.ns-batch-builder :as bb]
             [editor.system :as system]))
 
 (set! *warn-on-reflection* true)
@@ -44,12 +45,18 @@
         (prn e)))
     (println "NREPL library not found, not starting")))
 
-
 (defn- maybe-load-refactor-nrepl
   [repl-config]
   (if-let [wrap-refactor (try-resolve 'refactor-nrepl.middleware/wrap-refactor)]
     (do (println "Adding refactor-nrepl middleware")
         (update repl-config :handler wrap-refactor))
+    repl-config))
+
+(defn- maybe-load-sayid
+  [repl-config]
+  (if-let [wrap-sayid (try-resolve 'com.billpiel.sayid.nrepl-middleware/wrap-sayid)]
+    (do (println "Adding sayid middleware")
+      (update repl-config :handler wrap-sayid))
     repl-config))
 
 (defn- maybe-load-cider
@@ -64,6 +71,7 @@
   (let [repl-config (cond-> {:bind "localhost"}
                       true (maybe-load-cider)
                       true (maybe-load-refactor-nrepl)
+                      true (maybe-load-sayid)
                       port (assoc :port port))]
     (send repl-server (constantly repl-config))
     (send repl-server start-and-print)))
@@ -75,3 +83,9 @@
     (let [stop-server (resolve 'clojure.tools.nrepl.server/stop-server)]
       (send repl-server stop-server))
     (catch Exception _)))
+
+(defn init-debug
+  []
+  (bb/spit-batches "src/clj" "resources/sorted_clojure_ns_list.edn")
+  (start-server nil))
+

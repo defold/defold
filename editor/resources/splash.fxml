@@ -7,6 +7,7 @@
 <?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.AnchorPane?>
 <?import javafx.scene.layout.VBox?>
+<?import javafx.scene.text.TextFlow?>
 
 <AnchorPane stylesheets="@splash.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
    <ImageView fitHeight="600.0" fitWidth="949.0" pickOnBounds="true" preserveRatio="true">
@@ -14,6 +15,7 @@
    </ImageView>
    <AnchorPane AnchorPane.bottomAnchor="76.0" AnchorPane.leftAnchor="109.0" AnchorPane.rightAnchor="109.0" AnchorPane.topAnchor="76.0">
       <VBox prefWidth="210.0" AnchorPane.leftAnchor="33.0" AnchorPane.topAnchor="115.0">
+         <TextFlow id="startup-tip" />
          <Label id="launch-error" text="testing" visible="false" wrapText="true" />
          <Button id="error-button" text="Exit" visible="false" />
       </VBox>

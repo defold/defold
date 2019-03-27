@@ -103,8 +103,8 @@ public:
 
 static void SetProperties(dmGameObject::HInstance instance)
 {
-    dmArray<dmGameObject::Prototype::Component>& components = instance->m_Prototype->m_Components;
-    uint32_t count = components.Size();
+    dmGameObject::Prototype::Component* components = instance->m_Prototype->m_Components;
+    uint32_t count = instance->m_Prototype->m_ComponentCount;
     uint32_t component_instance_data_index = 0;
     dmGameObject::ComponentSetPropertiesParams params;
     params.m_Instance = instance;

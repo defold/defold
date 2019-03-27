@@ -1,0 +1,5 @@
+[{:type :error,
+  :file "/androidnative/src/main.cpp",
+  :line 17,
+  :column 1,
+  :message "unknown type name 'ubar'\nubar g_foo = 0;\n^"}]

@@ -13,6 +13,10 @@ Important: *Make sure your branches are up to date!*
 
  1. If there is a pending Native Extension server change, [publish the stage server](https://github.com/defold/extender#releasing), which updates https://build-stage.defold.com
 
+ 1. Make sure dev builds are green
+
+    Run the [Defold SDK Tests](https://jenkins-dfold.ess.midasplayer.com/job/defoldsdk-tests/) to test that the alpha release still works as expected
+
  1. Make sure dev is up to date:
 
         $ git checkout dev

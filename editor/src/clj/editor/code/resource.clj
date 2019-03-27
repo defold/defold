@@ -19,7 +19,7 @@
                                     :type s/Keyword
                                     s/Keyword s/Any}))
 
-(g/deftype BreakpointRows (sorted-set s/Num))
+(g/deftype BreakpointRows (s/constrained #{s/Num} sorted?))
 (g/deftype Cursors [TCursor])
 (g/deftype CursorRanges [TCursorRange])
 (g/deftype IndentType (s/enum :tabs :two-spaces :four-spaces))

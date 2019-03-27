@@ -285,8 +285,12 @@ int asn1_get_private_key(const uint8_t *buf, int len, RSA_CTX **rsa_ctx)
     pub_len = asn1_get_big_int(buf, &offset, &pub_exp);
     priv_len = asn1_get_big_int(buf, &offset, &priv_exp);
 
-    if (mod_len <= 0 || pub_len <= 0 || priv_len <= 0)
+    if (mod_len <= 0 || pub_len <= 0 || priv_len <= 0) {
+        free(modulus);
+        free(pub_exp);
+        free(priv_exp);
         return X509_INVALID_PRIV_KEY;
+    }
 
 #ifdef CONFIG_BIGINT_CRT
     p_len = asn1_get_big_int(buf, &offset, &p);
@@ -295,8 +299,17 @@ int asn1_get_private_key(const uint8_t *buf, int len, RSA_CTX **rsa_ctx)
     dQ_len = asn1_get_big_int(buf, &offset, &dQ);
     qInv_len = asn1_get_big_int(buf, &offset, &qInv);
 
-    if (p_len <= 0 || q_len <= 0 || dP_len <= 0 || dQ_len <= 0 || qInv_len <= 0)
+    if (p_len <= 0 || q_len <= 0 || dP_len <= 0 || dQ_len <= 0 || qInv_len <= 0) {
+        free(p);
+        free(q);
+        free(dP);
+        free(dQ);
+        free(qInv);
+        free(modulus);
+        free(pub_exp);
+        free(priv_exp);
         return X509_INVALID_PRIV_KEY;
+    }
 
     RSA_priv_key_new(rsa_ctx,
             modulus, mod_len, pub_exp, pub_len, priv_exp, priv_len,
@@ -534,9 +547,9 @@ int asn1_get_public_key(const uint8_t *buf, int len, RSA_CTX **rsa_parameters)
 {
     // Explanation of leading 02 81 81 00 in asn1 integer (for example the modulus)
     // https://crypto.stackexchange.com/questions/30608/leading-00-in-rsa-public-private-key-file
-    uint8_t *modulus, *pub_exp;
+    uint8_t *modulus = NULL, *pub_exp = NULL;
     int mod_len, pub_len;
-    
+
     if (buf[0] != 0x30) {
         return -1;
     }
@@ -555,9 +568,12 @@ int asn1_get_public_key(const uint8_t *buf, int len, RSA_CTX **rsa_parameters)
     mod_len = asn1_get_big_int(buf, &offset, &modulus);
     pub_len = asn1_get_big_int(buf, &offset, &pub_exp);
 
-    if (mod_len <= 0 || pub_len <= 0 )
+    if (mod_len <= 0 || pub_len <= 0 ) {
+        free(modulus);
+        free(pub_exp);
         return -1;
-    
+    }
+
     RSA_pub_key_raw_new(rsa_parameters, modulus, mod_len, pub_exp, pub_len);
 
     free(modulus);

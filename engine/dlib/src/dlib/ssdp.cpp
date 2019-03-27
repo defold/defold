@@ -311,7 +311,7 @@ bail:
         const char* id = last_slash + 1;
 
         dmhash_t id_hash = dmHashString64(id);
-        Device** device = ssdp->m_RegistredEntries.Get(id_hash);
+        Device** device = ssdp->m_RegisteredEntries.Get(id_hash);
         if (!device)
         {
             dmHttpServer::SetStatusCode(request, 404);
@@ -517,18 +517,18 @@ bail:
     {
         const char* id = device_desc->m_Id;
         dmhash_t id_hash = dmHashString64(id);
-        if (ssdp->m_RegistredEntries.Get(id_hash) != 0)
+        if (ssdp->m_RegisteredEntries.Get(id_hash) != 0)
         {
-            return RESULT_ALREADY_REGISTRED;
+            return RESULT_ALREADY_REGISTERED;
         }
 
-        if (ssdp->m_RegistredEntries.Full())
+        if (ssdp->m_RegisteredEntries.Full())
         {
             return RESULT_OUT_OF_RESOURCES;
         }
 
         Device* device = new Device(device_desc);
-        ssdp->m_RegistredEntries.Put(id_hash, device);
+        ssdp->m_RegisteredEntries.Put(id_hash, device);
         dmLogDebug("SSDP device '%s' registered", id);
         return RESULT_OK;
     }
@@ -536,12 +536,12 @@ bail:
     Result DeregisterDevice(HSSDP ssdp, const char* id)
     {
         dmhash_t id_hash = dmHashString64(id);
-        if (ssdp->m_RegistredEntries.Get(id_hash) == 0)
+        if (ssdp->m_RegisteredEntries.Get(id_hash) == 0)
         {
-            return RESULT_NOT_REGISTRED;
+            return RESULT_NOT_REGISTERED;
         }
 
-        Device** d  = ssdp->m_RegistredEntries.Get(id_hash);
+        Device** d  = ssdp->m_RegisteredEntries.Get(id_hash);
 
         for (uint32_t i=0;i!=ssdp->m_LocalAddrCount;i++)
         {
@@ -549,7 +549,7 @@ bail:
                 SendUnannounce(ssdp, *d, i);
         }
         delete *d;
-        ssdp->m_RegistredEntries.Erase(id_hash);
+        ssdp->m_RegisteredEntries.Erase(id_hash);
         dmLogDebug("SSDP device '%s' deregistered", id);
         return RESULT_OK;
     }
@@ -728,7 +728,7 @@ bail:
         }
 
         SearchResponseContext context(state, *st, from_address, from_port);
-        state->m_SSDP->m_RegistredEntries.Iterate(SearchCallback, &context);
+        state->m_SSDP->m_RegisteredEntries.Iterate(SearchCallback, &context);
     }
 
     /**
@@ -864,8 +864,9 @@ bail:
         }
     }
 
-    void VisitRegistredAnnounceDevice(SSDP* ssdp, const dmhash_t* key, Device** device)
+    void VisitRegisteredAnnounceDevice(SSDP* ssdp, const dmhash_t* key, Device** device)
     {
+        const uint32_t local_address_count = ssdp->m_LocalAddrCount;
         const uint64_t now = dmTime::GetTime();
         const uint64_t next = now + ssdp->m_AnnounceInterval * uint64_t(1000000);
         Device *dev = *device;
@@ -874,7 +875,7 @@ bail:
         // list and so is m_LocalAddrs, so side-by-side comparison allows easy matching with the sockes
         // and addresses in m_LocalAddr.
         uint64_t new_expires[SSDP_MAX_LOCAL_ADDRESSES];
-        for (uint32_t i=0,j=0;i!=ssdp->m_LocalAddrCount;i++)
+        for (uint32_t i=0,j=0;i!=local_address_count;i++)
         {
             while (j < dev->m_IfAddrStateCount && dev->m_IfAddrState[j].m_Address < ssdp->m_LocalAddr[i].m_Address)
                 ++j;
@@ -892,8 +893,8 @@ bail:
         }
 
         // Send announces on all interfaces.
-        dev->m_IfAddrStateCount = ssdp->m_LocalAddrCount;
-        for (uint32_t i=0;i!=ssdp->m_LocalAddrCount;i++)
+        dev->m_IfAddrStateCount = local_address_count;
+        for (uint32_t i=0;i!=local_address_count;i++)
         {
             Device::IfAddrState *dst = &dev->m_IfAddrState[i];
             dst->m_Address = ssdp->m_LocalAddr[i].m_Address;
@@ -913,9 +914,9 @@ bail:
         }
     }
 
-    void AnnounceRegistred(SSDP* ssdp)
+    void AnnounceRegistered(SSDP* ssdp)
     {
-        ssdp->m_RegistredEntries.Iterate(VisitRegistredAnnounceDevice, ssdp);
+        ssdp->m_RegisteredEntries.Iterate(VisitRegisteredAnnounceDevice, ssdp);
     }
 
     void Update(HSSDP ssdp, bool search)
@@ -955,7 +956,7 @@ bail:
 
         if (ssdp->m_Announce)
         {
-            AnnounceRegistred(ssdp);
+            AnnounceRegistered(ssdp);
         }
 
         dmHttpServer::Update(ssdp->m_HttpServer);

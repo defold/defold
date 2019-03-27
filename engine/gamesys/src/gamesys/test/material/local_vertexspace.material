@@ -1,0 +1,4 @@
+name: "valid_material"
+vertex_program: "/vertex_program/valid.vp"
+fragment_program: "/fragment_program/valid.fp"
+vertex_space: VERTEX_SPACE_LOCAL

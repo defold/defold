@@ -129,7 +129,7 @@ TEST_F(dmHttpCacheTest, Simple)
     ASSERT_STREQ("etag", tag_buffer);
 
     // Get content
-    void* buffer;
+    void* buffer = 0;
     uint64_t checksum;
     r = Get(cache, "uri", "etag", &buffer, &checksum);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
@@ -161,7 +161,7 @@ TEST_F(dmHttpCacheTest, MaxAge)
     ASSERT_EQ(dmHttpCache::RESULT_NO_ETAG, r);
 
     // Get content
-    void* buffer;
+    void* buffer = 0;
     uint64_t checksum;
     r = Get(cache, "uri", "", &buffer, &checksum);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
@@ -207,7 +207,7 @@ TEST_F(dmHttpCacheTest, CorruptContent)
     ASSERT_STREQ("etag", tag_buffer);
 
     // Get content
-    void* buffer;
+    void* buffer = 0;
     uint64_t checksum;
     uint32_t size;
     r = Get(cache, "uri", "etag", &buffer, &checksum, &size);
@@ -254,7 +254,7 @@ TEST_F(dmHttpCacheTest, MissingContent)
     ASSERT_STREQ("etag", tag_buffer);
 
     // Get content
-    void* buffer;
+    void* buffer = 0;
     uint64_t checksum;
     uint32_t size;
     r = Get(cache, "uri", "etag", &buffer, &checksum, &size);
@@ -330,7 +330,7 @@ TEST_F(dmHttpCacheTest, GetWriteLocked)
     dmHttpCache::Add(cache, cache_creator, "data", 4);
     dmHttpCache::End(cache, cache_creator);
 
-    void* buffer;
+    void* buffer = 0;
     r = Get(cache, "uri", "etag", &buffer, &checksum);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
     ASSERT_EQ(dmHashString64("data"), checksum);
@@ -361,7 +361,7 @@ TEST_F(dmHttpCacheTest, DoublePut)
     dmHttpCache::Add(cache, cache_creator1, "data", 4);
     dmHttpCache::End(cache, cache_creator1);
 
-    void* buffer;
+    void* buffer = 0;
     uint64_t checksum;
     r = Get(cache, "uri", "etag", &buffer, &checksum);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
@@ -399,7 +399,7 @@ TEST_F(dmHttpCacheTest, PartialUpdate)
     r = dmHttpCache::Open(&params, &cache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
-    void* buffer;
+    void* buffer = 0;
     r = Get(cache, "uri", "etag", &buffer, &checksum);
     ASSERT_EQ(dmHttpCache::RESULT_NO_ENTRY, r);
 
@@ -429,7 +429,7 @@ TEST_F(dmHttpCacheTest, Stress1)
         ASSERT_STREQ(etag, tag_buffer);
 
         // Get content
-        void* buffer;
+        void* buffer = 0;
         uint64_t checksum;
         r = Get(cache, "uri", etag, &buffer, &checksum);
         ASSERT_EQ(dmHttpCache::RESULT_OK, r);
@@ -465,7 +465,7 @@ TEST_F(dmHttpCacheTest, Stress2)
         ASSERT_STREQ("etag", tag_buffer);
 
         // Get content
-        void* buffer;
+        void* buffer = 0;
         uint64_t checksum;
         r = Get(cache, uri, "etag", &buffer, &checksum);
         ASSERT_EQ(dmHttpCache::RESULT_OK, r);
@@ -503,7 +503,7 @@ TEST_F(dmHttpCacheTest, StressOpenClose)
         ASSERT_STREQ(etag, tag_buffer);
 
         // Get content
-        void* buffer;
+        void* buffer = 0;
         uint64_t checksum;
         r = Get(cache, "uri", etag, &buffer, &checksum);
         ASSERT_EQ(dmHttpCache::RESULT_OK, r);
@@ -580,7 +580,7 @@ TEST_F(dmHttpCacheTest, PutGet)
     ASSERT_EQ(dmHttpCache::RESULT_ALREADY_CACHED, r);
 
     // Get content
-    void* buffer;
+    void* buffer = 0;
     uint64_t checksum;
     r = Get(cache, "uri1", "etag1_prim", &buffer, &checksum);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
@@ -638,10 +638,11 @@ TEST_F(dmHttpCacheTest, Persist)
 
     dmHttpCache::Close(cache);
     r = dmHttpCache::Open(&params, &cache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
     ASSERT_EQ(3U, dmHttpCache::GetEntryCount(cache));
 
     // Get content
-    void* buffer;
+    void* buffer = 0;
     uint64_t checksum;
     r = Get(cache, "uri1", "etag1", &buffer, &checksum);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);

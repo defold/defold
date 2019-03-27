@@ -9,6 +9,7 @@ import org.apache.commons.io.FilenameUtils;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.dynamo.graphics.proto.Graphics;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.gui.proto.Gui;
 import com.dynamo.lua.proto.Lua.LuaModule;
@@ -126,6 +127,18 @@ public class ParseUtil {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
                 return ModelProto.Model.parseFrom(content);
+            }
+        });
+        parseMap.put("vpc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return Graphics.ShaderDesc.parseFrom(content);
+            }
+        });
+        parseMap.put("fpc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return Graphics.ShaderDesc.parseFrom(content);
             }
         });
         parseMap.put("spinemodelc", new IParser() {

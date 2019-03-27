@@ -270,6 +270,13 @@ TEST_F(ComponentTest, ReloadInvalidMaterial)
     dmResource::Release(m_Factory, resource);
 }
 
+TEST_P(InvalidVertexSpaceTest, InvalidVertexSpace)
+{
+    const char* resource_name = GetParam();
+    void* resource;
+    ASSERT_NE(dmResource::RESULT_OK, dmResource::Get(m_Factory, resource_name, &resource));
+}
+
 // Test for input consuming in collection proxy
 TEST_F(ComponentTest, ConsumeInputInCollectionProxy)
 {
@@ -1326,6 +1333,19 @@ INSTANTIATE_TEST_CASE_P(Label, ComponentTest, ::testing::ValuesIn(valid_label_go
 
 const char* invalid_label_gos[] = {"/label/invalid_label.goc"};
 INSTANTIATE_TEST_CASE_P(Label, ComponentFailTest, ::testing::ValuesIn(invalid_label_gos));
+
+/* Test material vertex space component compatibility */
+const char* invalid_vertexspace_resources[] =
+{
+    "/sprite/invalid_vertexspace.spritec",
+    "/model/invalid_vertexspace.modelc",
+    "/spine/invalid_vertexspace.spinemodelc",
+    "/tile/invalid_vertexspace.tilegridc",
+    "/particlefx/invalid_vertexspace.particlefxc",
+    "/gui/invalid_vertexspace.guic",
+    "/label/invalid_vertexspace.labelc",
+};
+INSTANTIATE_TEST_CASE_P(InvalidVertexSpace, InvalidVertexSpaceTest, ::testing::ValuesIn(invalid_vertexspace_resources));
 
 /* Get texture0 property on sprite and model */
 

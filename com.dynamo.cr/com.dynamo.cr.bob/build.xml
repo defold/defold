@@ -8,6 +8,7 @@
         <fileset dir="../com.dynamo.cr.common/ext" includes="commons*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="vecmath.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="extender-client-*.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext/android" includes="*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext/aws" includes="*.jar"/>
         <fileset dir="lib" includes="*.jar"/>
     </path>
@@ -69,7 +70,7 @@
             <proto dir="../../engine/gamesys/proto/" file="tile_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="spine_ddf.proto"/>
             <proto dir="../../engine/rig/proto/rig" file="rig_ddf.proto"/>
-            <proto dir="../../engine/graphics/proto" file="graphics_ddf.proto"/>
+            <proto dir="../../engine/graphics/proto/graphics" file="graphics_ddf.proto"/>
             <proto dir="../../engine/input/proto" file="input_ddf.proto"/>
             <proto dir="../../engine/particle/proto/particle" file="particle_ddf.proto"/>
             <proto dir="../../engine/render/proto/render" file="font_ddf.proto"/>
@@ -80,6 +81,7 @@
             <proto dir="../../engine/script/src" file="script/lua_source_ddf.proto"/>
             <proto dir="../../engine/script/src/script" file="script_doc_ddf.proto"/>
             <proto dir="../../engine/script/src" file="script/ddf_script.proto"/>
+            <proto dir="../../engine/script/src" file="script/sys_ddf.proto"/>
         </parallel>
 
         <exec dir="." executable="python">
@@ -102,6 +104,31 @@
             </condition>
         </fail>
 
+        <copy todir="libexec/x86_64-darwin" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-darwin">
+                <include name="glslc"/>
+                <include name="spirv-cross"/>
+            </fileset>
+        </copy>
+        <copy todir="libexec/x86_64-linux" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-linux">
+                <include name="glslc"/>
+                <include name="spirv-cross"/>
+            </fileset>
+        </copy>
+        <copy todir="libexec/x86_64-win32" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-win32">
+                <include name="glslc.exe"/>
+                <include name="spirv-cross.exe"/>
+            </fileset>
+        </copy>
+        <copy todir="libexec/x86-win32" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/ext/bin/win32">
+                <include name="glslc.exe"/>
+                <include name="spirv-cross.exe"/>
+            </fileset>
+        </copy>
+
         <copy todir="libexec" overwrite="true">
             <chainedmapper>
                 <cutdirsmapper dirs="1"/>
@@ -110,32 +137,20 @@
                          to the final name. Only files that are matched by either glob below are included in
                          the copy -->
                     <globmapper from="x86_64-darwin/luajit-2.0.5" to="x86_64-darwin/luajit"/>
-                    <globmapper from="linux/luajit-2.0.5" to="x86-linux/luajit"/>
                     <globmapper from="x86_64-linux/luajit-2.0.5" to="x86_64-linux/luajit"/>
-                    <globmapper from="win32/luajit.exe" to="x86-win32/luajit.exe"/>
-		            <globmapper from="x86_64-win32/luajit.exe" to="x86_64-win32/luajit.exe"/>
+                    <globmapper from="x86_64-win32/luajit.exe" to="x86_64-win32/luajit.exe"/>
                 </compositemapper>
             </chainedmapper>
-            <tarfileset includes="bin/linux/**">
-                <gzipresource>
-                    <file file="../../packages/luajit-2.0.5-linux.tar.gz" />
-                </gzipresource>
-            </tarfileset>
             <tarfileset includes="bin/x86_64-linux/**">
                 <gzipresource>
                     <file file="../../packages/luajit-2.0.5-x86_64-linux.tar.gz" />
                 </gzipresource>
             </tarfileset>
-            <tarfileset includes="bin/win32/**">
-                <gzipresource>
-                    <file file="../../packages/luajit-2.0.5-win32.tar.gz" />
-                </gzipresource>
-            </tarfileset>
-	    <tarfileset includes="bin/x86_64-win32/**">
+            <tarfileset includes="bin/x86_64-win32/**">
                 <gzipresource>
                     <file file="../../packages/luajit-2.0.5-x86_64-win32.tar.gz" />
                 </gzipresource>
-	    </tarfileset>
+            </tarfileset>
             <tarfileset includes="bin/x86_64-darwin/**">
                 <gzipresource>
                     <file file="../../packages/luajit-2.0.5-x86_64-darwin.tar.gz" />
@@ -185,15 +200,7 @@
                 <include name="x86_64-darwin/*texc_shared*"/>
             </fileset>
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="x86_64-darwin/*PVRTexLib*"/>
-            </fileset>
-        </copy>
-        <copy todir="lib/x86-linux" overwrite="true" flatten="true">
-            <fileset dir="${env.DYNAMO_HOME}/lib">
-                <include name="linux/*texc_shared*"/>
-            </fileset>
-            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="linux/*PVRTexLib*"/>
+                <include name="x86_64-darwin/*PVRTexLib.dylib"/>
             </fileset>
         </copy>
         <copy todir="lib/x86_64-linux" overwrite="true" flatten="true">
@@ -201,7 +208,7 @@
                 <include name="x86_64-linux/*texc_shared*"/>
             </fileset>
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="x86_64-linux/*PVRTexLib*"/>
+                <include name="x86_64-linux/*PVRTexLib.so"/>
             </fileset>
         </copy>
         <copy todir="lib/x86-win32" overwrite="true" flatten="true">
@@ -213,8 +220,6 @@
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
                 <include name="win32/OpenAL32.dll"/>
                 <include name="win32/wrap_oal.dll"/>
-                <include name="win32/PVRTexLib.dll"/>
-                <include name="win32/msvcr120.dll"/>
             </fileset>
         </copy>
         <copy todir="lib/x86_64-win32" overwrite="true" flatten="true">
@@ -257,6 +262,9 @@
               <include name="vecmath.jar"/>
               <include name="extender-client-*.jar"/>
             </zipgroupfileset>
+            <zipgroupfileset dir="../com.dynamo.cr.common/ext/android">
+                <include name="*.jar" />
+            </zipgroupfileset>
             <zipgroupfileset dir="../com.dynamo.cr.common/ext/aws">
                 <include name="*.jar" />
             </zipgroupfileset>
@@ -297,6 +305,9 @@
               <include name="commons*.jar"/>
               <include name="vecmath.jar"/>
               <include name="extender-client-*.jar"/>
+            </zipgroupfileset>
+            <zipgroupfileset dir="../com.dynamo.cr.common/ext/android">
+                <include name="*.jar" />
             </zipgroupfileset>
             <zipgroupfileset dir="../com.dynamo.cr.common/ext/aws">
                 <include name="*.jar" />

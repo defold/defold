@@ -280,6 +280,16 @@ public class SpineSceneUtil {
                         weights.add(new Weight(new Point3d(x, y, 0.0), boneIndex, (float)weight));
                     }
                 }
+                // Apply original bone weights to positions
+                boneCount = weights.size();
+                for (int bi = 0; bi < boneCount; ++bi) {
+                    Weight w = weights.get(bi);
+                    Bone b = getBone(w.boneIndex);
+                    b.worldT.apply(w.p);
+                    w.p.scaleAdd(w.weight, p);
+                    p = w.p;
+                }
+                // Cap max bones to 4
                 if (weights.size() > 4) {
                     Collections.sort(weights);
                     weights.setSize(4);
@@ -293,10 +303,6 @@ public class SpineSceneUtil {
                     Weight w = weights.get(bi);
                     mesh.boneIndices[boneOffset+bi] = w.boneIndex;
                     mesh.boneWeights[boneOffset+bi] = w.weight / totalWeight;
-                    Bone b = getBone(w.boneIndex);
-                    b.worldT.apply(w.p);
-                    w.p.scaleAdd(w.weight, p);
-                    p = w.p;
                 }
             } else {
                 double x = vertexIt.next().asDouble();

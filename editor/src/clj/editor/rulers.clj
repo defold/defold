@@ -79,9 +79,9 @@
 (shader/defshader tex-fragment-shader
   (varying vec4 var_color)
   (varying vec2 var_texcoord0)
-  (uniform sampler2D texture)
+  (uniform sampler2D texture_sampler)
   (defn void main []
-    (setq gl_FragColor (* (texture2D texture var_texcoord0.xy) var_color))))
+    (setq gl_FragColor (* (texture2D texture_sampler var_texcoord0.xy) var_color))))
 
 (def tex-shader (shader/make-shader ::tex-shader tex-vertex-shader tex-fragment-shader))
 
@@ -137,7 +137,7 @@
                 {:keys [vb tri-count line-count]} user-data]]
     (let [vertex-binding (vtx/use-with ::vertex-buffer vb tex-shader)]
       (gl/with-gl-bindings gl render-args [numbers-texture tex-shader vertex-binding]
-        (shader/set-uniform tex-shader gl "texture" 0)
+        (shader/set-uniform tex-shader gl "texture_sampler" 0)
         (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 tri-count)
         (gl/gl-draw-arrays gl GL/GL_LINES tri-count line-count)))))
 

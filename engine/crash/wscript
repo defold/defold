@@ -39,6 +39,7 @@ def configure(conf):
     conf.env['STATICLIB_RESOURCE'] = 'resource'
     conf.env['STATICLIB_EXTENSION'] = 'extension'
     conf.env['STATICLIB_SCRIPT'] = 'script'
+    conf.env['STATICLIB_UNWIND'] = 'unwind'
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="CRASH"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="CRASH"')

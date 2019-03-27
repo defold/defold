@@ -4,7 +4,8 @@
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.util :as util]
-            [support.test-support :refer [with-clean-system tx-nodes]]))
+            [support.test-support :refer [with-clean-system tx-nodes]])
+  (:import [clojure.lang Compiler$CompilerException]))
 
 (g/defnode SuperType
   (property super-prop g/Str)
@@ -27,15 +28,17 @@
   (is (= #{:super-prop :sub-prop} (g/declared-property-labels SubType))))
 
 (deftest input-prop-collision
-  (is (thrown? AssertionError (eval '(do (require '[dynamo.graph :as g])
-                                         (g/defnode InputPropertyCollision
-                                           (input value g/Str)
-                                           (property value g/Str)))))))
+  (is (thrown? Compiler$CompilerException
+               (eval '(do (require '[dynamo.graph :as g])
+                          (g/defnode InputPropertyCollision
+                            (input value g/Str)
+                            (property value g/Str)))))))
 
 (deftest output-arg-missing
-  (is (thrown? AssertionError (eval '(do (require '[dynamo.graph :as g])
-                                         (g/defnode OutputArgMissing
-                                           (output out-value g/Str (g/fnk [missing-arg] nil))))))))
+  (is (thrown? Compiler$CompilerException
+               (eval '(do (require '[dynamo.graph :as g])
+                          (g/defnode OutputArgMissing
+                            (output out-value g/Str (g/fnk [missing-arg] nil))))))))
 
 (deftest deep-inheritance
   (with-clean-system
