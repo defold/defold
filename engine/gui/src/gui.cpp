@@ -3556,26 +3556,28 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         PropDesc* pd = GetPropertyDesc(property);
         if (pd)
-		{
+        {
             float* base_value = (float*)&n->m_Node.m_Properties[pd->m_Property];
-			assert(base_value[0] == 0.f);
 
             if (pd->m_Component == 0xff)
-			{
-				dmEasing::Curve no_callback_easing = easing;
-				no_callback_easing.release_callback = 0;
-				for (int j = 0; j < 3; ++j) {
-					AnimateComponent(scene, node, &base_value[j], to.getElem(j), no_callback_easing, playback, duration, delay, 0, 0, 0);
+            {
+                dmEasing::Curve no_callback_easing = easing;
+                no_callback_easing.release_callback = 0;
+                for (int j = 0; j < 3; ++j)
+                {
+                    AnimateComponent(scene, node, &base_value[j], to.getElem(j), no_callback_easing, playback, duration, delay, 0, 0, 0);
                 }
 
-				// Only run callback for the lastcomponent
-				AnimateComponent(scene, node, &base_value[3], to.getElem(3), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
-			}
-			else
-			{
+                // Only run callback for the lastcomponent
+                AnimateComponent(scene, node, &base_value[3], to.getElem(3), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
+            }
+            else
+            {
                 AnimateComponent(scene, node, &base_value[pd->m_Component], to.getElem(pd->m_Component), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
             }
-        } else {
+        }
+        else
+        {
             dmLogError("property '%s' not found", dmHashReverseSafe64(property));
         }
     }
