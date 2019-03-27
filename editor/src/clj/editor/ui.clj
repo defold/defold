@@ -1225,8 +1225,8 @@
        (when (and (not= ::not-active ret)
                   (not= ::not-enabled ret)
                   (some? success-fn))
-         (success-fn)
-         ret)))))
+         (success-fn))
+       ret))))
 
 (defn bind-action!
   ([^Node node command]
@@ -1531,7 +1531,7 @@
 
 (declare refresh)
 
-(defn- refresh-toolbar [td command-contexts]
+(defn- refresh-toolbar [td command-contexts evaluation-context]
  (let [menu (menu/realize-menu (:menu-id td))
        ^Pane control (:control td)
        scene (.getScene control)]
@@ -1546,7 +1546,7 @@
                             :let [command (:command menu-item)
                                   user-data (:user-data menu-item)
                                   separator? (= :separator (:label menu-item))
-                                  handler-ctx (handler/active command command-contexts user-data)]
+                                  handler-ctx (handler/active command command-contexts user-data evaluation-context)]
                             :when (or separator? handler-ctx)]
                         (let [^Control child (if separator?
                                                (doto (Separator. Orientation/VERTICAL)
@@ -1668,7 +1668,7 @@
         current-command-contexts (current-command-contexts scene)
         root (.getRoot scene)]
     (doseq [td (vals (user-data root ::toolbars))]
-      (refresh-toolbar td visible-command-contexts)
+      (refresh-toolbar td visible-command-contexts evaluation-context)
       (refresh-toolbar-state (:control td) current-command-contexts evaluation-context))))
 
 (defn refresh

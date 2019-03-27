@@ -25,7 +25,7 @@
       handler/run)))
 
 (deftest run-test
-  (test-util/with-loaded-project
+  (with-clean-system
     (handler/defhandler :open :global
       (enabled? [instances] (every? #(= % :foo) instances))
       (run [instances] 123))
@@ -35,7 +35,7 @@
     (is (= 123 (run :open [(handler/->context :global {:instances [:foo]})] {})))))
 
 (deftest context
-  (test-util/with-loaded-project
+  (with-clean-system
     (handler/defhandler :c1 :global
       (active? [global-context] true)
       (enabled? [global-context] true)
@@ -76,7 +76,7 @@
       (= t Keyword) (keyword this))))
 
 (deftest selection-test
-  (test-util/with-loaded-project
+  (with-clean-system
     (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})]
       (handler/defhandler :c1 :global
         (active? [selection] selection)
@@ -85,12 +85,15 @@
       (doseq [[local-selection expected-selection] [[["b"] [:b]]
                                                     [[] []]
                                                     [nil [:a]]]]
-        (let [local (handler/->context :local {:local-context true} (when local-selection
-                                                                              (->StaticSelection local-selection)) [])]
+        (let [local (handler/->context :local
+                                       {:local-context true}
+                                       (when local-selection
+                                         (->StaticSelection local-selection))
+                                       [])]
           (is (= expected-selection (run :c1 [local global] {}))))))))
 
 (deftest selection-context
-  (test-util/with-loaded-project
+  (with-clean-system
     (let [[global local] (mapv #(handler/->context % {} (->StaticSelection [:a]) {}) [:global :local])]
       (handler/defhandler :c1 :global
         (active? [selection selection-context] (and (= :global selection-context) selection))
@@ -101,7 +104,7 @@
       (is (enabled? :c1 [local global] {})))))
 
 (deftest erroneous-handler
-  (test-util/with-loaded-project
+  (with-clean-system
     (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})]
       (handler/defhandler :erroneous :global
         (active? [does-not-exist] true)
@@ -112,7 +115,7 @@
         (is (nil? (run :erroneous [global] {})))))))
 
 (deftest throwing-handler
-  (test-util/with-loaded-project
+  (with-clean-system
     (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})
           throwing-enabled? (test-util/make-call-logger (fn [selection] (throw (Exception. "Thrown from enabled?"))))
           throwing-run (test-util/make-call-logger (fn [selection] (throw (Exception. "Thrown from run"))))]
