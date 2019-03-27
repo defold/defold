@@ -1453,7 +1453,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         {
             Animation* anim = &(*animations)[i];
 
-            bool looping = anim->m_Playback == PLAYBACK_LOOP_FORWARD || anim->m_Playback == PLAYBACK_LOOP_BACKWARD || anim->m_Playback == PLAYBACK_LOOP_PINGPONG;
+            dmGui::Playback playback = anim->m_Playback;
+            bool looping = playback == PLAYBACK_LOOP_FORWARD || playback == PLAYBACK_LOOP_BACKWARD || playback == PLAYBACK_LOOP_PINGPONG;
 
             if (anim->m_Elapsed > anim->m_Duration
                 || anim->m_Cancelled
@@ -1490,10 +1491,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     t = dmMath::Select(anim->m_Duration - anim->m_Elapsed, anim->m_Elapsed / anim->m_Duration, 1.0f);
                 }
                 float t2 = t;
-                if (anim->m_Playback == PLAYBACK_ONCE_BACKWARD || anim->m_Playback == PLAYBACK_LOOP_BACKWARD || anim->m_Backwards) {
+                if (playback == PLAYBACK_ONCE_BACKWARD || playback == PLAYBACK_LOOP_BACKWARD || anim->m_Backwards) {
                     t2 = 1.0f - t;
                 }
-                if (anim->m_Playback == PLAYBACK_ONCE_PINGPONG || anim->m_Playback == PLAYBACK_LOOP_PINGPONG) {
+                if (playback == PLAYBACK_ONCE_PINGPONG || playback == PLAYBACK_LOOP_PINGPONG) {
                     t2 *= 2.0f;
                     if (t2 > 1.0f) {
                         t2 = 2.0f - t2;
@@ -1509,10 +1510,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 // Animation complete, see above
                 if (t >= 1.0f)
                 {
-                    bool looping = anim->m_Playback == PLAYBACK_LOOP_FORWARD || anim->m_Playback == PLAYBACK_LOOP_BACKWARD || anim->m_Playback == PLAYBACK_LOOP_PINGPONG;
                     if (looping) {
                         anim->m_Elapsed = anim->m_Elapsed - anim->m_Duration;
-                        if (anim->m_Playback == PLAYBACK_LOOP_PINGPONG) {
+                        if (playback == PLAYBACK_LOOP_PINGPONG) {
                             anim->m_Backwards ^= 1;
                         }
                     } else {
@@ -3066,7 +3066,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return t;
     }
 
-    Result SetNodeFlipbookCursor(HScene scene, HNode node, float cursor)
+    void SetNodeFlipbookCursor(HScene scene, HNode node, float cursor)
     {
         InternalNode* n = GetNode(scene, node);
 
@@ -3086,8 +3086,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 anim->m_Elapsed = cursor * anim->m_Duration;
             }
         }
-
-        return RESULT_OK;
     }
 
     float GetNodeFlipbookPlaybackRate(HScene scene, HNode node)
@@ -3104,7 +3102,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return 0.0f;
     }
 
-    Result SetNodeFlipbookPlaybackRate(HScene scene, HNode node, float playback_rate)
+    void SetNodeFlipbookPlaybackRate(HScene scene, HNode node, float playback_rate)
     {
         InternalNode* n = GetNode(scene, node);
 
@@ -3112,11 +3110,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             Animation* anim = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
             if (anim) {
                 anim->m_PlaybackRate = playback_rate;
-                // return RESULT_OK;
             }
         }
-
-        return RESULT_OK;
     }
 
     Result SetNodeSpineCursor(HScene scene, HNode node, float cursor)
@@ -3734,18 +3729,19 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         InternalNode* n = GetNode(scene, node);
         TextureSetAnimDesc& anim_desc = n->m_Node.m_TextureSetAnimDesc;
         uint64_t anim_frames = (anim_desc.m_State.m_End - anim_desc.m_State.m_Start);
+        dmGui::Playback playback = (dmGui::Playback)anim_desc.m_State.m_Playback;
+        bool pingpong = playback == dmGui::PLAYBACK_ONCE_PINGPONG || playback == dmGui::PLAYBACK_LOOP_PINGPONG;
 
         // Ping pong for flipbook animations should result in double the
         // animation duration.
-        if (anim_desc.m_State.m_Playback == dmGui::PLAYBACK_ONCE_PINGPONG
-                    || anim_desc.m_State.m_Playback == dmGui::PLAYBACK_LOOP_PINGPONG)
+        if (pingpong)
             anim_frames = anim_frames * 2;
 
         // Convert offset into elapsed time, needed for GUI animation system.
         offset = dmMath::Clamp(offset, 0.0f, 1.0f);
         float elapsed = offset;
         float duration = (float) anim_frames / (float) anim_desc.m_State.m_FPS;
-        if (anim_desc.m_State.m_Playback == PLAYBACK_ONCE_PINGPONG || anim_desc.m_State.m_Playback == PLAYBACK_LOOP_PINGPONG) {
+        if (pingpong) {
             elapsed /= 2.0f;
         }
         elapsed = elapsed * duration;
@@ -3756,13 +3752,17 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 &n->m_Node.m_FlipbookAnimPosition,
                 1.0f,
                 dmEasing::Curve(dmEasing::TYPE_LINEAR),
-                (Playback) anim_desc.m_State.m_Playback,
+                playback,
                 duration,
                 0.0f,
                 playback_rate,
                 anim_complete_callback,
                 callback_userdata1,
                 callback_userdata2);
+
+        if (!anim) {
+            return;
+        }
 
         // We force some of the animation properties here to simulate
         // elapsed time for flipbook animations that has offset.

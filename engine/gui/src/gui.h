@@ -978,9 +978,9 @@ namespace dmGui
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, float offset, float playback_rate, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, float offset, float playback_rate, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
     float GetNodeFlipbookCursor(HScene scene, HNode node);
-    Result SetNodeFlipbookCursor(HScene scene, HNode node, float cursor);
+    void SetNodeFlipbookCursor(HScene scene, HNode node, float cursor);
     float GetNodeFlipbookPlaybackRate(HScene scene, HNode node);
-    Result SetNodeFlipbookPlaybackRate(HScene scene, HNode node, float playback_rate);
+    void SetNodeFlipbookPlaybackRate(HScene scene, HNode node, float playback_rate);
     void CancelNodeFlipbookAnim(HScene scene, HNode node);
     dmhash_t GetNodeFlipbookAnimId(HScene scene, HNode node);
     const float* GetNodeFlipbookAnimUV(HScene scene, HNode node);

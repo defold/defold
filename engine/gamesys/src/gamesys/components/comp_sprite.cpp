@@ -202,14 +202,14 @@ namespace dmGameSystem
                     || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
                 frame_count = dmMath::Max(1u, frame_count * 2 - 2);
             component->m_AnimInvDuration = (float)animation->m_Fps / frame_count;
-            // component->m_AnimTimer = offset;
             component->m_AnimPingPong = animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG;
             component->m_AnimBackwards = animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD;
             component->m_Playing = animation->m_Playback != dmGameSystemDDF::PLAYBACK_NONE;
             component->m_Size = GetSize(component, texture_set->m_TextureSet, component->m_AnimationID);
 
+            offset = dmMath::Clamp(offset, 0.0f, 1.0f);
             if (animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD) {
-                offset = 1.0f - dmMath::Clamp(offset, 0.0f, 1.0f);
+                offset = 1.0f - offset;
             }
 
             component->m_PlaybackRate = dmMath::Max(playback_rate, 0.0f);
@@ -571,12 +571,8 @@ namespace dmGameSystem
         {
             SpriteComponent* component = &components[i];
             // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
-            bool tick = false;
-            if (!component->m_Enabled || !component->m_Playing || !component->m_AddedToUpdate)
+            if (component->m_Enabled && component->m_Playing && component->m_AddedToUpdate)
             {
-                tick = false;
-                // continue;
-            } else {
                 TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
                 dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
                 dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
@@ -600,13 +596,9 @@ namespace dmGameSystem
                 component->m_DoTick = 1;
             }
 
-            if (component->m_DoTick)
-            {
-                tick = true;
+            if (component->m_DoTick) {
                 component->m_DoTick = 0;
-            }
 
-            if (tick) {
                 TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
                 dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
                 dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
@@ -758,7 +750,6 @@ namespace dmGameSystem
         }
 
         component->m_AnimTimer = cursor;
-        // component->m_Playing = 1;
         component->m_DoTick = 1;
     }
 

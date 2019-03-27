@@ -4076,12 +4076,7 @@ namespace dmGui
             return luaL_error(L, "cannot set cursor for bone");
         }
 
-        float cursor = luaL_checknumber(L, 2);
-
-        if (RESULT_OK != dmGui::SetNodeFlipbookCursor(scene, node, cursor))
-        {
-            return luaL_error(L, "failed to set flipbook cursor for gui node");
-        }
+        dmGui::SetNodeFlipbookCursor(scene, node, luaL_checknumber(L, 2));
 
         return 0;
     }
@@ -4099,8 +4094,7 @@ namespace dmGui
             return luaL_error(L, "cannot get playback rate for bone");
         }
 
-        float playback_rate = dmGui::GetNodeFlipbookPlaybackRate(scene, node);
-        lua_pushnumber(L, playback_rate);
+        lua_pushnumber(L, dmGui::GetNodeFlipbookPlaybackRate(scene, node));
 
         return 1;
     }
@@ -4118,12 +4112,7 @@ namespace dmGui
             return luaL_error(L, "cannot set playback rate for bone");
         }
 
-        float playback_rate = luaL_checknumber(L, 2);
-
-        if (RESULT_OK != SetNodeFlipbookPlaybackRate(scene, node, playback_rate))
-        {
-            return luaL_error(L, "failed to set flipbook playback rate for gui node");
-        }
+        SetNodeFlipbookPlaybackRate(scene, node, luaL_checknumber(L, 2));
 
         return 0;
     }
