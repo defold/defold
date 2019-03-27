@@ -1047,12 +1047,6 @@
 ;;; ----------------------------------------
 ;;; Code generation
 
-(defmacro gensyms
-  [[:as syms] & forms]
-  (let [bindings (vec (interleave syms (map (fn [s] `(gensym ~(name s))) syms)))]
-    `(let ~bindings
-       ~@forms)))
-
 (declare fnk-argument-form)
 
 (defn- desc-has-input?     [description argument] (contains? (:input description) argument))
@@ -1312,7 +1306,7 @@
     (and weak-cached-value (.get weak-cached-value))))
 
 (defn- check-caches-form [evaluation-context-sym node-id-sym description label forms]
-  (gensyms [result-sym]
+  (let [result-sym 'result]
     (if (get-in description [:output label :flags :cached])
       `(if-some [[~result-sym] (check-caches! ~evaluation-context-sym ~node-id-sym ~label)]
          ~result-sym
@@ -1391,7 +1385,9 @@
     forms))
 
 (defn- node-property-value-function-form [description property]
-  (gensyms [node-sym evaluation-context-sym node-id-sym]
+  (let [node-sym 'node
+        evaluation-context-sym 'evaluation-context
+        node-id-sym 'node-id]
     `(fn [~node-sym ~evaluation-context-sym]
        (let [~node-id-sym (gt/node-id ~node-sym)]
          ~(collect-property-value-form node-sym evaluation-context-sym node-id-sym description property)))))
@@ -1399,7 +1395,12 @@
 (defn- node-output-value-function-form
   [description label]
   (let [tracer-output-type (if (desc-has-explicit-output? description label) :output :property)]
-    (gensyms [node-sym evaluation-context-sym node-id-sym arguments-sym schema-sym output-sym]
+    (let [node-sym 'node
+          evaluation-context-sym 'evaluation-context
+          node-id-sym 'node-id
+          arguments-sym 'arguments
+          schema-sym 'schema
+          output-sym 'output]
       `(fn [~node-sym ~evaluation-context-sym]
          (let [~node-id-sym (gt/node-id ~node-sym)]
            ~(check-jammed-form node-sym evaluation-context-sym node-id-sym label description
@@ -1414,9 +1415,9 @@
                               output-sym))))))))))))))
   
 (defn- assemble-properties-map-form
-  [node-id-sym value-sym display-order]
+  [node-id-sym value-sym display-order-sym]
   `{:properties ~value-sym
-    :display-order ~display-order
+    :display-order ~display-order-sym
     :node-id ~node-id-sym})
 
 (defn- property-dynamics
@@ -1443,14 +1444,18 @@
 (defn- declared-properties-function-form
   [description]
   (let [props (:property description)]
-    (gensyms [node-sym evaluation-context-sym value-map-sym node-id-sym display-order]
+    (let [node-sym 'node
+          evaluation-context-sym 'evaluation-context
+          value-map-sym 'value-map
+          node-id-sym 'node-id
+          display-order-sym 'display-order]
       `(fn [~node-sym ~evaluation-context-sym]
          (let [~node-id-sym (gt/node-id ~node-sym)
-               ~display-order (property-display-order (gt/node-type ~node-sym (:basis ~evaluation-context-sym)))
+               ~display-order-sym (property-display-order (gt/node-type ~node-sym (:basis ~evaluation-context-sym)))
                ~value-map-sym ~(apply merge {}
                                       (for [[p _] (remove (comp intrinsic-properties key) props)]
                                         {p (property-value-exprs node-sym evaluation-context-sym node-id-sym description p (get props p))}))]
-           ~(check-dry-run-form evaluation-context-sym (assemble-properties-map-form node-id-sym value-map-sym display-order)))))))
+           ~(check-dry-run-form evaluation-context-sym (assemble-properties-map-form node-id-sym value-map-sym display-order-sym)))))))
 
 (defn- node-input-value-function-form
   [description input]
