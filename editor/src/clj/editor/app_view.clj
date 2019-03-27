@@ -868,7 +868,8 @@ If you do not specifically require different script states, consider changing th
          (.requestFocus other-tab-pane))))
 
 (handler/defhandler :join-tab-panes :global
-  (enabled? [app-view evaluation-context] (< 1 (open-tab-pane-count app-view evaluation-context)))
+  (enabled? [app-view evaluation-context]
+            (< 1 (open-tab-pane-count app-view evaluation-context)))
   (run [app-view user-data]
        (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
              active-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
