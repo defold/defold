@@ -10,9 +10,9 @@ namespace dmLoadQueue
     // It is not exposed to the outside world.
     enum Result
     {
-        RESULT_OK                 =  0,
-        RESULT_PENDING            = -1,
-        RESULT_INVALID_PARAM      = -2
+        RESULT_OK            = 0,
+        RESULT_PENDING       = -1,
+        RESULT_INVALID_PARAM = -2
     };
 
     typedef struct Queue* HQueue;
@@ -36,13 +36,14 @@ namespace dmLoadQueue
     void DeleteQueue(HQueue queue);
 
     // If the queue does not want to accept any more requests at the moment, it returns 0
-    HRequest BeginLoad(HQueue queue, const char* path, PreloadInfo* info);
+    // The name and canonical_path provided must have a lifetime that lasts until EndLoad is called
+    HRequest BeginLoad(HQueue queue, const char* name, const char* canonical_path, PreloadInfo* info);
 
     // Actual load result will be put in load_result. Ptrs can be handled until FreeLoad has been called.
     Result EndLoad(HQueue queue, HRequest request, void** buf, uint32_t* size, LoadResult* load_result);
 
     // Free once completed.
     void FreeLoad(HQueue queue, HRequest request);
-}
+} // namespace dmLoadQueue
 
 #endif

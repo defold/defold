@@ -442,6 +442,28 @@ public class ExtenderUtil {
         return sources;
     }
 
+    /** Makes sure the project doesn't have duplicates wrt relative paths.
+     * This is important since we use both files on disc and in memory. (DEF-3868, )
+     * @return Doesn't return anything. It throws CompileExceptionError if the check fails.
+     */
+    public static void checkProjectForDuplicates(Project project) throws CompileExceptionError {
+        Map<String, IResource> files = new HashMap<String, IResource>();
+
+        ArrayList<String> paths = new ArrayList<>();
+        project.findResourcePaths("", paths);
+        for (String p : paths) {
+            IResource r = project.getResource(p);
+            if (!r.isFile()) // Skip directories
+                continue;
+
+            if (files.containsKey(r.getPath())) {
+                IResource previous = files.get(r.getPath());
+                throw new CompileExceptionError(r, 0, String.format("The files' relative path conflict:\n'%s' and\n'%s", r.getAbsPath(), r.getAbsPath()));
+            }
+            files.put(r.getPath(), r);
+        }
+    }
+
     /**
      * Collect bundle resources from a specific project path and a list of exclude paths.
      * @param project

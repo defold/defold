@@ -6,7 +6,7 @@
             [support.test-support :refer [tx-nodes with-clean-system]]
             [internal.util :as util]
             [schema.core :as s])
-  (:import clojure.lang.Compiler))
+  (:import [clojure.lang Compiler$CompilerException]))
 
 (g/deftype Int s/Int)
 
@@ -190,8 +190,8 @@
   (is (= GChild                            (g/node-type (g/construct GChild))))
   (is (= [ChildNode MixinNode IRootNode]   (g/supertypes GGChild)))
   (is (= GGChild                           (g/node-type (g/construct GGChild))))
-  (is (thrown? AssertionError              (eval '(dynamo.graph/defnode BadInheritance (inherits :not-a-symbol)))))
-  (is (thrown? AssertionError              (eval '(dynamo.graph/defnode BadInheritance (inherits DoesntExist))))))
+  (is (thrown? Compiler$CompilerException  (eval '(dynamo.graph/defnode BadInheritance (inherits :not-a-symbol)))))
+  (is (thrown? Compiler$CompilerException  (eval '(dynamo.graph/defnode BadInheritance (inherits DoesntExist))))))
 
 (g/defnode OneInputNode
   (input an-input g/Str))
@@ -215,10 +215,10 @@
 
 (deftest nodes-can-have-inputs
   (testing "inputs must be defined with symbols"
-    (is (thrown? AssertionError
+    (is (thrown? Compiler$CompilerException
                  (eval '(dynamo.graph/defnode BadInput (input :not-a-symbol g/Str))))))
   (testing "inputs must be defined with a schema"
-    (is (thrown? AssertionError
+    (is (thrown? Compiler$CompilerException
                  (eval '(dynamo.graph/defnode BadInput (input a-input (fn [] "not a schema")))))))
   (testing "labeled input"
     (let [node (g/construct OneInputNode)]
@@ -394,7 +394,7 @@
         (is (= 1 (->  (g/node-value getter-node :_declared-properties) :properties :reports-higher :value))))))
 
   (testing "do not allow a property to shadow an input of the same name"
-    (is (thrown? AssertionError
+    (is (thrown? Compiler$CompilerException
                  (eval '(dynamo.graph/defnode ReflexiveFeedbackPropertySingularToSingular
                           (property port dynamo.graph/Keyword (default :x))
                           (input port dynamo.graph/Keyword))))))
@@ -405,17 +405,17 @@
              (select-keys (-> node g/node-type g/input-dependencies) [:a-property])))))
 
   (testing "properties are named by symbols"
-    (is (thrown? AssertionError
+    (is (thrown? Compiler$CompilerException
                  (eval '(dynamo.graph/defnode BadProperty
                           (property :not-a-symbol dynamo.graph/Keyword))))))
 
   (testing "property value types must exist when referenced"
-    (is (thrown? AssertionError
+    (is (thrown? Compiler$CompilerException
                  (eval '(dynamo.graph/defnode BadPropertyType
                           (property a-property (in/->ValueTypeRef :foo.bar/baz)))))))
 
   (testing "properties must have values"
-    (is (thrown? AssertionError
+    (is (thrown? Compiler$CompilerException
                  (eval '(dynamo.graph/defnode BadProperty
                           (property no-schema (fn [] "no value type provided"))))))))
 
@@ -460,19 +460,19 @@
 
 (deftest nodes-can-have-outputs
   (testing "outputs must be defined with symbols"
-    (is (thrown? AssertionError
+    (is (thrown? Compiler$CompilerException
                  (eval '(dynamo.graph/defnode BadOutput (output :not-a-symbol dynamo.graph/Str :abstract))))))
 
   (testing "outputs must be defined with a schema"
-    (is (thrown? AssertionError
+    (is (thrown? Compiler$CompilerException
                  (eval '(dynamo.graph/defnode BadOutput (output a-output (fn [] "not a schema") :abstract))))))
 
   (testing "outputs must have flags after the schema and before the production function"
-    (is (thrown? AssertionError
+    (is (thrown? Compiler$CompilerException
                  (eval '(dynamo.graph/defnode BadOutput (output a-output dynamo.graph/Str (dynamo.graph/fnk []) :cached))))))
 
   (testing "outputs must either have a production function defined or be marked as abstract"
-    (is (thrown? AssertionError
+    (is (thrown? Compiler$CompilerException
                  (eval '(dynamo.graph/defnode BadOutput (output a-output dynamo.graph/Str))))))
 
   (testing "basic output definition"
@@ -544,10 +544,10 @@
   (testing "outputs defined without the type cause a compile error"
     (is (not (nil? (eval '(dynamo.graph/defnode FooNode
                             (output my-output dynamo.graph/Any :abstract))))))
-    (is (thrown? AssertionError
+    (is (thrown? Compiler$CompilerException
                  (eval '(dynamo.graph/defnode FooNode
                           (output my-output :abstract)))))
-    (is (thrown? AssertionError
+    (is (thrown? Compiler$CompilerException
                  (eval '(dynamo.graph/defnode FooNode
                           (output my-output (dynamo.graph/fnk [] "constant string"))))))))
 
@@ -877,8 +877,8 @@
             v3      (g/node-value onode :_overridden-properties)
             _       (g/clear-property! onode :background-color)
             v4      (g/node-value onode :_overridden-properties)]
-        (is (= v1 {:dynamic-property 99} ))
-        (is (= v2 {:dynamic-property 99 :background-color "cornflower blue"} ))
+        (is (= v1 {:dynamic-property 99}))
+        (is (= v2 {:dynamic-property 99 :background-color "cornflower blue"}))
         (is (= v3 {:background-color "cornflower blue"}))
         (is (= v4 {}))))))
 

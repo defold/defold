@@ -5,6 +5,7 @@
             [editor.app-view :as app-view]
             [editor.collection :as collection]
             [editor.game-object :as game-object]
+            [editor.geom :as geom]
             [editor.handler :as handler]
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
@@ -77,26 +78,26 @@
   (testing "Collection with a single empty game object"
            (test-util/with-loaded-project
              (let [node-id   (test-util/resource-node project "/collection/empty_go.collection")
-                   zero-aabb (types/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))
                    outline   (g/node-value node-id :node-outline)
                    scene     (g/node-value node-id :scene)]
-               ; Verify outline labels
+               ;; Verify outline labels
                (is (= (list "Collection" "go") (map :label (tree-seq :children :children outline))))
-               ; Verify AABBs
-               (is (every? #(= zero-aabb %) (map :aabb (tree-seq :children :children (g/node-value node-id :scene)))))))))
+               ;; Verify AABBs
+               (is (= [geom/null-aabb geom/empty-bounding-box]
+                      (map :aabb (tree-seq :children :children (g/node-value node-id :scene)))))))))
 
 (deftest unknown-components
   (testing "Load a collection with unknown components"
            (test-util/with-loaded-project
              (let [node-id   (test-util/resource-node project "/collection/unknown_components.collection")
                    outline   (g/node-value node-id :node-outline)
-                   scene     (g/node-value node-id :scene)
-                   zero-aabb (types/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))]
-               ; Verify outline labels
+                   scene     (g/node-value node-id :scene)]
+               ;; Verify outline labels
                (is (= (list "Collection" "my_instance" "unknown")
                       (map :label (tree-seq :children :children outline))))
-               ; Verify AABBs
-               (is (every? #(= zero-aabb %) (map :aabb (tree-seq :children :children (g/node-value node-id :scene)))))))))
+               ;; Verify AABBs
+               (is (= [geom/null-aabb geom/empty-bounding-box geom/empty-bounding-box]
+                      (map :aabb (tree-seq :children :children (g/node-value node-id :scene)))))))))
 
 (defn- prop [node-id path prop]
   (-> (test-util/outline node-id path)

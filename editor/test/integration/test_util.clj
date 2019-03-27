@@ -257,10 +257,10 @@
         project-path  (if custom-path? (first forms) project-path)
         forms         (if custom-path? (next forms) forms)]
     `(let [[system# ~'workspace ~'project] (load-system-and-project ~project-path)
-           ~'system (is/clone-system system#)
-           ~'cache  (:cache ~'system)
+           system-clone# (is/clone-system system#)
+           ~'cache  (:cache system-clone#)
            ~'world  (g/node-id->graph-id ~'workspace)]
-       (binding [g/*the-system* (atom ~'system)]
+       (binding [g/*the-system* (atom system-clone#)]
          (let [~'app-view (setup-app-view! ~'project)]
            ~@forms)))))
 
@@ -551,8 +551,9 @@
     (testing "uses shader and texture params from assigned material "
       (with-prop [node-id material-prop (workspace/resolve-workspace-resource workspace "/materials/test_samplers.material")]
         (let [scene-data (g/node-value node-id :scene)]
-          (is (= (get-in scene-data shader-path)
-                 (g/node-value material-node :shader)))
+          ;; Additional uniforms might be introduced during rendering.
+          (is (= (dissoc (get-in scene-data shader-path) :uniforms)
+                 (dissoc (g/node-value material-node :shader) :uniforms)))
           (is (= (get-in scene-data (conj gpu-texture-path :params))
-                   (material/sampler->tex-params  (first (g/node-value material-node :samplers))))))))))
+                   (material/sampler->tex-params (first (g/node-value material-node :samplers))))))))))
 

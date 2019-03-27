@@ -1,13 +1,20 @@
-(defproject defold-robot "0.1.0"
+(defproject defold-robot "0.6.0"
   :description "FIXME: write description"
   :url "https://www.defold.com"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.8.0"]
+  :dependencies [[org.clojure/clojure "1.10.0"]
                  [org.clojure/tools.cli "0.3.5"]
-                 [org.clojure/data.json "0.2.6"]
                  [commons-io/commons-io "2.4"]
-                 [org.apache.ant/ant "1.10.1"]]
+                 [org.apache.ant/ant "1.10.1"]
+                 [org.openjfx/javafx-graphics "12-ea+8"]
+                 [org.openjfx/javafx-graphics "12-ea+8" :classifier "linux"]
+                 [org.openjfx/javafx-graphics "12-ea+8" :classifier "mac"]
+                 [org.openjfx/javafx-graphics "12-ea+8" :classifier "win"]
+                 [org.openjfx/javafx-swing "12-ea+8"]
+                 [org.openjfx/javafx-swing "12-ea+8" :classifier "linux"]
+                 [org.openjfx/javafx-swing "12-ea+8" :classifier "mac"]
+                 [org.openjfx/javafx-swing "12-ea+8" :classifier "win"]]
   :resource-paths ["resources"]
   :main defold-robot.robot
   :aot [defold-robot.robot]

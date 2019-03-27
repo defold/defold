@@ -2,7 +2,7 @@
 #define DM_TRANSFORM_H
 
 #include <assert.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include "math.h"
 
 namespace dmTransform

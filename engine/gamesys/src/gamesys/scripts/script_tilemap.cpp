@@ -192,7 +192,7 @@ namespace dmGameSystem
          * That's why tile-index is subtracted by 1
          * See B2GRIDSHAPE_EMPTY_CELL in b2GridShape.h
          */
-        uint16_t tile = ((uint16_t) lua_tile) - 1;
+        uint32_t tile = ((uint16_t) lua_tile) - 1;
 
         int32_t cell_x = x - resource->m_MinCellX, cell_y = y - resource->m_MinCellY;
         if (cell_x < 0 || cell_x >= (int32_t)resource->m_ColumnCount || cell_y < 0 || cell_y >= (int32_t)resource->m_RowCount)

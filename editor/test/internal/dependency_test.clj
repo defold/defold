@@ -7,8 +7,8 @@
             [internal.system :as is]))
 
 (defn- dependencies
-  [system & pairs]
-  (ts/graph-dependencies (is/basis system) (partition 2 pairs)))
+  [& pairs]
+  (ts/graph-dependencies (g/now) (partition 2 pairs)))
 
 (g/defnode SingleOutput
   (output out-from-inline g/Str (g/fnk [] "out-from-inline")))
@@ -24,7 +24,7 @@
   (testing "results include inputs"
     (ts/with-clean-system
       (let [[a] (ts/tx-nodes (g/make-node world SingleOutput))
-            deps (dependencies system a :out-from-inline)]
+            deps (dependencies a :out-from-inline)]
         (is (= deps
                #{[a :out-from-inline]})))))
 
@@ -33,7 +33,7 @@
       (let [[a b] (ts/tx-nodes (g/make-node world SingleOutput)
                                (g/make-node world InputNoOutput))
             _     (g/transact (g/connect a :out-from-inline b :unused-input))
-            deps  (dependencies system a :out-from-inline)]
+            deps  (dependencies a :out-from-inline)]
         (is (= deps
                #{[a :out-from-inline]})))))
 
@@ -42,7 +42,7 @@
       (let [[a b] (ts/tx-nodes (g/make-node world SingleOutput)
                                (g/make-node world InputUsedByOutput))
             _     (g/transact (g/connect a :out-from-inline b :string-input))
-            deps  (dependencies system a :out-from-inline)]
+            deps  (dependencies a :out-from-inline)]
         (is (= deps
                #{[a :out-from-inline]
                  [b :out-from-input]}))))))
@@ -54,7 +54,7 @@
                                    (g/make-node world SingleOutput)
                                    (g/make-node world SingleOutput)
                                    (g/make-node world SingleOutput))
-            deps (dependencies system
+            deps (dependencies
                                a :out-from-inline
                                b :out-from-inline
                                c :out-from-inline
@@ -77,7 +77,7 @@
                                  (g/connect b :out-from-inline x :string-input)
                                  (g/connect c :out-from-inline x :string-input)
                                  (g/connect d :out-from-inline x :string-input)))
-            deps        (dependencies system
+            deps        (dependencies
                                       a :out-from-inline
                                       b :out-from-inline
                                       c :out-from-inline
@@ -104,7 +104,7 @@
                           (g/connect a :out-from-inline y :string-input)
                           (g/connect a :out-from-inline z :string-input)
                           (g/connect a :out-from-inline w :string-input)))
-            deps        (dependencies system a :out-from-inline)]
+            deps        (dependencies a :out-from-inline)]
         (def basis* (g/now))
         (is (= deps
                #{[a :out-from-inline]
@@ -142,7 +142,7 @@
                     (g/connect a :out-from-inline x :input-3)
                     (g/connect a :out-from-inline x :input-4)
                     (g/connect a :out-from-inline x :input-5)))
-            deps  (dependencies system a :out-from-inline)]
+            deps  (dependencies a :out-from-inline)]
         (is (= deps
                #{[a :out-from-inline]
                  [x :input-counter]})))))
@@ -158,7 +158,7 @@
                     (g/connect a :output-3 x :input-3)
                     (g/connect a :output-4 x :input-4)
                     (g/connect a :output-5 x :input-5)))
-            deps  (dependencies system a :output-1 a :output-2 a :output-3 a :output-4 a :output-5)]
+            deps  (dependencies a :output-1 a :output-2 a :output-3 a :output-4 a :output-5)]
         (is (= deps
                #{[a :output-1]
                  [a :output-2]
@@ -184,7 +184,7 @@
                                (g/make-node world SelfDependent))
             _     (g/transact
                    (g/connect a :out-from-inline x :string-input))
-            deps  (dependencies system a :out-from-inline)]
+            deps  (dependencies a :out-from-inline)]
         (is (= deps
                #{[a :out-from-inline]
                  [x :uppercased]
@@ -196,7 +196,7 @@
                                (g/make-node world BadlyWrittenSelfDependent))
             _     (g/transact
                    (g/connect a :out-from-inline x :string-value))
-            deps  (dependencies system a :out-from-inline)]
+            deps  (dependencies a :out-from-inline)]
         (is (= deps
                #{[a :out-from-inline]
                  [x :string-value]}))))))
@@ -224,7 +224,7 @@
                           (g/connect a :out-from-inline c :string-input)
                           (g/connect b :out-from-input  d :string-input)
                           (g/connect c :out-from-input  d :string-input)))
-            deps        (dependencies system a :out-from-inline)]
+            deps        (dependencies a :out-from-inline)]
         (is (= deps
                #{[a :out-from-inline]
                  [b :out-from-input]
@@ -248,8 +248,8 @@
                      (concat
                       (g/connect a :out-from-inline x :input-1)
                       (g/connect b :out-from-inline x :input-2)))
-            a-deps  (dependencies system a :out-from-inline)
-            b-deps  (dependencies system b :out-from-inline)]
+            a-deps  (dependencies a :out-from-inline)
+            b-deps  (dependencies b :out-from-inline)]
         (is (= a-deps
                #{[a :out-from-inline]
                  [x :output-1]}))

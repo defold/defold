@@ -91,7 +91,7 @@ struct SResourceFactory
     // Guard for anything that touches anything that could be shared
     // with GetRaw (used for async threaded loading). Liveupdate, HttpClient, m_Buffer
     // m_BuiltinsManifest, m_Manifest
-    dmMutex::Mutex                               m_LoadMutex;
+    dmMutex::HMutex                              m_LoadMutex;
 
     // dmResource::Get recursion depth
     uint32_t                                     m_RecursionDepth;
@@ -139,7 +139,7 @@ SResourceType* FindResourceType(SResourceFactory* factory, const char* extension
 }
 
 // TODO: Test this...
-void GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf)
+uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf)
 {
     DM_SNPRINTF(buf, RESOURCE_PATH_MAX, "%s/%s", base_dir, relative_dir);
 
@@ -156,11 +156,12 @@ void GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, ch
         ++source;
     }
     *dest = '\0';
+    return (uint32_t)(dest - buf);
 }
 
-void GetCanonicalPath(const char* relative_dir, char* buf)
+uint32_t GetCanonicalPath(const char* relative_dir, char* buf)
 {
-    GetCanonicalPathFromBase("", relative_dir, buf);
+    return GetCanonicalPathFromBase("", relative_dir, buf);
 }
 
 Result CheckSuppliedResourcePath(const char* name)
@@ -726,7 +727,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
         BytesToHexString(factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, HashLength(dmLiveUpdateDDF::HASH_SHA1), id_buf, MANIFEST_PROJ_ID_LEN);
         dmSys::Result support_path_result = dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
-        if (support_path_result == dmSys::RESULT_OK)
+        if (support_path_result != dmSys::RESULT_OK)
         {
             dmLogError("Failed get application support path for \"%s\", result = %i", id_buf, support_path_result);
             r = RESULT_IO_ERROR;
@@ -1419,10 +1420,10 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
         }
 
         // Restore to default buffer size
+        factory->m_Buffer.SetSize(0);
         if (factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
             factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
         }
-        factory->m_Buffer.SetSize(0);
 
         if (create_error == RESULT_OK)
         {
@@ -2000,7 +2001,7 @@ Result GetPath(HFactory factory, const void* resource, uint64_t* hash)
 }
 
 
-dmMutex::Mutex GetLoadMutex(const dmResource::HFactory factory)
+dmMutex::HMutex GetLoadMutex(const dmResource::HFactory factory)
 {
     return factory->m_LoadMutex;
 }

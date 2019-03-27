@@ -69,6 +69,4 @@
                :shift (.isShiftDown mouse-event)
                :meta (.isMetaDown mouse-event)
                :control (.isControlDown mouse-event)
-               :click-count (.getClickCount mouse-event)))
-      ))
-)
+               :click-count (.getClickCount mouse-event))))))

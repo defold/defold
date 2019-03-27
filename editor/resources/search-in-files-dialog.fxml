@@ -1,43 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import java.lang.*?>
-<?import java.util.*?>
 <?import javafx.geometry.*?>
 <?import javafx.scene.control.*?>
-<?import javafx.scene.image.*?>
 <?import javafx.scene.layout.*?>
-<?import javafx.scene.paint.*?>
-<?import javafx.scene.text.*?>
 
-<VBox id="search-files" prefHeight="600.0" prefWidth="500.0" spacing="12.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
-   <children>
-      <Label text="Search pattern (* to match any string)" />
-      <TextField id="search" />
-      <Label text="File types to search in (comma separated)" />
-      <TextField id="types" />
-      <TreeView id="resources-tree" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
+<VBox id="search-files" prefHeight="600.0" prefWidth="500.0" spacing="12.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8">
+    <padding>
+        <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />
+    </padding>
+    <Label text="Search pattern (* to match any string)" />
+    <TextField id="search" />
+    <Label text="File types to search in (comma separated)" />
+    <TextField id="types" />
+    <CheckBox id="include-libraries-check-box" text="Search Inside Libraries" />
+    <TreeView id="resources-tree" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
     <HBox alignment="CENTER" maxHeight="-Infinity" maxWidth="+Infinity">
-      <children>
-            <HBox id="search-in-progress" alignment="CENTER">
-               <children>
-                  <ProgressIndicator minHeight="-Infinity" minWidth="-Infinity" prefHeight="24.0" prefWidth="24.0" />
-                  <Label text="Searching">
-                     <padding>
-                        <Insets left="8.0" />
-                     </padding>
-                  </Label>
-               </children>
-            </HBox>
+        <HBox id="search-in-progress" alignment="CENTER">
+            <ProgressIndicator minHeight="-Infinity" minWidth="-Infinity" prefHeight="24.0" prefWidth="24.0" />
+            <Label text="Searching">
+                <padding>
+                    <Insets left="8.0" />
+                </padding>
+            </Label>
+        </HBox>
         <Pane maxWidth="+Infinity" HBox.hgrow="ALWAYS" />
-      <Button id="ok" focusTraversable="false" minWidth="80.0" mnemonicParsing="false" text="Keep Results" HBox.hgrow="NEVER">
-        <HBox.margin>
-          <Insets left="14.0" />
-        </HBox.margin>
-      </Button>
-      </children>
+        <Button id="ok" focusTraversable="false" minWidth="80.0" mnemonicParsing="false" text="Keep Results" HBox.hgrow="NEVER">
+            <HBox.margin>
+                <Insets left="14.0" />
+            </HBox.margin>
+        </Button>
     </HBox>
-   </children>
-   <padding>
-      <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />
-   </padding>
 </VBox>

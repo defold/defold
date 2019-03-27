@@ -4,9 +4,9 @@
             [clojure.test.check.properties :as prop]
             [clojure.test :refer :all]
             [editor.types :as t :refer [rect]]
-            [editor.geom :refer :all]
-            [editor.image-util :refer :all]
-            [editor.texture :refer :all]
+            [editor.geom :as geom]
+            [editor.image-util :as iu]
+            [editor.texture :as tex]
             [editor.texture.pack-max-rects :as itp :refer [max-rects-packing]]
             [schema.test :refer [validate-schemas]])
   (:import [editor.types Rect]))
@@ -27,12 +27,12 @@
 
 (defn total-area
   [non-overlapping-rects]
-  (reduce + (map #(if % (area %) 0) non-overlapping-rects)))
+  (reduce + (map #(if % (geom/area %) 0) non-overlapping-rects)))
 
 (defspec split-rect-area-is-preserved
   (prop/for-all [[container content] intersecting-rects]
-    (= (total-area (conj (split-rect container content) (intersect container content)))
-       (area container))))
+    (= (total-area (conj (geom/split-rect container content) (geom/intersect container content)))
+       (geom/area container))))
 
 (defn all-pairs
   [xs]
@@ -47,10 +47,10 @@
     (= (.height b1) (.height b2))))
 
 (defn packed-textures-do-not-overlap [tex textures]
-  (every? nil? (map #(apply intersect %) (all-pairs (:coords tex)))))
+  (every? nil? (map #(apply geom/intersect %) (all-pairs (:coords tex)))))
 
 (defn packed-textures-fall-within-the-bounds-of-the-texturemap [tex textures]
-  (every? #(dimensions= (intersect (:aabb tex) %) %) (:coords tex)))
+  (every? #(dimensions= (geom/intersect (:aabb tex) %) %) (:coords tex)))
 
 (defn texturemap-includes-all-textures [tex textures]
   (= (count textures) (count (:coords tex))))
@@ -60,7 +60,7 @@
                 (<= 0 (.y %))) (:coords tex)))
 
 (defn total-texture-area-fits [tex textures]
-  (<= (total-area textures) (area (:aabb tex))))
+  (<= (total-area textures) (geom/area (:aabb tex))))
 
 (defspec texture-packing-invariant
   (prop/for-all [textures (gen/such-that not-empty (gen/resize 20 (gen/vector (gen/resize 128 origin-rects))))]

@@ -30,7 +30,7 @@
                   </Label>
                   <AnchorPane>
                      <children>
-                        <ProgressBar id="progress" progress="0.74" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                        <ProgressBar id="progress" styleClass="really-small-progress-bar" progress="0.74" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                      </children>
                   </AnchorPane>
                   <Label id="message" text="" />

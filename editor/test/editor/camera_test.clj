@@ -22,9 +22,8 @@
   (testing "Framing an orthographic camera on a null AABB should not affect the projection matrix"
            (let [camera (camera/make-camera :orthographic)
                  viewport (t/->Region 0 10 0 10)
-                 null-aabb (geom/null-aabb)
                  proj-before (camera/camera-projection-matrix camera)
-                 framed-camera (camera/camera-orthographic-frame-aabb camera viewport null-aabb)
+                 framed-camera (camera/camera-orthographic-frame-aabb camera viewport geom/null-aabb)
                  proj (camera/camera-projection-matrix framed-camera)]
              (is (.epsilonEquals proj-before proj math/epsilon)))))
 

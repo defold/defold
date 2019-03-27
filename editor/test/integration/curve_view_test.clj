@@ -2,12 +2,11 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
-            [editor.curve-view :as curve-view]
-            [editor.defold-project :as project]
-            [editor.scene :as scene]
             [editor.camera :as camera]
-            [editor.types :as types]
+            [editor.curve-view :as curve-view]
             [editor.handler :as handler]
+            [editor.scene-selection :as selection]
+            [editor.types :as types]
             [integration.test-util :as test-util])
   (:import [javax.vecmath Point3d]
            [editor.curve_view SubSelectionProvider]))
@@ -33,17 +32,17 @@
 
 (defn- mouse-click!
   ([view world-x world-y]
-    (mouse-click! view world-x world-y []))
+   (mouse-click! view world-x world-y []))
   ([view world-x world-y modifiers]
-    (let [[x y] (world->screen view world-x world-y)]
-      (test-util/mouse-click! view x y modifiers))))
+   (let [[x y] (world->screen view world-x world-y)]
+     (test-util/mouse-click! view x y modifiers))))
 
 (defn- mouse-dbl-click!
   ([view world-x world-y]
-    (mouse-dbl-click! view world-x world-y []))
+   (mouse-dbl-click! view world-x world-y []))
   ([view world-x world-y modifiers]
-    (let [[x y] (world->screen view world-x world-y)]
-      (test-util/mouse-dbl-click! view x y modifiers))))
+   (let [[x y] (world->screen view world-x world-y)]
+     (test-util/mouse-dbl-click! view x y modifiers))))
 
 (defn- mouse-drag! [view world-x0 world-y0 world-x1 world-y1]
   (let [[x0 y0] (world->screen view world-x0 world-y0)
@@ -63,15 +62,16 @@
   (test-util/with-loaded-project
     (let [curve-view (make-curve-view! app-view 400 400)
           node-id (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
-          emitter (:node-id (test-util/outline node-id [0]))]
+          emitter (:node-id (test-util/outline node-id [0]))
+          modifier (first selection/toggle-modifiers)]
       (app-view/select! app-view [emitter])
       (are [x y mods selection] (do
                                   (mouse-click! curve-view x y mods)
                                   (= selection (sub-selection app-view emitter :particle-key-alpha)))
         0.0 0.0 [] [1]
         0.11 0.99 [] [2]
-        0.0 0.0 [:shift] [2 1]
-        0.11 0.99 [:shift] [1]))))
+        0.0 0.0 [modifier] [2 1]
+        0.11 0.99 [modifier] [1]))))
 
 (defn- cp [nid property idx]
   (let [c (g/node-value nid property)]

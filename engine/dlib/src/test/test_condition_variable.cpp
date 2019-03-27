@@ -7,9 +7,9 @@
 
 struct ThreadArg
 {
-    dmMutex::Mutex m_Mutex;
-    dmConditionVariable::ConditionVariable m_Less;
-    dmConditionVariable::ConditionVariable m_More;
+    dmMutex::HMutex m_Mutex;
+    dmConditionVariable::HConditionVariable m_Less;
+    dmConditionVariable::HConditionVariable m_More;
     dmArray<int>    m_Buffer;
     int64_t         m_Sum;
 };

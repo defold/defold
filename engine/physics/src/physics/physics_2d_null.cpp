@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/hash.h>
 #include <dlib/message.h>
@@ -73,6 +73,10 @@ namespace dmPhysics
      {
          return 0;
      }
+
+    void ClearGridShapeHulls(HCollisionObject2D collision_object)
+    {
+    }
 
     void SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
     {
@@ -191,6 +195,10 @@ namespace dmPhysics
     }
 
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
+    {
+    }
+
+    void RayCast2D(HWorld2D world, const RayCastRequest& request, RayCastResponse& response)
     {
     }
 

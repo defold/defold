@@ -21,7 +21,6 @@
            [java.net URL]
            [javafx.scene Parent Scene]
            [javafx.stage Stage Modality]
-           [com.defold.editor Platform]
            [org.apache.commons.configuration.plist XMLPropertyListConfiguration]))
 
 (set! *warn-on-reflection* true)
@@ -80,23 +79,31 @@
 
 (g/defnk get-armv7-engine [project prefs]
   (g/with-auto-evaluation-context evaluation-context
-    (try {:armv7 (engine/get-engine project evaluation-context prefs "armv7-darwin")}
+    (try {:armv7-descriptor (engine/get-engine project evaluation-context prefs "armv7-darwin")}
          (catch Exception e
            {:err e :message "Failed to get armv7 engine."}))))
 
 (g/defnk get-arm64-engine [project prefs]
   (g/with-auto-evaluation-context evaluation-context
-    (try {:arm64 (engine/get-engine project evaluation-context prefs "arm64-darwin")}
+    (try {:arm64-descriptor (engine/get-engine project evaluation-context prefs "arm64-darwin")}
          (catch Exception e
            {:err e :message "Failed to get arm64 engine."}))))
 
-(g/defnk lipo-ios-engine [^File armv7 ^File arm64]
-  (let [lipo (format "%s/%s/bin/lipo" (system/defold-unpack-path) (.getPair (Platform/getJavaPlatform)))
+(g/defnk lipo-ios-engine [armv7-descriptor arm64-descriptor]
+  (let [lipo (format "%s/%s/bin/lipo" (system/defold-unpack-path) (engine/current-platform))
+        armv7-engine (fs/create-temp-file!)
+        arm64-engine (fs/create-temp-file!)
         engine (fs/create-temp-file! "dmengine" "")]
-    (try (sh lipo "-create" (.getAbsolutePath armv7) (.getAbsolutePath arm64) "-output" (.getAbsolutePath engine))
-         {:engine engine}
-         (catch Exception e
-           {:err e :message "Failed to lipo engine binary."}))))
+    (try
+      (engine/copy-engine-executable! armv7-engine "armv7-darwin" armv7-descriptor)
+      (engine/copy-engine-executable! arm64-engine "arm64-darwin" arm64-descriptor)
+      (sh lipo "-create" (.getAbsolutePath armv7-engine) (.getAbsolutePath arm64-engine) "-output" (.getAbsolutePath engine))
+      {:engine engine}
+      (catch Exception e
+        {:err e :message "Failed to lipo engine binary."})
+      (finally
+        (fs/delete-file! armv7-engine {:fail :silently})
+        (fs/delete-file! arm64-engine {:fail :silently})))))
 
 (g/defnk assemble-ios-app [^File engine ^File info-plist ^File package-dir ^File app-dir ^File profile]
   (try
@@ -114,7 +121,7 @@
       {:err e :message "Failed to create ios app."})))
 
 (g/defnk sign-ios-app [^File package-dir ^File app-dir ^File entitlements-plist identity-id assembled]
-  (let [codesign-alloc (format "%s/%s/bin/codesign_allocate" (system/defold-unpack-path) (.getPair (Platform/getJavaPlatform)))
+  (let [codesign-alloc (format "%s/%s/bin/codesign_allocate" (system/defold-unpack-path) (engine/current-platform))
         codesign-env {"EMBEDDED_PROFILE_NAME" "embedded.mobileprovision"
                       "CODESIGN_ALLOCATE" codesign-alloc}]
     (try

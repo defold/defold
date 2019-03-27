@@ -14,7 +14,7 @@
   {"x86_64-darwin" {"bin" ["dmengine" "dmengine_release"]
                     "lib" ["libparticle_shared.dylib" "libtexc_shared.dylib"]}
    "x86-win32"     {"bin" ["dmengine.exe" "dmengine_release.exe"]
-                    "lib" ["particle_shared.dll" "texc_shared.dll"]}
+                    "lib" ["particle_shared.dll"]}
    "x86_64-win32"  {"bin" ["dmengine.exe" "dmengine_release.exe"]
                     "lib" ["particle_shared.dll" "texc_shared.dll"]}
    "x86_64-linux"  {"bin" ["dmengine" "dmengine_release"]
@@ -31,16 +31,19 @@
     platform))
 
 (def artifacts
-  {"${DYNAMO-HOME}/ext/bin/win32/luajit.exe"          "x86-win32/bin/luajit.exe"
-   "${DYNAMO-HOME}/ext/lib/win32/OpenAL32.dll"        "x86-win32/bin/OpenAL32.dll"
+  {"${DYNAMO-HOME}/ext/lib/win32/OpenAL32.dll"        "x86-win32/bin/OpenAL32.dll"
    "${DYNAMO-HOME}/ext/lib/win32/wrap_oal.dll"        "x86-win32/bin/wrap_oal.dll"
-   "${DYNAMO-HOME}/ext/lib/win32/PVRTexLib.dll"       "x86-win32/lib/PVRTexLib.dll"
-   "${DYNAMO-HOME}/ext/lib/win32/msvcr120.dll"        "x86-win32/lib/msvcr120.dll"
 
    "${DYNAMO-HOME}/ext/bin/x86_64-win32/luajit.exe"    "x86_64-win32/bin/luajit.exe"
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/OpenAL32.dll"  "x86_64-win32/bin/OpenAL32.dll"
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/wrap_oal.dll"  "x86_64-win32/bin/wrap_oal.dll"
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/PVRTexLib.dll" "x86_64-win32/lib/PVRTexLib.dll"
+   ;; msvcr120.dll is a dependency of PVRTexLib.dll. Because we unpack all these
+   ;; files to a random temporary directory which is not in the Windows search
+   ;; path we need to explicitly load all libraries "bottom up" to make sure we
+   ;; are using, and Windows can find, our versions. For this reason we have
+   ;; calls to System.load in TexcLibrary.java both in the editor and Bob. If
+   ;; you add any new dlls, make sure that they are properly loaded!
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/msvcr120.dll"  "x86_64-win32/lib/msvcr120.dll"
 
    "${DYNAMO-HOME}/ext/bin/x86_64-linux/luajit"               "x86_64-linux/bin/luajit"
@@ -48,6 +51,14 @@
 
    "${DYNAMO-HOME}/ext/lib/x86_64-darwin/libPVRTexLib.dylib"  "x86_64-darwin/lib/libPVRTexLib.dylib"
    "${DYNAMO-HOME}/ext/bin/x86_64-darwin/luajit"              "x86_64-darwin/bin/luajit"
+
+   "$DYNAMO_HOME/ext/bin/x86_64-darwin/glslc"                 "x86_64-darwin/glslc"
+   "$DYNAMO_HOME/ext/bin/x86_64-linux/glslc"                  "x86_64-linux/glslc"
+   "$DYNAMO_HOME/ext/bin/x86_64-win32/glslc.exe"              "x86_64-win32/glslc.exe"
+
+   "$DYNAMO_HOME/ext/bin/x86_64-darwin/spirv-cross"           "x86_64-darwin/spirv-cross"
+   "$DYNAMO_HOME/ext/bin/x86_64-linux/spirv-cross"            "x86_64-linux/spirv-cross"
+   "$DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe"        "x86_64-win32/spirv-cross.exe"
 
    "${DYNAMO-HOME}/ext/share/luajit"                  "shared/luajit"
 

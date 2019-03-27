@@ -30,7 +30,7 @@
   (create-test-project)
   (load-test-project ws-graph))
 
-(defn- ^File file-in-project [^String name] (io/file (io/file *project-path*) name))
+(defn- file-in-project ^File [^String name] (io/file (io/file *project-path*) name))
 
 (defn- write-file [^String name content]
   (let [f (file-in-project name)]

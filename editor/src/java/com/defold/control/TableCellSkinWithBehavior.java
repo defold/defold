@@ -1,30 +1,30 @@
 package com.defold.control;
 
-import com.sun.javafx.scene.control.behavior.TableCellBehavior;
-import com.sun.javafx.scene.control.skin.TableCellSkinBase;
-import javafx.beans.property.BooleanProperty;
-import javafx.beans.property.ReadOnlyDoubleProperty;
-import javafx.scene.control.TableColumn;
+import javafx.beans.property.ReadOnlyObjectProperty;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumnBase;
+import javafx.scene.control.skin.TableCellSkinBase;
 
 // Part of workaround for https://bugs.openjdk.java.net/browse/JDK-8089514
 // This is a reimplementation of the JavaFX TableCellSkin class with
 // the sole purpose of allowing us to pass a custom TableCellBehavior.
-public class TableCellSkinWithBehavior extends TableCellSkinBase<javafx.scene.control.TableCell<Object, Object>, TableCellBehavior<Object, Object>> {
-    private final TableColumn<Object, Object> tableColumn;
+public class TableCellSkinWithBehavior extends TableCellSkinBase<Object, Object, TableCell<Object, Object>> {
 
-    public TableCellSkinWithBehavior(javafx.scene.control.TableCell<Object, Object> tableCell, TableCellBehavior<Object, Object> behavior) {
-        super(tableCell, behavior);
-        this.tableColumn = tableCell.getTableColumn();
-        super.init(tableCell);
+    private final TableCellBehavior behavior;
+
+    public TableCellSkinWithBehavior(TableCell<Object, Object> tableCell, TableCellBehavior behavior) {
+        super(tableCell);
+        this.behavior = behavior;
     }
 
     @Override
-    protected BooleanProperty columnVisibleProperty() {
-        return tableColumn.visibleProperty();
+    public void dispose() {
+        super.dispose();
+        behavior.dispose();
     }
 
     @Override
-    protected ReadOnlyDoubleProperty columnWidthProperty() {
-        return tableColumn.widthProperty();
+    public ReadOnlyObjectProperty<? extends TableColumnBase<Object, Object>> tableColumnProperty() {
+        return getSkinnable().tableColumnProperty();
     }
 }

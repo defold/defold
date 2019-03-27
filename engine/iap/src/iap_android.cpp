@@ -329,7 +329,6 @@ void HandleProductResult(const Command* cmd)
         if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
             char err_str[128];
             if (dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str)) < 0) {
-                lua_pop(L, lua_gettop(L) - top - 2); // Need to leave function and self references.
                 dmLogError("Failed converting product result JSON to Lua; %s", err_str);
                 lua_pushnil(L);
                 IAP_PushError(L, "failed to convert JSON to Lua for product response", REASON_UNSPECIFIED);
@@ -391,7 +390,6 @@ void HandlePurchaseResult(const Command* cmd)
             if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
                 char err_str[128];
                 if (dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str)) < 0) {
-                    lua_pop(L, lua_gettop(L) - top - 2); // Need to leave function and self references.
                     dmLogError("Failed converting purchase JSON result to Lua; %s", err_str);
                     lua_pushnil(L);
                     IAP_PushError(L, "failed to convert purchase response JSON to Lua", REASON_UNSPECIFIED);

@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/hash.h>
 #include <dlib/dstrings.h>

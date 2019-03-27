@@ -7,6 +7,13 @@
 # 3: Remove the git folder:	$ rm -rf libvpx/.git
 # 4: Archive the folder: 	$ tar -czvf $DEFOLD_HOME/share/ext/vpx/libvpx-1.7.0.tar.gz libvpx/
 
+#
+# Note: This package requires yasm to be installed
+#
+# Note for Win32: Currently the command line build uses /GL which we don't support (lld-link doesn't like it)
+#                 Solution is to open the project and set "Whole Program Optimization: No Whole Program Optimization" (/GL)
+#                 and build+package the library manually.
+
 readonly PRODUCT=vpx
 readonly VERSION=1.7.0
 readonly BASE_URL=https://chromium.googlesource.com/webm/libvpx/+archive
@@ -85,11 +92,13 @@ case $CONF_TARGET in
 		;;
 	win32)
 		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86-win32-vs14 --enable-static-msvcrt"
-		PATH="/c/Program Files (x86)/MSBuild/14.0/Bin:$PATH"
+		# If used, it will build via command line, although with the /GL flag which we don't support when using lld-link
+		#PATH="/c/Program Files (x86)/MSBuild/14.0/Bin:$PATH"
 		;;
 	x86_64-win32)
 		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86_64-win64-vs14 --enable-static-msvcrt"
-		PATH="/c/Program Files (x86)/MSBuild/14.0/Bin:$PATH"
+		# If used, it will build via command line, although with the /GL flag which we don't support when using lld-link
+		#PATH="/c/Program Files (x86)/MSBuild/14.0/Bin:$PATH"
 		;;
 	js-web)
 		CONFIGURE_WRAPPER="ARFLAGS=crs $EMSCRIPTEN/emconfigure"

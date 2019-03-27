@@ -9,6 +9,41 @@
 
 namespace dmScript
 {
+
+///////////////////////////////////////////////////////////////
+// NOTE: Helper functions to get more logging on issue DEF-3714
+#define PUSH_TABLE_LOGGER_CAPACITY 128
+#define PUSH_TABLE_LOGGER_STR_SIZE PUSH_TABLE_LOGGER_CAPACITY+1
+
+    struct PushTableLogger
+    {
+        char m_Log[PUSH_TABLE_LOGGER_STR_SIZE]; // +1 for \0
+        const char* m_BufferStart;
+        size_t m_BufferSize;
+        uint32_t m_Size;
+        uint32_t m_Cursor;
+        PushTableLogger() {
+            memset(m_Log, 0x0, sizeof(m_Log));
+            m_BufferStart = 0;
+            m_BufferSize = 0;
+            m_Size = 0;
+            m_Cursor = 0;
+        };
+    };
+
+#ifdef __GNUC__
+    void PushTableLogFormat(PushTableLogger& logger, const char *format, ...)
+    __attribute__ ((format (printf, 2, 3)));
+#else
+    void PushTableLogFormat(PushTableLogger& logger, const char *format, ...);
+#endif
+
+    void PushTableLogString(PushTableLogger& logger, const char* s);
+    void PushTableLogChar(PushTableLogger& logger, char c);
+    void PushTableLogPrint(PushTableLogger& logger, char out[PUSH_TABLE_LOGGER_STR_SIZE]);
+// End DEF-3714 helper functions.
+///////////////////////////////////////////////////////////////
+
     struct Module
     {
         char*       m_Script;
@@ -16,8 +51,6 @@ namespace dmScript
         char*       m_Name;
         void*       m_Resource;
     };
-
-    #define DM_SCRIPT_MAX_EXTENSIONS (sizeof(uint32_t) * 8 * 16)
 
     typedef struct ScriptExtension* HScriptExtension;
 
@@ -30,9 +63,8 @@ namespace dmScript
         dmHashTable64<int>          m_HashInstances;
         dmArray<HScriptExtension>   m_ScriptExtensions;
         lua_State*                  m_LuaState;
-        uint32_t                    m_InitializedExtensions[DM_SCRIPT_MAX_EXTENSIONS / (8 * sizeof(uint32_t))];
-        bool                        m_EnableExtensions;
         int                         m_ContextTableRef;
+        bool                        m_EnableExtensions;
     };
 
     bool ResolvePath(lua_State* L, const char* path, uint32_t path_size, dmhash_t& out_hash);

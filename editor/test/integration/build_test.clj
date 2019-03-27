@@ -194,7 +194,7 @@
                                       (set (map :id animations)))))
 
                              (let [mesh (-> mesh-set :mesh-attachments first)]
-                               (is (< 2 (-> mesh :indices count))))
+                               (is (< 2 (-> mesh :position-indices count))))
 
                              ;; TODO - id must be 0 currently because of the runtime
                              ;; (is (= (murmur/hash64 "Book") (get-in pb [:mesh-entries 0 :id])))
@@ -230,7 +230,7 @@
                               (is (= [""] (:textures pb)))
 
                               (let [mesh (-> mesh-set :mesh-attachments first)]
-                                (is (< 2 (-> mesh :indices count))))))}]})
+                                (is (< 2 (-> mesh :position-indices count))))))}]})
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))

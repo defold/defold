@@ -1,6 +1,6 @@
 #include <string.h>
 #include <assert.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
@@ -213,6 +213,19 @@ namespace dmGraphics
         }
     }
 
+    void ResizeWindow(HContext context, uint32_t width, uint32_t height)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            context->m_WindowWidth = width;
+            context->m_WindowHeight = height;
+
+            if (context->m_WindowResizeCallback)
+                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, width, height);
+        }
+    }
+
     void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
     {
         out_min_filter = context->m_DefaultTextureMinFilter;
@@ -394,6 +407,11 @@ namespace dmGraphics
         memcpy(ib->m_Buffer, ib->m_Copy, ib->m_Size);
         delete [] ib->m_Copy;
         ib->m_Copy = 0x0;
+        return true;
+    }
+
+    bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
+    {
         return true;
     }
 
@@ -695,6 +713,11 @@ namespace dmGraphics
         FragmentProgram* p = (FragmentProgram*)program;
         delete [] (char*)p->m_Data;
         delete p;
+    }
+
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context)
+    {
+        return ShaderDesc::LANGUAGE_GLSL;
     }
 
     void EnableProgram(HContext context, HProgram program)

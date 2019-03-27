@@ -82,8 +82,8 @@ TEST(dmProfile, Profile)
         std::vector<dmProfile::Sample> samples;
         std::map<std::string, const dmProfile::ScopeData*> scopes;
 
-        dmProfile::IterateSamples(profile, &samples, &ProfileSampleCallback);
-        dmProfile::IterateScopeData(profile, &scopes, &ProfileScopeCallback);
+        dmProfile::IterateSamples(profile, &samples, false, &ProfileSampleCallback);
+        dmProfile::IterateScopeData(profile, &scopes, false, &ProfileScopeCallback);
         dmProfile::Release(profile);
 
         ASSERT_EQ(7U, samples.size());
@@ -127,6 +127,69 @@ TEST(dmProfile, Profile)
     dmProfile::Finalize();
 }
 
+TEST(dmProfile, ProfileSorted)
+{
+    dmProfile::Initialize(128, 1024, 0);
+
+    for (int i = 0; i < 2; ++i)
+    {
+        {
+            dmProfile::HProfile profile = dmProfile::Begin();
+            dmProfile::Release(profile);
+            {
+                DM_PROFILE(A, "a")
+                dmTime::BusyWait(1000);
+                {
+                    {
+                        DM_PROFILE(B, "a_b1")
+                        dmTime::BusyWait(5000);
+                        {
+                            DM_PROFILE(C, "a_b1_c")
+                            dmTime::BusyWait(4000);
+                        }
+                    }
+                    {
+                        DM_PROFILE(B, "b2")
+                        dmTime::BusyWait(1000);
+                        {
+                            DM_PROFILE(C, "a_b2_c1")
+                            dmTime::BusyWait(3000);
+                        }
+                        {
+                            DM_PROFILE(C, "a_b2_c2")
+                            dmTime::BusyWait(6000);
+                        }
+                    }
+                }
+            }
+            {
+                DM_PROFILE(D, "a_d")
+                dmTime::BusyWait(80000);
+            }
+        }
+
+        dmProfile::HProfile profile = dmProfile::Begin();
+
+        std::vector<dmProfile::Sample> samples;
+        std::map<std::string, const dmProfile::ScopeData*> scopes;
+
+        dmProfile::IterateSamples(profile, &samples, true, &ProfileSampleCallback);
+        dmProfile::IterateScopeData(profile, &scopes, true, &ProfileScopeCallback);
+        dmProfile::Release(profile);
+
+        ASSERT_EQ(7U, samples.size());
+
+        ASSERT_STREQ("a_d", samples[0].m_Name);
+        ASSERT_STREQ("a", samples[1].m_Name);
+        ASSERT_STREQ("b2", samples[2].m_Name);
+        ASSERT_STREQ("a_b1", samples[3].m_Name);
+        ASSERT_STREQ("a_b2_c2", samples[4].m_Name);
+        ASSERT_STREQ("a_b1_c", samples[5].m_Name);
+        ASSERT_STREQ("a_b2_c1", samples[6].m_Name);
+    }
+    dmProfile::Finalize();
+}
+
 TEST(dmProfile, Nested)
 {
     dmProfile::Initialize(128, 1024, 0);
@@ -151,8 +214,8 @@ TEST(dmProfile, Nested)
         std::vector<dmProfile::Sample> samples;
         std::map<std::string, const dmProfile::ScopeData*> scopes;
 
-        dmProfile::IterateSamples(profile, &samples, &ProfileSampleCallback);
-        dmProfile::IterateScopeData(profile, &scopes, &ProfileScopeCallback);
+        dmProfile::IterateSamples(profile, &samples, false, &ProfileSampleCallback);
+        dmProfile::IterateScopeData(profile, &scopes, false, &ProfileScopeCallback);
         dmProfile::Release(profile);
 
         ASSERT_EQ(2U, samples.size());
@@ -190,7 +253,7 @@ TEST(dmProfile, ProfileOverflow1)
     dmProfile::HProfile profile = dmProfile::Begin();
 
     std::vector<dmProfile::Sample> samples;
-    dmProfile::IterateSamples(profile, &samples, &ProfileSampleCallback);
+    dmProfile::IterateSamples(profile, &samples, false, &ProfileSampleCallback);
     dmProfile::Release(profile);
 
     ASSERT_EQ(2U, samples.size());
@@ -242,12 +305,11 @@ TEST(dmProfile, Counter1)
     dmProfile::Finalize();
 }
 
-uint32_t g_c1hash = dmHashString32("c1");
 void CounterThread(void* arg)
 {
     for (int i = 0; i < 2000; ++i)
     {
-        DM_COUNTER_HASH("c1", g_c1hash, 1);
+        DM_COUNTER("c1", 1);
     }
 }
 
@@ -301,8 +363,8 @@ TEST(dmProfile, ThreadProfile)
     std::map<std::string, const dmProfile::ScopeData*> scopes;
 
     profile = dmProfile::Begin();
-    dmProfile::IterateSamples(profile, &samples, &ProfileSampleCallback);
-    dmProfile::IterateScopeData(profile, &scopes, &ProfileScopeCallback);
+    dmProfile::IterateSamples(profile, &samples, false, &ProfileSampleCallback);
+    dmProfile::IterateScopeData(profile, &scopes, false, &ProfileScopeCallback);
     dmProfile::Release(profile);
 
     ASSERT_EQ(20000U * 2U, samples.size());
@@ -326,11 +388,41 @@ TEST(dmProfile, DynamicScope)
 
     dmProfile::Initialize(128, 1024 * 1024, 16);
 
-    dmProfile::Scope* scope0 = dmProfile::AllocateScope(SCOPE_NAMES[0]);
-    dmProfile::Scope* scope1 = dmProfile::AllocateScope(SCOPE_NAMES[1]);
-
     dmProfile::HProfile profile = dmProfile::Begin();
     dmProfile::Release(profile);
+
+    char names[3][128];
+    DM_SNPRINTF(names[0], sizeof(names[0]), "%s@%s", "test.script", FUNCTION_NAMES[0]);
+    DM_SNPRINTF(names[1], sizeof(names[1]), "%s@%s", "test.script", FUNCTION_NAMES[1]);
+    DM_SNPRINTF(names[2], sizeof(names[2]), "%s@%s", "test.script", FUNCTION_NAMES[2]);
+    uint32_t names_hash[3] = {
+        dmProfile::GetNameHash(names[0], strlen(names[0])),
+        dmProfile::GetNameHash(names[1], strlen(names[1])),
+        dmProfile::GetNameHash(names[2], strlen(names[2]))
+    };
+
+    for (uint i = 0; i < 10 ; ++i)
+    {
+        {
+            DM_PROFILE_DYN(Scope1, names[0], names_hash[0]);
+            DM_PROFILE_DYN(Scope2, names[1], names_hash[1]);
+        }
+        {
+            DM_PROFILE_DYN(Scope2, names[2], names_hash[2]);
+        }
+        DM_PROFILE_DYN(Scope1, names[0], names_hash[0]);
+    }
+
+    std::vector<dmProfile::Sample> samples;
+    std::map<std::string, const dmProfile::ScopeData*> scopes;
+
+    profile = dmProfile::Begin();
+    dmProfile::IterateSamples(profile, &samples, false ,&ProfileSampleCallback);
+    dmProfile::IterateScopeData(profile, &scopes, false ,&ProfileScopeCallback);
+
+    ASSERT_EQ(10U * 4U, samples.size());
+    ASSERT_EQ(10U * 2, scopes[SCOPE_NAMES[0]]->m_Count);
+    ASSERT_EQ(10U * 2, scopes[SCOPE_NAMES[1]]->m_Count);
 
     char name0[128];
     DM_SNPRINTF(name0, sizeof(name0), "%s@%s", "test.script", FUNCTION_NAMES[0]);
@@ -341,39 +433,27 @@ TEST(dmProfile, DynamicScope)
     char name2[128];
     DM_SNPRINTF(name2, sizeof(name2), "%s@%s", "test.script", FUNCTION_NAMES[2]);
 
-    for (uint i = 0; i < 10 ; ++i)
-    {
-        {
-            DM_PROFILE_SCOPE(scope0, name0);
-            DM_PROFILE_SCOPE(scope1, name1);
-        }
-        {
-            DM_PROFILE_SCOPE(scope1, name2);
-        }
-        DM_PROFILE_SCOPE(scope0, name0);
-    }
-
-    std::vector<dmProfile::Sample> samples;
-    std::map<std::string, const dmProfile::ScopeData*> scopes;
-
-    profile = dmProfile::Begin();
-    dmProfile::IterateSamples(profile, &samples, &ProfileSampleCallback);
-    dmProfile::IterateScopeData(profile, &scopes, &ProfileScopeCallback);
-
-    ASSERT_EQ(10U * 4U, samples.size());
-    ASSERT_EQ(10U * 2, scopes[SCOPE_NAMES[0]]->m_Count);
-    ASSERT_EQ(10U * 2, scopes[SCOPE_NAMES[1]]->m_Count);
-
     for (size_t i = 0; i < samples.size(); i++)
     {
         dmProfile::Sample* sample = &samples[i];
-        if (sample->m_Scope == scope0)
+        if (sample->m_Scope->m_NameHash == dmProfile::GetNameHash("Scope1", (uint32_t)strlen("Scope1")))
         {
             ASSERT_STREQ(sample->m_Name, name0);
         }
-        else if (sample->m_Scope == scope1)
+        else if (sample->m_Scope->m_NameHash == dmProfile::GetNameHash("Scope2", (uint32_t)strlen("Scope2")))
         {
-            ASSERT_TRUE(sample->m_Name == name1 || sample->m_Name == name2);
+            if (sample->m_NameHash == dmProfile::GetNameHash(name1, (uint32_t)strlen(name1)))
+            {
+                ASSERT_STREQ(sample->m_Name, name1);
+            }
+            else if (sample->m_NameHash == dmProfile::GetNameHash(name2, (uint32_t)strlen(name2)))
+            {
+                ASSERT_STREQ(sample->m_Name, name2);
+            }
+            else
+            {
+                ASSERT_TRUE(false);
+            }
         }
         else
         {

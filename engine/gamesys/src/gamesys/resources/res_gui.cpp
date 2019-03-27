@@ -115,6 +115,11 @@ namespace dmGameSystem
         if (fr != dmResource::RESULT_OK) {
             return fr;
         }
+        if(dmRender::GetMaterialVertexSpace(resource->m_Material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
+        {
+            dmLogError("Failed to create Gui component. This component only supports materials with the Vertex Space property set to 'vertex-space-world'");
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
 
         if (resource->m_SceneDesc->m_Script != 0x0 && *resource->m_SceneDesc->m_Script != '\0')
         {

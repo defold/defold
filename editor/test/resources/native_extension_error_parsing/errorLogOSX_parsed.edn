@@ -1,0 +1,20 @@
+[{:type :error,
+  :file "/androidnative/src/main.cpp",
+  :line 15,
+  :column 5,
+  :message "use of undeclared identifier 'Hello'\n    Hello();\n    ^"}
+ {:type :error,
+  :file "/androidnative/src/main.cpp",
+  :line 15,
+  :column 5,
+  :message "unknown type name 'ubar'\nubar g_foo = 0;\n^"}
+ {:type :error,
+  :message
+  "Undefined symbols for architecture x86_64:\n  \"__Z6Foobarv\", referenced from:\n      __ZL22AppInitializeExtensionPN11dmExtension9AppParamsE in libb5622585-1c2d-4455-9d8d-c29f9404a475.a(main.cpp_0.o)"}
+ {:type :note,
+  :file nil,
+  :message "ld: symbol(s) not found for architecture x86_64"}
+ {:type :error,
+  :file nil,
+  :message
+  "clang-3.9: error: linker command failed with exit code 1 (use -v to see invocation)"}]

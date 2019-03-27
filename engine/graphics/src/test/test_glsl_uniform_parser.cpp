@@ -56,10 +56,10 @@ TEST_F(dmGLSLUniformTest, IntroductionJunk)
     const char* program = ""
             "varying mediump vec4 position;\n"
             "varying mediump vec2 var_texcoord0;\n"
-            "uniform lowp sampler2D DIFFUSE_TEXTURE;\n";
+            "uniform lowp sampler2D texture_sampler;\n";
     bool result = dmGraphics::GLSLUniformParse(program, UniformCallback, (uintptr_t)&uniform);
     ASSERT_TRUE(result);
-    ASSERT_EQ(0, strncmp("DIFFUSE_TEXTURE", uniform.m_Name, strnlen("DIFFUSE_TEXTURE", uniform.m_Length)));
+    ASSERT_EQ(0, strncmp("texture_sampler", uniform.m_Name, strnlen("texture_sampler", uniform.m_Length)));
     ASSERT_EQ(dmGraphics::TYPE_SAMPLER_2D, uniform.m_Type);
 }
 

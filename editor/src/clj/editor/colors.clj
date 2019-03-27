@@ -45,6 +45,9 @@
 (def scene-ruler-label bright-grey)
 (def scene-ruler-marker bright-grey)
 
+(def outline-color bright-grey)
+(def selected-outline-color defold-turquoise)
+
 ; https://en.wikipedia.org/wiki/HSL_and_HSV
 
 (defn- hsc->rgb1 [h s c]

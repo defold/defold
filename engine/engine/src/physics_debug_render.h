@@ -2,7 +2,7 @@
 #define GAME_PHYSICS_DEBUG_RENDER_H
 
 #include <stdint.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 namespace PhysicsDebugRender
 {

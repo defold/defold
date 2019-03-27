@@ -24,12 +24,14 @@ namespace dmStringPool
      * Add string to string pool. Similar functionality to String.intern() in java.
      * The string pool stores only a single copy of each distinct string. Therefore it is
      * guaranteed that two identical strings will have the same pointer value.
-     * @note Internally dmHashString64 is used. The identical property is valid iff two distinct strings result in two distinct hash values.
+     * @note The identical property is valid if and only if two distinct strings result
+     * in two distinct hash values.
+     * 
      * @param pool String pool
      * @param string String to add to pool
      * @return Pointer to string added
      */
-    const char* Add(HPool pool, const char* string);
+    const char* Add(HPool pool, const char* string, uint32_t string_length, uint32_t string_hash);
 }
 
 #endif // DM_STRINGPOOL_H

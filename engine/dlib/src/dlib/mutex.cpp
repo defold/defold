@@ -4,7 +4,7 @@
 namespace dmMutex
 {
 #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
-    Mutex New()
+    HMutex New()
     {
         pthread_mutexattr_t attr;
         int ret = pthread_mutexattr_init(&attr);
@@ -19,9 +19,9 @@ namespace dmMutex
 
         assert(ret == 0);
 
-        pthread_mutex_t* mutex = new pthread_mutex_t;
+        Mutex* mutex = new Mutex();
 
-        ret = pthread_mutex_init(mutex, &attr);
+        ret = pthread_mutex_init(&mutex->m_NativeHandle, &attr);
         assert(ret == 0);
         ret = pthread_mutexattr_destroy(&attr);
         assert(ret == 0);
@@ -29,57 +29,65 @@ namespace dmMutex
         return mutex;
     }
 
-    void Delete(Mutex mutex)
+    void Delete(HMutex mutex)
     {
-        int ret = pthread_mutex_destroy(mutex);
+        assert(mutex);
+        int ret = pthread_mutex_destroy(&mutex->m_NativeHandle);
         assert(ret == 0);
         delete mutex;
     }
 
-    void Lock(Mutex mutex)
+    void Lock(HMutex mutex)
     {
-        int ret = pthread_mutex_lock(mutex);
+        assert(mutex);
+        int ret = pthread_mutex_lock(&mutex->m_NativeHandle);
         assert(ret == 0);
     }
 
-    bool TryLock(Mutex mutex)
+    bool TryLock(HMutex mutex)
     {
-        return (pthread_mutex_trylock(mutex) == 0) ? true : false;
+        assert(mutex);
+        return (pthread_mutex_trylock(&mutex->m_NativeHandle) == 0) ? true : false;
     }
 
-    void Unlock(Mutex mutex)
+    void Unlock(HMutex mutex)
     {
-        int ret = pthread_mutex_unlock(mutex);
+        assert(mutex);
+        int ret = pthread_mutex_unlock(&mutex->m_NativeHandle);
         assert(ret == 0);
     }
 
 #elif defined(_WIN32)
-    Mutex New()
+    HMutex New()
     {
-        CRITICAL_SECTION* mutex = new CRITICAL_SECTION;
-        InitializeCriticalSection(mutex);
+        Mutex* mutex = new Mutex();
+        InitializeCriticalSection(&mutex->m_NativeHandle);
         return mutex;
     }
 
-    void Delete(Mutex mutex)
+    void Delete(HMutex mutex)
     {
-        DeleteCriticalSection(mutex);
+        assert(mutex);
+        DeleteCriticalSection(&mutex->m_NativeHandle);
         delete mutex;
     }
 
-    void Lock(Mutex mutex)
+    void Lock(HMutex mutex)
     {
-        EnterCriticalSection(mutex);
+        assert(mutex);
+        EnterCriticalSection(&mutex->m_NativeHandle);
     }
 
-    bool TryLock(Mutex mutex)
+    bool TryLock(HMutex mutex)
     {
-        return (TryEnterCriticalSection(mutex)) == 0 ? false : true;
+        assert(mutex);
+        return (TryEnterCriticalSection(&mutex->m_NativeHandle)) == 0 ? false : true;
     }
 
-    void Unlock(Mutex mutex)
+    void Unlock(HMutex mutex)
     {
-        LeaveCriticalSection(mutex);
+        assert(mutex);
+        LeaveCriticalSection(&mutex->m_NativeHandle);
     }
 
 #else

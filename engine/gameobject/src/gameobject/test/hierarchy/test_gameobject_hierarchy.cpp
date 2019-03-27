@@ -761,6 +761,63 @@ TEST_F(HierarchyTest, TestHierarchyBonesMulti)
     dmGameObject::Delete(m_Collection, c2, false);
 }
 
+TEST_F(HierarchyTest, TestHierarchyFromScript)
+{
+    dmGameObject::HInstance controller = dmGameObject::New(m_Collection, "/parenting.goc");
+    dmGameObject::HInstance parent     = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance child      = dmGameObject::New(m_Collection, "/go.goc");
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, controller, "controller"));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, parent, "parent"));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, child, "child"));
+
+    Point3 parent_pos(12, 4, 2);
+    Point3 child_pos(-12, -4, -2);
+
+    dmGameObject::SetPosition(parent, parent_pos);
+    dmGameObject::SetPosition(child, child_pos);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    // Test 0: go.set_parent(child,parent) - set parent
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_EQ(parent, dmGameObject::GetParent(child));
+    ASSERT_NEAR(0.0f, dmGameObject::GetWorldPosition(child).getX(), EPSILON);
+    ASSERT_NEAR(0.0f, dmGameObject::GetWorldPosition(child).getY(), EPSILON);
+    ASSERT_NEAR(0.0f, dmGameObject::GetWorldPosition(child).getZ(), EPSILON);
+
+    // Test 1: go.set_parent(child) - detaching
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_EQ((void*)0, dmGameObject::GetParent(child));
+    ASSERT_NEAR(-12.0f, dmGameObject::GetWorldPosition(child).getX(), EPSILON);
+    ASSERT_NEAR( -4.0f, dmGameObject::GetWorldPosition(child).getY(), EPSILON);
+    ASSERT_NEAR( -2.0f, dmGameObject::GetWorldPosition(child).getZ(), EPSILON);
+
+    // Test 2: go.set_parent(child,parent,true) - set parent and maintain world pos
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_EQ(parent, dmGameObject::GetParent(child));
+    ASSERT_NEAR(-12.0f, dmGameObject::GetWorldPosition(child).getX(), EPSILON);
+    ASSERT_NEAR( -4.0f, dmGameObject::GetWorldPosition(child).getY(), EPSILON);
+    ASSERT_NEAR( -2.0f, dmGameObject::GetWorldPosition(child).getZ(), EPSILON);
+
+    // Test 3: go.set_parent(child,not_found) - unknown id should fail
+    ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // Test 4: go.set_parent() - default args should detach object that owns script
+    dmGameObject::SetParent(controller, parent);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ((void*)0, dmGameObject::GetParent(controller));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameObject::Delete(m_Collection, controller, false);
+    dmGameObject::Delete(m_Collection, parent, false);
+    dmGameObject::Delete(m_Collection, child, false);
+}
+
 TEST_F(HierarchyTest, TestEmptyInstance)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, 0x0);

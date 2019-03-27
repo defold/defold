@@ -4,7 +4,7 @@
 #include <dlib/configfile.h>
 #include <ddf/ddf.h>
 
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 using namespace Vectormath::Aos;
 
 namespace dmSound
@@ -154,6 +154,9 @@ namespace dmSound
 
         /**
          * Open device
+         * The device may not start playing until m_DeviceStart is called
+         * This is implementation specific but m_DeviceStart should always
+         * be called to start actual playback on the device.
          * @param params
          * @param device
          * @return
@@ -194,7 +197,7 @@ namespace dmSound
          * Enable device context
          * @param device
          */
-        void (*m_DeviceRestart)(HDevice device);
+        void (*m_DeviceStart)(HDevice device);
 
         /**
          * Disable device context

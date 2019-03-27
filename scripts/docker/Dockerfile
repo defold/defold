@@ -1,5 +1,5 @@
-#FROM i386/ubuntu:16.04
-FROM ubuntu:16.04
+#FROM i386/ubuntu:18.04
+FROM ubuntu:18.04
 
 # Base stuff
 RUN \
@@ -13,11 +13,13 @@ RUN \
     unzip && \
   rm -rf /var/cache/oracle-jdk8-installer
 
+# We still use GCC-5: https://askubuntu.com/a/1087368
+
 RUN \
   apt-get update && \
   apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
+    gcc-5 \
+    g++-5 \
     libssl-dev \
     openssl \
     libtool \
@@ -29,7 +31,15 @@ RUN \
     libopenal-dev \
     libgl1-mesa-dev \
     libglw1-mesa-dev \
-    freeglut3-dev
+    freeglut3-dev && \
+    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 10 && \
+	update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 20 && \
+	update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 10 && \
+	update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 20 && \
+	update-alternatives --install /usr/bin/cc cc /usr/bin/gcc 30 && \
+	update-alternatives --set cc /usr/bin/gcc && \
+	update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++ 30 && \
+	update-alternatives --set c++ /usr/bin/g++
 
 RUN \
   apt-get update && \

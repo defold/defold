@@ -11,7 +11,7 @@
 #include <render/render.h>
 #include <gameobject/gameobject.h>
 #include <gameobject/gameobject_ddf.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include "../proto/tile_ddf.h"
 #include "../proto/physics_ddf.h"

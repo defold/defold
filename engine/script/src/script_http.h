@@ -3,8 +3,10 @@
 
 namespace dmScript
 {
-    void InitializeHttp(lua_State* L, dmConfigFile::HConfig config_file);
-    void FinalizeHttp(lua_State* L);
+    typedef struct Context* HContext;
+
+    void InitializeHttp(HContext context);
+
     void SetHttpRequestTimeout(uint64_t timeout);
 }
 

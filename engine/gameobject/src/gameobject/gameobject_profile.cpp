@@ -64,7 +64,7 @@ bool IterateGameObjects(HCollection hcollection, FGameObjectIterator callback, v
 bool IterateComponents(HInstance instance, FGameComponentIterator callback, void* user_ctx)
 {
     Prototype* prototype = instance->m_Prototype;
-    for (uint32_t k = 0; k < prototype->m_Components.Size(); ++k)
+    for (uint32_t k = 0; k < prototype->m_ComponentCount; ++k)
     {
         Prototype::Component* component = &prototype->m_Components[k];
 

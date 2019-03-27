@@ -1,0 +1,34 @@
+upload/androidnative/src/main.cpp: In constructor '{anonymous}::AttachScope::AttachScope()':
+upload/androidnative/src/main.cpp:37:34: error: 'Attach' was not declared in this scope
+     AttachScope() : m_Env(Attach())
+javac -source 1.6 -target 1.6 -J-Xms2048m -J-Xmx2048m -classpath /dynamo_home//ext/share/java/android-support-v4.jar:/dynamo_home//ext/share/java/android.jar:/tmp/job3931847894810239906/build/tmp87f89540-c387-4fb5-99dc-3ca06a0f4a8drjava/classes -d /tmp/job3931847894810239906/build/tmp87f89540-c387-4fb5-99dc-3ca06a0f4a8drjava/classes @/tmp/job3931847894810239906/build/tmp87f89540-c387-4fb5-99dc-3ca06a0f4a8drjava/sources.txt
+warning: [options] bootstrap class path not set in conjunction with -source 1.6
+1 warning
+
+jar cf /tmp/job3931847894810239906/build/tmp87f89540-c387-4fb5-99dc-3ca06a0f4a8drjava/R.jar -C /tmp/job3931847894810239906/build/tmp87f89540-c387-4fb5-99dc-3ca06a0f4a8drjava/classes .
+
+javac -source 1.6 -target 1.6 -J-Xms2048m -J-Xmx2048m -classpath /dynamo_home//ext/share/java/android-support-v4.jar:/dynamo_home//ext/share/java/android.jar:/tmp/job3931847894810239906/upload/androidnative/src:/tmp/job3931847894810239906/build/tmp88cc72c9-fab8-4a96-928d-23b9823b6139javac/classes:/tmp/job3931847894810239906/build/tmp87f89540-c387-4fb5-99dc-3ca06a0f4a8drjava/R.jar:/tmp/job3931847894810239906/upload/androidnative/lib/android/Dummy.jar -d /tmp/job3931847894810239906/build/tmp88cc72c9-fab8-4a96-928d-23b9823b6139javac/classes @/tmp/job3931847894810239906/build/tmp88cc72c9-fab8-4a96-928d-23b9823b6139javac/sources.txt
+warning: [options] bootstrap class path not set in conjunction with -source 1.6
+1 warning
+
+jar cf /tmp/job3931847894810239906/build/tmp88cc72c9-fab8-4a96-928d-23b9823b6139javac/output.jar -C /tmp/job3931847894810239906/build/tmp88cc72c9-fab8-4a96-928d-23b9823b6139javac/classes .
+
+dx -JXms2048m -JXmx2048m --dex --output /tmp/job3931847894810239906/build/classes.dex /tmp/job3931847894810239906/upload/androidnative/lib/android/Dummy.jar /tmp/job3931847894810239906/build/tmp87f89540-c387-4fb5-99dc-3ca06a0f4a8drjava/R.jar /tmp/job3931847894810239906/build/tmp88cc72c9-fab8-4a96-928d-23b9823b6139javac/output.jar  /dynamo_home//ext/share/java/facebooksdk.jar /dynamo_home//ext/share/java/bolts-android-1.2.0.jar /dynamo_home//ext/share/java/google-play-services.jar /dynamo_home//ext/share/java/android-support-v4.jar /dynamo_home//ext/share/java/in-app-purchasing-2.0.61.jar /dynamo_home//share/java/glfw_android.jar /dynamo_home//share/java/facebook_android.jar /dynamo_home//share/java/gamesys_android.jar /dynamo_home//share/java/iap_android.jar /dynamo_home//share/java/push_android.jar /dynamo_home//share/java/adtruth_android.jar /dynamo_home//share/java/sound_android.jar /dynamo_home//share/java/webview_android.jar /dynamo_home//share/java/iac_android.jar
+
+arm-linux-androideabi-g++ -c -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -Wno-psabi -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -fomit-frame-pointer -fno-strict-aliasing -finline-limit=64 -fno-exceptions -funwind-tables --sysroot=/opt/android/android-ndk-r10e/platforms/android-14/arch-arm -DANDROID -Wa,--noexecstack -DDM_PLATFORM_ANDROID -DLUA_BYTECODE_ENABLE -D__ARM_ARCH_5__ -D__ARM_ARCH_5T__ -D__ARM_ARCH_5E__ -D__ARM_ARCH_5TE__   -Iupload/androidnative/include  -I/dynamo_home//include -I/dynamo_home//sdk/include  -I/opt/android/android-ndk-r10e/sources/android/native_app_glue -I/opt/android/android-ndk-r10e/sources/android/cpufeatures -I/opt/android/tmp/android-ndk-r10e/platforms/android-14/arch-arm/usr/include -I/opt/android/android-ndk-r10e/sources/cxx-stl/gnu-libstdc++/4.8/include -I/opt/android/android-ndk-r10e/sources/cxx-stl/gnu-libstdc++/4.8/libs/armeabi-v7a/include  upload/androidnative/src/main.cpp -obuild/main.cpp_0.o
+upload/androidnative/src/main.cpp:17:1: error: 'ubar' does not name a type
+ ubar g_foo = 0;
+ ^
+
+
+# android linker
+
+# from the extension itself
+arm-linux-androideabi-g++ --sysroot=/opt/android/android-ndk-r10e/platforms/android-14/arch-arm -lEGL -lGLESv1_CM -lGLESv2 build/main_tmp60d0279f-8b5a-4dd1-81e0-e731c81e75e8.o  -o build/libdmengine.so -Wl,-soname=libdmengine.so -DDM_PLATFORM_ANDROID -DLUA_BYTECODE_ENABLE -D__ARM_ARCH_5__ -D__ARM_ARCH_5T__ -D__ARM_ARCH_5E__ -D__ARM_ARCH_5TE__   -Wl,--fix-cortex-a8 -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text -L/tmp/job462507179235446743/build -L/tmp/job462507179235446743/upload/androidnative/lib/android  -L/dynamo_home//lib/armv7-android -L/dynamo_home//ext/lib/armv7-android -L/opt/android/android-ndk-r10e/sources/cxx-stl/gnu-libstdc++/4.8/libs/armeabi-v7a  -Wl,-Bstatic -Wl,--start-group  -l276c0499-e1c5-4ef6-9594-b9a3474557c2  -lengine -lwebviewext -ladtruthext -lprofilerext -lfacebookext -liapext -lpushext -liacext -lrecord_null -lgameobject -lddf -lresource -lgamesys -lgraphics -lphysics -lBulletDynamics -lBulletCollision -lLinearMath -lBox2D -lrender -lscript -lluajit-5.1 -lextension -lhid -linput -lparticle -lrig -ldlib -ldmglfw -lgui -ltracking -lcrashext -lsound -lopenal_soft -ltremolo -lliveupdate  -Wl,--end-group -Wl,-Bdynamic -lOpenSLES -lgnustl_static -lm -llog -lc -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -shared
+upload/androidnative/src/main.cpp:147: error: undefined reference to 'Foobar()'
+collect2: error: ld returned 1 exit status
+
+# from the main.cpp, which refers to what you said in the ext.manifest
+arm-linux-androideabi-g++ --sysroot=/opt/android/android-ndk-r10e/platforms/android-14/arch-arm -lEGL -lGLESv1_CM -lGLESv2 build/main_tmp6126f4d7-6d43-4a16-a25a-28c2842eaf00.o  -o build/libdmengine.so -Wl,-soname=libdmengine.so -DDM_PLATFORM_ANDROID -DLUA_BYTECODE_ENABLE -D__ARM_ARCH_5__ -D__ARM_ARCH_5T__ -D__ARM_ARCH_5E__ -D__ARM_ARCH_5TE__   -Wl,--fix-cortex-a8 -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text -L/tmp/job3071907699645019163/build -L/tmp/job3071907699645019163/upload/videoplayer/lib/armv7-android  -L/dynamo_home//lib/armv7-android -L/dynamo_home//ext/lib/armv7-android -L/opt/android/android-ndk-r10e/sources/cxx-stl/gnu-libstdc++/4.8/libs/armeabi-v7a  -Wl,-Bstatic -Wl,--start-group  -lb91a40ee-5b86-499f-a128-003054c66ce0 -lba6094d1-5cc1-4389-8306-75c47eda1278 -l35f90522-4ab8-49d4-8bc1-7ffdfff13c12 -lwebm -lvpx  -lengine -lwebviewext -ladtruthext -lprofilerext -lfacebookext -liapext -lpushext -liacext -lrecord_null -lgameobject -lddf -lresource -lgamesys -lgraphics -lphysics -lBulletDynamics -lBulletCollision -lLinearMath -lBox2D -lrender -lscript -lluajit-5.1 -lextension -lhid -linput -lparticle -lrig -ldlib -ldmglfw -lgui -ltracking -lcrashext -lsound -lopenal_soft -ltremolo -lliveupdate  -Wl,--end-group -Wl,-Bdynamic -lOpenSLES -lgnustl_static -lm -llog -lc -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -shared
+build/main.cpp:44: error: undefined reference to 'defos'
+collect2: error: ld returned 1 exit status

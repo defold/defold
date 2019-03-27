@@ -8,6 +8,6 @@ import com.dynamo.bob.Project;
 
 public interface IBundler {
 
-    public void bundleApplication(Project project, File bundleDirectory) throws IOException, CompileExceptionError;
+    void bundleApplication(Project project, File bundleDirectory, ICanceled canceled) throws IOException, CompileExceptionError;
 
 }

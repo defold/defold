@@ -1,0 +1,17 @@
+clang++ -c -arch x86_64 -target x86_64-apple-darwin12 -isysroot /opt/MacOSX10.12.sdk/ -m64 -O2 -g -mmacosx-version-min=10.7 -DDM_PLATFORM_OSX -DLUA_BYTECODE_ENABLE   -Iupload/androidnative/include   -I/dynamo_home//include -I/dynamo_home//sdk/include  upload/androidnative/src/main.cpp -obuild/main.cpp_0.o
+upload/androidnative/src/main.cpp:15:5: error: use of undeclared identifier 'Hello'
+    Hello();
+    ^
+upload/androidnative/src/main.cpp:17:1: error: unknown type name 'ubar'
+ubar g_foo = 0;
+^
+1 error generated.
+
+# clang linker
+clang++ -arch x86_64 -target x86_64-apple-darwin12 -isysroot /opt/MacOSX10.12.sdk/ -m64 -O2 -g -mmacosx-version-min=10.7 -o build/dmengine -pagezero_size 10000 -image_base 100000000  -L/tmp/job5459319470565981899/build   -lb5622585-1c2d-4455-9d8d-c29f9404a475  -F/tmp/job5459319470565981899/build   -framework Foundation -framework AppKit -framework Cocoa -framework OpenGL -framework OpenAL -framework AGL -framework IOKit -framework Carbon -framework CoreVideo  -L/dynamo_home//lib/x86_64-darwin -L/dynamo_home//ext/lib/x86_64-darwin  -lengine -lwebviewext -ladtruthext -lprofilerext -lfacebookext -liapext -lpushext -liacext -lrecord -lgameobject -lddf -lresource -lgamesys -lgraphics -lphysics -lBulletDynamics -lBulletCollision -lLinearMath -lBox2D -lrender -lscript -lluajit-5.1 -lextension -lhid -linput -lparticle -lrig -ldlib -ldmglfw -lgui -ltracking -lcrashext -lsound -ltremolo -lvpx -lliveupdate  build/main_tmpff41d8cb-ee93-4a6c-82f1-af30c0699aaa.o
+Undefined symbols for architecture x86_64:
+  "__Z6Foobarv", referenced from:
+      __ZL22AppInitializeExtensionPN11dmExtension9AppParamsE in libb5622585-1c2d-4455-9d8d-c29f9404a475.a(main.cpp_0.o)
+ld: symbol(s) not found for architecture x86_64
+clang-3.9: error: linker command failed with exit code 1 (use -v to see invocation)
+

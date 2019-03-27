@@ -1,0 +1,26 @@
+.resolution-dialog {
+  $vertical-margin-width: 12px;
+  $horizontal-margin-width: $vertical-margin-width * 2;
+
+  -fx-background-color: $dark-grey-light;
+  -fx-padding: $vertical-margin-width $horizontal-margin-width 0px $horizontal-margin-width;
+  -fx-spacing: 6px;
+
+  .field-label {
+    -fx-alignment: center-right;
+    -fx-padding: 5px 10px 5px 0px;
+  }
+
+  .choice-box, .text-field {
+    -fx-min-width: 143px;
+
+    &.error { -fx-border-color: $error-severity-fatal; }
+    &.warning { -fx-border-color: $error-severity-warning; }
+    &.info { -fx-border-color: $error-severity-info; }
+  }
+
+  >.buttons {
+    -fx-padding: $vertical-margin-width $horizontal-margin-width $vertical-margin-width $horizontal-margin-width;
+    -fx-alignment: center-right;
+  }
+}

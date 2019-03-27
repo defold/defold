@@ -18,6 +18,7 @@ message MaterialDesc
         CONSTANT_TYPE_PROJECTION = 5;
         CONSTANT_TYPE_NORMAL = 6;
         CONSTANT_TYPE_WORLDVIEW = 7;
+        CONSTANT_TYPE_WORLDVIEWPROJ = 8;
     }
 
     message Constant
@@ -25,6 +26,12 @@ message MaterialDesc
         required string name = 1;
         required ConstantType type = 2;
         optional dmMath.Vector4 value = 3;
+    }
+
+    enum VertexSpace
+    {
+        VERTEX_SPACE_WORLD        = 0;
+        VERTEX_SPACE_LOCAL        = 1;
     }
 
     enum WrapMode
@@ -63,8 +70,9 @@ message MaterialDesc
     repeated string tags = 2;
     required string vertex_program = 3 [(resource)=true];
     required string fragment_program = 4 [(resource)=true];
-    repeated Constant vertex_constants = 5;
-    repeated Constant fragment_constants = 6;
-    repeated string textures = 7;
-    repeated Sampler samplers = 8;
+    optional VertexSpace vertex_space = 5;
+    repeated Constant vertex_constants = 6;
+    repeated Constant fragment_constants = 7;
+    repeated string textures = 8;
+    repeated Sampler samplers = 9;
 }

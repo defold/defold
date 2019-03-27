@@ -5,7 +5,6 @@
   (:import (com.sun.javafx.util Utils)
            (javafx.beans.value ChangeListener ObservableValue)
            (javafx.event Event)
-           (javafx.geometry HPos Point2D VPos)
            (javafx.scene Parent)
            (javafx.scene.control Button TextField)
            (javafx.scene.input KeyCode KeyEvent)

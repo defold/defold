@@ -28,8 +28,8 @@ import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.ui.ViewUtil;
 import com.dynamo.cr.engine.Engine;
-import com.dynamo.engine.proto.Engine.Reboot;
-import com.dynamo.engine.proto.Engine.Reboot.Builder;
+import com.dynamo.system.proto.System.Reboot;
+import com.dynamo.system.proto.System.Reboot.Builder;
 
 /* package */class LaunchThread extends Thread {
 
@@ -161,7 +161,7 @@ import com.dynamo.engine.proto.Engine.Reboot.Builder;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        Builder builder = com.dynamo.engine.proto.Engine.Reboot.newBuilder();
+        Builder builder = com.dynamo.system.proto.System.Reboot.newBuilder();
 
         Reboot reboot = builder
                 .setArg1("--config=resource.uri=" + resourceUri)

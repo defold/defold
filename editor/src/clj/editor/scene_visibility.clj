@@ -98,7 +98,7 @@
                                                                                        outline-name-path-below-selection? (fn [outline-name-path]
                                                                                                                             (boolean (some #(iutil/seq-starts-with? outline-name-path %)
                                                                                                                                            selected-outline-name-paths)))]
-                                                                                   (iutil/group-into #{}
+                                                                                   (iutil/group-into {} #{}
                                                                                                      outline-name-path-below-selection?
                                                                                                      (scene-outline-name-paths active-scene)))))
 

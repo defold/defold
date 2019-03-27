@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import os, re
 from waf_dynamo import apidoc_extract_task
+import Options
 
 def configure(conf):
     pass
@@ -8,7 +9,8 @@ def configure(conf):
 def build(bld):
     embed_source = ''
 
-    source = 'profiler.cpp'
+    source = 'profiler.cpp profile_render.cpp'
+    source_null = 'profiler_null.cpp'
 
     if 'darwin' in bld.env.PLATFORM:
         source += ' profiler_cocoa.mm'
@@ -17,13 +19,21 @@ def build(bld):
     elif 'win32' in bld.env.PLATFORM:
         source += ' profiler_win32.cpp'
     else:
-        source += ' profiler_null.cpp'
+        source += ' profiler_unsupported.cpp'
 
     profiler = bld.new_task_gen(features = 'cxx cstaticlib',
                             includes = '.',
                             source = source,
                             target = 'profilerext')
 
+    profiler = bld.new_task_gen(features = 'cxx cstaticlib',
+                            includes = '.',
+                            source = source_null,
+                            target = 'profilerext_null')
+
+    bld.install_files('${PREFIX}/include/profiler', 'profiler.h')
+
     apidoc_extract_task(bld, ['profiler.cpp'])
 
-
+    if not Options.options.skip_build_tests:
+        bld.add_subdirs('test')

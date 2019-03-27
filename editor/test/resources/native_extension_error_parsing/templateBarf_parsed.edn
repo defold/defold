@@ -1,0 +1,425 @@
+[{:type :error,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :message
+  "In file included from upload/win32nativeext/src/main.cpp:10:\nIn file included from /opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/algorithm:68:\ninvalid operands to binary expression ('std::vector<int, std::allocator<int> >' and 'int')\n          if (*__first == __val)\n              ~~~~~~~~ ^  ~~~~~"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 19,
+  :message
+  "in instantiation of function template specialization 'std::__find<__gnu_cxx::__normal_iterator<std::vector<int, std::allocator<int> > *, std::vector<std::vector<int, std::allocator<int> >, std::allocator<std::vector<int, std::allocator<int> > > > >, int>' requested here\n      return std::__find(__first, __last, __val,\n                  ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 35,
+  :column 64,
+  :message
+  "in instantiation of function template specialization 'std::find<__gnu_cxx::__normal_iterator<std::vector<int, std::allocator<int> > *, std::vector<std::vector<int, std::allocator<int> >, std::allocator<std::vector<int, std::allocator<int> > > > >, int>' requested here\n    std::vector< std::vector <int> >::const_iterator it = std::find( v.begin(), v.end(), a );\n                                                               ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 35,
+  :column 64,
+  :message
+  "candidate template ignored: could not match 'fpos' against 'vector'\n    operator==(const fpos<_StateT>& __lhs, const fpos<_StateT>& __rhs)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 35,
+  :column 64,
+  :message
+  "candidate template ignored: could not match 'pair' against 'vector'\n    operator==(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 35,
+  :column 64,
+  :message
+  "candidate template ignored: could not match 'reverse_iterator' against 'vector'\n    operator==(const reverse_iterator<_Iterator>& __x,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 35,
+  :column 64,
+  :message
+  "candidate template ignored: could not match 'reverse_iterator' against 'vector'\n    operator==(const reverse_iterator<_IteratorL>& __x,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 35,
+  :column 64,
+  :message
+  "candidate template ignored: could not match '__normal_iterator' against 'vector'\n    operator==(const __normal_iterator<_IteratorL, _Container>& __lhs,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 35,
+  :column 64,
+  :message
+  "candidate template ignored: could not match '__normal_iterator' against 'vector'\n    operator==(const __normal_iterator<_Iterator, _Container>& __lhs,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 35,
+  :column 64,
+  :message
+  "candidate template ignored: could not match 'new_allocator' against 'vector'\n    operator==(const new_allocator<_Tp>&, const new_allocator<_Tp>&)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 35,
+  :column 64,
+  :message
+  "candidate template ignored: could not match 'allocator' against 'vector'\n    operator==(const allocator<_T1>&, const allocator<_T2>&)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 35,
+  :column 64,
+  :message
+  "candidate template ignored: could not match 'vector<type-parameter-0-0, type-parameter-0-1>' against 'const int'\n    operator==(const vector<_Tp, _Alloc>& __x, const vector<_Tp, _Alloc>& __y)\n    ^"}
+ {:type :error,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :message
+  "In file included from upload/win32nativeext/src/main.cpp:10:\nIn file included from /opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/algorithm:68:\ninvalid operands to binary expression ('std::vector<int, std::allocator<int> >' and 'int')\n          if (*__first == __val)\n              ~~~~~~~~ ^  ~~~~~"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'fpos' against 'vector'\n    operator==(const fpos<_StateT>& __lhs, const fpos<_StateT>& __rhs)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'pair' against 'vector'\n    operator==(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'reverse_iterator' against 'vector'\n    operator==(const reverse_iterator<_Iterator>& __x,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'reverse_iterator' against 'vector'\n    operator==(const reverse_iterator<_IteratorL>& __x,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match '__normal_iterator' against 'vector'\n    operator==(const __normal_iterator<_IteratorL, _Container>& __lhs,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match '__normal_iterator' against 'vector'\n    operator==(const __normal_iterator<_Iterator, _Container>& __lhs,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'new_allocator' against 'vector'\n    operator==(const new_allocator<_Tp>&, const new_allocator<_Tp>&)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'allocator' against 'vector'\n    operator==(const allocator<_T1>&, const allocator<_T2>&)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'vector<type-parameter-0-0, type-parameter-0-1>' against 'const int'\n    operator==(const vector<_Tp, _Alloc>& __x, const vector<_Tp, _Alloc>& __y)\n    ^"}
+ {:type :error,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :message
+  "In file included from upload/win32nativeext/src/main.cpp:10:\nIn file included from /opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/algorithm:68:\ninvalid operands to binary expression ('std::vector<int, std::allocator<int> >' and 'int')\n          if (*__first == __val)\n              ~~~~~~~~ ^  ~~~~~"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'fpos' against 'vector'\n    operator==(const fpos<_StateT>& __lhs, const fpos<_StateT>& __rhs)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'pair' against 'vector'\n    operator==(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'reverse_iterator' against 'vector'\n    operator==(const reverse_iterator<_Iterator>& __x,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'reverse_iterator' against 'vector'\n    operator==(const reverse_iterator<_IteratorL>& __x,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match '__normal_iterator' against 'vector'\n    operator==(const __normal_iterator<_IteratorL, _Container>& __lhs,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match '__normal_iterator' against 'vector'\n    operator==(const __normal_iterator<_Iterator, _Container>& __lhs,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'new_allocator' against 'vector'\n    operator==(const new_allocator<_Tp>&, const new_allocator<_Tp>&)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'allocator' against 'vector'\n    operator==(const allocator<_T1>&, const allocator<_T2>&)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'vector<type-parameter-0-0, type-parameter-0-1>' against 'const int'\n    operator==(const vector<_Tp, _Alloc>& __x, const vector<_Tp, _Alloc>& __y)\n    ^"}
+ {:type :error,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :message
+  "In file included from upload/win32nativeext/src/main.cpp:10:\nIn file included from /opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/algorithm:68:\ninvalid operands to binary expression ('std::vector<int, std::allocator<int> >' and 'int')\n          if (*__first == __val)\n              ~~~~~~~~ ^  ~~~~~"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'fpos' against 'vector'\n    operator==(const fpos<_StateT>& __lhs, const fpos<_StateT>& __rhs)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'pair' against 'vector'\n    operator==(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'reverse_iterator' against 'vector'\n    operator==(const reverse_iterator<_Iterator>& __x,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'reverse_iterator' against 'vector'\n    operator==(const reverse_iterator<_IteratorL>& __x,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match '__normal_iterator' against 'vector'\n    operator==(const __normal_iterator<_IteratorL, _Container>& __lhs,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match '__normal_iterator' against 'vector'\n    operator==(const __normal_iterator<_Iterator, _Container>& __lhs,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'new_allocator' against 'vector'\n    operator==(const new_allocator<_Tp>&, const new_allocator<_Tp>&)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'allocator' against 'vector'\n    operator==(const allocator<_T1>&, const allocator<_T2>&)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'vector<type-parameter-0-0, type-parameter-0-1>' against 'const int'\n    operator==(const vector<_Tp, _Alloc>& __x, const vector<_Tp, _Alloc>& __y)\n    ^"}
+ {:type :error,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :message
+  "In file included from upload/win32nativeext/src/main.cpp:10:\nIn file included from /opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/algorithm:68:\ninvalid operands to binary expression ('std::vector<int, std::allocator<int> >' and 'int')\n          if (*__first == __val)\n              ~~~~~~~~ ^  ~~~~~"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'fpos' against 'vector'\n    operator==(const fpos<_StateT>& __lhs, const fpos<_StateT>& __rhs)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'pair' against 'vector'\n    operator==(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'reverse_iterator' against 'vector'\n    operator==(const reverse_iterator<_Iterator>& __x,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'reverse_iterator' against 'vector'\n    operator==(const reverse_iterator<_IteratorL>& __x,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match '__normal_iterator' against 'vector'\n    operator==(const __normal_iterator<_IteratorL, _Container>& __lhs,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match '__normal_iterator' against 'vector'\n    operator==(const __normal_iterator<_Iterator, _Container>& __lhs,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'new_allocator' against 'vector'\n    operator==(const new_allocator<_Tp>&, const new_allocator<_Tp>&)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'allocator' against 'vector'\n    operator==(const allocator<_T1>&, const allocator<_T2>&)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'vector<type-parameter-0-0, type-parameter-0-1>' against 'const int'\n    operator==(const vector<_Tp, _Alloc>& __x, const vector<_Tp, _Alloc>& __y)\n    ^"}
+ {:type :error,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :message
+  "In file included from upload/win32nativeext/src/main.cpp:10:\nIn file included from /opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/algorithm:68:\ninvalid operands to binary expression ('std::vector<int, std::allocator<int> >' and 'int')\n          if (*__first == __val)\n              ~~~~~~~~ ^  ~~~~~"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'fpos' against 'vector'\n    operator==(const fpos<_StateT>& __lhs, const fpos<_StateT>& __rhs)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'pair' against 'vector'\n    operator==(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'reverse_iterator' against 'vector'\n    operator==(const reverse_iterator<_Iterator>& __x,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'reverse_iterator' against 'vector'\n    operator==(const reverse_iterator<_IteratorL>& __x,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match '__normal_iterator' against 'vector'\n    operator==(const __normal_iterator<_IteratorL, _Container>& __lhs,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match '__normal_iterator' against 'vector'\n    operator==(const __normal_iterator<_Iterator, _Container>& __lhs,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'new_allocator' against 'vector'\n    operator==(const new_allocator<_Tp>&, const new_allocator<_Tp>&)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'allocator' against 'vector'\n    operator==(const allocator<_T1>&, const allocator<_T2>&)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'vector<type-parameter-0-0, type-parameter-0-1>' against 'const int'\n    operator==(const vector<_Tp, _Alloc>& __x, const vector<_Tp, _Alloc>& __y)\n    ^"}
+ {:type :error,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :message
+  "In file included from upload/win32nativeext/src/main.cpp:10:\nIn file included from /opt/MacOSX10.13.sdk//usr/include/c++/4.2.1/algorithm:68:\ninvalid operands to binary expression ('std::vector<int, std::allocator<int> >' and 'int')\n          if (*__first == __val)\n              ~~~~~~~~ ^  ~~~~~"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'fpos' against 'vector'\n    operator==(const fpos<_StateT>& __lhs, const fpos<_StateT>& __rhs)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'pair' against 'vector'\n    operator==(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'reverse_iterator' against 'vector'\n    operator==(const reverse_iterator<_Iterator>& __x,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'reverse_iterator' against 'vector'\n    operator==(const reverse_iterator<_IteratorL>& __x,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match '__normal_iterator' against 'vector'\n    operator==(const __normal_iterator<_IteratorL, _Container>& __lhs,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match '__normal_iterator' against 'vector'\n    operator==(const __normal_iterator<_Iterator, _Container>& __lhs,\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'new_allocator' against 'vector'\n    operator==(const new_allocator<_Tp>&, const new_allocator<_Tp>&)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'allocator' against 'vector'\n    operator==(const allocator<_T1>&, const allocator<_T2>&)\n    ^"}
+ {:type :note,
+  :file "/win32nativeext/src/main.cpp",
+  :line 10,
+  :column 5,
+  :message
+  "candidate template ignored: could not match 'vector<type-parameter-0-0, type-parameter-0-1>' against 'const int'\n    operator==(const vector<_Tp, _Alloc>& __x, const vector<_Tp, _Alloc>& __y)\n    ^"}]

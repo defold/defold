@@ -2,7 +2,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include "../dlib/hash.h"
 #include "../dlib/hashtable.h"
 #include "stringpool.h"
 
@@ -24,7 +23,7 @@ namespace dmStringPool
 
     struct Pool
     {
-        dmHashTable64<const char*> m_StringTable;
+        dmHashTable32<const char*> m_StringTable;
         Page*                      m_CurrentPage;
     };
 
@@ -47,13 +46,12 @@ namespace dmStringPool
         delete pool;
     }
 
-    const char* Add(HPool pool, const char* string)
+    const char* Add(HPool pool, const char* string, uint32_t string_length, uint32_t string_hash)
     {
-        uint32_t n = strlen(string) + 1;
+        uint32_t n = string_length + 1;
         if (n == 1)
             return "";
 
-        uint64_t string_hash = dmHashString64(string);
         assert(n <= PAGE_SIZE);
 
         const char** tmp = pool->m_StringTable.Get(string_hash);

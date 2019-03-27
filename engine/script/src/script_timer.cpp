@@ -32,7 +32,7 @@ namespace dmScript
         This is to keep the array sweep fast and handle cases where multiple short lived timers are
         created followed by one long-lived timer. If we did not re-shuffle and keep holes we would keep
         scanning the array to the end where the only live timer exists skipping all the holes.
-        How much of an issue this is is guesswork at this point.
+        How much of an issue this is guesswork at this point.
 
         The timer identity is an index into an indirection layer combined with a generation counter,
         this makes it possible to reuse the index for the indirection layer without risk of using

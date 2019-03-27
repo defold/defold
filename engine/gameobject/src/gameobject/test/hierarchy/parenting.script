@@ -1,0 +1,20 @@
+function init(self)
+	self.child_id   = go.get_id("child")
+	self.parent_id  = go.get_id("parent")
+	self.stage      = -1
+end
+
+function update(self)
+	self.stage = self.stage + 1
+	if self.stage == 0 then
+		go.set_parent(self.child_id,self.parent_id)
+	elseif self.stage == 1 then
+		go.set_parent(self.child_id)
+	elseif self.stage == 2 then
+		go.set_parent(self.child_id, self.parent_id, true)
+	elseif self.stage == 3 then
+		go.set_parent(self.child_id, "not-found")
+	elseif self.stage == 4 then
+		go.set_parent()
+	end
+end

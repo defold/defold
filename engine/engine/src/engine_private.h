@@ -107,7 +107,6 @@ namespace dmEngine
         uint32_t                                    m_LastReloadMTime;
 
         float                                       m_MouseSensitivity;
-        bool                                        m_ShowProfile;
 
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;

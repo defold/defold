@@ -382,6 +382,8 @@
                                                                    :command :bundle
                                                                    :user-data {:platform platform}})
                                                                 bundle-targets)}
+                                               {:label "Rebundle"
+                                                :command :rebundle}
                                                {:label "Fetch Libraries"
                                                 :command :fetch-libraries}
                                                {:label "Live Update Settings"
@@ -401,17 +403,19 @@
                        vals
                        (reduce into [])
                        distinct
-                       vec)]
-    (concat
-      (g/set-property project :all-selections all-selections)
-      (for [[node-id label] (g/sources-of project :all-selected-node-ids)]
-        (g/disconnect node-id label project :all-selected-node-ids))
-      (for [[node-id label] (g/sources-of project :all-selected-node-properties)]
-        (g/disconnect node-id label project :all-selected-node-properties))
-      (for [node-id all-node-ids]
-        (concat
-          (g/connect node-id :_node-id    project :all-selected-node-ids)
-          (g/connect node-id :_properties project :all-selected-node-properties))))))
+                       vec)
+        old-all-selections (g/node-value project :all-selections)]
+    (when-not (= old-all-selections all-selections)
+      (concat
+        (g/set-property project :all-selections all-selections)
+        (for [[node-id label] (g/sources-of project :all-selected-node-ids)]
+          (g/disconnect node-id label project :all-selected-node-ids))
+        (for [[node-id label] (g/sources-of project :all-selected-node-properties)]
+          (g/disconnect node-id label project :all-selected-node-properties))
+        (for [node-id all-node-ids]
+          (concat
+            (g/connect node-id :_node-id    project :all-selected-node-ids)
+            (g/connect node-id :_properties project :all-selected-node-properties)))))))
 
 (defn select
   ([project resource-node node-ids open-resource-nodes]

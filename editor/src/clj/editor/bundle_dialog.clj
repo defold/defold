@@ -537,8 +537,6 @@
               platform-bundle-output-directory-exists? (.exists platform-bundle-output-directory)]
           (when (or (not platform-bundle-output-directory-exists?)
                     (query-overwrite! platform-bundle-output-directory stage))
-            (when (not platform-bundle-output-directory-exists?)
-              (fs/create-directories! platform-bundle-output-directory))
             (let [bundle-options (assoc bundle-options :output-directory platform-bundle-output-directory)]
               (ui/close! stage)
               (bundle! bundle-options))))))))
@@ -570,7 +568,8 @@
           buttons (doto (HBox.) (ui/add-style! "buttons"))]
       (ui/add-child! buttons ok-button)
       (ui/add-child! root buttons)
-      (ui/bind-action! ok-button ::query-output-directory))
+      (ui/bind-action! ok-button ::query-output-directory)
+      (.setDefaultButton ok-button true))
 
     ;; Load preferences and refresh the view.
     ;; We also refresh whenever our application becomes active.

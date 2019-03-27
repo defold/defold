@@ -4,7 +4,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/pprint.h>
-#include <extension/extension.h>
+#include <dlib/profile.h>
 
 #include "script_private.h"
 #include "script_hash.h"
@@ -21,6 +21,7 @@
 #include "script_luasocket.h"
 #include "script_bitop.h"
 #include "script_timer.h"
+#include "script_extensions.h"
 
 extern "C"
 {
@@ -58,10 +59,9 @@ namespace dmScript
         context->m_ScriptExtensions.SetCapacity(8);
         context->m_ConfigFile = config_file;
         context->m_ResourceFactory = factory;
-        context->m_EnableExtensions = enable_extensions;
-        memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
         context->m_LuaState = lua_open();
         context->m_ContextTableRef = LUA_NOREF;
+        context->m_EnableExtensions = enable_extensions;
         return context;
     }
 
@@ -144,7 +144,6 @@ namespace dmScript
         InitializeModule(L);
         InitializeImage(L);
         InitializeJson(L);
-        InitializeHttp(L, context->m_ConfigFile);
         InitializeZlib(L);
         InitializeHtml5(L);
         InitializeLuasocket(L);
@@ -180,34 +179,18 @@ namespace dmScript
         lua_newtable(L);
         context->m_ContextTableRef = Ref(L, LUA_REGISTRYINDEX);
 
+        InitializeHttp(context);
         InitializeTimer(context);
+        if (context->m_EnableExtensions)
+        {
+            InitializeExtensions(context);
+        }
 
         for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
         {
             if ((*l)->Initialize != 0x0)
             {
                 (*l)->Initialize(context);
-            }
-        }
-
-#define BIT_INDEX(b) ((b) / sizeof(uint32_t))
-#define BIT_OFFSET(b) ((b) % sizeof(uint32_t))
-
-        if (context->m_EnableExtensions) {
-            const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
-            uint32_t i = 0;
-            while (ed) {
-                dmExtension::Params p;
-                p.m_ConfigFile = context->m_ConfigFile;
-                p.m_L = L;
-                dmExtension::Result r = ed->Initialize(&p);
-                if (r == dmExtension::RESULT_OK) {
-                    context->m_InitializedExtensions[BIT_INDEX(i)] |= 1 << BIT_OFFSET(i);
-                } else {
-                    dmLogError("Failed to initialize extension: %s", ed->m_Name);
-                }
-                ++i;
-                ed = ed->m_Next;
             }
         }
 
@@ -232,33 +215,11 @@ namespace dmScript
                 (*l)->Update(context);
             }
         }
-
-        if (context->m_EnableExtensions) {
-            const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
-            uint32_t i = 0;
-            while (ed) {
-                if (ed->Update)
-                {
-                    dmExtension::Params p;
-                    p.m_ConfigFile = context->m_ConfigFile;
-                    p.m_L = context->m_LuaState;
-                    if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
-                        dmExtension::Result r = ed->Update(&p);
-                        if (r != dmExtension::RESULT_OK) {
-                            dmLogError("Failed to update extension: %s", ed->m_Name);
-                        }
-                    }
-                }
-                ++i;
-                ed = ed->m_Next;
-            }
-        }
     }
 
     void Finalize(HContext context)
     {
         lua_State* L = context->m_LuaState;
-        FinalizeHttp(L);
 
         for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
         {
@@ -268,31 +229,6 @@ namespace dmScript
             }
         }
 
-        if (context->m_EnableExtensions) {
-            const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
-            uint32_t i = 0;
-            while (ed) {
-                if (ed->Finalize)
-                {
-                    dmExtension::Params p;
-                    p.m_ConfigFile = context->m_ConfigFile;
-                    p.m_L = L;
-                    if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
-                        dmExtension::Result r = ed->Finalize(&p);
-                        if (r != dmExtension::RESULT_OK) {
-                            dmLogError("Failed to finalize extension: %s", ed->m_Name);
-                        }
-                    }
-                }
-                ++i;
-                ed = ed->m_Next;
-            }
-        }
-        if (context) {
-            // context might be NULL in tests. Should probably be forbidden though
-            memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
-        }
-
         lua_getglobal(L, RANDOM_SEED);
         uint32_t* seed = (uint32_t*) lua_touserdata(L, -1);
         free(seed);
@@ -300,12 +236,19 @@ namespace dmScript
 
         Unref(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
     }
-#undef BIT_INDEX
-#undef BIT_OFFSET
 
     lua_State* GetLuaState(HContext context) {
         if (context != 0x0) {
             return context->m_LuaState;
+        }
+        return 0x0;
+    }
+
+    dmConfigFile::HConfig GetConfigFile(HContext context)
+    {
+        if (context != 0x0)
+        {
+            return context->m_ConfigFile;
         }
         return 0x0;
     }
@@ -1449,7 +1392,14 @@ namespace dmScript
         int user_args_end = lua_gettop(L);
 
         int number_of_arguments = 1 + user_args_end - user_args_start; // instance + number of arguments that the user pushed
-        int ret = PCall(L, number_of_arguments, 0);
+
+        int ret;
+        {
+            uint32_t profiler_hash = 0;
+            const char* profiler_string = GetProfilerString(L, -(number_of_arguments + 1), "?", "on_timer", 0, &profiler_hash);
+            DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
+            ret = PCall(L, number_of_arguments, 0);
+        }
 
         if (ret != 0) {
             // [-2] old instance
@@ -1467,6 +1417,113 @@ namespace dmScript
 
         SetInstance(L);
         return true;
+    }
+
+    /** Information about a function, in which file and at what line it is defined
+     * Use with GetLuaFunctionRefInfo
+     */
+    struct LuaFunctionInfo
+    {
+        const char* m_FileName;
+        const char* m_OptionalName;
+        int m_LineNumber;
+    };
+
+    /**
+     * Get information about where a Lua function is defined
+     * @param L lua state
+     * @param stack_index which index on the stack that contains the lua function ref
+     * @param out_function_info pointer to the function information that is filled out
+     * @return true on success, out_function_info is only touched if the function succeeds
+     */
+    static bool GetLuaFunctionRefInfo(lua_State* L, int stack_index, LuaFunctionInfo* out_function_info)
+    {
+        lua_Debug ar;
+        lua_pushvalue(L, stack_index);
+        if (lua_getinfo(L, ">Sn", &ar))
+        {
+            out_function_info->m_FileName = &ar.source[1];  // Skip source prefix character
+            out_function_info->m_LineNumber = ar.linedefined;
+            out_function_info->m_OptionalName = ar.name;
+            return true;
+        }
+        return false;
+    }
+
+    // Fast length limited string concatenation that assume we already point to
+    // the end of the string. Returns the new end of the string so we do not need
+    // to calculate the length of the input string or output string
+    static char* ConcatString(char* w_ptr, const char* w_ptr_end, const char* str)
+    {
+        while ((w_ptr != w_ptr_end) && *str)
+        {
+            *w_ptr++ = *str++;
+        }
+        return w_ptr;
+    }
+
+    /**
+    * To reduce the overhead of the profiler when calling lua functions we avoid using DM_SNPRINTF.
+    * DM_SNPRINTF uses vsnprintf with variable number of arguments but we only need string concatenation for
+    * the most part. Also, we use our knownledge when building the string to get the string length directly
+    * without resorting to strlen.
+    * Building this string is particularly expensive on low end devices and using this more optimal way reduces
+    * the overhead of the profiler when enabled.
+    */
+    const char* GetProfilerString(lua_State* L, int optional_callback_index, const char* source_file_name, const char* function_name, const char* optional_message_name, uint32_t* out_profiler_hash)
+    {
+        const char* profiler_string = 0;
+        if (dmProfile::g_IsInitialized)
+        {
+            char buffer[128];
+            char* w_ptr = buffer;
+            const char* w_ptr_end = &buffer[sizeof(buffer) - 1];
+
+            const char* function_source = source_file_name;
+
+            if (optional_callback_index != 0)
+            {
+                LuaFunctionInfo fi;
+                if (dmScript::GetLuaFunctionRefInfo(L, optional_callback_index, &fi))
+                {
+                    function_source = fi.m_FileName;
+                    if (fi.m_OptionalName)
+                    {
+                        w_ptr = ConcatString(w_ptr, w_ptr_end, fi.m_OptionalName);
+                    }
+                    else
+                    {
+                        char function_line_number_buffer[16];
+                        DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
+                        w_ptr = ConcatString(w_ptr, w_ptr_end, function_line_number_buffer);
+                    }
+                }
+                else
+                {
+                    w_ptr = ConcatString(w_ptr, w_ptr_end, "<unknown>");
+                }
+                
+            }
+            else
+            {
+                w_ptr = ConcatString(w_ptr, w_ptr_end, function_name);
+            }
+
+            if (optional_message_name)
+            {
+                w_ptr = ConcatString(w_ptr, w_ptr_end, "[");
+                w_ptr = ConcatString(w_ptr, w_ptr_end, optional_message_name);
+                w_ptr = ConcatString(w_ptr, w_ptr_end, "]");
+            }
+            w_ptr = ConcatString(w_ptr, w_ptr_end, "@");
+            w_ptr = ConcatString(w_ptr, w_ptr_end, function_source);
+            uint32_t str_len = (uint32_t)(w_ptr - buffer);
+            uint32_t hash = dmProfile::GetNameHash(buffer, str_len);
+            *w_ptr++ = 0;
+            profiler_string = dmProfile::Internalize(buffer, str_len, hash);
+            *out_profiler_hash = hash;
+        }
+        return profiler_string;
     }
 
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value)

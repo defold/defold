@@ -176,6 +176,41 @@ def model_file(self, node):
     out_rigscene = node.change_ext(rig_ext)
     task.set_outputs([out_model, out_rigscene])
 
+
+Task.simple_task_type('vertexshader', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.VertexProgramBuilder ${SRC} ${TGT} --platform ${BOB_BUILD_PLATFORM}',
+                      color='PINK',
+                      after='proto_gen_py',
+                      before='cc cxx',
+                      shell=False)
+
+@extension('.vp')
+def vertexprogram_file(self, node):
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
+    shader = self.create_task('vertexshader')
+    shader.env['CLASSPATH'] = os.pathsep.join(classpath)
+    shader.set_inputs(node)
+    obj_ext = '.vpc'
+    out = node.change_ext(obj_ext)
+    shader.set_outputs(out)
+
+Task.simple_task_type('fragmentshader', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.FragmentProgramBuilder ${SRC} ${TGT} --platform ${BOB_BUILD_PLATFORM}',
+                      color='PINK',
+                      after='proto_gen_py',
+                      before='cc cxx',
+                      shell=False)
+
+@extension('.fp')
+def fragmentprogram_file(self, node):
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
+    shader = self.create_task('fragmentshader')
+    shader.env['CLASSPATH'] = os.pathsep.join(classpath)
+    shader.set_inputs(node)
+    obj_ext = '.fpc'
+    out = node.change_ext(obj_ext)
+    shader.set_outputs(out)
+
+
+
 def compile_animationset(task):
     try:
         import google.protobuf.text_format

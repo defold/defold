@@ -90,11 +90,11 @@ static void DeleteRigData(dmRigDDF::MeshSet* mesh_set, dmRigDDF::Skeleton* skele
             if (mesh.m_Normals.m_Count > 0)          { delete [] mesh.m_Normals.m_Data; }
             if (mesh.m_BoneIndices.m_Count > 0)      { delete [] mesh.m_BoneIndices.m_Data; }
             if (mesh.m_Weights.m_Count > 0)          { delete [] mesh.m_Weights.m_Data; }
-            if (mesh.m_Indices.m_Count > 0)          { delete [] mesh.m_Indices.m_Data; }
             if (mesh.m_MeshColor.m_Count > 0)        { delete [] mesh.m_MeshColor.m_Data; }
             if (mesh.m_Texcoord0Indices.m_Count > 0) { delete [] mesh.m_Texcoord0Indices.m_Data; }
             if (mesh.m_Texcoord0.m_Count > 0)        { delete [] mesh.m_Texcoord0.m_Data; }
             if (mesh.m_Positions.m_Count > 0)        { delete [] mesh.m_Positions.m_Data; }
+            if (mesh.m_PositionIndices.m_Count > 0)  { delete [] mesh.m_PositionIndices.m_Data; }
         }
         delete [] mesh_set->m_MeshAttachments.m_Data;
 
@@ -148,9 +148,9 @@ static void CreateDrawOrderMeshes(dmRigDDF::MeshSet* mesh_set, int mesh_entry_in
         mesh.m_MeshColor.m_Data[2]        = 0.0f;
         mesh.m_MeshColor.m_Data[3]        = 0.0f;
 
-        mesh.m_Indices.m_Data         = new uint32_t[1];
-        mesh.m_Indices.m_Count        = 1;
-        mesh.m_Indices.m_Data[0]      = 0;
+        mesh.m_PositionIndices.m_Data     = new uint32_t[1];
+        mesh.m_PositionIndices.m_Count    = 1;
+        mesh.m_PositionIndices.m_Data[0]  = 0;
 
         mesh.m_Normals.m_Count        = 0;
         mesh.m_NormalsIndices.m_Count = 0;
@@ -259,12 +259,12 @@ static void CreateTestSkin(dmRigDDF::MeshSet* mesh_set, int mesh_entry_index, dm
     mesh.m_MeshColor[13]          = color.getY();
     mesh.m_MeshColor[14]          = color.getZ();
     mesh.m_MeshColor[15]          = color.getW();
-    mesh.m_Indices.m_Data         = new uint32_t[vert_count];
-    mesh.m_Indices.m_Count        = vert_count;
-    mesh.m_Indices.m_Data[0]      = 0;
-    mesh.m_Indices.m_Data[1]      = 1;
-    mesh.m_Indices.m_Data[2]      = 2;
-    mesh.m_Indices.m_Data[3]      = 3;
+    mesh.m_PositionIndices.m_Data    = new uint32_t[vert_count];
+    mesh.m_PositionIndices.m_Count   = vert_count;
+    mesh.m_PositionIndices.m_Data[0] = 0;
+    mesh.m_PositionIndices.m_Data[1] = 1;
+    mesh.m_PositionIndices.m_Data[2] = 2;
+    mesh.m_PositionIndices.m_Data[3] = 3;
     mesh.m_BoneIndices.m_Data     = new uint32_t[vert_count*4];
     mesh.m_BoneIndices.m_Count    = vert_count*4;
 

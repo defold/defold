@@ -1,8 +1,14 @@
 .hyperlink {
-  -fx-text-fill: $defold-blue;
+  -fx-font-size: 14px;
+  -fx-font-smoothing-type: lcd;
+  -fx-text-fill: $df-bright-blue;
+  -fx-padding: 0;
+  -fx-border-width: 0;
   -fx-underline: false;
+  -fx-cursor: default;
 
   &:hover {
+    -fx-text-fill: lighten($df-bright-blue, 9%);
     -fx-underline: true;
   }
   &:visited, &:pressed, &:armed, &:focused {

@@ -1,7 +1,7 @@
 #ifndef DM_PARTICLE_H
 #define DM_PARTICLE_H
 
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dlib/configfile.h>
 #include <dlib/hash.h>
 #include <ddf/ddf.h>

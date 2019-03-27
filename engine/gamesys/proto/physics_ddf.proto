@@ -275,7 +275,7 @@ message RequestRayCast
 /*# reports a ray cast hit
  *
  * This message is sent back to the sender of a `ray_cast_request`, if the ray hit a
- * collision object. See `physics.ray_cast` for examples of how to use it.
+ * collision object. See `physics.raycast_async` for examples of how to use it.
  *
  * @message
  * @name ray_cast_response
@@ -299,7 +299,7 @@ message RayCastResponse
 /*# reports a ray cast miss
  *
  * This message is sent back to the sender of a `ray_cast_request`, if the ray didn't hit any
- * collision object. See `physics.ray_cast` for examples of how to use it.
+ * collision object. See `physics.raycast_async` for examples of how to use it.
  *
  * @message
  * @name ray_cast_missed

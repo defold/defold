@@ -1,0 +1,23 @@
+[{:type :error,
+  :file "/androidnative/src/main.cpp",
+  :line 17,
+  :column 1,
+  :message "‘ubar’ does not name a type\n ubar g_foo = 0;\n ^"}
+ {:type :warning,
+  :file "/engine/lua/build/../src/lua/loslib.c",
+  :line 60,
+  :column nil,
+  :message "the use of `tmpnam' is dangerous, better use `mkstemp'"}
+ {:type :error,
+  :file "/androidnative/src/main.cpp",
+  :line 166,
+  :message "undefined reference to `Foobar()'"}
+ {:type :error,
+  :file "/androidnative/ext.manifest",
+  :message "collect2: error: ld returned 1 exit status"}
+ {:type :note,
+  :file "/androidnative/ext.manifest",
+  :message "/usr/bin/ld: cannot find -lsteam_api"}
+ {:type :error,
+  :file "/androidnative/ext.manifest",
+  :message "collect2: error: ld returned 1 exit status"}]

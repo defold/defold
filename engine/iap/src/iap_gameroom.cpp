@@ -396,7 +396,6 @@ static int IAP_HasPremium(lua_State* L)
  *   if error == nil then
  *     -- purchase is ok
  *     print(transaction.date)
- *     print(transaction.)
  *     -- required if auto finish transactions is disabled in project settings
  *     if (transaction.state == iap.TRANS_STATE_PURCHASED) then
  *       -- do server-side verification of purchase here..

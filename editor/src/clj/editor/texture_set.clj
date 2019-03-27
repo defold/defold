@@ -213,7 +213,7 @@
                     y0 (.y world-pos)
                     x1 (+ x0 (* (/ 1 sx) (:width anim-data)))
                     y1 (- y0 (* (/ 1 sy) (:height anim-data)) )
-                    [cr cg cb ca] scene/outline-color
+                    [cr cg cb ca] colors/outline-color
                     [xr xg xb xa] colors/scene-background]
                 (.glColor4d gl xr xg xb xa)
                 (.glBegin gl GL2/GL_QUADS)
@@ -230,5 +230,5 @@
                 (.glVertex3d gl x1 y0 0)
                 (.glEnd gl)
                 (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
-                  (shader/set-uniform shader gl "texture" 0)
+                  (shader/set-uniform shader gl "texture_sampler" 0)
                   (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (* n 6)))))))))))

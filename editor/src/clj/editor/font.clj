@@ -3,6 +3,7 @@
             [clojure.java.io :as io]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.graph-util :as gu]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -19,6 +20,7 @@
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
+            [editor.colors :as colors]
             [schema.core :as schema]
             [service.log :as log])
   (:import [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontTextureFormat Font$FontRenderMode]
@@ -189,17 +191,17 @@
 
 (defn measure
   ([font-map text]
-    (measure font-map text false 0 0 1))
+   (measure font-map text false 0 0 1))
   ([font-map text line-break? max-width text-tracking text-leading]
-    (if (or (nil? font-map) (nil? text) (empty? text))
-      [0 0]
-      (let [glyphs (font-map->glyphs font-map)
-            line-height (+ (:max-descent font-map) (:max-ascent font-map))
-            text-tracking (* line-height text-tracking)
-            lines (split-text glyphs text line-break? max-width text-tracking)
-            line-widths (map (partial measure-line glyphs text-tracking) lines)
-            max-width (reduce max 0 line-widths)]
-        [max-width (* line-height (+ 1 (* text-leading (dec (count lines)))))]))))
+   (if (or (nil? font-map) (nil? text) (empty? text))
+     [0 0]
+     (let [glyphs (font-map->glyphs font-map)
+           line-height (+ (:max-descent font-map) (:max-ascent font-map))
+           text-tracking (* line-height text-tracking)
+           lines (split-text glyphs text line-break? max-width text-tracking)
+           line-widths (map (partial measure-line glyphs text-tracking) lines)
+           max-width (reduce max 0 line-widths)]
+       [max-width (* line-height (+ 1 (* text-leading (dec (count lines)))))]))))
 
 (g/deftype FontData {:type     schema/Keyword
                      :font-map schema/Any
@@ -275,7 +277,7 @@
                                                         (update (:shadow entry) 3 (partial * shadow-alpha))
                                                         unpacked-layer-mask)
                   text-layout (:text-layout entry)
-                  text-tracking (* line-height ^long (:text-tracking text-layout 0))
+                  text-tracking (* line-height ^double (:text-tracking text-layout 0))
                   text-cursor-offset (if (nil? text-cursor-offset)
                                        {:x 0, :y 0}
                                        text-cursor-offset)
@@ -351,31 +353,38 @@
                                   :text-entries text-entries
                                   :glyph-cache glyph-cache})))
 
+(defn get-texture-recip-uniform [font-map]
+  (let [cache-width (:cache-width font-map)
+        cache-height (:cache-height font-map)
+        cache-width-recip (/ 1.0 cache-width)
+        cache-height-recip (/ 1.0 cache-height)
+        cache-cell-width-ratio (/ (:cache-cell-width font-map) cache-width)
+        cache-cell-height-ratio (/ (:cache-cell-height font-map) cache-height)]
+    (Vector4d. cache-width-recip cache-height-recip cache-cell-width-ratio cache-cell-height-ratio)))
+
 (defn render-font [^GL2 gl render-args renderables rcount]
   (let [user-data (get (first renderables) :user-data)
         gpu-texture (:texture user-data)
         font-map (:font-map user-data)
-        cache-width (:cache-width font-map)
-        cache-height (:cache-height font-map)
-        text-layout (layout-text font-map (:text user-data) true cache-width 0 1)
+        text-layout (layout-text font-map (:text user-data) true (:cache-width font-map) 0 1)
         vertex-buffer (gen-vertex-buffer gl user-data [{:text-layout text-layout
                                                         :align :left
                                                         :offset [0.0 0.0]
                                                         :world-transform (doto (Matrix4d.) (.setIdentity))
-                                                        :color [1.0 1.0 1.0 1.0] :outline [0.0 0.0 0.0 1.0] :shadow [0.0 0.0 0.0 0.0]}])
+                                                        :color (colors/alpha colors/defold-white-light 1.0) :outline (colors/alpha colors/mid-grey 1.0) :shadow [0.0 0.0 0.0 1.0]}])
         material-shader (:shader user-data)
         type (:type user-data)
         vcount (count vertex-buffer)]
     (when (> vcount 0)
       (let [vertex-binding (vtx/use-with ::vb vertex-buffer material-shader)
-            cache-width-recip (/ 1.0 cache-width)
-            cache-height-recip (/ 1.0 cache-height)
-            cache-cell-width-ratio (/ (:cache-cell-width font-map) cache-width)
-            cache-cell-height-ratio (/ (:cache-cell-height font-map) cache-height)
-            texture-size-recip (Vector4d. cache-width-recip cache-height-recip cache-cell-width-ratio cache-cell-height-ratio)]
+            texture-recip-uniform (get-texture-recip-uniform font-map)]
         (gl/with-gl-bindings gl render-args [material-shader vertex-binding gpu-texture]
-          (shader/set-uniform material-shader gl "texture_size_recip" texture-size-recip)
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))))
+          (shader/set-uniform material-shader gl "texture_size_recip" texture-recip-uniform)
+          ;; Need to set the blend mode to alpha since alpha blending the source with GL_SRC_ALPHA and dest with GL_ONE_MINUS_SRC_ALPHA
+          ;; gives us a small black border around the outline that looks different than other views..
+          (gl/set-blend-mode gl :blend-mode-alpha)
+          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
+          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))))
 
 (g/defnk produce-scene [_node-id aabb gpu-texture font-map material material-shader type preview-text]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
@@ -473,15 +482,16 @@
                              (remove nil?)
                              (not-empty))]
         (g/error-aggregate errors))
-      [{:node-id _node-id
-        :resource (workspace/make-build-resource resource)
-        :build-fn build-font
-        :user-data {:font font
-                    :type type
-                    :pb-msg pb-msg
-                    :font-resource-map font-resource-map
-                    :font-resource-hashes font-resource-hashes}
-        :deps (flatten dep-build-targets)}]))
+      [(bt/with-content-hash
+         {:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-font
+          :user-data {:font font
+                      :type type
+                      :pb-msg pb-msg
+                      :font-resource-map font-resource-map
+                      :font-resource-hashes font-resource-hashes}
+          :deps (flatten dep-build-targets)})]))
 
 (g/defnode FontSourceNode
   (inherits resource-node/ResourceNode)
@@ -651,10 +661,9 @@
                            (if font-map
                              (let [[w h] (measure font-map preview-text true (:cache-width font-map) 0 1)
                                    h-offset (:max-ascent font-map)]
-                               (-> (geom/null-aabb)
-                                 (geom/aabb-incorporate (Point3d. 0 h-offset 0))
-                                 (geom/aabb-incorporate (Point3d. w (- h-offset h) 0))))
-                             (geom/null-aabb))))
+                               (geom/make-aabb (Point3d. 0 h-offset 0)
+                                               (Point3d. w (- h-offset h) 0)))
+                             geom/null-aabb)))
   (output gpu-texture g/Any :cached (g/fnk [_node-id font-map material-samplers]
                                            (when font-map
                                              (let [w (:cache-width font-map)
@@ -724,9 +733,9 @@
                                        w (+ (:width glyph) p)
                                        h (+ (:ascent glyph) (:descent glyph) p)
                                        ^ByteBuffer src-data (-> ^ByteBuffer (.asReadOnlyByteBuffer ^ByteString (:glyph-data font-map))
-                                                                ^ByteBuffer (.position (:glyph-data-offset glyph))
+                                                                ^ByteBuffer (.position (int (:glyph-data-offset glyph)))
                                                                 (.slice)
-                                                                (.limit (:glyph-data-size glyph)))
+                                                                (.limit (int (:glyph-data-size glyph))))
                                        tgt-data (doto (ByteBuffer/allocateDirect (:glyph-data-size glyph))
                                                   (.put src-data)
                                                   (.flip))]
