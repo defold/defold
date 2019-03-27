@@ -3555,23 +3555,25 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         assert(n->m_Version == version);
 
         PropDesc* pd = GetPropertyDesc(property);
-        if (pd) {
-            Vector4* base_value = &n->m_Node.m_Properties[pd->m_Property];
+        if (pd)
+		{
+            float* base_value = (float*)&n->m_Node.m_Properties[pd->m_Property];
+			assert(base_value[0] == 0.f);
 
-            if (pd->m_Component == 0xff) {
-                dmEasing::ReleaseCurve release_easing = easing.release_callback;
-                easing.release_callback = 0;
-                for (int j = 0; j < 4; ++j) {
-                    // Only run callback for the lastcomponent
-                    if (j == 3)
-                    {
-                        easing.release_callback = release_easing;
-                    }
-                    AnimateComponent(scene, node, ((float*) base_value) + j, to.getElem(j), easing, playback, duration, delay,
-                                    j == 3 ? animation_complete : 0, j == 3 ? userdata1 : 0, j == 3 ? userdata2 : 0);
+            if (pd->m_Component == 0xff)
+			{
+				dmEasing::Curve no_callback_easing = easing;
+				no_callback_easing.release_callback = 0;
+				for (int j = 0; j < 3; ++j) {
+					AnimateComponent(scene, node, &base_value[j], to.getElem(j), no_callback_easing, playback, duration, delay, 0, 0, 0);
                 }
-            } else {
-                AnimateComponent(scene, node, ((float*) base_value) + pd->m_Component, to.getElem(pd->m_Component), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
+
+				// Only run callback for the lastcomponent
+				AnimateComponent(scene, node, &base_value[3], to.getElem(3), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
+			}
+			else
+			{
+                AnimateComponent(scene, node, &base_value[pd->m_Component], to.getElem(pd->m_Component), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
             }
         } else {
             dmLogError("property '%s' not found", dmHashReverseSafe64(property));
