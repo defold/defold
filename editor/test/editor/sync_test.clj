@@ -9,7 +9,8 @@
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.sync :as sync]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [support.test-support :as test-support])
   (:import [java.io File]))
 
 (defn- make-prefs []
@@ -252,7 +253,7 @@
       (is (false? (sync/flow-in-progress? git))))))
 
 (deftest cancel-flow-from-partially-staged-rename-test
-  (test-util/with-loaded-project
+  (test-support/with-clean-system
     (let [old-path "src/old-dir/file.txt"
           new-path "src/new-dir/file.txt"
           modified-path "src/modified.txt"

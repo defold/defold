@@ -3,7 +3,7 @@
             [editor.handler :as handler]
             [editor.menu :as menu]
             [editor.ui :as ui]
-            [integration.test-util :as test-util])
+            [support.test-support :as test-support])
   (:import [javafx.scene Scene]
            [javafx.scene.control ComboBox ListView Menu MenuBar MenuItem SelectionMode TreeItem TreeView]
            [javafx.scene.layout Pane VBox]))
@@ -45,7 +45,7 @@
   (alt-selection [this] []))
 
 (deftest menu-test
-  (test-util/with-loaded-project
+  (test-support/with-clean-system
     (ui/extend-menu ::my-menu nil
                     [{:label "File"
                       :children [{:label "Open"
@@ -74,7 +74,7 @@
 
 
 (deftest options-menu-test
-  (test-util/with-loaded-project
+  (test-support/with-clean-system
     (ui/extend-menu ::my-menu nil
                     [{:label "Add"
                       :command :add}])
@@ -96,7 +96,7 @@
 
 (deftest toolbar-test
   (ui/run-now
-    (test-util/with-loaded-project
+    (test-support/with-clean-system
       (ui/extend-menu ::my-menu nil
                       [{:label "Open"
                         :command :open
@@ -113,7 +113,7 @@
         (state [] false))
 
       (let [root (Pane.)
-            scene (ui/run-now (Scene. root))
+            scene (Scene. root)
             selection-provider (TestSelectionProvider. [])]
         (.setId root "toolbar")
         (ui/context! root :global {} selection-provider)
@@ -132,7 +132,7 @@
 
 (deftest menubar-test
   (ui/run-now
-    (test-util/with-loaded-project
+    (test-support/with-clean-system
       (ui/extend-menu ::my-menu nil
                       [{:label "File"
                         :children
@@ -149,11 +149,11 @@
         (run [selection] 124))
 
       (let [root (Pane.)
-            scene (ui/run-now (Scene. root))
+            scene (Scene. root)
             selection-provider (TestSelectionProvider. [])
             menubar (MenuBar.)]
         (ui/context! root :global {} selection-provider)
-        (ui/run-now (.add (.getChildren root) menubar))
+        (.add (.getChildren root) menubar)
         (.setId menubar "menubar")
         (ui/register-menubar scene menubar ::my-menu)
         (ui/refresh scene)
