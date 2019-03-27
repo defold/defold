@@ -1322,7 +1322,7 @@
             `(if (= ~result-sym ::cached-nil) nil ~result-sym))
          ~forms))))
 
-(defn- gather-arguments-form [arguments-sym schema-sym node-sym evaluation-context-sym node-id-sym description label production-function forms]
+(defn- gather-arguments-form [arguments-sym schema-sym node-sym evaluation-context-sym node-id-sym description label forms]
   (let [arg-names (get-in description [:output label :arguments])
         argument-forms (zipmap arg-names (map #(fnk-argument-form node-sym evaluation-context-sym node-id-sym label description %) arg-names))
         argument-forms (assoc argument-forms :_node-id node-id-sym :_basis `(:basis ~evaluation-context-sym))]
@@ -1398,8 +1398,7 @@
 
 (defn- node-output-value-function-form
   [description label]
-  (let [production-function (get-in description [:output label :fn])
-        tracer-output-type (if (desc-has-explicit-output? description label) :output :property)]
+  (let [tracer-output-type (if (desc-has-explicit-output? description label) :output :property)]
     (gensyms [node-sym evaluation-context-sym node-id-sym arguments-sym schema-sym output-sym]
       `(fn [~node-sym ~evaluation-context-sym]
          (let [~node-id-sym (gt/node-id ~node-sym)]
@@ -1408,7 +1407,7 @@
                 (mark-in-production-form evaluation-context-sym node-id-sym label description
                   (check-caches-form evaluation-context-sym node-id-sym description label
                     (with-tracer-calls-form evaluation-context-sym node-id-sym label tracer-output-type
-                      (gather-arguments-form arguments-sym schema-sym node-sym evaluation-context-sym node-id-sym description label production-function
+                      (gather-arguments-form arguments-sym schema-sym node-sym evaluation-context-sym node-id-sym description label
                         (call-production-function-form evaluation-context-sym description label arguments-sym node-id-sym output-sym
                           (schema-check-output-form evaluation-context-sym description label node-id-sym output-sym
                             (cache-output-form evaluation-context-sym description label node-id-sym output-sym
