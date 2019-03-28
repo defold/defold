@@ -180,9 +180,8 @@
           debug-view           (debug-view/make-view! app-view *view-graph*
                                                       project
                                                       root
-                                                      scene
                                                       open-resource
-                                                      (partial app-view/show-debugger! scene tool-tabs))]
+                                                      (partial app-view/debugger-state-changed! scene tool-tabs))]
       (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
 
       (when updater
