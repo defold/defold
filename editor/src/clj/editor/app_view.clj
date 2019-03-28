@@ -1085,9 +1085,6 @@ If you do not specifically require different script states, consider changing th
    (select app-view (g/node-value app-view :active-resource-node) node-ids))
   ([app-view resource-node node-ids]
    (g/with-auto-evaluation-context evaluation-context
-     (when-not (= (set node-ids)
-                  (set (g/node-value app-view :selected-node-ids evaluation-context)))
-       (ui/user-data! (g/node-value app-view :scene evaluation-context) ::ui/refresh-requested? true))
      (let [project-id (g/node-value app-view :project-id evaluation-context)
            open-resource-nodes (g/node-value app-view :open-resource-nodes evaluation-context)]
        (project/select project-id resource-node node-ids open-resource-nodes)))))
@@ -1096,10 +1093,6 @@ If you do not specifically require different script states, consider changing th
   ([app-view node-ids]
    (select! app-view node-ids (gensym)))
   ([app-view node-ids op-seq]
-   (g/with-auto-evaluation-context evaluation-context
-     (when-not (= (set node-ids)
-                  (set (g/node-value app-view :selected-node-ids evaluation-context)))
-       (ui/user-data! (g/node-value app-view :scene evaluation-context) ::ui/refresh-requested? true)))
    (g/transact
      (concat
        (g/operation-sequence op-seq)
@@ -1111,9 +1104,6 @@ If you do not specifically require different script states, consider changing th
    (sub-select! app-view sub-selection (gensym)))
   ([app-view sub-selection op-seq]
    (g/with-auto-evaluation-context evaluation-context
-     (when-not (= (set sub-selection)
-                  (set (g/node-value app-view :sub-selection evaluation-context)))
-       (ui/user-data! (g/node-value app-view :scene evaluation-context) ::ui/refresh-requested? true))
      (let [project-id (g/node-value app-view :project-id evaluation-context)
            active-resource-node (g/node-value app-view :active-resource-node evaluation-context)
            open-resource-nodes (g/node-value app-view :open-resource-nodes evaluation-context)]
@@ -1234,16 +1224,25 @@ If you do not specifically require different script states, consider changing th
 
       (keymap/install-key-bindings! (.getScene stage) (g/node-value app-view :keymap))
 
-      (let [refresh-timer (ui/->timer "refresh-app-view"
-                                      (fn [_ _]
-                                        (when-not (ui/ui-disabled?)
-                                          (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)]
-                                            (when refresh-requested?
-                                              (ui/user-data! app-scene ::ui/refresh-requested? false)
-                                              (refresh-menus-and-toolbars! app-view app-scene)
-                                              (refresh-views! app-view))
-                                            (refresh-scene-views! app-view)
-                                            (refresh-app-title! stage project)))))]
+      (let [selection-counters-volatile (volatile! [-1 -1])
+            refresh-timer (ui/->timer
+                            "refresh-app-view"
+                            (fn [_ _]
+                              (when-not (ui/ui-disabled?)
+                                (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)
+                                      prev-counters @selection-counters-volatile
+                                      new-counters [(g/invalidate-counter app-view :sub-selection)
+                                                    (g/invalidate-counter app-view :selected-node-ids)]
+                                      selection-changed (not= prev-counters new-counters)]
+                                  (when selection-changed
+                                    (vreset! selection-counters-volatile new-counters))
+                                  (when refresh-requested?
+                                    (ui/user-data! app-scene ::ui/refresh-requested? false))
+                                  (when (or refresh-requested? selection-changed)
+                                    (refresh-menus-and-toolbars! app-view app-scene)
+                                    (refresh-views! app-view))
+                                  (refresh-scene-views! app-view)
+                                  (refresh-app-title! stage project)))))]
         (ui/timer-stop-on-closed! stage refresh-timer)
         (ui/timer-start! refresh-timer))
       (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
