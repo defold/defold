@@ -303,7 +303,7 @@ TEST_F(dmSSDPInternalTest, UpdateListeningSockets)
     dmSocket::IfAddr interfaces[dmSSDP::SSDP_MAX_LOCAL_ADDRESSES];
     memset(interfaces, 0, sizeof(interfaces));
     uint32_t interface_count = GetInterfaces(interfaces, dmSSDP::SSDP_MAX_LOCAL_ADDRESSES);
-    ASSERT_GE(1u, interface_count); // "There are no IPv4 interface(s) available"
+    ASSERT_GE(interface_count, 1u); // "There are no IPv4 interface(s) available"
 
     dmSSDP::UpdateListeningSockets(instance, interfaces, interface_count);
 
