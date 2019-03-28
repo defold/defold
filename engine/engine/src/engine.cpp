@@ -10,6 +10,7 @@
 
 #include <dlib/dlib.h>
 #include <dlib/dstrings.h>
+#include <dlib/condition_variable.h>
 #include <dlib/hash.h>
 #include <dlib/profile.h>
 #include <dlib/time.h>
@@ -218,8 +219,6 @@ namespace dmEngine
         m_SpineModelContext.m_MaxSpineModelCount = 0;
         m_ModelContext.m_RenderContext = 0x0;
         m_ModelContext.m_MaxModelCount = 0;
-        m_LuaGCMutex = dmMutex::New();
-        m_LuaGCCondition = dmConditionVariable::New();
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
@@ -329,9 +328,6 @@ namespace dmEngine
         {
             dmConfigFile::Delete(engine->m_Config);
         }
-
-        dmConditionVariable::Delete(engine->m_LuaGCCondition);
-        dmMutex::Delete(engine->m_LuaGCMutex);
 
         delete engine;
     }
@@ -1158,16 +1154,85 @@ bail:
         return memcount;
     }
 
-    struct LuaGCBlocker
+    struct AsyncLuaGC
     {
-        LuaGCBlocker(HEngine engine)
+        AsyncLuaGC(HEngine engine)
             : m_Engine(engine)
+        {
+            m_LuaGCMutex = dmMutex::New();
+            m_LuaGCCondition = dmConditionVariable::New();
+
+            m_Thread = dmThread::New(AsyncGCThread, 0x8000, this, "AsyncGCThread");
+        }
+        ~AsyncLuaGC()
+        {
+            dmConditionVariable::Signal(m_LuaGCCondition);
+            dmThread::Join(m_Thread);
+            dmConditionVariable::Delete(m_LuaGCCondition);
+            dmMutex::Delete(m_LuaGCMutex);
+        }
+
+        void SetLuaGC(int what, int data)
+        {
+            if (m_Engine->m_SharedScriptContext)
+            {
+                lua_gc(dmScript::GetLuaState(m_Engine->m_SharedScriptContext), what, data);
+            }
+            else
+            {
+                if (m_Engine->m_GOScriptContext)
+                {
+                    lua_gc(dmScript::GetLuaState(m_Engine->m_GOScriptContext), what, data);
+                }
+                if (m_Engine->m_RenderScriptContext)
+                {
+                    lua_gc(dmScript::GetLuaState(m_Engine->m_RenderScriptContext), what, data);
+                }
+                if (m_Engine->m_GuiScriptContext)
+                {
+                    lua_gc(dmScript::GetLuaState(m_Engine->m_GuiScriptContext), what, data);
+                }
+            }
+        }
+
+        HEngine m_Engine;
+        dmMutex::HMutex m_LuaGCMutex;
+        dmConditionVariable::HConditionVariable m_LuaGCCondition;
+        dmThread::Thread m_Thread;
+
+        static void AsyncGCThread(void* arg);
+    };
+
+    void AsyncLuaGC::AsyncGCThread(void* arg)
+    {
+        AsyncLuaGC* async_lua_gc = (AsyncLuaGC*)arg;
+        Engine* engine = async_lua_gc->m_Engine;
+        while(true)
+        {
+            dmMutex::ScopedLock lock(async_lua_gc->m_LuaGCMutex);
+            dmConditionVariable::Wait(async_lua_gc->m_LuaGCCondition, async_lua_gc->m_LuaGCMutex);
+            if (!engine->m_Alive)
+            {
+                break;
+            }
+            DM_PROFILE(Script, "AsyncGC");
+            async_lua_gc->SetLuaGC(LUA_GCCOLLECT, 0);
+        }
+    }
+
+    struct LuaGCBlockerScope
+    {
+        LuaGCBlockerScope(HAsyncLuaGC async_lua_gc)
+            : m_AsyncLuaGC(async_lua_gc)
             , m_IsBlocked(false)
         {
-            dmMutex::Lock(m_Engine->m_LuaGCMutex);
+            if (!m_AsyncLuaGC)
+                return;
+            dmMutex::Lock(m_AsyncLuaGC->m_LuaGCMutex);
             m_IsBlocked = true;
+//            m_AsyncLuaGC->SetLuaGC(LUA_GCSETPAUSE, 1);
         }
-        ~LuaGCBlocker()
+        ~LuaGCBlockerScope()
         {
             if (m_IsBlocked)
             {
@@ -1176,11 +1241,14 @@ bail:
         }
         void Release()
         {
-            dmConditionVariable::Signal(m_Engine->m_LuaGCCondition);
-            dmMutex::Unlock(m_Engine->m_LuaGCMutex);
+            if (!m_AsyncLuaGC)
+                return;
+//            m_AsyncLuaGC->SetLuaGC(LUA_GCSETPAUSE, 0);
+            dmConditionVariable::Signal(m_AsyncLuaGC->m_LuaGCCondition);
+            dmMutex::Unlock(m_AsyncLuaGC->m_LuaGCMutex);
             m_IsBlocked = false;
         }
-        HEngine m_Engine;
+        HAsyncLuaGC m_AsyncLuaGC;
         bool m_IsBlocked;
     };
 
@@ -1210,7 +1278,7 @@ bail:
 
         if (engine->m_Alive)
         {
-            LuaGCBlocker lua_gc_blocker(engine);
+            LuaGCBlockerScope lua_gc_blocker(engine->m_AsyncLuaGC);
             if (engine->m_TrackingContext)
             {
                 DM_PROFILE(Engine, "Tracking")
@@ -1477,44 +1545,6 @@ bail:
         engine->m_RunResult.m_Action = dmEngine::RunResult::REBOOT;
     }
 
-    static void LuaAsyncGC(void* arg)
-    {
-//        lua_gc(L, LUA_GCSETPAUSE, ?);
-//        lua_gc(L, LUA_GCSETSTEPMUL, ?);
-
-        HEngine engine = (HEngine)arg;
-        while(true)
-        {
-            dmMutex::ScopedLock lock(engine->m_LuaGCMutex);
-            dmConditionVariable::Wait(engine->m_LuaGCCondition, engine->m_LuaGCMutex);
-            if (!engine->m_Alive)
-            {
-                break;
-            }
-            DM_PROFILE(Script, "AsyncGC");
-            /* Script context updates */
-            if (engine->m_SharedScriptContext)
-            {
-                lua_gc(dmScript::GetLuaState(engine->m_SharedScriptContext), LUA_GCCOLLECT, 0);
-            }
-            else
-            {
-                if (engine->m_GOScriptContext)
-                {
-                    lua_gc(dmScript::GetLuaState(engine->m_GOScriptContext), LUA_GCCOLLECT, 0);
-                }
-                if (engine->m_RenderScriptContext)
-                {
-                    lua_gc(dmScript::GetLuaState(engine->m_RenderScriptContext), LUA_GCCOLLECT, 0);
-                }
-                if (engine->m_GuiScriptContext)
-                {
-                    lua_gc(dmScript::GetLuaState(engine->m_GuiScriptContext), LUA_GCCOLLECT, 0);
-                }
-            }
-        }
-    }
-
     static RunResult InitRun(dmEngineService::HEngineService engine_service, int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
     {
         dmEngine::HEngine engine = dmEngine::New(engine_service);
@@ -1527,13 +1557,10 @@ bail:
                 pre_run(engine, context);
             }
 
-            dmThread::Thread lua_async_gc_thread = dmThread::New(LuaAsyncGC, 0x8000, engine, "LuaAsyncGC");
+            engine->m_AsyncLuaGC = new AsyncLuaGC(engine);
             dmGraphics::RunApplicationLoop(engine, PerformStep, IsRunning);
+            delete engine->m_AsyncLuaGC;
             run_result = engine->m_RunResult;
-            {
-                dmConditionVariable::Signal(engine->m_LuaGCCondition);
-                dmThread::Join(lua_async_gc_thread);
-            }
 
             if (post_run)
             {

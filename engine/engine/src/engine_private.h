@@ -4,7 +4,6 @@
 #include <stdint.h>
 
 #include <dlib/configfile.h>
-#include <dlib/condition_variable.h>
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 
@@ -92,6 +91,8 @@ namespace dmEngine
 
     };
 
+    typedef struct AsyncLuaGC* HAsyncLuaGC;
+
     struct Engine
     {
         Engine(dmEngineService::HEngineService engine_service);
@@ -118,8 +119,6 @@ namespace dmEngine
         dmScript::HContext                          m_GOScriptContext;
         dmScript::HContext                          m_RenderScriptContext;
         dmScript::HContext                          m_GuiScriptContext;
-        dmMutex::HMutex                             m_LuaGCMutex;
-        dmConditionVariable::HConditionVariable     m_LuaGCCondition;
         dmResource::HFactory                        m_Factory;
         dmGameSystem::GuiContext                    m_GuiContext;
         dmMessage::HSocket                          m_SystemSocket;
@@ -131,7 +130,7 @@ namespace dmEngine
         dmGameSystem::ModelContext                  m_ModelContext;
         dmGameSystem::LabelContext                  m_LabelContext;
         dmGameObject::ModuleContext                 m_ModuleContext;
-
+        HAsyncLuaGC                                 m_AsyncLuaGC;
         dmRender::HFontMap                          m_SystemFontMap;
         dmHID::HContext                             m_HidContext;
         dmInput::HContext                           m_InputContext;
