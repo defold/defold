@@ -1476,6 +1476,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     anim->m_FirstUpdate = 0;
                     // Compensate Elapsed with Delay underflow
                     anim->m_Elapsed = -anim->m_Delay;
+                    anim->m_Delay = 0;
                 }
 
                 // NOTE: We add dt to elapsed before we calculate t.
@@ -1516,15 +1517,18 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                             anim->m_Backwards ^= 1;
                         }
                     } else {
-                        if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
+                        if (!anim->m_AnimationCompleteCalled)
                         {
                             // NOTE: Very important to set m_AnimationCompleteCalled to 1
                             // before invoking the call-back. The call-back could potentially
                             // start a new animation that could reuse the same animation slot.
                             anim->m_AnimationCompleteCalled = 1;
-                            anim->m_AnimationComplete(scene, anim->m_Node, true, anim->m_Userdata1, anim->m_Userdata2);
 
-                            if (anim->m_Easing.release_callback != 0x0)
+                            if (anim->m_AnimationComplete)
+                            {
+                                anim->m_AnimationComplete(scene, anim->m_Node, true, anim->m_Userdata1, anim->m_Userdata2);
+                            }
+                            if (anim->m_Easing.release_callback)
                             {
                                 anim->m_Easing.release_callback(&anim->m_Easing);
                             }
@@ -2316,12 +2320,15 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
             if (anim->m_Node == node)
             {
-                if(!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
+                if(!anim->m_AnimationCompleteCalled)
                 {
                     anim->m_AnimationCompleteCalled = 1;
-                    anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+                    if (anim->m_AnimationComplete)
+                    {
+                        anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+                    }
 
-                    if (anim->m_Easing.release_callback != 0x0)
+                    if (anim->m_Easing.release_callback)
                     {
                         anim->m_Easing.release_callback(&anim->m_Easing);
                     }
@@ -3612,19 +3619,29 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         assert(n->m_Version == version);
 
         PropDesc* pd = GetPropertyDesc(property);
-        if (pd) {
-            Vector4* base_value = &n->m_Node.m_Properties[pd->m_Property];
+        if (pd)
+        {
+            float* base_value = (float*)&n->m_Node.m_Properties[pd->m_Property];
 
-            if (pd->m_Component == 0xff) {
-                for (int j = 0; j < 4; ++j) {
-                    // Only run callback for the lastcomponent
-                    AnimateComponent(scene, node, ((float*) base_value) + j, to.getElem(j), easing, playback, duration, delay, 1.0f,
-                                    j == 3 ? animation_complete : 0, j == 3 ? userdata1 : 0, j == 3 ? userdata2 : 0);
+            if (pd->m_Component == 0xff)
+            {
+                dmEasing::Curve no_callback_easing = easing;
+                no_callback_easing.release_callback = 0;
+                for (int j = 0; j < 3; ++j)
+                {
+                    AnimateComponent(scene, node, &base_value[j], to.getElem(j), no_callback_easing, playback, duration, delay, 0, 0, 0);
                 }
-            } else {
-                AnimateComponent(scene, node, ((float*) base_value) + pd->m_Component, to.getElem(pd->m_Component), easing, playback, duration, delay, 1.0f, animation_complete, userdata1, userdata2);
+
+                // Only run callback for the lastcomponent
+                AnimateComponent(scene, node, &base_value[3], to.getElem(3), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
             }
-        } else {
+            else
+            {
+                AnimateComponent(scene, node, &base_value[pd->m_Component], to.getElem(pd->m_Component), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
+            }
+        }
+        else
+        {
             dmLogError("property '%s' not found", dmHashReverseSafe64(property));
         }
     }
