@@ -1,6 +1,3 @@
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
-
 #include <dlib/log.h>
 
 #include <dlib/socket.h>
@@ -15,6 +12,9 @@
 #include "../resource.h"
 #include "../resource_private.h"
 #include "test/test_resource_ddf.h"
+
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 #include <vector>
 

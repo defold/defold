@@ -2813,7 +2813,9 @@ bail:
             }
 
             {
-                DM_PROFILE_FMT(Script, "%s%s%s%s@%s", RENDER_SCRIPT_FUNCTION_NAMES[script_function], message_name ? "[" : "", message_name ? message_name : "", message_name ? "]" : "", script->m_SourceFileName);
+                uint32_t profiler_hash = 0;
+                const char* profiler_string = dmScript::GetProfilerString(L, 0, script->m_SourceFileName, RENDER_SCRIPT_FUNCTION_NAMES[script_function], message_name, &profiler_hash);
+                DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
                 if (dmScript::PCall(L, arg_count, 0) != 0)
                 {
                     assert(top == lua_gettop(L));

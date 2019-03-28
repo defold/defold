@@ -1,6 +1,3 @@
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
-
 #include "script.h"
 #include "script_http.h" // to set the timeout
 
@@ -12,6 +9,9 @@
 #include <dlib/socket.h>
 #include <dlib/thread.h>
 #include <dlib/sys.h>
+
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 extern "C"
 {

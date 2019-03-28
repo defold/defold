@@ -1,6 +1,4 @@
 #include <stdint.h>
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
 #include "../resource.h"
 #include "../resource_private.h"
 #include "../resource_archive.h"
@@ -13,6 +11,9 @@
 #else
 #error "Unsupported platform"
 #endif
+
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 // new file format, generated test data
 extern unsigned char RESOURCES_ARCI[];
