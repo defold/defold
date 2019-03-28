@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include <dlib/configfile.h>
+#include <dlib/condition_variable.h>
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 
@@ -117,6 +118,8 @@ namespace dmEngine
         dmScript::HContext                          m_GOScriptContext;
         dmScript::HContext                          m_RenderScriptContext;
         dmScript::HContext                          m_GuiScriptContext;
+        dmMutex::HMutex                             m_LuaGCMutex;
+        dmConditionVariable::HConditionVariable     m_LuaGCCondition;
         dmResource::HFactory                        m_Factory;
         dmGameSystem::GuiContext                    m_GuiContext;
         dmMessage::HSocket                          m_SystemSocket;
