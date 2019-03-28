@@ -402,7 +402,7 @@ TEST(dmProfile, DynamicScope)
         dmProfile::GetNameHash(names[2], strlen(names[2]))
     };
 
-    for (uint i = 0; i < 10 ; ++i)
+    for (uint32_t i = 0; i < 10 ; ++i)
     {
         {
             DM_PROFILE_DYN(Scope1, names[0], names_hash[0]);
