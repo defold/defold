@@ -811,8 +811,7 @@
 
 (defn invalidate-counter
   ([node-id output]
-   (with-auto-evaluation-context evaluation-context
-     (invalidate-counter node-id output evaluation-context)))
+   (get (:invalidate-counters @*the-system*) [node-id output]))
   ([node-id output evaluation-context]
    (get (:initial-invalidate-counters evaluation-context) [node-id output])))
 
