@@ -22,8 +22,8 @@
            [java.nio.file Files]
            [java.util Collection]
            [javafx.event ActionEvent]
-           [javafx.scene Parent Scene]
-           [javafx.scene.control Button Label ListView SplitPane TreeItem TreeView TextField]
+           [javafx.scene Parent]
+           [javafx.scene.control Button Label ListView TextField TreeItem TreeView]
            [javafx.scene.layout HBox Pane Priority]
            [org.apache.commons.io FilenameUtils]))
 
@@ -107,14 +107,13 @@
   (inherits core/Scope)
 
   (property open-resource-fn g/Any)
-  (property show-debugger-controls-fn g/Any)
+  (property state-changed-fn g/Any)
 
   (property debug-session g/Any)
   (property suspension-state g/Any)
 
   (property console-grid-pane Parent)
   (property right-pane Parent)
-  (property scene Scene)
 
   (input active-resource resource/Resource)
 
@@ -355,23 +354,21 @@
   debug-view)
 
 (defn make-view!
-  [app-view view-graph project ^Parent root scene open-resource-fn show-debugger-controls-fn]
+  [app-view view-graph project ^Parent root open-resource-fn state-changed-fn]
   (let [console-grid-pane (.lookup root "#console-grid-pane")
         right-pane (.lookup root "#right-pane")
         view-id (setup-view! (g/make-node! view-graph DebugView
-                                           :scene scene
                                            :open-resource-fn (make-open-resource-fn project open-resource-fn)
-                                           :show-debugger-controls-fn show-debugger-controls-fn)
+                                           :state-changed-fn state-changed-fn)
                              app-view)
         timer (make-update-timer project view-id)]
     (setup-controls! view-id console-grid-pane right-pane)
     (ui/timer-start! timer)
     view-id))
 
-(defn- show! [debug-view]
-  (let [show-debugger-controls-fn (g/node-value debug-view :show-debugger-controls-fn)]
-    (ui/user-data! (g/node-value debug-view :scene) ::ui/refresh-requested? true)
-    (show-debugger-controls-fn)))
+(defn- state-changed! [debug-view attention?]
+  (let [state-changed-fn (g/node-value debug-view :state-changed-fn)]
+    (state-changed-fn attention?)))
 
 (defn- update-suspension-state!
   [debug-view debug-session]
@@ -381,15 +378,14 @@
 
 (defn- make-debugger-callbacks
   [debug-view]
-  {:on-suspended (fn [debug-session suspend-event]
+  {:on-suspended (fn [debug-session _suspend-event]
                    (ui/run-later
                      (update-suspension-state! debug-view debug-session)
-                     (show! debug-view)))
-   :on-resumed   (fn [debug-session]
+                     (state-changed! debug-view true)))
+   :on-resumed   (fn [_debug-session]
                    (ui/run-later
-                     (ui/user-data! (g/node-value debug-view :scene)
-                                    ::ui/refresh-requested? true)
-                     (g/set-property! debug-view :suspension-state nil)))})
+                     (g/set-property! debug-view :suspension-state nil)
+                     (state-changed! debug-view false)))})
 
 (def ^:private mobdebug-port 8172)
 
@@ -405,14 +401,13 @@
                                              debug-session)
                          (update-breakpoints! debug-session (g/node-value project :breakpoints))
                          (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
-                         (show! debug-view)))
-                     (fn [debug-session]
+                         (state-changed! debug-view true)))
+                     (fn [_debug-session]
                        (ui/run-now
-                         (ui/user-data! (g/node-value debug-view :scene)
-                                        ::ui/refresh-requested? true)
                          (g/set-property! debug-view
                                           :debug-session nil
-                                          :suspension-state nil)))))
+                                          :suspension-state nil)
+                         (state-changed! debug-view false)))))
 
 (defn current-session
   ([debug-view]

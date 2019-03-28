@@ -146,11 +146,16 @@
 (defn show-asset-browser! [main-scene]
   (set-pane-visible! main-scene :left true))
 
-(defn show-debugger! [main-scene tool-tab-pane]
+(defn- show-debugger! [main-scene tool-tab-pane]
   ;; In addition to the controls in the console pane,
   ;; the right pane is used to display locals.
   (set-pane-visible! main-scene :right true)
   (show-console! main-scene tool-tab-pane))
+
+(defn debugger-state-changed! [main-scene tool-tab-pane attention?]
+  (ui/user-data! main-scene ::ui/refresh-requested? true)
+  (when attention?
+    (show-debugger! main-scene tool-tab-pane)))
 
 (defn- fire-tab-closed-event! [^Tab tab]
   ;; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
