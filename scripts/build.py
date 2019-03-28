@@ -1664,7 +1664,7 @@ instructions.configure=\
                       'config': join(install_path, 'Contents', 'Resources', 'config')}
             return result
         else:
-            if 'win32' in host2:
+            if 'win32' in host2 or 'linux' in host2:
                 self._extract_zip(path, install_path)
             else:
                 self._extract(path, install_path)
@@ -1710,6 +1710,9 @@ instructions.configure=\
         host2 = get_host_platform2()
         if 'win32' in host2:
             java = join('Defold', 'packages', jdk, 'bin', 'java.exe')
+        elif 'linux' in host2:
+            self.exec_command(['chmod', '-R', '755', 'tmp/smoke_test/Defold'])
+            java = join('Defold', 'packages', jdk, 'bin', 'java')
         else:
             java = join('Defold.app', 'Contents', 'Resources', 'packages', jdk, 'bin', 'java')
         jar = self._get_config(config, 'launcher', 'jar', overrides)
