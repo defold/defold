@@ -40,7 +40,7 @@ namespace dmScript
      */
 
     static const char INSTANCE_NAME[] = "__dm_script_instance__";
-    static uint32_t INSTANCE_NAME_HASH = 0;
+    static const uint32_t INSTANCE_NAME_HASH = dmHashBuffer32(INSTANCE_NAME, sizeof(INSTANCE_NAME) - 1);
 
     static const char SCRIPT_CONTEXT[] = "__script_context";
     static uint32_t SCRIPT_CONTEXT_HASH = 0;
@@ -524,12 +524,38 @@ namespace dmScript
 
     void GetInstance(lua_State* L)
     {
-        GetGlobal(L, INSTANCE_NAME_HASH);
+        lua_pushinteger(L, (lua_Integer)INSTANCE_NAME_HASH);
+        // [-1] name_hash
+
+        lua_gettable(L, LUA_GLOBALSINDEX);
+        // [-1] instance
     }
 
     void SetInstance(lua_State* L)
     {
-        INSTANCE_NAME_HASH = SetGlobal(L, INSTANCE_NAME);
+        // [-1] instance
+
+        lua_pushlstring(L, INSTANCE_NAME, sizeof(INSTANCE_NAME) - 1);
+        // [-1] name
+        // [-2] instance
+
+        lua_pushvalue(L, -2);
+        // [-1] instance
+        // [-2] name
+        // [-3] instance
+
+        lua_settable(L, LUA_GLOBALSINDEX);
+        // [-1] instance
+
+        lua_pushinteger(L, (lua_Integer)INSTANCE_NAME_HASH);
+        // [-1] name_hash
+        // [-2] instance
+
+        lua_insert(L, -2);
+        // [-1] instance
+        // [-2] name_hash
+
+        lua_settable(L, LUA_GLOBALSINDEX);
     }
 
     bool IsInstanceValid(lua_State* L)
