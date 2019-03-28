@@ -753,6 +753,7 @@ public class Project {
             BundleHelper.throwIfCanceled(monitor);
             switch (command) {
                 case "build": {
+                    ExtenderUtil.checkProjectForDuplicates(this); // Throws if there are duplicate files in the project (i.e. library and local files conflict)
 
                     // Do early test if report files are writable before we start building
                     boolean generateReport = this.hasOption("build-report") || this.hasOption("build-report-html");

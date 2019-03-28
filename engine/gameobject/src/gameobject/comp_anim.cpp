@@ -320,11 +320,10 @@ namespace dmGameObject
                     if (size != orig_size)
                         anim = &world->m_Animations[i];
                     RemoveAnimationCallback(world, anim);
-
-                    if (anim->m_Easing.release_callback != 0x0)
-                    {
-                        anim->m_Easing.release_callback(&anim->m_Easing);
-                    }
+                }
+                if (anim->m_Easing.release_callback != 0x0)
+                {
+                    anim->m_Easing.release_callback(&anim->m_Easing);
                 }
                 uint16_t* head_ptr = world->m_InstanceToIndex.Get((uintptr_t)anim->m_Instance);
                 uint16_t* index_ptr = head_ptr;
