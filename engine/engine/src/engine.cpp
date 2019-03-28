@@ -16,6 +16,7 @@
 #include <dlib/math.h>
 #include <dlib/path.h>
 #include <dlib/sys.h>
+#include <dlib/thread.h>
 #include <dlib/http_client.h>
 #include <extension/extension.h>
 #include <gamesys/gamesys.h>
@@ -217,6 +218,8 @@ namespace dmEngine
         m_SpineModelContext.m_MaxSpineModelCount = 0;
         m_ModelContext.m_RenderContext = 0x0;
         m_ModelContext.m_MaxModelCount = 0;
+        m_LuaGCMutex = dmMutex::New();
+        m_LuaGCCondition = dmConditionVariable::New();
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
@@ -326,6 +329,9 @@ namespace dmEngine
         {
             dmConfigFile::Delete(engine->m_Config);
         }
+
+        dmConditionVariable::Delete(engine->m_LuaGCCondition);
+        dmMutex::Delete(engine->m_LuaGCMutex);
 
         delete engine;
     }
@@ -1152,6 +1158,32 @@ bail:
         return memcount;
     }
 
+    struct LuaGCBlocker
+    {
+        LuaGCBlocker(HEngine engine)
+            : m_Engine(engine)
+            , m_IsBlocked(false)
+        {
+            dmMutex::Lock(m_Engine->m_LuaGCMutex);
+            m_IsBlocked = true;
+        }
+        ~LuaGCBlocker()
+        {
+            if (m_IsBlocked)
+            {
+                Release();
+            }
+        }
+        void Release()
+        {
+            dmConditionVariable::Signal(m_Engine->m_LuaGCCondition);
+            dmMutex::Unlock(m_Engine->m_LuaGCMutex);
+            m_IsBlocked = false;
+        }
+        HEngine m_Engine;
+        bool m_IsBlocked;
+    };
+
     void Step(HEngine engine)
     {
         engine->m_Alive = true;
@@ -1178,6 +1210,7 @@ bail:
 
         if (engine->m_Alive)
         {
+            LuaGCBlocker lua_gc_blocker(engine);
             if (engine->m_TrackingContext)
             {
                 DM_PROFILE(Engine, "Tracking")
@@ -1322,6 +1355,8 @@ bail:
                 DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
                 DM_COUNTER("Lua.Mem (Kb)", GetLuaMemCount(engine));
 
+                lua_gc_blocker.Release();
+
                 if (dLib::IsDebugMode())
                 {
                     // We had buffering problems with the output when running the engine inside the editor
@@ -1442,6 +1477,44 @@ bail:
         engine->m_RunResult.m_Action = dmEngine::RunResult::REBOOT;
     }
 
+    static void LuaAsyncGC(void* arg)
+    {
+//        lua_gc(L, LUA_GCSETPAUSE, ?);
+//        lua_gc(L, LUA_GCSETSTEPMUL, ?);
+
+        HEngine engine = (HEngine)arg;
+        while(true)
+        {
+            dmMutex::ScopedLock lock(engine->m_LuaGCMutex);
+            dmConditionVariable::Wait(engine->m_LuaGCCondition, engine->m_LuaGCMutex);
+            if (!engine->m_Alive)
+            {
+                break;
+            }
+            DM_PROFILE(Script, "AsyncGC");
+            /* Script context updates */
+            if (engine->m_SharedScriptContext)
+            {
+                lua_gc(dmScript::GetLuaState(engine->m_SharedScriptContext), LUA_GCCOLLECT, 0);
+            }
+            else
+            {
+                if (engine->m_GOScriptContext)
+                {
+                    lua_gc(dmScript::GetLuaState(engine->m_GOScriptContext), LUA_GCCOLLECT, 0);
+                }
+                if (engine->m_RenderScriptContext)
+                {
+                    lua_gc(dmScript::GetLuaState(engine->m_RenderScriptContext), LUA_GCCOLLECT, 0);
+                }
+                if (engine->m_GuiScriptContext)
+                {
+                    lua_gc(dmScript::GetLuaState(engine->m_GuiScriptContext), LUA_GCCOLLECT, 0);
+                }
+            }
+        }
+    }
+
     static RunResult InitRun(dmEngineService::HEngineService engine_service, int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
     {
         dmEngine::HEngine engine = dmEngine::New(engine_service);
@@ -1454,8 +1527,13 @@ bail:
                 pre_run(engine, context);
             }
 
+            dmThread::Thread lua_async_gc_thread = dmThread::New(LuaAsyncGC, 0x8000, engine, "LuaAsyncGC");
             dmGraphics::RunApplicationLoop(engine, PerformStep, IsRunning);
             run_result = engine->m_RunResult;
+            {
+                dmConditionVariable::Signal(engine->m_LuaGCCondition);
+                dmThread::Join(lua_async_gc_thread);
+            }
 
             if (post_run)
             {
