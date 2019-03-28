@@ -9,7 +9,7 @@
          [:type ".coll"]
          [:press :down]
          [:press :enter]
-         [:wait 2500]
+         [:wait 5000]
          [:screen-capture "collection"]
          [:open-asset]
          [:type "player.script"]
