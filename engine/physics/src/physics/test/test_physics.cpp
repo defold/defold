@@ -1,6 +1,9 @@
-#include "test_physics.h"
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
+#include "test_physics.h"
 #include <dlib/math.h>
+
 
 using namespace Vectormath::Aos;
 
@@ -178,8 +181,8 @@ Test2D::~Test2D()
     delete [] m_Vertices;
 }
 
-typedef ::testing::Types<Test3D, Test2D> TestTypes;
-TYPED_TEST_CASE(PhysicsTest, TestTypes);
+typedef jc_test_type2<Test3D, Test2D> TestTypes;
+TYPED_TEST_SUITE(PhysicsTest, TestTypes);
 
 TYPED_TEST(PhysicsTest, BoxShape)
 {
@@ -1982,6 +1985,6 @@ TYPED_TEST(PhysicsTest, DisabledFromStart)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }

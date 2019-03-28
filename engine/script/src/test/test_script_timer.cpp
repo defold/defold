@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include "../script.h"
 #include "../script_timer_private.h"
 
@@ -39,7 +40,7 @@ uint32_t TimerTestCallback::callback_count = 0;
 uint32_t TimerTestCallback::cancel_count = 0;
 float TimerTestCallback::elapsed_time = 0.f;
 
-class ScriptTimerTest : public ::testing::Test
+class ScriptTimerTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -934,7 +935,7 @@ TEST_F(ScriptTimerTest, TestLuaRepeating)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = JC_TEST_RUN_ALL();
     return ret;
 }

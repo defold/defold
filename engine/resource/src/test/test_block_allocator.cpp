@@ -1,5 +1,5 @@
-#include <gtest/gtest.h>
-
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include <stdlib.h>
 
 #include "../block_allocator.h"
@@ -57,7 +57,6 @@ TEST(BlockAllocator, TestLargeBlock)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
-    return ret;
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }

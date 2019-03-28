@@ -1,5 +1,7 @@
 #include <stdlib.h>
-#include <gtest/gtest.h>
+#include <time.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/sys.h>
@@ -14,7 +16,7 @@ extern "C"
 #include "../crash.h"
 #include "../crash_private.h"
 
-class dmCrashTest : public ::testing::Test
+class dmCrashTest : public jc_test_base_class
 {
     public:
 
@@ -63,7 +65,7 @@ TEST_F(dmCrashTest, TestLoad)
     ASSERT_EQ(0, strcmp(info.m_Territory, dmCrash::GetSysField(d, dmCrash::SYSFIELD_TERRITORY)));
 
     uint32_t addresses = dmCrash::GetBacktraceAddrCount(d);
-    ASSERT_GT(addresses, 4);
+    ASSERT_GE(addresses, 2u);
     for (uint32_t i=0;i!=addresses;i++)
     {
         // DEF-3128: Skip the last one, since it might be 0 on Win32
@@ -117,6 +119,6 @@ TEST_F(dmCrashTest, TestPurgeDefaultPath)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }

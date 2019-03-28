@@ -1,5 +1,3 @@
-#include <gtest/gtest.h>
-
 #include <assert.h>
 
 #include <dlib/http_client.h>
@@ -8,6 +6,9 @@
 #include <dlib/profile.h>
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
+
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 #define CONTENT_ROOT "src/test/build/default"
 
@@ -293,7 +294,7 @@ DrawCountParams draw_count_params[] =
 {
     {"/render/drawcall.projectc", 2, 2},    // 1 draw call for sprite, 1 for debug physics
 };
-INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, ::testing::ValuesIn(draw_count_params));
+INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_params));
 
 // Test that we can reload a full collection containing a spine scene
 // while the first gameobject has been already been deleted (marked for
@@ -314,10 +315,10 @@ int main(int argc, char **argv)
 {
     dmProfile::Initialize(256, 1024 * 16, 128);
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
     dmHashEnableReverseHash(true);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = JC_TEST_RUN_ALL();
     dmProfile::Finalize();
     return ret;
 }

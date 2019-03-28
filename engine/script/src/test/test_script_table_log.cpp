@@ -1,11 +1,11 @@
 #include <stdlib.h>
 #include <dlib/dstrings.h>
-#include <gtest/gtest.h>
 #include "../script.h"
 #include "../script_private.h"
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
-
-class PushTableLoggerTest : public ::testing::Test
+class PushTableLoggerTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -139,7 +139,6 @@ TEST_F(PushTableLoggerTest, OOB)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
-    return ret;
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }

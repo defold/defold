@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include <../launcher.h>
 #include <string.h>
 #include <stdio.h>
@@ -162,6 +163,6 @@ TEST(Launcher, CreateProcessArgQuoting)
 
 int main(int argc, char* argv[])
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }

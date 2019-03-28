@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string>
 #include <map>
-#include <gtest/gtest.h>
 #include "../dlib/array.h"
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
@@ -12,6 +11,8 @@
 #include "../dlib/time.h"
 #include "../dlib/path.h"
 #include "../dlib/sys.h"
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 TEST(dmLog, Init)
 {
@@ -130,8 +131,8 @@ TEST(dmLog, TestCapture)
 int main(int argc, char **argv)
 {
     dmSocket::Initialize();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = JC_TEST_RUN_ALL();
     dmSocket::Finalize();
     return ret;
 }

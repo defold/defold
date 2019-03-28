@@ -1,11 +1,13 @@
 #include <stdint.h>
+#include <stdlib.h> // posix_memalign
 #ifdef __linux__
 #include <malloc.h>
 #endif
 #if defined(__EMSCRIPTEN__)
 #include <libc/malloc.h>
 #endif
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include "../dlib/memprofile.h"
 #include "../dlib/profile.h"
 
@@ -318,8 +320,8 @@ int main(int argc, char **argv)
     dmMemProfile::Initialize();
     dmProfile::Initialize(128, 1024 * 1024, 16);
 
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = JC_TEST_RUN_ALL();
     dmProfile::Finalize();
     dmMemProfile::Finalize();
     return ret;

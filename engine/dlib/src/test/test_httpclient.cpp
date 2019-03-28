@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <map>
 #include <string>
-#include <gtest/gtest.h>
 #include "dlib/configfile.h"
 #include "dlib/dstrings.h"
 #include "dlib/time.h"
@@ -14,6 +13,9 @@
 #include "dlib/http_cache_verify.h"
 #include "testutil.h"
 
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+
 int g_HttpPort = -1;
 int g_HttpPortSSL = -1;
 int g_HttpPortSSLTest = -1;
@@ -22,7 +24,7 @@ int g_HttpPortSSLTest = -1;
 #define NAME_SOCKET_SSL "{server_socket_ssl}"
 #define NAME_SOCKET_SSL_TEST "{server_socket_ssl_test}"
 
-class dmHttpClientTest: public ::testing::TestWithParam<const char*>
+class dmHttpClientTest: public jc_test_params_class<const char*>
 {
 public:
     dmHttpClient::HClient m_Client;
@@ -133,7 +135,7 @@ class dmHttpClientTestSSL : public dmHttpClientTest
     // for gtest
 };
 
-class dmHttpClientParserTest: public ::testing::Test
+class dmHttpClientParserTest: public jc_test_base_class
 {
 public:
     std::map<std::string, std::string> m_Headers;
@@ -788,14 +790,11 @@ TEST_P(dmHttpClientTest, PathWithSpaces)
     ASSERT_STREQ(message, m_Content.c_str());
 }
 
+const char* params_http_client_test[] = {"http://localhost:" NAME_SOCKET, "https://localhost:" NAME_SOCKET_SSL};
+INSTANTIATE_TEST_CASE_P(dmHttpClientTest, dmHttpClientTest, jc_test_values_in(params_http_client_test));
 
-INSTANTIATE_TEST_CASE_P(dmHttpClientTest,
-                        dmHttpClientTest,
-                        ::testing::Values("http://localhost:" NAME_SOCKET, "https://localhost:" NAME_SOCKET_SSL));
-
-INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL,
-                        dmHttpClientTestSSL,
-                        ::testing::Values("https://localhost:" NAME_SOCKET_SSL_TEST));
+const char* params_http_client_test_ssl[] = {"https://localhost:" NAME_SOCKET_SSL_TEST};
+INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL, dmHttpClientTestSSL, jc_test_values_in(params_http_client_test_ssl));
 
 
 class dmHttpClientTestCache : public dmHttpClientTest
@@ -995,9 +994,8 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
-INSTANTIATE_TEST_CASE_P(dmHttpClientTestCache,
-                        dmHttpClientTestCache,
-                        ::testing::Values("http://localhost:" NAME_SOCKET));
+const char* params_http_client_cache[] = {"http://localhost:" NAME_SOCKET};
+INSTANTIATE_TEST_CASE_P(dmHttpClientTestCache, dmHttpClientTestCache, jc_test_values_in(params_http_client_cache));
 
 #endif // #ifndef _WIN32
 
@@ -1048,8 +1046,8 @@ int main(int argc, char **argv)
 
     dmLogSetlevel(DM_LOG_SEVERITY_INFO);
     dmSocket::Initialize();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = JC_TEST_RUN_ALL();
     dmSocket::Finalize();
     return ret;
 }

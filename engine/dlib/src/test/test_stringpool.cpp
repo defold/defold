@@ -1,10 +1,13 @@
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 #include <string>
 #include <map>
 
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 #include "dlib/stringpool.h"
 #include "dlib/hash.h"
@@ -53,6 +56,6 @@ TEST(dmStringPool, Test01)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return JC_TEST_RUN_ALL();
 }
