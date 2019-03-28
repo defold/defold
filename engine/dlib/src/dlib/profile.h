@@ -23,7 +23,7 @@
 /**
  * Profile macro.
  * scope_name is the scope name. Must be a literal
- * name is the sample name. Must be literal, to use non-literal name use DM_PROFILE_FMT
+ * name is the sample name. Must be literal, to use non-literal name use DM_PROFILE_DYN
  */
 #define DM_PROFILE(scope_name, name)
 #undef DM_PROFILE
@@ -31,11 +31,11 @@
 /**
  * Profile macro.
  * scope_name is the scope name. Must be a literal
- * fmt is the String format, uses printf formatting limited to 128 characters
- * Has overhead due to printf style formatting and hashing of the formatted string
+ * name is the sample name. Can be non-literal, use DM_PROFILE if you know it is a literal
+ * name_hash is the hash of the sample name obtained via dmProfile::GetNameHash()
  */
-#define DM_PROFILE_FMT(scope_name, fmt, ...)
-#undef DM_PROFILE_FMT
+#define DM_PROFILE_DYN(scope_name, name, name_hash)
+#undef DM_PROFILE_DYN
 
 /**
  * Profile counter macro
@@ -57,7 +57,7 @@
     #define DM_INTERNALIZE(name) 0
     #define DM_PROFILE_SCOPE(scope_instance_name, name)
     #define DM_PROFILE(scope_name, name)
-    #define DM_PROFILE_FMT(scope_name, fmt, ...)
+    #define DM_PROFILE_DYN(scope_name, name, name_hash)
     #define DM_COUNTER(name, amount)
     #define DM_COUNTER_DYN(counter_index, amount)
 #else
@@ -72,17 +72,9 @@
         static const uint32_t DM_PROFILE_PASTE2(hash, __LINE__)        = dmProfile::g_IsInitialized ? dmProfile::GetNameHash(name, (uint32_t)strlen(name)) : 0; \
         DM_PROFILE_SCOPE(DM_PROFILE_PASTE2(scope_index, __LINE__), name, DM_PROFILE_PASTE2(hash, __LINE__))
 
-    #define DM_PROFILE_FMT(scope_name, fmt, ...) \
+    #define DM_PROFILE_DYN(scope_name, name, name_hash) \
         static const uint32_t DM_PROFILE_PASTE2(scope_index, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateScope(#scope_name) : 0xffffffffu; \
-        const char* DM_PROFILE_PASTE2(name, __LINE__)                  = 0; \
-        static uint32_t DM_PROFILE_PASTE2(hash, __LINE__)              = 0; \
-        if (DM_PROFILE_PASTE2(scope_index, __LINE__) != 0xffffffffu) { \
-            char buffer[128]; \
-            uint32_t name_length = DM_SNPRINTF(buffer, sizeof(buffer), fmt, __VA_ARGS__); \
-            DM_PROFILE_PASTE2(hash, __LINE__) = dmProfile::GetNameHash(buffer, name_length); \
-            DM_PROFILE_PASTE2(name, __LINE__) = dmProfile::Internalize(buffer, name_length, DM_PROFILE_PASTE2(hash, __LINE__)); \
-        } \
-        DM_PROFILE_SCOPE(DM_PROFILE_PASTE2(scope_index, __LINE__), DM_PROFILE_PASTE2(name, __LINE__), DM_PROFILE_PASTE2(hash, __LINE__))
+        DM_PROFILE_SCOPE(DM_PROFILE_PASTE2(scope_index, __LINE__), name, name_hash)
 
     #define DM_COUNTER(name, amount) \
         static uint32_t DM_PROFILE_PASTE2(counter_index, __LINE__) = dmProfile::g_IsInitialized ? dmProfile::AllocateCounter(name) : 0xffffffffu; \

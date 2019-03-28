@@ -260,8 +260,7 @@
                                 (g/connect node1 :defnk-prop node2 :in)
                                 (g/connect node0 :defnk-prop node1 :in-multi)
                                 (g/connect node0 :defnk-prop node2 :in-multi)
-                                (g/connect node1 :defnk-prop node2 :in-multi)))
-          graph               (is/basis system)]
+                                (g/connect node1 :defnk-prop node2 :in-multi)))]
       (testing "'special' defnk inputs"
         (is (identical? (g/node-by-id node0) (g/node-value node0 :defnk-this))))
       (testing "defnk inputs from node properties"

@@ -39,13 +39,20 @@ namespace dmScript
      * @namespace builtins
      */
 
-    const char* INSTANCE_NAME = "__dm_script_instance__";
+    static const char INSTANCE_NAME[] = "__dm_script_instance__";
+    static const uint32_t INSTANCE_NAME_HASH = dmHashBuffer32(INSTANCE_NAME, sizeof(INSTANCE_NAME) - 1);
 
-    const char* META_TABLE_RESOLVE_PATH             = "__resolve_path";
-    const char* META_TABLE_GET_URL                  = "__get_url";
-    const char* META_TABLE_GET_USER_DATA            = "__get_user_data";
-    const char* META_TABLE_IS_VALID                 = "__is_valid";
-    const char* META_GET_INSTANCE_CONTEXT_TABLE_REF = "__get_instance_context_table_ref";
+    static const char SCRIPT_CONTEXT[] = "__script_context";
+    static uint32_t SCRIPT_CONTEXT_HASH = 0;
+
+    const char META_TABLE_RESOLVE_PATH[]             = "__resolve_path";
+    const char META_TABLE_GET_URL[]                  = "__get_url";
+    const char META_TABLE_GET_USER_DATA[]            = "__get_user_data";
+    const char META_TABLE_IS_VALID[]                 = "__is_valid";
+    const char META_GET_INSTANCE_CONTEXT_TABLE_REF[] = "__get_instance_context_table_ref";
+
+    const char SCRIPT_METATABLE_TYPE_HASH_KEY_NAME[] = "__dmengine_type";
+    static const uint32_t SCRIPT_METATABLE_TYPE_HASH_KEY = dmHashBufferNoReverse32(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME, sizeof(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME) - 1);
 
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
@@ -80,7 +87,7 @@ namespace dmScript
     static int Lua_Math_Random (lua_State *L)
     {
         // More or less from lmathlib.c
-        int top = lua_gettop(L);
+        DM_LUA_STACK_CHECK(L, 1);
 
         lua_getglobal(L, RANDOM_SEED);
         uint32_t* seed = (uint32_t*) lua_touserdata(L, -1);
@@ -109,30 +116,26 @@ namespace dmScript
                 break;
             }
             default:
-                return luaL_error(L, "wrong number of arguments");
+                return DM_LUA_ERROR("wrong number of arguments");
         }
-
-        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
     static int Lua_Math_Randomseed (lua_State *L)
     {
         // More or less from lmathlib.c
-        int top = lua_gettop(L);
+        DM_LUA_STACK_CHECK(L, 0);
         lua_getglobal(L, RANDOM_SEED);
         uint32_t* seed = (uint32_t*) lua_touserdata(L, -1);
         *seed = luaL_checkint(L, 1);
         lua_pop(L, 1);
-        assert(top == lua_gettop(L));
         return 0;
     }
 
     void Initialize(HContext context)
     {
         lua_State* L = context->m_LuaState;
-        int top = lua_gettop(L);
-        (void)top;
+        DM_LUA_STACK_CHECK(L, 0);
 
         luaL_openlibs(L);
 
@@ -171,7 +174,7 @@ namespace dmScript
         lua_pop(L, 1);
 
         lua_pushlightuserdata(L, (void*)context);
-        lua_setglobal(L, SCRIPT_CONTEXT);
+        SCRIPT_CONTEXT_HASH = dmScript::SetGlobal(L, SCRIPT_CONTEXT);
 
         lua_pushlightuserdata(L, (void*)L);
         lua_setglobal(L, SCRIPT_MAIN_THREAD);
@@ -193,8 +196,6 @@ namespace dmScript
                 (*l)->Initialize(context);
             }
         }
-
-        assert(top == lua_gettop(L));
     }
 
     void RegisterScriptExtension(HContext context, HScriptExtension script_extension)
@@ -473,14 +474,88 @@ namespace dmScript
         return 0;
     }
 
+    HContext GetScriptContext(lua_State* L)
+    {
+        GetGlobal(L, SCRIPT_CONTEXT_HASH);
+        HContext context = (HContext)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        return context;
+    }
+
+    uint32_t SetGlobal(lua_State* L, const char* name)
+    {
+        size_t name_length = strlen(name);
+        uint32_t name_hash = dmHashBuffer32(name, name_length);
+        // [-1] instance
+
+        lua_pushlstring(L, name, name_length);
+        // [-1] name
+        // [-2] instance
+
+        lua_pushvalue(L, -2);
+        // [-1] instance
+        // [-2] name
+        // [-3] instance
+
+        lua_settable(L, LUA_GLOBALSINDEX);
+        // [-1] instance
+
+        lua_pushinteger(L, (lua_Integer)name_hash);
+        // [-1] name_hash
+        // [-2] instance
+
+        lua_insert(L, -2);
+        // [-1] instance
+        // [-2] name_hash
+
+        lua_settable(L, LUA_GLOBALSINDEX);
+
+        return name_hash;
+    }
+
+    void GetGlobal(lua_State*L, uint32_t name_hash)
+    {
+        lua_pushinteger(L, (lua_Integer)name_hash);
+        // [-1] name_hash
+
+        lua_gettable(L, LUA_GLOBALSINDEX);
+        // [-1] instance
+    }
+
     void GetInstance(lua_State* L)
     {
-        lua_getglobal(L, INSTANCE_NAME);
+        lua_pushinteger(L, (lua_Integer)INSTANCE_NAME_HASH);
+        // [-1] name_hash
+
+        lua_gettable(L, LUA_GLOBALSINDEX);
+        // [-1] instance
     }
 
     void SetInstance(lua_State* L)
     {
-        lua_setglobal(L, INSTANCE_NAME);
+        // [-1] instance
+
+        lua_pushlstring(L, INSTANCE_NAME, sizeof(INSTANCE_NAME) - 1);
+        // [-1] name
+        // [-2] instance
+
+        lua_pushvalue(L, -2);
+        // [-1] instance
+        // [-2] name
+        // [-3] instance
+
+        lua_settable(L, LUA_GLOBALSINDEX);
+        // [-1] instance
+
+        lua_pushinteger(L, (lua_Integer)INSTANCE_NAME_HASH);
+        // [-1] name_hash
+        // [-2] instance
+
+        lua_insert(L, -2);
+        // [-1] instance
+        // [-2] name_hash
+
+        lua_settable(L, LUA_GLOBALSINDEX);
     }
 
     bool IsInstanceValid(lua_State* L)
@@ -497,52 +572,41 @@ namespace dmScript
         return main_thread;
     }
 
-    bool IsUserType(lua_State* L, int idx, const char* type)
+    uint32_t SetUserType(lua_State* L, int meta_table_index, const char* name)
     {
-        int top = lua_gettop(L);
-        bool result = false;
-        if (lua_type(L, idx) == LUA_TUSERDATA)
-        {
-            // Object meta table
-            if (lua_getmetatable(L, idx))
-            {
-                // Correct meta table
-                lua_getfield(L, LUA_REGISTRYINDEX, type);
-                // Compare them
-                if (lua_rawequal(L, -1, -2))
-                {
-                    result = true;
-                }
-            }
-        }
-        lua_pop(L, lua_gettop(L) - top);
-        return result;
+        DM_LUA_STACK_CHECK(L, 0);
+
+        uint32_t type_hash = dmHashBuffer32(name, strlen(name));
+
+        lua_pushvalue(L, meta_table_index);
+        // [-1] meta table
+
+        lua_pushinteger(L, SCRIPT_METATABLE_TYPE_HASH_KEY);
+        // [-1] SCRIPT_METATABLE_TYPE_HASH_KEY
+        // [-2] meta table
+
+        lua_pushinteger(L, (lua_Integer)type_hash);
+        // [-1] type_hash
+        // [-2] SCRIPT_METATABLE_TYPE_HASH_KEY
+        // [-3] meta table
+
+        lua_settable(L, -3);
+        // [-1] meta table
+
+        lua_pop(L, 1);
+
+        return type_hash;
     }
 
-    void* CheckUserType(lua_State* L, int idx, const char* type, const char* error_message)
-    {
-        luaL_checktype(L, idx, LUA_TUSERDATA);
-        // from https://github.com/keplerproject/lua-compat-5.3/blob/master/c-api/compat-5.3.c#L292-L306
-        void* object = lua_touserdata(L, idx);
-        lua_getmetatable(L, idx);
-        luaL_getmetatable(L, type);
-        int res = lua_rawequal(L, -1, -2);
-        lua_pop(L, 2);
-        if (!res) {
-            if (error_message == 0x0) {
-                luaL_typerror(L, idx, type);
-            }
-            else {
-                luaL_error(L, "%s", error_message);
-            }
-        }
-        return object;
-    }
+    uint32_t RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]) {
+        DM_LUA_STACK_CHECK(L, 0);
 
-    void RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]) {
         luaL_register(L, name, methods);   // create methods table, add it to the globals
         int methods_idx = lua_gettop(L);
         luaL_newmetatable(L, name);                         // create metatable for ScriptInstance, add it to the Lua registry
+
+        uint32_t type_hash = SetUserType(L, -1, name);
+
         int metatable_idx = lua_gettop(L);
         luaL_register(L, 0, meta);                   // fill metatable
 
@@ -550,11 +614,70 @@ namespace dmScript
         lua_pushvalue(L, methods_idx);                       // dup methods table
         lua_settable(L, metatable_idx);
         lua_pop(L, 2);
+
+        return type_hash;
     }
 
-    static bool GetMetaFunction(lua_State* L, int index, const char* meta_table_key) {
+    uint32_t GetUserType(lua_State* L, int user_data_index)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        lua_pushvalue(L, user_data_index);
+        // [-1] user data
+        lua_Integer type_hash = 0;
+        if (lua_type(L, -1) == LUA_TUSERDATA)
+        {
+            if (lua_getmetatable(L, -1))
+            {
+                // [-1] meta table
+                // [-2] user data
+
+                lua_pushinteger(L, SCRIPT_METATABLE_TYPE_HASH_KEY);
+                // [-1] SCRIPT_METATABLE_TYPE_HASH_KEY
+                // [-2] meta table
+                // [-3] user data
+
+                lua_rawget(L, -2);
+                // [-1] type hash
+                // [-2] meta table
+                // [-3] user data
+
+                type_hash = lua_tointeger(L, -1);
+                lua_pop(L, 2);
+                // [-1] user data
+            }
+        }
+        lua_pop(L, 1);
+        return (uint32_t)type_hash;
+    }
+
+    void* ToUserType(lua_State* L, int user_data_index, uint32_t type_hash)
+    {
+        if (GetUserType(L, user_data_index) == type_hash)
+        {
+            return lua_touserdata(L, user_data_index);
+        }
+        return 0;
+    }
+
+    void* CheckUserType(lua_State* L, int user_data_index, uint32_t type_hash, const char* error_message)
+    {
+        void* result = ToUserType(L, user_data_index, type_hash);
+        if (result == 0)
+        {
+            if (error_message == 0x0) {
+                const char* type = (const char*)dmHashReverse32(type_hash, 0);
+                luaL_typerror(L, user_data_index, type);
+            }
+            else {
+                luaL_error(L, "%s", error_message);
+            }
+        }
+        return result;
+    }
+
+    static bool GetMetaFunction(lua_State* L, int index, const char* meta_table_key, size_t meta_table_key_length) {
         if (lua_getmetatable(L, index)) {
-            lua_pushstring(L, meta_table_key);
+            lua_pushlstring(L, meta_table_key, meta_table_key_length);
             lua_rawget(L, -2);
             lua_remove(L, -2);
             if (lua_isnil(L, -1)) {
@@ -568,66 +691,123 @@ namespace dmScript
     }
 
     bool ResolvePath(lua_State* L, const char* path, uint32_t path_size, dmhash_t& out_hash) {
-        int top = lua_gettop(L);
-        (void)top;
+        DM_LUA_STACK_CHECK(L, 0);
         GetInstance(L);
-        if (GetMetaFunction(L, -1, META_TABLE_RESOLVE_PATH)) {
+        if (GetMetaFunction(L, -1, META_TABLE_RESOLVE_PATH, sizeof(META_TABLE_RESOLVE_PATH) - 1)) {
             lua_pushvalue(L, -2);
             lua_pushlstring(L, path, path_size);
             lua_call(L, 2, 1);
             out_hash = CheckHash(L, -1);
             lua_pop(L, 2);
-            assert(top == lua_gettop(L));
             return true;
         }
         lua_pop(L, 1);
-        assert(top == lua_gettop(L));
         return false;
     }
 
     bool GetURL(lua_State* L, dmMessage::URL& out_url) {
-        int top = lua_gettop(L);
-        (void)top;
+        DM_LUA_STACK_CHECK(L, 0);
         GetInstance(L);
-        if (GetMetaFunction(L, -1, META_TABLE_GET_URL)) {
-            lua_pushvalue(L, -2);
-            lua_call(L, 1, 1);
-            out_url = *CheckURL(L, -1);
-            lua_pop(L, 2);
-            assert(top == lua_gettop(L));
-            return true;
-        }
-        lua_pop(L, 1);
-        assert(top == lua_gettop(L));
-        return false;
-    }
 
-    bool GetUserData(lua_State* L, uintptr_t& out_user_data, const char* user_type) {
-        int top = lua_gettop(L);
-        (void)top;
-        GetInstance(L);
-        if (!dmScript::IsUserType(L, -1, user_type)) {
+        int res = luaL_callmeta(L, -1, META_TABLE_GET_URL);
+        if (res != 1)
+        {
             lua_pop(L, 1);
             return false;
         }
-        if (GetMetaFunction(L, -1, META_TABLE_GET_USER_DATA)) {
-            lua_pushvalue(L, -2);
-            lua_call(L, 1, 1);
-            out_user_data = (uintptr_t)lua_touserdata(L, -1);
+        // We either get the URL or not, if the return value is
+        // non-null it must be an URL or we have done bad coding
+        // on our end and did not follow the contract of META_TABLE_GET_URL
+        dmMessage::URL* url = (dmMessage::URL*)lua_touserdata(L, -1);
+        if (url)
+        {
+            out_url = *url;
             lua_pop(L, 2);
-            assert(top == lua_gettop(L));
             return true;
         }
-        lua_pop(L, 1);
-        assert(top == lua_gettop(L));
+
+        // If the URL is null, we call CheckURL to trigger a proper
+        // lua type error.
+        (void)CheckURL(L, -1);
         return false;
+    }
+
+    bool GetUserData(lua_State* L, uintptr_t* out_user_data, uint32_t user_type_hash) {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        GetInstance(L);
+        // [-1] instance
+
+        if (lua_type(L, -1) != LUA_TUSERDATA)
+        {
+            lua_pop(L, 1);
+            return false;
+        }
+
+        if (!lua_getmetatable(L, -1))
+        {
+            lua_pop(L, 1);
+            return false;
+        }
+        // [-1] meta table
+        // [-2] instance
+
+        lua_pushinteger(L, SCRIPT_METATABLE_TYPE_HASH_KEY);
+        // [-1] SCRIPT_METATABLE_TYPE_HASH_KEY
+        // [-2] meta table
+        // [-3] instance
+
+        lua_rawget(L, -2);
+        // [-1] type hash
+        // [-2] meta table
+        // [-3] instance
+
+        if (lua_tointeger(L, -1) != user_type_hash)
+        {
+            lua_pop(L, 3);
+            return false;
+        }
+
+        lua_pop(L, 1);
+        // [-1] meta table
+        // [-2] instance
+
+        lua_pushlstring(L, META_TABLE_GET_USER_DATA, sizeof(META_TABLE_GET_USER_DATA) - 1);
+        // [-1] META_TABLE_GET_USER_DATA
+        // [-2] meta table
+        // [-3] instance
+
+        lua_rawget(L, -2);
+        // [-1] get_user_data method
+        // [-2] meta table
+        // [-3] instance
+
+        if (lua_isnil(L, -1)) {
+            lua_pop(L, 3);
+            return false;
+        }
+
+        lua_pushvalue(L, -3);
+        // [-1] instance
+        // [-2] get_user_data
+        // [-3] meta table
+        // [-4] instance
+
+        lua_call(L, 1, 1);
+        // [-1] user data
+        // [-2] meta table
+        // [-3] instance
+
+        *out_user_data = (uintptr_t)lua_touserdata(L, -1);
+        lua_pop(L, 3);
+        return true;
     }
 
     bool IsValidInstance(lua_State* L) {
         int top = lua_gettop(L);
         (void)top;
         GetInstance(L);
-        if (GetMetaFunction(L, -1, META_TABLE_IS_VALID)) {
+        if (GetMetaFunction(L, -1, META_TABLE_IS_VALID, sizeof(META_TABLE_IS_VALID) - 1)) {
             lua_pushvalue(L, -2);
             lua_call(L, 1, 1);
             assert(top + 2 == lua_gettop(L));
@@ -703,7 +883,7 @@ namespace dmScript
         GetInstance(L);
         // [-1] instance
 
-        if (!GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF))
+        if (!GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF, sizeof(META_GET_INSTANCE_CONTEXT_TABLE_REF) - 1))
         {
             lua_pop(L, 1);
             lua_pushnil(L);
@@ -736,14 +916,12 @@ namespace dmScript
 
     uintptr_t GetInstanceId(lua_State* L)
     {
-        int top = lua_gettop(L);
-        (void)top;
+        DM_LUA_STACK_CHECK(L, 0);
         GetInstance(L);
         int instance_type = lua_type(L, -1);
         // We assume that all users of SetInstance puts some form of user data/light user data, it is an assumption that works for now
         uintptr_t id = (instance_type == LUA_TLIGHTUSERDATA || instance_type == LUA_TUSERDATA) ? (uintptr_t)lua_touserdata(L, -1) : 0;
         lua_pop(L, 1);
-        assert(top == lua_gettop(L));
         return id;
     }
 
@@ -1054,7 +1232,7 @@ namespace dmScript
             return 1;
         }
 
-        lua_pushstring(m_state, "");
+        lua_pushlstring(m_state, "", 0);
         lua_pushinteger(m_state, 2);
         lua_call(m_state, 2, 1);  /* call debug.traceback */
         lua_setfield(m_state, -3, "traceback");
@@ -1088,7 +1266,7 @@ namespace dmScript
                 lua_pushstring(L, SCRIPT_ERROR_HANDLER_VAR);
                 lua_rawget(L, -2);
                 if (lua_isfunction(L, -1)) {
-                    lua_pushstring(L, "lua"); // 1st arg: source = 'lua'
+                    lua_pushlstring(L, "lua", 3); // 1st arg: source = 'lua'
                     lua_pushvalue(L, -5);     // 2nd arg: error
                     lua_pushvalue(L, -5);     // 3rd arg: traceback
                     PCallInternal(L, 3, 0, 1);
@@ -1198,7 +1376,7 @@ namespace dmScript
         GetInstance(L);
         // [-1] instance
 
-        if (!GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF)) {
+        if (!GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF, sizeof(META_GET_INSTANCE_CONTEXT_TABLE_REF) - 1)) {
             lua_pop(L, 1);
             return 0x0;
         }
@@ -1393,31 +1571,11 @@ namespace dmScript
 
         int number_of_arguments = 1 + user_args_end - user_args_start; // instance + number of arguments that the user pushed
 
-        const char* function_name = "on_timer";
-        const char* function_source = "?";
-        char function_line_number_buffer[16];
-        if (dmProfile::g_IsInitialized)
-        {
-            dmScript::LuaFunctionInfo fi;
-            if (dmScript::GetLuaFunctionRefInfo(L, -(number_of_arguments + 1), &fi))
-            {
-                function_source = fi.m_FileName;
-                if (fi.m_OptionalName)
-                {
-                    function_name = fi.m_OptionalName;
-                }
-                else
-                {
-                    DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
-                    function_name = function_line_number_buffer;
-                }
-            }
-        }
-
-
         int ret;
         {
-            DM_PROFILE_FMT(Script, "%s@%s", function_name, function_source);
+            uint32_t profiler_hash = 0;
+            const char* profiler_string = GetProfilerString(L, -(number_of_arguments + 1), "?", "on_timer", 0, &profiler_hash);
+            DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
             ret = PCall(L, number_of_arguments, 0);
         }
 
@@ -1439,7 +1597,24 @@ namespace dmScript
         return true;
     }
 
-    bool GetLuaFunctionRefInfo(lua_State* L, int stack_index, LuaFunctionInfo* out_function_info)
+    /** Information about a function, in which file and at what line it is defined
+     * Use with GetLuaFunctionRefInfo
+     */
+    struct LuaFunctionInfo
+    {
+        const char* m_FileName;
+        const char* m_OptionalName;
+        int m_LineNumber;
+    };
+
+    /**
+     * Get information about where a Lua function is defined
+     * @param L lua state
+     * @param stack_index which index on the stack that contains the lua function ref
+     * @param out_function_info pointer to the function information that is filled out
+     * @return true on success, out_function_info is only touched if the function succeeds
+     */
+    static bool GetLuaFunctionRefInfo(lua_State* L, int stack_index, LuaFunctionInfo* out_function_info)
     {
         lua_Debug ar;
         lua_pushvalue(L, stack_index);
@@ -1453,9 +1628,85 @@ namespace dmScript
         return false;
     }
 
+    // Fast length limited string concatenation that assume we already point to
+    // the end of the string. Returns the new end of the string so we do not need
+    // to calculate the length of the input string or output string
+    static char* ConcatString(char* w_ptr, const char* w_ptr_end, const char* str)
+    {
+        while ((w_ptr != w_ptr_end) && *str)
+        {
+            *w_ptr++ = *str++;
+        }
+        return w_ptr;
+    }
+
+    /**
+    * To reduce the overhead of the profiler when calling lua functions we avoid using DM_SNPRINTF.
+    * DM_SNPRINTF uses vsnprintf with variable number of arguments but we only need string concatenation for
+    * the most part. Also, we use our knownledge when building the string to get the string length directly
+    * without resorting to strlen.
+    * Building this string is particularly expensive on low end devices and using this more optimal way reduces
+    * the overhead of the profiler when enabled.
+    */
+    const char* GetProfilerString(lua_State* L, int optional_callback_index, const char* source_file_name, const char* function_name, const char* optional_message_name, uint32_t* out_profiler_hash)
+    {
+        const char* profiler_string = 0;
+        if (dmProfile::g_IsInitialized)
+        {
+            char buffer[128];
+            char* w_ptr = buffer;
+            const char* w_ptr_end = &buffer[sizeof(buffer) - 1];
+
+            const char* function_source = source_file_name;
+
+            if (optional_callback_index != 0)
+            {
+                LuaFunctionInfo fi;
+                if (dmScript::GetLuaFunctionRefInfo(L, optional_callback_index, &fi))
+                {
+                    function_source = fi.m_FileName;
+                    if (fi.m_OptionalName)
+                    {
+                        w_ptr = ConcatString(w_ptr, w_ptr_end, fi.m_OptionalName);
+                    }
+                    else
+                    {
+                        char function_line_number_buffer[16];
+                        DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
+                        w_ptr = ConcatString(w_ptr, w_ptr_end, function_line_number_buffer);
+                    }
+                }
+                else
+                {
+                    w_ptr = ConcatString(w_ptr, w_ptr_end, "<unknown>");
+                }
+                
+            }
+            else
+            {
+                w_ptr = ConcatString(w_ptr, w_ptr_end, function_name);
+            }
+
+            if (optional_message_name)
+            {
+                w_ptr = ConcatString(w_ptr, w_ptr_end, "[");
+                w_ptr = ConcatString(w_ptr, w_ptr_end, optional_message_name);
+                w_ptr = ConcatString(w_ptr, w_ptr_end, "]");
+            }
+            w_ptr = ConcatString(w_ptr, w_ptr_end, "@");
+            w_ptr = ConcatString(w_ptr, w_ptr_end, function_source);
+            uint32_t str_len = (uint32_t)(w_ptr - buffer);
+            uint32_t hash = dmProfile::GetNameHash(buffer, str_len);
+            *w_ptr++ = 0;
+            profiler_string = dmProfile::Internalize(buffer, str_len, hash);
+            *out_profiler_hash = hash;
+        }
+        return profiler_string;
+    }
+
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value)
     {
-        int top = lua_gettop(L);
+        DM_LUA_STACK_CHECK(L, 0);
         const char* r = default_value;
 
         lua_getfield(L, table_index, key);
@@ -1471,14 +1722,12 @@ namespace dmScript
 
         }
         lua_pop(L, 1);
-
-        assert(top == lua_gettop(L));
         return r;
     }
 
     int GetTableIntValue(lua_State* L, int table_index, const char* key, int default_value)
     {
-        int top = lua_gettop(L);
+        DM_LUA_STACK_CHECK(L, 0);
         int r = default_value;
 
         lua_getfield(L, table_index, key);
@@ -1494,9 +1743,7 @@ namespace dmScript
 
         }
         lua_pop(L, 1);
-
-        assert(top == lua_gettop(L));
         return r;
     }
 
-}
+} // dmScript

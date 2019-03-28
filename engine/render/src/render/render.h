@@ -3,7 +3,7 @@
 
 #include <string.h>
 #include <stdint.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dlib/hash.h>
 #include <script/script.h>
 #include <script/lua_source_ddf.h>

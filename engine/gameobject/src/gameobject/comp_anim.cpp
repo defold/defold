@@ -320,11 +320,10 @@ namespace dmGameObject
                     if (size != orig_size)
                         anim = &world->m_Animations[i];
                     RemoveAnimationCallback(world, anim);
-
-                    if (anim->m_Easing.release_callback != 0x0)
-                    {
-                        anim->m_Easing.release_callback(&anim->m_Easing);
-                    }
+                }
+                if (anim->m_Easing.release_callback != 0x0)
+                {
+                    anim->m_Easing.release_callback(&anim->m_Easing);
                 }
                 uint16_t* head_ptr = world->m_InstanceToIndex.Get((uintptr_t)anim->m_Instance);
                 uint16_t* index_ptr = head_ptr;
@@ -555,6 +554,9 @@ namespace dmGameObject
             if (!PlayCompositeAnimation(world, instance, component_id, property_id, playback,
                     duration, delay, easing, animation_stopped, userdata1, userdata2))
                 return PROPERTY_RESULT_BUFFER_OVERFLOW;
+
+            // Clear the release_callback for element animation to make sure we only call it once in the composite animation
+            easing.release_callback = 0x0;
             float* v = prop_desc.m_Variant.m_V4;
             for (uint32_t i = 0; i < element_count; ++i)
             {
@@ -630,6 +632,10 @@ namespace dmGameObject
                         anim->m_AnimationStopped(anim->m_Instance, anim->m_ComponentId, anim->m_PropertyId, anim->m_Finished,
                                 anim->m_Userdata1, anim->m_Userdata2);
                         RemoveAnimationCallback(world, anim);
+                    }
+                    if (anim->m_Easing.release_callback != 0x0)
+                    {
+                        anim->m_Easing.release_callback(&anim->m_Easing);
                     }
                     world->m_AnimMapIndexPool.Push(index);
                     index = anim->m_Next;

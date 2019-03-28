@@ -54,6 +54,10 @@ namespace dmGui
     #define LIB_NAME "gui"
     #define NODE_PROXY_TYPE_NAME "NodeProxy"
 
+    static uint32_t GUI_SCRIPT_TYPE_HASH = 0;
+    static uint32_t GUI_SCRIPT_INSTANCE_TYPE_HASH = 0;
+    static uint32_t NODE_PROXY_TYPE_HASH = 0;
+
     static int GuiScriptGetURL(lua_State* L)
     {
         dmMessage::URL url;
@@ -94,10 +98,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
         dmScript::GetInstance(L);
-        Scene* scene = 0x0;
-        if (dmScript::IsUserType(L, -1, GUI_SCRIPT_INSTANCE)) {
-            scene = (Scene*)lua_touserdata(L, -1);
-        }
+        Scene* scene = (Scene*)dmScript::ToUserType(L, -1, GUI_SCRIPT_INSTANCE_TYPE_HASH);
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
         return scene;
@@ -105,7 +106,7 @@ namespace dmGui
 
     static Scene* GuiScriptInstance_Check(lua_State *L, int index)
     {
-        return (Scene*)dmScript::CheckUserType(L, index, GUI_SCRIPT_INSTANCE, "You can only access gui.* functions and values from a gui script instance (.gui_script file)");
+        return (Scene*)dmScript::CheckUserType(L, index, GUI_SCRIPT_INSTANCE_TYPE_HASH, "You can only access gui.* functions and values from a gui script instance (.gui_script file)");
     }
 
     static Scene* GuiScriptInstance_Check(lua_State *L)
@@ -116,15 +117,6 @@ namespace dmGui
         return scene;
     }
 
-    static int GuiScriptInstance_gc (lua_State *L)
-    {
-        Scene* i = GuiScriptInstance_Check(L, 1);
-        memset(i, 0, sizeof(*i));
-        (void) i;
-        assert(i);
-        return 0;
-    }
-
     static int GuiScriptInstance_tostring (lua_State *L)
     {
         lua_pushfstring(L, "GuiScript: %p", lua_touserdata(L, 1));
@@ -133,7 +125,7 @@ namespace dmGui
 
     static int GuiScriptInstance_index(lua_State *L)
     {
-        Scene* i = GuiScriptInstance_Check(L, 1);
+        Scene* i = (Scene*)lua_touserdata(L, 1);
         assert(i);
 
         // Try to find value in instance data
@@ -147,7 +139,7 @@ namespace dmGui
     {
         int top = lua_gettop(L);
 
-        Scene* i = GuiScriptInstance_Check(L, 1);
+        Scene* i = (Scene*)lua_touserdata(L, 1);
         assert(i);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_DataReference);
@@ -204,7 +196,6 @@ namespace dmGui
 
     static const luaL_reg GuiScriptInstance_meta[] =
     {
-        {"__gc",                                        GuiScriptInstance_gc},
         {"__tostring",                                  GuiScriptInstance_tostring},
         {"__index",                                     GuiScriptInstance_index},
         {"__newindex",                                  GuiScriptInstance_newindex},
@@ -217,12 +208,12 @@ namespace dmGui
 
     static NodeProxy* NodeProxy_Check(lua_State *L, int index)
     {
-        return (NodeProxy*)dmScript::CheckUserType(L, index, NODE_PROXY_TYPE_NAME, NULL);
+        return (NodeProxy*)dmScript::CheckUserType(L, index, NODE_PROXY_TYPE_HASH, 0);
     }
 
     static bool LuaIsNode(lua_State *L, int index)
     {
-        return dmScript::IsUserType(L, index, NODE_PROXY_TYPE_NAME);
+        return dmScript::GetUserType(L, index) == NODE_PROXY_TYPE_HASH;
     }
 
     static bool IsValidNode(HScene scene, HNode node)
@@ -258,11 +249,6 @@ namespace dmGui
         }
 
         return 0; // Never reached
-    }
-
-    static int NodeProxy_gc (lua_State *L)
-    {
-        return 0;
     }
 
     static int NodeProxy_tostring (lua_State *L)
@@ -333,20 +319,14 @@ namespace dmGui
 
     static int NodeProxy_eq(lua_State *L)
     {
-        if (!LuaIsNode(L, 1))
+        NodeProxy* np1 = (NodeProxy*)dmScript::ToUserType(L, 1, NODE_PROXY_TYPE_HASH);
+        NodeProxy* np2 = (NodeProxy*)dmScript::ToUserType(L, 2, NODE_PROXY_TYPE_HASH);
+        if (np1 == 0 || np2 == 0)
         {
             lua_pushboolean(L, 0);
             return 1;
         }
 
-        if (!LuaIsNode(L, 2))
-        {
-            lua_pushboolean(L, 0);
-            return 1;
-        }
-
-        NodeProxy* np1 = NodeProxy_Check(L, 1);
-        NodeProxy* np2 = NodeProxy_Check(L, 2);
         if (np1->m_Scene != np2->m_Scene)
         {
             lua_pushboolean(L, 0);
@@ -370,7 +350,6 @@ namespace dmGui
 
     static const luaL_reg NodeProxy_meta[] =
     {
-        {"__gc",       NodeProxy_gc},
         {"__tostring", NodeProxy_tostring},
         {"__index",    NodeProxy_index},
         {"__newindex", NodeProxy_newindex},
@@ -1024,15 +1003,16 @@ namespace dmGui
             luaL_error(L, "property '%s' not found", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
         }
 
+        Vector3* v3;
         Vector4 to;
         if (lua_isnumber(L, 3))
         {
             to = Vector4((float) lua_tonumber(L, 3));
         }
-        else if (dmScript::IsVector3(L, 3))
+        else if ((v3 = dmScript::ToVector3(L, 3)))
         {
             Vector4 original = dmGui::GetNodePropertyHash(scene, hnode, property_hash);
-            to = Vector4(*dmScript::CheckVector3(L, 3), original.getW());
+            to = Vector4(*v3, original.getW());
         }
         else
         {
@@ -1185,6 +1165,18 @@ namespace dmGui
         return 1;
     }
 
+    static inline Point3 GetPositionFromArgumentIndex(lua_State* L, int index)
+    {
+        Vector4* v4;
+        if ((v4 = dmScript::ToVector4(L, index)))
+        {
+            return Point3(v4->getXYZ());
+        }
+
+        Vector3* v3 = dmScript::CheckVector3(L, index);
+        return Point3(*v3);
+    }
+
     /*# creates a new box node
      * Dynamically create a new box node.
      *
@@ -1195,19 +1187,10 @@ namespace dmGui
      */
     static int LuaNewBoxNode(lua_State* L)
     {
-        Vector3 pos;
-        if (dmScript::IsVector4(L, 1))
-        {
-            Vector4* p4 = dmScript::CheckVector4(L, 1);
-            pos = Vector3(p4->getX(), p4->getY(), p4->getZ());
-        }
-        else
-        {
-            pos = *dmScript::CheckVector3(L, 1);
-        }
+        Point3 pos = GetPositionFromArgumentIndex(L, 1);
         Vector3 size = *dmScript::CheckVector3(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
-        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_BOX, 0, 0x0);
+        return LuaDoNewNode(L, scene, pos, size, NODE_TYPE_BOX, 0, 0x0);
     }
 
     /*# creates a new text node
@@ -1220,16 +1203,7 @@ namespace dmGui
      */
     static int LuaNewTextNode(lua_State* L)
     {
-        Vector3 pos;
-        if (dmScript::IsVector4(L, 1))
-        {
-            Vector4* p4 = dmScript::CheckVector4(L, 1);
-            pos = Vector3(p4->getX(), p4->getY(), p4->getZ());
-        }
-        else
-        {
-            pos = *dmScript::CheckVector3(L, 1);
-        }
+        Point3 pos = GetPositionFromArgumentIndex(L, 1);
         const char* text = luaL_checkstring(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
         void* font = scene->m_DefaultFont;
@@ -1244,7 +1218,7 @@ namespace dmGui
             size.setY(metrics.m_MaxAscent + metrics.m_MaxDescent);
         }
 
-        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_TEXT, text, font);
+        return LuaDoNewNode(L, scene, pos, size, NODE_TYPE_TEXT, text, font);
     }
 
     /*# creates a new pie node
@@ -1257,19 +1231,10 @@ namespace dmGui
      */
     static int LuaNewPieNode(lua_State* L)
     {
-        Vector3 pos;
-        if (dmScript::IsVector4(L, 1))
-        {
-            Vector4* p4 = dmScript::CheckVector4(L, 1);
-            pos = Vector3(p4->getX(), p4->getY(), p4->getZ());
-        }
-        else
-        {
-            pos = *dmScript::CheckVector3(L, 1);
-        }
+        Point3 pos = GetPositionFromArgumentIndex(L, 1);
         Vector3 size = *dmScript::CheckVector3(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
-        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_PIE, 0, 0x0);
+        return LuaDoNewNode(L, scene, pos, size, NODE_TYPE_PIE, 0, 0x0);
     }
 
     /*# creates a new spine node
@@ -1282,19 +1247,10 @@ namespace dmGui
      */
     static int LuaNewSpineNode(lua_State* L)
     {
-        Vector3 pos;
-        if (dmScript::IsVector4(L, 1))
-        {
-            Vector4* p4 = dmScript::CheckVector4(L, 1);
-            pos = Vector3(p4->getX(), p4->getY(), p4->getZ());
-        }
-        else
-        {
-            pos = *dmScript::CheckVector3(L, 1);
-        }
+        Point3 pos = GetPositionFromArgumentIndex(L, 1);
 
         Scene* scene = GuiScriptInstance_Check(L);
-        HNode node = NewNode(scene, Point3(pos), Vector3(1,1,0), NODE_TYPE_SPINE);
+        HNode node = NewNode(scene, pos, Vector3(1,1,0), NODE_TYPE_SPINE);
         if (!node)
         {
             return luaL_error(L, "Out of nodes (max %d)", scene->m_Nodes.Capacity());
@@ -2466,11 +2422,11 @@ namespace dmGui
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void) n;
 
-        if (dmScript::IsVector4(L, 2))
+        Vector4* v4;
+        if ((v4 = dmScript::ToVector4(L, 2)))
         {
-            const Vector4 value = *(dmScript::CheckVector4(L, 2));
             Scene* scene = GuiScriptInstance_Check(L);
-            dmGui::SetNodeProperty(scene, hnode, dmGui::PROPERTY_SLICE9, value);
+            dmGui::SetNodeProperty(scene, hnode, dmGui::PROPERTY_SLICE9, *v4);
         }
         else
         {
@@ -3470,11 +3426,12 @@ namespace dmGui
                 return 0;\
             }\
             Vector4 v;\
-            if (dmScript::IsVector3(L, 2))\
+            Vector3* v3;\
+            if ((v3 = dmScript::ToVector3(L, 2)))\
             {\
                 Scene* scene = GetScene(L);\
                 Vector4 original = dmGui::GetNodeProperty(scene, hnode, property);\
-                v = Vector4(*dmScript::CheckVector3(L, 2), original.getW());\
+                v = Vector4(*v3, original.getW());\
             }\
             else\
                 v = *dmScript::CheckVector4(L, 2);\
@@ -3528,13 +3485,15 @@ namespace dmGui
             return 0;
         }
         Vector4 v;
-        if (dmScript::IsVector3(L, 2))
+        Vector3* v3;
+        Vector4* v4;
+        if ((v3 = dmScript::ToVector3(L, 2)))
         {
             Scene* scene = GetScene(L);
             Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_ROTATION);
-            v = Vector4(*dmScript::CheckVector3(L, 2), original.getW());
-        } else if (dmScript::IsVector4(L, 2)) {
-            v = *dmScript::CheckVector4(L, 2);
+            v = Vector4(*v3, original.getW());
+        } else if ((v4 = dmScript::ToVector4(L, 2))) {
+            v = *v4;
         } else {
             Scene* scene = GetScene(L);
             Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_ROTATION);
@@ -3577,12 +3536,13 @@ namespace dmGui
         {
             return 0;
         }
+        Vector3* v3;
         Vector4 v;
-        if (dmScript::IsVector3(L, 2))
+        if ((v3 = dmScript::ToVector3(L, 2)))
         {
             Scene* scene = GetScene(L);
             Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_SIZE);
-            v = Vector4(*dmScript::CheckVector3(L, 2), original.getW());
+            v = Vector4(*v3, original.getW());
         }
         else
             v = *dmScript::CheckVector4(L, 2);
@@ -4135,21 +4095,12 @@ namespace dmGui
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        Vector3 pos;
-        if (dmScript::IsVector4(L, 1))
-        {
-            Vector4* p4 = dmScript::CheckVector4(L, 1);
-            pos = Vector3(p4->getXYZ());
-        }
-        else
-        {
-            pos = *dmScript::CheckVector3(L, 1);
-        }
+        Point3 pos = GetPositionFromArgumentIndex(L, 1);
         dmhash_t particlefx = dmScript::CheckHashOrString(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
 
         // The default size comes from the CalculateNodeExtents()
-        HNode node = dmGui::NewNode(scene, Point3(pos), Vector3(1,1,0), NODE_TYPE_PARTICLEFX);
+        HNode node = dmGui::NewNode(scene, pos, Vector3(1,1,0), NODE_TYPE_PARTICLEFX);
         if (!node)
         {
             return DM_LUA_ERROR("Out of nodes (max %d)", scene->m_Nodes.Capacity());
@@ -4752,11 +4703,11 @@ namespace dmGui
         int top = lua_gettop(L);
         (void)top;
 
-        dmScript::RegisterUserType(L, GUI_SCRIPT, GuiScript_methods, GuiScript_meta);
+        GUI_SCRIPT_TYPE_HASH = dmScript::RegisterUserType(L, GUI_SCRIPT, GuiScript_methods, GuiScript_meta);
 
-        dmScript::RegisterUserType(L, GUI_SCRIPT_INSTANCE, GuiScriptInstance_methods, GuiScriptInstance_meta);
+        GUI_SCRIPT_INSTANCE_TYPE_HASH = dmScript::RegisterUserType(L, GUI_SCRIPT_INSTANCE, GuiScriptInstance_methods, GuiScriptInstance_meta);
 
-        dmScript::RegisterUserType(L, NODE_PROXY_TYPE_NAME, NodeProxy_methods, NodeProxy_meta);
+        NODE_PROXY_TYPE_HASH = dmScript::RegisterUserType(L, NODE_PROXY_TYPE_NAME, NodeProxy_methods, NodeProxy_meta);
 
         luaL_register(L, LIB_NAME, Gui_methods);
 
