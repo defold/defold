@@ -891,3 +891,11 @@
       (is (= #{:test :_node-id :_basis} (set (keys (g/node-value n :inline-intrinsics)))))
       (is (= {:test "test"} (g/node-value n :defnk)))
       (is (= #{:test :_node-id :_basis} (set (keys (g/node-value n :defnk-intrinsics))))))))
+
+(g/defnode Base
+  (property base-prop g/Str)
+  (output base-out g/Str (g/fnk [base-prop] base-prop)))
+
+(g/defnode Derived
+  (inherits Base))
+  
