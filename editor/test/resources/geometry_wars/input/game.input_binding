@@ -30,6 +30,10 @@ key_trigger {
   input: KEY_4
   action: "render4"
 }
+key_trigger {
+  input: KEY_ESC
+  action: "quit"
+}
 mouse_trigger {
   input: MOUSE_BUTTON_1
   action: "touch"
