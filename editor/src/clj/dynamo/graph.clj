@@ -368,6 +368,10 @@
         type-regs (for [[key-form value-type-form] (:register-type-info node-type-def)]
                     `(in/register-value-type ~key-form ~value-type-form))
         node-type-def (dissoc node-type-def :register-type-info)]
+    (println type-name :# (count fwd-decls))
+    (def last-fwd-decls fwd-decls)
+    (def last-fn-defs fn-defs)
+    #_(println fwd-decls)
     ;; This try-block was an attempt to catch "Code too large" errors when method size exceeded 64kb in the JVM.
     ;; Surprisingly, the addition of the try-block stopped the error from happening, so leaving it here.
     ;; "Problem solved!" lol
