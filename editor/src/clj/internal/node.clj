@@ -18,20 +18,20 @@
 
 (def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas true))
 
-(defn trace-expr [evaluation-context node-id output output-type deferred-expr]
+(defn trace-expr [node-id label evaluation-context label-type deferred-expr]
   (if-let [tracer (:tracer evaluation-context)]
     (do
-      (tracer :begin node-id output-type output)
+      (tracer :begin node-id label-type label)
       (let [[result e] (try [(deferred-expr) nil] (catch Exception e [nil e]))]
         (if e
-          (do (tracer :fail node-id output-type output)
+          (do (tracer :fail node-id label-type label)
               (throw e))
-          (do (tracer :end node-id output-type output)
+          (do (tracer :end node-id label-type label)
               result))))
     (deferred-expr)))
 
-(defn- with-tracer-calls-form [evaluation-context-sym node-id-sym output-name-sym output-type expr]
-  `(trace-expr ~evaluation-context-sym ~node-id-sym ~output-name-sym ~output-type
+(defn- with-tracer-calls-form [node-id-sym label-sym evaluation-context-sym label-type expr]
+  `(trace-expr ~node-id-sym ~label-sym ~evaluation-context-sym ~label-type
                (fn [] ~expr)))
 
 (defn- check-dry-run-form
@@ -402,9 +402,9 @@
 
 (def ^:dynamic *suppress-schema-warnings* false)
 
-(defn warn-output-schema [node-id node-type label value output-schema error]
+(defn warn-output-schema [node-id label node-type-name value output-schema error]
   (when-not *suppress-schema-warnings*
-    (println "Schema validation failed for node " node-id "(" node-type " ) label " label)
+    (println "Schema validation failed for node " node-id "(" node-type-name " ) label " label)
     (println "Output value:" value)
     (println "Should match:" (s/explain output-schema))
     (println "But:" error)))
@@ -1049,11 +1049,11 @@
 
 (declare fnk-argument-form)
 
-(defn- desc-has-input?     [description argument] (contains? (:input description) argument))
-(defn- desc-has-property?  [description argument] (contains? (:property description) argument))
-(defn- desc-has-output?    [description argument] (contains? (:output description) argument))
-(defn- desc-has-explicit-output?    [description argument]
-  (contains? (get-in description [:output argument :flags]) :explicit))
+(defn- desc-has-input?     [description label] (contains? (:input description) label))
+(defn- desc-has-property?  [description label] (contains? (:property description) label))
+(defn- desc-has-output?    [description label] (contains? (:output description) label))
+(defn- desc-has-explicit-output?    [description label]
+  (contains? (get-in description [:output label :flags]) :explicit))
 
 (defn- has-multivalued-input?  [description input-label]
   (contains? (get-in description [:input input-label :flags]) :array))
@@ -1065,14 +1065,14 @@
 (defn- has-substitute? [description input-label]
   (contains? (get-in description [:input input-label :options]) :substitute))
 
-(defn- property-overloads-output? [description argument output]
-  (and (= output argument)
-       (desc-has-property? description argument)
-       (desc-has-explicit-output? description argument)))
+(defn- property-overloads-output? [description property-label output-label]
+  (and (= output-label property-label)
+       (desc-has-property? description property-label)
+       (desc-has-explicit-output? description property-label)))
 
-(defn- unoverloaded-output? [description argument output]
-  (and (not= output argument)
-       (desc-has-output? description argument)))
+(defn- unoverloaded-output? [description label output]
+  (and (not= output label)
+       (desc-has-output? description label)))
 
 (defn pull-first-input-value
   [node input evaluation-context]
@@ -1107,7 +1107,7 @@
   [node-sym input evaluation-context-sym]
   `(pull-input-values ~node-sym ~input ~evaluation-context-sym))
 
-(defn error-checked-input-value [input-value node-id input]
+(defn error-checked-input-value [node-id input input-value]
   (if (instance? ErrorValue input-value)
     (if (ie/worse-than :info input-value)
       (ie/error-aggregate [input-value] :_node-id node-id :_label input)
@@ -1121,14 +1121,7 @@
       (:value input-value))
     input-value))
 
-(defn- maybe-substitute-error-in-value-form
-  [node-id-sym description input forms]
-  (let [sub (get-in description [:input input :options :substitute] ::no-sub)] ; nil is a valid substitute literal
-    (if (= ::no-sub sub)
-      `(error-checked-input-value ~forms ~node-id-sym ~input)
-      `(error-substituted-input-value ~forms ~sub))))
-
-(defn error-checked-array-input-value [input-array node-id input]
+(defn error-checked-array-input-value [node-id input input-array]
   (if (some #(instance? ErrorValue %) input-array)
     (let [serious-errors (filter #(ie/worse-than :info %) input-array)]
       (if (empty? serious-errors)
@@ -1144,62 +1137,55 @@
         (util/apply-if-fn substitute-fn input-array)))
     input-array))
 
-(defn- maybe-substitute-error-in-array-form
-  [node-id-sym description input forms]
-  (let [sub (get-in description [:input input :options :substitute] ::no-sub)] ; nil is a valid substitute literal
-    (if (= ::no-sub sub)
-      `(error-checked-array-input-value ~forms ~node-id-sym ~input)
-      `(error-substituted-array-input-value ~forms ~sub))))
-
-(defn argument-error-aggregate [input-value node-id label]
+(defn argument-error-aggregate [node-id label input-value]
   (when-some [input-errors (not-empty (filter #(instance? ErrorValue %) (vals input-value)))]
     (ie/error-aggregate input-errors :_node-id node-id :_label label)))
 
 (defn- call-with-error-checked-fnky-arguments-form
-  [node-sym evaluation-context-sym node-id-sym label description arguments runtime-fnk-expr & [supplied-arguments]]
+  [description label node-sym node-id-sym evaluation-context-sym arguments runtime-fnk-expr & [supplied-arguments]]
   (let [base-args {:_node-id `(gt/node-id ~node-sym) :_basis `(:basis ~evaluation-context-sym)}
         arglist (without arguments (keys supplied-arguments))
         argument-forms (zipmap arglist (map #(get base-args % (if (= label %)
                                                                 `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~label)
-                                                                (fnk-argument-form node-sym evaluation-context-sym node-id-sym label description %)))
+                                                                (fnk-argument-form description label % node-sym node-id-sym evaluation-context-sym)))
                                             arglist))
         argument-forms (merge argument-forms supplied-arguments)]
     (if (empty? argument-forms)
       `(~runtime-fnk-expr {})
       `(let [arguments# ~argument-forms]
-         (or (argument-error-aggregate arguments# ~node-id-sym ~label)
+         (or (argument-error-aggregate ~node-id-sym ~label arguments#)
              (~runtime-fnk-expr arguments#))))))
 
 (defn- collect-base-property-value-form
-  [node-sym evaluation-context-sym node-id-sym description prop-name]
-  (let [property-definition (get-in description [:property prop-name])
+  [description property-label node-sym node-id-sym evaluation-context-sym]
+  (let [property-definition (get-in description [:property property-label])
         default? (not (:value property-definition))]
     (if default?
-      (with-tracer-calls-form evaluation-context-sym node-id-sym prop-name :raw-property
-        (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~prop-name)))
-      (with-tracer-calls-form evaluation-context-sym node-id-sym prop-name :property
-        (call-with-error-checked-fnky-arguments-form node-sym evaluation-context-sym node-id-sym prop-name description
+      (with-tracer-calls-form node-id-sym property-label evaluation-context-sym :raw-property
+        (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~property-label)))
+      (with-tracer-calls-form node-id-sym property-label evaluation-context-sym :property
+        (call-with-error-checked-fnky-arguments-form description property-label node-sym node-id-sym evaluation-context-sym
                                                      (get-in property-definition [:value :arguments])
                                                      (check-dry-run-form evaluation-context-sym
-                                                                         `(var ~(symbol (dollar-name (:name description) [:property prop-name :value])))
+                                                                         `(var ~(symbol (dollar-name (:name description) [:property property-label :value])))
                                                                          `(constantly nil)))))))
 (defn- collect-property-value-form
-  [node-sym evaluation-context-sym node-id-sym description prop]
-  (let [property-definition (get-in description [:property prop])
+  [description property-label node-sym node-id-sym evaluation-context-sym]
+  (let [property-definition (get-in description [:property property-label])
         default? (not (:value property-definition))
         get-expr (if default?
-                   (with-tracer-calls-form evaluation-context-sym node-id-sym prop :raw-property
-                     (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~prop)))
-                   (with-tracer-calls-form evaluation-context-sym node-id-sym prop :property
-                     (call-with-error-checked-fnky-arguments-form node-sym evaluation-context-sym node-id-sym prop description
+                   (with-tracer-calls-form node-id-sym property-label evaluation-context-sym :raw-property
+                     (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~property-label)))
+                   (with-tracer-calls-form node-id-sym property-label evaluation-context-sym :property
+                     (call-with-error-checked-fnky-arguments-form description property-label node-sym node-id-sym evaluation-context-sym
                                                                   (get-in property-definition [:value :arguments])
                                                                   (check-dry-run-form evaluation-context-sym
-                                                                                      `(var ~(dollar-name (:name description) [:property prop :value]))
+                                                                                      `(var ~(dollar-name (:name description) [:property property-label :value]))
                                                                                       `(constantly nil)))))]
     get-expr))
 
 (defn- fnk-argument-form
-  [node-sym evaluation-context-sym node-id-sym output description argument]
+  [description output argument node-sym node-id-sym evaluation-context-sym]
   (cond
     (= :this argument)
     node-sym
@@ -1208,26 +1194,28 @@
     `(:basis ~evaluation-context-sym)
 
     (property-overloads-output? description argument output)
-    (collect-property-value-form node-sym evaluation-context-sym node-id-sym description argument)
+    (collect-property-value-form description argument node-sym node-id-sym evaluation-context-sym)
 
     (unoverloaded-output? description argument output)
     `(gt/produce-value ~node-sym ~argument ~evaluation-context-sym)
 
     (desc-has-property? description argument)
     (if (= output argument)
-      (with-tracer-calls-form evaluation-context-sym node-id-sym argument :raw-property
+      (with-tracer-calls-form node-id-sym argument evaluation-context-sym :raw-property
         (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~argument)))
-      (collect-property-value-form node-sym evaluation-context-sym node-id-sym description argument))
+      (collect-property-value-form description argument node-sym node-id-sym evaluation-context-sym))
 
     (has-multivalued-input? description argument)
-    (maybe-substitute-error-in-array-form
-      node-id-sym description argument
-      (input-value-form node-sym argument evaluation-context-sym))
+    (let [sub (get-in description [:input argument :options :substitute] ::no-sub)] ; nil is a valid substitute literal
+      (if (= ::no-sub sub)
+        `(error-checked-array-input-value ~node-id-sym ~argument ~(input-value-form node-sym argument evaluation-context-sym))
+        `(error-substituted-array-input-value ~(input-value-form node-sym argument evaluation-context-sym) ~sub)))
 
     (has-singlevalued-input? description argument)
-    (maybe-substitute-error-in-value-form
-      node-id-sym description argument
-      (first-input-value-form node-sym argument evaluation-context-sym))
+    (let [sub (get-in description [:input argument :options :substitute] ::no-sub)] ; nil is a valid substitute literal
+      (if (= ::no-sub sub)
+        `(error-checked-input-value ~node-id-sym ~argument ~(first-input-value-form node-sym argument evaluation-context-sym))
+        `(error-substituted-input-value ~(first-input-value-form node-sym argument evaluation-context-sym) ~sub)))
 
     (desc-has-output? description argument)
     `(gt/produce-value ~node-sym ~argument ~evaluation-context-sym)
@@ -1235,119 +1223,120 @@
     :else
     (assert false (str "A production function for " (:name description) " " output " needs an argument this node can't supply. There is no input, output, or property called " (pr-str argument)))))
 
-(defn original-root [basis node-id]
+(defn- original-root [node-id basis]
   (let [node (gt/node-by-id-at basis node-id)
         orig-id (:original-id node)]
     (if orig-id
-      (recur basis orig-id)
+      (recur orig-id basis)
       node-id)))
 
-(defn output-jammer [basis node node-id label]
+(defn output-jammer [node node-id label basis]
   (let [original (if (:original-id node)
-                   (gt/node-by-id-at basis (original-root basis node-id))
+                   (gt/node-by-id-at basis (original-root node-id basis))
                    node)]
     (when-some [jam-value (get (:_output-jammers original) label)]
       (if (ie/error? jam-value)
         (assoc jam-value :_label label :_node-id node-id)
         jam-value))))
 
-(defn- check-jammed-form [node-sym evaluation-context-sym node-id-sym label-sym description label forms]
+(defn- check-jammed-form [description label node-sym node-id-sym label-sym evaluation-context-sym forms]
   (if (unjammable? (get-in description [:output label]))
     forms
-    `(or (output-jammer (:basis ~evaluation-context-sym) ~node-sym ~node-id-sym ~label-sym)
+    `(or (output-jammer ~node-sym ~node-id-sym ~label-sym (:basis ~evaluation-context-sym))
          ~forms)))
 
 (defn- property-has-default-getter?       [description label] (not (get-in description [:property label :value])))
 (defn- property-has-no-overriding-output? [description label] (not (desc-has-explicit-output? description label)))
 
-(defn- apply-default-property-shortcut-form [node-sym evaluation-context-sym node-id-sym property-name-sym description property-name forms]
-  (let [property? (and (desc-has-property? description property-name) (property-has-no-overriding-output? description property-name))
-        default?  (and (property-has-default-getter? description property-name)
-                       (property-has-no-overriding-output? description property-name))]
+(defn- apply-default-property-shortcut-form [description label node-sym node-id-sym label-sym evaluation-context-sym forms]
+  (let [property? (and (desc-has-property? description label) (property-has-no-overriding-output? description label))
+        default?  (and (property-has-default-getter? description label)
+                       (property-has-no-overriding-output? description label))]
     (if default?
-      (with-tracer-calls-form evaluation-context-sym node-id-sym property-name-sym :raw-property
-        (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~property-name-sym)))
+      (with-tracer-calls-form node-id-sym label-sym evaluation-context-sym :raw-property
+        (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~label-sym)))
       forms)))
 
-(defn- node-type-name [evaluation-context node-id]
+(defn- node-type-name [node-id evaluation-context]
   (let [basis (:basis evaluation-context)
         node (gt/node-by-id-at basis node-id)]
     (type-name (gt/node-type node basis))))
 
-(defn mark-in-production [evaluation-context node-id label]
+(defn mark-in-production [node-id label evaluation-context]
   (assert (not (contains? (:in-production evaluation-context) [node-id label]))
           (format "Cycle detected on node type %s and output %s"
-                  (node-type-name evaluation-context node-id)
+                  (node-type-name node-id evaluation-context)
                   label))
   (update evaluation-context :in-production conj [node-id label]))
 
-(defn- mark-in-production-form [evaluation-context-sym node-id-sym label-sym description forms]
-  `(let [~evaluation-context-sym (mark-in-production ~evaluation-context-sym ~node-id-sym ~label-sym)]
+(defn- mark-in-production-form [node-id-sym label-sym evaluation-context-sym forms]
+  `(let [~evaluation-context-sym (mark-in-production ~node-id-sym ~label-sym ~evaluation-context-sym)]
      ~forms))
 
-(defn check-caches! [evaluation-context node-id label]
+(defn check-caches! [node-id label evaluation-context]
   (let [local @(:local evaluation-context)
         global (:cache evaluation-context)
         cache-key [node-id label]]
     (cond
       (contains? local cache-key)
-      [(trace-expr evaluation-context node-id label :cache (fn [] (get local cache-key)))]
+      [(trace-expr node-id label evaluation-context :cache (fn [] (get local cache-key)))]
 
       (contains? global cache-key)
-      [(trace-expr evaluation-context node-id label :cache
+      [(trace-expr node-id label evaluation-context :cache
                    (fn []
                      (when-some [cached-result (get global cache-key)]
                        (swap! (:hits evaluation-context) conj cache-key)
                        cached-result)))])))
 
-(defn check-local-temp-cache [evaluation-context node-id label]
+(defn check-local-temp-cache [node-id label evaluation-context]
   (let [local-temp (some-> (:local-temp evaluation-context) deref)
         weak-cached-value ^WeakReference (get local-temp [node-id label])]
     (and weak-cached-value (.get weak-cached-value))))
 
-(defn- check-caches-form [evaluation-context-sym node-id-sym label-sym description label forms]
+(defn- check-caches-form [description label node-id-sym label-sym evaluation-context-sym forms]
   (let [result-sym 'result]
     (if (get-in description [:output label :flags :cached])
-      `(if-some [[~result-sym] (check-caches! ~evaluation-context-sym ~node-id-sym ~label-sym)]
+      `(if-some [[~result-sym] (check-caches! ~node-id-sym ~label-sym ~evaluation-context-sym)]
          ~result-sym
          ~forms)
-      `(if-some [~result-sym (check-local-temp-cache ~evaluation-context-sym ~node-id-sym ~label-sym)]
-         ~(with-tracer-calls-form evaluation-context-sym node-id-sym label-sym :cache
+      `(if-some [~result-sym (check-local-temp-cache ~node-id-sym ~label-sym ~evaluation-context-sym)]
+         ~(with-tracer-calls-form node-id-sym label-sym evaluation-context-sym :cache
             `(if (= ~result-sym ::cached-nil) nil ~result-sym))
          ~forms))))
 
-(defn- gather-arguments-form [arguments-sym schema-sym node-sym evaluation-context-sym node-id-sym description label forms]
+(defn- gather-arguments-form [description label node-sym node-id-sym evaluation-context-sym arguments-sym schema-sym forms]
   (let [arg-names (get-in description [:output label :arguments])
-        argument-forms (zipmap arg-names (map #(fnk-argument-form node-sym evaluation-context-sym node-id-sym label description %) arg-names))
+        argument-forms (zipmap arg-names (map #(fnk-argument-form description label % node-sym node-id-sym evaluation-context-sym) arg-names))
         argument-forms (assoc argument-forms :_node-id node-id-sym :_basis `(:basis ~evaluation-context-sym))]
     (list `let
           [arguments-sym argument-forms]
           forms)))
 
-(defn- argument-error-check-form [evaluation-context-sym description label node-id-sym label-sym arguments-sym tail]
+(defn- argument-error-check-form [description label node-id-sym label-sym evaluation-context-sym arguments-sym forms]
   (if (= :_properties label)
-    tail
-    `(or (argument-error-aggregate ~arguments-sym ~node-id-sym ~label-sym) ~tail)))
+    forms
+    `(or (argument-error-aggregate ~node-id-sym ~label-sym ~arguments-sym)
+         ~forms)))
 
-(defn- call-production-function-form [evaluation-context-sym description label arguments-sym node-id-sym label-sym output-sym forms]
-  `(let [~output-sym ~(argument-error-check-form evaluation-context-sym description label node-id-sym label-sym arguments-sym
+(defn- call-production-function-form [description label node-id-sym label-sym evaluation-context-sym arguments-sym result-sym forms]
+  `(let [~result-sym ~(argument-error-check-form description label node-id-sym label-sym evaluation-context-sym arguments-sym
                                                  (check-dry-run-form evaluation-context-sym `((var ~(symbol (dollar-name (:name description) [:output label]))) ~arguments-sym)))]
      ~forms))
 
-(defn update-local-cache! [evaluation-context node-id label value]
+(defn update-local-cache! [node-id label evaluation-context value]
   (swap! (:local evaluation-context) assoc [node-id label] value))
 
-(defn update-local-temp-cache! [evaluation-context node-id label value]
+(defn update-local-temp-cache! [node-id label evaluation-context value]
   (when-let [local-temp (:local-temp evaluation-context)]
     (swap! local-temp assoc [node-id label] (WeakReference. (if (= value nil) ::cached-nil value)))))
 
-(defn- cache-output-form [evaluation-context-sym description label node-id-sym label-sym output-sym forms]
+(defn- cache-result-form [description label node-id-sym label-sym evaluation-context-sym result-sym forms]
   (if (contains? (get-in description [:output label :flags]) :cached)
     `(do
-       (update-local-cache! ~evaluation-context-sym ~node-id-sym ~label-sym ~output-sym)
+       (update-local-cache! ~node-id-sym ~label-sym ~evaluation-context-sym ~result-sym)
        ~forms)
     `(do
-       (update-local-temp-cache! ~evaluation-context-sym ~node-id-sym ~label-sym ~output-sym)
+       (update-local-temp-cache! ~node-id-sym ~label-sym ~evaluation-context-sym ~result-sym)
        ~forms)))
 
 (defn- deduce-output-type-form
@@ -1358,29 +1347,25 @@
                  schema)]
     `(s/maybe (s/conditional ie/error-value? ErrorValue :else ~schema)))) ; allow nil's and errors
 
-(defn schema-check-output [evaluation-context output-schema output label node-id]
+(defn schema-check-result [node-id label evaluation-context output-schema result]
   (when-not (:dry-run evaluation-context)
     (try
-      (when-some [validation-error (s/check output-schema output)]
-        (warn-output-schema node-id (node-type-name evaluation-context node-id) label output output validation-error)
+      (when-some [validation-error (s/check output-schema result)]
+        (warn-output-schema node-id label (node-type-name node-id evaluation-context) result output-schema validation-error)
         (throw (ex-info "SCHEMA-VALIDATION"
                         {:node-id node-id
                          :type node-type-name
                          :output label
                          :expected output-schema
-                         :actual output
+                         :actual result
                          :validation-error validation-error})))
       (catch IllegalArgumentException iae
-        (throw (ex-info "MALFORMED-SCHEMA" {:transform label :node-type (node-type-name evaluation-context node-id)} iae))))))
+        (throw (ex-info "MALFORMED-SCHEMA" {:transform label :node-type (node-type-name node-id evaluation-context)} iae))))))
 
-(defn- schema-check-output-form [evaluation-context-sym description label node-id-sym label-sym output-sym forms]
+(defn- schema-check-result-form [description label node-id-sym label-sym evaluation-context-sym result-sym forms]
   (if *check-schemas*
     `(do
-       (schema-check-output ~evaluation-context-sym
-                            ~(deduce-output-type-form description label)
-                            ~output-sym
-                            ~label-sym
-                            ~node-id-sym)
+       (schema-check-result ~node-id-sym ~label-sym ~evaluation-context-sym ~(deduce-output-type-form description label) ~result-sym)
        ~forms)
     forms))
 
@@ -1391,30 +1376,30 @@
         node-id-sym 'node-id]
     `(fn [~node-sym ~label-sym ~evaluation-context-sym]
        (let [~node-id-sym (gt/node-id ~node-sym)]
-         ~(collect-property-value-form node-sym evaluation-context-sym node-id-sym description property)))))
+         ~(collect-property-value-form description property node-sym node-id-sym evaluation-context-sym)))))
 
 (defn- node-output-value-function-form
   [description label]
-  (let [tracer-output-type (if (desc-has-explicit-output? description label) :output :property)]
+  (let [tracer-label-type (if (desc-has-explicit-output? description label) :output :property)]
     (let [node-sym 'node
           label-sym 'label
           evaluation-context-sym 'evaluation-context
           node-id-sym 'node-id
           arguments-sym 'arguments
           schema-sym 'schema
-          output-sym 'output]
+          result-sym 'result]
       `(fn [~node-sym ~label-sym ~evaluation-context-sym]
          (let [~node-id-sym (gt/node-id ~node-sym)]
-           ~(check-jammed-form node-sym evaluation-context-sym node-id-sym label-sym description label
-              (apply-default-property-shortcut-form node-sym evaluation-context-sym node-id-sym label-sym description label
-                (mark-in-production-form evaluation-context-sym node-id-sym label-sym description
-                  (check-caches-form evaluation-context-sym node-id-sym label-sym description label
-                    (with-tracer-calls-form evaluation-context-sym node-id-sym label-sym tracer-output-type
-                      (gather-arguments-form arguments-sym schema-sym node-sym evaluation-context-sym node-id-sym description label
-                        (call-production-function-form evaluation-context-sym description label arguments-sym node-id-sym label-sym output-sym
-                          (schema-check-output-form evaluation-context-sym description label node-id-sym label-sym output-sym
-                            (cache-output-form evaluation-context-sym description label node-id-sym label-sym output-sym
-                              output-sym))))))))))))))
+           ~(check-jammed-form description label node-sym node-id-sym label-sym evaluation-context-sym
+              (apply-default-property-shortcut-form description label node-sym node-id-sym label-sym evaluation-context-sym
+                (mark-in-production-form node-id-sym label-sym evaluation-context-sym
+                  (check-caches-form description label node-id-sym label-sym evaluation-context-sym
+                    (with-tracer-calls-form node-id-sym label-sym evaluation-context-sym tracer-label-type
+                      (gather-arguments-form description label node-sym node-id-sym evaluation-context-sym arguments-sym schema-sym
+                        (call-production-function-form description label node-id-sym label-sym evaluation-context-sym arguments-sym result-sym
+                          (schema-check-result-form description label node-id-sym label-sym evaluation-context-sym result-sym
+                            (cache-result-form description label node-id-sym label-sym evaluation-context-sym result-sym
+                              result-sym))))))))))))))
   
 (defn- assemble-properties-map-form
   [node-id-sym value-sym display-order-sym]
@@ -1423,23 +1408,25 @@
     :node-id ~node-id-sym})
 
 (defn- property-dynamics
-  [node-sym evaluation-context-sym node-id-sym description property-name property-type value-form]
+  [description property-name node-sym node-id-sym evaluation-context-sym property-type]
   (apply merge
          (for [[dynamic-label {:keys [arguments] :as dynamic}] (get property-type :dynamics)]
            {dynamic-label
-            (with-tracer-calls-form evaluation-context-sym node-id-sym [property-name dynamic-label] :dynamic
-              (call-with-error-checked-fnky-arguments-form node-sym evaluation-context-sym node-id-sym dynamic-label description arguments
+            (with-tracer-calls-form node-id-sym [property-name dynamic-label] evaluation-context-sym :dynamic
+              ;; TODO passing dynamic-label here looks broken; what if dynamic-label == some output label?
+              (call-with-error-checked-fnky-arguments-form description dynamic-label node-sym node-id-sym evaluation-context-sym
+                                                           arguments
                                                            (check-dry-run-form evaluation-context-sym
                                                                                `(var ~(dollar-name (:name description) [:property property-name :dynamics dynamic-label]))
                                                                                `(constantly nil))))})))
 
 (defn- property-value-exprs
-  [node-sym evaluation-context-sym node-id-sym description prop-name prop-type]
+  [description property-label node-sym node-id-sym evaluation-context-sym prop-type]
   (let [basic-val `{:type ~(:value-type prop-type)
-                    :value ~(collect-base-property-value-form node-sym evaluation-context-sym node-id-sym description prop-name)
+                    :value ~(collect-base-property-value-form description property-label node-sym node-id-sym evaluation-context-sym)
                     :node-id ~node-id-sym}]
     (if (not (empty? (:dynamics prop-type)))
-      (let [dyn-exprs (property-dynamics node-sym evaluation-context-sym node-id-sym description prop-name prop-type basic-val)]
+      (let [dyn-exprs (property-dynamics description property-label node-sym node-id-sym evaluation-context-sym prop-type)]
         (merge basic-val dyn-exprs))
       basic-val)))
 
@@ -1457,7 +1444,7 @@
                ~display-order-sym (property-display-order (gt/node-type ~node-sym (:basis ~evaluation-context-sym)))
                ~value-map-sym ~(apply merge {}
                                       (for [[p _] (remove (comp intrinsic-properties key) props)]
-                                        {p (property-value-exprs node-sym evaluation-context-sym node-id-sym description p (get props p))}))]
+                                        {p (property-value-exprs description p node-sym node-id-sym evaluation-context-sym (get props p))}))]
            ~(check-dry-run-form evaluation-context-sym (assemble-properties-map-form node-id-sym value-map-sym display-order-sym)))))))
 
 (defn- node-input-value-function-form
