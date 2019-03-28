@@ -7,79 +7,96 @@
 <?import java.lang.*?>
 <?import javafx.scene.layout.*?>
 
-<BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="484.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
-   <top>
-      <ImageView fitHeight="150.0" fitWidth="200.0" pickOnBounds="true" preserveRatio="true" BorderPane.alignment="CENTER">
-         <image>
-            <Image url="@logo.png" />
-         </image>
-      </ImageView>
-   </top>
-   <padding>
-      <Insets bottom="32.0" left="32.0" right="32.0" top="32.0" />
-   </padding>
-   <center>
-      <GridPane BorderPane.alignment="CENTER">
-        <columnConstraints>
-          <ColumnConstraints halignment="CENTER" hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0" />
-        </columnConstraints>
-        <rowConstraints>
-          <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
-          <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
-          <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
-          <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
-          <RowConstraints minHeight="10.0" prefHeight="20.0" vgrow="NEVER" />
-          <RowConstraints minHeight="10.0" prefHeight="40.0" vgrow="NEVER" />
-          <RowConstraints minHeight="10.0" prefHeight="40.0" vgrow="NEVER" />
-          <RowConstraints minHeight="10.0" prefHeight="60.0" vgrow="NEVER" />
-          <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
-          <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
-        </rowConstraints>
-         <children>
-            <Label text="Defold Editor">
-               <font>
-                  <Font name="System Bold" size="13.0" />
-               </font>
+<BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="360.0" prefWidth="484.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+  <top>
+    <ImageView BorderPane.alignment="CENTER" fitHeight="240.0" fitWidth="380.0" pickOnBounds="true" preserveRatio="true">
+      <image>
+        <Image url="@logo_text.png"/>
+      </image>
+    </ImageView>
+  </top>
+  <padding>
+    <Insets bottom="32.0" left="32.0" right="32.0" top="32.0"/>
+  </padding>
+  <center>
+    <VBox AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" alignment="TOP_CENTER">
+      <children>
+        <GridPane>
+          <columnConstraints>
+            <ColumnConstraints halignment="RIGHT" hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0"/>
+            <ColumnConstraints halignment="LEFT" hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0"/>
+          </columnConstraints>
+          <rowConstraints>
+            <RowConstraints maxHeight="20.0" minHeight="10.0" prefHeight="20.0" vgrow="SOMETIMES"/>
+            <RowConstraints maxHeight="20.0" minHeight="10.0" prefHeight="20.0" vgrow="SOMETIMES"/>
+            <RowConstraints maxHeight="20.0" minHeight="10.0" prefHeight="20.0" vgrow="SOMETIMES"/>
+          </rowConstraints>
+          <children>
+            <Label text="Version:">
+              <padding>
+                <Insets right="4.0"/>
+              </padding>
             </Label>
-            <Label id="version" text="Version: 2.0.0" GridPane.rowIndex="1">
-               <font>
-                  <Font size="11.0" />
-               </font>
+            <Label GridPane.columnIndex="1" id="version" styleClass="about-value" text="2.0.0"/>
+            <Label GridPane.rowIndex="1" text="Channel:">
+              <padding>
+                <Insets right="4.0"/>
+              </padding>
             </Label>
-            <Label id="channel" text="Channel: n/a" GridPane.rowIndex="2">
-               <font>
-                  <Font size="11.0" />
-               </font>
+            <Label GridPane.columnIndex="1" GridPane.rowIndex="1" id="channel" styleClass="about-value" text="No Channel"/>
+            <Label GridPane.rowIndex="2" text="Build time:">
+              <padding>
+                <Insets right="4.0"/>
+              </padding>
             </Label>
-            <Label id="time" text="Built: n/a" GridPane.rowIndex="3">
-               <font>
-                  <Font size="11.0" />
-               </font>
+            <Label GridPane.columnIndex="1" GridPane.rowIndex="2" id="time" styleClass="about-value" text="No build time"/>
+          </children>
+        </GridPane>
+        <GridPane>
+          <columnConstraints>
+            <ColumnConstraints halignment="RIGHT" hgrow="NEVER" minWidth="10.0" prefWidth="80.0"/>
+            <ColumnConstraints halignment="LEFT" hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0"/>
+          </columnConstraints>
+          <rowConstraints>
+            <RowConstraints minHeight="10.0" prefHeight="36.0" vgrow="SOMETIMES"/>
+            <RowConstraints minHeight="10.0" prefHeight="36.0" vgrow="SOMETIMES"/>
+          </rowConstraints>
+          <children>
+            <Label text="Editor SHA1:">
+              <padding>
+                <Insets right="4.0"/>
+              </padding>
             </Label>
-            <TextField id="editor-sha1" alignment="center" editable="false" focusTraversable="false" styleClass="copyable-label" text="2b680b3ec7af8a84401ad584d8bc47a246f82947" GridPane.rowIndex="5">
-               <font>
-                  <Font size="11.0" />
-               </font>
+            <Label GridPane.rowIndex="1" text="Engine SHA1:">
+              <padding>
+                <Insets right="4.0"/>
+              </padding>
+            </Label>
+            <TextField GridPane.columnIndex="1" HBox.hgrow="ALWAYS" alignment="center" editable="false" focusTraversable="false" id="editor-sha1" maxWidth="Infinity" styleClass="copyable-label" text="2b680b3ec7af8a84401ad584d8bc47a246f82947">
+              <font>
+                <Font size="11.0"/>
+              </font>
             </TextField>
-            <TextField id="engine-sha1" alignment="center" editable="false" focusTraversable="false" styleClass="copyable-label" text="2b680b3ec7af8a84401ad584d8bc47a246f82947" GridPane.rowIndex="6">
-               <font>
-                  <Font size="11.0" />
-               </font>
+            <TextField GridPane.columnIndex="1" GridPane.rowIndex="1" HBox.hgrow="ALWAYS" alignment="center" editable="false" focusTraversable="false" id="engine-sha1" maxWidth="Infinity" styleClass="copyable-label" text="2b680b3ec7af8a84401ad584d8bc47a246f82947">
+              <font>
+                <Font size="11.0"/>
+              </font>
             </TextField>
-            <Label text="Copyright (c) 2009-2018" GridPane.rowIndex="8">
-               <font>
-                  <Font size="11.0" />
-               </font>
-            </Label>
-            <Label text="Midasplayer Technology AB" GridPane.rowIndex="9">
-               <font>
-                  <Font size="11.0" />
-               </font>
-            </Label>
-         </children>
-         <BorderPane.margin>
-            <Insets top="16.0" />
-         </BorderPane.margin>
-      </GridPane>
-   </center>
+          </children>
+          <VBox.margin>
+            <Insets top="20.0"/>
+          </VBox.margin>
+        </GridPane>
+        <Label alignment="CENTER" maxWidth="1.7976931348623157E308" text="Copyright © 2009-2019">
+          <VBox.margin>
+            <Insets top="20.0"/>
+          </VBox.margin>
+        </Label>
+        <Label alignment="CENTER" maxWidth="1.7976931348623157E308" text="Midasplayer Technology AB"/>
+      </children>
+      <padding>
+        <Insets top="10.0"/>
+      </padding>
+    </VBox>
+  </center>
 </BorderPane>
