@@ -153,6 +153,7 @@
   (show-console! main-scene tool-tab-pane))
 
 (defn debugger-state-changed! [main-scene tool-tab-pane attention?]
+  (ui/invalidate-menubar-item! ::debug-view/debug)
   (ui/user-data! main-scene ::ui/refresh-requested? true)
   (when attention?
     (show-debugger! main-scene tool-tab-pane)))
@@ -737,52 +738,48 @@
 If you do not specifically require different script states, consider changing the script.shared_state property in game.project.")
         false)))
 
+(defn- run-with-debugger! [workspace project prefs debug-view render-build-error! web-server]
+  (let [project-directory (io/file (workspace/project-path workspace))
+        evaluation-context (g/make-evaluation-context)]
+    (async-build! project evaluation-context prefs {:debug? true} (workspace/artifact-map workspace)
+                  (make-render-task-progress :build)
+                  (fn [build-results engine-descriptor build-engine-exception]
+                    (g/update-cache-from-evaluation-context! evaluation-context)
+                    (when (handle-build-results! workspace render-build-error! build-results)
+                      (when engine-descriptor
+                        (when-let [target (launch-built-project! engine-descriptor project-directory prefs web-server true)]
+                          (when (nil? (debug-view/current-session debug-view))
+                            (debug-view/start-debugger! debug-view project (:address target "localhost")))))
+                      (when build-engine-exception
+                        (log/warn :exception build-engine-exception)
+                        (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception)))))))
+
+(defn- attach-debugger! [workspace project prefs debug-view render-build-error!]
+  (let [evaluation-context (g/make-evaluation-context)]
+    (async-build! project evaluation-context prefs {:debug? true :engine? false} (workspace/artifact-map workspace)
+                  (make-render-task-progress :build)
+                  (fn [build-results _ _]
+                    (g/update-cache-from-evaluation-context! evaluation-context)
+                    (when (handle-build-results! workspace render-build-error! build-results)
+                      (let [target (targets/selected-target prefs)]
+                        (when (targets/controllable-target? target)
+                          (debug-view/attach! debug-view project target (:artifacts build-results)))))))))
+
 (handler/defhandler :start-debugger :global
-  (enabled? [debug-view prefs evaluation-context]
-            (and (not @build-in-progress?)
-                 (nil? (debug-view/current-session debug-view evaluation-context))
-                 (not (some-> prefs targets/selected-target targets/controllable-target?))))
+  ;; NOTE: Shares a shortcut with :debug-view/continue.
+  ;; Only one of them can be active at a time. This creates the impression that
+  ;; there is a single menu item whose label changes in various states.
+  (active? [debug-view evaluation-context]
+           (not (debug-view/debugging? debug-view evaluation-context)))
+  (enabled? [] (not @build-in-progress?))
   (run [project workspace prefs web-server build-errors-view console-view debug-view main-stage tool-tab-pane]
     (when (debugging-supported? project)
       (let [main-scene (.getScene ^Stage main-stage)
-            render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-            project-directory (io/file (workspace/project-path workspace))
-            evaluation-context (g/make-evaluation-context)]
+            render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
         (build-errors-view/clear-build-errors build-errors-view)
-        (async-build! project evaluation-context prefs {:debug? true} (workspace/artifact-map workspace)
-                      (make-render-task-progress :build)
-                      (fn [build-results engine-descriptor build-engine-exception]
-                        (g/update-cache-from-evaluation-context! evaluation-context)
-                        (when (handle-build-results! workspace render-build-error! build-results)
-                          (when engine-descriptor
-                            (when-let [target (launch-built-project! engine-descriptor project-directory prefs web-server true)]
-                              (when (nil? (debug-view/current-session debug-view))
-                                (debug-view/start-debugger! debug-view project (:address target "localhost")))))
-                          (when build-engine-exception
-                            (log/warn :exception build-engine-exception)
-                            (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception)))))))))
-
-(handler/defhandler :attach-debugger :global
-  (enabled? [debug-view prefs evaluation-context]
-            (and (not @build-in-progress?)
-                 (nil? (debug-view/current-session debug-view evaluation-context))
-                 (let [target (targets/selected-target prefs)]
-                   (and target (targets/controllable-target? target)))))
-  (run [project workspace prefs build-errors-view debug-view main-stage tool-tab-pane]
-    (debug-view/detach! debug-view)
-    (when (debugging-supported? project)
-      (let [main-scene (.getScene ^Stage main-stage)
-            render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-            evaluation-context (g/make-evaluation-context)]
-        (build-errors-view/clear-build-errors build-errors-view)
-        (async-build! project evaluation-context prefs {:debug? true :engine? false} (workspace/artifact-map workspace)
-                      (make-render-task-progress :build)
-                      (fn [build-results _ _]
-                        (g/update-cache-from-evaluation-context! evaluation-context)
-                        (when (handle-build-results! workspace render-build-error! build-results)
-                          (let [target (targets/selected-target prefs)]
-                            (when (targets/controllable-target? target)
-                              (debug-view/attach! debug-view project target (:artifacts build-results)))))))))))
+        (if (debug-view/can-attach? prefs)
+          (attach-debugger! workspace project prefs debug-view render-build-error!)
+          (run-with-debugger! workspace project prefs debug-view render-build-error! web-server))))))
 
 (handler/defhandler :rebuild :global
   (enabled? [] (not @build-in-progress?))

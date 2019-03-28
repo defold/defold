@@ -29,11 +29,10 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private attach-debugger-label "Attach Debugger")
 (def ^:private break-label "Break")
 (def ^:private continue-label "Continue")
 (def ^:private detach-debugger-label "Detach Debugger")
-(def ^:private start-debugger-label "Run with Debugger")
+(def ^:private start-debugger-label "Start / Attach")
 (def ^:private step-into-label "Step Into")
 (def ^:private step-out-label "Step Out")
 (def ^:private step-over-label "Step Over")
@@ -421,6 +420,14 @@
   (and (current-session debug-view evaluation-context)
        (some? (g/node-value debug-view :suspension-state evaluation-context))))
 
+(defn debugging? [debug-view evaluation-context]
+  (some? (current-session debug-view evaluation-context)))
+
+(defn can-attach? [prefs]
+  (if-some [target (targets/selected-target prefs)]
+    (targets/controllable-target? target)
+    false))
+
 (def ^:private debugger-init-script "/_defold/debugger/start.lua")
 
 (defn build-targets
@@ -468,6 +475,11 @@
   (run [debug-view] (mobdebug/suspend! (current-session debug-view))))
 
 (handler/defhandler :continue :global
+  ;; NOTE: Shares a shortcut with :app-view/start-debugger.
+  ;; Only one of them can be active at a time. This creates the impression that
+  ;; there is a single menu item whose label changes in various states.
+  (active? [debug-view evaluation-context]
+           (debugging? debug-view evaluation-context))
   (enabled? [debug-view evaluation-context]
             (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
   (run [debug-view] (mobdebug/run! (current-session debug-view)
@@ -513,8 +525,6 @@
                   :id ::debug
                   :children [{:label start-debugger-label
                               :command :start-debugger}
-                             {:label attach-debugger-label
-                              :command :attach-debugger}
                              {:label continue-label
                               :command :continue}
                              {:label break-label
