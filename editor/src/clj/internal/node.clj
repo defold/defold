@@ -1147,7 +1147,7 @@
          (or (argument-error-aggregate ~node-id-sym ~label arguments#)
              (~runtime-fnk-expr arguments#))))))
 
-(defn- collect-base-property-value-form
+(defn- collect-property-value-form
   [description property-label node-sym node-id-sym evaluation-context-sym]
   (let [property-definition (get-in description [:property property-label])
         default? (not (:value property-definition))]
@@ -1158,22 +1158,8 @@
         (call-with-error-checked-fnky-arguments-form description property-label node-sym node-id-sym evaluation-context-sym
                                                      (get-in property-definition [:value :arguments])
                                                      (check-dry-run-form evaluation-context-sym
-                                                                         `(var ~(symbol (dollar-name (:name description) [:property property-label :value])))
+                                                                         `(var ~(dollar-name (:name description) [:property property-label :value]))
                                                                          `(constantly nil)))))))
-(defn- collect-property-value-form
-  [description property-label node-sym node-id-sym evaluation-context-sym]
-  (let [property-definition (get-in description [:property property-label])
-        default? (not (:value property-definition))
-        get-expr (if default?
-                   (with-tracer-calls-form node-id-sym property-label evaluation-context-sym :raw-property
-                     (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~property-label)))
-                   (with-tracer-calls-form node-id-sym property-label evaluation-context-sym :property
-                     (call-with-error-checked-fnky-arguments-form description property-label node-sym node-id-sym evaluation-context-sym
-                                                                  (get-in property-definition [:value :arguments])
-                                                                  (check-dry-run-form evaluation-context-sym
-                                                                                      `(var ~(dollar-name (:name description) [:property property-label :value]))
-                                                                                      `(constantly nil)))))]
-    get-expr))
 
 (defn- fnk-argument-form
   [description output argument node-sym node-id-sym evaluation-context-sym]
@@ -1242,8 +1228,8 @@
 (defn- property-has-no-overriding-output? [description label] (not (desc-has-explicit-output? description label)))
 
 (defn- apply-default-property-shortcut-form [description label node-sym node-id-sym label-sym evaluation-context-sym forms]
-  (let [property? (and (desc-has-property? description label) (property-has-no-overriding-output? description label))
-        default?  (and (property-has-default-getter? description label)
+  (let [default?  (and #_(desc-has-property? description label) ; this is implied, we're evaluating an output and we check below it's not an explicit output
+                       (property-has-default-getter? description label)
                        (property-has-no-overriding-output? description label))]
     (if default?
       (with-tracer-calls-form node-id-sym label-sym evaluation-context-sym :raw-property
@@ -1416,7 +1402,7 @@
 (defn- property-value-exprs
   [description property-label node-sym node-id-sym evaluation-context-sym prop-type]
   (let [basic-val `{:type ~(:value-type prop-type)
-                    :value ~(collect-base-property-value-form description property-label node-sym node-id-sym evaluation-context-sym)
+                    :value ~(collect-property-value-form description property-label node-sym node-id-sym evaluation-context-sym)
                     :node-id ~node-id-sym}]
     (if (not (empty? (:dynamics prop-type)))
       (let [dyn-exprs (property-dynamics description property-label node-sym node-id-sym evaluation-context-sym prop-type)]
