@@ -34,6 +34,10 @@ namespace dmGui
     #define LIB_NAME "gui"
     #define NODE_PROXY_TYPE_NAME "NodeProxy"
 
+    static uint32_t GUI_SCRIPT_TYPE_HASH = 0;
+    static uint32_t GUI_SCRIPT_INSTANCE_TYPE_HASH = 0;
+    static uint32_t NODE_PROXY_TYPE_HASH = 0;
+
     static int GuiScriptGetURL(lua_State* L)
     {
         dmMessage::URL url;
@@ -74,10 +78,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
         dmScript::GetInstance(L);
-        Scene* scene = 0x0;
-        if (dmScript::IsUserType(L, -1, GUI_SCRIPT_INSTANCE)) {
-            scene = (Scene*)lua_touserdata(L, -1);
-        }
+        Scene* scene = (Scene*)dmScript::ToUserType(L, -1, GUI_SCRIPT_INSTANCE_TYPE_HASH);
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
         return scene;
@@ -85,7 +86,7 @@ namespace dmGui
 
     static Scene* GuiScriptInstance_Check(lua_State *L, int index)
     {
-        return (Scene*)dmScript::CheckUserType(L, index, GUI_SCRIPT_INSTANCE, "You can only access gui.* functions and values from a gui script instance (.gui_script file)");
+        return (Scene*)dmScript::CheckUserType(L, index, GUI_SCRIPT_INSTANCE_TYPE_HASH, "You can only access gui.* functions and values from a gui script instance (.gui_script file)");
     }
 
     static Scene* GuiScriptInstance_Check(lua_State *L)
@@ -96,15 +97,6 @@ namespace dmGui
         return scene;
     }
 
-    static int GuiScriptInstance_gc (lua_State *L)
-    {
-        Scene* i = GuiScriptInstance_Check(L, 1);
-        memset(i, 0, sizeof(*i));
-        (void) i;
-        assert(i);
-        return 0;
-    }
-
     static int GuiScriptInstance_tostring (lua_State *L)
     {
         lua_pushfstring(L, "GuiScript: %p", lua_touserdata(L, 1));
@@ -113,7 +105,7 @@ namespace dmGui
 
     static int GuiScriptInstance_index(lua_State *L)
     {
-        Scene* i = GuiScriptInstance_Check(L, 1);
+        Scene* i = (Scene*)lua_touserdata(L, 1);
         assert(i);
 
         // Try to find value in instance data
@@ -127,7 +119,7 @@ namespace dmGui
     {
         int top = lua_gettop(L);
 
-        Scene* i = GuiScriptInstance_Check(L, 1);
+        Scene* i = (Scene*)lua_touserdata(L, 1);
         assert(i);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_DataReference);
@@ -184,7 +176,6 @@ namespace dmGui
 
     static const luaL_reg GuiScriptInstance_meta[] =
     {
-        {"__gc",                                        GuiScriptInstance_gc},
         {"__tostring",                                  GuiScriptInstance_tostring},
         {"__index",                                     GuiScriptInstance_index},
         {"__newindex",                                  GuiScriptInstance_newindex},
@@ -197,12 +188,12 @@ namespace dmGui
 
     static NodeProxy* NodeProxy_Check(lua_State *L, int index)
     {
-        return (NodeProxy*)dmScript::CheckUserType(L, index, NODE_PROXY_TYPE_NAME, NULL);
+        return (NodeProxy*)dmScript::CheckUserType(L, index, NODE_PROXY_TYPE_HASH, 0);
     }
 
     static bool LuaIsNode(lua_State *L, int index)
     {
-        return dmScript::IsUserType(L, index, NODE_PROXY_TYPE_NAME);
+        return dmScript::GetUserType(L, index) == NODE_PROXY_TYPE_HASH;
     }
 
     static bool IsValidNode(HScene scene, HNode node)
@@ -238,11 +229,6 @@ namespace dmGui
         }
 
         return 0; // Never reached
-    }
-
-    static int NodeProxy_gc (lua_State *L)
-    {
-        return 0;
     }
 
     static int NodeProxy_tostring (lua_State *L)
@@ -313,20 +299,14 @@ namespace dmGui
 
     static int NodeProxy_eq(lua_State *L)
     {
-        if (!LuaIsNode(L, 1))
+        NodeProxy* np1 = (NodeProxy*)dmScript::ToUserType(L, 1, NODE_PROXY_TYPE_HASH);
+        NodeProxy* np2 = (NodeProxy*)dmScript::ToUserType(L, 2, NODE_PROXY_TYPE_HASH);
+        if (np1 == 0 || np2 == 0)
         {
             lua_pushboolean(L, 0);
             return 1;
         }
 
-        if (!LuaIsNode(L, 2))
-        {
-            lua_pushboolean(L, 0);
-            return 1;
-        }
-
-        NodeProxy* np1 = NodeProxy_Check(L, 1);
-        NodeProxy* np2 = NodeProxy_Check(L, 2);
         if (np1->m_Scene != np2->m_Scene)
         {
             lua_pushboolean(L, 0);
@@ -350,7 +330,6 @@ namespace dmGui
 
     static const luaL_reg NodeProxy_meta[] =
     {
-        {"__gc",       NodeProxy_gc},
         {"__tostring", NodeProxy_tostring},
         {"__index",    NodeProxy_index},
         {"__newindex", NodeProxy_newindex},
@@ -4704,11 +4683,11 @@ namespace dmGui
         int top = lua_gettop(L);
         (void)top;
 
-        dmScript::RegisterUserType(L, GUI_SCRIPT, GuiScript_methods, GuiScript_meta);
+        GUI_SCRIPT_TYPE_HASH = dmScript::RegisterUserType(L, GUI_SCRIPT, GuiScript_methods, GuiScript_meta);
 
-        dmScript::RegisterUserType(L, GUI_SCRIPT_INSTANCE, GuiScriptInstance_methods, GuiScriptInstance_meta);
+        GUI_SCRIPT_INSTANCE_TYPE_HASH = dmScript::RegisterUserType(L, GUI_SCRIPT_INSTANCE, GuiScriptInstance_methods, GuiScriptInstance_meta);
 
-        dmScript::RegisterUserType(L, NODE_PROXY_TYPE_NAME, NodeProxy_methods, NodeProxy_meta);
+        NODE_PROXY_TYPE_HASH = dmScript::RegisterUserType(L, NODE_PROXY_TYPE_NAME, NodeProxy_methods, NodeProxy_meta);
 
         luaL_register(L, LIB_NAME, Gui_methods);
 

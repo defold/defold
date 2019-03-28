@@ -22,7 +22,8 @@ extern "C"
 #include <lua/lualib.h>
 }
 
-#define PHYSICS_CONTEXT_NAME "__PhysicsContext"
+static const char PHYSICS_CONTEXT_NAME[] = "__PhysicsContext";
+static uint32_t PHYSICS_CONTEXT_HASH = 0;
 
 namespace dmGameSystem
 {
@@ -207,7 +208,7 @@ namespace dmGameSystem
             return luaL_error(L, "could not find a requesting instance for physics.raycast_async");
         }
 
-        lua_getglobal(L, PHYSICS_CONTEXT_NAME);
+        dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
         PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
         lua_pop(L, 1);
 
@@ -291,7 +292,7 @@ namespace dmGameSystem
             return luaL_error(L, "could not find a requesting instance for physics.raycast");
         }
 
-        lua_getglobal(L, PHYSICS_CONTEXT_NAME);
+        dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
         PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
         lua_pop(L, 1);
 
@@ -385,7 +386,7 @@ namespace dmGameSystem
         if (result)
         {
             lua_pushlightuserdata(L, physics_context);
-            lua_setglobal(L, PHYSICS_CONTEXT_NAME);
+            PHYSICS_CONTEXT_HASH = dmScript::SetGlobal(L, PHYSICS_CONTEXT_NAME);
         }
         else
         {
@@ -401,7 +402,7 @@ namespace dmGameSystem
             int top = lua_gettop(L);
             (void)top;
 
-            lua_getglobal(L, PHYSICS_CONTEXT_NAME);
+            dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
             PhysicsScriptContext* physics_context = (PhysicsScriptContext*)lua_touserdata(L, -1);
             lua_pop(L, 1);
             if (physics_context != 0x0)
@@ -414,5 +415,3 @@ namespace dmGameSystem
     }
 
 }
-
-#undef PHYSICS_CONTEXT_NAME
