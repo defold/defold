@@ -1,6 +1,6 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
 #include "dlib/math.h"
+#include "testutil.h"
 
 TEST(dmMath, ConstantsDefined)
 {

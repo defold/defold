@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
-#include <dlib/configfile.h>
-#include <dlib/log.h>
-#include <gtest/gtest.h>
+#include "dlib/log.h"
 #include "dlib/configfile.h"
 #include "testutil.h"
 

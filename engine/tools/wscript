@@ -35,11 +35,11 @@ def configure(conf):
     elif platform == "armv7-darwin":
         pass
     elif platform == "linux" or platform == "x86_64-linux":
-        conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
+        conf.env['LIB_PLATFORM_ENGINE'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif "win32" in platform:
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib'])
+        conf.env['LIB_PLATFORM_ENGINE'] = ['OpenGL32', 'User32', 'shell32', 'Xinput9_1_0']
     elif re.match('arm.*?android', platform):
-        conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
+        conf.env['LIB_PLATFORM_ENGINE'] = ['EGL', 'GLESv1_CM', 'GLESv2', 'android']
 
     conf.env.append_value('CPPPATH', "default/src")
     conf.env['LIB_GTEST'] = 'gtest'

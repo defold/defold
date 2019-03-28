@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string>
 #include <map>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/array.h"
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
@@ -12,6 +12,7 @@
 #include "../dlib/time.h"
 #include "../dlib/path.h"
 #include "../dlib/sys.h"
+#include "../dlib/windefines.h"
 
 TEST(dmLog, Init)
 {
@@ -37,6 +38,7 @@ static void LogThread(void* arg)
     delete[] s;
 }
 
+#if !defined(DM_NO_PYTHON)
 TEST(dmLog, Client)
 {
     char buf[256];
@@ -46,7 +48,7 @@ TEST(dmLog, Client)
     ASSERT_GT(port, 0);
     DM_SNPRINTF(buf, sizeof(buf), "python src/test/test_log.py %d", port);
 #ifdef _WIN32
-    FILE* f = _popen(buf, "rb");
+    FILE* f = popen(buf, "rb");
 #else
     FILE* f = popen(buf, "r");
 #endif
@@ -66,14 +68,11 @@ TEST(dmLog, Client)
             printf("%c", buf[i]);
     } while (n > 0);
 
-#ifdef _WIN32
-    _pclose(f);
-#else
     pclose(f);
-#endif
     dmThread::Join(log_thread);
     dmLogFinalize();
 }
+#endif
 
 TEST(dmLog, LogFile)
 {

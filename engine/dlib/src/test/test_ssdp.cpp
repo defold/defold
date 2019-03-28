@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string>
 #include <map>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/ssdp.h"
 #include "../dlib/time.h"
 #include "../dlib/log.h"
@@ -10,6 +10,7 @@
 #include "../dlib/hash.h"
 #include "../dlib/socket.h"
 
+#ifndef _WIN32
 static const char* DEVICE_DESC_STATIC =
     "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
     "<root xmlns=\"urn:schemas-upnp-org:device-1-0\" xmlns:defold=\"urn:schemas-defold-com:DEFOLD-1-0\">\n"
@@ -25,6 +26,7 @@ static const char* DEVICE_DESC_STATIC =
     "        <UDN>uuid:0509f95d-3d4f-339c-8c4d-f7c6da6771c8</UDN>\n"
     "    </device>\n"
     "</root>\n";
+#endif
 
 static const char* DEVICE_DESC =
     "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"

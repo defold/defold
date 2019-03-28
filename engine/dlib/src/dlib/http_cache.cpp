@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include "windefines.h"
 #include "dstrings.h"
 #include "http_cache.h"
 #include "log.h"

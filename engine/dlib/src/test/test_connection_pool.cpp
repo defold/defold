@@ -1,8 +1,6 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
 #include <vector>
 #include <set>
-#include <dlib/configfile.h>
 #include <dlib/connection_pool.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
@@ -216,6 +214,7 @@ TEST_F(dmConnectionPoolTest, KeepAliveTimeout)
 
 #endif
 
+#if !defined(DM_NO_IPV6)
 TEST_F(dmConnectionPoolTest, ConnectFailed)
 {
     dmConnectionPool::HConnection c;
@@ -223,6 +222,7 @@ TEST_F(dmConnectionPoolTest, ConnectFailed)
     dmConnectionPool::Result r = dmConnectionPool::Dial(pool, "localhost", 1111, false, 0, &c, &sr);
     ASSERT_EQ(dmConnectionPool::RESULT_SOCKET_ERROR, r);
 }
+#endif
 
 static void Usage()
 {

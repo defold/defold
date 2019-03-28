@@ -1,5 +1,4 @@
-#include <gtest/gtest.h>
-
+#include "testutil.h"
 #include "../dlib/log.h"
 #include "../dlib/hash.h"
 #include "../dlib/buffer.h"

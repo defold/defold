@@ -175,6 +175,24 @@ def dmsdk_add_files(bld, target, source):
     apidoc_extract_task(bld, doc_files)
 
 
+# Since we're using an old waf version, we remove unused arguments
+def remove_flag(arr, flag, nargs):
+    if not flag in arr:
+        return
+    index = arr.index(flag)
+    if index >= 0:
+        del arr[index]
+        for i in range(nargs):
+            del arr[index]
+
+
+def exec_with_output(bld, cmd, env=None):
+    process = subprocess.Popen(cmd, env = env, shell=True, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    output = process.communicate()[0]
+    if process.returncode != 0:
+        bld.fatal("CMD failed: %s\n%s" % (cmd,output) )
+    return output
+
 @feature('cc', 'cxx')
 # We must apply this before the objc_hook below
 # Otherwise will .mm-files not be compiled with -arch armv7 etc.
@@ -183,6 +201,8 @@ def dmsdk_add_files(bld, target, source):
 def default_flags(self):
     global MIN_IOS_SDK_VERSION
     build_util = create_build_utility(self.env)
+
+    cross_use_cl = 'win32' in self.env['BUILD_PLATFORM'] # or with-clang
 
     opt_level = Options.options.opt_level
     if opt_level == "2" and 'web' == build_util.get_target_os():
@@ -194,7 +214,7 @@ def default_flags(self):
     if Options.options.with_asan and opt_level != '0':
         opt_level = 1
 
-    FLAG_ST = '/%s' if 'win' == build_util.get_target_os() else '-%s'
+    FLAG_ST = '/%s' if ('win' == build_util.get_target_os() and 'win32' in self.env['BUILD_PLATFORM']) else '-%s'
 
     # Common for all platforms
     flags = []
@@ -313,13 +333,54 @@ def default_flags(self):
             self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
         self.env.append_value('LINKFLAGS', ['-g'])
     else: # *-win32
-        for f in ['CCFLAGS', 'CXXFLAGS']:
-            # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
-            # 0x0600 = _WIN32_WINNT_VISTA
-            self.env.append_value(f, ['/Oy-', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/DWINVER=0x0600', '/D_WIN32_WINNT=0x0600', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
-        self.env.append_value('LINKFLAGS', '/DEBUG')
-        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB'])
-        self.env.append_unique('ARFLAGS', '/WX')
+
+        # 0x0600 = _WIN32_WINNT_VISTA
+        for f in ['CCDEFINES', 'CXXDEFINES']:
+            self.env.append_value(f, ['LUA_BYTECODE_ENABLE','DDF_EXPOSE_DESCRIPTORS','GOOGLE_PROTOBUF_NO_RTTI','_CRT_SECURE_NO_WARNINGS','_SCL_SECURE_NO_WARNINGS','_WINSOCK_DEPRECATED_NO_WARNINGS','__STDC_LIMIT_MACROS','WINVER=0x0600','_WIN32_WINNT=0x0600','_MT','WIN32','GTEST_HAS_EXCEPTIONS=0'])
+
+        if cross_use_cl:
+            for f in ['CCFLAGS', 'CXXFLAGS']:
+                # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
+                self.env.append_value(f, ['/Oy-', '/Z7', '/MT', '/wd4996', '/wd4200'])
+            self.env.append_value('LINKFLAGS', '/DEBUG')
+            self.env.append_unique('ARFLAGS', '/WX')
+        else:
+            sdk_ext_path = build_util.get_dynamo_ext('SDKs','Win32')
+            sdk_includes = ['%s/MicrosoftVisualStudio14.0/VC/include'%sdk_ext_path, '%s/MicrosoftVisualStudio14.0/VC/atlmfc/include'%sdk_ext_path, '%s/WindowsKits/10/Include/10.0.10240.0/ucrt'%sdk_ext_path, '%s/WindowsKits/8.1/Include/winrt'%sdk_ext_path, '%s/WindowsKits/8.1/Include/um'%sdk_ext_path, '%s/WindowsKits/8.1/Include/shared'%sdk_ext_path]
+            # possibly a bit too specific, but anyways, this is llvm from homebrew
+            llvm_path = '/usr/local/opt/llvm'
+            llvm_includes = ['%s/include'%llvm_path, '%s/include/c++/v1/'%llvm_path]
+
+            # Ask clang for its default includes
+            clang_includes = exec_with_output(self, '%s -Wp,-v -x c++ - -fsyntax-only < /dev/null 2>&1 | grep -e /clang' % self.env.CXX[0])
+            clang_includes = [x.strip() for x in clang_includes.strip().split()]
+
+            for f in ['CCFLAGS', 'CXXFLAGS']:
+                self.env.append_value(f, ['-msse4.2', '-fno-rtti', '-fno-exceptions', '-fms-compatibility','-fdelayed-template-parsing','-fms-extensions','-Wno-nonportable-include-path', '-Wno-ignored-attributes', '-target', 'x86_64-pc-win32-msvc', '-m64', '-g', '-gcodeview', '-Wall', '-Werror=format', '-fvisibility=hidden','-Wno-expansion-to-defined', '-Wno-c++11-narrowing'])
+                self.env.append_value(f, ['-flto', '-mthread-model', 'posix'])
+
+                for i in clang_includes + sdk_includes + llvm_includes:
+                    self.env.append_value(f, ['-isystem', '%s'%i])
+
+            self.env.append_value('LINKFLAGS', ['-defaultlib:libcmt', '-fuse-ld=lld', '-target', 'x86_64-pc-win32-msvc', '-m64', '-g'])
+            self.env.append_value('shlib_LINKFLAGS', ['-shared'])
+
+            remove_flag(self.env.shlib_CCFLAGS, '-fPIC', 0)
+            remove_flag(self.env.shlib_CXXFLAGS, '-fPIC', 0)
+            remove_flag(self.env.shlib_LINKFLAGS, '-dynamiclib', 0)
+            remove_flag(self.env.LINKFLAGS, '-dynamiclib', 0)
+            self.env.shlib_PATTERN = '%s.dll'
+            self.env.staticlib_PATTERN = '%s.lib'
+            self.env.program_PATTERN = '%s.exe'
+
+            # Setting these avoids some warnings during the linker stage
+            os.environ['VS140COMNTOOLS'] = sdk_ext_path+'MicrosoftVisualStudio14.0/Common7/Tools'
+            os.environ['VCINSTALLDIR'] = sdk_ext_path+'MicrosoftVisualStudio14.0/VC'
+            os.environ['VSINSTALLDIR'] = sdk_ext_path+'MicrosoftVisualStudio14.0/'
+            os.environ['WindowsLibPath'] = sdk_ext_path+'WindowsKits/8.1/References/CommonConfiguration/Neutral'
+            os.environ['WindowsSdkDir'] = sdk_ext_path+'WindowsKits/8.1'
+            os.environ['WindowsSDKLibVersion'] = 'winv6.3/'
+            os.environ['WindowsSDKVersion'] = 'winv6.3/'
 
     libpath = build_util.get_library_path()
 
@@ -335,6 +396,10 @@ def default_flags(self):
     self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include', build_util.get_target_platform()))
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
 
+    if not cross_use_cl and 'win' == build_util.get_target_os():
+        sdk_ext_path = build_util.get_dynamo_ext('SDKs','Win32')
+        self.env.append_value('LIBPATH', ['%s/MicrosoftVisualStudio14.0/VC/lib/amd64' % sdk_ext_path, '%s/MicrosoftVisualStudio14.0/VC/atlmfc/lib/amd64' % sdk_ext_path, '%s/WindowsKits/10/Lib/10.0.10240.0/ucrt/x64' % sdk_ext_path, '%s/WindowsKits/8.1/Lib/winv6.3/um/x64' % sdk_ext_path, '%s/lib'%llvm_path])
+
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
 @after('apply_obj_vars')
 def android_link_flags(self):
@@ -347,6 +412,13 @@ def android_link_flags(self):
             # NOTE: This is a hack We change cprogram -> cshlib
             # but it's probably to late. It works for the name though (libX.so and not X)
             self.link_task.env.append_value('LINKFLAGS', ['-shared'])
+
+@feature('cshlib')
+@after('apply_obj_vars')
+def win32_shared_lib(self):
+    # For some reason, the shlib_LINKFLAGS didn't stick to the dll
+    if 'win32' not in self.env.BUILD_PLATFORM and 'win32' in self.env.PLATFORM:
+        self.link_task.env.append_value('LINKFLAGS', ['-shared'])
 
 @feature('skip_asan')
 @before('apply_core')
@@ -1162,6 +1234,15 @@ def run_gtests(valgrind = False, configfile = None):
     if not getattr(Options.options, 'with_valgrind', False):
         valgrind = False
 
+    Build.bld.env.HAS_PYTHON = True
+    wine = False
+    if 'win32' in Build.bld.env.PLATFORM and 'win32' not in Build.bld.env.BUILD_PLATFORM:
+        Build.bld.env.HAS_PYTHON = False
+        wine = True
+        valgrind = False
+        os.environ['DMSOCKET_INET_FAMILY'] = 'AF_INET' # Wine doesn't support IPV6 but reports the interfaces, which fails the tests
+        os.environ['WINEDBG'] = 'fixme-all,fixme+winsock' # toggle abundant messages
+
     if 'web' in Build.bld.env.PLATFORM and not Build.bld.env['NODEJS']:
         Logs.info('Not running tests. node.js not found')
         return
@@ -1175,6 +1256,8 @@ def run_gtests(valgrind = False, configfile = None):
             if valgrind:
                 dynamo_home = os.getenv('DYNAMO_HOME')
                 cmd = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, cmd)
+            elif wine:
+                cmd = "wine %s" % cmd
             proc = subprocess.Popen(cmd, shell = True)
             ret = proc.wait()
             if ret != 0:
@@ -1420,28 +1503,49 @@ def detect(conf):
     conf.env['DYNAMO_HOME'] = dynamo_home
 
     if 'win32' in platform:
-        target_map = {'win32': 'x86',
-                      'x86_64-win32': 'x64'}
-        platform_map = {'win32': 'x86',
-                        'x86_64-win32': 'amd64'}
 
-        desired_version = 'msvc 14.0'
+        cross_use_cl = "win32" in build_platform # or with-clang
+        if cross_use_cl:
+            target_map = {'win32': 'x86',
+                          'x86_64-win32': 'x64'}
+            platform_map = {'win32': 'x86',
+                            'x86_64-win32': 'amd64'}
 
-        versions = find_installed_msvc_versions(conf)
-        conf.env['MSVC_INSTALLED_VERSIONS'] = versions
-        conf.env['MSVC_TARGETS'] = target_map[platform]
-        conf.env['MSVC_VERSIONS'] = [desired_version]
+            desired_version = 'msvc 14.0'
 
-        search_path = None
-        for (msvc_version, targets) in conf.env['MSVC_INSTALLED_VERSIONS']:
-            if msvc_version == desired_version:
-                for (target, (target_platform, paths)) in targets:
-                    if target == target_map[platform] and target_platform == platform_map[platform]:
-                        search_path = paths[0]
-        if search_path == None:
-            conf.fatal("Unable to determine search path for platform: %s" % platform)
+            versions = find_installed_msvc_versions(conf)
+            conf.env['MSVC_INSTALLED_VERSIONS'] = versions
+            conf.env['MSVC_TARGETS'] = target_map[platform]
+            conf.env['MSVC_VERSIONS'] = [desired_version]
 
-        conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = search_path)
+            search_path = None
+            for (msvc_version, targets) in conf.env['MSVC_INSTALLED_VERSIONS']:
+                if msvc_version == desired_version:
+                    for (target, (target_platform, paths)) in targets:
+                        if target == target_map[platform] and target_platform == platform_map[platform]:
+                            search_path = paths[0]
+            if search_path == None:
+                conf.fatal("Unable to determine search path for platform: %s" % platform)
+
+            conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = search_path)
+        else:
+            if 'darwin' in build_platform:
+                path = "/usr/local/opt/llvm/bin"
+            else:
+                path = '/usr/bin'
+
+                conf.find_program('windres', var='WINRC', mandatory = True)
+                conf.check_tool('winres')
+
+            os.environ['CC'] = '%s/clang' % path
+            os.environ['CXX'] = '%s/clang++' % path
+            conf.env['CC']      = '%s/clang' % path
+            conf.env['CXX']     = '%s/clang++' % path
+            conf.env['LINK_CXX']= '%s/clang++' % path
+            conf.env['CPP']     = '%s/clang -E' % path
+            conf.env['AR']      = '%s/llvm-ar' % path
+            conf.env['RANLIB']  = '%s/llvm-ranlib' % path
+            #conf.env['LD']      = '%s/ld' % path # needed?
 
     if  build_util.get_target_os() in ('osx', 'ios'):
         conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True) # or possibly llvm-dsymutil
@@ -1509,16 +1613,6 @@ def detect(conf):
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
 
-    # Since we're using an old waf version, we remove unused arguments
-    def remove_flag(arr, flag, nargs):
-        if not flag in arr:
-            return
-        index = arr.index(flag)
-        if index >= 0:
-            del arr[index]
-            for i in range(nargs):
-                del arr[index]
-
     remove_flag(conf.env['shlib_CCFLAGS'], '-compatibility_version', 1)
     remove_flag(conf.env['shlib_CCFLAGS'], '-current_version', 1)
     remove_flag(conf.env['shlib_CXXFLAGS'], '-compatibility_version', 1)
@@ -1579,17 +1673,33 @@ def detect(conf):
     conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % build_util.get_target_platform(), conf.env)
 
     if re.match('.*?linux', platform):
-        conf.env['LIB_PLATFORM_SOCKET'] = ''
         conf.env['LIB_DL'] = 'dl'
         conf.env['LIB_UUID'] = 'uuid'
-    elif 'darwin' in platform:
+
+    if 'win32' in platform:
+        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 IPHlpApi'.split()
+        conf.env['LIB_PLATFORM_SYS'] = 'shell32 User32'.split()
+        conf.env['LIB_PLATFORM_GRAPHICS'] = 'OpenGL32'.split()
+        conf.env['LIB_PLATFORM_INPUT'] = 'Xinput9_1_0'.split()
+        conf.env['LIB_PSAPI'] = 'Psapi'
+    elif 'linux' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
+        conf.env['LIB_PLATFORM_SYS'] = ''
+        conf.env['LIB_PLATFORM_GRAPHICS'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
+        conf.env['LIB_PLATFORM_INPUT'] = ''
     elif 'android' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
-    elif platform == 'win32':
-        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 Iphlpapi'.split()
+        conf.env['LIB_PLATFORM_SYS'] = ''
+        conf.env['LIB_PLATFORM_GRAPHICS'] = ['EGL', 'GLESv1_CM', 'GLESv2', 'android']
+        conf.env['LIB_PLATFORM_INPUT'] = ''
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
+        conf.env['LIB_PLATFORM_SYS'] = ''
+        conf.env['LIB_PLATFORM_GRAPHICS'] = ''
+        conf.env['LIB_PLATFORM_INPUT'] = ''
+
+    if platform in ('darwin', 'x86_64-darwin'):
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
 
     use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
     if build_util.get_target_os() == 'web':

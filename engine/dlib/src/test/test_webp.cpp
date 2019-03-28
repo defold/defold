@@ -1,6 +1,6 @@
 
 #include <stdint.h>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/webp.h"
 
 /*

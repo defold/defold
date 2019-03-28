@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "windefines.h"
 #include "static_assert.h"
 #include "json.h"
 #include "math.h"

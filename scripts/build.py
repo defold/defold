@@ -439,6 +439,8 @@ class Configuration(object):
         self.install_sdk()
 
     def install_sdk(self):
+        target_platform = self.target_platform
+        print("Installing SDK for %s" % target_platform)
         def download_sdk(url, targetfolder):
             if not os.path.exists(targetfolder):
                 if not os.path.exists(os.path.dirname(targetfolder)):
@@ -448,7 +450,6 @@ class Configuration(object):
 
         sdkfolder = join(self.ext, 'SDKs')
 
-        target_platform = self.target_platform
         if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin'):
             # macOS SDK
             download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
@@ -765,7 +766,7 @@ class Configuration(object):
 
     def _get_build_flags(self):
         supported_tests = {}
-        supported_tests['darwin'] = ['darwin', 'x86_64-darwin']
+        supported_tests['darwin'] = ['darwin', 'x86_64-darwin', 'win32', 'x86_64-win32']
         supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32']
 
         supports_tests = self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform

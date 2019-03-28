@@ -2,7 +2,7 @@
 #include <vector>
 #include <map>
 #include <string>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "dlib/dstrings.h"
 #include "dlib/hash.h"
 #include "dlib/profile.h"

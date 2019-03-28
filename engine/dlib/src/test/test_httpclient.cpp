@@ -2,8 +2,6 @@
 #include <stdlib.h>
 #include <map>
 #include <string>
-#include <gtest/gtest.h>
-#include "dlib/configfile.h"
 #include "dlib/dstrings.h"
 #include "dlib/time.h"
 #include "dlib/log.h"
@@ -1008,6 +1006,7 @@ TEST(dmHttpClient, HostNotFound)
     ASSERT_EQ((void*) 0, client);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(dmHttpClient, ConnectionRefused)
 {
     dmHttpClient::NewParams params;
@@ -1018,6 +1017,7 @@ TEST(dmHttpClient, ConnectionRefused)
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, dmHttpClient::GetLastSocketResult(client));
     dmHttpClient::Delete(client);
 }
+#endif
 
 static void Usage()
 {

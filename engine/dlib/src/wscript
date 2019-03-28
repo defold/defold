@@ -3,12 +3,14 @@
 import os, re, sys
 from TaskGen import feature, after
 from waf_dynamo import dmsdk_add_files
+import Options
 
 def set_options(opt):
     pass
 
 def build(bld):
-    bld.add_subdirs('test')
+    if not Options.options.skip_build_tests:
+        bld.add_subdirs('test')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
@@ -66,6 +68,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/zlib.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/lz4.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/webp.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/windefines.h')
 
     bld.install_files('${PREFIX}/include/axtls/config', 'axtls/config/config.h')
     bld.install_files('${PREFIX}/include/axtls/crypto', 'axtls/crypto/bigint.h')
@@ -165,7 +168,7 @@ def build(bld):
                             defines= ['VALGRIND'] + extra_defines)
     axtls_noasan.find_sources_in_dirs(axtls_dirs)
 
-    if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or 'web' in bld.env.PLATFORM):
+    if not 'darwin' in bld.env.PLATFORM:
         # NOTE: This is a hack required when cross compiling on darwin to linux platform(s)
         # Objective-c files are collected as we don't have a proper platform
         # We patch CC, CXX, etc
@@ -186,10 +189,10 @@ def build(bld):
                                 uselib_local = 'axtls_noasan',
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
-                                uselib = 'UUID PLATFORM_SOCKET')
+                                uselib = 'UUID PLATFORM_SOCKET PLATFORM_SYS')
         dlib.find_sources_in_dirs(source_dirs)
         dlib.source.extend(webp_source_no_neon)
-        if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or 'web' in bld.env.PLATFORM):
+        if not 'darwin' in bld.env.PLATFORM:
             # NOTE: See comment above
             dlib.source = [x for x in dlib.source if not x.endswith('.mm')]
 

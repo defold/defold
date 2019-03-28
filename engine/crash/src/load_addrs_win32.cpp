@@ -4,8 +4,8 @@
 #include <windows.h>
 #include <psapi.h>
 
-#if PSAPI_VERSION=1
-#pragma comment(lib, "psapi.lib")
+#if defined(PSAPI_VERSION)
+#pragma comment(lib, "Psapi.lib")
 #endif
 
 namespace dmCrash

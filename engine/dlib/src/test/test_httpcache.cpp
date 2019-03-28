@@ -1,11 +1,13 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/http_cache.h"
 #include "../dlib/sys.h"
 #include "../dlib/time.h"
 #include "../dlib/hash.h"
 #include "../dlib/dstrings.h"
+
+#if !defined(DM_NO_PYTHON)
 
 class dmHttpCacheTest : public ::testing::Test
 {
@@ -668,6 +670,8 @@ TEST_F(dmHttpCacheTest, Persist)
     ASSERT_EQ(0U, dmHttpCache::GetEntryCount(cache));
     dmHttpCache::Close(cache);
 }
+
+#endif
 
 int main(int argc, char **argv)
 {

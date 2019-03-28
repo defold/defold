@@ -11,7 +11,6 @@ namespace dmSocket
     void GetIfAddresses(IfAddr* addresses, uint32_t addresses_count, uint32_t* count)
     {
         *count = 0;
-        unsigned int i = 0;
         ULONG flags = GAA_FLAG_INCLUDE_PREFIX;
         ULONG family = AF_INET;
         char buffer[0x8000];

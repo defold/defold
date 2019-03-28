@@ -10,6 +10,7 @@
 #include "condition_variable.h"
 #include "dstrings.h"
 #include <dlib/static_assert.h>
+#include <dlib/windefines.h>
 #include <dlib/spinlock.h>
 
 namespace dmMessage
@@ -327,7 +328,7 @@ namespace dmMessage
     {
         if (!socket)
             return false;
-        
+
         MessageSocket* s = AcquireSocket(socket);
         if (s != 0)
         {

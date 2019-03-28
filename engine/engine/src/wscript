@@ -104,7 +104,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'WEBVIEWEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
+        uselib = 'WEBVIEWEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET PLATFORM_SYS PLATFORM_ENGINE SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s %s' % (sound_lib, additional_libs),
         uselib_local = 'engine engine_service',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
@@ -119,10 +119,9 @@ def build(bld):
         extra_packages = extra_packages,
         jars = android_jar_paths)
 
-    if 'win32' in bld.env.BUILD_PLATFORM:
-        obj.source.append('engine.rc') # Needs to bundle with icons, or IconExe.java won't be able to replace them (it cannot add them)
-
     if 'win32' in bld.env['PLATFORM']:
+        if bld.env.WINRC:
+          obj.source.append('engine.rc') # Needs to bundle with icons, or IconExe.java won't be able to replace them (it cannot add them)
         bld.install_files('${PREFIX}/lib/%s' % bld.env['PLATFORM'], 'defold.ico')
         bld.install_files('${PREFIX}/lib/%s' % bld.env['PLATFORM'], 'engine.rc')
 
@@ -133,7 +132,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'WEBVIEWEXT PROFILEREXT_NULL GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
+        uselib = 'WEBVIEWEXT PROFILEREXT_NULL GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET PLATFORM_SYS PLATFORM_ENGINE SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s %s' % (sound_lib, additional_libs),
         uselib_local = 'engine_release engine_service_null',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
@@ -147,9 +146,13 @@ def build(bld):
         extra_packages = extra_packages,
         jars = android_jar_paths)
 
-    if 'win32' in bld.env.BUILD_PLATFORM:
-        obj.source.append('engine.rc')
-        obj.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', '/ENTRY:mainCRTStartup'])
+    if 'win32' in bld.env.PLATFORM:
+        if bld.env.WINRC:
+          obj.source.append('engine.rc')
+        if bld.env.CC_NAME in ['gcc', 'clang']:
+          obj.env.append_value('LINKFLAGS', ['-Wl,/subsystem:windows'])
+        else:
+          obj.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', '/ENTRY:mainCRTStartup'])
 
     if 'android' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_release.android/dmengine_release.apk')
@@ -168,7 +171,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH DLIB LIVEUPDATE SOUND_NULL CRASH %s' % (additional_libs,),
+        uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET PLATFORM_SYS PLATFORM_ENGINE SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH DLIB LIVEUPDATE SOUND_NULL CRASH %s' % (additional_libs,),
         exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine engine_service',
         includes = '../build ../proto . ..',

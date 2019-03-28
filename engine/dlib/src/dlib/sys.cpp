@@ -5,6 +5,7 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
+#include "windefines.h"
 #include "sys.h"
 #include "log.h"
 #include "dstrings.h"

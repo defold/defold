@@ -43,7 +43,7 @@ def configure(conf):
     elif platform == "linux":
         conf.env.append_value('LINKFLAGS', ['-lglut', '-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
     elif "win32" in platform:
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib'])
+        conf.env.append_value('LINKFLAGS', ['-lOpenGL32', '-lUser32', '-lshell32'])
 
 
     dynamo_home = os.getenv('DYNAMO_HOME')

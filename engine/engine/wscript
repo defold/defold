@@ -10,7 +10,7 @@ import os, sys, re, subprocess
 import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render, waf_resource
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 import Logs
-import Options
+import Build, Options
 
 def init():
     pass
@@ -62,6 +62,7 @@ namespace dmEngineVersion
     architecture = build_util.get_target_architecture()
 
     sound_lib = 'sound'
+    conf.env['LIB_PLATFORM_ENGINE'] = []
     if operating_sys == 'osx':
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
     elif operating_sys == 'ios':
@@ -71,11 +72,12 @@ namespace dmEngineVersion
         # For IAP
         conf.env.append_value('LINKFLAGS', ['-framework', 'StoreKit'])
     elif operating_sys == 'android':
-        conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
+        conf.env['LIB_PLATFORM_ENGINE'] = ['EGL', 'GLESv1_CM', 'GLESv2', 'android']
+        conf.env.append_value('LINKFLAGS', ['-Wl,-soname=libdmengine.so'])
     elif operating_sys == "linux":
-        conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
+        conf.env['LIB_PLATFORM_ENGINE'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif operating_sys == "win":
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib'])
+        conf.env['LIB_PLATFORM_ENGINE'] = ['OpenGL32', 'Xinput9_1_0', 'GlU32', 'OpenAL32', 'DbgHelp']
     elif 'web' in operating_sys:
         pass
 
@@ -176,6 +178,8 @@ def build(bld):
                 bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)
 
 def shutdown():
-    # unit tests disabled on win32 for now
-    if sys.platform != "win32":
-        waf_dynamo.run_gtests(valgrind = True)
+    # Currently we don't have python+32bit dll support when running through Wine
+    if not Build.bld.env.HAS_PYTHON:
+        os.environ['GTEST_FILTER'] = '-*.HttpPost:*.ConnectionReboot:*.ConnectionRunScript'
+        print("USING GTEST_FILTER='%s'" % os.environ['GTEST_FILTER'])
+    waf_dynamo.run_gtests(valgrind = True)

@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "dlib/time.h"
 
 TEST(dmTime, Sleep)

@@ -8,6 +8,7 @@ blddir = 'build'
 
 import os, sys, re
 
+import Options
 import waf_ddf, waf_dynamo
 
 def init():
@@ -40,7 +41,8 @@ def configure(conf):
     elif platform == "linux" or platform == "x86_64-linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif 'win32' in platform:
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'xinput9_1_0.lib', 'glu32.lib'])
+        for l in ["OpenGL32", "User32", "Xinput9_1_0", "GlU32"]:
+            conf.env.append_value('LINKFLAGS', ['-l%s' %l])
 
     conf.env.append_value('CPPPATH', "../src")
     conf.env.append_value('CCDEFINES', 'SDL_JOYSTICK_IOKIT')
@@ -48,7 +50,8 @@ def configure(conf):
 
 def build(bld):
     bld.add_subdirs('lib')
-    bld.add_subdirs('examples')
+    if not Options.options.skip_build_tests:
+        bld.add_subdirs('examples')
     bld.install_files('${PREFIX}/include/graphics/glfw', 'include/GL/glfw.h')
     bld.install_files('${PREFIX}/include/graphics/glfw', 'include/GL/glfw_native.h')
 

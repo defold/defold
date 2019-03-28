@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string>
 
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include <dlib/log.h>
 #include <dlib/hashtable.h>
 #include <dlib/ssdp.h>

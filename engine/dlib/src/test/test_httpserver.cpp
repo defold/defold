@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <map>
 #include <string>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/time.h"
 #include "../dlib/socket.h"
 #include "../dlib/math.h"
@@ -13,6 +13,8 @@
 #include "../dlib/http_client.h"
 #include "../dlib/hash.h"
 #include "../dlib/network_constants.h"
+
+#if !defined(DM_NO_PYTHON)
 
 class dmHttpServerTest: public ::testing::Test
 {
@@ -323,6 +325,8 @@ TEST_F(dmHttpServerTest, TestServerClient)
 
     dmThread::Join(thread);
 }
+
+#endif
 
 int main(int argc, char **argv)
 {
