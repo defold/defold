@@ -96,32 +96,32 @@ TEST_F(BufferTest, InvalidAllocation)
     // Empty declaration, zero elements
     dmBuffer::Result r = dmBuffer::Create(0, streams_decl, 0, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_BUFFER_SIZE_ERROR, r);
-    ASSERT_EQ(0, buffer);
+    ASSERT_EQ(0U, buffer);
 
     // Empty declaration, 1 element
     r = dmBuffer::Create(1, streams_decl, 0, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_STREAM_SIZE_ERROR, r);
-    ASSERT_EQ(0, buffer);
+    ASSERT_EQ(0U, buffer);
 
     // Valid declaration, zero elements
     r = dmBuffer::Create(0, streams_decl, 2, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_BUFFER_SIZE_ERROR, r);
-    ASSERT_EQ(0, buffer);
+    ASSERT_EQ(0U, buffer);
 
     // Valid sizes, but invalid valuetype count (see "dummy3" above)
     r = dmBuffer::Create(1, streams_decl, 3, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_STREAM_SIZE_ERROR, r);
-    ASSERT_EQ(0, buffer);
+    ASSERT_EQ(0U, buffer);
 
     // Valid sizes, but buffer is NULL-pointer
     r = dmBuffer::Create(1, streams_decl, 1, 0x0);
     ASSERT_EQ(dmBuffer::RESULT_ALLOCATION_ERROR, r);
-    ASSERT_EQ(0, buffer);
+    ASSERT_EQ(0U, buffer);
 
     // Valid sizes, but declaration is NULL-pointer
     r = dmBuffer::Create(1, 0x0, 1, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_ALLOCATION_ERROR, r);
-    ASSERT_EQ(0, buffer);
+    ASSERT_EQ(0U, buffer);
 }
 
 TEST_F(BufferTest, ValidAllocation)
