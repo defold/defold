@@ -1055,62 +1055,53 @@
 (defn- desc-has-explicit-output?    [description label]
   (contains? (get-in description [:output label :flags]) :explicit))
 
-(defn- has-multivalued-input?  [description input-label]
+(defn- desc-has-multivalued-input?  [description input-label]
   (contains? (get-in description [:input input-label :flags]) :array))
 
-(defn- has-singlevalued-input? [description input-label]
+(defn- desc-has-singlevalued-input? [description input-label]
   (and (desc-has-input? description input-label)
-       (not (has-multivalued-input? description input-label))))
+       (not (desc-has-multivalued-input? description input-label))))
 
-(defn- has-substitute? [description input-label]
-  (contains? (get-in description [:input input-label :options]) :substitute))
-
-(defn- property-overloads-output? [description property-label output-label]
-  (and (= output-label property-label)
-       (desc-has-property? description property-label)
-       (desc-has-explicit-output? description property-label)))
-
-(defn- unoverloaded-output? [description label output]
-  (and (not= output label)
-       (desc-has-output? description label)))
+(defn- desc-input-substitute [description input-label not-found]
+  (get-in description [:input input-label :options :substitute] not-found))
 
 (defn pull-first-input-value
-  [node input evaluation-context]
+  [node input-label evaluation-context]
   (let [basis (:basis evaluation-context)
-        [upstream-id output-label] (first (gt/sources basis (gt/node-id node) input))]
+        [upstream-id output-label] (first (gt/sources basis (gt/node-id node) input-label))]
     (when-let [upstream-node (and upstream-id (gt/node-by-id-at basis upstream-id))]
       (gt/produce-value upstream-node output-label evaluation-context))))
 
 (defn pull-first-input-with-substitute
-  [sub node input evaluation-context]
+  [sub node input-label evaluation-context]
   ;; todo - invoke substitute
-  (pull-first-input-value node input evaluation-context))
+  (pull-first-input-value node input-label evaluation-context))
 
 (defn- first-input-value-form
-  [node-sym input evaluation-context-sym]
-  `(pull-first-input-value ~node-sym ~input ~evaluation-context-sym))
+  [node-sym input-label evaluation-context-sym]
+  `(pull-first-input-value ~node-sym ~input-label ~evaluation-context-sym))
 
 (defn pull-input-values
-  [node input evaluation-context]
+  [node input-label evaluation-context]
   (let [basis (:basis evaluation-context)]
     (mapv (fn [[upstream-id output-label]]
             (let [upstream-node (gt/node-by-id-at basis upstream-id)]
               (gt/produce-value upstream-node output-label evaluation-context)))
-          (gt/sources basis (gt/node-id node) input))))
+          (gt/sources basis (gt/node-id node) input-label))))
 
 (defn pull-input-values-with-substitute
-  [sub node input evaluation-context]
+  [sub node input-label evaluation-context]
   ;; todo - invoke substitute
-  (pull-input-values node input evaluation-context))
+  (pull-input-values node input-label evaluation-context))
 
 (defn- input-value-form
-  [node-sym input evaluation-context-sym]
-  `(pull-input-values ~node-sym ~input ~evaluation-context-sym))
+  [node-sym input-label evaluation-context-sym]
+  `(pull-input-values ~node-sym ~input-label ~evaluation-context-sym))
 
-(defn error-checked-input-value [node-id input input-value]
+(defn error-checked-input-value [node-id input-label input-value]
   (if (instance? ErrorValue input-value)
     (if (ie/worse-than :info input-value)
-      (ie/error-aggregate [input-value] :_node-id node-id :_label input)
+      (ie/error-aggregate [input-value] :_node-id node-id :_label input-label)
       (:value input-value))
     input-value))
 
@@ -1121,12 +1112,12 @@
       (:value input-value))
     input-value))
 
-(defn error-checked-array-input-value [node-id input input-array]
+(defn error-checked-array-input-value [node-id input-label input-array]
   (if (some #(instance? ErrorValue %) input-array)
     (let [serious-errors (filter #(ie/worse-than :info %) input-array)]
       (if (empty? serious-errors)
         (mapv #(if (instance? ErrorValue %) (:value %) %) input-array)
-        (ie/error-aggregate serious-errors :_node-id node-id :_label input)))
+        (ie/error-aggregate serious-errors :_node-id node-id :_label input-label)))
     input-array))
 
 (defn error-substituted-array-input-value [input-array substitute-fn]
@@ -1193,10 +1184,12 @@
     (= :_basis argument)
     `(:basis ~evaluation-context-sym)
 
-    (property-overloads-output? description argument output)
+    (and (= output argument)
+         (desc-has-property? description argument)
+         (desc-has-explicit-output? description output))
     (collect-property-value-form description argument node-sym node-id-sym evaluation-context-sym)
 
-    (unoverloaded-output? description argument output)
+    (and (not= argument output) (desc-has-output? description argument))
     `(gt/produce-value ~node-sym ~argument ~evaluation-context-sym)
 
     (desc-has-property? description argument)
@@ -1205,14 +1198,14 @@
         (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~argument)))
       (collect-property-value-form description argument node-sym node-id-sym evaluation-context-sym))
 
-    (has-multivalued-input? description argument)
-    (let [sub (get-in description [:input argument :options :substitute] ::no-sub)] ; nil is a valid substitute literal
+    (desc-has-multivalued-input? description argument)
+    (let [sub (desc-input-substitute description argument ::no-sub)] ; nil is a valid substitute literal
       (if (= ::no-sub sub)
         `(error-checked-array-input-value ~node-id-sym ~argument ~(input-value-form node-sym argument evaluation-context-sym))
         `(error-substituted-array-input-value ~(input-value-form node-sym argument evaluation-context-sym) ~sub)))
 
-    (has-singlevalued-input? description argument)
-    (let [sub (get-in description [:input argument :options :substitute] ::no-sub)] ; nil is a valid substitute literal
+    (desc-has-singlevalued-input? description argument)
+    (let [sub (desc-input-substitute description argument ::no-sub)] ; nil is a valid substitute literal
       (if (= ::no-sub sub)
         `(error-checked-input-value ~node-id-sym ~argument ~(first-input-value-form node-sym argument evaluation-context-sym))
         `(error-substituted-input-value ~(first-input-value-form node-sym argument evaluation-context-sym) ~sub)))
@@ -1449,8 +1442,9 @@
 
 (defn- node-input-value-function-form
   [description input]
-  (let [sub?   (has-substitute?        description input)
-        multi? (has-multivalued-input? description input)]
+  (let [sub (desc-input-substitute description input ::no-sub)
+        sub? (not= sub ::no-sub)
+        multi? (desc-has-multivalued-input? description input)]
     (cond
       (and (not sub?) (not multi?))
       `pull-first-input-value
@@ -1459,10 +1453,10 @@
       `pull-input-values
 
       (not multi?)
-      `(partial pull-first-input-with-substitute ~sub?)
+      `(partial pull-first-input-with-substitute ~sub)
 
       :else
-      `(partial pull-input-values-with-substitute ~sub?))))
+      `(partial pull-input-values-with-substitute ~sub))))
 
 ;;; ----------------------------------------
 ;;; Overrides
