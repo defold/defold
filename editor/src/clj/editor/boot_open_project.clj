@@ -41,6 +41,7 @@
   (:import [java.io File]
            [javafx.scene Node Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TreeView]
+           [javafx.scene.input InputEvent KeyEvent MouseEvent]
            [javafx.scene.layout Region VBox]
            [javafx.stage Stage]))
 
@@ -122,6 +123,12 @@
                                   "\n"
                                   "To fix this, make a commit where you delete the .internal and build directories, then reopen the project.")))
 
+(def ^:private interaction-event-types
+  #{KeyEvent/KEY_PRESSED
+    KeyEvent/KEY_RELEASED
+    MouseEvent/MOUSE_PRESSED
+    MouseEvent/MOUSE_RELEASED})
+
 (defn load-stage [workspace project prefs dashboard-client updater newly-created?]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
@@ -173,6 +180,7 @@
           debug-view           (debug-view/make-view! app-view *view-graph*
                                                       project
                                                       root
+                                                      scene
                                                       open-resource)]
       (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
 
@@ -192,6 +200,19 @@
                                             (let [open-views (g/node-value app-view :open-views)
                                                   panes (.getItems ^SplitPane editor-tabs-split)]
                                               (handle-resource-changes! scene panes open-views changes-view render-progress!)))))
+
+      (.addEventFilter scene
+                       InputEvent/ANY
+                       (ui/event-handler e
+                         (when (contains? interaction-event-types (.getEventType ^InputEvent e))
+                           (ui/user-data! scene ::ui/refresh-requested? true))))
+
+      (ui/observe (.focusedProperty stage)
+                  (fn [_ _ focused]
+                    (when focused
+                      (ui/user-data! scene ::ui/refresh-requested? true))))
+
+      (ui/user-data! scene ::ui/refresh-requested? true)
 
       (ui/run-later
         (app-view/restore-split-positions! stage prefs))
