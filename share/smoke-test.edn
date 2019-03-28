@@ -2,34 +2,37 @@
                  :dir "."}
         :engine {:pattern "log.txt"
                  :dir "."}}
- :steps [[:await-log :editor 60000 "project loaded"]
+ :steps [[:await-log :editor 120000 "project loaded"]
          [:wait 2000]
          [:screen-capture "project_loaded"]
-         [:press :command :shift :r] ;; TODO platform-specific
+         [:open-asset]
          [:type ".coll"]
          [:press :down]
          [:press :enter]
          [:wait 2500]
          [:screen-capture "collection"]
-         [:press :command :shift :r] ;; TODO platform-specific
+         [:open-asset]
          [:type "player.script"]
          [:press :down]
          [:press :enter]
          [:wait 2000]
          [:screen-capture "script"]
-         [:press :command :b] ;; TODO platform-specific
-         [:await-log :engine 10000 "intro started"]
+         [:build]
+         [:await-log :engine 60000 "intro started"]
          [:await-log :engine 60000 " seconds"]
          [:screen-capture "game_intro"]
          [:await-log :engine 60000 "level started"]
          [:await-log :engine 60000 " seconds"]
          [:screen-capture "game_running"]
          [:switch-focus]
+         [:wait 1000]
          [:press :enter]
-         [:press :command :r] ;; TODO platform-specific
-         [:press :command :z] ;; TODO platform-specific
-         [:await-log :engine 3000 "successfully reloaded"]
+         [:hot-reload]
+         [:undo]
+         [:await-log :engine 60000 "successfully reloaded"]
          [:screen-capture "test_end"]
          [:switch-focus]
-         [:press :command :q] ;; TODO platform-specific
-         [:press :command :q]]} ;; TODO platform-specific
+         [:wait 1000]
+         [:press :escape]
+         [:quit]]}
+

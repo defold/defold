@@ -129,10 +129,36 @@
     (.keyType robot (char->key-code c)))
   true)
 
-(defmethod exec-step :switch-focus [{:keys [robot log-fn]} _]
+(defmethod exec-step :switch-focus [{:keys [robot log-fn platform]} _]
   (log-fn (format "<p>Switch-focus</p>"))
-  ;; TODO - platform specific
-  (press robot [:command :tab])
+  (if (= :mac platform)
+    (press robot [:command :tab])
+    (press robot [:alt :tab]))
+  true)
+
+(defmethod exec-step :open-asset [{:keys [robot log-fn action-key]} _]
+  (log-fn (format "<p>Open-asset</p>"))
+  (press robot [action-key :p])
+  true)
+
+(defmethod exec-step :build [{:keys [robot log-fn action-key]} _]
+  (log-fn (format "<p>Build</p>"))
+  (press robot [action-key :b])
+  true)
+
+(defmethod exec-step :hot-reload [{:keys [robot log-fn action-key]} _]
+  (log-fn (format "<p>Hot-reload</p>"))
+  (press robot [action-key :r])
+  true)
+
+(defmethod exec-step :undo [{:keys [robot log-fn action-key]} _]
+  (log-fn (format "<p>Undo</p>"))
+  (press robot [action-key :z])
+  true)
+
+(defmethod exec-step :quit [{:keys [robot log-fn action-key]} _]
+  (log-fn (format "<p>Quit</p>"))
+  (press robot [action-key :q])
   true)
 
 (defmethod exec-step :default [{:keys [log-fn]} step]
@@ -171,10 +197,17 @@
                log-fn (fn [s]
                         (println s)
                         (.write log-writer (format "%s\n" s)))
+               platform (let [name (System/getProperty "os.name")]
+                          (cond
+                            (.contains name "Mac") :mac
+                            (.contains name "Linux") :linux
+                            :else :windows))
                ctx {:robot robot
                     :log-fn log-fn
                     :log-descs log-descs
-                    :out-dir out-dir}
+                    :out-dir out-dir
+                    :platform platform
+                    :action-key (if (= :mac platform) :command :control)}
                result (loop [steps (get script :steps)]
                         (if-let [s (first steps)]
                           (if (exec-step ctx s)
