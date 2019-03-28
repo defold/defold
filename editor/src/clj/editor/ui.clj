@@ -1419,8 +1419,8 @@
   (menu-items [this]))
 
 (defn- replace-menu!
-  [^MenuItem old ^MenuItem new]
-  (when-some [parent (.getParentMenu old)]
+  [^MenuBar menu-bar ^MenuItem old ^MenuItem new]
+  (when-some [parent (or (.getParentMenu old) menu-bar)]
     (when-some [parent-children (menu-items parent)]
       (let [index (.indexOf parent-children old)]
         (when (pos? index)
@@ -1478,7 +1478,7 @@
                                               visible-command-contexts
                                               command->shortcut
                                               evaluation-context)]
-            (replace-menu! menu-item new-menu-item)))))
+            (replace-menu! menu-bar menu-item new-menu-item)))))
     (clear-invalidated-menubar-items!)))
 
 (defn- refresh-separator-visibility [menu-items]
