@@ -3543,7 +3543,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                                  Playback playback,
                                  float duration,
                                  float delay,
-                                 // float offset,
                                  float playback_rate,
                                  AnimationComplete animation_complete,
                                  void* userdata1,
@@ -3629,15 +3628,15 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 no_callback_easing.release_callback = 0;
                 for (int j = 0; j < 3; ++j)
                 {
-                    AnimateComponent(scene, node, &base_value[j], to.getElem(j), no_callback_easing, playback, duration, delay, 0, 0, 0);
+                    AnimateComponent(scene, node, &base_value[j], to.getElem(j), no_callback_easing, playback, duration, delay, 1.0f, 0, 0, 0);
                 }
 
                 // Only run callback for the lastcomponent
-                AnimateComponent(scene, node, &base_value[3], to.getElem(3), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
+                AnimateComponent(scene, node, &base_value[3], to.getElem(3), easing, playback, duration, delay, 1.0f, animation_complete, userdata1, userdata2);
             }
             else
             {
-                AnimateComponent(scene, node, &base_value[pd->m_Component], to.getElem(pd->m_Component), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
+                AnimateComponent(scene, node, &base_value[pd->m_Component], to.getElem(pd->m_Component), easing, playback, duration, delay, 1.0f, animation_complete, userdata1, userdata2);
             }
         }
         else
