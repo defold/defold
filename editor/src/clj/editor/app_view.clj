@@ -1085,7 +1085,9 @@ If you do not specifically require different script states, consider changing th
    (select app-view (g/node-value app-view :active-resource-node) node-ids))
   ([app-view resource-node node-ids]
    (g/with-auto-evaluation-context evaluation-context
-     (ui/user-data! (g/node-value app-view :scene evaluation-context) ::ui/refresh-requested? true)
+     (when-not (= (set node-ids)
+                  (set (g/node-value app-view :selected-node-ids evaluation-context)))
+       (ui/user-data! (g/node-value app-view :scene evaluation-context) ::ui/refresh-requested? true))
      (let [project-id (g/node-value app-view :project-id evaluation-context)
            open-resource-nodes (g/node-value app-view :open-resource-nodes evaluation-context)]
        (project/select project-id resource-node node-ids open-resource-nodes)))))
@@ -1094,7 +1096,10 @@ If you do not specifically require different script states, consider changing th
   ([app-view node-ids]
    (select! app-view node-ids (gensym)))
   ([app-view node-ids op-seq]
-   (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
+   (g/with-auto-evaluation-context evaluation-context
+     (when-not (= (set node-ids)
+                  (set (g/node-value app-view :selected-node-ids evaluation-context)))
+       (ui/user-data! (g/node-value app-view :scene evaluation-context) ::ui/refresh-requested? true)))
    (g/transact
      (concat
        (g/operation-sequence op-seq)
@@ -1106,7 +1111,9 @@ If you do not specifically require different script states, consider changing th
    (sub-select! app-view sub-selection (gensym)))
   ([app-view sub-selection op-seq]
    (g/with-auto-evaluation-context evaluation-context
-     (ui/user-data! (g/node-value app-view :scene evaluation-context) ::ui/refresh-requested? true)
+     (when-not (= (set sub-selection)
+                  (set (g/node-value app-view :sub-selection evaluation-context)))
+       (ui/user-data! (g/node-value app-view :scene evaluation-context) ::ui/refresh-requested? true))
      (let [project-id (g/node-value app-view :project-id evaluation-context)
            active-resource-node (g/node-value app-view :active-resource-node evaluation-context)
            open-resource-nodes (g/node-value app-view :open-resource-nodes evaluation-context)]
