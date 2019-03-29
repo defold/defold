@@ -13,6 +13,7 @@
    [editor.util :as eutil]
    [internal.util :as util]
    [service.log :as log]
+   [service.smoke-log :as slog]
    [util.profiler :as profiler])
   (:import
    [com.defold.control LongField]
@@ -1917,6 +1918,7 @@ command."
       (refresh scene)
       (timer-start! refresh-timer)
       (timer-stop-on-closed! stage refresh-timer)
+      (.setOnShown stage (event-handler _ (slog/smoke-log "show-dialog")))
       (show-fn stage))
     (show-fn stage)))
 

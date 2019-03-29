@@ -1696,8 +1696,7 @@ instructions.configure=\
         return v
 
     def smoke_test(self):
-        # TODO(mags): REMOVE BEFORE PUSH!
-        sha1 = '8b7b33e4147af87ffd884a5535247658fb754642' #self._git_sha1()
+        sha1 = self._git_sha1()
         cwd = join('tmp', 'smoke_test')
         if os.path.exists(cwd):
             shutil.rmtree(cwd)
@@ -1716,7 +1715,7 @@ instructions.configure=\
         else:
             java = join('Defold.app', 'Contents', 'Resources', 'packages', jdk, 'bin', 'java')
         jar = self._get_config(config, 'launcher', 'jar', overrides)
-        vmargs = self._get_config(config, 'launcher', 'vmargs', overrides).split(',') + ['-Ddefold.log.dir=.']
+        vmargs = self._get_config(config, 'launcher', 'vmargs', overrides).split(',') + ['-Ddefold.log.dir=.', '-Ddefold.smoke.log=true']
         vmargs = filter(lambda x: not str.startswith(x, '-Ddefold.update.url='), vmargs)
         main = self._get_config(config, 'launcher', 'main', overrides)
         game_project = '../../editor/test/resources/geometry_wars/game.project'
@@ -1735,8 +1734,7 @@ instructions.configure=\
         ed_proc = subprocess.Popen(args, cwd = cwd, shell = False)
         os.chdir(origdir)
         cwd = origcwd
-        # TODO(mags): REMOVE BEFORE PUSH - errput!
-        output, errput = robot_proc.communicate()
+        output = robot_proc.communicate()[0]
         if ed_proc.poll() == None:
             ed_proc.terminate()
             ed_proc.wait()
@@ -1752,6 +1750,35 @@ instructions.configure=\
         self.wait_uploads()
         self._log('Log: https://s3-eu-west-1.amazonaws.com/%s/index.html' % (result_archive_path))
 
+        if robot_proc.returncode != 0:
+            sys.exit(robot_proc.returncode)
+        return True
+
+    def local_smoke(self):
+        host2 = get_host_platform2()
+        cwd = './editor'
+        if os.path.exists('editor/log.txt'):
+            os.remove('editor/log.txt')
+        game_project = 'test/resources/geometry_wars/game.project'
+        args = ['lein', 'with-profile', '+smoke-test', 'run', game_project]
+        robot_jar = '../defold-robot/target/defold-robot-0.7.0-standalone.jar'
+        robot_args = ['java', '-jar', robot_jar, '-s', '../share/smoke-test.edn', '-o', 'local_smoke_result']
+        origdir = os.getcwd()
+        origcwd = cwd
+        if 'win32' in host2:
+            os.chdir(cwd)
+            cwd = '.'
+        print('Running robot: %s' % robot_args)
+        robot_proc = subprocess.Popen(robot_args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
+        time.sleep(2)
+        self._log('Running editor: %s' % args)
+        ed_proc = subprocess.Popen(args, cwd = cwd, shell = False)
+        os.chdir(origdir)
+        cwd = origcwd
+        output = robot_proc.communicate()[0]
+        if ed_proc.poll() == None:
+            ed_proc.terminate()
+            ed_proc.wait()
         if robot_proc.returncode != 0:
             sys.exit(robot_proc.returncode)
         return True
@@ -2011,6 +2038,7 @@ bump            - Bump version number
 release         - Release editor
 shell           - Start development shell
 smoke_test      - Test editor and engine in combination
+local_smoke     - Test run smoke test using local dev environment
 
 Multiple commands can be specified
 

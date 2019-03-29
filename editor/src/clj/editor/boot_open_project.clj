@@ -37,6 +37,7 @@
             [editor.web-profiler :as web-profiler]
             [editor.workspace :as workspace]
             [service.log :as log]
+            [service.smoke-log :as slog]
             [util.http-server :as http-server])
   (:import [java.io File]
            [javafx.scene Node Scene]
@@ -306,6 +307,7 @@
                     (show-tracked-internal-files-warning!)))))))))
 
     (reset! the-root root)
+    (ui/run-later (slog/smoke-log "stage-loaded"))
     root))
 
 (defn- show-missing-dependencies-alert! [dependencies]
