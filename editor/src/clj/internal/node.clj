@@ -807,12 +807,14 @@
         propdef (process-property-forms forms)
         register-type-info (:register-type-info propdef)
         propdef (dissoc propdef :register-type-info)
-        outdef (-> propdef
-                   (dissoc :setter :dynamics :value)
-                   (assoc :fn
-                          (if-let [evaluator (-> propdef :value :fn)]
-                            evaluator
-                            `(dynamo.graph/fnk [~'this ~label] (get ~'this ~klabel)))))
+        prop-value-fn (-> propdef :value :fn)
+        outdef (cond-> (dissoc propdef :setter :dynamics :value)
+
+                       (some? prop-value-fn)
+                       (assoc :fn prop-value-fn)
+
+                       (nil? prop-value-fn)
+                       (assoc :fn ::default-fn :default-fn-label klabel))
         desc {:register-type-info register-type-info
               :property {klabel propdef}
               :property-order-decl (if (contains? intrinsic-properties klabel) [] [klabel])
@@ -918,7 +920,7 @@
 (defn- wrap-constant-fns
   [tree]
   (wrap-when tree #(= :fn %)
-             (fn [v] (not (or (seq? v) (util/pfnksymbol? v) (util/pfnkvar? v))))
+             (fn [v] (not (or (seq? v) (util/pfnksymbol? v) (util/pfnkvar? v) (= v ::default-fn))))
              (fn [v] `(dynamo.graph/fnk [] ~(if (symbol? v) (resolve v) v)))))
 
 (defn- into-set [x v] (into (or x #{}) v))
@@ -927,8 +929,16 @@
   [tree]
   (walk/postwalk
     (fn [f]
-      (if (and (map? f) (contains? f :fn))
-        (let [args (util/inputs-needed (:fn f))]
+      (if (and (map? f)
+               (contains? f :fn))
+        (let [fnf (:fn f)
+              default-label (:default-fn-label f)
+              args (if (= fnf ::default-fn)
+                     (do #_(println default-label)
+                         #{default-label})
+                     (util/inputs-needed fnf))]
+          #_(println args)
+          #_(println (map type args))
           (-> f
               (update :arguments #(into-set % args))
               (update :dependencies #(into-set % args))))
@@ -1034,7 +1044,8 @@
       what
       (recur (zip/next where)
              (if (and (= :fn (first (zip/node where)))
-                      (not (var? (second (zip/node where)))))
+                      (not (var? (second (zip/node where))))
+                      (not= (second (zip/node where)) ::default-fn))
                (conj what [(key-path where) (second (zip/node where))])
                what)))))
 
