@@ -1033,7 +1033,8 @@
     (if (zip/end? where)
       what
       (recur (zip/next where)
-             (if (= :fn (first (zip/node where)))
+             (if (and (= :fn (first (zip/node where)))
+                      (not (var? (second (zip/node where)))))
                (conj what [(key-path where) (second (zip/node where))])
                what)))))
 
@@ -1150,7 +1151,8 @@
 (defn- collect-property-value-form
   [description property-label node-sym node-id-sym evaluation-context-sym]
   (let [property-definition (get-in description [:property property-label])
-        default? (not (:value property-definition))]
+        default? (not (:value property-definition))
+        output-fn (get-in description [:property property-label :value :fn])]
     (if default?
       (with-tracer-calls-form node-id-sym property-label evaluation-context-sym :raw-property
         (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~property-label)))
@@ -1158,7 +1160,9 @@
         (call-with-error-checked-fnky-arguments-form description property-label node-sym node-id-sym evaluation-context-sym
                                                      (get-in property-definition [:value :arguments])
                                                      (check-dry-run-form evaluation-context-sym
-                                                                         `(var ~(dollar-name (:name description) [:property property-label :value]))
+                                                                         (if (var? output-fn)
+                                                                           output-fn
+                                                                           `(var ~(dollar-name (:name description) [:property property-label :value])))
                                                                          `(constantly nil)))))))
 
 (defn- fnk-argument-form
@@ -1298,9 +1302,13 @@
          ~forms)))
 
 (defn- call-production-function-form [description label node-id-sym label-sym evaluation-context-sym arguments-sym result-sym forms]
-  `(let [~result-sym ~(argument-error-check-form description label node-id-sym label-sym evaluation-context-sym arguments-sym
-                                                 (check-dry-run-form evaluation-context-sym `((var ~(symbol (dollar-name (:name description) [:output label]))) ~arguments-sym)))]
-     ~forms))
+  (let [output-fn (get-in description [:output label :fn])]
+    `(let [~result-sym ~(argument-error-check-form description label node-id-sym label-sym evaluation-context-sym arguments-sym
+                                                   (check-dry-run-form evaluation-context-sym
+                                                                       (if (var? output-fn)
+                                                                         `(~output-fn ~arguments-sym)
+                                                                         `((var ~(symbol (dollar-name (:name description) [:output label]))) ~arguments-sym))))]
+       ~forms)))
 
 (defn update-local-cache! [node-id label evaluation-context value]
   (swap! (:local evaluation-context) assoc [node-id label] value))
@@ -1390,14 +1398,17 @@
   [description property-name node-sym node-id-sym evaluation-context-sym property-type]
   (apply merge
          (for [[dynamic-label {:keys [arguments] :as dynamic}] (get property-type :dynamics)]
-           {dynamic-label
-            (with-tracer-calls-form node-id-sym [property-name dynamic-label] evaluation-context-sym :dynamic
-              ;; TODO passing dynamic-label here looks broken; what if dynamic-label == some output label?
-              (call-with-error-checked-fnky-arguments-form description dynamic-label node-sym node-id-sym evaluation-context-sym
-                                                           arguments
-                                                           (check-dry-run-form evaluation-context-sym
-                                                                               `(var ~(dollar-name (:name description) [:property property-name :dynamics dynamic-label]))
-                                                                               `(constantly nil))))})))
+           (let [dynamic-fn (get-in description [:property property-name :dynamics dynamic-label :fn])]
+             {dynamic-label
+              (with-tracer-calls-form node-id-sym [property-name dynamic-label] evaluation-context-sym :dynamic
+                ;; TODO passing dynamic-label here looks broken; what if dynamic-label == some output label?
+                (call-with-error-checked-fnky-arguments-form description dynamic-label node-sym node-id-sym evaluation-context-sym
+                                                             arguments
+                                                             (check-dry-run-form evaluation-context-sym
+                                                                                 (if (var? dynamic-fn)
+                                                                                   dynamic-fn
+                                                                                   `(var ~(dollar-name (:name description) [:property property-name :dynamics dynamic-label])))
+                                                                                 `(constantly nil))))}))))
 
 (defn- property-value-exprs
   [description property-label node-sym node-id-sym evaluation-context-sym prop-type]
