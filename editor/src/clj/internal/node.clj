@@ -1034,20 +1034,43 @@
 
 (defn- key-path
   [z]
-  (map first (rest (zip/path z))))
+  (mapv first (rest (zip/path z))))
+
+(def ^:private def-order-swaps {:output 0
+                                :property 1
+                                :behavior 2
+                                :property-behavior 3})
+
+(defn- definition-order [[path1 fn1] [path2 fn2]]
+  ;; paths are like [:behaviour :output] [:output :output] [:property :prop] [:property-behavior :prop]
+  ;; we want :output before :behavior and :property before :property-behavior
+  ;; :output :property :behavior :property-behavior
+  ;; Some paths are longer: [:property :cake :dynamics :cake-dyns] so for comparison to work as we want
+  ;; we pad the paths to 4 elements.
+  (let [path1' (-> path1
+                   (update 0 def-order-swaps)
+                   (update 2 identity)
+                   (update 3 identity))
+        path2' (-> path2
+                   (update 0 def-order-swaps)
+                   (update 2 identity)
+                   (update 3 identity))]
+    (assert (= (count path1') (count path2')) (str path1' "(" (count path1') ")=(" (count path2') ")"))
+    (compare path1' path2')))
 
 (defn extract-functions
   [tree]
-  (loop [where (map-zipper tree)
-         what []]
-    (if (zip/end? where)
-      what
-      (recur (zip/next where)
-             (if (and (= :fn (first (zip/node where)))
-                      (not (var? (second (zip/node where))))
-                      (not= (second (zip/node where)) ::default-fn))
-               (conj what [(key-path where) (second (zip/node where))])
-               what)))))
+  (let [path+fns (loop [where (map-zipper tree)
+                        what []]
+                   (if (zip/end? where)
+                     what
+                     (recur (zip/next where)
+                            (if (and (= :fn (first (zip/node where)))
+                                     (not (var? (second (zip/node where))))
+                                     (not= (second (zip/node where)) ::default-fn))
+                              (conj what [(key-path where) (second (zip/node where))])
+                              what))))]
+    (sort definition-order path+fns)))
 
 (defn dollar-name [prefix path]
   (->> path

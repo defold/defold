@@ -894,6 +894,8 @@
 
 (g/defnode Base
   (property base-prop g/Str)
+  (property cake g/Str (default "asdf")
+            (dynamic cake-dyns (g/fnk [base-prop] base-prop)))
   (output base-out g/Str (g/fnk [base-prop] base-prop))
   (output test g/Str (g/fnk [_node-id] (str _node-id))))
 
