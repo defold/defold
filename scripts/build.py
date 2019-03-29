@@ -1745,7 +1745,7 @@ instructions.configure=\
         if os.path.exists('editor/log.txt'):
             os.remove('editor/log.txt')
         game_project = 'test/resources/geometry_wars/game.project'
-        args = ['lein', 'with-profile', '+smoke-test', 'run', game_project]
+        args = ['sh', './scripts/lein', 'with-profile', '+smoke-test', 'run', game_project]
         robot_jar = '../defold-robot/target/defold-robot-0.7.0-standalone.jar'
         robot_args = ['java', '-jar', robot_jar, '-s', '../share/smoke-test.edn', '-o', 'local_smoke_result']
         origdir = os.getcwd()
