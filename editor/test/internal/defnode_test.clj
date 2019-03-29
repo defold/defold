@@ -893,6 +893,8 @@
       (is (= #{:test :_node-id :_basis} (set (keys (g/node-value n :defnk-intrinsics))))))))
 
 (g/defnode Base
+  (property base-prop g/Str)
+  (output base-out g/Str (g/fnk [base-prop] base-prop))
   (output test g/Str (g/fnk [_node-id] (str _node-id))))
 
 (g/defnode Derived
