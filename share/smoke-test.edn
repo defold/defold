@@ -2,20 +2,23 @@
                  :dir "."}
         :engine {:pattern "log.txt"
                  :dir "."}}
- :steps [[:await-log :editor 120000 "project loaded"]
-         [:wait 2000]
+ :steps [[:await-log :editor 120000 "stage-loaded"]
          [:screen-capture "project_loaded"]
          [:open-asset]
+         [:await-log :editor 60000 "show-dialog"]
          [:type ".coll"]
          [:press :down]
          [:press :enter]
-         [:wait 5000]
+         [:await-log :editor 60000 "opened-resource"]
+         [:wait 100] ;; At least one pulse needs to pass.
          [:screen-capture "collection"]
          [:open-asset]
+         [:await-log :editor 60000 "show-dialog"]
          [:type "player.script"]
          [:press :down]
          [:press :enter]
-         [:wait 2000]
+         [:await-log :editor 60000 "code-view-visible"]
+         [:wait 100] ;; At least one pulse needs to pass.
          [:screen-capture "script"]
          [:build]
          [:await-log :engine 60000 "intro started"]
@@ -25,14 +28,12 @@
          [:await-log :engine 60000 " seconds"]
          [:screen-capture "game_running"]
          [:switch-focus]
-         [:wait 1000]
          [:press :enter]
          [:hot-reload]
          [:undo]
          [:await-log :engine 60000 "successfully reloaded"]
          [:screen-capture "test_end"]
          [:switch-focus]
-         [:wait 1000]
          [:press :escape]
          [:quit]]}
 
