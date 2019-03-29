@@ -27,7 +27,7 @@ var Combine = {
 
     _retry_time: 0,             // pause before retry file loading after error
     _max_retry_count: 0,        // how many attempts we do when trying to download a file.
-    _can_not_download_file_callback: undefined, //
+    _can_not_download_file_callback: undefined, //Function that is called if you can't download file after 'retry_count' attempts.
 
     _archiveLocationFilter: function(path) { return "split" + path; },
 
