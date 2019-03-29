@@ -1230,8 +1230,7 @@ If you do not specifically require different script states, consider changing th
                               (when-not (ui/ui-disabled?)
                                 (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)]
                                   (when refresh-requested?
-                                    (ui/user-data! app-scene ::ui/refresh-requested? false))
-                                  (when (or refresh-requested?)
+                                    (ui/user-data! app-scene ::ui/refresh-requested? false)
                                     (refresh-menus-and-toolbars! app-view app-scene)
                                     (refresh-views! app-view))
                                   (refresh-scene-views! app-view)
