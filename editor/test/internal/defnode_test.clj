@@ -891,3 +891,15 @@
       (is (= #{:test :_node-id :_basis} (set (keys (g/node-value n :inline-intrinsics)))))
       (is (= {:test "test"} (g/node-value n :defnk)))
       (is (= #{:test :_node-id :_basis} (set (keys (g/node-value n :defnk-intrinsics))))))))
+
+(g/defnode Base
+  (output test g/Str (g/fnk [_node-id] (str _node-id))))
+
+(g/defnode Derived
+  (inherits Base)
+  (output new-test g/Str (g/fnk [] "fafafa")))
+
+(deftest call-base-output
+  (with-clean-system
+    (let [[n] (tx-nodes (g/make-node world Derived))]
+      (println (g/node-value n :test)))))
