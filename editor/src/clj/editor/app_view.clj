@@ -1224,21 +1224,13 @@ If you do not specifically require different script states, consider changing th
 
       (keymap/install-key-bindings! (.getScene stage) (g/node-value app-view :keymap))
 
-      (let [selection-counters-volatile (volatile! [-1 -1])
-            refresh-timer (ui/->timer
+      (let [refresh-timer (ui/->timer
                             "refresh-app-view"
                             (fn [_ _]
                               (when-not (ui/ui-disabled?)
-                                (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)
-                                      prev-counters @selection-counters-volatile
-                                      new-counters [(g/invalidate-counter app-view :sub-selection)
-                                                    (g/invalidate-counter app-view :selected-node-ids)]
-                                      selection-changed (not= prev-counters new-counters)]
-                                  (when selection-changed
-                                    (vreset! selection-counters-volatile new-counters))
+                                (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)]
                                   (when refresh-requested?
-                                    (ui/user-data! app-scene ::ui/refresh-requested? false))
-                                  (when (or refresh-requested? selection-changed)
+                                    (ui/user-data! app-scene ::ui/refresh-requested? false)
                                     (refresh-menus-and-toolbars! app-view app-scene)
                                     (refresh-views! app-view))
                                   (refresh-scene-views! app-view)
