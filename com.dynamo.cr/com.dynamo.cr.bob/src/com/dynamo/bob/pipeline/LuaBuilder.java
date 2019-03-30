@@ -55,6 +55,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         RandomAccessFile rdr = null;
 
         try {
+            Bob.initLua(); // unpack the lua resources
 
             File outputFile = File.createTempFile("script", ".raw");
             File inputFile = File.createTempFile("script", ".lua");
