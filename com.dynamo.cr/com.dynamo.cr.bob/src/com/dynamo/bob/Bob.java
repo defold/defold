@@ -82,11 +82,26 @@ public class Bob {
         }
 
         try {
-            rootFolder = Files.createTempDirectory(null).toFile();
+            String envRootFolder = System.getenv("DM_BOB_ROOTFOLDER");
+            if (envRootFolder != null) {
+                rootFolder = new File(envRootFolder);
+                if (!rootFolder.exists()) {
+                    rootFolder.mkdirs();
+                }
+                System.out.println("env DM_BOB_ROOTFOLDER=" + rootFolder);
+            } else {
+                rootFolder = Files.createTempDirectory(null).toFile();
+                // Make sure we remove the temp folder on exit
+                registerShutdownHook();
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
-            // Make sure we remove the temp folder on exit
-            registerShutdownHook();
-
+    public static void initAndroid() {
+        init();
+        try {
             // Android SDK aapt is dynamically linked against libc++.so, we need to extract it so that
             // aapt will find it later when AndroidBundler is run.
             String libc_filename = Platform.getHostPlatform().getLibPrefix() + "c++" + Platform.getHostPlatform().getLibSuffix();
@@ -183,14 +198,17 @@ public class Bob {
         init();
 
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
-        URL url = Bob.class.getResource("/libexec/" + exeName);
-        if (url == null) {
-            throw new RuntimeException(String.format("/libexec/%s could not be found locally, create an application manifest to build the engine remotely.", exeName));
-        }
         File f = new File(rootFolder, exeName);
         if (!f.exists()) {
+            URL url = Bob.class.getResource("/libexec/" + exeName);
+            if (url == null) {
+                throw new RuntimeException(String.format("/libexec/%s could not be found locally, create an application manifest to build the engine remotely.", exeName));
+            }
+
             FileUtils.copyURLToFile(url, f);
             f.setExecutable(true);
+        } else {
+            System.out.println("File was already extracted: " + f.getAbsolutePath());
         }
 
         return f.getAbsolutePath();
@@ -198,12 +216,12 @@ public class Bob {
 
     public static String getLibExecPath(String filename) throws IOException {
         init();
-        URL url = Bob.class.getResource("/libexec/" + filename);
-        if (url == null) {
-            throw new RuntimeException(String.format("/libexec/%s not found", filename));
-        }
         File f = new File(rootFolder, filename);
         if (!f.exists()) {
+            URL url = Bob.class.getResource("/libexec/" + filename);
+            if (url == null) {
+                throw new RuntimeException(String.format("/libexec/%s not found", filename));
+            }
             FileUtils.copyURLToFile(url, f);
         }
         return f.getAbsolutePath();
@@ -256,12 +274,12 @@ public class Bob {
         init();
 
         String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
-        URL url = Bob.class.getResource("/lib/" + libName);
-        if (url == null) {
-            throw new RuntimeException(String.format("/lib/%s not found", libName));
-        }
         File f = new File(rootFolder, libName);
         if (!f.exists()) {
+            URL url = Bob.class.getResource("/lib/" + libName);
+            if (url == null) {
+                throw new RuntimeException(String.format("/lib/%s not found", libName));
+            }
             FileUtils.copyURLToFile(url, f);
             f.setExecutable(true);
         }

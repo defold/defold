@@ -815,6 +815,11 @@ class Configuration(object):
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'))
 
     def build_engine(self):
+        # We want random folder to thoroughly test bob-light
+        # We dont' want it to unpack for _every_ single invocation during the build
+        os.environ['DM_BOB_ROOTFOLDER'] = tempfile.mkdtemp(prefix='bob-light-')
+        self._log("env DM_BOB_ROOTFOLDER=" + os.environ['DM_BOB_ROOTFOLDER'])
+
         cmd = self._build_engine_cmd(**self._get_build_flags())
         args = cmd.split()
         host = self.host2
@@ -854,6 +859,9 @@ class Configuration(object):
             print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
             shutil.rmtree(scan_output_dir)
 
+        if os.path.exists(os.environ['DM_BOB_ROOTFOLDER']):
+            print "Removing", os.environ['DM_BOB_ROOTFOLDER']
+            shutil.rmtree(os.environ['DM_BOB_ROOTFOLDER'])
     def build_go(self):
         exe_ext = '.exe' if 'win32' in self.target_platform else ''
         go = '%s/ext/go/%s/go/bin/go%s' % (self.dynamo_home, self.target_platform, exe_ext)

@@ -619,6 +619,7 @@ public class Project {
 
             File classesDexFile = null;
             if (platform.equals(Platform.Armv7Android)) {
+                Bob.initAndroid(); // extract resources
 
                 // If we are building for Android, we expect a classes.dex file to be returned as well.
                 classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), "classes.dex"));
