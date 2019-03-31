@@ -260,8 +260,6 @@ public class Bob {
             }
 
             atomicCopy(url, f, true);
-        } else {
-            System.out.println("File was already extracted: " + f.getAbsolutePath());
         }
 
         return f.getAbsolutePath();
