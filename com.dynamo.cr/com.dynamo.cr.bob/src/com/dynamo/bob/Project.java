@@ -9,6 +9,7 @@ import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintStream;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
@@ -20,12 +21,16 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Enumeration;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.jar.Attributes;
+import java.util.jar.JarFile;
+import java.util.jar.Manifest;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
@@ -159,11 +164,47 @@ public class Project {
         doScan(classNames);
     }
 
+    private static String getManifestInfo(String attribute) {
+        Enumeration resEnum;
+        try {
+            resEnum = Thread.currentThread().getContextClassLoader().getResources(JarFile.MANIFEST_NAME);
+            while (resEnum.hasMoreElements()) {
+                try {
+                    URL url = (URL)resEnum.nextElement();
+                    InputStream is = url.openStream();
+                    if (is != null) {
+                        Manifest manifest = new Manifest(is);
+                        Attributes mainAttribs = manifest.getMainAttributes();
+                        String value = mainAttribs.getValue(attribute);
+                        if(value != null) {
+                            return value;
+                        }
+                    }
+                }
+                catch (Exception e) {
+                    // Silently ignore wrong manifests on classpath?
+                }
+            }
+        } catch (IOException e1) {
+            // Silently ignore wrong manifests on classpath?
+        }
+        return null;
+    }
+
     @SuppressWarnings("unchecked")
     private void doScan(Set<String> classNames) {
+        boolean is_bob_light = getManifestInfo("is-bob-light") != null;
+
         for (String className : classNames) {
             // Ignore TexcLibrary to avoid it being loaded and initialized
-            if (!className.startsWith("com.dynamo.bob.TexcLibrary")) {
+            // We're also skipping the some bundling classes, since we're only building content,
+            // not doing bundling when using bob-light
+            boolean skip = className.startsWith("com.dynamo.bob.TexcLibrary") ||
+                    (is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) ||
+                    (is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) ||
+                    (is_bob_light && className.startsWith("com.dynamo.bob.bundle.ManifestMergeTool")) ||
+                    (is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper"));
+            if (!skip) {
                 try {
                     Class<?> klass = Class.forName(className);
                     BuilderParams params = klass.getAnnotation(BuilderParams.class);
@@ -987,6 +1028,9 @@ run:
                     message = e.getMessage();
                     exception = e;
                     abort = true;
+
+                    // to fix the issue it's easier to see the actual callstack
+                    exception.printStackTrace(new java.io.PrintStream(System.out));
                 }
                 if (!ok) {
                     taskFailed = true;

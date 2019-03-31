@@ -811,7 +811,7 @@ class Configuration(object):
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
             self.exec_env_shell_command("./scripts/copy.sh", cwd = cwd)
 
-        self.exec_env_shell_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+        self.exec_env_shell_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-bob-light']),
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'))
 
     def build_engine(self):
@@ -966,7 +966,7 @@ class Configuration(object):
         else:
             self.copy_local_bob_artefacts()
 
-        self.exec_env_shell_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
+        self.exec_env_shell_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
                               cwd = cwd)
 
     def build_sdk(self):

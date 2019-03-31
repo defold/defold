@@ -46,7 +46,7 @@
             <arg value="-n1" />
         </exec>
     </target>
-    <target name="compile" depends="git.revision">
+    <target name="compile-bob-light" depends="git.revision">
         <mkdir dir="${classes.dir}"/>
         <!-- NOTE: We force thread-count 10 here in order to reduce latency
              Running external processes in Java is slow -->
@@ -85,7 +85,7 @@
         </parallel>
 
         <exec dir="." executable="python">
-                <arg line="engine_version_generator.py" />
+            <arg line="engine_version_generator.py" />
         </exec>
 
         <copy todir="lib" overwrite="true" flatten="true" failonerror="false">
@@ -216,12 +216,6 @@
               <include name="win32/*texc_shared*"/>
             </fileset>
         </copy>
-        <copy todir="lib/x86-win32" overwrite="true" flatten="true">
-            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="win32/OpenAL32.dll"/>
-                <include name="win32/wrap_oal.dll"/>
-            </fileset>
-        </copy>
         <copy todir="lib/x86_64-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-win32/*texc_shared*"/>
@@ -232,8 +226,6 @@
         </copy>
         <copy todir="lib/x86_64-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="x86_64-win32/OpenAL32.dll"/>
-                <include name="x86_64-win32/wrap_oal.dll"/>
                 <include name="x86_64-win32/PVRTexLib.dll"/>
                 <include name="x86_64-win32/msvcr120.dll"/>
             </fileset>
@@ -242,34 +234,48 @@
              <fileset dir="${env.DYNAMO_HOME}/ext/share">
                  <include name="luajit/**"/>
              </fileset>
-         </jar>
+        </jar>
 
+    </target>
+
+    <target name="compile" depends="compile-bob-light">
         <jar destfile="lib/android-res.zip">
              <fileset dir="${env.DYNAMO_HOME}/ext/share/java">
                  <include name="res/**"/>
              </fileset>
-         </jar>
+        </jar>
+        <copy todir="lib/x86-win32" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
+                <include name="win32/OpenAL32.dll"/>
+                <include name="win32/wrap_oal.dll"/>
+            </fileset>
+        </copy>
+        <copy todir="lib/x86_64-win32" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
+                <include name="x86_64-win32/OpenAL32.dll"/>
+                <include name="x86_64-win32/wrap_oal.dll"/>
+            </fileset>
+        </copy>
     </target>
 
-    <target name="dist" depends="compile">
+    <target name="dist-bob-light" depends="compile-bob-light">
         <mkdir dir="dist"/>
         <mkdir dir="tmp"/>
 
-        <jar jarfile="tmp/external-libs.jar">
+        <jar jarfile="tmp/external-libs-light.jar">
             <zipgroupfileset dir="../com.dynamo.cr.common/ext">
               <include name="protobuf-java*.jar"/>
               <include name="commons*.jar"/>
               <include name="vecmath.jar"/>
               <include name="extender-client-*.jar"/>
             </zipgroupfileset>
-            <zipgroupfileset dir="../com.dynamo.cr.common/ext/android">
-                <include name="*.jar" />
-            </zipgroupfileset>
-            <zipgroupfileset dir="../com.dynamo.cr.common/ext/aws">
-                <include name="*.jar" />
-            </zipgroupfileset>
             <zipgroupfileset dir="lib">
-              <include name="*.jar"/>
+              <include name="dlib.jar"/>
+              <include name="lz4-1.3.0.jar"/>
+              <include name="commons-cli-1.2.jar"/>
+              <include name="jna.jar"/>
+              <include name="jackson-core-asl-1.9.2.jar"/>
+              <include name="jackson-mapper-asl-1.9.2.jar"/>
             </zipgroupfileset>
          </jar>
 
@@ -280,22 +286,32 @@
                 <include name="lib/**/*PVRTexLib*"/>
                 <include name="lib/**/*msvcr120.dll*"/>
             </fileset>
-            <fileset dir=".">
+<!--             <fileset dir=".">
                 <include name="libexec/**/*"/>
+            </fileset> -->
+
+            <fileset dir=".">
+                <include name="libexec/**/glslc*"/>
+                <include name="libexec/**/spirv-cross*"/>
+                <include name="libexec/**/luajit*"/>
             </fileset>
-            <zipfileset src="tmp/external-libs.jar">
+            <zipfileset src="tmp/external-libs-light.jar">
               <exclude name="**/META-INF/**"/>
             </zipfileset>
-            <fileset dir=".">
+<!--             <fileset dir=".">
                 <include name="lib/*.zip"/>
+            </fileset> -->
+            <fileset dir=".">
+                <include name="lib/luajit-share.zip"/>
             </fileset>
             <manifest>
                 <attribute name="Main-Class" value="com.dynamo.bob.Bob"/>
+                <attribute name="is-bob-light" value="true"/>
             </manifest>
         </jar>
     </target>
 
-    <target name="dist-builtins" depends="compile">
+    <target name="dist" depends="compile">
         <mkdir dir="dist"/>
         <mkdir dir="tmp"/>
 
@@ -349,14 +365,12 @@
         </jar>
     </target>
 
-    <target name="install" depends="dist">
+    <target name="install-bob-light" depends="dist-bob-light">
         <copy file="dist/bob-light.jar" todir="${env.DYNAMO_HOME}/share/java"/>
     </target>
 
-    <target name="install-builtins" depends="dist-builtins">
+    <target name="install" depends="dist">
         <copy file="dist/bob.jar" todir="${env.DYNAMO_HOME}/share/java"/>
     </target>
-
-    <target name="install-full" depends="install,install-builtins" />
 
 </project>
