@@ -8,6 +8,7 @@
          [:await-log :editor 60000 "show-dialog"]
          [:type ".coll"]
          [:press :down]
+         [:wait 100]
          [:press :enter]
          [:await-log :editor 60000 "opened-resource"]
          [:wait 100] ;; At least one pulse needs to pass.
@@ -16,16 +17,17 @@
          [:await-log :editor 60000 "show-dialog"]
          [:type "player.script"]
          [:press :down]
+         [:wait 100]
          [:press :enter]
          [:await-log :editor 60000 "code-view-visible"]
          [:wait 100] ;; At least one pulse needs to pass.
          [:screen-capture "script"]
          [:build]
          [:await-log :engine 60000 "intro started"]
-         [:await-log :engine 60000 " seconds"]
+         [:await-log :engine 120000 " seconds"]
          [:screen-capture "game_intro"]
          [:await-log :engine 60000 "level started"]
-         [:await-log :engine 60000 " seconds"]
+         [:await-log :engine 120000 " seconds"]
          [:screen-capture "game_running"]
          [:switch-focus]
          [:wait 750] ;; Focus switching is sometimes not instant.
