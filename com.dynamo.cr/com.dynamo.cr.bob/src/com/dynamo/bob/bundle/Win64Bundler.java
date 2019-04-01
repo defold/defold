@@ -16,8 +16,8 @@ import com.dynamo.bob.util.BobProjectProperties;
 
 public class Win64Bundler implements IBundler {
     @Override
-    public void bundleApplication(Project project, File bundleDir)
+    public void bundleApplication(Project project, File bundleDir, ICanceled canceled)
             throws IOException, CompileExceptionError {
-	new Win32Bundler().bundleApplicationForPlatform(Platform.X86_64Win32, project, bundleDir);
+	new Win32Bundler().bundleApplicationForPlatform(Platform.X86_64Win32, project, bundleDir, canceled);
     }
 }

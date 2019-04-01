@@ -428,8 +428,12 @@ public class ExtenderUtil {
         // Find extension folders
         List<String> extensionFolders = getExtensionFolders(project);
         for (String extension : extensionFolders) {
+            IResource resource = project.getResource(extension + "/" + ExtenderClient.extensionFilename);
+            if (!resource.exists()) {
+                throw new CompileExceptionError(resource, 1, "Resource doesn't exist!");
+            }
 
-            sources.add( new FSExtenderResource( project.getResource(extension + "/" + ExtenderClient.extensionFilename)) );
+            sources.add( new FSExtenderResource( resource ) );
             sources.addAll( listFilesRecursive( project, extension + "/include/" ) );
             sources.addAll( listFilesRecursive( project, extension + "/src/") );
 
@@ -440,6 +444,28 @@ public class ExtenderUtil {
         }
 
         return sources;
+    }
+
+    /** Makes sure the project doesn't have duplicates wrt relative paths.
+     * This is important since we use both files on disc and in memory. (DEF-3868, )
+     * @return Doesn't return anything. It throws CompileExceptionError if the check fails.
+     */
+    public static void checkProjectForDuplicates(Project project) throws CompileExceptionError {
+        Map<String, IResource> files = new HashMap<String, IResource>();
+
+        ArrayList<String> paths = new ArrayList<>();
+        project.findResourcePaths("", paths);
+        for (String p : paths) {
+            IResource r = project.getResource(p);
+            if (!r.isFile()) // Skip directories
+                continue;
+
+            if (files.containsKey(r.getPath())) {
+                IResource previous = files.get(r.getPath());
+                throw new CompileExceptionError(r, 0, String.format("The files' relative path conflict:\n'%s' and\n'%s", r.getAbsPath(), r.getAbsPath()));
+            }
+            files.put(r.getPath(), r);
+        }
     }
 
     /**
