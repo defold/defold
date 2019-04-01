@@ -509,22 +509,22 @@
             (current-session debug-view evaluation-context))
   (run [debug-view] (mobdebug/exit! (current-session debug-view))))
 
-(defn- can-change-resolution? [debug-view prefs]
+(defn- can-change-resolution? [debug-view prefs evaluation-context]
   (and (targets/controllable-target? (targets/selected-target prefs))
-       (not (suspended? debug-view))))
+       (not (suspended? debug-view evaluation-context))))
 
 (def should-rotate-device?
   (atom false))
 
 (handler/defhandler :set-resolution :global
-  (enabled? [debug-view prefs]
-            (can-change-resolution? debug-view prefs))
+  (enabled? [debug-view prefs evaluation-context]
+            (can-change-resolution? debug-view prefs evaluation-context))
   (run [project app-view prefs build-errors-view selection user-data]
        (engine/change-resolution! (targets/selected-target prefs) (:width user-data) (:height user-data) @should-rotate-device?)))
 
 (handler/defhandler :set-custom-resolution :global
-  (enabled? [debug-view prefs]
-            (can-change-resolution? debug-view prefs))
+  (enabled? [debug-view prefs evaluation-context]
+            (can-change-resolution? debug-view prefs evaluation-context))
   (run [project app-view prefs build-errors-view selection user-data]
        (let [[ok width height] (dialogs/make-resolution-dialog)]
          (when ok
