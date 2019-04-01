@@ -1906,6 +1906,7 @@ command."
   (on-closed! closeable (fn [_] (timer-stop! timer))))
 
 (defn- show-dialog-stage [^Stage stage show-fn]
+  (.setOnShown stage (event-handler _ (slog/smoke-log "show-dialog")))
   (if (and (eutil/is-mac-os?)
            (= (.getOwner stage) (main-stage)))
     (let [scene (.getScene stage)
@@ -1918,7 +1919,6 @@ command."
       (refresh scene)
       (timer-start! refresh-timer)
       (timer-stop-on-closed! stage refresh-timer)
-      (.setOnShown stage (event-handler _ (slog/smoke-log "show-dialog")))
       (show-fn stage))
     (show-fn stage)))
 
