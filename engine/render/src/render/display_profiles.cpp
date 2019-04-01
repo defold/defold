@@ -39,20 +39,22 @@ namespace dmRender
         uint32_t profile_count = profiles->m_Profiles.Size();
         if(profile_count > 0)
         {
-            DisplayProfiles::Qualifier* qualifier = &profiles->m_Qualifiers[0];
-            for(uint32_t i = 0; i < profile_count; ++i)
+            delete profiles;
+            return;
+        }
+        DisplayProfiles::Qualifier* qualifier = &profiles->m_Qualifiers[0];
+        for(uint32_t i = 0; i < profile_count; ++i)
+        {
+            DisplayProfiles::Profile& profile = profiles->m_Profiles[i];
+            uint32_t qualifier_count = profile.m_QualifierCount;
+            for(uint32_t q = 0; q < qualifier_count; ++q)
             {
-                DisplayProfiles::Profile& profile = profiles->m_Profiles[i];
-                uint32_t qualifier_count = profile.m_QualifierCount;
-                for(uint32_t q = 0; q < qualifier_count; ++q)
+                for (uint32_t d = 0; d < qualifier->m_NumDeviceModels; ++d)
                 {
-                    for (uint32_t d = 0; d < qualifier->m_NumDeviceModels; ++d)
-                    {
-                        free(qualifier->m_DeviceModels[d]);
-                    }
-                    delete[] qualifier->m_DeviceModels;
-                    ++qualifier;
+                    free(qualifier->m_DeviceModels[d]);
                 }
+                delete[] qualifier->m_DeviceModels;
+                ++qualifier;
             }
         }
         delete profiles;
