@@ -216,12 +216,12 @@ namespace dmGui
 
     struct TextureInfo
     {
-        TextureInfo(void* texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height) 
+        TextureInfo(void* texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height)
         : m_TextureSource(texture_source)
         , m_TextureSourceType(texture_source_type)
         , m_OriginalWidth(original_width)
         , m_OriginalHeight(original_height) {}
-        
+
         void*    m_TextureSource;
         NodeTextureType m_TextureSourceType;
         uint32_t m_OriginalWidth : 16;

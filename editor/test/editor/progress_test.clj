@@ -4,24 +4,24 @@
             [editor.progress :refer :all]))
 
 (deftest make-test
-  (is (= {:message "mess" :size 10 :pos 0}
+  (is (= {:message "mess" :size 10 :pos 0 :cancellable false :cancelled false}
          (make "mess" 10)))
-  (is (= {:message "mess" :size 10 :pos 5}
+  (is (= {:message "mess" :size 10 :pos 5 :cancellable false :cancelled false}
          (make "mess" 10 5))))
 
 (deftest with-message-test
-  (is (= {:message "mess2" :size 1 :pos 0}
+  (is (= {:message "mess2" :size 1 :pos 0 :cancellable false :cancelled false}
          (with-message (make "mess") "mess2"))))
 
 (deftest advance-test
-  (is (= {:message "mess" :size 1 :pos 1}
+  (is (= {:message "mess" :size 1 :pos 1 :cancellable false :cancelled false}
          (advance (make "mess"))))
 
-  (is (= {:message "mess2" :size 2 :pos 2}
+  (is (= {:message "mess2" :size 2 :pos 2 :cancellable false :cancelled false}
          (advance (make "mess" 2) 2 "mess2")))
 
   (testing "advancing beyond size"
-    (is (= {:message "mess2" :size 2 :pos 2}
+    (is (= {:message "mess2" :size 2 :pos 2 :cancellable false :cancelled false}
            (advance (make "mess" 2) 3 "mess2")))))
 
 (deftest jump-test
