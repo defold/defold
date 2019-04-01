@@ -276,6 +276,7 @@
               <include name="jna.jar"/>
               <include name="jackson-core-asl-1.9.2.jar"/>
               <include name="jackson-mapper-asl-1.9.2.jar"/>
+              <include name="openmali.jar"/>
             </zipgroupfileset>
          </jar>
 
