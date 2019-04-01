@@ -1760,13 +1760,14 @@ instructions.configure=\
         if os.path.exists('editor/log.txt'):
             os.remove('editor/log.txt')
         game_project = 'test/resources/geometry_wars/game.project'
-        args = ['sh', './scripts/lein', 'with-profile', '+smoke-test', 'run', game_project]
+        args = ['./scripts/lein', 'with-profile', '+smoke-test', 'run', game_project]
         robot_jar = '../defold-robot/target/defold-robot-0.7.0-standalone.jar'
         robot_args = ['java', '-jar', robot_jar, '-s', '../share/smoke-test.edn', '-o', 'local_smoke_result']
         origdir = os.getcwd()
         origcwd = cwd
         if 'win32' in host2:
             os.chdir(cwd)
+            args = ['sh'] + args
             cwd = '.'
         print('Running robot: %s' % robot_args)
         robot_proc = subprocess.Popen(robot_args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
