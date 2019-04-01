@@ -7,8 +7,7 @@
             [internal.graph.types :as gt]
             [internal.graph.error-values :as ie]
             [plumbing.core :as pc]
-            [schema.core :as s]
-            [clojure.walk :as walk])
+            [schema.core :as s])
   (:import [internal.graph.error_values ErrorValue]
            [schema.core Maybe ConditionalSchema]
            [java.lang.ref WeakReference]))
@@ -904,45 +903,50 @@
          `(merge-display-order ~(:display-order-decl tree) ~(:property-order-decl tree)
                                ~@(map property-display-order (:supertypes tree)))))
 
-(defn- wrap-when
-  [tree key-pred val-pred xf]
-  (walk/postwalk
-    (fn [f]
-      (if (vector? f)
-        (let [[k v] f]
-          (if (and (key-pred k) (val-pred v))
-            [k (xf v)]
-            f))
-        f))
-    tree))
+(defn- update-fn-maps [tree f]
+  (-> tree
+      (update :output (partial util/map-vals f))
+      (update :property (fn [properties]
+                          (into {}
+                                (map (fn [[property-label propdef]]
+                                       [property-label (cond-> propdef
+                                                               (some? (-> propdef :value :fn))
+                                                               (update :value f)
 
-(defn- wrap-constant-fns
-  [tree]
-  (wrap-when tree #(= :fn %)
-             (fn [v] (not (or (seq? v) (util/pfnksymbol? v) (util/pfnkvar? v) (= v ::default-fn))))
-             (fn [v] `(dynamo.graph/fnk [] ~(if (symbol? v) (resolve v) v)))))
+                                                               (some? (-> propdef :default :fn))
+                                                               (update :default f)
+
+                                                               (some? (-> propdef :dynamics))
+                                                               (update :dynamics (partial util/map-vals f)))]))
+                                properties)))))
+
+(defn- wrap-constant-fn? [fn]
+  (not (or (seq? fn) (util/pfnksymbol? fn) (util/pfnkvar? fn) (= fn ::default-fn))))
+
+(defn- wrap-constant-fn [v]
+  `(dynamo.graph/fnk [] ~(if (symbol? v) (resolve v) v)))
+
+(defn- maybe-wrap-constant-fn [fn]
+  (if (wrap-constant-fn? fn)
+    (wrap-constant-fn fn)
+    fn))
+
+(defn- wrap-constant-fns [tree]
+  (update-fn-maps tree #(update % :fn maybe-wrap-constant-fn)))
 
 (defn- into-set [x v] (into (or x #{}) v))
 
-(defn- extract-fn-arguments
-  [tree]
-  (walk/postwalk
-    (fn [f]
-      (if (and (map? f)
-               (contains? f :fn))
-        (let [fnf (:fn f)
-              default-label (:default-fn-label f)
-              args (if (= fnf ::default-fn)
-                     (do #_(println default-label)
-                         #{default-label})
-                     (util/inputs-needed fnf))]
-          #_(println args)
-          #_(println (map type args))
-          (-> f
-              (update :arguments #(into-set % args))
-              (update :dependencies #(into-set % args))))
-        f))
-    tree))
+(defn- extract-fn-arguments [tree]
+  (update-fn-maps tree
+                  (fn [fn-map]
+                    (let [fnf (:fn fn-map)
+                          default-label (:default-fn-label fn-map)
+                          args (if (= fnf ::default-fn)
+                                 #{default-label}
+                                 (util/inputs-needed fnf))]
+                      (-> fn-map
+                          (update :arguments #(into-set % args))
+                          (update :dependencies #(into-set % args)))))))
 
 (defn- prop+args [[pname pdef]]
   (into #{pname} (:arguments pdef)))
