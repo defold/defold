@@ -350,7 +350,7 @@
   (let [[symb forms] (ctm/name-with-attributes symb body)
         fully-qualified-node-type-symbol (symbol (str *ns*) (str symb))
         node-type-def (in/process-node-type-forms fully-qualified-node-type-symbol forms)
-        fn-paths (in/extract-functions node-type-def)
+        fn-paths (in/extract-def-fns node-type-def)
         fn-defs (for [[path func] fn-paths]
                   (list `def (in/dollar-name symb path) func))
         node-type-def (util/update-paths node-type-def fn-paths
@@ -361,14 +361,10 @@
                       `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
                          (derive ~node-key ~(:key (deref tref)))))
         node-type-def (update node-type-def :supertypes #(list `quote %))
-        type-name (str symb)
         runtime-definer (symbol (str symb "*"))
         type-regs (for [[key-form value-type-form] (:register-type-info node-type-def)]
                     `(in/register-value-type ~key-form ~value-type-form))
         node-type-def (dissoc node-type-def :register-type-info)]
-    #_(println type-name :# (count fn-defs))
-    (def last-fn-defs fn-defs)
-    #_(println :#typeregs (count type-regs))
     `(do
        (declare ~symb)
        ~@type-regs
@@ -376,6 +372,8 @@
        (defn ~runtime-definer [] ~node-type-def)
        (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
        ~@derivations)))
+
+
 
 ;; ---------------------------------------------------------------------------
 ;; Transactions

@@ -907,3 +907,36 @@
   (with-clean-system
     (let [[n] (tx-nodes (g/make-node world Derived))]
       (println (g/node-value n :test)))))
+
+(g/defnode AllKindsOfFns
+  (property backing-prop g/Str)
+  (property the-prop g/Str
+            (default (g/fnk [] "default string"))
+            (set (fn [evaluation-context self _ new-value]
+                   (g/set-property self :backing-prop new-value)))
+            (value (g/fnk [backing-prop] backing-prop))
+            (dynamic equals-default-string (g/fnk [the-prop] (= the-prop "default string"))))
+
+  (property constant-fns-prop g/Str
+            (default "default string")
+            (value "cant touch this")
+            (dynamic some-state "state val"))
+
+  (output some-output g/Str (g/fnk [the-prop] (str "***" the-prop)))
+
+  (output constant-output g/Str "outputs this constant string")
+
+  (output tricky g/Str (g/fnk [some-output]
+                         (str {:fn :tricky
+                               :result some-output}))))
+
+(deftest all-kinds
+  (with-clean-system
+    (let [[n] (tx-nodes (g/make-node world AllKindsOfFns))]
+      (println (g/node-value n :backing-prop))
+      (println (g/node-value n :the-prop))
+      (println (g/node-value n :constant-fns-prop))
+      (println (g/node-value n :some-output))
+      (println (g/node-value n :constant-output))
+      (println (g/node-value n :_properties))
+      (println (g/node-value n :tricky)))))
