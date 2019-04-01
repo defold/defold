@@ -30,7 +30,7 @@ import com.dynamo.bob.fs.IFileSystem;
 public class JarTest {
 
     private int bob(String command) throws IOException, InterruptedException, CompileExceptionError, URISyntaxException {
-        String jarPath = "../com.dynamo.cr.bob/dist/bob.jar";
+        String jarPath = "../com.dynamo.cr.bob/dist/bob-light.jar";
         Process p = Runtime.getRuntime().exec(new String[] { "java", "-jar", jarPath, "-v", "-r", "test", "-i", ".", command });
         BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
         String line;
@@ -41,7 +41,7 @@ public class JarTest {
     }
 
     private int bob(String[] commands, String outputMatch) throws IOException, InterruptedException, CompileExceptionError, URISyntaxException {
-        String jarPath = "../com.dynamo.cr.bob/dist/bob.jar";
+        String jarPath = "../com.dynamo.cr.bob/dist/bob-light.jar";
         String[] bobArgs = new String[] { "java", "-jar", jarPath, "-v", "-r", "test", "-i", "."};
         String[] allArgs = new String[bobArgs.length + commands.length];
         System.arraycopy(bobArgs, 0, allArgs, 0, bobArgs.length);
