@@ -48,6 +48,8 @@ def compile_sdk_headers(task):
             if file.endswith('.h'):
                 if(file == 'sdk.h'):
                     continue
+                if('vectormath' in root):
+                    continue
                 includes.append(os.path.join(root, file))
 
     with open(os.path.join(task.install_path, task.target), "w") as f:

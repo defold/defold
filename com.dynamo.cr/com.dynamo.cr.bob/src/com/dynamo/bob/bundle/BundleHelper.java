@@ -58,6 +58,12 @@ public class BundleHelper {
 
     private static Logger logger = Logger.getLogger(BundleHelper.class.getName());
 
+    public static void throwIfCanceled(ICanceled canceled) {
+        if(canceled.isCanceled()) {
+            throw new RuntimeException("Canceled");
+        }
+    }
+
     public BundleHelper(Project project, Platform platform, File bundleDir, String appDirSuffix) throws IOException {
         this.projectProperties = project.getProjectProperties();
 
