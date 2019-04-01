@@ -37,19 +37,22 @@ namespace dmRender
     void DeleteDisplayProfiles(HDisplayProfiles profiles)
     {
         uint32_t profile_count = profiles->m_Profiles.Size();
-        DisplayProfiles::Qualifier* qualifier = &profiles->m_Qualifiers[0];
-        for(uint32_t i = 0; i < profile_count; ++i)
+        if(profile_count > 0)
         {
-            DisplayProfiles::Profile& profile = profiles->m_Profiles[i];
-            uint32_t qualifier_count = profile.m_QualifierCount;
-            for(uint32_t q = 0; q < qualifier_count; ++q)
+            DisplayProfiles::Qualifier* qualifier = &profiles->m_Qualifiers[0];
+            for(uint32_t i = 0; i < profile_count; ++i)
             {
-                for (uint32_t d = 0; d < qualifier->m_NumDeviceModels; ++d)
+                DisplayProfiles::Profile& profile = profiles->m_Profiles[i];
+                uint32_t qualifier_count = profile.m_QualifierCount;
+                for(uint32_t q = 0; q < qualifier_count; ++q)
                 {
-                    free(qualifier->m_DeviceModels[d]);
+                    for (uint32_t d = 0; d < qualifier->m_NumDeviceModels; ++d)
+                    {
+                        free(qualifier->m_DeviceModels[d]);
+                    }
+                    delete[] qualifier->m_DeviceModels;
+                    ++qualifier;
                 }
-                delete[] qualifier->m_DeviceModels;
-                ++qualifier;
             }
         }
         delete profiles;
