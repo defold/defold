@@ -8,8 +8,7 @@
             [internal.graph.error-values :as ie]
             [plumbing.core :as pc]
             [schema.core :as s]
-            [clojure.walk :as walk]
-            [clojure.zip :as zip])
+            [clojure.walk :as walk])
   (:import [internal.graph.error_values ErrorValue]
            [schema.core Maybe ConditionalSchema]
            [java.lang.ref WeakReference]))
@@ -808,7 +807,7 @@
         register-type-info (:register-type-info propdef)
         propdef (dissoc propdef :register-type-info)
         prop-value-fn (-> propdef :value :fn)
-        outdef (cond-> (dissoc propdef :setter :dynamics :value)
+        outdef (cond-> (dissoc propdef :setter :dynamics :value :default)
 
                        (some? prop-value-fn)
                        (assoc :fn prop-value-fn)
@@ -1022,62 +1021,59 @@
       verify-inputs-for-outputs
       verify-labels))
 
-(defn- map-zipper [m]
-  (zip/zipper
-    (fn [x] (or (map? x) (map? (nth x 1))))
-    (fn [x] (seq (if (map? x) x (nth x 1))))
-    (fn [x children]
-      (if (map? x)
-        (into {} children)
-        (assoc x 1 (into {} children))))
-    m))
-
-(defn- key-path
-  [z]
-  (mapv first (rest (zip/path z))))
-
-(def ^:private def-order-swaps {:output 0
-                                :property 1
-                                :behavior 2
-                                :property-behavior 3})
-
-(defn- definition-order [[path1 fn1] [path2 fn2]]
-  ;; paths are like [:behaviour :output] [:output :output] [:property :prop] [:property-behavior :prop]
-  ;; we want :output before :behavior and :property before :property-behavior
-  ;; :output :property :behavior :property-behavior
-  ;; Some paths are longer: [:property :cake :dynamics :cake-dyns] so for comparison to work as we want
-  ;; we pad the paths to 4 elements.
-  (let [path1' (-> path1
-                   (update 0 def-order-swaps)
-                   (update 2 identity)
-                   (update 3 identity))
-        path2' (-> path2
-                   (update 0 def-order-swaps)
-                   (update 2 identity)
-                   (update 3 identity))]
-    (assert (= (count path1') (count path2')) (str path1' "(" (count path1') ")=(" (count path2') ")"))
-    (compare path1' path2')))
-
-(defn extract-functions
-  [tree]
-  (let [path+fns (loop [where (map-zipper tree)
-                        what []]
-                   (if (zip/end? where)
-                     what
-                     (recur (zip/next where)
-                            (if (and (= :fn (first (zip/node where)))
-                                     (not (var? (second (zip/node where))))
-                                     (not= (second (zip/node where)) ::default-fn))
-                              (conj what [(key-path where) (second (zip/node where))])
-                              what))))]
-    (sort definition-order path+fns)))
-
 (defn dollar-name [prefix path]
   (->> path
        (map name)
        (interpose "$")
        (apply str prefix "$")
        symbol))
+
+(defn- def-fn? [f]
+  (and f
+       (not= f ::default-fn)
+       (not (var? f))))
+
+(defn extract-def-fns [node-type-def]
+  (let [output-defs (keep (fn [[output-label {:keys [fn] :as _outdef}]]
+                            (when (def-fn? fn)
+                              [[:output output-label] fn]))
+                          (:output node-type-def))
+        prop-defs (reduce (fn [prop-defs [property-label prop-def]]
+                            (cond-> prop-defs
+                                    (def-fn? (-> prop-def :value :fn))
+                                    (update :value conj [[:property property-label :value] (-> prop-def :value :fn)])
+
+                                    (def-fn? (-> prop-def :default :fn))
+                                    (update :default conj [[:property property-label :default] (-> prop-def :default :fn)])
+
+                                    (some? (:dynamics prop-def))
+                                    (update :dynamics into (keep (fn [[dynamic-label {:keys [fn] :as _dyndef}]]
+                                                                   (when (def-fn? fn)
+                                                                     [[:property property-label :dynamics dynamic-label] fn]))
+                                                                 (:dynamics prop-def)))
+
+                                    (def-fn? (-> prop-def :setter :fn))
+                                    (update :setter conj [[:property property-label :setter] (-> prop-def :setter :fn)])))
+                          {:value []
+                           :default []
+                           :dynamics []
+                           :setter []}
+                          (:property node-type-def))
+        behaviors (keep (fn [[output-label {:keys [fn] :as _output-behavior}]]
+                          (when (def-fn? fn)
+                            [[:behavior output-label] fn]))
+                        (:behavior node-type-def))
+        property-behaviors (keep (fn [[property-label {:keys [fn] :as _property-behavior}]]
+                                   (when (def-fn? fn)
+                                     [[:property-behavior property-label] fn]))
+                                 (:property-behavior node-type-def))]
+    (concat output-defs
+            (:value prop-defs)
+            (:default prop-defs)
+            (:dynamics prop-defs)
+            (:setter prop-defs)
+            behaviors
+            property-behaviors)))
 
 ;;; ----------------------------------------
 ;;; Code generation
