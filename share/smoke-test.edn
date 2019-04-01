@@ -28,12 +28,15 @@
          [:await-log :engine 60000 " seconds"]
          [:screen-capture "game_running"]
          [:switch-focus]
+         [:wait 750] ;; Focus switching is sometimes not instant.
          [:press :enter]
          [:hot-reload]
          [:undo]
          [:await-log :engine 60000 "successfully reloaded"]
          [:screen-capture "test_end"]
          [:switch-focus]
+         [:wait 750] ;; Focus switching is sometimes not instant.
          [:press :escape]
+         [:wait 750] ;; Focus switching is sometimes not instant.
          [:quit]]}
 
