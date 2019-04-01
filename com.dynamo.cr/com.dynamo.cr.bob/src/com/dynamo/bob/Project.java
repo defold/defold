@@ -1280,14 +1280,14 @@ run:
     }
 
     public IResource getResource(String path) {
-        return fileSystem.get(path);
+        return fileSystem.get(FilenameUtils.normalize(path, true));
     }
 
     public void findResourcePaths(String path, Collection<String> result)
     {
         fileSystem.walk(path, new FileSystemWalker() {
             public void handleFile(String path, Collection<String> results) {
-                results.add(path);
+                results.add(FilenameUtils.normalize(path, true));
             }
         }, result);
     }

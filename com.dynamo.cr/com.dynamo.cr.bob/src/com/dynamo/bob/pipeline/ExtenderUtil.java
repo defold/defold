@@ -428,8 +428,12 @@ public class ExtenderUtil {
         // Find extension folders
         List<String> extensionFolders = getExtensionFolders(project);
         for (String extension : extensionFolders) {
+            IResource resource = project.getResource(extension + "/" + ExtenderClient.extensionFilename);
+            if (!resource.exists()) {
+                throw new CompileExceptionError(resource, 1, "Resource doesn't exist!");
+            }
 
-            sources.add( new FSExtenderResource( project.getResource(extension + "/" + ExtenderClient.extensionFilename)) );
+            sources.add( new FSExtenderResource( resource ) );
             sources.addAll( listFilesRecursive( project, extension + "/include/" ) );
             sources.addAll( listFilesRecursive( project, extension + "/src/") );
 
