@@ -37,7 +37,7 @@ namespace dmRender
     void DeleteDisplayProfiles(HDisplayProfiles profiles)
     {
         uint32_t profile_count = profiles->m_Profiles.Size();
-        if(profile_count > 0)
+        if(profile_count == 0)
         {
             delete profiles;
             return;
