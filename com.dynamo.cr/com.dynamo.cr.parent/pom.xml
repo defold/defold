@@ -88,50 +88,8 @@
         <module>../javax.inject</module>
         <module>../com.dynamo.cr.common</module>
         <module>../com.dynamo.cr.common.test</module>
-        <module>../com.dynamo.cr.editor</module>
-        <module>../com.dynamo.cr.editor.core</module>
-        <module>../com.dynamo.cr.editor.core.test</module>
-        <module>../com.dynamo.cr.editor.fs</module>
-        <module>../com.dynamo.cr.editor.fs.test</module>
-        <module>../com.dynamo.cr.editor.ui</module>
-        <module>../com.dynamo.cr.luaeditor</module>
-        <module>../com.dynamo.cr.luaeditor.test</module>
-        <module>../com.dynamo.cr.cgeditor</module>
-        <module>../com.dynamo.cr.ddfeditor</module>
-        <module>../com.dynamo.cr.ddfeditor.test</module>
-        <module>../com.dynamo.cr.protobind</module>
-        <module>../com.dynamo.cr.protobind.test</module>
-        <module>../com.dynamo.cr.integrationtest</module>
-        <module>../com.dynamo.cr.target</module>
-        <module>../com.dynamo.cr.target.test</module>
-        <module>../com.dynamo.cr.client</module>
-        <module>../com.dynamo.cr.client.test</module>
-        <module>../com.dynamo.cr.guied</module>
-        <module>../com.dynamo.cr.guied.test</module>
-        <module>../com.dynamo.cr.tileeditor</module>
-        <module>../com.dynamo.cr.tileeditor.test</module>
-        <module>../com.dynamo.cr.properties</module>
-        <module>../com.dynamo.cr.properties.test</module>
-        <module>../com.dynamo.cr.projed</module>
-        <module>../com.dynamo.cr.projed.test</module>
-        <module>../com.dynamo.cr.rlog</module>
-        <module>../com.dynamo.cr.rlog.test</module>
-        <module>../com.dynamo.cr.sceneed</module>
-        <module>../com.dynamo.cr.sceneed.test</module>
-        <module>../com.dynamo.cr.go</module>
-        <module>../com.dynamo.cr.go.test</module>
-        <module>../com.dynamo.cr.parted</module>
-        <module>../com.dynamo.cr.parted.test</module>
-        <module>../com.dynamo.cr.spine</module>
-        <module>../com.dynamo.cr.spine.test</module>
-        <module>../com.dynamo.cr.dgit</module>
-        <module>../com.dynamo.cr.dgit.test</module>
-        <module>../com.dynamo.cr.branchrepo</module>
-        <module>../com.dynamo.cr.builtins</module>
-        <module>../com.dynamo.cr.engine</module>
         <module>../com.dynamo.cr.bob</module>
         <module>../com.dynamo.cr.bob.test</module>
-        <module>../com.dynamo.cr.templates</module>
         <module>../javax.media.opengl</module>
         <module>../com.sun.jna</module>
         <module>../joda.time</module>
@@ -139,13 +97,6 @@
     </modules>
 
     <profiles>
-        <profile>
-            <id>server</id>
-            <modules>
-		        <module>../com.dynamo.cr.server-product</module>
-            </modules>
-        </profile>
-
         <profile>
             <id>editor</id>
             <modules>
