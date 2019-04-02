@@ -2,7 +2,7 @@
 
 #include "engine_private.h"
 
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <sys/stat.h>
 
 #include <stdio.h>

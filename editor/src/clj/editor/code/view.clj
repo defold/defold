@@ -30,6 +30,7 @@
            [javafx.beans.binding ObjectBinding]
            [javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty]
            [javafx.beans.value ChangeListener]
+           [javafx.event EventHandler]
            [javafx.geometry HPos Point2D VPos]
            [javafx.scene Node Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
@@ -2321,6 +2322,24 @@
                          :else
                          :not-focused)))))
 
+;; JavaFX generally reports wrong key-typed events when typing tilde on Swedish
+;; keyboard layout, which is a problem when writing Lua because it uses ~ for negation,
+;; so typing "AltGr ` =" inserts "~¨=" instead of "~="
+;; Original JavaFX issue: https://bugs.openjdk.java.net/browse/JDK-8183521
+;; See also: https://github.com/javafxports/openjdk-jfx/issues/358
+
+(defn- wrap-disallow-diaeresis-after-tilde
+  ^EventHandler [^EventHandler handler]
+  (let [last-event-volatile (volatile! nil)]
+    (ui/event-handler event
+      (let [^KeyEvent new-event event
+            ^KeyEvent prev-event @last-event-volatile]
+        (vreset! last-event-volatile event)
+        (when-not (and (some? prev-event)
+                       (= "~" (.getCharacter prev-event))
+                       (= "¨" (.getCharacter new-event)))
+          (.handle handler event))))))
+
 (defn- make-view! [graph parent resource-node opts]
   (let [^Tab tab (:tab opts)
         app-view (:app-view opts)
@@ -2369,7 +2388,8 @@
       (.setFocusTraversable true)
       (.setCursor javafx.scene.Cursor/TEXT)
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (handle-key-pressed! view-node event)))
-      (.addEventHandler KeyEvent/KEY_TYPED (ui/event-handler event (handle-key-typed! view-node event)))
+      (.addEventHandler KeyEvent/KEY_TYPED (wrap-disallow-diaeresis-after-tilde
+                                             (ui/event-handler event (handle-key-typed! view-node event))))
       (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-mouse-pressed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-moved! view-node event)))

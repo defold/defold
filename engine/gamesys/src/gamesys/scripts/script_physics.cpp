@@ -14,6 +14,7 @@
 #include "components/comp_collision_object.h"
 
 #include "script_physics.h"
+#include <physics/physics.h>
 
 extern "C"
 {
@@ -167,14 +168,14 @@ namespace dmGameSystem
      * - If an object is hit, the result will be reported via a `ray_cast_response` message.
      * - If there is no object hit, the result will be reported via a `ray_cast_missed` message.
      *
-     * @name physics.ray_cast
+     * @name physics.raycast_async
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
      * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
-     * @param [request_id] [type:number] a number between 0-255 that will be sent back in the response for identification, 0 by default
+     * @param [request_id] [type:number] a number between [0,-255]. It will be sent back in the response for identification, 0 by default
      * @examples
      *
-     * How to perform a ray cast:
+     * How to perform a ray cast asynchronously:
      *
      * ```lua
      * function init(self)
@@ -183,7 +184,7 @@ namespace dmGameSystem
      *
      * function update(self, dt)
      *     -- request ray cast
-     *     physics.ray_cast(my_start, my_end, self.my_groups)
+     *     physics.raycast_async(my_start, my_end, self.my_groups)
      * end
      *
      * function on_message(self, message_id, message, sender)
@@ -196,56 +197,154 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int Physics_RayCast(lua_State* L)
+    int Physics_RayCastAsync(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0);
         int top = lua_gettop(L);
 
         dmMessage::URL sender;
-
-        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
-
         if (!dmScript::GetURL(L, &sender)) {
-            return luaL_error(L, "could not find a requesting instance for physics.ray_cast");
+            return luaL_error(L, "could not find a requesting instance for physics.raycast_async");
         }
-        dmPhysicsDDF::RequestRayCast request;
-        request.m_From = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 1));
-        request.m_To = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 2));
-        request.m_Mask = 0;
-        luaL_checktype(L, 3, LUA_TTABLE);
 
         lua_getglobal(L, PHYSICS_CONTEXT_NAME);
         PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
         lua_pop(L, 1);
 
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
         void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
 
+        Vectormath::Aos::Point3 from( *dmScript::CheckVector3(L, 1) );
+        Vectormath::Aos::Point3 to( *dmScript::CheckVector3(L, 2) );
+
+        uint32_t mask = 0;
+        luaL_checktype(L, 3, LUA_TTABLE);
         lua_pushnil(L);
         while (lua_next(L, 3) != 0)
         {
-            request.m_Mask |= CompCollisionGetGroupBitIndex(world, dmScript::CheckHash(L, -1));
+            mask |= CompCollisionGetGroupBitIndex(world, dmScript::CheckHash(L, -1));
             lua_pop(L, 1);
         }
-        request.m_RequestId = 0;
+
+        int request_id = 0;
         if (top > 3)
         {
-            request.m_RequestId = luaL_checkinteger(L, 4);
-            if (request.m_RequestId > 255)
+            request_id = luaL_checkinteger(L, 4);
+            if (request_id < 0 || request_id > 255)
             {
                 return luaL_error(L, "request_id must be between 0-255");
             }
         }
+
+        dmPhysicsDDF::RequestRayCast request;
+        request.m_From = from;
+        request.m_To = to;
+        request.m_Mask = mask;
+        request.m_RequestId = request_id;
+
         dmMessage::URL receiver;
         dmMessage::ResetURL(receiver);
         receiver.m_Socket = context->m_Socket;
         dmMessage::Post(&sender, &receiver, dmPhysicsDDF::RequestRayCast::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmPhysicsDDF::RequestRayCast::m_DDFDescriptor, &request, sizeof(dmPhysicsDDF::RequestRayCast), 0);
-        assert(top == lua_gettop(L));
         return 0;
+    }
+
+    /*# requests a ray cast to be performed
+     *
+     * Ray casts are used to test for intersections against collision objects in the physics world.
+     * Collision objects of types kinematic, dynamic and static are tested against. Trigger objects
+     * do not intersect with ray casts.
+     * Which collision objects to hit is filtered by their collision groups and can be configured
+     * through `groups`.
+     * The actual ray cast will be performed during the physics-update.
+     *
+     * @name physics.raycast
+     * @param from [type:vector3] the world position of the start of the ray
+     * @param to [type:vector3] the world position of the end of the ray
+     * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
+     * @return [type:table] It returns a table. If asynchronous it returns nil. See `ray_cast_response` for details on the returned values.
+     * @examples
+     *
+     * How to perform a ray cast synchronously:
+     *
+     * ```lua
+     * function init(self)
+     *     self.my_groups = {hash("my_group1"), hash("my_group2")}
+     * end
+     *
+     * function update(self, dt)
+     *     -- request ray cast
+     *     local result = physics.raycast(my_start, my_end, self.my_groups)
+     *     if result ~= nil then
+     *         -- act on the hit (see 'ray_cast_response')
+     *     end
+     * end
+     * ```
+     */
+    int Physics_RayCast(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmMessage::URL sender;
+        if (!dmScript::GetURL(L, &sender)) {
+            return luaL_error(L, "could not find a requesting instance for physics.raycast");
+        }
+
+        lua_getglobal(L, PHYSICS_CONTEXT_NAME);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+
+        Vectormath::Aos::Point3 from( *dmScript::CheckVector3(L, 1) );
+        Vectormath::Aos::Point3 to( *dmScript::CheckVector3(L, 2) );
+
+        uint32_t mask = 0;
+        luaL_checktype(L, 3, LUA_TTABLE);
+        lua_pushnil(L);
+        while (lua_next(L, 3) != 0)
+        {
+            mask |= CompCollisionGetGroupBitIndex(world, dmScript::CheckHash(L, -1));
+            lua_pop(L, 1);
+        }
+
+        dmPhysics::RayCastRequest request;
+        dmPhysics::RayCastResponse response;
+        request.m_From = from;
+        request.m_To = to;
+        request.m_Mask = mask;
+        dmGameSystem::RayCast(world, request, response);
+
+        if (response.m_Hit) {
+            lua_newtable(L);
+            lua_pushnumber(L, response.m_Fraction);
+            lua_setfield(L, -2, "fraction");
+            dmScript::PushVector3(L, Vectormath::Aos::Vector3(response.m_Position));
+            lua_setfield(L, -2, "position");
+            dmScript::PushVector3(L, response.m_Normal);
+            lua_setfield(L, -2, "normal");
+
+            dmhash_t group = dmGameSystem::GetLSBGroupHash(world, response.m_CollisionObjectGroup);
+            dmScript::PushHash(L, group);
+            lua_setfield(L, -2, "group");
+
+            dmhash_t id = dmGameSystem::CompCollisionObjectGetIdentifier(response.m_CollisionObjectUserData);
+            dmScript::PushHash(L, id);
+            lua_setfield(L, -2, "id");
+        } else {
+            lua_pushnil(L);
+        }
+        return 1;
     }
 
     static const luaL_reg PHYSICS_FUNCTIONS[] =
     {
-        {"ray_cast",            Physics_RayCast},
+        {"ray_cast",        Physics_RayCastAsync}, // Deprecated
+        {"raycast_async",   Physics_RayCastAsync},
+        {"raycast",         Physics_RayCast},
         {0, 0}
     };
 
@@ -317,4 +416,3 @@ namespace dmGameSystem
 }
 
 #undef PHYSICS_CONTEXT_NAME
-#undef COLLISION_OBJECT_EXT

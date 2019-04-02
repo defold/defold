@@ -109,9 +109,11 @@ public class IOSBundler implements IBundler {
     }
 
     @Override
-    public void bundleApplication(Project project, File bundleDir)
+    public void bundleApplication(Project project, File bundleDir, ICanceled canceled)
             throws IOException, CompileExceptionError {
         logger.log(Level.INFO, "Entering IOSBundler.bundleApplication()");
+
+        BundleHelper.throwIfCanceled(canceled);
 
         // Collect bundle/package resources to be included in .App directory
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
@@ -125,6 +127,7 @@ public class IOSBundler implements IBundler {
         // If a custom engine was built we need to copy it
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
+        BundleHelper.throwIfCanceled(canceled);
         // armv7 exe
         {
             Platform targetPlatform = Platform.Armv7Darwin;
@@ -141,6 +144,7 @@ public class IOSBundler implements IBundler {
         }
         File exeArmv7 = binsArmv7.get(0);
 
+        BundleHelper.throwIfCanceled(canceled);
         // arm64 exe
         {
             Platform targetPlatform = Platform.Arm64Darwin;
@@ -160,6 +164,7 @@ public class IOSBundler implements IBundler {
         logger.log(Level.INFO, "Armv7 exe: " + getFileDescription(exeArmv7));
         logger.log(Level.INFO, "Arm64 exe: " + getFileDescription(exeArm64));
 
+        BundleHelper.throwIfCanceled(canceled);
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String exeName = BundleHelper.projectNameToBinaryName(title);
@@ -178,6 +183,7 @@ public class IOSBundler implements IBundler {
 
         final boolean useArchive = true;
 
+        BundleHelper.throwIfCanceled(canceled);
         if (useArchive) {
             // Copy archive and game.projectc
             for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
@@ -188,6 +194,8 @@ public class IOSBundler implements IBundler {
             new File(buildDir, "game.arci").delete();
             new File(buildDir, "game.arcd").delete();
         }
+
+        BundleHelper.throwIfCanceled(canceled);
 
         // Copy launch images
         // iphone 3, 4, 5 portrait
@@ -232,6 +240,7 @@ public class IOSBundler implements IBundler {
         List<String> applicationQueriesSchemes = new ArrayList<String>();
         List<String> urlSchemes = new ArrayList<String>();
 
+        BundleHelper.throwIfCanceled(canceled);
         String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
         if (facebookAppId != null) {
             urlSchemes.add("fb" + facebookAppId);
@@ -264,6 +273,8 @@ public class IOSBundler implements IBundler {
         properties.put("url-schemes", urlSchemes);
         properties.put("application-queries-schemes", applicationQueriesSchemes);
 
+        BundleHelper.throwIfCanceled(canceled);
+
         List<String> orientationSupport = new ArrayList<String>();
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
             Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
@@ -285,9 +296,11 @@ public class IOSBundler implements IBundler {
         helper.format(properties, "ios", "infoplist", new File(appDir, "Info.plist"));
         helper.copyIosIcons();
 
+        BundleHelper.throwIfCanceled(canceled);
         // Copy bundle resources into .app folder
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
+        BundleHelper.throwIfCanceled(canceled);
         // Copy Provisioning Profile
         File provisioningProfileFile = new File(provisioningProfile);
         if (!provisioningProfileFile.exists()) {
@@ -295,11 +308,13 @@ public class IOSBundler implements IBundler {
         }
         FileUtils.copyFile(provisioningProfileFile, new File(appDir, "embedded.mobileprovision"));
 
+        BundleHelper.throwIfCanceled(canceled);
         // Create fat/universal binary
         File tmpFile = File.createTempFile("dmengine", "");
         tmpFile.deleteOnExit();
         String exe = tmpFile.getPath();
 
+        BundleHelper.throwIfCanceled(canceled);
         // Run lipo to add exeArmv7 + exeArm64 together into universal bin
         Result lipoResult = Exec.execResult( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7.getAbsolutePath(), exeArm64.getAbsolutePath(), "-output", exe );
         if (lipoResult.ret == 0) {
@@ -309,6 +324,7 @@ public class IOSBundler implements IBundler {
             logger.log(Level.SEVERE, "Error executing lipo command:\n" + new String(lipoResult.stdOutErr));
         }
 
+        BundleHelper.throwIfCanceled(canceled);
         // Strip executable
         if( strip_executable )
         {
@@ -321,6 +337,7 @@ public class IOSBundler implements IBundler {
             }
         }
 
+        BundleHelper.throwIfCanceled(canceled);
         // Copy Executable
         File destExecutable = new File(appDir, exeName);
         FileUtils.copyFile(new File(exe), destExecutable);
@@ -340,6 +357,7 @@ public class IOSBundler implements IBundler {
             File entitlementOut = File.createTempFile("entitlement", ".xcent");
             String customEntitlementsProperty = projectProperties.getStringValue("ios", "entitlements");
 
+            BundleHelper.throwIfCanceled(canceled);
             try {
                 XMLPropertyListConfiguration customEntitlements = new XMLPropertyListConfiguration();
                 XMLPropertyListConfiguration decodedProvision = new XMLPropertyListConfiguration();
@@ -378,6 +396,7 @@ public class IOSBundler implements IBundler {
                 throw new RuntimeException(e);
             }
 
+            BundleHelper.throwIfCanceled(canceled);
             ProcessBuilder processBuilder = new ProcessBuilder("codesign",
                     "-f", "-s", identity,
                     "--entitlements", entitlementOut.getAbsolutePath(),
@@ -385,30 +404,37 @@ public class IOSBundler implements IBundler {
             processBuilder.environment().put("EMBEDDED_PROFILE_NAME", "embedded.mobileprovision");
             processBuilder.environment().put("CODESIGN_ALLOCATE", Bob.getExe(Platform.getHostPlatform(), "codesign_allocate"));
 
+            BundleHelper.throwIfCanceled(canceled);
             Process process = processBuilder.start();
             logProcess(process);
 
+            BundleHelper.throwIfCanceled(canceled);
             // Package zip file
             File tmpZipDir = createTempDirectory();
             tmpZipDir.deleteOnExit();
 
+            BundleHelper.throwIfCanceled(canceled);
             // NOTE: We replaced the java zip file implementation(s) due to the fact that XCode didn't want
             // to import the resulting zip files.
             File payloadDir = new File(tmpZipDir, "Payload");
             payloadDir.mkdir();
 
+            BundleHelper.throwIfCanceled(canceled);
             processBuilder = new ProcessBuilder("cp", "-r", appDir.getAbsolutePath(), payloadDir.getAbsolutePath());
             process = processBuilder.start();
             logProcess(process);
 
+            BundleHelper.throwIfCanceled(canceled);
             File zipFile = new File(bundleDir, title + ".ipa");
             File zipFileTmp = new File(bundleDir, title + ".ipa.tmp");
             processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName());
             processBuilder.directory(tmpZipDir);
 
+            BundleHelper.throwIfCanceled(canceled);
             process = processBuilder.start();
             logProcess(process);
 
+            BundleHelper.throwIfCanceled(canceled);
             Files.move( Paths.get(zipFileTmp.getAbsolutePath()), Paths.get(zipFile.getAbsolutePath()), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             logger.log(Level.INFO, "Finished ipa: " + getFileDescription(zipFile));
         }

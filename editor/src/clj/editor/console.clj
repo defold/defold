@@ -49,7 +49,7 @@
   []
   (reset! pending-atom {:clear? true :entries PersistentQueue/EMPTY}))
 
-(defn- pop-n [coll n]
+(defn- pop-n [coll ^long n]
   (let [max-n (min n (count coll))]
     (loop [i 0
            xs coll]

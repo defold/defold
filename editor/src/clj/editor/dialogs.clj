@@ -13,7 +13,8 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.defold-project :as project]
-            [editor.github :as github])
+            [editor.github :as github]
+            [editor.field-expression :as field-expression])
   (:import [clojure.lang Named]
            [java.io File]
            [java.util List Collection]
@@ -162,6 +163,43 @@
      (.setScene stage scene)
      (ui/show-and-wait! stage)
      @result-atom)))
+
+(defn make-resolution-dialog []
+  (let [root     ^Region (ui/load-fxml "resolution.fxml")
+        stage    (ui/make-dialog-stage)
+        scene    (Scene. root)
+        result   (atom false)
+        width    (atom 320)
+        height   (atom 420)]
+    (ui/with-controls root [^TextField resolution-width ^TextField resolution-height ^Button ok ^Button cancel]
+      (let [validate-size-element (fn [^TextField element]
+                                    (let [value (field-expression/to-int (.getText element))
+                                          valid? (and (some? value) (> value 0))]
+                                      (if valid?
+                                        (ui/remove-style! element "error")
+                                        (ui/add-style! element "error"))
+                                      valid?))
+            do-validation (fn []
+                            (let [width-valid (validate-size-element resolution-width)
+                                  height-valid (validate-size-element resolution-height)
+                                  valid? (and width-valid height-valid)]
+                              (ui/enable! ok valid?)
+                              valid?))]
+        (ui/on-edit! resolution-width (fn [_old _new] (do-validation)))
+        (ui/on-edit! resolution-height (fn [_old _new] (do-validation))))
+      (ui/on-action! ok (fn [_]
+                          (let [w (field-expression/to-int (.getText resolution-width))
+                                h (field-expression/to-int (.getText resolution-height))]
+                            (reset! width w)
+                            (reset! height h)
+                            (reset! result true)
+                            (.close stage))))
+      (ui/on-action! cancel (fn [_]
+                              (.close stage))))
+    (ui/title! stage "Custom resolution")
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+  [@result @width @height]))
 
 (defn make-update-failed-dialog [^Stage owner]
   (let [root ^Parent (ui/load-fxml "update-failed-alert.fxml")
