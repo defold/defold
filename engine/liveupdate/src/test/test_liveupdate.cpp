@@ -9,16 +9,16 @@ TEST(dmLiveUpdate, HexDigestLength)
     uint32_t actual = 0;
 
     actual = dmLiveUpdate::HexDigestLength(dmLiveUpdateDDF::HASH_MD5);
-    ASSERT_EQ(128 / 8 * 2, actual);
+    ASSERT_EQ((uint32_t)(128 / 8 * 2), actual);
 
     actual = dmLiveUpdate::HexDigestLength(dmLiveUpdateDDF::HASH_SHA1);
-    ASSERT_EQ(160 / 8 * 2, actual);
+    ASSERT_EQ((uint32_t)(160 / 8 * 2), actual);
 
     actual = dmLiveUpdate::HexDigestLength(dmLiveUpdateDDF::HASH_SHA256);
-    ASSERT_EQ(256 / 8 * 2, actual);
+    ASSERT_EQ((uint32_t)(256 / 8 * 2), actual);
 
     actual = dmLiveUpdate::HexDigestLength(dmLiveUpdateDDF::HASH_SHA512);
-    ASSERT_EQ(512 / 8 * 2, actual);
+    ASSERT_EQ((uint32_t)(512 / 8 * 2), actual);
 }
 
 TEST(dmLiveUpdate, BytesToHexString)
