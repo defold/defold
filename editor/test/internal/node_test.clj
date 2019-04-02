@@ -43,10 +43,10 @@
   (input bar g/Int)
   (property baz g/Str (dynamic enabled (g/fnk [bar] (pos? bar)))))
 
-(g/defnk depends-on-self [this] this)
+(g/defnk depends-on-self [_this] _this)
 (g/defnk depends-on-input [an-input] an-input)
 (g/defnk depends-on-property [a-property] a-property)
-(g/defnk depends-on-several [this an-input a-property] [this an-input a-property])
+(g/defnk depends-on-several [_this an-input a-property] [_this an-input a-property])
 
 (g/defnode DependencyTestNode
   (input an-input g/Str)
@@ -65,7 +65,7 @@
              (are [input affected-outputs] (and (contains? deps input) (= affected-outputs (get deps input)))
                   :an-input           #{:depends-on-input :depends-on-several}
                   :a-property         #{:depends-on-property :depends-on-several :a-property :_properties :_declared-properties})
-             (is (not (contains? deps :this)))
+             (is (not (contains? deps :_this)))
              (is (not (contains? deps :unused-input))))))
 
 (g/defnode EmptyNode)
@@ -242,7 +242,7 @@
   (input in       g/Keyword)
   (input in-multi g/Keyword :array)
   (property prop  g/Keyword)
-  (output defnk-this       g/Any       (g/fnk [this] this))
+  (output defnk-this       g/Any       (g/fnk [_this] _this))
   (output defnk-prop       g/Keyword   (g/fnk [prop] prop))
   (output defnk-in         g/Keyword   (g/fnk [in] in))
   (output defnk-in-multi   [g/Keyword] (g/fnk [in-multi] in-multi)))
@@ -343,8 +343,8 @@
   (input another-input g/Int :array)
   (property property-to-override g/Str (default "override"))
   (property multi-valued-property [g/Str] (default ["extra" "things"]))
-  (output another-output g/Keyword (g/fnk [this] :keyword))
-  (output another-cached-output g/Keyword :cached (g/fnk [this] :keyword)))
+  (output another-output g/Keyword (g/fnk [_this] :keyword))
+  (output another-cached-output g/Keyword :cached (g/fnk [_this] :keyword)))
 
 (deftest inheritance-merges-node-types
   (testing "properties"

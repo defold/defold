@@ -555,7 +555,7 @@
 
 (defn- all-available-arguments
   [description]
-  (set/union #{:this :_basis}
+  (set/union #{:_this :_basis}
              (util/key-set (:input description))
              (util/key-set (:property description))
              (util/key-set (:output description))))
@@ -612,7 +612,7 @@
            argument))
        #{}
        inputs)
-     :this)))
+     :_this)))
 
 (defn- description->input-dependencies
   [{:keys [output] :as description}]
@@ -661,10 +661,10 @@
 (defn- abstract-function-form
   [label type]
   (let [format-string (str "Node %d does not supply a production function for the abstract '" label "' output. Add (output " label " " type " your-function) to the definition")]
-    `(pc/fnk [~'this]
+    `(pc/fnk [~'_this]
              (throw (AssertionError.
                       (format ~format-string
-                              (gt/node-id ~'this)))))))
+                              (gt/node-id ~'_this)))))))
 
 (defn- parse-flags-and-options
   [allowed-flags allowed-options args]
@@ -759,7 +759,7 @@
   [(list 'property '_node-id :dynamo.graph/NodeID :unjammable)
    (list 'property '_output-jammers :dynamo.graph/KeywordMap :unjammable)
    (list 'output '_properties :dynamo.graph/Properties `(dynamo.graph/fnk [~'_declared-properties] ~'_declared-properties))
-   (list 'output '_overridden-properties :dynamo.graph/KeywordMap `(dynamo.graph/fnk [~'this ~'_basis] (gt/overridden-properties ~'this ~'_basis)))])
+   (list 'output '_overridden-properties :dynamo.graph/KeywordMap `(dynamo.graph/fnk [~'_this ~'_basis] (gt/overridden-properties ~'_this ~'_basis)))])
 
 (def ^:private intrinsic-properties #{:_node-id :_output-jammers})
 
@@ -1202,7 +1202,7 @@
 (defn- fnk-argument-form
   [description output argument node-sym node-id-sym evaluation-context-sym]
   (cond
-    (= :this argument)
+    (= :_this argument)
     node-sym
 
     (= :_basis argument)
