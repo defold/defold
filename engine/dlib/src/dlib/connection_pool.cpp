@@ -375,21 +375,23 @@ namespace dmConnectionPool
         return r;
     }
 
-    Result Dial(HPool pool, const char* host, uint16_t port, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res)
+    Result Dial(HPool pool, const char* host, uint16_t port, dmDNS::HChannel dns_channel, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res)
     {
         if (!pool->m_AllowNewConnections) {
             return RESULT_SHUT_DOWN;
         }
 
         // TODO: Make this async, making it able to timeout (it can take up to 30 seconds). Look into getaddrinfo_a
-        dmSocket::Address address;
-        dmSocket::Result sr = dmSocket::GetHostByName(host, &address);
+        dmSocket::Address address,address2;
+        dmSocket::Result sr2 = dmSocket::GetHostByName(host, &address2);
+        dmDNS::Result sr = dmDNS::GetHostByName(host, &address, dns_channel);
+
         dmhash_t conn_id = CalculateConnectionID(address, port, ssl);
 
         Connection* c = 0;
         uint32_t index;
 
-        if (sr == dmSocket::RESULT_OK) {
+        if (sr == dmDNS::RESULT_OK) {
             DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
 
             PurgeExpired(pool);
@@ -404,7 +406,7 @@ namespace dmConnectionPool
             c->m_State = STATE_INUSE;
 
         } else {
-            *sock_res = sr;
+            *sock_res = dmSocket::RESULT_HOST_NOT_FOUND; // Only error that dmSocket::getHostByName returns
             return RESULT_SOCKET_ERROR;
         }
 

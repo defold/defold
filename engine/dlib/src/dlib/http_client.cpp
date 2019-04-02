@@ -21,6 +21,7 @@
 #include "mutex.h"
 #include "../axtls/ssl/os_port.h"
 #include "../axtls/ssl/ssl.h"
+#include "dns.h"
 
 namespace dmHttpClient
 {
@@ -165,6 +166,7 @@ namespace dmHttpClient
         Statistics          m_Statistics;
 
         dmHttpCache::HCache m_HttpCache;
+        dmDNS::HChannel     m_DNSChannel;
 
         bool                m_Secure;
         uint16_t            m_Port;
@@ -176,7 +178,7 @@ namespace dmHttpClient
     Result Response::Connect(const char* host, uint16_t port, bool secure, int timeout)
     {
         m_Pool = g_PoolCreator.GetPool();
-        dmConnectionPool::Result r = dmConnectionPool::Dial(m_Pool, host, port, secure, timeout, &m_Connection, &m_Client->m_SocketResult);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(m_Pool, host, port, m_Client->m_DNSChannel, secure, timeout, &m_Connection, &m_Client->m_SocketResult);
 
         if (r == dmConnectionPool::RESULT_OK) {
 
@@ -224,10 +226,14 @@ namespace dmHttpClient
 
     HClient New(const NewParams* params, const char* hostname, uint16_t port, bool secure)
     {
+        dmDNS::HChannel dns_channel = dmDNS::NewChannel();
         dmSocket::Address address;
-        dmSocket::Result r = dmSocket::GetHostByName(hostname, &address);
-        if (r != dmSocket::RESULT_OK)
+        dmDNS::Result r = dmDNS::GetHostByName(hostname, &address, dns_channel); // dmSocket::GetHostByName(hostname, &address);
+        if (r != dmDNS::RESULT_OK)
+        {
+            dmDNS::DeleteChannel(dns_channel);
             return 0;
+        }
 
         Client* client = new Client();
 
@@ -247,6 +253,7 @@ namespace dmHttpClient
         client->m_HttpCache = params->m_HttpCache;
         client->m_Secure = secure;
         client->m_Port = port;
+        client->m_DNSChannel = dns_channel;
 
         return client;
     }
@@ -275,6 +282,7 @@ namespace dmHttpClient
 
     void Delete(HClient client)
     {
+        dmDNS::DeleteChannel(client->m_DNSChannel);
         free(client->m_Hostname);
         delete client;
     }
@@ -1135,6 +1143,11 @@ bail:
     dmHttpCache::HCache GetHttpCache(HClient client)
     {
         return client->m_HttpCache;
+    }
+
+    dmDNS::HChannel GetDNSChannel(HClient client)
+    {
+        return client->m_DNSChannel;
     }
 
     uint32_t ShutdownConnectionPool()

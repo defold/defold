@@ -18,6 +18,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/atomic.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/condition_variable.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/dns.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/easing.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
@@ -187,6 +188,9 @@ def build(bld):
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
                                 uselib = 'UUID PLATFORM_SOCKET')
+
+        # For C-Ares / DNS
+        dlib.env.append_value('LINKFLAGS', ['-l', 'cares'])
         dlib.find_sources_in_dirs(source_dirs)
         dlib.source.extend(webp_source_no_neon)
         if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or 'web' in bld.env.PLATFORM):
