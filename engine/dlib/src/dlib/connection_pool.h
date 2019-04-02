@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <dlib/socket.h>
+#include <dlib/dns.h>
 
 /**
  * Connection pooling
@@ -99,7 +100,7 @@ namespace dmConnectionPool
      * @param sock_res socket-result code on failure
      * @return RESULT_OK on success
      */
-    Result Dial(HPool pool, const char* host, uint16_t port, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res);
+    Result Dial(HPool pool, const char* host, uint16_t port, dmDNS::HChannel dns_channel, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res);
 
     /**
      * Return connection to pool
