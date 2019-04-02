@@ -119,8 +119,8 @@ TEST(dmDisplayProfilesTest, TestProjectWithoutProfiles)
     params.m_DisplayProfilesDDF = &display_profiles;
     params.m_NameHash = dmHashString64("profiles");
 
-    ASSERT_NO_FATAL_FAILURE(dmRender::SetDisplayProfiles(profiles, params));
-    ASSERT_NO_FATAL_FAILURE(dmRender::DeleteDisplayProfiles(profiles));
+    dmRender::SetDisplayProfiles(profiles, params);
+    dmRender::DeleteDisplayProfiles(profiles);
 }
 
 int main(int argc, char **argv)
