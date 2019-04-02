@@ -34,7 +34,7 @@ void WaitForBool(bool* lock)
     const uint32_t maximum_wait = 5000; // milliseconds
     const uint32_t wait_timeout = 100;  // milliseconds
     uint32_t wait_count = 0;
-    for (int i = 0; i < (maximum_wait / wait_timeout); ++i)
+    for (uint32_t i = 0; i < (maximum_wait / wait_timeout); ++i)
     {
         if (!(*lock))
         {
@@ -126,7 +126,7 @@ TEST(Socket, BitDifference_Difference)
     instance1.m_address[3] = 0x4e;
     instance2.m_address[3] = 0xe6;
 
-    ASSERT_EQ(3, dmSocket::BitDifference(instance1, instance2));
+    ASSERT_EQ(3u, dmSocket::BitDifference(instance1, instance2));
 }
 
 TEST(Socket, BitDifference_Equal)
@@ -137,7 +137,7 @@ TEST(Socket, BitDifference_Equal)
     instance1.m_address[3] = 0xe6;
     instance2.m_address[3] = 0xe6;
 
-    ASSERT_EQ(0, dmSocket::BitDifference(instance1, instance2));
+    ASSERT_EQ(0U, dmSocket::BitDifference(instance1, instance2));
 }
 
 TEST(Socket, NetworkOrder)
@@ -291,7 +291,7 @@ TEST(Socket, SetMulticastIf_IPv4)
     // functionality has to be tested manually.
     printf("[   INFO   ] Test for SetMulticastIf is disabled.\n");
 
-    for (int i = 0; i < count; ++i)
+    for (uint32_t i = 0; i < count; ++i)
     {
         dmSocket::Address address = addresses[i].m_Address;
         if (address.m_family == dmSocket::DOMAIN_IPV4)
@@ -327,7 +327,7 @@ TEST(Socket, SetMulticastIf_IPv6)
     // functionality has to be tested manually.
     printf("[   INFO   ] Test for SetMulticastIf is disabled.\n");
 
-    for (int i = 0; i < count; ++i)
+    for (uint32_t i = 0; i < count; ++i)
     {
         dmSocket::Address address = addresses[i].m_Address;
         if (address.m_family == dmSocket::DOMAIN_IPV6)
@@ -747,7 +747,7 @@ TEST(Socket, AddressToIPString_IPv4)
     address.m_address[3] = 0x0100007f; // 127.0.0.1 in network order
 
     char* actual = dmSocket::AddressToIPString(address);
-    ASSERT_EQ(9, strlen(actual));
+    ASSERT_EQ(9u, strlen(actual));
     ASSERT_EQ(0, memcmp(DM_LOOPBACK_ADDRESS_IPV4, actual, 9));
 
     // Teardown

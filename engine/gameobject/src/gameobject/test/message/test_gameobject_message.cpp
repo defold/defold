@@ -593,7 +593,7 @@ TEST_F(MessageTest, MessagePostDispatch)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, TestGameObjectDDF::TestDataMessage::m_DDFDescriptor->m_NameHash, 0, descriptor, &ddf, sizeof(TestGameObjectDDF::TestDataMessage), CustomMessageDestroyCallback));
 
 
-    ASSERT_EQ(0, g_PostDistpatchCalled);
+    ASSERT_EQ(0u, g_PostDistpatchCalled);
 
     dmLogInfo("Expected error ->");
 
@@ -601,7 +601,7 @@ TEST_F(MessageTest, MessagePostDispatch)
 
     dmLogInfo("<- Expected error end");
 
-    ASSERT_EQ(42, g_PostDistpatchCalled);
+    ASSERT_EQ(42u, g_PostDistpatchCalled);
 }
 
 
