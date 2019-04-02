@@ -1105,7 +1105,7 @@ instructions.configure=\
         env = self._form_env()
         if 'linux' in self.host2:
             env['JAVA_HOME'] = '/usr/lib/jvm/java-8-oracle'
-        self._exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify', '-P', product, '-Declipse-version=%s' % self.eclipse_version], cwd = cwd, env = env)
+        self._exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'], cwd = cwd, env = env)
 
     def build_editor2(self):
         cmd = ['./scripts/bundle.py',
