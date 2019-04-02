@@ -60,7 +60,7 @@ var Combine = {
 
     // descriptUrl: location of text file describing files to be preloaded
     process: function(descriptUrl, attempt_count) {
-        if (!attempt_count){
+        if (!attempt_count) {
             attempt_count = 0;
         }
         var xhr = new XMLHttpRequest();
@@ -73,8 +73,8 @@ var Combine = {
             attempt_count += 1;
             if (attempt_count < Combine._max_retry_count) {
                 console.warn("Can't download file '" + descriptUrl + "' . Next try in " + Combine._retry_time + " sec.");
-                setTimeout(function(){
-                        Combine.process(descriptUrl, attempt_count);
+                setTimeout(function() {
+                    Combine.process(descriptUrl, attempt_count);
                 }, Combine._retry_time * 1000);
              } else {
                     Combine.can_not_download_file(descriptUrl);
@@ -121,7 +121,7 @@ var Combine = {
     },
 
     requestPiece: function(target, index, attempt_count) {
-        if (!attempt_count){
+        if (!attempt_count) {
             attempt_count = 0;
         }
 
@@ -164,10 +164,8 @@ var Combine = {
             attempt_count += 1;
             if (attempt_count < Combine._max_retry_count) {
                 console.warn("Can't download file '" + item.name + "' . Next try in " + Combine._retry_time + " sec.");
-                setTimeout(function(){
-                    
-                        Combine.requestPiece(target, index, attempt_count);
-                    
+                setTimeout(function() {
+                    Combine.requestPiece(target, index, attempt_count);
                 }, Combine._retry_time * 1000);
             } else {
                     Combine.can_not_download_file(item.name);
@@ -423,7 +421,7 @@ var Module = {
     getHiddenProperty: function () {
         if ('hidden' in document) return 'hidden';
         var prefixes = ['webkit','moz','ms','o'];
-        for (var i = 0; i < prefixes.length; i++){
+        for (var i = 0; i < prefixes.length; i++) {
             if ((prefixes[i] + 'Hidden') in document)
                 return prefixes[i] + 'Hidden';
         }
