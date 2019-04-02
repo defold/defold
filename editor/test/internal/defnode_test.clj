@@ -275,8 +275,8 @@
 
 (g/defnode GetterFnPropertyNode
   (property reports-higher g/Int
-            (value (g/fnk [this]
-                          (inc (or (get this :int-val) 0))))))
+            (value (g/fnk [_this]
+                          (inc (or (get _this :int-val) 0))))))
 
 (g/defnode ComplexGetterFnPropertyNode
   (input a g/Any)
@@ -284,7 +284,7 @@
   (input c g/Any)
 
   (property weirdo g/Any
-            (value (g/fnk [this a b c] [this a b c]))))
+            (value (g/fnk [_this a b c] [_this a b c]))))
 
 (g/defnode ReflexivePropertyValueFnNode
   (property zort g/Int
@@ -420,8 +420,8 @@
                  (eval '(dynamo.graph/defnode BadProperty
                           (property no-schema (fn [] "no value type provided"))))))))
 
-(g/defnk string-production-fnk [this integer-input] "produced string")
-(g/defnk integer-production-fnk [this] 42)
+(g/defnk string-production-fnk [_this integer-input] "produced string")
+(g/defnk integer-production-fnk [_this] 42)
 
 (g/defnode MultipleOutputNode
   (input integer-input g/Int)
@@ -926,6 +926,8 @@
 
   (output constant-output g/Str "outputs this constant string")
 
+  (output mememe g/Any (g/fnk [_this] _this))
+
   (output tricky g/Str (g/fnk [some-output]
                          (str {:fn :tricky
                                :result some-output}))))
@@ -939,4 +941,6 @@
       (println (g/node-value n :some-output))
       (println (g/node-value n :constant-output))
       (println (g/node-value n :_properties))
-      (println (g/node-value n :tricky)))))
+      (println (g/node-value n :tricky))
+      (println (g/node-value n :mememe))
+      )))
