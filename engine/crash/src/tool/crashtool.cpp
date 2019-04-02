@@ -396,6 +396,7 @@ int main(int argc, char** argv)
                     platform = PLATFORM_LINUX;
             }
     	}
+        (void)platform; // for later use
 
         printf("\n");
         printf("%26s: %d\n", "SIG", dmCrash::GetSignum(dump));
