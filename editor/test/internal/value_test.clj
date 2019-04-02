@@ -61,8 +61,8 @@
             "this is distinct from the other outputs"))
 
   (output nil-value g/Str :cached
-          (g/fnk [this]
-            (tally this 'compute-nil-value)
+          (g/fnk [_this]
+            (tally _this 'compute-nil-value)
             nil)))
 
 (defn build-sample-project
