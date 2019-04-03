@@ -138,20 +138,5 @@
         <module>../slf4j</module>
     </modules>
 
-    <profiles>
-        <profile>
-            <id>server</id>
-            <modules>
-		        <module>../com.dynamo.cr.server-product</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>editor</id>
-            <modules>
-                <module>../com.dynamo.cr.editor-product</module>
-            </modules>
-        </profile>
-    </profiles>
 
 </project>
