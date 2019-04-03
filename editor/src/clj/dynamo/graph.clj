@@ -366,7 +366,6 @@
                     `(in/register-value-type ~key-form ~value-type-form))
         node-type-def (dissoc node-type-def :register-type-info)]
     `(do
-       (declare ~symb)
        ~@type-regs
        ~@fn-defs
        (defn ~runtime-definer [] ~node-type-def)

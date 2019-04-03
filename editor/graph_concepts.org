@@ -1,0 +1,164 @@
+* :unjammable
+** DONE extern? = has-flag :unjammable
+** jammable-output-labels: declared-outputs \ :unjammable
+*** g/mark-defective: sets (set-property node-id :_output-jammers (zipmap jammable-outputs (repeat defective-value))) + invalidate node-id
+** mark-unjammable
+*** :property + :output of 'extern get :unjammable flag
+** dev: used to determine of label is extern
+** resource-node: output node-id+resource marked :unjammable
+** one of accepted output-flags: #{:cached :abstract :unjammable}
+
+* DONE :internal
+** internal? has-flag :internal
+** external-property? complement internal?
+** 'property in internal-keys get :internal flag. ends up in both :property and :output
+*** 'property in internal-keys don't end up in :property-order-decl
+** attach-declared-properties: _declared-properties as :output with :arguments & :dependencies = :property \ internal-keys
+** attach-declared-internal-property: :declared-property :internal-property = remove internal? :property resp filter internal? :property
+*** :internal-property in node type only used in tests?
+*** :declared-property
+**** declared-property-labels for some runtime inspection
+**** declared-properties
+***** for tests?
+***** for defaults: :default :fn ... for declared-properties
+****** for construct
+
+* :explicit
+** explicit? has-flag :explicit
+** 'output gets :explicit flag (not 'property or 'extern)
+** desc-has-explicit-output: if :output <label> :flags contains :explicit
+*** property-overloads-output?
+*** property-has-no-overriding-output?
+*** node-output-value-function-form for determining tracer-output-type
+** egentligen endast till för generera korrekt plumbing? eller? samma med internal?
+
+* DONE internal-keys: {:_node-id :_declared-properties :_properties :_output-jammers}
+** process-as 'property, adds :internal to :property and :output
+** jammable? complement internal-keys
+*** check-jammed-form: if transform jammable? use jam-value if jammed.
+** argument-error-check-form: no error check if label in internal-keys
+
+
+* special-labels: #{:_declared-properties}
+** ordinary-output-labels: :output \ special-labels
+*** transform-outputs-plumbing-map: does a node-output-value-function-form for all ordinary-output-labels
+
+
+* node-intrinsics
+** extern _node-id - nu property
+** output _properties
+** extern _output-jammers - nu property
+** output _overridden-properties
+
+* _declared-properties också en output
+
+
+* DONE extern === :unjammable property?
+** _node-id
+** _output-jammers
+** workspace i project node
+** resource i resource node
+** editable? i resource node
+
+****
+
+* transform-inputs-plumbing-map gör node-input-value-function-form så kan göra node-value på input label och få ett svar. bara till debugging? kollar ej :substitute.
+* vad kan man overrida? _properties? _declared-properties? _node-id? _basis?
+* hur supplyas _node-id och _basis till prodfn, dynamic, value etc?
+
+* (defn- argument-error-check-form [node-sym evaluation-context-sym description label node-id-sym arguments-sym tail]
+  ;; intrinsic-properties (:_node-id, :_output-jammers) -> not handled by node-output-function-value-form
+  ;; _declared-properties output handled by declared-properties-function-form; no arg-check
+  ;; :_properties - if override and pull in an erroring output, will pass that error through to the production function
+  ;;
+  ;; Slightly related: mark-defective will affect _properties and _overridden-properties but not _declared-properties
+  ;;
+  (if (= :_properties label) <-- used to be contains? internal-keys label, effectively only checking _properties of use.
+    tail
+    `(or (argument-error-aggregate ~arguments-sym ~node-id-sym ~label) ~tail)))
+
+* trace-kod på alla properties... rätt kostsamt när bara använder för build-targets. Kanske en :trace flagga på outputs?
+* why is catch IllegalArgumentException needed in schema-check-output-form?
+* när används property-behavior - typ == behavior för _node-id och _output-jammers
+
+* banta
+** tracing - endast outputs med :trace
+** _overridden-properties, _properties
+** default behavior för inputs - ta bort? endast för debugging...
+*** ÖKAR STORLEKEN???
+**** inheritance, duplicerar behavior för alla ärvda outputs eller!? yes. Återanvänd impl?
+** stor del av behavior nu == för noder efter att ha flyttat node-type-name lookup till runtime
+
+* inherits: more like - copy-paste. Does not preserve/reuse evaluation machinery since inheriting node def can override names so inherited production functions act differently.
+
+* mark-defective
+** output-jammer kollar endast jam values på ur-original: funkar ej att set'a _output-jammers på en overridenode
+
+* varför inte mark-in-production före jam-test? ... kan inte ha blivit jam'd under pågående cirkulär eval, så då borde eval ha blivit jam'd vid första besöket
+* default property shortcut borde kunna göras innan mark in production också; aldrig risk för cykel
+
+* deduce output type form för schema check kan göras runtime från node type... dock kanske tar tid.
+
+* DONE unoverloaded-output etc - always confusing what's what. argument? current output label?
+* order output/argument among arguments
+
+* DONE "output" - som i resultat - borde nog heta result för att inte blanda ihop med (output ...)
+* DONE input - input-label?
+
+* DONE testa inherits med fnk som refererar till ns-lokal var - inherita i annat ns - vad händer då?
+** spelar ingen roll; behavior är redan "kompilerad" och refererar till ursprungligt namespace
+
+* _overriden-properties, _output-jammers, _node-id och (default) _properties ser likadana ut nu för alla nod types. Onödig duplicering.
+
+* prod funktioner som endast beror på this _basis 
+** kan inte ge upphov till cykler, behöver ej in-production check
+** behöver ej argument-error check
+** i princip så länge transitivt ej beror på input och inga dep cykler mellan outputs så behövs ingen cykel check
+*** däremot kanske in-production används på andra ställen? kan vara intressant att lägga till ev error values?
+
+* kanske även _node-id?
+
+* prod funktioner som endast beror på default-case properties kan inte heller ge upphov till cykler
+
+* prod funktioner med s/Any schema behöver ingen schema-check. Tas dock bort i relase, så spelar ingen roll.
+
+* _declared-properties
+
+* node-property-value som används från transaction update-property: kollar inte jammed, schema, ...
+
+* diff collect-base-property-value-form vs collect-property-value-form? symbol?
+
+* genererar output-entries för properties som ändå kommer använda default property shortcut, blir fler fwd decls + defs
+
+* begränsa extract-functions? vad om :fn i en vanlig map i koden? Var var det :arguments etc plötsligt dök upp? Det var extract-fn-arguments... men ändå.
+** se till att hittar funktioner i definitionsordning
+
+* property, kanske även output, vad är ":options" till för? ta bort?
+* set-property :_node-id?
+* _basis & _node-id in input-dependencies, why?
+* fn :arguments vs :dependencies
+* dependency-seq - too pessimistic?
+* property-behavior - why do we need it?
+* _node-id shortcut in overridenode produce-value, why?
+* cache dynamics & (value ...)
+* dynamic -> meta
+* perf test
+* "type registry" för typer som används i schema, är det indirektion där också så kan ladda om typdefinitioner utan att ändra nodetype data?
+
+* from defnode to node-value
+** defnode: define node type
+*** syntax, allowed constructs
+*** semantics - node-value
+**** value of the output, property (or somewhat broken, also actually input) named x
+**** "meaning" of fnk/defnk arguments in different contexts
+*** implementation
+**** process-node-type-forms:
+***** intrinsics, grouping, inheritance, constant fn wrapping, display-order stuff?, dependency bookkeeping, merge-property-dependencies?, apply prop dep to (prop)outputs?, behaviors, cascade-deletes, verification
+***** -> almost node-type info
+**** extract things that should become fns
+**** replace fns in node-type-info with vars, create def-lists
+**** figure out inheritance relationships
+**** type-regs? :register-type-info ... what for? when used?
+**** make sure finished node type gets registered at runtime (macro stuff long gone)
+*** NodeImpl has node-type-ref, that will be looked up during runtime (in the node type registry)
+
