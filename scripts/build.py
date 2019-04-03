@@ -1102,7 +1102,10 @@ instructions.configure=\
 
     def _build_cr(self, product):
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
-        self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify', '-P', product, '-Declipse-version=%s' % self.eclipse_version], cwd = cwd)
+        env = self._form_env()
+        if 'linux' in self.host2:
+            env['JAVA_HOME'] = '/usr/lib/jvm/java-8-oracle'
+        self._exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'], cwd = cwd, env = env)
 
     def build_editor2(self):
         cmd = ['./scripts/bundle.py',
