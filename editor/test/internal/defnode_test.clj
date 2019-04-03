@@ -785,8 +785,16 @@
             (dynamic error (g/fnk [input-three] (nil? input-three)))
             (value    (g/fnk [input-two] (inc input-two))))
 
+  (property overridden g/Any
+            (default  (g/constantly false))
+            (dynamic error (g/fnk [input-three] (nil? input-three)))
+            (value    (g/fnk [input-two] (inc input-two))))
+
   (output an-output g/Any
-          (g/fnk [input-one a-property] :ok)))
+          (g/fnk [input-one a-property] :ok))
+
+
+  (output overridden g/Any (g/fnk [] "this overriding output should not be dependent on the corresponding property's stuff.")))
 
 (defn- affected-by? [out in]
   (let [affected-outputs (-> PropertiesWithDynamics g/input-dependencies (get in))]
@@ -805,6 +813,10 @@
       :input-one
       :_properties
       :_declared-properties)))
+
+#_(deftest overriding-outputs-dont-automatically-inherit-dependencies-of-corresponding-property
+  (println (g/input-dependencies PropertiesWithDynamics))
+  (is (not (affected-by? :overridden :input-three))))
 
 (g/defnode CustomPropertiesOutput
   (output _properties g/Properties :cached
@@ -891,56 +903,3 @@
       (is (= #{:test :_node-id :_basis} (set (keys (g/node-value n :inline-intrinsics)))))
       (is (= {:test "test"} (g/node-value n :defnk)))
       (is (= #{:test :_node-id :_basis} (set (keys (g/node-value n :defnk-intrinsics))))))))
-
-(g/defnode Base
-  (property base-prop g/Str)
-  (property cake g/Str (default "asdf")
-            (dynamic cake-dyns (g/fnk [base-prop] base-prop)))
-  (output base-out g/Str (g/fnk [base-prop] base-prop))
-  (output test g/Str (g/fnk [_node-id] (str _node-id))))
-
-(g/defnode Derived
-  (inherits Base)
-  (output new-test g/Str (g/fnk [] "fafafa")))
-
-(deftest call-base-output
-  (with-clean-system
-    (let [[n] (tx-nodes (g/make-node world Derived))]
-      (println (g/node-value n :test)))))
-
-(g/defnode AllKindsOfFns
-  (property backing-prop g/Str)
-  (property the-prop g/Str
-            (default (g/fnk [] "default string"))
-            (set (fn [evaluation-context self _ new-value]
-                   (g/set-property self :backing-prop new-value)))
-            (value (g/fnk [backing-prop] backing-prop))
-            (dynamic equals-default-string (g/fnk [the-prop] (= the-prop "default string"))))
-
-  (property constant-fns-prop g/Str
-            (default "default string")
-            (value "cant touch this")
-            (dynamic some-state "state val"))
-
-  (output some-output g/Str (g/fnk [the-prop] (str "***" the-prop)))
-
-  (output constant-output g/Str "outputs this constant string")
-
-  (output mememe g/Any (g/fnk [_this] _this))
-
-  (output tricky g/Str (g/fnk [some-output]
-                         (str {:fn :tricky
-                               :result some-output}))))
-
-(deftest all-kinds
-  (with-clean-system
-    (let [[n] (tx-nodes (g/make-node world AllKindsOfFns))]
-      (println (g/node-value n :backing-prop))
-      (println (g/node-value n :the-prop))
-      (println (g/node-value n :constant-fns-prop))
-      (println (g/node-value n :some-output))
-      (println (g/node-value n :constant-output))
-      (println (g/node-value n :_properties))
-      (println (g/node-value n :tricky))
-      (println (g/node-value n :mememe))
-      )))

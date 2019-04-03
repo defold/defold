@@ -361,12 +361,12 @@
                       `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
                          (derive ~node-key ~(:key (deref tref)))))
         node-type-def (update node-type-def :supertypes #(list `quote %))
+
         runtime-definer (symbol (str symb "*"))
         type-regs (for [[key-form value-type-form] (:register-type-info node-type-def)]
                     `(in/register-value-type ~key-form ~value-type-form))
         node-type-def (dissoc node-type-def :register-type-info)]
     `(do
-       (declare ~symb)
        ~@type-regs
        ~@fn-defs
        (defn ~runtime-definer [] ~node-type-def)
