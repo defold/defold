@@ -32,6 +32,9 @@
   (get-prefs [this key default])
   (set-prefs [this key value]))
 
+(defn prefs? [value]
+  (satisfies? PreferenceStore value))
+
 (defn make-prefs [namespace]
   (.node (Preferences/userRoot) namespace))
 

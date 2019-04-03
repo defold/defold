@@ -152,7 +152,7 @@
         (history)))
 
 (defn alter-history! [alter-fn]
-  (g/alter-history! (project-graph) alter-fn)
+  (#'g/alter-history! (project-graph) alter-fn)
   nil)
 
 (defn revert-history! []

@@ -799,6 +799,25 @@
     (.addAll children ^Collection cursor-rectangles)
     nil))
 
+(declare set-properties-tx-data)
+
+(g/defnk produce-view-state [cursor-ranges :as view-state]
+  view-state)
+
+(defn- set-view-state [view-node view-state evaluation-context]
+  (let [lines (g/node-value view-node :lines evaluation-context)
+        old-layout (g/node-value view-node :layout evaluation-context)
+        glyph-metrics (g/node-value view-node :glyph-metrics evaluation-context)
+        tab-spaces (g/node-value view-node :tab-spaces evaluation-context)
+        tab-stops (data/tab-stops glyph-metrics tab-spaces)
+        cursor-ranges (data/adjust-cursor-ranges-to-lines (:cursor-ranges view-state) lines)
+        document-width (data/max-line-width glyph-metrics tab-stops lines)
+        new-layout (assoc old-layout :document-width document-width)
+        props (into {:cursor-ranges cursor-ranges
+                     :document-width document-width}
+                    (data/scroll-to-any-cursor-range new-layout lines cursor-ranges))]
+    (set-properties-tx-data evaluation-context view-node :navigation props)))
+
 (g/defnode CodeEditorView
   (inherits view/WorkbenchView)
 
@@ -887,7 +906,8 @@
   (output minimap-cursor-range-draw-infos CursorRangeDrawInfos :cached produce-minimap-cursor-range-draw-infos)
   (output execution-markers r/Regions :cached produce-execution-markers)
   (output canvas-repaint-info g/Any :cached produce-canvas-repaint-info)
-  (output cursor-repaint-info g/Any :cached produce-cursor-repaint-info))
+  (output cursor-repaint-info g/Any :cached produce-cursor-repaint-info)
+  (output view-state g/Any produce-view-state))
 
 (defn- mouse-button [^MouseEvent event]
   (condp = (.getButton event)
@@ -2508,24 +2528,6 @@
                                             (get-property view-node :layout)
                                             (data/Cursor->CursorRange (data/->Cursor row 0))))))
 
-(defn- view-state [view-node evaluation-context]
-  (let [cursor-ranges (g/node-value view-node :cursor-ranges evaluation-context)]
-    {:cursor-ranges cursor-ranges}))
-
-(defn- set-view-state [view-node view-state evaluation-context]
-  (let [lines (g/node-value view-node :lines evaluation-context)
-        old-layout (g/node-value view-node :layout evaluation-context)
-        glyph-metrics (g/node-value view-node :glyph-metrics evaluation-context)
-        tab-spaces (g/node-value view-node :tab-spaces evaluation-context)
-        tab-stops (data/tab-stops glyph-metrics tab-spaces)
-        cursor-ranges (data/adjust-cursor-ranges-to-lines (:cursor-ranges view-state) lines)
-        document-width (data/max-line-width glyph-metrics tab-stops lines)
-        new-layout (assoc old-layout :document-width document-width)
-        props (into {:cursor-ranges cursor-ranges
-                     :document-width document-width}
-                    (data/scroll-to-any-cursor-range new-layout lines cursor-ranges))]
-    (set-properties-tx-data evaluation-context view-node :navigation props)))
-
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :code
@@ -2533,5 +2535,4 @@
                                 :make-view-fn (fn [graph parent resource-node opts] (make-view! graph parent resource-node opts))
                                 :focus-fn (fn [view-node opts] (focus-view! view-node opts))
                                 :text-selection-fn non-empty-single-selection-text
-                                :state-fn view-state
                                 :set-state-fn set-view-state))

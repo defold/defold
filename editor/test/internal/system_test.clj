@@ -14,14 +14,16 @@
 (defn graph         [gid] (is/graph         @g/*the-system* gid))
 
 (defn- undo-stack [graph-id]
-  (filterv (every-pred (comp zero? :undo-group)
-                       (comp ts/global-history-context-pred :context-after))
-           (some-> @g/*the-system*
-                   (is/graph-history graph-id)
-                   (subvec 1)))) ; Initial entry cannot be altered.
+  (let [context-pred (g/history-context-pred)]
+    (filterv (every-pred (comp zero? :undo-group)
+                         (comp context-pred :context-after))
+             (some-> @g/*the-system*
+                     (is/graph-history graph-id)
+                     (subvec 1))))) ; Initial entry cannot be altered.
 
 (defn- redo-stack [graph-id]
-  (let [history-entry-in-context? (comp ts/global-history-context-pred :context-after)
+  (let [context-pred (g/history-context-pred)
+        history-entry-in-context? (comp context-pred :context-after)
         history (some-> @g/*the-system* (is/graph-history graph-id) (subvec 1) rseq)
         current-undo-group (:undo-group (first (filter history-entry-in-context? history)))]
     (if (or (nil? current-undo-group)

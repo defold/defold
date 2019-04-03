@@ -19,7 +19,7 @@
 
 (set! *warn-on-reflection* true)
 
-(namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id node-id? produce-value node-by-id-at])
+(namespaces/import-vars [internal.graph.types HistoryContextController node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id node-id? produce-value node-by-id-at])
 
 (namespaces/import-vars [internal.graph.error-values error-info error-warning error-fatal ->error error? error-info? error-warning? error-fatal? error-aggregate flatten-errors package-errors precluding-errors unpack-errors worse-than])
 
@@ -113,17 +113,6 @@
         (aset-long tps-counts 1 now)
         (aset-long tps-counts 0 0)))
     tps-counts))
-
-(defonce ^:private history-context-fn-atom (atom (clojure.core/constantly nil)))
-
-(defn set-history-context-fn!
-  "Set the function that will be called to obtain context for written history
-  entries. The function should take an evaluation-context as its sole argument.
-  The context value returned by the function will be associated with the written
-  history entry, and later given to the context predicate function you provide
-  in calls g/undo! and its ilk."
-  [history-context-fn]
-  (swap! *the-system* is/set-history-context-fn history-context-fn))
 
 (defn transact
   "Provides a way to run a transaction against the graph system.  It takes a list of transaction steps.
@@ -1329,6 +1318,34 @@
     (swap! *the-system* is/detach-graph graph-id)
     nil))
 
+;; ---------------------------------------------------------------------------
+;; History
+;; ---------------------------------------------------------------------------
+(defn set-history-context-controller!
+  [history-context-controller]
+  (swap! *the-system* is/set-history-context-controller history-context-controller))
+
+(defn history-context
+  ([]
+   (with-auto-evaluation-context evaluation-context
+     (history-context evaluation-context)))
+  ([evaluation-context]
+   (let [history-context-controller (is/history-context-controller @*the-system*)]
+     (gt/history-context history-context-controller evaluation-context))))
+
+(defn history-context-pred
+  ([]
+   (with-auto-evaluation-context evaluation-context
+     (history-context-pred evaluation-context)))
+  ([evaluation-context]
+   (let [history-context-controller (is/history-context-controller @*the-system*)]
+     (gt/history-context-pred history-context-controller evaluation-context))))
+
+(defn restore-history-context!
+  [history-context]
+  (let [history-context-controller (is/history-context-controller @*the-system*)]
+    (gt/restore-history-context! history-context-controller history-context)))
+
 (defn- alter-history! [graph-id alter-fn]
   (let [alter-results-volatile (volatile! nil)
         wrapped-alter-fn (fn wrapped-alter-fn [system basis history]
@@ -1339,37 +1356,43 @@
     (deref alter-results-volatile)))
 
 (defn undo!
-  "Undoes the last performed action matching the provided context predicate."
-  [graph-id context-pred]
-  (alter-history! graph-id
-                  (fn [system basis history]
-                    (let [node-id-generators (is/id-generators system)
-                          override-id-generator (is/override-id-generator system)]
-                      (history/undo history context-pred basis node-id-generators override-id-generator)))))
+  "Undoes the last performed action."
+  [graph-id]
+  (let [context-pred (history-context-pred)
+        {:keys [context-before]}
+        (alter-history! graph-id
+                        (fn [system basis history]
+                          (let [node-id-generators (is/id-generators system)
+                                override-id-generator (is/override-id-generator system)]
+                            (history/undo history context-pred basis node-id-generators override-id-generator))))]
+    (when (some? context-before)
+      (restore-history-context! context-before))))
 
 (defn can-undo?
-  "Returns true if the specified graph has an undoable action matching the
-  provided context predicate."
-  [graph-id context-pred]
+  "Returns true if the specified graph has an undoable action."
+  [graph-id]
   (if-some [history (is/graph-history @*the-system* graph-id)]
-    (history/can-undo? history context-pred)
+    (history/can-undo? history (history-context-pred))
     false))
 
 (defn redo!
-  "Redoes the previously undone action matching the provided context predicate."
-  [graph-id context-pred]
-  (alter-history! graph-id
-                  (fn [system basis history]
-                    (let [node-id-generators (is/id-generators system)
-                          override-id-generator (is/override-id-generator system)]
-                      (history/redo history context-pred basis node-id-generators override-id-generator)))))
+  "Redoes the previously undone action."
+  [graph-id]
+  (let [context-pred (history-context-pred)
+        {:keys [context-after]}
+        (alter-history! graph-id
+                        (fn [system basis history]
+                          (let [node-id-generators (is/id-generators system)
+                                override-id-generator (is/override-id-generator system)]
+                            (history/redo history context-pred basis node-id-generators override-id-generator))))]
+    (when (some? context-after)
+      (restore-history-context! context-after))))
 
 (defn can-redo?
-  "Returns true if the specified graph has a redoable action matching the
-  provided context predicate."
-  [graph-id context-pred]
+  "Returns true if the specified graph has a redoable action."
+  [graph-id]
   (if-some [history (is/graph-history @*the-system* graph-id)]
-    (history/can-redo? history context-pred)
+    (history/can-redo? history (history-context-pred))
     false))
 
 (defn reset-undo!

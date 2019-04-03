@@ -7,8 +7,6 @@
             [editor.outline :as outline]
             [integration.test-util :as test-util]))
 
-(def ^:private history-context-pred (constantly true))
-
 (deftest undo-unseq-tx-does-not-coalesce
   (testing "Undoing in unsequenced transactions does not coalesce"
            (test-util/with-loaded-project
@@ -20,7 +18,7 @@
                    (g/set-property atlas-node :margin 1)))
                (g/transact (g/set-property atlas-node :margin 10))
                (g/transact (g/set-property atlas-node :margin 2))
-               (g/undo! project-graph history-context-pred)
+               (g/undo! project-graph)
                (is (= 10 (g/node-value atlas-node :margin)))))))
 
 (defn outline-children [node-id] (:children (g/node-value node-id :node-outline)))
@@ -36,11 +34,11 @@
      (is (= 0 (count (outline-children go-node))))
 
      ;; undo deletion
-     (g/undo! proj-graph history-context-pred)
+     (g/undo! proj-graph)
      (is (= 1 (count (outline-children go-node))))
 
      ;; redo deletion
-     (g/redo! proj-graph history-context-pred)
+     (g/redo! proj-graph)
 
      (is (= 0 (count (outline-children go-node)))))))
 
@@ -115,27 +113,27 @@
        (let [outline-without-component (remove-fns (g/node-value outline-id :outline))]
 
          ;; undo the deletion (component is back)
-         (g/undo! proj-graph history-context-pred)
+         (g/undo! proj-graph)
 
          ;; same :outline should be re-produced
          (let [outline-after-undo (remove-fns (g/node-value outline-id :outline))]
            (is (= original-outline outline-after-undo)))
 
          ;; redo the deletion (component is gone)
-         (g/redo! proj-graph history-context-pred)
+         (g/redo! proj-graph)
 
          ;; :outline should be re-produced again
          (is (= outline-without-component (remove-fns (g/node-value outline-id :outline))))
 
          ;; undo the deletion again (component is back again)
-         (g/undo! proj-graph history-context-pred)
+         (g/undo! proj-graph)
 
          ;; :outline should be re-produced
          (let [outline-after-second-undo (remove-fns (g/node-value outline-id :outline))]
            (is (= original-outline outline-after-second-undo)))
 
          ;; redo the deletion yet again (component is gone again)
-         (g/redo! proj-graph history-context-pred)
+         (g/redo! proj-graph)
 
          ;; :outline should be re-produced yet again
          (is (= outline-without-component (remove-fns (g/node-value outline-id :outline)))))))))
@@ -154,5 +152,5 @@
      (is (= 1 (child-count outline-id)))
      (let [component (add-component! project go-node (fn [node-ids] (app-view/select app-view node-ids)))]
        (is (= 2 (child-count outline-id)))
-       (g/undo! proj-graph history-context-pred)
+       (g/undo! proj-graph)
        (is (= 1 (child-count outline-id)))))))

@@ -71,6 +71,26 @@
             (assoc-in [:history graph-id] altered-history)
             (invalidate-outputs altered-outputs))))))
 
+(def ^:private default-history-context-pred (constantly true))
+
+(defrecord DefaultHistoryContextController []
+  gt/HistoryContextController
+  (history-context [_this _evaluation-context] nil)
+  (history-context-pred [_this _evaluation-context] default-history-context-pred)
+  (restore-history-context! [_this _history-context] nil))
+
+(def ^:private default-history-context-controller (DefaultHistoryContextController.))
+
+(defn history-context-controller
+  [system]
+  (or (:history-context-controller system)
+      default-history-context-controller))
+
+(defn set-history-context-controller
+  [system history-context-controller]
+  (assert (gt/history-context-controller? history-context-controller))
+  (assoc system :history-context-controller history-context-controller))
+
 ;; -----------------------------------------------------------------------------
 
 (defn- make-initial-graph
@@ -140,8 +160,8 @@
        (if-some [history (:history value)]
          (map? history)
          true)
-       (if-some [history-context-fn (:history-context-fn value)]
-         (ifn? history-context-fn)
+       (if-some [history-context-controller (history-context-controller value)]
+         (gt/history-context-controller? history-context-controller)
          true)))
 
 (defn make-system
@@ -155,16 +175,6 @@
          :invalidate-counters {}
          :user-data {}}
         (attach-graph initial-graph))))
-
-(defn set-history-context-fn
-  "Set the function that will be called to obtain context for written history
-  entries. The function should take an evaluation-context as its sole argument.
-  The context value returned by the function will be associated with the written
-  history entry, and later given to the context predicate function you provide
-  in calls g/undo! and its ilk."
-  [system history-context-fn]
-  (assert (ifn? history-context-fn))
-  (assoc system :history-context-fn history-context-fn))
 
 (declare default-evaluation-context update-cache-from-evaluation-context)
 
@@ -190,11 +200,10 @@
                                     (let [outputs-modified (outputs-modified-by-graph-id graph-id)]
                                       [graph-id graph-after outputs-modified]))))
                           graphs-after-by-graph-id)
-        history-context-fn (:history-context-fn system)
-        history-context-before (when (and (some? history-context-fn)
-                                          (seq history-updates))
+        history-context-controller (history-context-controller system)
+        history-context-before (when (seq history-updates)
                                  (let [evaluation-context (default-evaluation-context system)]
-                                   (history-context-fn evaluation-context)))
+                                   (gt/history-context history-context-controller evaluation-context)))
         post-system (-> system
                         (update :graphs merge graphs-after-by-graph-id)
                         (update :cache c/cache-invalidate outputs-modified)
@@ -207,8 +216,7 @@
     (if (empty? history-updates)
       post-system
       (let [evaluation-context (default-evaluation-context post-system)
-            history-context-after (when (some? history-context-fn)
-                                    (history-context-fn evaluation-context))]
+            history-context-after (gt/history-context history-context-controller evaluation-context)]
         (-> post-system
             (update-cache-from-evaluation-context evaluation-context)
             (update :history (fn [history-by-graph-id]
@@ -330,6 +338,7 @@
 (defn clone-system [system]
   {:graphs (:graphs system)
    :history (:history system)
+   :history-context-controller (:history-context-controller system)
    :id-generators (into {}
                         (map (fn [[graph-id id-generator]]
                                [graph-id (atom (deref id-generator))]))
@@ -343,6 +352,7 @@
 (defn system= [s1 s2]
   (and (= (:graphs s1) (:graphs s2))
        (= (:history s1) (:history s2))
+       (= (:history-context-controller s1) (:history-context-controller s2))
        (= (map (fn [[graph-id id-generator]] [graph-id (id-gen/peek-id id-generator)]) (:id-generators s1))
           (map (fn [[graph-id id-generator]] [graph-id (id-gen/peek-id id-generator)]) (:id-generators s2)))
        (= (id-gen/peek-id (:override-id-generator s1))

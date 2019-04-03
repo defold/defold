@@ -492,6 +492,7 @@
   (input scene g/Any :substitute substitute-scene)
   (input selection g/Any)
   (input camera Camera)
+  (input local-camera Camera)
   (input aux-renderables pass/RenderData :array :substitute gu/array-subst-remove-errors)
   (input hidden-renderable-tags types/RenderableTags)
   (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
@@ -713,6 +714,21 @@
     {:renderables sorted-renderables-by-pass
      :selected-renderables (:selected-renderables scene-render-data)}))
 
+(defn- view->camera
+  ([view]
+   (g/node-feeding-into view :camera))
+  ([basis view]
+   (g/node-feeding-into basis view :camera)))
+
+(g/defnk produce-view-state [local-camera :as view-state]
+  view-state)
+
+(defn- set-view-state [view-node view-state evaluation-context]
+  (let [basis (:basis evaluation-context)
+        camera-node (view->camera basis view-node)
+        local-camera (:local-camera view-state)]
+    (g/set-property camera-node :local-camera local-camera)))
+
 (g/defnode SceneView
   (inherits view/WorkbenchView)
   (inherits SceneRenderer)
@@ -758,7 +774,8 @@
 
   (output picking-selection g/Any :cached produce-selection)
   (output tool-selection g/Any :cached produce-tool-selection)
-  (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
+  (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables)
+  (output view-state g/Any produce-view-state))
 
 (defn refresh-scene-view! [node-id]
   (g/with-auto-evaluation-context evaluation-context
@@ -800,12 +817,6 @@
   ^Vector3d [camera viewport ^Vector3d screen-pos]
   (let [w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
     (Vector3d. (.x w4) (.y w4) (.z w4))))
-
-(defn- view->camera
-  ([view]
-   (g/node-feeding-into view :camera))
-  ([basis view]
-   (g/node-feeding-into basis view :camera)))
 
 (defn augment-action [view action]
   (let [x          (:x action)
@@ -1304,6 +1315,7 @@
                     (g/connect background      :renderable                    view-id         :aux-renderables)
 
                     (g/connect camera          :camera                        view-id         :camera)
+                    (g/connect camera          :local-camera                  view-id         :local-camera)
                     (g/connect camera          :input-handler                 view-id         :input-handlers)
                     (g/connect view-id         :viewport                      camera          :viewport)
 
@@ -1373,18 +1385,6 @@
   (when-let [image-view ^ImageView (g/node-value view-id :image-view)]
     (.requestFocus image-view)))
 
-(defn- view-state [view-node evaluation-context]
-  (let [basis (:basis evaluation-context)
-        camera-node (view->camera basis view-node)
-        local-camera (g/node-value camera-node :local-camera evaluation-context)]
-    {:local-camera local-camera}))
-
-(defn- set-view-state [view-node view-state evaluation-context]
-  (let [basis (:basis evaluation-context)
-        camera-node (view->camera basis view-node)
-        local-camera (:local-camera view-state)]
-    (g/set-property camera-node :local-camera local-camera)))
-
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :scene
@@ -1393,7 +1393,6 @@
                                 :make-preview-fn make-preview
                                 :dispose-preview-fn dispose-preview
                                 :focus-fn focus-view
-                                :state-fn view-state
                                 :set-state-fn set-view-state))
 
 (g/defnk produce-transform [position rotation scale]

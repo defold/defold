@@ -51,11 +51,10 @@
             [service.log :as log]
             [util.http-server :as http-server]
             [util.profiler :as profiler])
-  (:import [com.defold.editor Editor EditorApplication]
+  (:import [com.defold.editor Editor]
            [java.io BufferedReader File IOException]
            [java.net URL]
            [java.util Collection List]
-           [java.util.concurrent.atomic AtomicInteger]
            [javafx.beans.value ChangeListener]
            [javafx.collections ListChangeListener ObservableList]
            [javafx.event Event]
@@ -103,14 +102,8 @@
 
 (defrecord HistoryContext [resource selection sub-selection view-state])
 
-(defn history-context [app-view evaluation-context]
-  (let [{view-node :view-id view-type :view-type} (g/node-value app-view :active-view-info evaluation-context)
-        {:keys [resource resource-node]} (get (g/node-value app-view :open-views evaluation-context) view-node)
-        selection (get (g/node-value app-view :selected-node-ids-by-resource-node evaluation-context) resource-node)
-        sub-selection (get (g/node-value app-view :sub-selections-by-resource-node evaluation-context) resource-node)
-        view-state (when-some [view-state-fn (:state-fn view-type)]
-                     (view-state-fn view-node evaluation-context))]
-    (HistoryContext. resource selection sub-selection view-state)))
+(g/defnk produce-history-context [active-resource active-view-state selected-node-ids sub-selection]
+  (HistoryContext. active-resource selected-node-ids sub-selection active-view-state))
 
 (defn- history-context-pred [active-resource ^HistoryContext history-context]
   (= active-resource (.resource history-context)))
@@ -137,6 +130,23 @@
               (g/tx-data-flatten
                 (set-view-state-fn view-node view-state evaluation-context)))))))))
 
+(defrecord HistoryContextController [app-view prefs project]
+  g/HistoryContextController
+  (history-context [_this evaluation-context]
+    (g/node-value app-view :history-context evaluation-context))
+
+  (history-context-pred [_this evaluation-context]
+    (g/node-value app-view :history-context-pred evaluation-context))
+
+  (restore-history-context! [_this history-context]
+    (set-view-state-from-history-context! app-view prefs project history-context)))
+
+(defn make-history-context-controller [app-view prefs project]
+  (assert (g/node-id? app-view))
+  (assert (prefs/prefs? prefs))
+  (assert (g/node-id? project))
+  (->HistoryContextController app-view prefs project))
+
 (g/defnode AppView
   (property stage Stage)
   (property scene Scene)
@@ -154,6 +164,7 @@
   (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
   (input active-outline g/Any)
   (input active-scene g/Any)
+  (input active-view-state g/Any)
   (input selection-node g/NodeID)
   (input selected-node-ids-by-resource-node g/Any)
   (input selected-node-properties-by-resource-node g/Any)
@@ -197,6 +208,7 @@
   (output keymap g/Any :cached (g/fnk []
                                  (keymap/make-keymap keymap/default-host-key-bindings {:valid-command? (set (handler/available-commands))})))
   (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations))
+  (output history-context HistoryContext :cached produce-history-context)
   (output history-context-pred g/Any :cached (g/fnk [active-resource] (partial history-context-pred active-resource))))
 
 (defn- selection->openable-resources [selection]
@@ -238,10 +250,11 @@
       (g/connect source-node source-label target-node target-label)
       [])))
 
-(defn- on-selected-tab-changed! [app-view app-scene resource-node view-type]
+(defn- on-selected-tab-changed! [app-view app-scene resource-node view-node view-type]
   (g/transact
     (concat
       (replace-connection resource-node :node-outline app-view :active-outline)
+      (replace-connection view-node :view-state app-view :active-view-state)
       (if (= :scene view-type)
         (replace-connection resource-node :scene app-view :active-scene)
         (disconnect-sources app-view :active-scene))))
@@ -1207,15 +1220,17 @@ If you do not specifically require different script states, consider changing th
         (error-reporting/report-exception! error))))
   (scene-cache/drop-context! nil))
 
-(defn- tab->resource-node [^Tab tab]
-  (some-> tab
-    (ui/user-data ::view)
-    (g/node-value :view-data)
-    second
-    :resource-node))
+(defn- tab->view-node [^Tab tab]
+  (some-> tab (ui/user-data ::view)))
 
 (defn- tab->view-type [^Tab tab]
   (some-> tab (ui/user-data ::view-type) :id))
+
+(defn- tab->resource-node [^Tab tab]
+  (some-> (tab->view-node tab)
+          (g/node-value :view-data)
+          second
+          :resource-node))
 
 (defn- configure-editor-tab-pane! [^TabPane tab-pane ^Scene app-scene app-view]
   (.setTabClosingPolicy tab-pane TabPane$TabClosingPolicy/ALL_TABS)
@@ -1225,7 +1240,10 @@ If you do not specifically require different script states, consider changing th
       (.addListener
         (reify ChangeListener
           (changed [_this _observable _old-val new-val]
-            (on-selected-tab-changed! app-view app-scene (tab->resource-node new-val) (tab->view-type new-val))))))
+            (let [resource-node (tab->resource-node new-val)
+                  view-node (tab->view-node new-val)
+                  view-type (tab->view-type new-val)]
+              (on-selected-tab-changed! app-view app-scene resource-node view-node view-type))))))
   (-> tab-pane
       (.getTabs)
       (.addListener
@@ -1248,11 +1266,12 @@ If you do not specifically require different script states, consider changing th
                (not (identical? old-editor-tab-pane new-editor-tab-pane)))
       (let [selected-tab (ui/selected-tab new-editor-tab-pane)
             resource-node (tab->resource-node selected-tab)
+            view-node (tab->view-node selected-tab)
             view-type (tab->view-type selected-tab)]
         (ui/add-style! old-editor-tab-pane "inactive")
         (ui/remove-style! new-editor-tab-pane "inactive")
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
-        (on-selected-tab-changed! app-view app-scene resource-node view-type)))))
+        (on-selected-tab-changed! app-view app-scene resource-node view-node view-type)))))
 
 (defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane]
   (let [app-scene (.getScene stage)]
@@ -1497,21 +1516,13 @@ If you do not specifically require different script states, consider changing th
                                                       (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
-(defn- update-view-after-undo! [alter-history-result app-view prefs project context-kw]
-  (when-some [history-context (get alter-history-result context-kw)]
-    (set-view-state-from-history-context! app-view prefs project history-context)))
-
 (handler/defhandler :undo :global
-  (enabled? [history-context-pred project project-graph] (g/can-undo? project-graph history-context-pred))
-  (run [app-view history-context-pred prefs project project-graph]
-       (-> (g/undo! project-graph history-context-pred)
-           (update-view-after-undo! app-view prefs project :context-before))))
+  (enabled? [project-graph] (g/can-undo? project-graph))
+  (run [project-graph] (g/undo! project-graph)))
 
 (handler/defhandler :redo :global
-  (enabled? [history-context-pred project project-graph] (g/can-redo? project-graph history-context-pred))
-  (run [app-view history-context-pred prefs project project-graph]
-       (-> (g/redo! project-graph history-context-pred)
-           (update-view-after-undo! app-view prefs project :context-after))))
+  (enabled? [project-graph] (g/can-redo? project-graph))
+  (run [project-graph] (g/redo! project-graph)))
 
 (defn- select-tool-tab! [app-view tab-id]
   (let [^TabPane tool-tab-pane (g/node-value app-view :tool-tab-pane)

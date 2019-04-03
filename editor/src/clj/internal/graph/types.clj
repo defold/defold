@@ -57,6 +57,17 @@
 (defn basis? [value]
   (satisfies? IBasis value))
 
+(defprotocol HistoryContextController
+  (history-context [this evaluation-context]
+    "Extract relevant history-context from the provided evaluation-context.")
+  (history-context-pred [this evaluation-context]
+    "Returns a predicate that, when given a history-context, returns true if it is can be undone or redone at present.")
+  (restore-history-context! [this history-context]
+    "Restore history-context. Called with return values from the above function."))
+
+(defn history-context-controller? [value]
+  (satisfies? HistoryContextController value))
+
 ;; ---------------------------------------------------------------------------
 ;; ID helpers
 ;; ---------------------------------------------------------------------------

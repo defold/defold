@@ -210,9 +210,12 @@
                                       selection-node [selection/SelectionNode]]
                           (g/connect selection-node :_node-id app-view :selection-node)
                           (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
-                            (g/connect selection-node label app-view label)))))]
-    (project/add-resource-node-listener! project (partial selection/remap-selection selection-node))
-    (g/set-history-context-fn! (partial app-view/history-context app-view))
+                            (g/connect selection-node label app-view label)))))
+        prefs (make-test-prefs)
+        resource-node-listener (partial selection/remap-selection selection-node)
+        history-context-controller (app-view/make-history-context-controller app-view prefs project)]
+    (project/add-resource-node-listener! project resource-node-listener)
+    (g/set-history-context-controller! history-context-controller)
     app-view))
 
 (defn- make-tab! [project app-view path make-view-fn!]
