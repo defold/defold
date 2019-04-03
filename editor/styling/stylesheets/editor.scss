@@ -85,12 +85,6 @@ Links:
   -fx-text-color-base: $defold-light-blue;
   -fx-text-fill: $defold-light-blue; }
 
-.overridden .text-field {
-  -fx-text-fill: $defold-light-blue; }
-
-.overridden .color-picker-label .text {
-  -fx-fill: $defold-light-blue; }
-
 .copyable-label, .copyable-label:focused {
   -fx-background-color: transparent;
   -fx-border-width: 0px;
