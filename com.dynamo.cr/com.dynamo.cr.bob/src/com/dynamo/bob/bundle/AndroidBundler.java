@@ -105,7 +105,7 @@ public class AndroidBundler implements IBundler {
 
         File appDir = new File(bundleDir, title);
         File resDir = new File(appDir, "res");
-        File tmpResourceDir = Files.createTempDirectory("res§").toFile();
+        File tmpResourceDir = Files.createTempDirectory("res").toFile();
 
         String contentRoot = project.getBuildDirectory();
         String projectRoot = project.getRootDirectory();

@@ -64,6 +64,10 @@ public class BundleHelper {
     private File appDir;
     private Map<String, Map<String, Object>> propertiesMap;
 
+    public static final String MANIFEST_NAME_ANDROID    = "AndroidManifest.xml";
+    public static final String MANIFEST_NAME_IOS        = "Info.plist";
+    public static final String MANIFEST_NAME_OSX        = "Info.plist";
+
     private static Logger logger = Logger.getLogger(BundleHelper.class.getName());
 
     public static void throwIfCanceled(ICanceled canceled) {
@@ -170,9 +174,12 @@ public class BundleHelper {
         return this;
     }
 
+    // Formats all the manifest files.
+    // This is required for the manifest mergere to not choke on the Mustasch patterns
     private List<File> formatAll(List<IResource> sources, File toDir, Map<String, Object> properties) throws IOException {
         List<File> out = new ArrayList<File>();
         for (IResource source : sources) {
+            // converts a relative path to something we can easily see if we get a merge failure: a/b/c.xml -> a_b_c.xml
             String name = source.getPath().replaceAll("[^a-zA-Z0-9_]", "_");
             File target = new File(toDir, name);
             format(properties, source, target);
@@ -182,9 +189,15 @@ public class BundleHelper {
     }
 
     public void mergeManifests(Project project, Platform platform, Map<String, Object> properties, IResource mainManifest, File outManifest) throws CompileExceptionError, IOException {
-        String name = "Info.plist";
-        if (platform == Platform.Armv7Android) {
-            name = "AndroidManifest.xml";
+        String name;
+        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
+            name = BundleHelper.MANIFEST_NAME_IOS;
+        } else if (platform == Platform.X86_64Darwin) {
+            name = BundleHelper.MANIFEST_NAME_OSX;
+        } else if (platform == Platform.Armv7Android) {
+            name = BundleHelper.MANIFEST_NAME_ANDROID;
+        } else {
+            throw new CompileExceptionError(null, -1, "Unsupported ManifestMergeTool platform: " + platform.toString());
         }
 
         // First, list all manifests
@@ -192,21 +205,11 @@ public class BundleHelper {
         // Put the main manifest in front
         sourceManifests.add(0, mainManifest);
 
-        for (IResource manifest : sourceManifests) {
-            System.out.println("SOURCE MANIFEST: " + manifest.getAbsPath());
-        }
-
         // Resolve all properties in each manifest
         File manifestDir = Files.createTempDirectory("manifests").toFile();
         List<File> resolvedManifests = formatAll(sourceManifests, manifestDir, properties);
         File resolvedMainManifest = resolvedManifests.get(0);
         resolvedManifests.remove(0);
-
-
-        System.out.println("RESOLVED MAIN MANIFEST: " + resolvedMainManifest.getAbsolutePath());
-        for (File manifest : resolvedManifests) {
-            System.out.println("RESOLVED MANIFEST: " + manifest.getAbsolutePath());
-        }
 
         if (resolvedManifests.size() == 0) {
             Files.copy(resolvedMainManifest.toPath(), outManifest.toPath(), StandardCopyOption.REPLACE_EXISTING);
