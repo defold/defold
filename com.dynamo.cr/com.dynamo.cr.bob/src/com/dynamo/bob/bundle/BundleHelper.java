@@ -11,8 +11,10 @@ import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,9 +22,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.filefilter.DirectoryFileFilter;
+import org.apache.commons.io.filefilter.RegexFileFilter;
 
 import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderClientException;
@@ -35,7 +40,10 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.ExtenderUtil.JavaRExtenderResource;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.Exec.Result;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
 
@@ -138,7 +146,7 @@ public class BundleHelper {
         return map;
     }
 
-    private IResource getResource(String category, String key) throws IOException {
+    public IResource getResource(String category, String key) throws IOException {
         Map<String, Object> c = propertiesMap.get(category);
         if (c != null) {
             Object o = c.get(key);
@@ -152,8 +160,7 @@ public class BundleHelper {
         throw new IOException(String.format("No resource found for %s.%s", category, key));
     }
 
-    public BundleHelper format(Map<String, Object> properties, String templateCategory, String templateKey, File toFile) throws IOException {
-        IResource resource = getResource(templateCategory, templateKey);
+    public BundleHelper format(Map<String, Object> properties, IResource resource, File toFile) throws IOException {
         String data = new String(resource.getContent());
         Template template = Mustache.compiler().compile(data);
         StringWriter sw = new StringWriter();
@@ -163,8 +170,187 @@ public class BundleHelper {
         return this;
     }
 
-    public BundleHelper format(String templateCategory, String templateKey, File toFile) throws IOException {
-        return format(new HashMap<String, Object>(), templateCategory, templateKey, toFile);
+    private List<File> formatAll(List<IResource> sources, File toDir, Map<String, Object> properties) throws IOException {
+        List<File> out = new ArrayList<File>();
+        for (IResource source : sources) {
+            String name = source.getPath().replaceAll("[^a-zA-Z0-9_]", "_");
+            File target = new File(toDir, name);
+            format(properties, source, target);
+            out.add(target);
+        }
+        return out;
+    }
+
+    public void mergeManifests(Project project, Platform platform, Map<String, Object> properties, IResource mainManifest, File outManifest) throws CompileExceptionError, IOException {
+        String name = "Info.plist";
+        if (platform == Platform.Armv7Android) {
+            name = "AndroidManifest.xml";
+        }
+
+        // First, list all manifests
+        List<IResource> sourceManifests = ExtenderUtil.getExtensionManifests(project, platform, name);
+        // Put the main manifest in front
+        sourceManifests.add(0, mainManifest);
+
+        for (IResource manifest : sourceManifests) {
+            System.out.println("SOURCE MANIFEST: " + manifest.getAbsPath());
+        }
+
+        // Resolve all properties in each manifest
+        File manifestDir = Files.createTempDirectory("manifests").toFile();
+        List<File> resolvedManifests = formatAll(sourceManifests, manifestDir, properties);
+        File resolvedMainManifest = resolvedManifests.get(0);
+        resolvedManifests.remove(0);
+
+
+        System.out.println("RESOLVED MAIN MANIFEST: " + resolvedMainManifest.getAbsolutePath());
+        for (File manifest : resolvedManifests) {
+            System.out.println("RESOLVED MANIFEST: " + manifest.getAbsolutePath());
+        }
+
+        if (resolvedManifests.size() == 0) {
+            Files.copy(resolvedMainManifest.toPath(), outManifest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            return;
+        }
+
+        ManifestMergeTool.Platform manifestPlatform;
+        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
+            manifestPlatform = ManifestMergeTool.Platform.IOS;
+        } else if (platform == Platform.Armv7Android) {
+            manifestPlatform = ManifestMergeTool.Platform.ANDROID;
+        } else if (platform == Platform.X86_64Darwin) {
+            manifestPlatform = ManifestMergeTool.Platform.OSX;
+        } else {
+            throw new CompileExceptionError(null, -1, "Merging manifests for platform unsupported: " + platform.toString());
+        }
+
+        // Now merge these manifests in order (the main manifest is first)
+        try {
+            ManifestMergeTool.merge(manifestPlatform, resolvedMainManifest, outManifest, resolvedManifests);
+        } catch (RuntimeException e) {
+            throw new CompileExceptionError(null, -1, "Failed merging manifests: " + e.toString());
+        }
+        FileUtils.deleteDirectory(manifestDir);
+    }
+
+    private static Pattern aaptResourceErrorRe = Pattern.compile("^invalid resource directory name:\\s(.+)\\s(.+)\\s.*$", Pattern.MULTILINE);
+
+    private List<ExtenderResource> generateRJava(List<String> resourceDirectories, List<String> extraPackages, File manifestFile, File apk, File outputDirectory) throws CompileExceptionError {
+
+        try {
+            Map<String, String> aaptEnv = new HashMap<String, String>();
+            if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
+                aaptEnv.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
+            }
+
+            // Run aapt to generate R.java files
+            List<String> args = new ArrayList<String>();
+            args.add(Bob.getExe(Platform.getHostPlatform(), "aapt"));
+            args.add("package");
+            args.add("--no-crunch");
+            args.add("-f");
+            args.add("--extra-packages");
+            args.add(StringUtils.join(extraPackages, ":"));
+            args.add("-m");
+            args.add("--auto-add-overlay");
+            args.add("-M"); args.add(manifestFile.getAbsolutePath());
+            args.add("-I"); args.add(Bob.getPath("lib/android.jar"));
+            args.add("-J"); args.add(outputDirectory.getAbsolutePath());
+            if (apk != null) {
+                args.add("-F"); args.add(apk.getAbsolutePath());
+            }
+
+            for( String s : resourceDirectories )
+            {
+                args.add("-S"); args.add(s);
+            }
+
+            Result res = Exec.execResultWithEnvironment(aaptEnv, args);
+
+            if (res.ret != 0) {
+                String msg = new String(res.stdOutErr);
+
+                // Try our best to visualize the error from aapt
+                Matcher m = aaptResourceErrorRe.matcher(msg);
+                if (m.matches()) {
+                    String path = m.group(1);
+                    if (path.startsWith(project.getRootDirectory())) {
+                        path = path.substring(project.getRootDirectory().length());
+                    }
+                    IResource r = project.getResource(FilenameUtils.concat(path, m.group(2))); // folder + filename
+                    if (r != null) {
+                        throw new CompileExceptionError(r, 1, String.format("Invalid Android resource folder name: '%s'\nSee https://developer.android.com/guide/topics/resources/providing-resources.html#table1 for valid directory names.\nAAPT Error: %s", m.group(2), msg));
+                    }
+                }
+                throw new IOException(msg);
+            }
+
+        } catch (Exception e) {
+            throw new CompileExceptionError(null, -1, "Failed building Android resources to R.java: " + e.getMessage());
+        }
+
+        List<ExtenderResource> extraSource = new ArrayList<ExtenderResource>();
+
+        // Collect all *.java files from aapt output
+        Collection<File> javaFiles = FileUtils.listFiles(
+                outputDirectory,
+                new RegexFileFilter(".+\\.java"),
+                DirectoryFileFilter.DIRECTORY
+        );
+
+        // Add outputs as _app/rjava/ sources
+        String rootRJavaPath = "_app/rjava/";
+        for (File javaFile : javaFiles) {
+            String relative = outputDirectory.toURI().relativize(javaFile.toURI()).getPath();
+            String outputPath = rootRJavaPath + relative;
+            extraSource.add(new JavaRExtenderResource(javaFile, outputPath));
+        }
+        return extraSource;
+    }
+
+    public static void createAndroidResourceFolders(File dir) throws IOException {
+        FileUtils.forceMkdir(new File(dir, "drawable"));
+        FileUtils.forceMkdir(new File(dir, "drawable-ldpi"));
+        FileUtils.forceMkdir(new File(dir, "drawable-mdpi"));
+        FileUtils.forceMkdir(new File(dir, "drawable-hdpi"));
+        FileUtils.forceMkdir(new File(dir, "drawable-xhdpi"));
+        FileUtils.forceMkdir(new File(dir, "drawable-xxhdpi"));
+        FileUtils.forceMkdir(new File(dir, "drawable-xxxhdpi"));
+    }
+
+    public List<ExtenderResource> generateAndroidResources(Project project, Platform platform, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError, IOException {
+        List<String> resourceDirectories = new ArrayList<>();
+
+        BundleHelper.createAndroidResourceFolders(resDir);
+
+        // Get all Android specific resources needed to create R.java files
+        Map<String, IResource> resources = ExtenderUtil.getAndroidResources(project);
+        ExtenderUtil.storeAndroidResources(resDir, resources);
+
+        resourceDirectories.add(resDir.getAbsolutePath());
+
+        copyAndroidIcons(resDir);
+
+        // Run aapt to generate R.java files
+        //     <tmpDir>/rjava - Output directory of aapt, all R.java files will be stored here
+        File javaROutput = new File(tmpDir, "rjava");
+        javaROutput.mkdir();
+
+        // Include built-in/default facebook and gms resources
+        resourceDirectories.add(Bob.getPath("res/facebook"));
+        resourceDirectories.add(Bob.getPath("res/com.android.support.support-compat-27.1.1"));
+        resourceDirectories.add(Bob.getPath("res/com.android.support.support-core-ui-27.1.1"));
+        resourceDirectories.add(Bob.getPath("res/com.android.support.support-media-compat-27.1.1"));
+        resourceDirectories.add(Bob.getPath("res/com.google.android.gms.play-services-base-16.0.1"));
+        resourceDirectories.add(Bob.getPath("res/com.google.android.gms.play-services-basement-16.0.1"));
+        resourceDirectories.add(Bob.getPath("res/com.google.firebase.firebase-messaging-17.3.4"));
+
+        List<String> extraPackages = new ArrayList<>();
+        extraPackages.add("com.facebook");
+        extraPackages.add("com.google.android.gms");
+        extraPackages.add("com.google.android.gms.common");
+
+        return generateRJava(resourceDirectories, extraPackages, manifestFile, apk, javaROutput);
     }
 
     public BundleHelper copyBuilt(String name) throws IOException {
@@ -280,7 +466,7 @@ public class BundleHelper {
             return copyIcon(projectProperties, projectRoot, resDir, name + "_" + dpi, "drawable-" + dpi + "/" + outName);
     }
 
-    public void createAndroidManifest(BobProjectProperties projectProperties, String projectRoot, File manifestFile, File resOutput, String exeName) throws IOException {
+    public Map<String, Object> createAndroidManifestProperties(String projectRoot, File resOutput, String exeName) throws IOException {
 
         Map<String, Object> properties = new HashMap<>();
         properties.put("exe-name", exeName);
@@ -310,7 +496,7 @@ public class BundleHelper {
         } else {
             properties.put("orientation-support", "sensor");
         }
-        format(properties, "android", "manifest", manifestFile);
+        return properties;
     }
 
     public static class ResourceInfo
