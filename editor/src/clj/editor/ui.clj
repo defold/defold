@@ -14,6 +14,7 @@
    [editor.util :as eutil]
    [internal.util :as util]
    [service.log :as log]
+   [service.smoke-log :as slog]
    [util.profiler :as profiler])
   (:import
    [com.defold.control LongField]
@@ -1952,6 +1953,7 @@ command."
   (on-closed! closeable (fn [_] (timer-stop! timer))))
 
 (defn- show-dialog-stage [^Stage stage show-fn]
+  (.setOnShown stage (event-handler _ (slog/smoke-log "show-dialog")))
   (if (and (eutil/is-mac-os?)
            (= (.getOwner stage) (main-stage)))
     (let [scene (.getScene stage)
