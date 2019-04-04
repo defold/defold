@@ -158,26 +158,27 @@
             </tarfileset>
         </copy>
 
-         <!-- extdirs="foo" is set to avoid automatic inclusion of ext-jars and
-              specifically vecmath.jar on OSX -->
-         <javac srcdir="generated"
-                destdir="${classes.dir}"
-                extdirs="foo"
-                includeantruntime="false"
-                encoding="UTF-8">
-             <classpath>
-                 <path refid="classpath"/>
-             </classpath>
-         </javac>
+        <!-- extdirs="foo" is set to avoid automatic inclusion of ext-jars and
+             specifically vecmath.jar on OSX -->
+        <javac srcdir="generated"
+               destdir="${classes.dir}"
+               extdirs="foo"
+               includeantruntime="false"
+               encoding="UTF-8">
+            <classpath>
+                <path refid="classpath"/>
+            </classpath>
+            <compilerarg value="-g"/>
+        </javac>
 
-         <javac destdir="${classes.dir}"
-                extdirs="foo"
-                includeantruntime="false"
-                debug="true"
-                encoding="UTF-8">
-             <src path="src"/>
-             <include name="com/**"/>
-             <exclude name="com/dynamo/bob/*Osgi*"/>
+        <javac destdir="${classes.dir}"
+               extdirs="foo"
+               includeantruntime="false"
+               debug="true"
+               encoding="UTF-8">
+            <src path="src"/>
+            <include name="com/**"/>
+            <exclude name="com/dynamo/bob/*Osgi*"/>
 
             <classpath>
                 <path refid="classpath"/>
