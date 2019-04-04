@@ -1001,6 +1001,10 @@
     tree
     (:property tree)))
 
+(defn- inspect [val]
+  (clojure.pprint/pprint val)
+  val)
+
 (defn process-node-type-forms
   [fully-qualified-node-type-symbol forms]
   (-> (maybe-inject-intrinsics forms)
@@ -1013,6 +1017,7 @@
       extract-fn-arguments
       merge-property-dependencies
       apply-property-dependencies-to-outputs
+      inspect
       attach-declared-properties-output
       attach-input-dependencies
       attach-property-behaviors

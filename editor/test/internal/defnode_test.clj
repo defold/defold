@@ -785,8 +785,16 @@
             (dynamic error (g/fnk [input-three] (nil? input-three)))
             (value    (g/fnk [input-two] (inc input-two))))
 
+  (property overridden g/Any
+            (default  (g/constantly false))
+            (dynamic error (g/fnk [input-three] (nil? input-three)))
+            (value    (g/fnk [input-two] (inc input-two))))
+
   (output an-output g/Any
-          (g/fnk [input-one a-property] :ok)))
+          (g/fnk [input-one a-property] :ok))
+
+
+  (output overridden g/Any (g/fnk [] "this overriding output should not be dependent on the corresponding property's stuff.")))
 
 (defn- affected-by? [out in]
   (let [affected-outputs (-> PropertiesWithDynamics g/input-dependencies (get in))]
@@ -805,6 +813,10 @@
       :input-one
       :_properties
       :_declared-properties)))
+
+(deftest overriding-outputs-dont-automatically-inherit-dependencies-of-corresponding-property
+  (println (g/input-dependencies PropertiesWithDynamics))
+  (is (not (affected-by? :overridden :input-three))))
 
 (g/defnode CustomPropertiesOutput
   (output _properties g/Properties :cached
@@ -935,12 +947,19 @@
 (deftest all-kinds
   (with-clean-system
     (let [[n] (tx-nodes (g/make-node world AllKindsOfFns))]
-      (println (g/node-value n :backing-prop))
-      (println (g/node-value n :the-prop))
-      (println (g/node-value n :constant-fns-prop))
-      (println (g/node-value n :some-output))
-      (println (g/node-value n :constant-output))
-      (println (g/node-value n :_properties))
-      (println (g/node-value n :tricky))
-      (println (g/node-value n :mememe))
+      #_(println (g/node-value n :backing-prop))
+      #_(println (g/node-value n :the-prop))
+      #_(println (g/node-value n :constant-fns-prop))
+      #_(println (g/node-value n :some-output))
+      #_(println (g/node-value n :constant-output))
+      #_(println (g/node-value n :_properties))
+      #_(println (g/node-value n :tricky))
+      #_(println (g/node-value n :mememe))
       )))
+
+
+(g/defnode EmptyNodeType)
+
+
+
+
