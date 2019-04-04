@@ -49,7 +49,8 @@
             [internal.util :refer [first-where]]
             [service.log :as log]
             [util.http-server :as http-server]
-            [util.profiler :as profiler])
+            [util.profiler :as profiler]
+            [service.smoke-log :as slog])
   (:import [com.defold.editor Editor EditorApplication]
            [java.io BufferedReader File IOException]
            [java.net URL]
@@ -1344,6 +1345,9 @@ If you do not specifically require different script states, consider changing th
                  ;; needs proper width + height (f.i. code view for
                  ;; scrolling to selected line).
                  (focus (ui/user-data tab ::view) opts)))
+             ;; Do an initial rendering so it shows up as fast as possible.
+             (ui/run-later (refresh-scene-views! app-view)
+                           (ui/run-later (slog/smoke-log "opened-resource")))
              true)
            (let [^String path (or (resource/abs-path resource)
                                   (resource/temp-path resource))
