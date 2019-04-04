@@ -98,39 +98,51 @@
     (or (first (:view-types resource-type))
         (placeholder-resource/view-type workspace))))
 
-(declare open-resource-node-tab!)
+(defrecord HistoryContext [resource selection sub-selection view-type-id view-state])
 
-(defrecord HistoryContext [resource selection sub-selection view-state])
-
-(g/defnk produce-history-context [active-resource active-view-state selected-node-ids sub-selection]
-  (HistoryContext. active-resource selected-node-ids sub-selection active-view-state))
+(g/defnk produce-history-context [active-view-info active-view-state open-views selected-node-ids-by-resource-node sub-selections-by-resource-node]
+  (let [view-node (some-> active-view-info :view-id)
+        view-type-id (some-> active-view-info :view-type :id)
+        open-view-info (some-> view-node open-views)
+        resource (some-> open-view-info :resource)
+        resource-node (some-> open-view-info :resource-node)
+        selection (some-> resource-node selected-node-ids-by-resource-node)
+        sub-selection (some-> resource-node sub-selections-by-resource-node)]
+    (HistoryContext. resource selection sub-selection view-type-id active-view-state)))
 
 (defn- history-context-pred [active-resource ^HistoryContext history-context]
   (= active-resource (.resource history-context)))
 
-(defn- set-view-state-from-history-context! [app-view prefs project {:keys [resource selection sub-selection view-state] :as _history-context}]
-  (when-some [resource-node (project/get-resource-node project resource)]
-    (when-not (resource-node/defective? resource-node)
+(defn- set-view-state-from-history-context! [app-view project history-context show-tab-fn]
+  (when-some [resource (:resource history-context)]
+    (when-some [resource-node (project/get-resource-node project resource)]
+      (when-not (resource-node/defective? resource-node)
 
-      ;; Restore selection.
-      (g/transact
-        (g/with-auto-evaluation-context evaluation-context
-          (let [selection-node (g/node-value app-view :selection-node evaluation-context)]
-            (g/tx-data-flatten
-              (selection/select evaluation-context selection-node resource-node selection)
-              (selection/sub-select selection-node resource-node sub-selection)))))
-
-      ;; Restore view state.
-      (let [workspace (resource/workspace resource)
-            view-type (resource-view-type resource)
-            view-node (open-resource-node-tab! app-view prefs workspace project resource resource-node view-type {})]
-        (when-some [set-view-state-fn (:set-state-fn view-type)]
-          (g/transact
-            (g/with-auto-evaluation-context evaluation-context
+        ;; Restore selection.
+        (g/transact
+          (g/with-auto-evaluation-context evaluation-context
+            (let [selection (:selection history-context)
+                  sub-selection (:sub-selection history-context)
+                  selection-node (g/node-value app-view :selection-node evaluation-context)]
               (g/tx-data-flatten
-                (set-view-state-fn view-node view-state evaluation-context)))))))))
+                (selection/select evaluation-context selection-node resource-node selection)
+                (selection/sub-select selection-node resource-node sub-selection)))))
 
-(defrecord HistoryContextController [app-view prefs project]
+        ;; Restore view state.
+        (let [workspace (project/workspace project)
+              view-type-id (:view-type-id history-context)
+              view-type (workspace/get-view-type workspace view-type-id)
+              view-node (show-tab-fn resource-node view-type)
+              view-state (:view-state history-context)
+              set-view-state-fn (:set-state-fn view-type)]
+          (when (and (some? view-state)
+                     (some? set-view-state-fn))
+            (g/transact
+              (g/with-auto-evaluation-context evaluation-context
+                (g/tx-data-flatten
+                  (set-view-state-fn view-node view-state evaluation-context))))))))))
+
+(defrecord HistoryContextController [app-view project show-tab-fn]
   g/HistoryContextController
   (history-context [_this evaluation-context]
     (g/node-value app-view :history-context evaluation-context))
@@ -139,13 +151,13 @@
     (g/node-value app-view :history-context-pred evaluation-context))
 
   (restore-history-context! [_this history-context]
-    (set-view-state-from-history-context! app-view prefs project history-context)))
+    (set-view-state-from-history-context! app-view project history-context show-tab-fn)))
 
-(defn make-history-context-controller [app-view prefs project]
+(defn make-history-context-controller [app-view project show-tab-fn]
   (assert (g/node-id? app-view))
-  (assert (prefs/prefs? prefs))
   (assert (g/node-id? project))
-  (->HistoryContextController app-view prefs project))
+  (assert (ifn? show-tab-fn))
+  (->HistoryContextController app-view project show-tab-fn))
 
 (g/defnode AppView
   (property stage Stage)
@@ -178,10 +190,10 @@
   (output hidden-node-outline-key-paths types/NodeOutlineKeyPaths (gu/passthrough hidden-node-outline-key-paths))
   (output active-outline g/Any (gu/passthrough active-outline))
   (output active-scene g/Any (gu/passthrough active-scene))
-  (output active-view g/NodeID (g/fnk [^Tab active-tab]
+  (output active-view g/NodeID (g/fnk [active-tab]
                                  (when active-tab
                                    (ui/user-data active-tab ::view))))
-  (output active-view-info g/Any (g/fnk [^Tab active-tab]
+  (output active-view-info g/Any (g/fnk [active-tab]
                                    (when active-tab
                                      {:view-id (ui/user-data active-tab ::view)
                                       :view-type (ui/user-data active-tab ::view-type)})))
@@ -250,7 +262,7 @@
       (g/connect source-node source-label target-node target-label)
       [])))
 
-(defn- on-selected-tab-changed! [app-view app-scene resource-node view-node view-type]
+(defn- on-active-resource-changed! [app-view app-scene resource-node view-node view-type]
   (g/transact
     (concat
       (replace-connection resource-node :node-outline app-view :active-outline)
@@ -259,7 +271,26 @@
         (replace-connection resource-node :scene app-view :active-scene)
         (disconnect-sources app-view :active-scene))))
   (g/invalidate-outputs! [[app-view :active-tab]])
-  (ui/user-data! app-scene ::ui/refresh-requested? true))
+  (when (some? app-scene)
+    (ui/user-data! app-scene ::ui/refresh-requested? true)))
+
+(defn- tab->view-node [tab]
+  (some-> tab (ui/user-data ::view)))
+
+(defn- tab->view-type-id [tab]
+  (some-> tab (ui/user-data ::view-type) :id))
+
+(defn- tab->resource-node [tab]
+  (some-> (tab->view-node tab)
+          (g/node-value :view-data)
+          second
+          :resource-node))
+
+(defn on-active-tab-changed! [app-view app-scene tab]
+  (let [resource-node (tab->resource-node tab)
+        view-node (tab->view-node tab)
+        view-type-id (tab->view-type-id tab)]
+    (on-active-resource-changed! app-view app-scene resource-node view-node view-type-id)))
 
 (handler/defhandler :move-tool :workbench
   (enabled? [app-view] true)
@@ -1220,18 +1251,6 @@ If you do not specifically require different script states, consider changing th
         (error-reporting/report-exception! error))))
   (scene-cache/drop-context! nil))
 
-(defn- tab->view-node [^Tab tab]
-  (some-> tab (ui/user-data ::view)))
-
-(defn- tab->view-type [^Tab tab]
-  (some-> tab (ui/user-data ::view-type) :id))
-
-(defn- tab->resource-node [^Tab tab]
-  (some-> (tab->view-node tab)
-          (g/node-value :view-data)
-          second
-          :resource-node))
-
 (defn- configure-editor-tab-pane! [^TabPane tab-pane ^Scene app-scene app-view]
   (.setTabClosingPolicy tab-pane TabPane$TabClosingPolicy/ALL_TABS)
   (-> tab-pane
@@ -1240,10 +1259,7 @@ If you do not specifically require different script states, consider changing th
       (.addListener
         (reify ChangeListener
           (changed [_this _observable _old-val new-val]
-            (let [resource-node (tab->resource-node new-val)
-                  view-node (tab->view-node new-val)
-                  view-type (tab->view-type new-val)]
-              (on-selected-tab-changed! app-view app-scene resource-node view-node view-type))))))
+            (on-active-tab-changed! app-view app-scene new-val)))))
   (-> tab-pane
       (.getTabs)
       (.addListener
@@ -1264,14 +1280,11 @@ If you do not specifically require different script states, consider changing th
         new-editor-tab-pane (editor-tab-pane new-focus-owner)]
     (when (and (some? new-editor-tab-pane)
                (not (identical? old-editor-tab-pane new-editor-tab-pane)))
-      (let [selected-tab (ui/selected-tab new-editor-tab-pane)
-            resource-node (tab->resource-node selected-tab)
-            view-node (tab->view-node selected-tab)
-            view-type (tab->view-type selected-tab)]
+      (let [selected-tab (ui/selected-tab new-editor-tab-pane)]
         (ui/add-style! old-editor-tab-pane "inactive")
         (ui/remove-style! new-editor-tab-pane "inactive")
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
-        (on-selected-tab-changed! app-view app-scene resource-node view-node view-type)))))
+        (on-active-tab-changed! app-view app-scene selected-tab)))))
 
 (defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane]
   (let [app-scene (.getScene stage)]
@@ -1336,8 +1349,7 @@ If you do not specifically require different script states, consider changing th
     (g/transact
       (concat
         (view/connect-resource-node view resource-node)
-        (g/connect view :view-data app-view :open-views)
-        (g/connect view :view-dirty? app-view :open-dirty-views)))
+        (view/connect-app-view view app-view)))
     (ui/user-data! tab ::view view)
     (.add tabs tab)
     (g/transact
@@ -1360,17 +1372,19 @@ If you do not specifically require different script states, consider changing th
             (string/replace tmpl (format "{%s}" (name key)) (str val)))
     tmpl args))
 
-(defn- open-resource-node-tab! [app-view prefs workspace project resource resource-node view-type opts]
+(defn open-resource-node-tab! [app-view prefs project resource-node view-type opts]
   (let [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split)
         tab-panes (.getItems editor-tabs-split)
         open-tabs (mapcat #(.getTabs ^TabPane %) tab-panes)
         ^Tab tab (or (some (fn [^Tab existing-tab]
                              (when (and (= (tab->resource-node existing-tab) resource-node)
-                                        (= view-type (ui/user-data existing-tab ::view-type)))
+                                        (= (tab->view-type-id existing-tab) (:id view-type)))
                                existing-tab))
                            open-tabs)
-                     (let [^TabPane active-tab-pane (g/node-value app-view :active-tab-pane)
-                           active-tab-pane-tabs (.getTabs active-tab-pane)]
+                     (let [resource (g/node-value resource-node :resource)
+                           ^TabPane active-tab-pane (g/node-value app-view :active-tab-pane)
+                           active-tab-pane-tabs (.getTabs active-tab-pane)
+                           workspace (resource/workspace resource)]
                        (make-tab! app-view prefs workspace project resource resource-node view-type active-tab-pane-tabs opts)))]
     (.select (.getSelectionModel (.getTabPane tab)) tab)
     (when-some [focus (:focus-fn view-type)]
@@ -1415,7 +1429,7 @@ If you do not specifically require different script states, consider changing th
            false)
          (if (contains? view-type :make-view-fn)
            (do
-             (open-resource-node-tab! app-view prefs workspace project resource resource-node view-type opts)
+             (open-resource-node-tab! app-view prefs project resource-node view-type opts)
              true)
            (let [^String path (or (resource/abs-path resource)
                                   (resource/temp-path resource))

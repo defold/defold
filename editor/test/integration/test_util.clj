@@ -19,6 +19,7 @@
             [editor.handler :as handler]
             [editor.view :as view]
             [internal.system :as is]
+            [schema.core :as s]
             [support.test-support :as ts]
             [util.http-server :as http-server]
             [util.thread-util :as thread-util])
@@ -176,27 +177,60 @@
   (let [sel (g/node-value app-view :selected-node-ids)]
     (true? (some (partial = tgt-node-id) sel))))
 
+(defrecord MockTab [user-data-map]
+  ui/HasUserData
+  (user-data [this key]
+    (get-in this [:user-data-map key]))
+  (user-data! [this key val]
+    (assoc-in this [:user-data-map key] val)))
+
+(defn make-mock-tab [view-node view-type]
+  (assert (g/node-id? view-node))
+  (s/validate workspace/TViewType view-type)
+  (MockTab. {::app-view/view view-node
+             ::app-view/view-type view-type}))
+
+(g/deftype MockTabVec [MockTab])
+
 (g/defnode MockView
   (inherits view/WorkbenchView))
 
-(g/deftype ActiveViewInfoHistory
-  [{:view-id g/TNodeID
-    :view-type workspace/TViewType}])
-
 (g/defnode MockAppView
   (inherits app-view/AppView)
-  (property active-view-info-history ActiveViewInfoHistory)
-  (output active-view-info g/Any (g/fnk [active-view-info-history] (peek active-view-info-history)))
-  (output active-view g/NodeID (g/fnk [active-view-info] (:view-id active-view-info))))
+  (property active-tab-history MockTabVec)
+  (output active-tab MockTab (g/fnk [active-tab-history] (peek active-tab-history))))
 
-(defn- activate-view [active-view-info-history view-id view-type]
-  (conj (filterv (comp (partial not= view-id) :view-id)
-                 active-view-info-history)
-        {:view-id view-id
-         :view-type view-type}))
+(defn- activate-tab [active-tab-history tab]
+  (conj (filterv (partial not= tab)
+                 active-tab-history)
+        tab))
 
 (defn make-view-graph! []
   (g/make-graph! :history false :volatility 2))
+
+(defn- make-mock-view! [view-graph _resource-node]
+  (->> (g/make-node view-graph MockView)
+       g/transact
+       g/tx-nodes-added
+       first))
+
+(defn- show-resource-tab! [app-view resource-node view-type make-view-fn!]
+  (let [open-views (g/node-value app-view :open-views)
+        open-view-nodes-by-resource-node (zipmap (map :resource-node (vals open-views)) (keys open-views))]
+    (if-some [open-view-node (get open-view-nodes-by-resource-node resource-node)]
+      (let [tab (make-mock-tab open-view-node view-type)]
+        (g/update-property! app-view :active-tab-history activate-tab tab)
+        open-view-node)
+      (let [view-graph (make-view-graph!)
+            view-node (make-view-fn! view-graph resource-node)
+            tab (make-mock-tab view-node view-type)]
+        (g/transact
+          (concat
+            (view/connect-resource-node view-node resource-node)
+            (view/connect-app-view view-node app-view)
+            (g/update-property app-view :active-tab-history activate-tab tab)))
+        (app-view/select! app-view [resource-node])
+        view-node))))
 
 (defn setup-app-view! [project]
   (let [view-graph (make-view-graph!)
@@ -211,42 +245,24 @@
                           (g/connect selection-node :_node-id app-view :selection-node)
                           (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
                             (g/connect selection-node label app-view label)))))
-        prefs (make-test-prefs)
         resource-node-listener (partial selection/remap-selection selection-node)
-        history-context-controller (app-view/make-history-context-controller app-view prefs project)]
+        show-tab-fn (fn [resource-node view-type]
+                      (show-resource-tab! app-view resource-node view-type make-mock-view!))
+        history-context-controller (app-view/make-history-context-controller app-view project show-tab-fn)]
     (project/add-resource-node-listener! project resource-node-listener)
     (g/set-history-context-controller! history-context-controller)
     app-view))
 
 (defn- make-tab! [project app-view path make-view-fn!]
-  (let [node-id (project/get-resource-node project path)
-        resource (g/node-value node-id :resource)
-        views-by-node-id (let [views (g/node-value app-view :open-views)]
-                           (zipmap (map :resource-node (vals views)) (keys views)))
-        view (get views-by-node-id node-id)
-        view-type (app-view/resource-view-type resource)]
-    (if view
-      (do
-        (g/update-property! app-view :active-view-info-history activate-view view view-type)
-        [node-id view])
-      (let [view-graph (g/make-graph! :history false :volatility 2)
-            view (make-view-fn! view-graph node-id)]
-        (g/transact
-          (concat
-            (g/connect node-id :_node-id view :resource-node)
-            (g/connect node-id :valid-node-id+resource view :node-id+resource)
-            (g/connect view :view-data app-view :open-views)
-            (g/update-property app-view :active-view-info-history activate-view view view-type)))
-        (app-view/select! app-view [node-id])
-        [node-id view]))))
+  (let [resource-node (project/get-resource-node project path)
+        resource (g/node-value resource-node :resource)
+        view-type (app-view/resource-view-type resource)
+        view-node (show-resource-tab! app-view resource-node view-type make-view-fn!)]
+    [resource-node view-node]))
 
 (defn open-tab! [project app-view path]
   (first
-    (make-tab! project app-view path (fn [view-graph resource-node]
-                                      (->> (g/make-node view-graph MockView)
-                                        g/transact
-                                        g/tx-nodes-added
-                                        first)))))
+    (make-tab! project app-view path make-mock-view!)))
 
 (defn open-scene-view! [project app-view path width height]
   (make-tab! project app-view path (fn [view-graph resource-node]
@@ -259,7 +275,10 @@
                        view-id))
                    (g/node-value app-view :open-views))]
     (when view
-      (g/update-property! app-view :active-view-history pop)
+      (let [new-active-tab-history (pop (g/node-value app-view :active-tab-history))
+            new-active-tab (peek new-active-tab-history)]
+        (g/set-property! app-view :active-tab-history new-active-tab-history)
+        (app-view/on-active-tab-changed! app-view nil new-active-tab))
       (g/delete-graph! (g/node-id->graph-id view)))))
 
 (defn setup!

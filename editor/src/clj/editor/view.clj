@@ -26,3 +26,8 @@
     (g/connect resource-node :_node-id view :resource-node)
     (g/connect resource-node :valid-node-id+resource view :node-id+resource)
     (g/connect resource-node :dirty? view :dirty?)))
+
+(defn connect-app-view [view app-view]
+  (concat
+    (g/connect view :view-data app-view :open-views)
+    (g/connect view :view-dirty? app-view :open-dirty-views)))

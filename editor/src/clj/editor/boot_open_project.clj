@@ -283,7 +283,10 @@
         (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"]))))
 
       ;; Use context from the app-view for undo history entries.
-      (g/set-history-context-controller! (app-view/make-history-context-controller app-view prefs project))
+      (let [show-tab-fn (fn [resource-node view-type]
+                          (app-view/open-resource-node-tab! app-view prefs project resource-node view-type {}))
+            history-context-controller (app-view/make-history-context-controller app-view project show-tab-fn)]
+        (g/set-history-context-controller! history-context-controller))
 
       ;; If sync was in progress when we shut down the editor we offer to resume the sync process.
       (let [git (g/node-value changes-view :git)]
