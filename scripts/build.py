@@ -1122,7 +1122,7 @@ instructions.configure=\
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, 'editor2')
+        full_archive_path = join(self.archive_path, sha1, self.channel, 'editor2')
 
         for ext in ['zip', 'dmg']:
             for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
@@ -1728,7 +1728,7 @@ instructions.configure=\
             ed_proc.wait()
         self._uninstall_editor2(info)
 
-        result_archive_path = '/'.join(['int.d.defold.com', 'archive', sha1, 'editor2', 'smoke_test'])
+        result_archive_path = '/'.join(['int.d.defold.com', 'archive', sha1, self.channel, 'editor2', 'smoke_test'])
         def _findwebfiles(libdir):
             paths = os.listdir(libdir)
             paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.html', '.css', '.png')]
