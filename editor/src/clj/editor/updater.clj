@@ -21,7 +21,7 @@
   (format "https://d.defold.com/archive/%s/%s/editor2/Defold-%s.zip" sha1 channel (.getPair platform)))
 
 (defn- update-url [channel]
-  (format "https://d.defold.com/editor2/channels/%s/update-v2.json" channel))
+  (format "https://d.defold.com/editor2/channels/%s/update-v3.json" channel))
 
 (def ^:private ^File support-dir
   (.getCanonicalFile (.toFile (Editor/getSupportPath))))
