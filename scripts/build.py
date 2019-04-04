@@ -1128,6 +1128,14 @@ instructions.configure=\
             for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
                 self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
+        # TODO: Remove this block after one release with both json files.
+        # TODO: ---- CUT HERE ----
+        full_archive_path = join('s3://d.defold.com/editor2', sha1, 'editor2')
+        for ext in ['zip', 'dmg']:
+            for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
+                self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+        # TODO: ---- CUT TO HERE ----
+
         self.wait_uploads()
 
     def release_editor2(self):
@@ -1142,6 +1150,14 @@ instructions.configure=\
         # Rather than accessing S3 from its web end-point, we always go through the CDN
         archive_url = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(archive_url.hostname)
+
+        # TODO: Remove this block after one release with both json files.
+        # TODO: ---- CUT HERE ----
+        key_v2 = bucket.new_key('editor2/channels/%(channel)s/update-v2.json' % {'channel': self.channel})
+        key_v2.content_type = 'application/json'
+        self._log("Updating channel '%s' for update-v2.json: %s" % (self.channel, key_v2))
+        key_v2.set_contents_from_string(json.dumps({'sha1': sha1}))
+        # TODO: ---- CUT TO HERE ----
 
         key_v3 = bucket.new_key('editor2/channels/%(channel)s/update-v3.json' % {'channel': self.channel})
         key_v3.content_type = 'application/json'
