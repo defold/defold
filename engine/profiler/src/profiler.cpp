@@ -16,7 +16,7 @@ namespace dmProfiler
 /*# Profiler API documentation
  *
  * Functions for getting profiling data in runtime.
- * More detailed profiling and debugging information can be found under the [Debugging](http://www.defold.com/manuals/debugging/) section in the manuals.
+ * More detailed [profiling](https://www.defold.com/manuals/profiling/) and [debugging](http://www.defold.com/manuals/debugging/) information available in manuals.
  *
  * @document
  * @name Profiler
