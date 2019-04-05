@@ -637,6 +637,19 @@ Task.task_type_from_func('app_bundle',
                          after  = 'cxx_link cc_link static_link')
 
 
+def _strip_executable(bld, platform, path):
+    """ Strips the debug symbols from an executable """
+    if platform not in ['x86_64-linux','x86_64-darwin','armv7-darwin','arm64-darwin','armv7-android','arm64-android']:
+        return 0 # return ok, path is still unstripped
+
+    strip = "strip"
+    if 'android' in platform:
+        HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
+        ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
+        strip = "%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-x86_64/bin/arm-linux-androideabi-strip" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, ANDROID_HOST)
+
+    return bld.exec_command("%s %s" % (strip, path))
+
 AUTHENTICODE_CERTIFICATE="Midasplayer Technology AB"
 
 def authenticode_certificate_installed(task):
@@ -727,7 +740,7 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
 
     <uses-feature android:required="true" android:glEsVersion="0x00020000" />
     <uses-sdk android:minSdkVersion="%(min_api_level)s" android:targetSdkVersion="%(target_api_level)s" />
-    <application android:label="%(app_name)s" android:hasCode="true" android:debuggable="true">
+    <application android:label="%(app_name)s" android:hasCode="true">
 
         <!-- For Local Notifications -->
         <receiver android:name="com.defold.push.LocalNotificationReceiver" >
@@ -851,7 +864,6 @@ def android_package(task):
     gen = os.path.join(dme_and, 'gen')
     ap_ = task.ap_.abspath(task.env)
     native_lib = task.native_lib.abspath(task.env)
-    gdbserver = task.gdbserver.abspath(task.env)
 
     bld.exec_command('mkdir -p %s' % (libs))
     bld.exec_command('mkdir -p %s' % (bin))
@@ -860,7 +872,6 @@ def android_package(task):
     bld.exec_command('mkdir -p %s' % (gen))
     bld.exec_command('mkdir -p %s' % (r_java_gen_dir))
     shutil.copy(task.native_lib_in.abspath(task.env), native_lib)
-    shutil.copy('%s/android-ndk-r%s/prebuilt/android-arm/gdbserver/gdbserver' % (ANDROID_ROOT, ANDROID_NDK_VERSION), gdbserver)
 
     res_args = ""
     for d in res_dirs:
@@ -922,6 +933,13 @@ def android_package(task):
 
     apk_unaligned = task.apk_unaligned.abspath(task.env)
     libs_dir = task.native_lib.parent.parent.abspath(task.env)
+
+    # strip the executable
+    path = task.native_lib.abspath(task.env)
+    ret = _strip_executable(bld, task.env.PLATFORM, path)
+    if ret != 0:
+        error('Error stripping file %s' % path)
+        return 1
 
     # add library files
     with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
@@ -1000,9 +1018,6 @@ def create_android_package(self):
     android_package_task.native_lib = native_lib
     android_package_task.native_lib_in = self.link_task.outputs[0]
 
-    gdbserver = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/gdbserver" % (exe_name))
-    android_package_task.gdbserver = gdbserver
-
     ap_ = self.path.exclusive_build_node("%s.android/%s.ap_" % (exe_name, exe_name))
     android_package_task.ap_ = ap_
 
@@ -1022,7 +1037,7 @@ def create_android_package(self):
     android_package_task.application_mk = self.path.exclusive_build_node("%s.android/jni/Application.mk" % (exe_name))
     android_package_task.gdb_setup = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/gdb.setup" % (exe_name))
 
-    android_package_task.set_outputs([native_lib, manifest, ap_, apk_unaligned, apk, gdbserver,
+    android_package_task.set_outputs([native_lib, manifest, ap_, apk_unaligned, apk,
                                       android_package_task.android_mk, android_package_task.application_mk, android_package_task.gdb_setup])
 
     self.android_package_task = android_package_task
