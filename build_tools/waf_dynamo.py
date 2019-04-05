@@ -882,13 +882,6 @@ def android_package(task):
         error('Error running aapt')
         return 1
 
-    clspath = ':'.join(task.jars)
-    dx_jars = []
-    for jar in task.jars:
-        dx_jar = os.path.join(dx_libs, os.path.basename(jar))
-        dx_jars.append(jar)
-    dx_jars.append(r_jar)
-
     if task.extra_packages:
         extra_packages_cmd = '--extra-packages %s' % task.extra_packages[0]
     else:
@@ -919,17 +912,30 @@ def android_package(task):
         error('Error creating jar of compiled R.java files')
         return 1
 
-    if dx_jars:
-        ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dx_jars)))
-        if ret != 0:
-            error('Error running dx')
-            return 1
+    dx_jars = []
+    for jar in task.jars:
+        dx_jar = os.path.join(dx_libs, os.path.basename(jar))
+        dx_jars.append(jar)
+    dx_jars.append(r_jar)
 
-        # We can't use with statement here due to http://bugs.python.org/issue5511
-        from zipfile import ZipFile
-        f = ZipFile(ap_, 'a')
-        f.write(task.classes_dex.abspath(task.env), 'classes.dex')
-        f.close()
+    # proguard
+    proguardjar = '%s/android-sdk/tools/proguard/lib/proguard.jar' % ANDROID_ROOT
+    androidjar = '%s/android-sdk/platforms/android-%s/android.jar' % (ANDROID_ROOT, ANDROID_TARGET_API_LEVEL)
+    proguardtxt = '../content/builtins/manifests/android/dmengine.pro'
+    classesjar = '%s/share/java/classes.jar' % dynamo_home
+
+    ret = bld.exec_command('%s -jar %s -include %s -libraryjars %s -injars %s -outjar %s' % (task.env['JAVA'][0], proguardjar, proguardtxt, androidjar, ':'.join(dx_jars), classesjar))
+    if ret != 0:
+        error('Error running proguard')
+        return 1
+
+    ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), classesjar))
+    if ret != 0:
+        error('Error running dx')
+        return 1
+
+    with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
+        zip.write(task.classes_dex.abspath(task.env), 'classes.dex')
 
     apk_unaligned = task.apk_unaligned.abspath(task.env)
     libs_dir = task.native_lib.parent.parent.abspath(task.env)
