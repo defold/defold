@@ -58,6 +58,6 @@ TEST(atomic, CompareStore)
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);
-    return JC_TEST_RUN_ALL();
+    return jc_test_run_all();
 }
 

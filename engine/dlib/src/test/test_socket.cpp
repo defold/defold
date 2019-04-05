@@ -1181,7 +1181,7 @@ int main(int argc, char **argv)
 {
     dmSocket::Initialize();
     jc_test_init(&argc, argv);
-    int ret = JC_TEST_RUN_ALL();
+    int ret = jc_test_run_all();
     dmSocket::Finalize();
     return ret;
 }

@@ -318,7 +318,7 @@ int main(int argc, char **argv)
     jc_test_init(&argc, argv);
     dmHashEnableReverseHash(true);
 
-    int ret = JC_TEST_RUN_ALL();
+    int ret = jc_test_run_all();
     dmProfile::Finalize();
     return ret;
 }
