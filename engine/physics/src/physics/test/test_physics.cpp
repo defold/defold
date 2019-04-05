@@ -182,7 +182,7 @@ Test2D::~Test2D()
 }
 
 typedef jc_test_type2<Test3D, Test2D> TestTypes;
-TYPED_TEST_SUITE(PhysicsTest, TestTypes);
+TYPED_TEST_CASE(PhysicsTest, TestTypes);
 
 TYPED_TEST(PhysicsTest, BoxShape)
 {
