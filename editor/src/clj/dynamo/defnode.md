@@ -61,8 +61,8 @@ So we have a couple of concepts now, where are they in the code?
 * `g/node.value` is in `dynamo.graph`, which eventually dispatches to
   the `produce-value` method on a `NodeImpl` or `OverrideNode`.
   
-g/defnode
----------
+The g/defnode macro
+-------------------
 
 ### Pseudo code
 
@@ -71,11 +71,11 @@ g/defnode
   have lots of generated code as (fn [...] ...) forms
 * Find all these function forms and their locations
 * Replace the function forms with a generated function name "dollar-name"
-* Emit `def`'s implementing the node type
+* Emit `def`'s and setup code implementing the node type
 
 Note that when the bundled editor is started, there is no macro
-expansion going on - only the emitted defs remain of the `(g/defnode
-...)` forms.
+expansion going on - only the emitted `def`'s and setup code remain of
+the `(g/defnode ...)` forms.
 
 ### Emitted defs
 
@@ -106,9 +106,9 @@ registration is a `NodeTypeRef` which we `def` to the node type name,
 as given in the `g/defnode`form. This `def` is what we use whenever we
 use the node type name in code.
 
-Finally, we have support for a somewhat awkward form inheritance
-between node types. As part of that we emit `derive` calls matching
-the `inherits` clauses of the node definition.
+Finally, we have support for a form of inheritance between node
+types. As part of that we emit `derive` calls matching the `inherits`
+clauses of the node definition.
 
 `internal.node/process-node-type-forms`
 ---------------------------------------
@@ -123,22 +123,23 @@ the `inherits` clauses of the node definition.
   type, i.e. doesn't inherit another node type.
 * Parse the various clauses (`inherits`, `property`, `output`,
   `input`, `display-order`). This steps translates the former node
-  type _forms_ into a nested "almost" node type _map_. This will also
-  collect any types used for schemas. Note that `property` clauses
-  automatically create a corresponding `output` with the same
-  name. That `output` can however be overridden.
+  type _forms_ into a nested node type _map_, which will be further
+  refined. This step will also collect any types used for
+  schemas. Note that `property` clauses automatically create a
+  corresponding `output` with the same name. That `output` can however
+  be overridden.
 * Implement inheritance. This basically means copy the inherted node
-  types' parsed clauses. The main difference is that any generated
-  functions in the inherted node type will already have been replaced
-  by the corresponding `def`d function name.
+  types' parsed clauses. The main difference is that any production-
+  and behavior functions in the inherted node type will already have
+  been replaced by their corresponding `def`d function name.
 * Wrap any constant functions. Wherever you can put a production
   function (`g/fnk` or `g/defnk`'d symbol) you can also put a
   constant, like `1`, and this step will automatically wrap it in a
-  `(g/fnk [] 1)`.
+  `(g/fnk [] 1)`. *** So we don't need g/constantly ***
 * Figure out the display order of properties. This is controlled by
   the order `property`'s appear, the `display-order` clauses, and any
   `inherit`'ed node types.
-* Extract the argument names off supplied production functions, and
+* Extract the argument names of supplied production functions, and
   record them as both needed arguments and initial dependencies for
   the function. For "inline" `(g/fnk [...] ...)` forms this is a
   matter of parsing the form. For `(g/defnk [...] ...)`'d symbols,
@@ -146,16 +147,16 @@ the `inherits` clauses of the node definition.
   it's meta `:arguments`. See `internal.util/inputs-needed` and
   `dynamo.graph/fnk`for details. We
 * For each property, we "lift" the dependencies of all `dynamic`'s and
-  any `value` clause to the dependencies of the property. ***I haven't
+  any `value` clause to the dependencies of the property. *** I haven't
   looked into this properly but believe it's to make sure the
   `_properties` gets transitively dependent on the dependencies of
-  dynamics.*** We also copy the dependencies of the property to the
-  auto generated output with the same name. ***This I believe is too
+  dynamics. *** We also copy the dependencies of the property to the
+  auto generated output with the same name. *** This I believe is too
   pessimistic. Can't see why the output automatically should be
   dependent on the property 'dynamic' dependencies for instance. Also,
   an explicit output with the same name is not necessarily dependent
   on the property at all. See
-  `internal.node/apply-property-dependencies-to-outputs`***
+  `internal.node/apply-property-dependencies-to-outputs` ***
 * Add a magic output `_declared-properties` (used by the intrinsic
   `_properties` output), that depends on all, well, declared
   properties.
@@ -178,9 +179,9 @@ the `inherits` clauses of the node definition.
   
 ### Behavior of inputs, property and outputs
 
-"Behavior" here means what happens whenever you do `g/node-value`. If
+"Behavior" roughly means what happens whenever you do `g/node-value`. If
 you look at `internal.node/NodeImpl` `produce-value` you see that a
-behavior for the label in question is looked up in the nodes
+behavior for the label in question is looked up in the node's
 corresponding node type, and then we call the `:fn` of this behavior,
 passing the node instance, the label and evaluation context as
 arguments. The process is the same regardless if you ask for the value
@@ -190,15 +191,16 @@ For an input we trace any arc back to find what is connected to the
 input, and ask the source node to produce the output. If it's an
 `:array` input, we follow all arcs. Then, if a `:substitute` function
 is specified and the value (or _any_ value in the case of `:array`) is
-an error, the `:substitute` function gets a chance to repair the result
-(see `internal.node/node-input-value-function-form`).
+an error, the `:substitute` function gets a chance to repair the
+result (see `internal.node/node-input-value-function-form`). *** But
+actually, this substitution is still TODO  ***
 
 For a property, we mentioned that a corresponding output was created
 automatically. The production function for this output is essentially
-either what was supplied as a `(value ...)` clause. If no such clause
-was given, a special case in the behavior of output's will be invoked.
-This turns into a `get-property` on the node instance, which in the
-case of `NodeImpl` is just a map lookup on the instance itself.
+what was supplied as a `(value ...)` clause. If no such clause was
+given, a special case in the generation of output behavior will kick
+in. This turns into a `get-property` on the node instance, which in
+the case of `NodeImpl` is just a map lookup on the instance itself.
 
 For outputs, both automatically generated from properties and
 explicitly provided, there is a whole lot going on (see
@@ -213,17 +215,17 @@ explicitly provided, there is a whole lot going on (see
   ...)` clause, and if so, we do a `get-property`.
 * Make a note in the evaluation context about what node and output is
   being produced. If this node + output is already "in production" it
-  means we have an evaluation cycle, and we assert. ***This is an
+  means we have an evaluation cycle, and we assert. *** This is an
   excellent place to instead return an error value with a trace of how
-  we got here. Would help solve part of the common cycles error.***.
-* Check if the asked value is in any of the caches. Any?  There are in
-  fact three caches in effect: The system cache from when the
-  evaluation context was created, a local cache of cached outputs
-  being produced during this `node-value` call (to be added to the
-  system cache), and finally a local temp cache with the result of all
-  outputs (regardless if `:cached`) produced during this
-  `node-value`. The local temp cache is there to prevent recalculating
-  the same value several times.
+  we got here. Would help solve part of the frequent cycles error. ***.
+* Check if the asked value is in any of the caches. There are in fact
+  three caches in effect: The system cache from when the evaluation
+  context was created, a local cache of cached outputs being produced
+  during this `node-value` call (to be added to the system cache), and
+  finally a local temp cache with the result of all outputs
+  (regardless if `:cached`) produced during this `node-value`. The
+  local temp cache is there to prevent recalculating the same value
+  several times.
 * Compute the values of the arguments of the production function. This
   can lead to further `produce-value` the argument is another output
   on the same node, or input from another node. Also there are special
@@ -252,11 +254,11 @@ function. These forms become part of the node type map (under the
 #### Production function arguments
 
 The arguments of a production function (`(value ...)` clause,
-`(dynamic ...)` clause or output function) refer to inputs, outputs or
-properties in the node definition. The declaration order of these have
-no impact.
+`(dynamic ...)` clause or explicit output function) refer to inputs,
+outputs or properties in the node definition. The declaration order of
+these have no impact.
 
- Declaring an explicit `output` with the same name as a `property`
+Declaring an explicit `output` with the same name as a `property`
 (overriding the property) requires special care. Any argument to an
 output production function that has the same name as the output, is
 assumed to refer to a property - if there is one. Any other production
@@ -267,15 +269,18 @@ clause. The `value` should produce the current value of the property
 (sort of the inverse of the presumed `(set ...)` clause), but in fact,
 any `set-property` transaction will also store the value via
 `set-property` on the node instance. For this reason, you can in your
-`(value [...])` refer to the property by name - and as argument value
-you will via `get-property` get this implicitly set value. ***This,
-I'm not that happy about***
+`(value ...)` argument list refer to the property by name - and as
+value you will via `get-property` get this implicitly set value. ***
+This feels a bit sketchy, the value from `(value ...)` and this magic
+property can easily get out of sync during resource "refactoring" for
+instance, where the `value` clause essentially returns the value of an
+`input` ***
 
 See `internal.node/fnk-argument-form` for details.
 
-***We pass the name of the current output + requested argument to
+*** We pass the name of the current output + requested argument to
 `fnk-argument-form`. In the case of property dynamics, we pass the
-name of the dynamic as the output - this looks wrong.***
+name of the dynamic as the output - this looks wrong. ***
 
 #### Behavior of _declared-properties
 
@@ -290,8 +295,8 @@ In the implementation for the `update-property` transaction, we need
 to produce the current/previous value of the property. In this case,
 we cannot use `g/node-value` mainly for one reason: Any overriding
 output with the same name as the property will effectively hide the
-value of the actual property. ***Also, I think we didn't want the
-semanting of jamming etc.***
+value of the actual property. *** Also, I think we didn't want the
+semantics of jamming etc. ***
 
 To solve this there is a separate set of behaviors for properties,
 called "property behaviors". The property behavior essentially either
@@ -308,11 +313,12 @@ call that instead.
 Examples
 --------
 
-Some hints for inspecting what happens during `g/defnode`:
-* Insert an inspect function call at various places in the long `->`
-  pipe in `internal.node/process-node-type-forms`
+Some hints for inspecting what happens during `g/defnode` and dig
+further into this:
 * Inspect the differences on `node-type-def` before and after the call
   to `util/update-paths`.
+* Insert an inspect function call at various places in the long `->`
+  pipe in `internal.node/process-node-type-forms`
 * Do a `macroexpand-1` of very simple node types, or see the examples below
 
 ### EmptyNodeType
@@ -320,14 +326,15 @@ Some hints for inspecting what happens during `g/defnode`:
 (g/defnode EmptyNodeType)
 </pre>
 
-Even this simple node type declaration creates a flood of definitions,
-so first let have a look at what
-`internal.node/process-node-type-forms` does.
+Even this simple node type declaration creates a flood of
+definitions. `g/defnode` quickly dispatches to
+`internal.node/process-node-type-forms` so first let have a look at
+what happens there.
 
 #### Function entry
 
 We receive a fully qualified (namespaced) node type symbol
-"some.namespace/EmptyNodeType" and an empty list of forms.
+"internal.defnode-test/EmptyNodeType" and an empty list of forms.
 
 #### After adding intrinsics
 
@@ -394,13 +401,12 @@ used argument names and lift the property dependencies.
 
 #### Arguments extracted, property dependencies lifted
 
-To spare some reading we'll do a diff here. The relevant difference is
-that arguments to the `fnk`s have now been pulled out to `:argument`
-and `:dependencies` sets next to the `:fn`. We also have a `:key`,
-`:name`, `:supertypes`, `:input` (***why???***) and
-`:display-order-decl` entry.
+The relevant difference is that arguments to the `fnk`s have now been
+pulled out to `:argument` and `:dependencies` sets next to the
+`:fn`. We also have a `:key`, `:name`, `:supertypes`, `:input`
+(*** why? ***) and `:display-order-decl` entry.
 
-</pre>
+<pre>
 {:property-display-order (internal.node/merge-display-order nil []),
  :key :internal.defnode-test/EmptyNodeType,
  :property
@@ -439,8 +445,761 @@ and `:dependencies` sets next to the `:fn`. We also have a `:key`,
  :display-order-decl nil}
 </pre>
 
-#### 
+#### Added `_declared-properties`, collected transitive dependencies
+
+<pre>
+{...
+ :input-dependencies
+ {:_node-id #{:_node-id},
+  :_output-jammers #{:_output-jammers},
+  :_declared-properties #{:_properties},
+  :_basis #{:_overridden-properties}},
+ ...
+ :output
+ {...
+  :_declared-properties
+  {:value-type {:k :dynamo.graph/Properties},
+   :flags #{:cached},
+   :arguments #{},
+   :dependencies #{}}}                            ; note there is no user supplied :fn here
+}
+</pre>
+
+#### Generated behaviors added
+
+Behaviour for the intrinsic properties and outputs have been added.
+The code looks a bit wonky with unnecessary `do`'s etc because of how
+the different steps that need to be performed are broken up into
+different helper functions.
+
+Explanation in code comments.
+
+<pre>
+{...
+ :behavior
+ {:_overridden-properties
+  {:fn
+   (fn [node label evaluation-context]
+     (let [node-id (internal.graph.types/node-id node)]
+	   ;; Check if the output is jammed: if so, return jam value.
+       (or (internal.node/output-jammer node node-id label (:basis evaluation-context))
+	       ;; Add the current output to the set of "in production" outputs in order to find/prevent circular dependencies
+           (let [evaluation-context (internal.node/mark-in-production node-id label evaluation-context)]
+		     ;; This (intrinsic) output is not :cached. We still check if it has already been produced during this node-value
+			 ;; by looking in the temp cache
+             (if-some [result (internal.node/check-local-temp-cache node-id label evaluation-context)]
+			   ;; If it was found, we trace that it was found in the :cache
+               (internal.node/trace-expr node-id label evaluation-context :cache
+                                         (fn [] (if (= result :internal.node/cached-nil) nil result)))
+               ;; Otherwise, we trace that an output is being produced
+               (internal.node/trace-expr node-id label evaluation-context :output
+                                         (fn []
+										   ;; Collect the arguments. Looking at the _overridden-properties definition in node-intrinsics,
+										   ;; it takes _'this' (the node) and '_basis'. All production functions are always passed '_node-id' and '_basis'.
+                                           (let [arguments {:_basis (:basis evaluation-context),
+                                                            :_this node,
+                                                            :_node-id node-id}]
+                                             ;; The result is either
+											 ;; * an aggregated error from the arguments (not likely here :)
+											 ;; * nil, if this was a :dry-run (this skips calling the actual production functions)
+											 ;; * the result of calling the dollar-name'd definition of the _overridden-properties
+											 ;;   production function, passing the argument map
+                                             (let [result (or (internal.node/argument-error-aggregate node-id label arguments)
+                                                              (when-not (:dry-run evaluation-context)
+                                                                (#'internal.defnode-test/EmptyNodeType$output$_overridden-properties
+                                                                  arguments)))]
+                                               ;; Check that the result is either an error value, or conforms to the schema (KeywordMap)
+                                               (do (internal.node/schema-check-result node-id label evaluation-context
+                                                                                      (schema.core/maybe
+                                                                                        (schema.core/conditional internal.graph.error-values/error-value?
+                                                                                                                 internal.graph.error_values.ErrorValue
+                                                                                                                 :else {Keyword Any}))
+                                                                                      result)
+	                                               ;; The output is not :cached, but we add it to the local temp cache
+                                                   (do (internal.node/update-local-temp-cache! node-id label evaluation-context result)
+                                                       result)))))))))))},
+  :_output-jammers
+  {:fn
+   (fn [node label evaluation-context]
+     ;; Since _output-jammers is an unjammable property, we don't do any jam checking
+     (let [node-id (internal.graph.types/node-id node)]
+	   ;; _output-jammers does not have a custom (value ...) clause, and is traced as
+	   ;; :raw-property *** Naming? :default-property? ***
+       (internal.node/trace-expr node-id label evaluation-context :raw-property
+                                 (fn []
+								   ;; Unless this is a :dry-run, call get-property on the node directly. There is no need to
+								   ;; generate a separate production function / dollar-name'd def for every simple property.
+                                   (when-not (:dry-run evaluation-context)
+                                     (internal.graph.types/get-property node (:basis evaluation-context) label))))))},
+  :_properties
+  {:fn
+   (fn [node label evaluation-context]
+     (let [node-id (internal.graph.types/node-id node)]
+	   ;; Check if jammed
+       (or (internal.node/output-jammer node node-id label (:basis evaluation-context))
+	       ;; Add to "in production" outputs
+           (let [evaluation-context (internal.node/mark-in-production node-id label evaluation-context)]
+		     ;; not :cached, but check temp cache
+             (if-some [result (internal.node/check-local-temp-cache node-id label evaluation-context)]
+               (internal.node/trace-expr node-id label evaluation-context :cache
+                                         (fn [] (if (= result :internal.node/cached-nil) nil result)))
+               (internal.node/trace-expr node-id label evaluation-context :output
+                                         (fn []
+										   ;; Collect arguments. Looking at the production function, '_declared-properties' is an argument.
+										   ;; Since this is another output, we effectively recurse and produce it.
+                                           (let [arguments {:_declared-properties (internal.graph.types/produce-value node :_declared-properties evaluation-context),
+                                                            :_node-id node-id,
+                                                            :_basis (:basis evaluation-context)}]
+	                                         ;; *** NB *** We treat the '_properties' output specially and don't do any argument error checking.
+											 ;; If you provide an overriding definition of '_properties' and refer to something that might produce
+											 ;; an error, the corresponding argument will be an error value. This is different from all other
+											 ;; production functions. *** Not sure why we do this, or if we should ***
+                                             (let [result (when-not (:dry-run evaluation-context)
+											                ;; Call the dollar-name'd def of the _properties production function.
+                                                            (#'internal.defnode-test/EmptyNodeType$output$_properties arguments))]
+                                               (do
+											     ;; Schema check result
+                                                 (internal.node/schema-check-result node-id label evaluation-context
+                                                                                    (schema.core/maybe
+                                                                                      (schema.core/conditional
+                                                                                        internal.graph.error-values/error-value?
+                                                                                        internal.graph.error_values.ErrorValue
+                                                                                        :else
+                                                                                        {:properties
+                                                                                         {Keyword {:node-id Int,
+                                                                                                   {:k :validation-problems} Any,
+                                                                                                   :value Any,
+                                                                                                   :type Any,
+                                                                                                   Keyword Any}},
+                                                                                         {:k :node-id} Int,
+                                                                                         {:k :display-order}
+                                                                                         [(conditional
+                                                                                            vector?--5399 *** Why this strange form? ***
+                                                                                            [(one Str "category") Keyword]
+                                                                                            keyword?
+                                                                                            Keyword)]}))
+                                                                                    result)
+                                                 (do
+												   ;; Not :cached, but add to local temp cache
+                                                   (internal.node/update-local-temp-cache! node-id label evaluation-context result)
+                                                   result)))))))))))},
+  :_node-id
+  {:fn
+   (fn [node label evaluation-context]
+     (let [node-id (internal.graph.types/node-id node)]
+       ;; *** This implementation is slightly embarrassing since we already have the node-id here. ***
+	   ;; *** Instead it's being treated as any other :unjammable property with no (value ...) clause. ***
+       (internal.node/trace-expr node-id label evaluation-context :raw-property
+                                 (fn []
+                                   (when-not (:dry-run evaluation-context)
+                                     (internal.graph.types/get-property node (:basis evaluation-context) label))))))},
+  :_declared-properties
+  {:fn
+   (fn [node label evaluation-context]
+     ;; _declared-properties gets a custom behavior. Since this sample node type does not have any properties, the value-map is empty.
+     (let [node-id (internal.graph.types/node-id node)
+           display-order (internal.node/property-display-order (internal.graph.types/node-type node (:basis evaluation-context)))
+           value-map {}]
+       (when-not (:dry-run evaluation-context)
+         {:properties value-map,
+          :display-order display-order,
+          :node-id node-id})))}},
+ ...
+ :property-behavior
+ ;; Here are the custom behaviors used for update-property.
+ {:_output-jammers
+ {:fn
+  (fn [node label evaluation-context]
+    (let [node-id (internal.graph.types/node-id node)]
+      (internal.node/trace-expr node-id :_output-jammers evaluation-context :raw-property
+                                (fn []
+                                  (when-not (:dry-run evaluation-context)
+                                    (internal.graph.types/get-property node (:basis evaluation-context) :_output-jammers))))))},
+ :_node-id
+ {:fn
+  (fn [node label evaluation-context]
+    (let [node-id (internal.graph.types/node-id node)]
+      (internal.node/trace-expr node-id :_node-id evaluation-context :raw-property
+                                (fn []
+                                  (when-not (:dry-run evaluation-context)
+                                    (internal.graph.types/get-property node (:basis evaluation-context) :_node-id))))))}}
+ ...}
+</pre>
+
+#### Back to `g/defnode`
+
+After `internal.node/process-node-type-forms` has massaged the
+`defnode ...` clauses into a map, `defnode` need to turn it into a
+list of def's. We'll go through this below.
+
+<pre>
+fn-paths (in/extract-def-fns node-type-def)
+</pre>
+
+This will find all `{:fn ...}` maps under the `[:output <label>]`,
+`[:property <label> :dynamics]`, `[:property <label> :value]`,
+`[:property <label> :default]`, `[:behavior <label>]` and
+`[:property-behavior <label>]`keys. `fn-paths` is a list of pairs of
+the path to the `{:fn ...}` and the `fn` forms from the map.
+
+<pre>
+fn-defs (for [[path func] fn-paths]
+          (list `def (in/dollar-name symb path) func))
+</pre>
+
+Turn the `fn-paths` into a list of `fn` `def`'s. For instance, the
+behavior clauses for `_node-id` will turn into:
+
+<pre>
+(def EmptyNodeType$behavior$_node-id
+  (fn [node label evaluation-context]
+   (let [node-id (internal.graph.types/node-id node)]
+    (internal.node/trace-expr node-id label evaluation-context :raw-property
+                              (fn []
+                                (when-not (:dry-run evaluation-context)
+                                  (internal.graph.types/get-property node (:basis evaluation-context) label)))))))
+</pre>
+
+Next up:
+
+<pre>
+node-type-def (util/update-paths node-type-def fn-paths
+                                 (fn [path func curr]
+                                   (assoc curr :fn (list `var (in/dollar-name symb path)))))
+</pre>
+
+Here, we update the `{:fn ...}`'s, replacing the function clauses with
+a reference to the `def`'d version. Now the behavior for `_node-id` in the map is simply
+`{:fn #'EmptyNodeType$behavior$_node-id}`.
+
+<pre>
+node-key (:key node-type-def)
+derivations (for [tref (:supertypes node-type-def)]
+              `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
+                 (derive ~node-key ~(:key (deref tref)))))
+node-type-def (update node-type-def :supertypes #(list `quote %))
+</pre>
+
+Translates the `inherits` clauses to `derive`'s so `isa?` etc works as
+expected.
+
+<pre>
+runtime-definer (symbol (str symb "*"))
+</pre>
+
+Name to be use for the function that returns the final form of the
+node type map - "EmptyNodeType*".
+
+<pre>
+type-regs (for [[key-form value-type-form] (:register-type-info node-type-def)]
+           `(in/register-value-type ~key-form ~value-type-form))
+node-type-def (dissoc node-type-def :register-type-info)]
+</pre>
+
+For non-`deftype`'d types we've, we need to emit `register-value-type`
+calls. We have no other use for this information so `dissoc` it.
+
+<pre>
+`(do
+   ~@type-regs
+   ~@fn-defs
+   (defn ~runtime-definer [] ~node-type-def)
+   (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
+   ~@derivations))
+</pre>
+
+Finally, we emit all these `def`'s and function calls.
+
+### ProductionDefs
+
+Here we'll have a look at the different ways of specifying a
+production function.
+
+<pre>
+(g/defnk produce-defnk-output [] "defnk output")
+
+(g/defnode ProductionDefs
+  (output fnk-output g/Str (g/fnk [] "fnk output"))
+  (output defnk-output g/Str produce-defnk-output)
+  (output constant-output g/Str "constant output"))
+</pre>
+
+After `process-node-type-forms`, relevant parts of the node type map looks like this:
+<pre>
+
+{...
+ :output
+ {:fnk-output
+  {:value-type {:k :dynamo.graph/Str},
+   :flags #{:explicit},
+   :options {},
+   :fn (g/fnk [] "fnk output"),
+   :arguments #{},
+   :dependencies #{}},
+  :defnk-output
+  {:value-type {:k :dynamo.graph/Str},
+   :flags #{:explicit},
+   :options {},
+   :fn produce-defnk-output,
+   :arguments #{},
+   :dependencies #{}},
+  :constant-output
+  {:value-type {:k :dynamo.graph/Str},
+   :flags #{:explicit},
+   :options {},
+   :fn (dynamo.graph/fnk [] "constant output"),
+   :arguments #{},
+   :dependencies #{}},
+  ...}
+ :behavior
+ {
+ :fnk-output
+  {:fn
+    (fn [node label evaluation-context]
+    ...
+      (when-not (:dry-run evaluation-context)
+        (#'internal.defnode-test/ProductionDefs$output$fnk-output arguments))
+    ...)
+  }
+ :defnk-output
+ {:fn
+   (fn [node label evaluation-context]
+   ...
+     (when-not (:dry-run evaluation-context)
+       (#'internal.defnode-test/ProductionDefs$output$defnk-output arguments)))]
+   ...)
+ }
+ :constant-output
+ {:fn
+   (fn [node label evaluation-context]
+   ...
+     (when-not (:dry-run evaluation-context)
+       (#'internal.defnode-test/ProductionDefs$output$constant-output arguments))
+   ...)
+ }
+ ...
+}
+</pre>
+
+In the `:output` section We see that the `produce-defnk-output`
+remains, and the `"constant output"` string has been wrapped in a
+`fnk`. In the behavior section, we see that all behavior functions
+contain a call to a dollar-name'd output production function
+function.
+
+Checking what `g/defnode` emits we see:
+
+<pre>
+(def ProductionDefs$output$fnk-output (g/fnk [] "fnk output"))
+(def ProductionDefs$output$defnk-output produce-defnk-output)
+(def ProductionDefs$output$constant-output (dynamo.graph/fnk [] "constant output"))
+</pre>
+
+
+### CustomProperty
+
+Here we demonstrate
+* Property `(value ...)` clauses can refer to itself
+* A look at `:property-behavior` and how it differs
+* Property dynamics and how they relate to the property value
+* Where `dynamic`s and the `default` value function end up
+* How do the properties end up in `_properties`
+
+
+<pre>
+(g/defnode CustomProperty
+  (property simple-property g/Str)
+  (property custom-property g/Str
+            (default (fn [] "fruit"))
+            (value (g/fnk [simple-property custom-property]
+                     (str simple-property custom-property)))
+            (dynamic matches-input (g/fnk [custom-property simple-input]
+                                     (= custom-property simple-input))))
+  (input simple-input g/Str))
+</pre>
+
+#### Property (value ...) clause
+
+The `(value ...)` clause ends up as an production function for
+the property in the `:output` section:
+
+<pre>
+:custom-property
+{:value-type {:k :dynamo.graph/Str},
+ :flags #{},
+ :options {},
+ :fn
+ (g/fnk [simple-property custom-property] (str simple-property custom-property)),
+ :arguments #{:simple-property :custom-property},
+ :dependencies #{:simple-property :custom-property}}
+</pre>
+
+And the corresponding behavior in the `:behavior` section:
+
+<pre>
+(fn [node label evaluation-context]
+  (let [node-id (internal.graph.types/node-id node)]
+    (or (internal.node/output-jammer node node-id label (:basis evaluation-context))
+...
+;; Here we see that the "self reference" to `custom-property` became a direct property access via `get-property`,
+;; instead of a (failing) recursive call to `produce-value` for the same label.
+  (let [arguments {:simple-property (internal.graph.types/produce-value node :simple-property evaluation-context),
+                   :custom-property (internal.node/trace-expr node-id :custom-property evaluation-context :raw-property
+                                                              (fn []
+                                                                (when-not (:dry-run evaluation-context)
+                                                                  (internal.graph.types/get-property node (:basis evaluation-context) :custom-property)))),
+                   :_node-id node-id,
+                   :_basis (:basis evaluation-context)}]
+    (let [result (or (internal.node/argument-error-aggregate node-id label arguments)
+                     (when-not (:dry-run evaluation-context)
+                       (#'internal.defnode-test/CustomProperty$output$custom-property arguments)))]
+...
+</pre>
+
+#### A look at `:property-behavior` and how it differs
+
+The `:property-behavior` for `custom-property`, used if we do `update-property`, looks like this:
+
+<pre>
+(fn [node label evaluation-context]
+  (let [node-id (internal.graph.types/node-id node)]
+    ;; No jam checking, no check for cycles
+    (internal.node/trace-expr node-id :custom-property evaluation-context :property
+                              (fn []
+                                ;; Collect arguments for call to property production function for custom-property
+                                ;; Note that the reference to simple-property will prioritise an output with the same name since we use produce-value.
+                                ;; The reference to custom-property will not use produce-value, but get-property, to avoid failing recursion.
+                                (let [arguments__11811__auto__ {:simple-property (internal.graph.types/produce-value node :simple-property evaluation-context),
+                                                                :custom-property (internal.graph.types/get-property node (:basis evaluation-context) :custom-property)}]
+                                  (or (internal.node/argument-error-aggregate node-id :custom-property arguments__11811__auto__)
+								      ;; *** Small wart: if :dry-run, we will call (constantly nil) with the argument. This was a simple way to compose the code generating functions ***
+                                      ((if-not (:dry-run evaluation-context)
+								         ;; Note that we call ...$property$custom-property$value
+                                         #'internal.defnode-test/CustomProperty$property$custom-property$value (constantly nil)) arguments__11811__auto__)))))))
+</pre>
+
+#### Property dynamics and the default function
+
+Property dynamics and the default function end up under the
+corresponding property in the `:property` section of the node type
+map.
+
+As you can see, the production function for `(value ...)` also ends up
+here in the `:property` map. This version will be used for
+`_properties` later on.
+
+<pre>
+:property
+{...
+ :simple-property
+ {:value-type {:k :dynamo.graph/Str},
+  :flags #{},
+  :options {},
+  :dependencies #{}},
+ :custom-property
+ {:value-type {:k :dynamo.graph/Str},
+  :flags #{},
+  :options {},
+  :default {:fn (fn* ([] "fruit")), :arguments #{}, :dependencies #{}},
+  :value
+  {:fn
+   (g/fnk [simple-property custom-property] (str simple-property custom-property)),
+   :arguments #{:simple-property :custom-property},
+   :dependencies #{:simple-property :custom-property}},
+  :dynamics
+  {:matches-input
+   {:fn (g/fnk [custom-property simple-input] (= custom-property simple-input)),
+    :arguments #{:simple-input :custom-property},
+    :dependencies #{:simple-input :custom-property}}},
+  :dependencies #{:simple-property :simple-input}}}
+</pre>
+
+All these `fn`'s will be emitted as `def`'s by `defnode` and the node
+type map updated with the corresponding vars.
+
+The `:default` function will by called when constructing a new node to
+provide values if none were supplied.
+
+
+#### _properties
+
+The intrinsic version of `_properties` just passes through
+`_declared-properties`. Looking at the `_declared-properties` behavior
+for this nodet type:
+
+<pre>
+(fn [node label evaluation-context]
+  (let [node-id (internal.graph.types/node-id node)
+        display-order (internal.node/property-display-order (internal.graph.types/node-type node (:basis evaluation-context)))
+        value-map {:simple-property {:value (internal.node/trace-expr node-id :simple-property evaluation-context :raw-property
+                                                                      (fn []
+                                                                        (when-not (:dry-run evaluation-context)
+																		;; simple-property has no custom (value ...), so we just do get-property
+                                                                          (internal.graph.types/get-property node (:basis evaluation-context) :simple-property)))),
+                                     :type {:k :dynamo.graph/Str},
+                                     :node-id node-id},
+                   :custom-property {:value (internal.node/trace-expr node-id :custom-property evaluation-context :property
+                                                                      (fn []
+																	    ;; Below gets generated pretty much the same way as the :property-behavior above
+                                                                        (let [arguments__11811__auto__ {:simple-property (internal.graph.types/produce-value node :simple-property evaluation-context),
+                                                                                                        :custom-property (internal.graph.types/get-property node (:basis evaluation-context) :custom-property)}]
+                                                                          (or (internal.node/argument-error-aggregate node-id :custom-property arguments__11811__auto__)
+                                                                              ((if-not (:dry-run evaluation-context)
+                                                                                 #'internal.defnode-test/CustomProperty$property$custom-property$value (constantly nil)) arguments__11811__auto__))))),
+                                     :type {:k :dynamo.graph/Str},
+									 ;; Here comes our `dynamic`
+                                     :matches-input (internal.node/trace-expr node-id [:custom-property :matches-input] evaluation-context :dynamic
+                                                                              (fn []
+																			    ;; Collect arguments for the dynamic. Note that the reference to simple-property will prioritise an output with the same name.
+                                                                                (let [arguments__11811__auto__ {:simple-input (internal.node/error-checked-input-value node-id :simple-input (internal.node/pull-first-input-value node :simple-input evaluation-context)),
+                                                                                                                :custom-property (internal.graph.types/produce-value node :custom-property evaluation-context)}]
+                                                                                  (or (internal.node/argument-error-aggregate node-id :matches-input arguments__11811__auto__)
+                                                                                      ((if-not (:dry-run evaluation-context)
+																					     ;; The dynamic gets a slightly longer dollar-name :)
+                                                                                         #'internal.defnode-test/CustomProperty$property$custom-property$dynamics$matches-input (constantly nil)) arguments__11811__auto__))))),
+                                     :node-id node-id}}]
+    (when-not (:dry-run evaluation-context)
+      {:properties value-map,
+       :display-order display-order,
+       :node-id node-id}))
+</pre>
+
+
+
+
+
+
+### OverridenProperty
+
+Lets have a look what happens when you have an output with the same
+name as a property.
+
+<pre>
+(g/defnode OverriddenProperty
+  (property data g/Str (value (g/fnk [] 1)))
+  (input nonsense-input g/Str)
+  (output data g/Str (g/fnk [data nonsense-input]
+                       (str data nonsense-input))))
+</pre>
+
+In the `:output` section, only the explicit output production function
+remains, but the definition in `:property` remains.
+
+
+ppp<pre>
+{:output
+ {:data
+  {:value-type {:k :dynamo.graph/Str},
+   :flags #{:explicit},
+   :options {},
+   :fn (g/fnk [data nonsense-input] (str data nonsense-input)),
+   :arguments #{:nonsense-input :data},
+   :dependencies #{:nonsense-input :data}}
+  ...
+ }
+ ...
+ :property
+ {...
+  :data
+  {:value-type {:k :dynamo.graph/Str},
+   :flags #{},
+   :options {},
+   :value {:fn (g/fnk [] 1), :arguments #{}, :dependencies #{}},
+   :dependencies #{}}}
+}
+</pre>
+
+If you look into the code generated for the data output behavior, you
+would find that it calls
+#'internal.defnode-test/OverriddenProperty$property$data$value to get the property value. 
+Same thing for the `_declared-properties` output and the
+`:property-behavior` for data.
+
+
+### InputVarieties
+
+We automatically get behaviors for inputs also, *** these are somewhat
+broken in that they do not perform error substitution ***. They are
+used in a handful places in the editor (we do `(g/node-value
+... :some-input)`) and are sometimes useful for debugging, but we could
+probably do without them.
+
+<pre>
+(g/defnode InputVarieties
+  (input single-input g/Str)
+  (input array-input g/Str :array)
+  (input subst-single-input g/Str :substitute (fn [err] "error!"))
+  (input subst-array-input g/Str :array :substitute (fn [inputs] (map #(if (g/error? %) "error!" %) inputs))))
+</pre>
+
+The behavior (in `:behavior`) looks like this:
+
+<pre>
+{:array-input {:fn internal.node/pull-input-values},
+ :subst-single-input
+ {:fn (clojure.core/partial internal.node/pull-first-input-with-substitute (fn [err] "error!"))},
+ :subst-array-input
+ {:fn (clojure.core/partial internal.node/pull-input-values-with-substitute
+                            (fn [inputs]
+                              (map
+                                (fn* [p1__26210#] (if (g/error? p1__26210#) "error!" p1__26210#))
+                                inputs)))},
+ :single-input {:fn internal.node/pull-first-input-value}}
+</pre>
+
+The inputs do not need individual production functions - these are the
+four varieties possible.
+
+Sadly both `-with-substitute` varieties say "todo - invoke substitute".
+
+### InputVarietiesUsed
+
+If, however we use these inputs as argument to a production function:
+
+<pre>
+(g/defnode InputVarietiesUsed
+  (input single-input g/Str)
+  (input array-input g/Str :array)
+  (input subst-single-input g/Str :substitute (fn [err] "error!"))
+  (input subst-array-input g/Str :array :substitute (fn [inputs] (map #(if (g/error? %) "error!" %) inputs)))
+  (output output-single-input g/Str (g/fnk [single-input] single-input))
+  (output output-array-input g/Str (g/fnk [array-input] array-input))
+  (output output-subst-single-input g/Str (g/fnk [subst-single-input] subst-single-input))
+  (output output-subst-array-input g/Str (g/fnk [subst-array-input] subst-array-input)))
+</pre>
+
+The behavior for `:output-subst-array-input` for instance will, when
+collecting arguments, perform the error substitution:
+
+<pre>
+(let [arguments {:subst-array-input (internal.node/error-substituted-array-input-value
+                                      (internal.node/pull-input-values node :subst-array-input evaluation-context)
+                                      (fn [inputs]
+                                        (map (fn* [p1__26365#]
+                                                  (if (g/error? p1__26365#) "error!" p1__26365#))
+                                             inputs))),
+                 :_node-id node-id,
+                 :_basis (:basis evaluation-context)}]
+</pre>
+
+### CachedOutputs
+
+<pre>
+(g/defnode CachedOutputs
+  (property data g/Str)
+  (output non-cached g/Str (g/fnk [data] data))
+  (output cached g/Str :cached (g/fnk [data] data)))
+</pre>
+
+The difference is what caches we use for lookup and update in the
+behavior functions:
+
+<pre>
+{...
+ :behavior
+ {...
+  :cached
+  {:fn
+   (fn [node label evaluation-context]
+     (let [node-id (internal.graph.types/node-id node)]
+       (or (internal.node/output-jammer node node-id label (:basis evaluation-context))
+           (let [evaluation-context (internal.node/mark-in-production node-id label evaluation-context)]
+		     ;; internal.node/check-caches! will look in two caches:
+			 ;; * The "global" copied from the system when creating the evaluation context
+			 ;; * The "local" which contains the results of newly produced :cached outputs.
+			 ;;   These will typically be added to the system cache at the end of the `node-value` call.
+             (if-some [[result] (internal.node/check-caches! node-id label evaluation-context)]
+               result (internal.node/trace-expr node-id label evaluation-context :output
+                                                (fn []
+                                                  (let [arguments {:data (internal.graph.types/produce-value node :data evaluation-context),
+                                                                   :_node-id node-id,
+                                                                   :_basis (:basis evaluation-context)}]
+                                                    (let [result (or (internal.node/argument-error-aggregate node-id label arguments)
+                                                                     (when-not (:dry-run evaluation-context)
+                                                                       (#'internal.defnode-test/CachedOutputs$output$cached
+                                                                         arguments)))]
+                                                      (do (internal.node/schema-check-result node-id label evaluation-context
+                                                                                             (schema.core/maybe
+                                                                                               (schema.core/conditional
+                                                                                                 internal.graph.error-values/error-value?
+                                                                                                 internal.graph.error_values.ErrorValue
+                                                                                                 :else
+                                                                                                 java.lang.String))
+                                                                                             result)
+	                                                      ;; internal.node/update-local-cache! will, well, add the result to the local cache
+                                                          (do (internal.node/update-local-cache! node-id label evaluation-context result)
+                                                              result)))))))))))},
+  :non-cached
+  {:fn
+   (fn [node label evaluation-context]
+     (let [node-id (internal.graph.types/node-id node)]
+       (or (internal.node/output-jammer node node-id label (:basis evaluation-context))
+           (let [evaluation-context (internal.node/mark-in-production node-id label evaluation-context)]
+		     ;; non :cached outputs will as we've already seen only use the local temp cache
+             (if-some [result (internal.node/check-local-temp-cache node-id label evaluation-context)]
+               (internal.node/trace-expr node-id label evaluation-context :cache
+                                         (fn []
+                                           (if (= result :internal.node/cached-nil)
+                                             nil
+                                             result)))
+               (internal.node/trace-expr node-id label evaluation-context :output
+                                         (fn []
+                                           (let [arguments {:data (internal.graph.types/produce-value node :data evaluation-context),
+                                                            :_node-id node-id,
+                                                            :_basis (:basis evaluation-context)}]
+                                             (let [result (or (internal.node/argument-error-aggregate node-id label arguments)
+                                                              (when-not (:dry-run evaluation-context)
+                                                                (#'internal.defnode-test/CachedOutputs$output$non-cached
+                                                                  arguments)))]
+                                               (do (internal.node/schema-check-result node-id label evaluation-context
+                                                                                      (schema.core/maybe
+                                                                                        (schema.core/conditional
+                                                                                          internal.graph.error-values/error-value?
+                                                                                          internal.graph.error_values.ErrorValue
+                                                                                          :else
+                                                                                          java.lang.String))
+                                                                                      result)
+                                                   (do (internal.node/update-local-temp-cache! node-id label evaluation-context result)
+                                                       result)))))))))))}
+ }
+}
+</pre>
+
+
+### BaseNode, DerivedNode
+
+When using `inherits`, be careful not to unintentionally override a
+property from the base node type. The semantics of `inherits` is
+almost "merge the node type map of the base node type with the
+current" a.k.a. copy-paste the definition.
+
+<pre>
+(g/defnode BaseNode
+  (property surprise g/Str
+            (dynamic dynamic-value (g/fnk [surprise] surprise)))
+  (output use-surprise g/Str (g/fnk [surprise] surprise)))
+
+(g/defnode DerivedNode
+  (inherits BaseNode)
+  (output surprise g/Str (g/fnk [] "DerivedNode/surprise")))
+</pre>
+
+With this definition, the behavior for `use-surprise` will call
+`produce-value` to get the argument for `surprise`. So on a
+`DerivedNode`, `use-surprise` will actually return
+"DerivedNode/surprise". The `_declared-properties` behavior will
+correctly call the production function for the property `surprise` to
+get the value, but `dynamic-value` will use `produce-value` and get
+"DerivedNode/surprise". This might or might not be surprising.
+
+For reference, the `derive` calls emitted by `defnode` are:
+
+<pre>
+(when-not (contains? (descendants :internal.defnode-test/BaseNode) :internal.defnode-test/DerivedNode)
+  (derive :internal.defnode-test/DerivedNode :internal.defnode-test/BaseNode))
+</pre>
 
 * wrap constant fns händer *efter* merge super types, så om
   t.ex. ersätter output :fn's i definition med nil (borde inte
   behövas? eller?)  så kommer de wrappas som (g/fnk [] nil)
+

@@ -350,6 +350,7 @@
   (let [[symb forms] (ctm/name-with-attributes symb body)
         fully-qualified-node-type-symbol (symbol (str *ns*) (str symb))
         node-type-def (in/process-node-type-forms fully-qualified-node-type-symbol forms)
+        _ (def last-node-type-def node-type-def)        
         fn-paths (in/extract-def-fns node-type-def)
         fn-defs (for [[path func] fn-paths]
                   (list `def (in/dollar-name symb path) func))
@@ -361,10 +362,13 @@
                       `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
                          (derive ~node-key ~(:key (deref tref)))))
         node-type-def (update node-type-def :supertypes #(list `quote %))
+
         runtime-definer (symbol (str symb "*"))
         type-regs (for [[key-form value-type-form] (:register-type-info node-type-def)]
                     `(in/register-value-type ~key-form ~value-type-form))
         node-type-def (dissoc node-type-def :register-type-info)]
+    (def last-fn-defs fn-defs)
+    (def last-derives derivations)
     `(do
        ~@type-regs
        ~@fn-defs

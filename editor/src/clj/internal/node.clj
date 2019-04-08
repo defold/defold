@@ -1017,13 +1017,14 @@
       extract-fn-arguments
       merge-property-dependencies
       apply-property-dependencies-to-outputs
-      inspect
       attach-declared-properties-output
       attach-input-dependencies
       attach-property-behaviors
       attach-output-behaviors
       attach-input-behaviors
       attach-declared-properties-behavior
+      inspect
+
       attach-cascade-deletes
       attach-declared-property
       verify-inputs-for-dynamics

@@ -960,6 +960,83 @@
 
 (g/defnode EmptyNodeType)
 
+(g/defnk produce-defnk-output [] "defnk output")
 
+(g/defnode ProductionDefs
+  (output fnk-output g/Str (g/fnk [] "fnk output"))
+  (output defnk-output g/Str produce-defnk-output)
+  (output constant-output g/Str "constant output"))
 
+(g/defnode CustomProperty
+  (property simple-property g/Str)
+  (property custom-property g/Str
+            (default (fn [] "fruit"))
+            (value (g/fnk [simple-property custom-property]
+                     (str simple-property custom-property)))
+            (dynamic matches-input (g/fnk [custom-property simple-input]
+                                     (= custom-property simple-input))))
+  (input simple-input g/Str))
+
+(g/defnode OverriddenProperty
+  (property data g/Str (value (g/fnk [] 1)))
+  (input nonsense-input g/Str)
+  (output data g/Str (g/fnk [data nonsense-input]
+                       (str data nonsense-input))))
+
+(g/defnode InputVarieties
+  (input single-input g/Str)
+  (input array-input g/Str :array)
+  (input subst-single-input g/Str :substitute (fn [err] "error!"))
+  (input subst-array-input g/Str :array :substitute (fn [inputs] (map #(if (g/error? %) "error!" %) inputs))))
+
+(g/defnode InputVarietiesUsed
+  (input single-input g/Str)
+  (input array-input g/Str :array)
+  (input subst-single-input g/Str :substitute (fn [err] "error!"))
+  (input subst-array-input g/Str :array :substitute (fn [inputs] (map #(if (g/error? %) "error!" %) inputs)))
+  (output output-single-input g/Str (g/fnk [single-input] single-input))
+  (output output-array-input g/Str (g/fnk [array-input] array-input))
+  (output output-subst-single-input g/Str (g/fnk [subst-single-input] subst-single-input))
+  (output output-subst-array-input g/Str (g/fnk [subst-array-input] subst-array-input)))
+
+(g/defnode CachedOutputs
+  (property data g/Str)
+  (output non-cached g/Str (g/fnk [data] data))
+  (output cached g/Str :cached (g/fnk [data] data)))
+
+(g/defnode BaseNode
+  (property surprise g/Str
+            (dynamic dynamic-value (g/fnk [surprise] surprise)))
+  (output use-surprise g/Str (g/fnk [surprise] surprise)))
+
+(g/defnode DerivedNode
+  (inherits BaseNode)
+  (output surprise g/Str (g/fnk [] "DerivedNode/surprise")))
+
+(deftest surprise-test
+  (with-clean-system
+    (let [[n] (tx-nodes (g/make-node world DerivedNode :surprise "constr arg surprise"))]
+      (println (g/node-value n :use-surprise))
+      (println (-> (g/node-value n :_properties) :properties :surprise))
+      )))
+
+(g/defnode ClausesNode
+  (inherits BaseNode)
+  (property simple-property g/Str)
+  (property custom-property g/Str
+            (default (fn [] "fruit"))
+            (value [simple-property custom-property single-input]
+                   (str simple-property custom-property single-input))
+            (dynamic is-cake? [simple-property]
+                     (= "cake" simple-property)))
+  (property unjammable-property g/Str :unjammable)
+  (input single-input g/Str)
+  (input array-input g/Str :array)
+  (input subst-single-input g/Str :substitute (fn [err] "error!"))
+  (input subst-array-input g/Str :array :substitute (fn [inputs] (map #(if (g/error? %) "error!" %) inputs)))
+  (output nonsense-output g/Str (g/fnk [simple-property custom-property unjammable-property single-input array-input]
+                                  (str simple-property custom-property unjammable-property single-input array-input)))
+  (output cached-output g/Str :cached (g/fnk [array-input] array-input))
+  (output abstract-output g/Str (g/fnk [simple-property] simple-property))
+  (output unjammable-output g/Str (g/fnk [simple-property] simple-property)))
 
