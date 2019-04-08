@@ -1113,8 +1113,7 @@ If you do not specifically require different script states, consider changing th
                               :command :toggle-pane-bottom}
                              {:label "Toggle Properties Pane"
                               :command :toggle-pane-right}
-                             {:label :separator
-                              :id ::view-end}
+                             {:label :separator}
                              {:label "Show Console"
                               :command :show-console}
                              {:label "Show Curve Editor"
