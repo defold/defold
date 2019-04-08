@@ -6,6 +6,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/array.h>
+#include <dlib/json.h>
 #include <dlib/mutex.h>
 #include <script/script.h>
 
@@ -198,7 +199,6 @@ static void RunDialogResultCallback(Command* cmd)
             if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
                 char err_str[128];
                 if (dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str)) < 0) {
-                    lua_pop(L, lua_gettop(L) - top - 2); // Need to leave function and self references.
                     dmLogError("Failed converting dialog result JSON to Lua; %s", err_str);
                     lua_pushnil(L);
                 }
@@ -206,6 +206,7 @@ static void RunDialogResultCallback(Command* cmd)
                 dmLogError("Failed to parse dialog JSON result (%d)", r);
                 lua_pushnil(L);
             }
+            dmJson::Free(&doc);
         } else {
             lua_pushnil(L);
         }

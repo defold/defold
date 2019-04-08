@@ -940,9 +940,10 @@ namespace dmGameObject
         Instance* instance = ResolveInstance(L, 2);
 
         // Supports both vector and number
-        if (dmScript::IsVector3(L, 1))
+        Vector3* v = dmScript::ToVector3(L, 1);
+        if (v != 0)
         {
-            Vector3 scale = *dmScript::CheckVector3(L, 1);
+            Vector3 scale = *v;
             if (scale.getX() <= 0.0f || scale.getY() <= 0.0f || scale.getZ() <= 0.0f)
             {
                 return luaL_error(L, "Vector passed to go.set_scale contains components that are below or equal to zero");
@@ -951,12 +952,12 @@ namespace dmGameObject
             return 0;
         }
 
-        lua_Number v = luaL_checknumber(L, 1);
-        if (v <= 0.0)
+        lua_Number n = luaL_checknumber(L, 1);
+        if (n <= 0.0)
         {
             return luaL_error(L, "The scale supplied to go.set_scale must be greater than 0.");
         }
-        dmGameObject::SetScale(instance, (float)v);
+        dmGameObject::SetScale(instance, (float)n);
         return 0;
     }
 
@@ -1572,11 +1573,11 @@ namespace dmGameObject
 
 
     /*# delete one or more game object instances
-     * Delete one or more game objects identified by id. Deletion is asynchronous meaning that 
+     * Delete one or more game objects identified by id. Deletion is asynchronous meaning that
      * the game object(s) are scheduled for deletion which will happen at the end of the current
-     * frame. Note that game objects scheduled for deletion will be counted against 
+     * frame. Note that game objects scheduled for deletion will be counted against
      * `max_instances` in "game.project" until they are actually removed.
-     * 
+     *
      * @name go.delete
      * @param [id] [type:string|hash|url|table] optional id or table of id's of the instance(s) to delete, the instance of the calling script is deleted by default
      * @param [recursive] [type:boolean] optional boolean, set to true to recursively delete child hiearchy in child to parent order
@@ -1804,15 +1805,15 @@ namespace dmGameObject
         {
             valid_type = true;
         }
-        else if (dmScript::IsVector3(L, 2))
+        else if (dmScript::ToVector3(L, 2) != 0)
         {
             valid_type = true;
         }
-        else if (dmScript::IsVector4(L, 2))
+        else if (dmScript::ToVector4(L, 2) != 0)
         {
             valid_type = true;
         }
-        else if (dmScript::IsQuat(L, 2))
+        else if (dmScript::ToQuat(L, 2) != 0)
         {
             valid_type = true;
         }

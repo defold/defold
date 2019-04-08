@@ -5,7 +5,7 @@
 #include <dlib/math.h>
 #include <gameobject/gameobject.h>
 #include <render/render.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 namespace dmGameSystem
 {
