@@ -42,7 +42,7 @@
   (:import [java.io File]
            [javafx.scene Node Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TreeView]
-           [javafx.scene.input InputEvent KeyEvent MouseEvent]
+           [javafx.scene.input DragEvent InputEvent KeyEvent MouseEvent]
            [javafx.scene.layout Region VBox]
            [javafx.stage Stage]))
 
@@ -125,7 +125,8 @@
                                   "To fix this, make a commit where you delete the .internal and build directories, then reopen the project.")))
 
 (def ^:private interaction-event-types
-  #{KeyEvent/KEY_PRESSED
+  #{DragEvent/DRAG_DONE
+    KeyEvent/KEY_PRESSED
     KeyEvent/KEY_RELEASED
     MouseEvent/MOUSE_PRESSED
     MouseEvent/MOUSE_RELEASED})
