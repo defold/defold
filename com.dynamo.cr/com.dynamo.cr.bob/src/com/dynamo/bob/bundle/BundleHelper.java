@@ -39,9 +39,18 @@ import com.dynamo.bob.util.BobProjectProperties;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
 
+import java.awt.AlphaComposite;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.Image;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+import java.net.URL;
+
 
 public class BundleHelper {
     private Project project;
+    private BobProjectProperties projectProperties;
     private String title;
     private File buildDir;
     private File appDir;
@@ -49,11 +58,17 @@ public class BundleHelper {
 
     private static Logger logger = Logger.getLogger(BundleHelper.class.getName());
 
+    public static void throwIfCanceled(ICanceled canceled) {
+        if(canceled.isCanceled()) {
+            throw new RuntimeException("Canceled");
+        }
+    }
+
     public BundleHelper(Project project, Platform platform, File bundleDir, String appDirSuffix) throws IOException {
-        BobProjectProperties projectProperties = project.getProjectProperties();
+        this.projectProperties = project.getProjectProperties();
 
         this.project = project;
-        this.title = projectProperties.getStringValue("project", "title", "Unnamed");
+        this.title = this.projectProperties.getStringValue("project", "title", "Unnamed");
 
         this.buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         this.appDir = new File(bundleDir, title + appDirSuffix);
@@ -157,6 +172,97 @@ public class BundleHelper {
         return this;
     }
 
+    private BufferedImage resizeImage(BufferedImage originalImage, int size) {
+        BufferedImage resizedImage = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = resizedImage.createGraphics();
+
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        g.drawImage(originalImage, 0, 0, size, size, null);
+        g.dispose();
+        g.setComposite(AlphaComposite.Src);
+
+
+        return resizedImage;
+    }
+
+    private void genIcon(BufferedImage fallbackImage, File outputDir, String propertyName, String outName, int size) throws IOException
+    {
+        File outFile = new File(outputDir, outName);
+
+        // If the property was found just copy icon file to output folder.
+        if (propertyName.length() > 0) {
+            String resource = projectProperties.getStringValue("ios", propertyName);
+            if (resource != null && resource.length() > 0) {
+                IResource inResource = project.getResource(resource);
+                FileUtils.writeByteArrayToFile(outFile, inResource.getContent());
+                return;
+            }
+        }
+
+        // Resize fallback image if resource wasn't specified or found.
+        ImageIO.write(resizeImage(fallbackImage, size), "png", outFile);
+    }
+
+    private BufferedImage getFallbackIconImage(String categoryName, String[] alternativeKeys) throws IOException
+    {
+        // Try to use the largest icon as a fallback, otherwise use a builtin icon.
+        String largestIcon = null;
+        for (String propName : alternativeKeys) {
+            String resource = projectProperties.getStringValue(categoryName, propName);
+            if (resource != null && resource.length() > 0) {
+                largestIcon = resource;
+            }
+        }
+        File largestIconFile = File.createTempFile("temp", "default_icon.png");
+
+        if (largestIcon != null) {
+            IResource largestIconRes = project.getResource(largestIcon);
+            FileUtils.writeByteArrayToFile(largestIconFile, largestIconRes.getContent());
+        } else {
+            URL defaultIconURL = getClass().getResource("resources/ios/default_icon.png");
+            FileUtils.writeByteArrayToFile(largestIconFile, IOUtils.toByteArray(defaultIconURL));
+        }
+
+        return ImageIO.read(largestIconFile);
+    }
+
+    public void copyIosIcons() throws IOException
+    {
+        // Get fallback icon as an image
+        String[] iconPropNames = { "app_icon_57x57", "app_icon_72x72", "app_icon_76x76", "app_icon_114x114", "app_icon_120x120", "app_icon_144x144", "app_icon_152x152", "app_icon_167x167", "app_icon_180x180" };
+        BufferedImage largestIconImage = getFallbackIconImage("ios", iconPropNames);
+
+        // Copy game.project specified icons
+        genIcon(largestIconImage, appDir,   "app_icon_57x57",       "Icon.png",  57);
+        genIcon(largestIconImage, appDir, "app_icon_114x114",    "Icon@2x.png", 114);
+        genIcon(largestIconImage, appDir,   "app_icon_72x72",    "Icon-72.png",  72);
+        genIcon(largestIconImage, appDir, "app_icon_144x144", "Icon-72@2x.png", 144);
+        genIcon(largestIconImage, appDir,   "app_icon_76x76",    "Icon-76.png",  76);
+        genIcon(largestIconImage, appDir, "app_icon_152x152", "Icon-76@2x.png", 152);
+        genIcon(largestIconImage, appDir, "app_icon_120x120", "Icon-60@2x.png", 120);
+        genIcon(largestIconImage, appDir, "app_icon_180x180", "Icon-60@3x.png", 180);
+        genIcon(largestIconImage, appDir, "app_icon_167x167",   "Icon-167.png", 167);
+    }
+
+    public void copyAndroidIcons(File resDir) throws IOException
+    {
+        // Get fallback icon as an image
+        String[] iconPropNames = { "app_icon_32x32", "app_icon_36x36", "app_icon_48x48", "app_icon_72x72", "app_icon_96x96", "app_icon_144x144", "app_icon_192x192" };
+        BufferedImage largestIconImage = getFallbackIconImage("android", iconPropNames);
+
+        // copy old 32x32 icon first, the correct size is actually 36x36
+        genIcon(largestIconImage, resDir,   "app_icon_32x32",    "drawable-ldpi/icon.png",  36);
+        genIcon(largestIconImage, resDir,   "app_icon_36x36",    "drawable-ldpi/icon.png",  36);
+        genIcon(largestIconImage, resDir,   "app_icon_48x48",    "drawable-mdpi/icon.png",  48);
+        genIcon(largestIconImage, resDir,   "app_icon_72x72",    "drawable-hdpi/icon.png",  72);
+        genIcon(largestIconImage, resDir,   "app_icon_96x96",   "drawable-xhdpi/icon.png",  96);
+        genIcon(largestIconImage, resDir, "app_icon_144x144",  "drawable-xxhdpi/icon.png", 144);
+        genIcon(largestIconImage, resDir, "app_icon_192x192", "drawable-xxxhdpi/icon.png", 192);
+    }
+
     private boolean copyIcon(BobProjectProperties projectProperties, String projectRoot, File resDir, String name, String outName)
             throws IOException {
         String resource = projectProperties.getStringValue("android", name);
@@ -175,44 +281,23 @@ public class BundleHelper {
     }
 
     public void createAndroidManifest(BobProjectProperties projectProperties, String projectRoot, File manifestFile, File resOutput, String exeName) throws IOException {
-     // Copy icons
-        int iconCount = 0;
-        // copy old 32x32 icon first, the correct size is actually 36x36
-        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_32x32", "drawable-ldpi/icon.png")
-            || copyIcon(projectProperties, projectRoot, resOutput, "app_icon_36x36", "drawable-ldpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_48x48", "drawable-mdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_72x72", "drawable-hdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_96x96", "drawable-xhdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_144x144", "drawable-xxhdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_192x192", "drawable-xxxhdpi/icon.png"))
-            iconCount++;
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("exe-name", exeName);
+
+        // We copy and resize the default icon in builtins if no other icons are set.
+        // This means that the app will always have icons from now on.
+        properties.put("has-icons?", true);
 
         // Copy push notification icons
-        if (copyIcon(projectProperties, projectRoot, resOutput, "push_icon_small", "drawable/push_icon_small.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resOutput, "push_icon_large", "drawable/push_icon_large.png"))
-            iconCount++;
+        copyIcon(projectProperties, projectRoot, resOutput, "push_icon_small", "drawable/push_icon_small.png");
+        copyIcon(projectProperties, projectRoot, resOutput, "push_icon_large", "drawable/push_icon_large.png");
 
         String[] dpis = new String[] { "ldpi", "mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi" };
         for (String dpi : dpis) {
-            if (copyIconDPI(projectProperties, projectRoot, resOutput, "push_icon_small", "push_icon_small.png", dpi))
-                iconCount++;
-            if (copyIconDPI(projectProperties, projectRoot, resOutput, "push_icon_large", "push_icon_large.png", dpi))
-                iconCount++;
+            copyIconDPI(projectProperties, projectRoot, resOutput, "push_icon_small", "push_icon_small.png", dpi);
+            copyIconDPI(projectProperties, projectRoot, resOutput, "push_icon_large", "push_icon_large.png", dpi);
         }
-
-        Map<String, Object> properties = new HashMap<>();
-        if (iconCount > 0) {
-            properties.put("has-icons?", true);
-        } else {
-            properties.put("has-icons?", false);
-        }
-        properties.put("exe-name", exeName);
 
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
             Integer displayWidth = projectProperties.getIntValue("display", "width", 960);

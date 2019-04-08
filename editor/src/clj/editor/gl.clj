@@ -264,7 +264,7 @@
   ([r g b]        `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0)]))
   ([r g b a]      `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0) a])))
 
-(defmacro gl-color       [gl c]     `(.glColor4d ~gl ^double (nth ~c 0) ^double (nth ~c 1) ^double (nth ~c 2) ^double (nth ~c 3)))
+(defmacro gl-color       [gl c]     `(.glColor4d ~gl (nth ~c 0) (nth ~c 1) (nth ~c 2) (nth ~c 3)))
 (defmacro gl-color-3f    [gl r g b]     `(.glColor3f ~gl ~r ~g ~b))
 (defmacro gl-color-4d    [gl r g b a]   `(.glColor4d ~gl ~r ~g ~b ~a))
 (defmacro gl-color-3dv+a [gl dv alpha]  `(gl-color-4d ~gl (first ~dv) (second ~dv) (nth ~dv 2) ~alpha))
@@ -273,7 +273,11 @@
 
 (defmacro gl-vertex-2f   [gl x y]       `(.glVertex2f ~gl ~x ~y))
 (defmacro gl-vertex-3d   [gl x y z]     `(.glVertex3d ~gl ~x ~y ~z))
-(defmacro gl-vertex-3dv  [gl vtx off]   `(.glVertex3dv ~gl ~vtx ~off))
+(defmacro gl-vertex-3dv
+  ([gl vtx]
+   `(.glVertex3dv ~gl ~vtx))
+  ([gl vtx off]
+   `(.glVertex3dv ~gl ~vtx ~off)))
 
 (defmacro gl-translate-f [gl x y z]     `(.glTranslatef ~gl ~x ~y ~z))
 
