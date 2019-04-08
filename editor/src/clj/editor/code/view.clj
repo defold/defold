@@ -16,7 +16,8 @@
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [schema.core :as s])
+            [schema.core :as s]
+            [service.smoke-log :as slog])
   (:import [com.defold.control ListView]
            [com.sun.javafx.font FontResource FontStrike PGFont]
            [com.sun.javafx.geom.transform BaseTransform]
@@ -2481,6 +2482,9 @@
 
     ;; Start repaint timer.
     (ui/timer-start! repainter)
+    ;; Initial draw
+    (ui/run-later (repaint-view! view-node 0 {:cursor-visible? true})
+                  (ui/run-later (slog/smoke-log "code-view-visible")))
     view-node))
 
 (defn- focus-view! [view-node {:keys [line]}]

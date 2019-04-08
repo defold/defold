@@ -17,6 +17,7 @@ embedded_components {
   id: "factory"
   type: "factory"
   data: "prototype: \"/player/bullet.go\"\n"
+  "load_dynamically: false\n"
   ""
   position {
     x: 0.0

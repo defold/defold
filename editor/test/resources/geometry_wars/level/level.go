@@ -51,7 +51,6 @@ embedded_components {
   "skeleton: \"\"\n"
   "animations: \"\"\n"
   "default_animation: \"\"\n"
-  "name: \"\"\n"
   ""
   position {
     x: 0.0
@@ -180,7 +179,6 @@ embedded_components {
   "skeleton: \"\"\n"
   "animations: \"\"\n"
   "default_animation: \"\"\n"
-  "name: \"\"\n"
   ""
   position {
     x: 0.0
@@ -202,7 +200,6 @@ embedded_components {
   "skeleton: \"\"\n"
   "animations: \"\"\n"
   "default_animation: \"\"\n"
-  "name: \"\"\n"
   ""
   position {
     x: 0.0
