@@ -441,6 +441,7 @@ var LibraryGLFW = {
     GLFW.addEventListener('mousewheel', GLFW.onMouseWheel, true);
     GLFW.addEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
     GLFW.addEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
+    GLFW.addEventListenerCanvas('touchcancel', GLFW.onTouchEnd, true);
     GLFW.addEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
 
     __ATEXIT__.push({ func: function() {
@@ -454,6 +455,7 @@ var LibraryGLFW = {
         GLFW.removeEventListener('mousewheel', GLFW.onMouseWheel, true);
         GLFW.removeEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
         GLFW.removeEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
+        GLFW.removeEventListenerCanvas('touchcancel', GLFW.onTouchEnd, true);
         GLFW.removeEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
 
         var canvas = Module["canvas"];
