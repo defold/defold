@@ -6,11 +6,11 @@
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
-  (:import [java.util Collection List]
+  (:import [java.util Collection]
            [javafx.animation AnimationTimer]
            [javafx.event Event]
            [javafx.scene Parent Scene]
-           [javafx.scene.control CheckBox SelectionMode TabPane TextField TreeItem TreeView]
+           [javafx.scene.control CheckBox ProgressIndicator SelectionMode TabPane TextField TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane]
            [javafx.stage StageStyle]))
@@ -57,18 +57,20 @@
       :else
       (recur more (conj! tree-items result)))))
 
-(defn- start-tree-update-timer! [tree-views search-in-progress results-fn]
+(defn- start-tree-update-timer! [tree-views progress-indicators results-fn]
   (let [timer (ui/->timer 5 "tree-update-timer"
                           (fn [^AnimationTimer timer elapsed-time]
                             ;; Delay showing the progress indicator a bit to avoid flashing for
                             ;; searches that complete quickly.
                             (when (< 0.2 elapsed-time)
-                              (ui/visible! search-in-progress true))
+                              (doseq [node progress-indicators]
+                                (ui/visible! node true)))
 
                             (let [[search-results done?] (results->search-results+done? (results-fn))]
                               (when done?
                                 (.stop timer)
-                                (ui/visible! search-in-progress false))
+                                (doseq [node progress-indicators]
+                                  (ui/visible! node false)))
                               (when-not (empty? search-results)
                                 (doseq [^TreeView tree-view tree-views
                                         :let [tree-children (.getChildren (.getRoot tree-view))
@@ -109,6 +111,14 @@
   ^TreeView []
   (doto (TreeView.) init-search-in-files-tree-view!))
 
+(defn- make-search-in-files-progress-indicator []
+  (doto (ProgressIndicator.)
+    (.setMouseTransparent true)
+    (AnchorPane/setRightAnchor 10.0)
+    (AnchorPane/setBottomAnchor 10.0)
+    (.setPrefWidth 28.0)
+    (.setPrefHeight 28.0)))
+
 (defn- resolve-search-in-files-tree-view-selection [selection]
   (into []
         (comp (filter resource/exists?)
@@ -130,7 +140,7 @@
   (assert (string? term))
   (prefs/set-prefs prefs search-in-files-term-prefs-key term))
 
-(defn- start-search-in-files! [project prefs results-tab-tree-view open-fn show-find-results-fn]
+(defn- start-search-in-files! [project prefs results-tab-tree-view results-tab-progress-indicator open-fn show-find-results-fn]
   (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
         scene     (Scene. root)
         stage     (doto (ui/make-stage)
@@ -139,7 +149,10 @@
                     (.setResizable false))]
     (ui/with-controls root [^TextField search ^TextField types ^CheckBox include-libraries-check-box ^TreeView resources-tree ok search-in-progress]
       (ui/visible! search-in-progress false)
-      (let [start-consumer! (partial start-tree-update-timer! [resources-tree results-tab-tree-view] search-in-progress)
+      (let [start-consumer! #(start-tree-update-timer!
+                               [resources-tree results-tab-tree-view]
+                               [results-tab-progress-indicator search-in-progress]
+                               %)
             stop-consumer! ui/timer-stop!
             report-error! (fn [error] (ui/run-later (throw error)))
             file-resource-save-data-future (project-search/make-file-resource-save-data-future report-error! project)
@@ -213,7 +226,7 @@
   (let [open-resource-fn (g/node-value search-results-view :open-resource-fn)]
     (open-resource-fn resource opts)))
 
-(defn- update-search-results! [search-results-view ^TreeView results-tree-view]
+(defn- update-search-results! [search-results-view ^TreeView results-tree-view ^ProgressIndicator progress-indicator]
   (let [search-results-container ^AnchorPane (g/node-value search-results-view :search-results-container)
         open-selected! (fn []
                          (doseq [[resource opts] (resolve-search-in-files-tree-view-selection (ui/selection results-tree-view))]
@@ -225,20 +238,21 @@
               (ui/fill-control)
               (ui/on-double! (fn on-double! [^Event event]
                                (.consume event)
-                               (open-selected!))))))
+                               (open-selected!)))))
+      (.add progress-indicator))
 
     ;; Select tab-pane.
     (let [^TabPane tab-pane (.getParent (.getParent search-results-container))]
       (.select (.getSelectionModel tab-pane) 3))))
 
 (defn make-search-results-view! [view-graph ^AnchorPane search-results-container open-resource-fn]
-  (let [view-id (g/make-node! view-graph SearchResultsView
-                              :open-resource-fn open-resource-fn
-                              :search-results-container search-results-container)]
-    view-id))
+  (g/make-node! view-graph SearchResultsView
+                :open-resource-fn open-resource-fn
+                :search-results-container search-results-container))
 
 (defn show-search-in-files-dialog! [search-results-view project prefs]
   (let [results-tab-tree-view (make-search-in-files-tree-view)
+        progress-indicator (make-search-in-files-progress-indicator)
         open-fn (partial open-resource! search-results-view)
-        show-matches-fn (partial update-search-results! search-results-view results-tab-tree-view)]
-    (start-search-in-files! project prefs results-tab-tree-view open-fn show-matches-fn)))
+        show-matches-fn #(update-search-results! search-results-view results-tab-tree-view progress-indicator)]
+    (start-search-in-files! project prefs results-tab-tree-view progress-indicator open-fn show-matches-fn)))

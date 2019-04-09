@@ -273,7 +273,11 @@
 
 (defmacro gl-vertex-2f   [gl x y]       `(.glVertex2f ~gl ~x ~y))
 (defmacro gl-vertex-3d   [gl x y z]     `(.glVertex3d ~gl ~x ~y ~z))
-(defmacro gl-vertex-3dv  [gl vtx off]   `(.glVertex3dv ~gl ~vtx ~off))
+(defmacro gl-vertex-3dv
+  ([gl vtx]
+   `(.glVertex3dv ~gl ~vtx))
+  ([gl vtx off]
+   `(.glVertex3dv ~gl ~vtx ~off)))
 
 (defmacro gl-translate-f [gl x y z]     `(.glTranslatef ~gl ~x ~y ~z))
 

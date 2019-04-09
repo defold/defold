@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.build-target :as bt]
             [editor.camera :as camera]
             [editor.colors :as colors]
             [editor.core :as core]
@@ -620,15 +621,19 @@
                                                                                     (let [pfx-id (core/scope-of-type self-id ParticleFXNode)]
                                                                                       (attach-modifier pfx-id self-id child-id true)))}]}))
   (output aabb AABB (g/fnk [type emitter-key-size-x emitter-key-size-y emitter-key-size-z]
-                           (let [[x y z] (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z])
-                                 [w h d] (case type
-                                           :emitter-type-circle [x x x]
-                                           :emitter-type-box [x y z]
-                                           :emitter-type-sphere [x x x]
-                                           :emitter-type-cone [x y x]
-                                           :emitter-type-2dcone [x y x])]
-                             (geom/coords->aabb [(- w) (- h) (- d)]
-                                                [w h d]))))
+                           (let [[x y z] (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z])]
+                             (case type
+                               (:emitter-type-circle :emitter-type-sphere)
+                               (geom/coords->aabb [(- (/ x 2.0)) (- (/ x 2.0)) 0.0]
+                                                  [   (/ x 2.0)     (/ x 2.0)  0.0])
+
+                               :emitter-type-box
+                               (geom/coords->aabb [(- (/ x 2.0)) (- (/ y 2.0)) 0.0]
+                                                  [   (/ x 2.0)     (/ y 2.0)  0.0])
+
+                               (:emitter-type-2dcone :emitter-type-cone)
+                               (geom/coords->aabb [(- (/ x 2.0)) 0.0 0.0]
+                                                  [   (/ x 2.0)    y 0.0])))))
   (output emitter-sim-data g/Any :cached
           (g/fnk [animation texture-set gpu-texture material-shader]
             (when (and animation texture-set gpu-texture)
@@ -665,12 +670,13 @@
                                     [field]))
                                 resource-fields)
         dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-data label) (get rt-pb-data label)))]) resource-fields)]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-pb
-      :user-data {:pb rt-pb-data
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
+    [(bt/with-content-hash
+       {:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-pb
+        :user-data {:pb rt-pb-data
+                    :dep-resources dep-resources}
+        :deps dep-build-targets})]))
 
 (defn- render-pfx [^GL2 gl render-args renderables count])
 

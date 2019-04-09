@@ -220,7 +220,7 @@ TEST_F(CollectionTest, CollectionSpawning)
 
         bool result = Spawn(m_Factory, coll, "/root1.collectionc", &props, pos, rot, scale, &output);
         ASSERT_TRUE(result);
-        ASSERT_NE(output.Size(), 0);
+        ASSERT_NE(output.Size(), 0u);
 
         ret = dmGameObject::Update(coll, &m_UpdateContext);
         ASSERT_TRUE(ret);
@@ -255,12 +255,12 @@ TEST_F(CollectionTest, CollectionSpawningToFail)
         if (!result)
         {
             ASSERT_NE(i, 0);
-            ASSERT_EQ(output.Size(), 0);
+            ASSERT_EQ(output.Size(), 0u);
             filled = true;
             break;
         }
         ASSERT_TRUE(result);
-        ASSERT_NE(output.Size(), 0);
+        ASSERT_NE(output.Size(), 0u);
         bool ret = dmGameObject::Update(coll, &m_UpdateContext);
         ASSERT_TRUE(ret);
     }
