@@ -47,6 +47,9 @@ message SpriteDesc
 message PlayAnimation
 {
     required uint64 id = 1;
+
+    optional float offset = 2 [default = 0.0];
+    optional float playback_rate = 3 [default = 1.0];
 }
 
 /*# reports that an animation has completed
