@@ -51,16 +51,16 @@ namespace dmGameSystem
         /// Timer in local space: [0,1]
         float                       m_AnimTimer;
         float                       m_PlaybackRate;
+        uint16_t                    m_ComponentIndex;
         uint16_t                    m_AnimPingPong : 1;
         uint16_t                    m_AnimBackwards : 1;
-        uint16_t                    m_ComponentIndex;
         uint16_t                    m_Enabled : 1;
         uint16_t                    m_Playing : 1;
         uint16_t                    m_DoTick : 1;
         uint16_t                    m_FlipHorizontal : 1;
         uint16_t                    m_FlipVertical : 1;
         uint16_t                    m_AddedToUpdate : 1;
-        uint16_t                    m_Padding : 7;
+        uint16_t                    m_Padding : 8;
     };
 
     struct SpriteVertex
@@ -571,7 +571,10 @@ namespace dmGameSystem
         {
             SpriteComponent* component = &components[i];
             // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
-            if (component->m_Enabled && component->m_Playing && component->m_AddedToUpdate)
+            if (!component->m_Enabled)
+                continue;
+
+            if (component->m_Playing && component->m_AddedToUpdate)
             {
                 TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
                 dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;

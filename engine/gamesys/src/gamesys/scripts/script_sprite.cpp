@@ -86,6 +86,60 @@ namespace dmGameSystem
      * See [ref:resource.set_texture] for an example on how to set the texture of an atlas.
      */
 
+
+    /*# [type:number] sprite cursor
+    *
+    * The normalized animation cursor. The type of the property is number.
+    *
+    * @name cursor
+    * @property
+    *
+    * @examples
+    *
+    * How to get the normalized cursor value:
+    *
+    * ```lua
+    * function init(self)
+    *   -- Get the cursor value on component "sprite"
+    *   cursor = go.get("#sprite", "cursor")
+    * end
+    * ```
+    *
+    * How to animate the cursor from 0.0 to 1.0 using linear easing for 2.0 seconds:
+    *
+    * ```lua
+    * function init(self)
+    *   -- Get the current value on component "sprite"
+    *   go.set("#sprite", "cursor", 0.0)
+    *   -- Animate the cursor value
+    *   go.animate("#sprite", "cursor", go.PLAYBACK_LOOP_FORWARD, 1.0, go.EASING_LINEAR, 2)
+    * end
+    * ```
+    */
+
+    /*# [type:number] sprite playback_rate
+    *
+    * The animation playback rate. A multiplier to the animation playback rate. The type of the property is [type:number].
+    *
+    * The playback_rate is a non-negative number, a negative value will be clamped to 0.
+    *
+    * @name playback_rate
+    * @property
+    *
+    * @examples
+    *
+    * How to set the playback_rate on component "sprite" to play at double the current speed:
+    *
+    * ```lua
+    * function init(self)
+    *   -- Get the current value on component "sprite"
+    *   playback_rate = go.get("#sprite", "playback_rate")
+    *   -- Set the playback_rate to double the previous value.
+    *   go.set("#sprite", "playback_rate", playback_rate * 2)
+    * end
+    * ```
+    */
+
     /*# set horizontal flipping on a sprite's animations
      * Sets horizontal flipping of the provided sprite's animations.
      * The sprite is identified by its URL.
@@ -297,6 +351,15 @@ namespace dmGameSystem
      *
      * `sender`
      * : [type:url] The invoker of the callback: the sprite component.
+     *
+     * @param [play_properties] [type:table] optional table with properties:
+     *
+     * `offset`
+     * : [type:number] the normalized initial value of the animation cursor when the animation starts playing.
+     *
+     * `playback_rate`
+     * : [type:number] the rate with which the animation will be played. Must be positive.
+     *
      * @examples
      *
      * The following examples assumes that the model has id "sprite".
