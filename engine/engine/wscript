@@ -63,7 +63,7 @@ namespace dmEngineVersion
 
     sound_lib = 'sound'
     if operating_sys == 'osx':
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-lcares'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
     elif operating_sys == 'ios':
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'AudioToolbox'])
         # For Facebook SDK...
@@ -71,7 +71,7 @@ namespace dmEngineVersion
         # For IAP
         conf.env.append_value('LINKFLAGS', ['-framework', 'StoreKit'])
     elif operating_sys == 'android':
-        conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-lcares', '-Wl,-soname=libdmengine.so'])
+        conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
     elif operating_sys == "linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif operating_sys == "win":
@@ -106,6 +106,8 @@ namespace dmEngineVersion
     conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
 
     conf.env['STATICLIB_UNWIND'] = 'unwind'
+    conf.env['STATICLIB_CARES'] = 'cares'
+    conf.env['STATICLIB_RESOLV'] = 'resolv'
     conf.env['STATICLIB_BOLTS'] = 'Bolts'
     conf.env['STATICLIB_FBSDKCORE'] = 'FBSDKCore'
     conf.env['STATICLIB_FBSDKLOGIN'] = 'FBSDKLogin'
