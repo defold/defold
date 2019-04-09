@@ -175,15 +175,15 @@ namespace dmDNS
         assert(channel);
         assert(address);
 
+        // Note: We are emulating a total-request timeout of 30 seconds here, but we can use
+        //       much more sensible numbers.. This is to mock the built-in timeout in getaddrinfo.
+        static const uint64_t request_timeout = 30 * 1000000;
+        uint64_t              request_started = dmTime::GetTime();
+
         Channel* dns_channel = (Channel*) channel;
 
         RequestResult req;
         int32_t want_family = 0;
-
-        // Note: We are emulating a total-request timeout of 30 seconds here, but we can use
-        //       much more sensible numbers.. This is to mock the built-in timeout in getaddrinfo.
-        uint64_t request_started = dmTime::GetTime();
-        uint64_t request_timeout = 5 * 1000000;
 
         if (ipv4 == ipv6)
             want_family = AF_UNSPEC;
