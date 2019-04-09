@@ -62,6 +62,7 @@ public class AndroidBundler implements IBundler {
 
     @Override
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
+        Bob.initAndroid(); // extract resources
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
