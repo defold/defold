@@ -197,18 +197,18 @@
   (output cached-output g/Str :cached (g/fnk [] "an-output-value")))
 
 (defn cache-peek
-  [system node-id output]
-  (some-> system :cache deref (get [node-id output])))
+  [node-id output]
+  (get (g/cache) [node-id output]))
 
 ;; TODO - move this to an integration test group
 (deftest values-of-a-deleted-node-are-removed-from-cache
   (ts/with-clean-system
     (let [[node-id]  (ts/tx-nodes (g/make-node world CachedValueNode))]
       (is (= "an-output-value" (g/node-value node-id :cached-output)))
-      (let [cached-value (cache-peek system node-id :cached-output)]
+      (let [cached-value (cache-peek node-id :cached-output)]
         (is (= "an-output-value" cached-value))
         (g/transact (g/delete-node node-id))
-        (is (nil? (cache-peek system node-id :cached-output)))))))
+        (is (nil? (cache-peek node-id :cached-output)))))))
 
 (g/defnode OriginalNode
   (output original-output g/Str :cached (g/fnk [] "original-output-value")))
@@ -223,10 +223,10 @@
       (let [[node-id]      (ts/tx-nodes (g/make-node world OriginalNode))
             expected-value (g/node-value node-id :original-output)]
         (is (not (nil? expected-value)))
-        (is (= expected-value (cache-peek system node-id :original-output)))
+        (is (= expected-value (cache-peek node-id :original-output)))
         (let [tx-result (g/transact (g/become node-id (g/construct ReplacementNode)))]
           (ts/yield)
-          (is (nil? (cache-peek system node-id :original-output)))))))
+          (is (nil? (cache-peek node-id :original-output)))))))
 
   (testing "newly cacheable values are indeed cached"
     (ts/with-clean-system
@@ -234,7 +234,7 @@
             tx-result    (g/transact (g/become node-id (g/construct ReplacementNode)))
             cached-value (g/node-value node-id :additional-output)]
         (ts/yield)
-        (is (= cached-value (cache-peek system node-id :additional-output)))))))
+        (is (= cached-value (cache-peek node-id :additional-output)))))))
 
 (g/defnode Container
   (input nodes g/Any :array :cascade-delete))

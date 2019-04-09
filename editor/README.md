@@ -1,4 +1,4 @@
-# JavaFX Clojure Editor
+# Defold JavaFX Clojure Editor
 
 ## Requirements
 * [Java 11](https://jdk.java.net/11/)
@@ -100,8 +100,6 @@ Please note that Lein will introduce a nREPL dependency automagically, but its a
 ## Running the Editor
 `lein run` will launch the editor as well as providing a nrepl port
 for you to jack into
-
-**PLEASE NOTE:** 2 NREPL servers are started, you must connect to the first one!
 
 ## Building the Editor
 

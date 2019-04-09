@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <gtest/gtest.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/hash.h>
 #include <dlib/math.h>
@@ -592,7 +592,7 @@ TEST_F(dmRenderTest, TextAlignment)
     int numlines;
 
     float leadings[] = { 1.0f, 2.0f, 0.5f };
-    for( int i = 0; i < sizeof(leadings)/sizeof(leadings[0]); ++i )
+    for( size_t i = 0; i < sizeof(leadings)/sizeof(leadings[0]); ++i )
     {
         float leading = leadings[i];
         tracking = 0.0f;
