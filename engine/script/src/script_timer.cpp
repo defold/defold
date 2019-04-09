@@ -43,7 +43,8 @@ namespace dmScript
         that has not yet been cancelled or completed (one-shot).
     */
 
-    const char* TIMER_WORLD_VALUE_KEY = "__dm_timer_world__";
+    static const char TIMER_WORLD_VALUE_KEY[] = "__dm_timer_world__";
+    static const uint32_t TIMER_WORLD_VALUE_KEY_HASH = dmHashBuffer32(TIMER_WORLD_VALUE_KEY, sizeof(TIMER_WORLD_VALUE_KEY) - 1);
 
     struct Timer
     {
@@ -383,7 +384,7 @@ namespace dmScript
     static void SetTimerWorld(HScriptWorld script_world, HTimerWorld timer_world)
     {
         HContext context = GetScriptWorldContext(script_world);
-        lua_pushstring(context->m_LuaState, TIMER_WORLD_VALUE_KEY);
+        lua_pushinteger(context->m_LuaState, (lua_Integer)TIMER_WORLD_VALUE_KEY_HASH);
         lua_pushlightuserdata(context->m_LuaState, timer_world);
         SetScriptWorldContextValue(script_world);
     }
@@ -397,7 +398,7 @@ namespace dmScript
         assert(L != 0x0);
         DM_LUA_STACK_CHECK(L, 0);
 
-        lua_pushstring(L, TIMER_WORLD_VALUE_KEY);
+        lua_pushinteger(L, (lua_Integer)TIMER_WORLD_VALUE_KEY_HASH);
         GetScriptWorldContextValue(script_world);
         HTimerWorld timer_world = (HTimerWorld)lua_touserdata(L, -1);
         lua_pop(L, 1);
@@ -414,7 +415,7 @@ namespace dmScript
         DM_LUA_STACK_CHECK(L, 0);
 
         HTimerWorld timer_world = NewTimerWorld();
-        lua_pushstring(L, TIMER_WORLD_VALUE_KEY);
+        lua_pushinteger(L, (lua_Integer)TIMER_WORLD_VALUE_KEY_HASH);
         lua_pushlightuserdata(L, timer_world);
         SetScriptWorldContextValue(script_world);
     }
@@ -446,7 +447,7 @@ namespace dmScript
         lua_State* L = GetLuaState(context);
         DM_LUA_STACK_CHECK(L, 0);
 
-        lua_pushstring(L, TIMER_WORLD_VALUE_KEY);
+        lua_pushinteger(L, (lua_Integer)TIMER_WORLD_VALUE_KEY_HASH);
         HTimerWorld timer_world = GetTimerWorld(script_world);
         lua_pushlightuserdata(L, timer_world);
         SetInstanceContextValue(L);
@@ -462,7 +463,7 @@ namespace dmScript
         HTimerWorld timer_world = GetTimerWorld(script_world);
         KillTimers(timer_world, owner);
 
-        lua_pushstring(L, TIMER_WORLD_VALUE_KEY);
+        lua_pushinteger(L, (lua_Integer)TIMER_WORLD_VALUE_KEY_HASH);
         lua_pushnil(L);
         SetInstanceContextValue(L);
     }
@@ -503,7 +504,7 @@ namespace dmScript
 
     static dmScript::HTimerWorld GetTimerWorld(lua_State* L)
     {
-        lua_pushstring(L, TIMER_WORLD_VALUE_KEY);
+        lua_pushinteger(L, (lua_Integer)TIMER_WORLD_VALUE_KEY_HASH);
         dmScript::GetInstanceContextValue(L);
 
         if (lua_type(L, -1) != LUA_TLIGHTUSERDATA)
