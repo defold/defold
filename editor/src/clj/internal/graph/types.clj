@@ -61,9 +61,13 @@
   (history-context [this evaluation-context]
     "Extract relevant history-context from the provided evaluation-context.")
   (history-context-pred [this evaluation-context]
-    "Returns a predicate that, when given a history-context, returns true if it is can be undone or redone at present.")
+    "Returns a predicate that, when given a history-context, returns true if the
+    history-context belongs to the currently active undo / redo history.")
   (restore-history-context! [this history-context]
-    "Restore history-context. Called with return values from the above function."))
+    "Restore view state from a history-context. Called with return values from
+    the history-context function in this protocol. Should return true if it
+    changed the view drastically, in which case the view restoration itself will
+    count as an undo / redo step."))
 
 (defn history-context-controller? [value]
   (satisfies? HistoryContextController value))

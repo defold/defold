@@ -723,11 +723,17 @@
 (g/defnk produce-view-state [local-camera :as view-state]
   view-state)
 
-(defn- set-view-state [view-node view-state evaluation-context]
-  (let [basis (:basis evaluation-context)
-        camera-node (view->camera basis view-node)
-        local-camera (:local-camera view-state)]
-    (g/set-property camera-node :local-camera local-camera)))
+(defn- set-view-state [view-node view-state]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [basis (:basis evaluation-context)
+          camera-node (view->camera basis view-node)
+          old-local-camera (g/node-value camera-node :local-camera evaluation-context)
+          new-local-camera (:local-camera view-state)]
+      ;; TODO: Allow inexact framing?
+      (when (not= old-local-camera new-local-camera)
+        (let [transaction-steps (g/set-property camera-node :local-camera new-local-camera)
+              significant-change? true]
+          [transaction-steps significant-change?])))))
 
 (g/defnode SceneView
   (inherits view/WorkbenchView)

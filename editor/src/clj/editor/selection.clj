@@ -91,9 +91,25 @@
      (when (not= old-all-selections new-all-selections)
        (set-all-selections basis selection-node new-all-selections)))))
 
+(defn selected
+  ([selection-node resource-node]
+   (g/with-auto-evaluation-context evaluation-context
+     (selected evaluation-context selection-node resource-node)))
+  ([evaluation-context selection-node resource-node]
+   (get (g/node-value selection-node :selected-node-ids-by-resource-node evaluation-context)
+        resource-node)))
+
 (defn sub-select [selection-node resource-node sub-selection]
   (assert (g/node-id? resource-node))
   (g/update-property selection-node :all-sub-selections update-selection-in-resource resource-node sub-selection))
+
+(defn sub-selected
+  ([selection-node resource-node]
+   (g/with-auto-evaluation-context evaluation-context
+     (sub-selected evaluation-context selection-node resource-node)))
+  ([evaluation-context selection-node resource-node]
+   (get (g/node-value selection-node :sub-selections-by-resource-node evaluation-context)
+        resource-node)))
 
 (defn remap-selection
   ([selection-node new-resource-nodes-by-old]

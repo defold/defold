@@ -77,7 +77,7 @@
   gt/HistoryContextController
   (history-context [_this _evaluation-context] nil)
   (history-context-pred [_this _evaluation-context] default-history-context-pred)
-  (restore-history-context! [_this _history-context] nil))
+  (restore-history-context! [_this _history-context] false))
 
 (def ^:private default-history-context-controller (DefaultHistoryContextController.))
 
@@ -139,7 +139,7 @@
   (let [graph-id (next-available-graph-id system)]
     (-> system
         (attach-graph* graph-id graph)
-        (assoc-in [:history graph-id] (history/make-history graph "Genesis")))))
+        (assoc-in [:history graph-id] (history/make graph "Genesis")))))
 
 (defn detach-graph
   [system graph]
@@ -223,7 +223,7 @@
                                (reduce (fn [history-by-graph-id [graph-id graph-after outputs-modified]]
                                          (update history-by-graph-id
                                                  graph-id
-                                                 history/write-history
+                                                 history/write
                                                  history-context-before
                                                  history-context-after
                                                  graph-after

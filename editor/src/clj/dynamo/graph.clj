@@ -13,7 +13,8 @@
             [internal.system :as is]
             [internal.transaction :as it]
             [potemkin.namespaces :as namespaces]
-            [schema.core :as s])
+            [schema.core :as s]
+            [util.thread-util :as thread-util])
   (:import [internal.graph.error_values ErrorValue]
            [java.io ByteArrayInputStream ByteArrayOutputStream]))
 
@@ -155,7 +156,7 @@
   (possibly unflattened) series of transaction steps. Useful inside an auto
   evaluation context block."
   [& txs]
-  (doall (flatten txs)))
+  (not-empty (doall (filter some? (flatten txs)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Using transaction values
@@ -1325,14 +1326,6 @@
   [history-context-controller]
   (swap! *the-system* is/set-history-context-controller history-context-controller))
 
-(defn history-context
-  ([]
-   (with-auto-evaluation-context evaluation-context
-     (history-context evaluation-context)))
-  ([evaluation-context]
-   (let [history-context-controller (is/history-context-controller @*the-system*)]
-     (gt/history-context history-context-controller evaluation-context))))
-
 (defn history-context-pred
   ([]
    (with-auto-evaluation-context evaluation-context
@@ -1341,58 +1334,56 @@
    (let [history-context-controller (is/history-context-controller @*the-system*)]
      (gt/history-context-pred history-context-controller evaluation-context))))
 
-(defn restore-history-context!
-  [history-context]
-  (let [history-context-controller (is/history-context-controller @*the-system*)]
-    (gt/restore-history-context! history-context-controller history-context)))
+(defn- alter-history! [graph-id alteration-fn]
+  (let [[history history-context-controller context-pred]
+        (thread-util/swap-rest!
+          *the-system*
+          (fn [system]
+            (let [history (is/graph-history system graph-id)
+                  history-context-controller (is/history-context-controller system)
+                  evaluation-context (is/default-evaluation-context system)
+                  context-pred (gt/history-context-pred history-context-controller evaluation-context)
+                  system (is/update-cache-from-evaluation-context system evaluation-context)]
+              [system history history-context-controller context-pred])))
 
-(defn- alter-history! [graph-id alter-fn]
-  (let [alter-results-volatile (volatile! nil)
-        wrapped-alter-fn (fn wrapped-alter-fn [system basis history]
-                           (let [alter-results (alter-fn system basis history)]
-                             (vreset! alter-results-volatile alter-results)
-                             alter-results))]
-    (swap! *the-system* #(is/alter-history % graph-id wrapped-alter-fn))
-    (deref alter-results-volatile)))
+        [history-entry-index undo-group history-context]
+        (alteration-fn history context-pred)
+
+        drastic-view-change?
+        (when (some? history-context)
+          (gt/restore-history-context! history-context-controller history-context))]
+
+    (when-not drastic-view-change?
+      (swap! *the-system* is/alter-history graph-id
+             (fn [system basis history]
+               (let [alterations {history-entry-index undo-group}
+                     node-id-generators (is/id-generators system)
+                     override-id-generator (is/override-id-generator system)]
+                 (history/alter history basis alterations node-id-generators override-id-generator))))
+      nil)))
 
 (defn undo!
   "Undoes the last performed action."
   [graph-id]
-  (let [context-pred (history-context-pred)
-        {:keys [context-before]}
-        (alter-history! graph-id
-                        (fn [system basis history]
-                          (let [node-id-generators (is/id-generators system)
-                                override-id-generator (is/override-id-generator system)]
-                            (history/undo history context-pred basis node-id-generators override-id-generator))))]
-    (when (some? context-before)
-      (restore-history-context! context-before))))
+  (alter-history! graph-id history/first-undoable))
 
 (defn can-undo?
   "Returns true if the specified graph has an undoable action."
   [graph-id]
   (if-some [history (is/graph-history @*the-system* graph-id)]
-    (history/can-undo? history (history-context-pred))
+    (some? (history/first-undoable history (history-context-pred)))
     false))
 
 (defn redo!
   "Redoes the previously undone action."
   [graph-id]
-  (let [context-pred (history-context-pred)
-        {:keys [context-after]}
-        (alter-history! graph-id
-                        (fn [system basis history]
-                          (let [node-id-generators (is/id-generators system)
-                                override-id-generator (is/override-id-generator system)]
-                            (history/redo history context-pred basis node-id-generators override-id-generator))))]
-    (when (some? context-after)
-      (restore-history-context! context-after))))
+  (alter-history! graph-id history/first-redoable))
 
 (defn can-redo?
   "Returns true if the specified graph has a redoable action."
   [graph-id]
   (if-some [history (is/graph-history @*the-system* graph-id)]
-    (history/can-redo? history (history-context-pred))
+    (some? (history/first-redoable history (history-context-pred)))
     false))
 
 (defn reset-undo!
@@ -1402,13 +1393,13 @@
   (swap! *the-system*
          (fn [system]
            (let [graph (is/graph system graph-id)
-                 cleared-history (history/make-history graph history-label)]
+                 cleared-history (history/make graph history-label)]
              (assoc-in system [:history graph-id] cleared-history)))))
 
 (defn cancel!
   "Given a `graph-id` and a `sequence-id` _cancels_ any sequence of undos on the
   graph as if they had never happened in the history."
   [graph-id sequence-id]
-  (alter-history! graph-id
-                  (fn [_system basis history]
-                    (history/cancel history basis sequence-id))))
+  (swap! *the-system* is/alter-history graph-id
+         (fn [_system basis history]
+           (history/cancel history basis sequence-id))))

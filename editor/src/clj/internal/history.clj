@@ -1,10 +1,11 @@
 (ns internal.history
+  (:refer-clojure :exclude [alter])
   (:require [clojure.set :as set]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.transaction :as it]
             [internal.util :as util])
-  (:import (java.util.concurrent.atomic AtomicLong)))
+  (:import [java.util.concurrent.atomic AtomicLong]))
 
 (set! *warn-on-reflection* true)
 
@@ -67,7 +68,7 @@
   The predicate should return true for contexts that are conceptually part of
   the undo queue for the current state of the application. Returns a single-
   entry map in undo-group-by-history-entry-index format suitable for use with
-  the alter-history function, or nil if there was no matching entry."
+  the alter function, or nil if there was no matching entry."
   [history context-pred]
   (loop [history-entry-index (dec (count history))
          current-undo-group nil]
@@ -87,7 +88,7 @@
   The predicate should return true for contexts that are conceptually part of
   the undo queue for the current state of the application. Returns a single-
   entry map in undo-group-by-history-entry-index format suitable for use with
-  the alter-history function, or nil if there was no matching entry."
+  the alter function, or nil if there was no matching entry."
   [history context-pred]
   (let [history-entry-in-context? #(context-pred (.context-after ^HistoryEntry %))]
     (when-some [^HistoryEntry last-history-entry-in-context (util/first-where history-entry-in-context? (rseq (subvec history 1)))]
@@ -166,23 +167,6 @@
        :history (persistent! altered-history)
        :outputs-to-refresh (persistent! outputs-to-refresh)})))
 
-(defn- alter-history [history basis undo-group-by-history-entry-index node-id-generators override-id-generator]
-  (let [history-entry-indices (keys undo-group-by-history-entry-index)
-        max-history-entry-index (reduce max history-entry-indices)
-        min-history-entry-index (reduce min history-entry-indices)]
-    (assert (pos? min-history-entry-index) "Cannot alter the beginning of history.")
-    (let [{rewound-basis :basis
-           rewound-history :history
-           rewound-outputs :outputs-to-refresh} (rewind-history history basis (dec min-history-entry-index))
-          {altered-basis :basis
-           altered-history :history
-           altered-outputs :outputs-to-refresh} (replay-history rewound-history rewound-basis history undo-group-by-history-entry-index node-id-generators override-id-generator)]
-      {:basis altered-basis
-       :context-after (:context-after (history max-history-entry-index))
-       :context-before (:context-before (history min-history-entry-index))
-       :history altered-history
-       :outputs-to-refresh (set/union rewound-outputs altered-outputs)})))
-
 ;; -----------------------------------------------------------------------------
 ;; Public interface
 ;; -----------------------------------------------------------------------------
@@ -192,7 +176,7 @@
        (not-empty value)
        (instance? HistoryEntry (first value))))
 
-(defn make-history [graph label]
+(defn make [graph label]
   (assert (ig/graph? graph))
   (assert (string? label))
   [(map->HistoryEntry {:undo-group 0
@@ -201,7 +185,7 @@
                        :outputs-modified #{}
                        :transaction-steps []})])
 
-(defn write-history [history context-before context-after graph-after outputs-modified tx-data]
+(defn write [history context-before context-after graph-after outputs-modified tx-data]
   (assert (ig/graph? graph-after))
   (assert (set? outputs-modified))
   (let [{:keys [label sequence-label transaction-steps]} (process-tx-data tx-data (:_graph-id graph-after))
@@ -218,22 +202,33 @@
       (let [history-entry (->HistoryEntry 0 label sequence-label context-before context-after graph-after outputs-modified transaction-steps)]
         (conj history history-entry)))))
 
-(defn can-undo? [history context-pred]
-  (some? (find-undoable-entry history context-pred)))
-
-(defn undo [history context-pred basis node-id-generators override-id-generator]
-  (when-some [alteration (find-undoable-entry history context-pred)]
-    (alter-history history basis alteration node-id-generators override-id-generator)))
-
-(defn can-redo? [history context-pred]
-  (some? (find-redoable-entry history context-pred)))
-
-(defn redo [history context-pred basis node-id-generators override-id-generator]
-  (when-some [alteration (find-redoable-entry history context-pred)]
-    (alter-history history basis alteration node-id-generators override-id-generator)))
+(defn alter [history basis undo-group-by-history-entry-index node-id-generators override-id-generator]
+  (let [history-entry-indices (keys undo-group-by-history-entry-index)
+        max-history-entry-index (reduce max history-entry-indices)
+        min-history-entry-index (reduce min history-entry-indices)]
+    (assert (pos? min-history-entry-index) "Cannot alter the beginning of history.")
+    (let [{rewound-basis :basis
+           rewound-history :history
+           rewound-outputs :outputs-to-refresh} (rewind-history history basis (dec min-history-entry-index))
+          {altered-basis :basis
+           altered-history :history
+           altered-outputs :outputs-to-refresh} (replay-history rewound-history rewound-basis history undo-group-by-history-entry-index node-id-generators override-id-generator)]
+      {:basis altered-basis
+       :context-after (:context-after (history max-history-entry-index))
+       :context-before (:context-before (history min-history-entry-index))
+       :history altered-history
+       :outputs-to-refresh (set/union rewound-outputs altered-outputs)})))
 
 (defn cancel [history basis sequence-label]
   (assert (some? sequence-label))
   (when (= sequence-label (history-sequence-label history))
     (let [history-length (count history)]
       (rewind-history history basis (- history-length 2)))))
+
+(defn first-undoable [history context-pred]
+  (when-some [[history-entry-index undo-group] (first (find-undoable-entry history context-pred))]
+    [history-entry-index undo-group (:context-after (history history-entry-index))]))
+
+(defn first-redoable [history context-pred]
+  (when-some [[history-entry-index undo-group] (first (find-redoable-entry history context-pred))]
+    [history-entry-index undo-group (:context-before (history history-entry-index))]))

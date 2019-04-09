@@ -804,19 +804,26 @@
 (g/defnk produce-view-state [cursor-ranges :as view-state]
   view-state)
 
-(defn- set-view-state [view-node view-state evaluation-context]
-  (let [lines (g/node-value view-node :lines evaluation-context)
-        old-layout (g/node-value view-node :layout evaluation-context)
-        glyph-metrics (g/node-value view-node :glyph-metrics evaluation-context)
-        tab-spaces (g/node-value view-node :tab-spaces evaluation-context)
-        tab-stops (data/tab-stops glyph-metrics tab-spaces)
-        cursor-ranges (data/adjust-cursor-ranges-to-lines (:cursor-ranges view-state) lines)
-        document-width (data/max-line-width glyph-metrics tab-stops lines)
-        new-layout (assoc old-layout :document-width document-width)
-        props (into {:cursor-ranges cursor-ranges
-                     :document-width document-width}
-                    (data/scroll-to-any-cursor-range new-layout lines cursor-ranges))]
-    (set-properties-tx-data evaluation-context view-node :navigation props)))
+(defn- set-view-state [view-node view-state]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [lines (g/node-value view-node :lines evaluation-context)
+          old-layout (g/node-value view-node :layout evaluation-context)
+          glyph-metrics (g/node-value view-node :glyph-metrics evaluation-context)
+          tab-spaces (g/node-value view-node :tab-spaces evaluation-context)
+          tab-stops (data/tab-stops glyph-metrics tab-spaces)
+          old-cursor-ranges (g/node-value view-node :cursor-ranges evaluation-context)
+          new-cursor-ranges (data/adjust-cursor-ranges-to-lines (:cursor-ranges view-state) lines)
+          old-document-width (:document-width old-layout)
+          new-document-width (data/max-line-width glyph-metrics tab-stops lines)
+          new-layout (assoc old-layout :document-width new-document-width)
+          significant-props (data/scroll-to-any-cursor-range new-layout lines new-cursor-ranges)
+          props (cond-> (or significant-props {})
+                        (not= old-cursor-ranges new-cursor-ranges) (assoc :cursor-ranges new-cursor-ranges)
+                        (not= old-document-width new-document-width) (assoc :document-width new-document-width))
+          significant-change? (not (empty? significant-props))
+          transaction-steps (g/tx-data-flatten
+                              (set-properties-tx-data evaluation-context view-node :navigation props))]
+      (pair transaction-steps significant-change?))))
 
 (g/defnode CodeEditorView
   (inherits view/WorkbenchView)
@@ -945,40 +952,41 @@
           (g/set-property view-node :elapsed-time-at-last-action (or (g/user-data view-node :elapsed-time) 0.0)))))
 
 (defn- set-properties-tx-data [evaluation-context view-node undo-grouping values-by-prop-kw]
-  (let [resource-node (g/node-value view-node :resource-node evaluation-context)]
-    (into (prelude-tx-data evaluation-context view-node undo-grouping values-by-prop-kw)
-          (mapcat (fn [[prop-kw value]]
-                    (case prop-kw
-                      ;; These are stored in the resource node.
-                      :regions
-                      (g/set-property resource-node prop-kw value)
+  (when (seq values-by-prop-kw)
+    (let [resource-node (g/node-value view-node :resource-node evaluation-context)]
+      (into (prelude-tx-data evaluation-context view-node undo-grouping values-by-prop-kw)
+            (mapcat (fn [[prop-kw value]]
+                      (case prop-kw
+                        ;; These are stored in the resource node.
+                        :regions
+                        (g/set-property resource-node prop-kw value)
 
-                      ;; Several actions might have invalidated rows since
-                      ;; we last produced syntax-info. We keep an ever-
-                      ;; growing history of invalidated-rows. Then when
-                      ;; producing syntax-info we find the first invalidated
-                      ;; row by comparing the history of invalidated rows to
-                      ;; what it was at the time of the last call. See the
-                      ;; invalidated-row function for details.
-                      :invalidated-row
-                      (g/update-property resource-node :invalidated-rows conj value)
+                        ;; Several actions might have invalidated rows since
+                        ;; we last produced syntax-info. We keep an ever-
+                        ;; growing history of invalidated-rows. Then when
+                        ;; producing syntax-info we find the first invalidated
+                        ;; row by comparing the history of invalidated rows to
+                        ;; what it was at the time of the last call. See the
+                        ;; invalidated-row function for details.
+                        :invalidated-row
+                        (g/update-property resource-node :invalidated-rows conj value)
 
-                      ;; The :indent-type output in the resource node is
-                      ;; cached, but reads from disk unless a value exists
-                      ;; for the :modified-indent-type property.
-                      :indent-type
-                      (g/set-property resource-node :modified-indent-type value)
+                        ;; The :indent-type output in the resource node is
+                        ;; cached, but reads from disk unless a value exists
+                        ;; for the :modified-indent-type property.
+                        :indent-type
+                        (g/set-property resource-node :modified-indent-type value)
 
-                      ;; The :lines output in the resource node is uncached.
-                      ;; It reads from disk unless a value exists for the
-                      ;; :modified-lines property. This means only modified
-                      ;; or currently open files are kept in memory.
-                      :lines
-                      (g/set-property resource-node :modified-lines value)
+                        ;; The :lines output in the resource node is uncached.
+                        ;; It reads from disk unless a value exists for the
+                        ;; :modified-lines property. This means only modified
+                        ;; or currently open files are kept in memory.
+                        :lines
+                        (g/set-property resource-node :modified-lines value)
 
-                      ;; All other properties are set on the view node.
-                      (g/set-property view-node prop-kw value))))
-          values-by-prop-kw)))
+                        ;; All other properties are set on the view node.
+                        (g/set-property view-node prop-kw value))))
+            values-by-prop-kw))))
 
 ;; -----------------------------------------------------------------------------
 

@@ -113,34 +113,94 @@
 (defn- history-context-pred [active-resource ^HistoryContext history-context]
   (= active-resource (.resource history-context)))
 
-(defn- set-view-state-from-history-context! [app-view project history-context show-tab-fn]
-  (when-some [resource (:resource history-context)]
-    (when-some [resource-node (project/get-resource-node project resource)]
-      (when-not (resource-node/defective? resource-node)
+(declare ^:private tab->resource-node)
 
-        ;; Restore selection.
-        (g/transact
-          (g/with-auto-evaluation-context evaluation-context
-            (let [selection (:selection history-context)
-                  sub-selection (:sub-selection history-context)
-                  selection-node (g/node-value app-view :selection-node evaluation-context)]
+(defn- editor-tab-visible? [app-view resource-node evaluation-context]
+  (assert (g/node-id? resource-node))
+  (let [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split evaluation-context)
+        tab-panes (.getItems editor-tabs-split)]
+    (boolean
+      (some (fn [tab-pane]
+              (when-some [tab (ui/selected-tab tab-pane)]
+                (= resource-node (tab->resource-node tab evaluation-context))))
+            tab-panes))))
+
+(defn- set-selection-from-history-context! [app-view resource-node history-context]
+  (let [transaction-steps
+        (g/with-auto-evaluation-context evaluation-context
+          (let [selection-node (g/node-value app-view :selection-node evaluation-context)
+                old-selection (selection/selected evaluation-context selection-node resource-node)
+                new-selection (:selection history-context)
+                old-sub-selection (selection/sub-selected evaluation-context selection-node resource-node)
+                new-sub-selection (:sub-selection history-context)]
+            (when-not (and (= old-selection new-selection)
+                           (= old-sub-selection new-sub-selection))
               (g/tx-data-flatten
-                (selection/select evaluation-context selection-node resource-node selection)
-                (selection/sub-select selection-node resource-node sub-selection)))))
+                (selection/select evaluation-context selection-node resource-node new-selection)
+                (selection/sub-select selection-node resource-node new-sub-selection)))))]
+    (if (empty? transaction-steps)
+      false
+      (do
+        (g/transact transaction-steps)
+        true))))
 
-        ;; Restore view state.
-        (let [workspace (project/workspace project)
-              view-type-id (:view-type-id history-context)
-              view-type (workspace/get-view-type workspace view-type-id)
-              view-node (show-tab-fn resource-node view-type)
-              view-state (:view-state history-context)
-              set-view-state-fn (:set-state-fn view-type)]
-          (when (and (some? view-state)
-                     (some? set-view-state-fn))
-            (g/transact
-              (g/with-auto-evaluation-context evaluation-context
-                (g/tx-data-flatten
-                  (set-view-state-fn view-node view-state evaluation-context))))))))))
+(defn- set-view-state-from-history-context! [view-node view-type history-context]
+  (let [view-state (:view-state history-context)
+        set-view-state-fn (:set-state-fn view-type)]
+    (boolean
+      (when (and (some? view-state)
+                 (some? set-view-state-fn))
+        (let [[transaction-steps changed-significantly?] (set-view-state-fn view-node view-state)]
+          (when (seq transaction-steps)
+            (g/transact transaction-steps))
+          changed-significantly?)))))
+
+(defn- set-app-view-state-from-history-context!
+  "Restore app-view state from the supplied history-context. Returns true if the
+  view changed drastically, in which case the changes to the view will count as
+  an undo / redo step."
+  [app-view project history-context show-tab-fn]
+  (let [resource (:resource history-context)
+        resource-node (some->> resource (project/get-resource-node project))]
+
+    ;; Is the affected resource-node still valid?
+    (if (or (nil? resource-node)
+            (resource-node/defective? resource-node))
+
+      ;; The affected resource-node is no longer valid. Do not attempt to
+      ;; restore the view, but proceed with undo / redo. If we do not, the user
+      ;; will not be able to undo / redo past this point.
+      false
+
+      ;; The affected resource-node is still valid. At this point we want to
+      ;; restore the view state before performing the actual undo / redo changes
+      ;; to to the data model. First, restore the selection.
+      (let [selection-changed?
+            (set-selection-from-history-context! app-view resource-node history-context)
+
+            ;; Next, ensure the editor tab for the affected resource-node is shown.
+            [view-type tab-was-visible?]
+            (g/with-auto-evaluation-context evaluation-context
+              (let [workspace (project/workspace project evaluation-context)
+                    view-type-id (:view-type-id history-context)
+                    view-type (workspace/get-view-type workspace view-type-id evaluation-context)
+                    tab-was-visible? (editor-tab-visible? app-view resource-node evaluation-context)]
+                [view-type tab-was-visible?]))
+
+            ;; Open or bring the editor tab into focus.
+            view-node (show-tab-fn resource-node view-type)
+
+            ;; Finally, restore the view state, if applicable.
+            view-changed-significantly?
+            (set-view-state-from-history-context! view-node view-type history-context)]
+
+        ;; If any of the above caused an observable change to the editor, we
+        ;; don't proceed with undo / redo. This ensures the relevant change
+        ;; is framed and selected before the change will occur on the next
+        ;; invocation.
+        (or selection-changed?
+            view-changed-significantly?
+            (not tab-was-visible?))))))
 
 (defrecord HistoryContextController [app-view project show-tab-fn]
   g/HistoryContextController
@@ -151,7 +211,7 @@
     (g/node-value app-view :history-context-pred evaluation-context))
 
   (restore-history-context! [_this history-context]
-    (set-view-state-from-history-context! app-view project history-context show-tab-fn)))
+    (set-app-view-state-from-history-context! app-view project history-context show-tab-fn)))
 
 (defn make-history-context-controller [app-view project show-tab-fn]
   (assert (g/node-id? app-view))
@@ -280,11 +340,15 @@
 (defn- tab->view-type-id [tab]
   (some-> tab (ui/user-data ::view-type) :id))
 
-(defn- tab->resource-node [tab]
-  (some-> (tab->view-node tab)
-          (g/node-value :view-data)
-          second
-          :resource-node))
+(defn- tab->resource-node
+  ([tab]
+   (g/with-auto-evaluation-context evaluation-context
+     (tab->resource-node tab evaluation-context)))
+  ([tab evaluation-context]
+   (some-> (tab->view-node tab)
+           (g/node-value :view-data evaluation-context)
+           second
+           :resource-node)))
 
 (defn on-active-tab-changed! [app-view app-scene tab]
   (let [resource-node (tab->resource-node tab)

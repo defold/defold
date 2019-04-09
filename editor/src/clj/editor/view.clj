@@ -17,8 +17,12 @@
   ;; State to be stored with undo steps. We use it to restore the view to the
   ;; state it was in at the time when the action was performed. When registering
   ;; a view type, you can optionally provide a :set-state-fn that we will call
-  ;; with the view-node, this view-state, and an evaluation-context. It should
-  ;; return the transaction steps needed to restore the state of the view.
+  ;; with the view-node and this view-state. It should return a two-element
+  ;; vector containing the the transaction steps required to restore the state
+  ;; of the view, as well as a boolean that signals if the view was drastically
+  ;; changed. If so, we defer changes to the project graph until the next
+  ;; invocation undo / redo command. The operation cannot not proceed as long as
+  ;; this flag returns true.
   (output view-state g/Any (g/constantly nil)))
 
 (defn connect-resource-node [view resource-node]

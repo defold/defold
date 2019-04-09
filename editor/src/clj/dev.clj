@@ -151,13 +151,11 @@
               (update :context-after significant-history-context)))
         (history)))
 
-(defn alter-history! [alter-fn]
-  (#'g/alter-history! (project-graph) alter-fn)
-  nil)
-
 (defn revert-history! []
-  (alter-history! (fn [_system basis history]
-                    (#'history/rewind-history history basis 0))))
+  (swap! g/*the-system* is/alter-history (project-graph)
+         (fn [_system basis history]
+           (#'history/rewind-history history basis 0)))
+  nil)
 
 (defn- node-value-type-symbol [node-value-type]
   (symbol (if-some [^Class class (:class (deref node-value-type))]

@@ -87,8 +87,12 @@ ordinary paths."
 (g/defnk produce-resource-map [resource-list]
   (into {} (map #(do [(resource/proj-path %) %]) resource-list)))
 
-(defn get-view-type [workspace id]
-  (get (g/node-value workspace :view-types) id))
+(defn get-view-type
+  ([workspace id]
+   (g/with-auto-evaluation-context evaluation-context
+     (get-view-type workspace id evaluation-context)))
+  ([workspace id evaluation-context]
+   (get (g/node-value workspace :view-types evaluation-context) id)))
 
 (defn- editable-view-type? [view-type]
   (case view-type
