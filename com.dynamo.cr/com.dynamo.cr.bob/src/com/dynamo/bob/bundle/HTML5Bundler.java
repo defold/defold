@@ -292,7 +292,7 @@ public class HTML5Bundler implements IBundler {
         FileUtils.copyFile(new File(Bob.getLibExecPath("js-web/defold_sound.swf")), new File(appDir, "defold_sound.swf"));
 
         BundleHelper helper = new BundleHelper(project, Platform.JsWeb, appDir, "");
-        helper.format(infoData, "html5", "htmlfile", new File(appDir, "index.html"));
+        helper.format(infoData, helper.getResource("html5", "htmlfile"), new File(appDir, "index.html"));
 
         FileUtils.copyURLToFile(getResource("dmloader.js"), new File(appDir, "dmloader.js"));
         FileUtils.copyURLToFile(splashImage, new File(appDir, getName(splashImage)));

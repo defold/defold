@@ -9,6 +9,7 @@ import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
@@ -34,7 +35,6 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
-import org.apache.commons.lang.StringUtils;
 import org.apache.commons.codec.binary.Base64;
 
 import com.defold.extender.client.ExtenderClient;
@@ -504,58 +504,6 @@ public class Project {
         return false;
     }
 
-    private void generateRJava(List<String> resourceDirectories, List<String> extraPackages, File manifestFile, File outputDirectory) throws CompileExceptionError {
-
-        try {
-            // Include built-in/default facebook and gms resources
-            resourceDirectories.add(Bob.getPath("res/facebook"));
-            resourceDirectories.add(Bob.getPath("res/com.android.support.support-compat-27.1.1"));
-            resourceDirectories.add(Bob.getPath("res/com.android.support.support-core-ui-27.1.1"));
-            resourceDirectories.add(Bob.getPath("res/com.android.support.support-media-compat-27.1.1"));
-            resourceDirectories.add(Bob.getPath("res/com.google.android.gms.play-services-base-16.0.1"));
-            resourceDirectories.add(Bob.getPath("res/com.google.android.gms.play-services-basement-16.0.1"));
-            resourceDirectories.add(Bob.getPath("res/com.google.firebase.firebase-messaging-17.3.4"));
-
-            extraPackages.add("com.facebook");
-            extraPackages.add("com.google.android.gms");
-            extraPackages.add("com.google.android.gms.common");
-
-            Map<String, String> aaptEnv = new HashMap<String, String>();
-            if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
-                aaptEnv.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
-            }
-
-            // Run aapt to generate R.java files
-            List<String> args = new ArrayList<String>();
-            args.add(Bob.getExe(Platform.getHostPlatform(), "aapt"));
-            args.add("package");
-            args.add("--no-crunch");
-            args.add("-f");
-            args.add("--extra-packages");
-            args.add(StringUtils.join(extraPackages, ":"));
-            args.add("-m");
-            args.add("--auto-add-overlay");
-            args.add("-M"); args.add(manifestFile.getAbsolutePath());
-            args.add("-I"); args.add(Bob.getPath("lib/android.jar"));
-            args.add("-J"); args.add(outputDirectory.getAbsolutePath());
-
-            for( String s : resourceDirectories )
-            {
-                args.add("-S"); args.add(s);
-            }
-
-            Result res = Exec.execResultWithEnvironment(aaptEnv, args);
-
-            if (res.ret != 0) {
-                String msg = new String(res.stdOutErr);
-                throw new CompileExceptionError(null, -1, "Failed building Android resources to R.java: " + msg);
-            }
-
-        } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed building Android resources to R.java: " + e.getMessage());
-        }
-    }
-
     public String[] getPlatformStrings() throws CompileExceptionError {
         String pair = option("platform", null);
         Platform p = Platform.getHostPlatform();
@@ -618,6 +566,7 @@ public class Project {
             List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform, appmanifestOptions);
 
             File classesDexFile = null;
+            File tmpDir = null;
             if (platform.equals(Platform.Armv7Android)) {
                 Bob.initAndroid(); // extract resources
 
@@ -628,63 +577,36 @@ public class Project {
                 List<String> extraPackages = new ArrayList<>();
 
                 // Create temp files and directories needed to run aapt and output R.java files
-                File tmpDir = File.createTempFile("tmp", "bundle");
-                tmpDir.delete();
-                tmpDir.mkdir();
-                tmpDir.deleteOnExit();
+                tmpDir = Files.createTempDirectory("bob_bundle_tmp").toFile();
+                tmpDir.mkdirs();
 
-                // <tmpDir>/resources - Where to collect all resources needed for aapt
-                File resOutput = new File(tmpDir, "resources");
-                resOutput.delete();
-                resOutput.mkdir();
-                FileUtils.forceMkdir(new File(resOutput, "drawable"));
-                FileUtils.forceMkdir(new File(resOutput, "drawable-ldpi"));
-                FileUtils.forceMkdir(new File(resOutput, "drawable-mdpi"));
-                FileUtils.forceMkdir(new File(resOutput, "drawable-hdpi"));
-                FileUtils.forceMkdir(new File(resOutput, "drawable-xhdpi"));
-                FileUtils.forceMkdir(new File(resOutput, "drawable-xxhdpi"));
-                FileUtils.forceMkdir(new File(resOutput, "drawable-xxxhdpi"));
-                resOutput.deleteOnExit();
+                // <tmpDir>/res - Where to collect all resources needed for aapt
+                File resDir = new File(tmpDir, "res");
+                resDir.mkdir();
 
-                // <tmpDir>/rjava - Output directory of aapt, all R.java files will be stored here
-                File javaROutput = new File(tmpDir, "rjava");
-                javaROutput.delete();
-                javaROutput.mkdir();
-                javaROutput.deleteOnExit();
+                String title = projectProperties.getStringValue("project", "title", "Unnamed");
+                String exeName = BundleHelper.projectNameToBinaryName(title);
 
-                // Get all Android specific resources needed to create R.java files
-                Map<String, IResource> resources = ExtenderUtil.getAndroidResources(this);
-                ExtenderUtil.writeResourcesToDirectory(resources, resOutput);
-                resDirs.add(resOutput.getAbsolutePath());
+                BundleHelper helper = new BundleHelper(this, platform, tmpDir, "");
 
-                // Generate AndroidManifest.xml and output icons resources
-                File manifestFile = new File(tmpDir, "AndroidManifest.xml");
-                manifestFile.deleteOnExit();
-                BundleHelper helper = new BundleHelper(this, Platform.Armv7Android, tmpDir, "");
-                helper.createAndroidManifest(getProjectProperties(), getRootDirectory(), manifestFile, resOutput, "dummy");
-                helper.copyAndroidIcons(resOutput);
+                File manifestFile = new File(tmpDir, "AndroidManifest.xml"); // the final, merged manifest
+                IResource sourceManifestFile = helper.getResource("android", "manifest");
 
-                // Run aapt to generate R.java files
-                generateRJava(resDirs, extraPackages, manifestFile, javaROutput);
+                Map<String, Object> properties = helper.createAndroidManifestProperties(this.getRootDirectory(), resDir, exeName);
+                helper.mergeManifests(this, platform, properties, sourceManifestFile, manifestFile);
 
-                // Collect all *.java files from aapt output
-                Collection<File> javaFiles = FileUtils.listFiles(
-                        javaROutput,
-                        new RegexFileFilter(".+\\.java"),
-                        DirectoryFileFilter.DIRECTORY
-                );
+                BundleHelper.throwIfCanceled(monitor);
 
-                // Add outputs as _app/rjava/ sources
-                String rootRJavaPath = "_app/rjava/";
-                for (File javaFile : javaFiles) {
-                    String relative = javaROutput.toURI().relativize(javaFile.toURI()).getPath();
-                    String outputPath = rootRJavaPath + relative;
-                    allSource.add(new JavaRExtenderResource(javaFile, outputPath));
-                }
+                List<ExtenderResource> extraSource = helper.generateAndroidResources(this, platform, resDir, manifestFile, null, tmpDir);
+                allSource.addAll(extraSource);
             }
 
             ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
             BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile, defaultNames, exes, classesDexFile);
+
+            if (tmpDir != null) {
+                FileUtils.deleteDirectory(tmpDir);
+            }
 
             m.worked(1);
         }
