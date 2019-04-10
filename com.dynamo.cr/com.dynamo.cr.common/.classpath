@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="ext/snakeyaml-1.24.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/android/guava-22.0.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/android/sdk-common-26.0.0-dev.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/android/common-26.0.0-dev.jar"/>

@@ -8,6 +8,7 @@
         <fileset dir="../com.dynamo.cr.common/ext" includes="commons*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="vecmath.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="extender-client-*.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext" includes="snakeyaml-1.24.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext/android" includes="*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext/aws" includes="*.jar"/>
         <fileset dir="lib" includes="*.jar"/>

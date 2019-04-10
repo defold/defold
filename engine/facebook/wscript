@@ -8,10 +8,14 @@ blddir = 'build'
 
 import waf_dynamo
 
+def set_options(opt):
+    opt.tool_options('waf_dynamo')
+
 def init():
     pass
 
 def configure(conf):
+    conf.check_tool('waf_dynamo')
     conf.sub_config('src')
 
 def build(bld):
