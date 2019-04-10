@@ -187,10 +187,11 @@ def build(bld):
                                 uselib_local = 'axtls_noasan',
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
-                                uselib = 'UUID PLATFORM_SOCKET')
+                                uselib = 'UUID PLATFORM_SOCKET CARES')
 
-        # For C-Ares / DNS
-        dlib.env.append_value('LINKFLAGS', ['-l', 'cares'])
+        if bld.env.PLATFORM == "arm64-darwin" or bld.env.PLATFORM == "armv7-darwin":
+            dlib.env.append_value('LINKFLAGS', ['-l', 'resolv'])
+
         dlib.find_sources_in_dirs(source_dirs)
         dlib.source.extend(webp_source_no_neon)
         if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or 'web' in bld.env.PLATFORM):
