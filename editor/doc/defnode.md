@@ -13,11 +13,11 @@ type, and this node type is consulted whenever you do `g/node-value`
 on the node, or when for example the output of a node is used as input
 to another node we're doing `g/node-value` on. There are also
 introspection functions that allow us for example to query a node if
-it has a certain output or in what order it's properties should be
+it has a certain output or in what order its properties should be
 displayed.
 
 `g/defnode` (which should maybe be called `g/defnodetype`) is
-comlpicated for a number of reasons, but foremost:
+complicated for a number of reasons, but foremost:
 
 * (It has gone through extensive changes and accumulated all sorts of
   quirks, naming inconsistencies and unnecessary indirections)
@@ -27,7 +27,7 @@ comlpicated for a number of reasons, but foremost:
 
 The reloading is handled by an indirection between the node instances
 and corresponding node type. The node type of a node instance is not
-an assoc'ed immutable value, but rather a reference that when `deref`'d
+an `assoc`'ed immutable value, but rather a reference that when `deref`'d
 will look up the actual "current revision" of the node type in a
 global registry of node types. `g/defnode` will emit code to update
 this registry.
@@ -50,11 +50,11 @@ So we have a couple of concepts now, where are they in the code?
 
 * `g/defnode` is in `/src/clj/dynamo/graph.clj` (`dynamo.graph`), but the
   actual meat of it - which will be discussed shortly - is in
-  `process-node-type-forms` in `/src/clj/internal/node.clj` (`internal.node`)
+  `process-node-type-forms` in `/src/clj/internal/node.clj` (`internal.node`).
 * The node types are all `NodeTypeImpl` records, definition in `internal.node`
-* For node instances there are two record types
+* For node instances there are two record types:
     - `NodeImpl` for normal nodes
-    - `OverrideNode for override nodes
+    - `OverrideNode` for override nodes
 
   Both of these are in `internal.node`. The concept of overrides will not be
   covered here, but we'll touch on some of `OverrideNode`.
@@ -71,14 +71,14 @@ The g/defnode macro
 
 ### Pseudo code
 
-* Translate the defnode forms to a map representation, via
+* Translate the `defnode` forms to a map representation, via
   `internal.node/process-node-type-forms`. In this representation we
   have user supplied production functions and generated behavior
-  functions as `(fn [...] ...)` forms
-* Find all these function forms and their locations
-* Replace the function forms with a generated function name "dollar-name"
+  functions as `(fn [...] ...)` forms.
+* Find all these function forms and their locations.
+* Replace the function forms with a generated function name "dollar-name".
 * Emit "dollar-name" `def`'s for the functions, and setup code
-  implementing the node type
+  implementing the node type.
 
 Note that when the bundled editor is started, there is no macro
 expansion going on - only the emitted `def`'s and setup code remain of
@@ -98,7 +98,7 @@ emit a list of calls to `in/register-value-type`, one for each
 relevant type mentioned in the schemas.
 
 Next, we emit a list of `def`'s for all the functions we found in the
-map representation. The name of these `def` match the name we use to
+map representation. The name of these `def`'s match the name we use to
 replace the corresponding forms.
 
 Next, **I think** is an attempt to reduce the size of the finally
@@ -141,7 +141,8 @@ the `inherits` clauses of the node definition.
 * Wrap any constant functions. Wherever you can put a production
   function (`g/fnk` or `g/defnk`'d symbol) you can also put a
   constant, like `1`, and this step will automatically wrap it in a
-  `(g/fnk [] 1)`. **So we don't need g/constantly**
+  `(g/fnk [] 1)`.
+  * **So we don't need g/constantly.**
 * Figure out the display order of properties. This is controlled by
   the order `property`'s appear, the `display-order` clauses, and any
   inherited node types.
@@ -153,10 +154,10 @@ the `inherits` clauses of the node definition.
   it's meta `:arguments`. See `internal.util/inputs-needed` and
   `dynamo.graph/fnk` for details.
 * For each property, we "lift" the dependencies of all `dynamic`'s and
-  any `value` clause to the dependencies of the property. **I haven't
-  looked into this properly but believe it's to make sure the
-  `_properties` gets transitively dependent on the dependencies of
-  dynamics** **We also copy the dependencies of the property to the
+  any `value` clause to the dependencies of the property.
+  * **I haven't looked into this properly but believe it's to makesure the
+  `_properties` gets transitively dependent on the dependencies of dynamics**
+  * **We also copy the dependencies of the property to the
   auto generated output with the same name. This I believe is too
   pessimistic. Can't see why the output automatically should be
   dependent on the property 'dynamic' dependencies for instance. Also,
