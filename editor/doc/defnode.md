@@ -141,8 +141,7 @@ the `inherits` clauses of the node definition.
 * Wrap any constant functions. Wherever you can put a production
   function (`g/fnk` or `g/defnk`'d symbol) you can also put a
   constant, like `1`, and this step will automatically wrap it in a
-  `(g/fnk [] 1)`.
-  * **So we don't need g/constantly.**
+  `(g/fnk [] 1)`. **So we don't need g/constantly.**
 * Figure out the display order of properties. This is controlled by
   the order `property`'s appear, the `display-order` clauses, and any
   inherited node types.
@@ -155,15 +154,16 @@ the `inherits` clauses of the node definition.
   `dynamo.graph/fnk` for details.
 * For each property, we "lift" the dependencies of all `dynamic`'s and
   any `value` clause to the dependencies of the property.
-  * **I haven't looked into this properly but believe it's to makesure the
-  `_properties` gets transitively dependent on the dependencies of dynamics**
-  * **We also copy the dependencies of the property to the
-  auto generated output with the same name. This I believe is too
-  pessimistic. Can't see why the output automatically should be
-  dependent on the property 'dynamic' dependencies for instance. Also,
-  an explicit output with the same name is not necessarily dependent
-  on the property at all. See
-  `internal.node/apply-property-dependencies-to-outputs`**
+  * **I haven't looked into this properly but believe it's to make
+    sure the `_properties` gets transitively dependent on the
+    dependencies of dynamics**
+  * **We also copy the dependencies of the property to the auto
+    generated output with the same name. This I believe is too
+    pessimistic. Can't see why the output automatically should be
+    dependent on the property 'dynamic' dependencies for instance.
+    Also, an explicit output with the same name is not necessarily
+    dependent on the property at all. See
+    `internal.node/apply-property-dependencies-to-outputs`.**
 * Add a magic `:cached` output `_declared-properties` (used by the
   intrinsic `_properties` output), that depends on all declared
   properties.
@@ -171,10 +171,10 @@ the `inherits` clauses of the node definition.
   into a map dependency -> dependant output. This map (available
   through `g/input-dependencies`) is a key part of figuring out what
   (cached) outputs might have been invalidated by a change to the
-  graph (see `internal.graph/update-graph-successors`).  **The
+  graph (see `internal.graph/update-graph-successors`). **The
   "lifting" of property dependencies to outputs with the same name
   could make this map contain irrelevant entries - we could be
-  invalidating outputs unnecessarily**
+  invalidating outputs unnecessarily.**
 * Generate function forms for what should happen ("behavior") when you
   do `g/node-value` on an input, property or output. Discussed in
   detail below.
@@ -192,7 +192,7 @@ Intrinsic outputs and properties:
 
     (property _node-id g/NodeID :unjammable)
     (property _output-jammers g/KeywordMap :unjammable)
-    (output _properties g/Properties (g/fnk [_declared-properties]  declared-properties))
+    (output _properties g/Properties (g/fnk [_declared-properties] _declared-properties))
     (output _overridden-properties g/KeywordMap (g/fnk [_this _basis] (gt/overridden-properties _this _basis)))
 
   
@@ -257,7 +257,7 @@ explicitly provided, there is a whole lot going on (see
   an aggregated error.
 * Call the production function (`g/fnk`, `g/defnk`) of the output,
   passing the arguments.
-* Schema check the resulting value
+* Schema check the resulting value.
 * Cache the result in the local cache if `:cached`, or the local temp
   cache otherwise.
   
@@ -274,7 +274,7 @@ function. These forms become part of the node type map (under the
 
 #### Production function arguments
 
-The arguments of a production function (proprty `(value ...)` clause,
+The arguments of a production function (property `(value ...)` clause,
 `(dynamic ...)` clause or explicit output function) refer to inputs,
 outputs or properties in the node definition. The declaration order of
 these have no impact.
@@ -302,7 +302,7 @@ See `internal.node/fnk-argument-form` for details.
 **We pass the name of the current output + requested argument to
 `fnk-argument-form`. In the case of property dynamics, we pass the
 name of the dynamic as the output. This could go wrong if there is
-another output with the same name**
+another output with the same name.**
 
 #### Behavior of `_declared-properties`
 
@@ -796,6 +796,7 @@ Here we demonstrate
 * Where `dynamic`s and the `default` value function end up
 * How the properties end up in `_properties`, and property dynamics
 
+```clj
     (g/defnode CustomProperty
       (property simple-property g/Str)
       (property custom-property g/Str
@@ -805,6 +806,7 @@ Here we demonstrate
                 (dynamic matches-input (g/fnk [custom-property simple-input]
                                          (= custom-property simple-input))))
       (input simple-input g/Str))
+```
 
 #### Property `(value ...)` clauses referring to itself
 
@@ -906,7 +908,7 @@ for this node type:
             value-map {:simple-property {:value (internal.node/trace-expr node-id :simple-property evaluation-context :raw-property
                                                                           (fn []
                                                                             (when-not (:dry-run evaluation-context)
-                                                                            ;; The simple-property has no custom (value ...), so we just do get-property
+                                                                              ;; The simple-property has no custom (value ...), so we just do get-property
                                                                               (internal.graph.types/get-property node (:basis evaluation-context) :simple-property)))),
                                          :type {:k :dynamo.graph/Str},
                                          :node-id node-id},
