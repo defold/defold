@@ -361,8 +361,9 @@
                       `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
                          (derive ~node-key ~(:key (deref tref)))))
         node-type-def (update node-type-def :supertypes #(list `quote %))
-
         runtime-definer (symbol (str symb "*"))
+        ;; TODO - investigate if we even need to register these types
+        ;; in release builds, since we don't do schema checking?
         type-regs (for [[key-form value-type-form] (:register-type-info node-type-def)]
                     `(in/register-value-type ~key-form ~value-type-form))
         node-type-def (dissoc node-type-def :register-type-info)]
@@ -777,7 +778,7 @@
   (is/node-value @*the-system* node-id label evaluation-context))
 
 (defn node-value
-  "Pull a value from a node's output (or property), identified by `label`.
+  "Pull a value from a node's output, property or input, identified by `label`.
   The value may be cached or it may be computed on demand. This is
   transparent to the caller.
 

@@ -781,18 +781,17 @@
   (input input-three g/Any)
 
   (property a-property g/Any
-            (default  (g/constantly false))
+            (default (g/constantly false))
             (dynamic error (g/fnk [input-three] (nil? input-three)))
-            (value    (g/fnk [input-two] (inc input-two))))
+            (value (g/fnk [input-two] (inc input-two))))
 
   (property overridden g/Any
-            (default  (g/constantly false))
+            (default (g/constantly false))
             (dynamic error (g/fnk [input-three] (nil? input-three)))
-            (value    (g/fnk [input-two] (inc input-two))))
+            (value (g/fnk [input-two] (inc input-two))))
 
   (output an-output g/Any
           (g/fnk [input-one a-property] :ok))
-
 
   (output overridden g/Any (g/fnk [] "this overriding output should not be dependent on the corresponding property's stuff.")))
 
@@ -815,7 +814,7 @@
       :_declared-properties)))
 
 #_(deftest overriding-outputs-dont-automatically-inherit-dependencies-of-corresponding-property
-  (println (g/input-dependencies PropertiesWithDynamics))
+  ;; TODO: This test fails. The error it suggests does not cause any serious problems - at worst, some output gets unnecessarily invalidated.
   (is (not (affected-by? :overridden :input-three))))
 
 (g/defnode CustomPropertiesOutput

@@ -979,9 +979,9 @@
 
 (defn- all-subtree-dependencies
   [tree]
-  (apply set/union (keep #(when (and (map? %) (contains? % :dependencies))
-                            (:dependencies %))
-                         (tree-seq map? vals tree))))
+  (into #{}
+        (mapcat :dependencies)
+        (tree-seq map? vals tree)))
 
 (defn- merge-property-dependencies
   [tree]
@@ -1032,31 +1032,31 @@
        (apply str prefix "$")
        symbol))
 
-(defn- def-fn? [f]
+(defn- should-def-fn? [f]
   (and f
        (not= f ::default-fn)
        (not (var? f))))
 
 (defn extract-def-fns [node-type-def]
   (let [output-defs (keep (fn [[output-label {:keys [fn] :as _outdef}]]
-                            (when (def-fn? fn)
+                            (when (should-def-fn? fn)
                               [[:output output-label] fn]))
                           (:output node-type-def))
         prop-defs (reduce (fn [prop-defs [property-label prop-def]]
                             (cond-> prop-defs
-                                    (def-fn? (-> prop-def :value :fn))
+                                    (should-def-fn? (-> prop-def :value :fn))
                                     (update :value conj [[:property property-label :value] (-> prop-def :value :fn)])
 
-                                    (def-fn? (-> prop-def :default :fn))
+                                    (should-def-fn? (-> prop-def :default :fn))
                                     (update :default conj [[:property property-label :default] (-> prop-def :default :fn)])
 
                                     (some? (:dynamics prop-def))
                                     (update :dynamics into (keep (fn [[dynamic-label {:keys [fn] :as _dyndef}]]
-                                                                   (when (def-fn? fn)
+                                                                   (when (should-def-fn? fn)
                                                                      [[:property property-label :dynamics dynamic-label] fn]))
                                                                  (:dynamics prop-def)))
 
-                                    (def-fn? (-> prop-def :setter :fn))
+                                    (should-def-fn? (-> prop-def :setter :fn))
                                     (update :setter conj [[:property property-label :setter] (-> prop-def :setter :fn)])))
                           {:value []
                            :default []
@@ -1064,11 +1064,11 @@
                            :setter []}
                           (:property node-type-def))
         behaviors (keep (fn [[output-label {:keys [fn] :as _output-behavior}]]
-                          (when (def-fn? fn)
+                          (when (should-def-fn? fn)
                             [[:behavior output-label] fn]))
                         (:behavior node-type-def))
         property-behaviors (keep (fn [[property-label {:keys [fn] :as _property-behavior}]]
-                                   (when (def-fn? fn)
+                                   (when (should-def-fn? fn)
                                      [[:property-behavior property-label] fn]))
                                  (:property-behavior node-type-def))]
     (concat output-defs
@@ -1084,13 +1084,13 @@
 
 (declare fnk-argument-form)
 
-(defn- desc-has-input?     [description label] (contains? (:input description) label))
-(defn- desc-has-property?  [description label] (contains? (:property description) label))
-(defn- desc-has-output?    [description label] (contains? (:output description) label))
-(defn- desc-has-explicit-output?    [description label]
+(defn- desc-has-input? [description label] (contains? (:input description) label))
+(defn- desc-has-property? [description label] (contains? (:property description) label))
+(defn- desc-has-output? [description label] (contains? (:output description) label))
+(defn- desc-has-explicit-output? [description label]
   (contains? (get-in description [:output label :flags]) :explicit))
 
-(defn- desc-has-multivalued-input?  [description input-label]
+(defn- desc-has-multivalued-input? [description input-label]
   (contains? (get-in description [:input input-label :flags]) :array))
 
 (defn- desc-has-singlevalued-input? [description input-label]
@@ -1262,13 +1262,14 @@
     `(or (output-jammer ~node-sym ~node-id-sym ~label-sym (:basis ~evaluation-context-sym))
          ~forms)))
 
-(defn- property-has-default-getter?       [description label] (not (get-in description [:property label :value])))
+(defn- property-has-default-getter? [description label] (not (get-in description [:property label :value])))
 (defn- property-has-no-overriding-output? [description label] (not (desc-has-explicit-output? description label)))
 
 (defn- apply-default-property-shortcut-form [description label node-sym node-id-sym label-sym evaluation-context-sym forms]
-  (let [default?  (and #_(desc-has-property? description label) ; this is implied, we're evaluating an output and we check below it's not an explicit output
-                       (property-has-default-getter? description label)
-                       (property-has-no-overriding-output? description label))]
+  (let [default? (and (property-has-default-getter? description label)
+                      (property-has-no-overriding-output? description label))]
+     ; desc-has-property? this is implied if we're evaluating an output and default? holds
+    (assert (or (not default?) (desc-has-property? description label)))
     (if default?
       (with-tracer-calls-form node-id-sym label-sym evaluation-context-sym :raw-property
         (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~label-sym)))
@@ -1290,20 +1291,26 @@
   `(let [~evaluation-context-sym (mark-in-production ~node-id-sym ~label-sym ~evaluation-context-sym)]
      ~forms))
 
+(defn cached-nil->nil [v]
+  (if (= v ::cached-nil) nil v))
+
+(defn nil->cached-nil [v]
+  (if (nil? v) ::cached-nil v))
+
 (defn check-caches! [node-id label evaluation-context]
   (let [local @(:local evaluation-context)
         global (:cache evaluation-context)
         cache-key [node-id label]]
     (cond
       (contains? local cache-key)
-      [(trace-expr node-id label evaluation-context :cache (fn [] (get local cache-key)))]
+      (trace-expr node-id label evaluation-context :cache (fn [] (nil->cached-nil (get local cache-key))))
 
       (contains? global cache-key)
-      [(trace-expr node-id label evaluation-context :cache
+      (trace-expr node-id label evaluation-context :cache
                    (fn []
                      (when-some [cached-result (get global cache-key)]
                        (swap! (:hits evaluation-context) conj cache-key)
-                       cached-result)))])))
+                       (nil->cached-nil cached-result)))))))
 
 (defn check-local-temp-cache [node-id label evaluation-context]
   (let [local-temp (some-> (:local-temp evaluation-context) deref)
@@ -1313,12 +1320,12 @@
 (defn- check-caches-form [description label node-id-sym label-sym evaluation-context-sym forms]
   (let [result-sym 'result]
     (if (get-in description [:output label :flags :cached])
-      `(if-some [[~result-sym] (check-caches! ~node-id-sym ~label-sym ~evaluation-context-sym)]
-         ~result-sym
+      `(if-some [~result-sym (check-caches! ~node-id-sym ~label-sym ~evaluation-context-sym)]
+         (cached-nil->nil ~result-sym)
          ~forms)
       `(if-some [~result-sym (check-local-temp-cache ~node-id-sym ~label-sym ~evaluation-context-sym)]
          ~(with-tracer-calls-form node-id-sym label-sym evaluation-context-sym :cache
-            `(if (= ~result-sym ::cached-nil) nil ~result-sym))
+            `(cached-nil->nil ~result-sym))
          ~forms))))
 
 (defn- gather-arguments-form [description label node-sym node-id-sym evaluation-context-sym arguments-sym schema-sym forms]
@@ -1349,7 +1356,7 @@
 
 (defn update-local-temp-cache! [node-id label evaluation-context value]
   (when-let [local-temp (:local-temp evaluation-context)]
-    (swap! local-temp assoc [node-id label] (WeakReference. (if (= value nil) ::cached-nil value)))))
+    (swap! local-temp assoc [node-id label] (WeakReference. (nil->cached-nil value)))))
 
 (defn- cache-result-form [description label node-id-sym label-sym evaluation-context-sym result-sym forms]
   (if (contains? (get-in description [:output label :flags]) :cached)
@@ -1370,18 +1377,19 @@
 
 (defn schema-check-result [node-id label evaluation-context output-schema result]
   (when-not (:dry-run evaluation-context)
-    (try
-      (when-some [validation-error (s/check output-schema result)]
-        (warn-output-schema node-id label (node-type-name node-id evaluation-context) result output-schema validation-error)
-        (throw (ex-info "SCHEMA-VALIDATION"
-                        {:node-id node-id
-                         :type node-type-name
-                         :output label
-                         :expected output-schema
-                         :actual result
-                         :validation-error validation-error})))
-      (catch IllegalArgumentException iae
-        (throw (ex-info "MALFORMED-SCHEMA" {:transform label :node-type (node-type-name node-id evaluation-context)} iae))))))
+    (let [node-type-name (node-type-name node-id evaluation-context)]
+      (try
+        (when-some [validation-error (s/check output-schema result)]
+          (warn-output-schema node-id label node-type-name result output-schema validation-error)
+          (throw (ex-info "SCHEMA-VALIDATION"
+                          {:node-id node-id
+                           :type node-type-name
+                           :output label
+                           :expected output-schema
+                           :actual result
+                           :validation-error validation-error})))
+        (catch IllegalArgumentException iae
+          (throw (ex-info "MALFORMED-SCHEMA" {:label label :node-type node-type-name} iae)))))))
 
 (defn- schema-check-result-form [description label node-id-sym label-sym evaluation-context-sym result-sym forms]
   (if *check-schemas*
