@@ -1630,6 +1630,22 @@ def detect(conf):
     if build_util.get_target_os() == 'web':
         use_vanilla = True
 
+    # conf.env['LUA_BYTECODE_ENABLE_32'] = 'no'
+    # conf.env['LUA_BYTECODE_ENABLE_64'] = 'no'
+    # if use_vanilla:
+    #     conf.env['STATICLIB_LUA'] = 'lua'
+    # else:
+    #     #conf.env['STATICLIB_LUA'] = 'luajit-5.1'
+    #     if build_util.get_target_platform() == 'arm64-android' or build_util.get_target_platform() == 'arm64-darwin':
+    #         print("##### Setting LUA_BYTECODE_ENABLE_64 for this build target platform!")
+    #         conf.env['STATICLIB_LUA'] = 'luajit-5.1-64'
+    #         conf.env['LUA_BYTECODE_ENABLE_64'] = 'yes'
+    #     else: # build_util.get_target_platform() == 'x86_64-linux' or build_util.get_target_platform() == 'x86_64-win32' or build_util.get_target_platform() == 'x86_64-darwin':
+    #         print("##### Setting LUA_BYTECODE_ENABLE_32 for this build target platform!")
+    #         conf.env['STATICLIB_LUA'] = 'luajit-5.1-32'
+    #         conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
+
+
     conf.env['LUA_BYTECODE_ENABLE_32'] = 'no'
     conf.env['LUA_BYTECODE_ENABLE_64'] = 'no'
     if use_vanilla:
@@ -1638,7 +1654,7 @@ def detect(conf):
         conf.env['STATICLIB_LUA'] = 'luajit-5.1'
         if build_util.get_target_platform() == 'x86_64-linux' or build_util.get_target_platform() == 'x86_64-win32' or build_util.get_target_platform() == 'x86_64-darwin' or build_util.get_target_platform() == 'arm64-android' or build_util.get_target_platform() == 'arm64-darwin':
             conf.env['LUA_BYTECODE_ENABLE_64'] = 'yes'
-        else:
+        else: # armv7-android, armv7-darwin, arm64-darwin, win32
             conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
 
 def configure(conf):

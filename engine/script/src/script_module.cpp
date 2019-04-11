@@ -32,6 +32,7 @@ namespace dmScript
     static void GetLuaSource(dmLuaDDF::LuaSource *source, const char **buf, uint32_t *size)
     {
 #if defined(LUA_BYTECODE_ENABLE_32)
+        dmLogWarning("### Loading 32-bit bytecode!");
         if (source->m_Bytecode.m_Count > 0)
         {
             *buf = (const char*)source->m_Bytecode.m_Data;
@@ -39,6 +40,7 @@ namespace dmScript
             return;
         }
 #elif defined(LUA_BYTECODE_ENABLE_64)
+        dmLogWarning("### Loading ARM64 bytecode!");
         if (source->m_Bytecode64.m_Count > 0)
         {
             *buf = (const char*)source->m_Bytecode64.m_Data;
