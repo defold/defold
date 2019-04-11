@@ -2,11 +2,9 @@ package com.defold.editor;
 
 
 public enum Platform {
-    X86Darwin("x86", "darwin", "", "", "lib", ".dylib"),
     X86_64Darwin("x86_64", "darwin", "", "", "lib", ".dylib"),
     X86Win32("x86", "win32", ".exe", "", "", ".dll"),
     X86_64Win32("x86_64", "win32", ".exe", "", "", ".dll"),
-    X86Linux("x86", "linux", "", "", "lib", ".so"),
     X86_64Linux("x86_64", "linux", "", "", "lib", ".so"),
     Armv7Darwin("armv7", "darwin", "", "", "lib", ".so"),
     Arm64Darwin("arm64", "darwin", "", "", "lib", ".so"),
@@ -70,17 +68,9 @@ public enum Platform {
                 return Platform.X86Win32;
             }
         } else if (os.indexOf("mac") != -1) {
-            if (arch.equals("x86_64") || arch.equals("amd64")) {
-                return Platform.X86_64Darwin;
-            } else {
-                return Platform.X86Darwin;
-            }
+            return Platform.X86_64Darwin;
         } else if (os.indexOf("linux") != -1) {
-            if (arch.equals("x86_64") || arch.equals("amd64")) {
-                return Platform.X86_64Linux;
-            } else {
-                return Platform.X86Linux;
-            }
+            return Platform.X86_64Linux;
         } else {
             throw new RuntimeException(String.format("Could not identify OS + arch: '%s %s'", os, arch));
         }

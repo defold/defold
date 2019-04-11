@@ -1,48 +1,48 @@
 (ns editor.debug-view
-  (:require
-   [clojure.java.io :as io]
-   [clojure.set :as set]
-   [clojure.string :as str]
-   [dynamo.graph :as g]
-   [editor.console :as console]
-   [editor.core :as core]
-   [editor.debugging.mobdebug :as mobdebug]
-   [editor.defold-project :as project]
-   [editor.dialogs :as dialogs]
-   [editor.engine :as engine]
-   [editor.handler :as handler]
-   [editor.lua :as lua]
-   [editor.protobuf :as protobuf]
-   [editor.resource :as resource]
-   [editor.ui :as ui]
-   [editor.workspace :as workspace]
-   [service.log :as log])
-  (:import
-   (com.dynamo.lua.proto Lua$LuaModule)
-   (java.nio.file Files)
-   (javafx.scene Parent)
-   (javafx.scene.control Button Label ListView TreeItem TreeView SplitPane)
-   (javafx.scene.layout HBox Pane Priority)
-   (org.apache.commons.io FilenameUtils)))
+  (:require [clojure.java.io :as io]
+            [clojure.set :as set]
+            [clojure.string :as string]
+            [dynamo.graph :as g]
+            [editor.console :as console]
+            [editor.core :as core]
+            [editor.debugging.mobdebug :as mobdebug]
+            [editor.defold-project :as project]
+            [editor.dialogs :as dialogs]
+            [editor.engine :as engine]
+            [editor.handler :as handler]
+            [editor.lua :as lua]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.targets :as targets]
+            [editor.ui :as ui]
+            [editor.workspace :as workspace]
+            [service.log :as log])
+  (:import [com.dynamo.lua.proto Lua$LuaModule]
+           [editor.debugging.mobdebug LuaStructure]
+           [java.nio.file Files]
+           [java.util Collection]
+           [javafx.beans.value ChangeListener]
+           [javafx.event ActionEvent]
+           [javafx.scene Parent]
+           [javafx.scene.control Button Label ListView SplitPane TreeItem TreeView TextField]
+           [javafx.scene.layout HBox Pane Priority]
+           [org.apache.commons.io FilenameUtils]))
 
-(set! *warn-on-reflection* false)
+(set! *warn-on-reflection* true)
 
-(defonce ^:private ^String attach-debugger-label "Attach Debugger")
-(defonce ^:private ^String break-label "Break")
-(defonce ^:private ^String continue-label "Continue")
-(defonce ^:private ^String detach-debugger-label "Detach Debugger")
-(defonce ^:private ^String start-debugger-label "Run with Debugger")
-(defonce ^:private ^String step-into-label "Step Into")
-(defonce ^:private ^String step-out-label "Step Out")
-(defonce ^:private ^String step-over-label "Step Over")
-(defonce ^:private ^String stop-debugger-label "Stop Debugger")
+(def ^:private attach-debugger-label "Attach Debugger")
+(def ^:private break-label "Break")
+(def ^:private continue-label "Continue")
+(def ^:private detach-debugger-label "Detach Debugger")
+(def ^:private start-debugger-label "Run with Debugger")
+(def ^:private step-into-label "Step Into")
+(def ^:private step-out-label "Step Out")
+(def ^:private step-over-label "Step Over")
+(def ^:private stop-debugger-label "Stop Debugger")
+(def ^:private open-web-profiler-label "Open Web Profiler")
 
 (defn- single [coll]
   (when (nil? (next coll)) (first coll)))
-
-(defn- add-item!
-  [^ListView list-view item]
-  (.. list-view getItems (add item)))
 
 (defn- set-debugger-data-visible!
   [^Parent root visible?]
@@ -84,13 +84,14 @@
   (when (some? debug-session)
     (ui/with-controls root [^ListView debugger-call-stack]
       (let [frames (:stack suspension-state)
-            suspended? (some? frames)]
+            suspended? (some? frames)
+            items (.getItems debugger-call-stack)]
         (if suspended?
           (do
-            (.. debugger-call-stack getItems (setAll frames))
+            (.setAll items ^Collection frames)
             (when-some [top-frame (first frames)]
               (ui/select! debugger-call-stack top-frame)))
-          (.. debugger-call-stack getItems clear))))))
+          (.clear items))))))
 
 (g/defnk produce-execution-locations
   [suspension-state]
@@ -127,18 +128,45 @@
     (ui/with-controls root [^ListView debugger-call-stack]
       (first (.. debugger-call-stack getSelectionModel getSelectedIndices)))))
 
+(defn- sanitize-eval-error [error-string]
+  (let [error-line-pattern ":1: "
+        i (string/index-of error-string error-line-pattern)
+        displayed-error (if (some? i)
+                          (subs error-string (+ i (count error-line-pattern)))
+                          error-string)]
+    (str "ERROR:EVAL: " displayed-error)))
+
+(defn- eval-result->lines [result]
+  (->> result
+       vals
+       (map mobdebug/lua-value->structure-string)
+       (string/join "\n")
+       string/split-lines))
+
 (defn- on-eval-input
-  [debug-view ^ListView event]
+  [debug-view ^ActionEvent event]
   (when-some [debug-session (g/node-value debug-view :debug-session)]
-    (let [input (.getSource event)
+    (let [input ^TextField (.getSource event)
           code  (.getText input)
           frame (current-stack-frame debug-view)]
       (.clear input)
       (assert (= :suspended (mobdebug/state debug-session)))
       (console/append-console-entry! :eval-expression code)
-      (let [ret (mobdebug/eval debug-session code frame)
-            s (some->> ret :result vals (str/join ", "))]
-        (console/append-console-entry! :eval-result (or s "nil"))))))
+      (future
+        (let [ret (mobdebug/eval debug-session code frame)]
+          (cond
+            (= :bad-request (:error ret))
+            (console/append-console-entry! :eval-error "Bad request")
+
+            (string? (:error ret))
+            (console/append-console-entry! :eval-error (sanitize-eval-error (:error ret)))
+
+            (:result ret)
+            (doseq [line (eval-result->lines (:result ret))]
+              (console/append-console-entry! :eval-result line))
+
+            :else
+            (console/append-console-entry! :eval-error (str ret))))))))
 
 (defn- setup-tool-bar!
   [^Parent console-tool-bar]
@@ -192,36 +220,38 @@
                                                      (ui/add-style! "equals"))
                                                    (Label. display-value)]))}))))
 
-(defn- variable-sort-value
-  [[k v]]
-  (if (map? k)
-    (-> k meta :tostring)
-    (str k)))
-
-(defn- lua-str
-  [v]
-  (if (map? v)
-    (-> v meta :tostring)
-    (str v)))
-
 (defn- make-variable-tree-item
   [[name value]]
-  (let [variable {:name (lua-str name)
-                  :display-name (lua-str name)
+  (let [variable {:name name
+                  :display-name (mobdebug/lua-value->identity-string name)
                   :value value
-                  :display-value (lua-str value)}
-        tree-item (TreeItem. variable)]
-    (when (and (map? value) (seq value))
-      (.. tree-item getChildren (addAll (mapv make-variable-tree-item (sort-by variable-sort-value value)))))
+                  :display-value (mobdebug/lua-value->identity-string value)}
+        tree-item (TreeItem. variable)
+        children (.getChildren tree-item)]
+    (when (and (instance? LuaStructure value)
+               (pos? (count value)))
+      (.add children (TreeItem.))
+      (ui/observe-once (.expandedProperty tree-item)
+                       (fn [_ _ _]
+                         (.setAll children ^Collection (map make-variable-tree-item value)))))
     tree-item))
 
 (defn- make-variables-tree-item
   [locals upvalues]
-  (make-variable-tree-item ["root" (into locals upvalues)]))
+  (let [ret (TreeItem.)
+        children (.getChildren ret)]
+    (.setAll children ^Collection (map make-variable-tree-item (concat locals upvalues)))
+    ret))
 
 (defn- setup-controls!
   [debug-view ^SplitPane root]
-  (ui/with-controls root [console-tool-bar debugger-call-stack ^Parent debugger-data-split ^Parent debugger-prompt debugger-prompt-field debugger-variables right-split]
+  (ui/with-controls root [console-tool-bar
+                          debugger-call-stack
+                          ^Parent debugger-data-split
+                          ^Parent debugger-prompt
+                          debugger-prompt-field
+                          ^TreeView debugger-variables
+                          ^Parent right-split]
     ;; debugger data views
     (.bind (.managedProperty debugger-data-split) (.visibleProperty debugger-data-split))
     (.bind (.managedProperty right-split) (.visibleProperty right-split))
@@ -231,7 +261,7 @@
 
     ;; debugger prompt
     (.bind (.managedProperty debugger-prompt) (.visibleProperty debugger-prompt))
-    (ui/on-action! debugger-prompt-field (partial on-eval-input debug-view))
+    (ui/on-action! debugger-prompt-field #(on-eval-input debug-view %))
 
     ;; call stack
     (setup-call-stack-view! debugger-call-stack)
@@ -418,9 +448,9 @@
                                true
                                (catch Exception exception
                                  (let [msg (str "Failed to attach debugger to " target-address ":" mobdebug-port ".\n"
-                                                "Check that the game is running and is reachable over the network.")]
+                                                "Check that the game is running and is reachable over the network.\n")]
                                    (log/error :msg msg :exception exception)
-                                   (dialogs/make-alert-dialog msg)
+                                   (dialogs/make-error-dialog "Attach Debugger Failed" msg (.getMessage exception))
                                    false)))]
       (when attach-successful?
         (start-debugger! debug-view project target-address)))))
@@ -462,6 +492,43 @@
   (enabled? [debug-view] (current-session debug-view))
   (run [debug-view] (mobdebug/exit! (current-session debug-view))))
 
+(defn- can-change-resolution? [debug-view prefs]
+  (and (targets/controllable-target? (targets/selected-target prefs))
+       (not (suspended? debug-view))))
+
+(def should-rotate-device?
+  (atom false))
+
+(handler/defhandler :set-resolution :global
+  (enabled? [debug-view prefs]
+            (can-change-resolution? debug-view prefs))
+  (run [project app-view prefs build-errors-view selection user-data]
+       (engine/change-resolution! (targets/selected-target prefs) (:width user-data) (:height user-data) @should-rotate-device?)))
+
+(handler/defhandler :set-custom-resolution :global
+  (enabled? [debug-view prefs]
+            (can-change-resolution? debug-view prefs))
+  (run [project app-view prefs build-errors-view selection user-data]
+       (let [[ok width height] (dialogs/make-resolution-dialog)]
+         (when ok
+           (engine/change-resolution! (targets/selected-target prefs) width height @should-rotate-device?)))))
+
+(handler/defhandler :set-rotate-device :global
+  (enabled? [] true)
+  (run [project app-view prefs build-errors-view selection user-data]
+       (swap! should-rotate-device? not))
+  (state [app-view user-data] @should-rotate-device?))
+
+(handler/defhandler :disabled-menu-label :global
+  (enabled? [] false))
+
+(handler/defhandler :open-web-profiler :global
+  (enabled? [prefs]
+    (some? (targets/selected-target prefs)))
+  (run [prefs]
+    (let [address (:address (targets/selected-target prefs))]
+      (ui/open-url (format "http://%s:8002/" address)))))
+
 (ui/extend-menu ::menubar :editor.defold-project/project
                 [{:label "Debug"
                   :id ::debug
@@ -483,4 +550,149 @@
                              {:label detach-debugger-label
                               :command :detach-debugger}
                              {:label stop-debugger-label
-                              :command :stop-debugger}]}])
+                              :command :stop-debugger}
+                             {:label :separator}
+                             {:label open-web-profiler-label
+                              :command :open-web-profiler}
+                             {:label :separator}
+                             {:label "Simulate Resolution"
+                              :children [{:label "Custom Resolution..."
+                                          :command :set-custom-resolution}
+                                         {:label "Apple"
+                                          :children [{:label "iPhone"
+                                                      :children [{:label "Viewport Resolutions"
+                                                                  :command :disabled-menu-label}
+                                                                 {:label "iPhone 4 (320x480)"
+                                                                  :command :set-resolution
+                                                                  :user-data {:width 320
+                                                                              :height 480}}
+                                                                 {:label "iPhone 5/SE (320x568)"
+                                                                  :command :set-resolution
+                                                                  :user-data {:width 320
+                                                                              :height 568}}
+                                                                 {:label "iPhone 6/7/8 (375x667)"
+                                                                  :command :set-resolution
+                                                                  :user-data {:width 375
+                                                                              :height 667}}
+                                                                 {:label "iPhone 6/7/8 Plus (414x736)"
+                                                                  :command :set-resolution
+                                                                  :user-data {:width 414
+                                                                              :height 736}}
+                                                                 {:label "iPhone X/XS (375x812)"
+                                                                  :command :set-resolution
+                                                                  :user-data {:width 375
+                                                                              :height 812}}
+                                                                 {:label "iPhone XR/XS Max (414x896)"
+                                                                  :command :set-resolution
+                                                                  :user-data {:width 414
+                                                                              :height 896}}
+                                                                 {:label :separator}
+                                                                 {:label "Native Resolutions"
+                                                                  :command :disabled-menu-label}
+                                                                 {:label "iPhone 4 (640x960)"
+                                                                  :command :set-resolution
+                                                                  :user-data {:width 640
+                                                                              :height 960}}
+                                                                 {:label "iPhone 5/SE (640x1136)"
+                                                                  :command :set-resolution
+                                                                  :user-data {:width 640
+                                                                              :height 1136}}
+                                                                 {:label "iPhone 6/7/8 (750x1334)"
+                                                                  :command :set-resolution
+                                                                  :user-data {:width 750
+                                                                              :height 1334}}
+                                                                 {:label "iPhone 6/7/8 Plus (1242x2208)"
+                                                                  :command :set-resolution
+                                                                  :user-data {:width 1242
+                                                                              :height 2208}}
+                                                                 {:label "iPhone X/XS (1125x2436)"
+                                                                  :command :set-resolution
+                                                                  :user-data {:width 1125
+                                                                              :height 2436}}
+                                                                 {:label "iPhone XS Max (1242x2688)"
+                                                                  :command :set-resolution
+                                                                  :user-data {:width 1242
+                                                                              :height 2688}}
+                                                                 {:label "iPhone XR (828x1792)"
+                                                                  :command :set-resolution
+                                                                  :user-data {:width 828
+                                                                              :height 1792}}]}
+                                                     {:label "iPad"
+                                                      :children [{:label "Viewport Resolutions"
+                                                                  :command :disabled-menu-label}
+                                                                 {:label "iPad Pro (1024x1366)"
+                                                                  :command :set-resolution
+                                                                  :user-data {:width 1024
+                                                                              :height 1366}}
+                                                                 {:label "iPad (768x1024)"
+                                                                  :command :set-resolution
+                                                                  :user-data {:width 768
+                                                                              :height 1024}}
+                                                                 {:label :separator}
+                                                                 {:label "Native Resolutions"
+                                                                  :command :disabled-menu-label}
+                                                                 {:label "iPad Pro (2048x2732)"
+                                                                  :command :set-resolution
+                                                                  :user-data {:width 2048
+                                                                              :height 2732}}
+                                                                 {:label "iPad (1536x2048)"
+                                                                  :command :set-resolution
+                                                                  :user-data {:width 1536
+                                                                              :height 2048}}
+                                                                 {:label "iPad Mini (768x1024)"
+                                                                  :command :set-resolution
+                                                                  :user-data {:width 768
+                                                                              :height 1024}}]}]}
+                                         {:label "Android Devices"
+                                          :children [{:label "Viewport Resolutions"
+                                                      :command :disabled-menu-label}
+                                                     {:label "Samsung Galaxy S7 (360x640)"
+                                                      :command :set-resolution
+                                                      :user-data {:width 360
+                                                                  :height 640}}
+                                                     {:label "Samsung Galaxy S8/S9/Note 9 (360x740)"
+                                                      :command :set-resolution
+                                                      :user-data {:width 360
+                                                                  :height 740}}
+                                                     {:label "Google Pixel 1/2/XL (412x732)"
+                                                      :command :set-resolution
+                                                      :user-data {:width 412
+                                                                  :height 732}}
+                                                     {:label "Google Pixel 3 (412x824)"
+                                                      :command :set-resolution
+                                                      :user-data {:width 412
+                                                                  :height 824}}
+                                                     {:label "Google Pixel 3 XL (412x847)"
+                                                      :command :set-resolution
+                                                      :user-data {:width 412
+                                                                  :height 847}}
+                                                     {:label :separator}
+                                                     {:label "Native Resolutions"
+                                                      :command :disabled-menu-label}
+                                                     {:label "Samsung Galaxy S7 (1440x2560)"
+                                                      :command :set-resolution
+                                                      :user-data {:width 1440
+                                                                  :height 2560}}
+                                                     {:label "Samsung Galaxy S8/S9/Note 9 (1440x2960)"
+                                                      :command :set-resolution
+                                                      :user-data {:width 1440
+                                                                  :height 2960}}
+                                                     {:label "Google Pixel (1080x1920)"
+                                                      :command :set-resolution
+                                                      :user-data {:width 1080
+                                                                  :height 1920}}
+                                                     {:label "Google Pixel 2/XL (1440x2560)"
+                                                      :command :set-resolution
+                                                      :user-data {:width 1440
+                                                                  :height 2560}}
+                                                     {:label "Google Pixel 3 (1080x2160)"
+                                                      :command :set-resolution
+                                                      :user-data {:width 1080
+                                                                  :height 2160}}
+                                                     {:label "Google Pixel 3 XL (1440x2960)"
+                                                      :command :set-resolution
+                                                      :user-data {:width 1440
+                                                                  :height 2960}}]}
+                                         {:label "Rotated Device"
+                                          :command :set-rotate-device
+                                          :check true}]}]}])

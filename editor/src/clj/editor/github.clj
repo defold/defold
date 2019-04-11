@@ -45,7 +45,7 @@
   ([]
    (new-issue-link {}))
   ([fields]
-      (let [gl-info (gl/gl-info)
+      (let [gl-info (gl/info)
             fields (cond-> fields
                      gl-info (assoc "GPU" (:renderer gl-info)
                                "GPU Driver" (:version gl-info)))]
@@ -59,3 +59,7 @@
 (defn search-issues-link
   []
   (format "%s/issues" issue-repo))
+
+(defn glgenbuffers-link
+  []
+  (format "%s/blob/master/faq/glgenbuffers.md" issue-repo))

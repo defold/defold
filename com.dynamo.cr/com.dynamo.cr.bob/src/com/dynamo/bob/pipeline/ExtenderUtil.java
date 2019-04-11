@@ -235,14 +235,14 @@ public class ExtenderUtil {
         private IResource resource;
         private String alias;
         private String rootDir;
-        private String variant;
+        private Map<String, String> options;
 
-        FSAppManifestResource(IResource resource, String rootDir, String alias, String variant) {
+        FSAppManifestResource(IResource resource, String rootDir, String alias, Map<String, String> options) {
             super(resource);
             this.resource = resource;
             this.rootDir = rootDir;
             this.alias = alias;
-            this.variant = variant;
+            this.options = options;
         }
 
         public IResource getResource() {
@@ -277,16 +277,20 @@ public class ExtenderUtil {
 
         @Override
         public byte[] getContent() throws IOException {
-            byte[] content = resource.getContent();
-            if (variant == null)
-            {
-                return content;
+            String prefix = "";
+            if (options != null) {
+                prefix += "context:" + System.getProperty("line.separator");
+                for (String key : options.keySet()) {
+                    String value = options.get(key);
+                    prefix += String.format("    %s: %s", key, value) + System.getProperty("line.separator");
+                }
             }
-            String variantPrefix = "context:" + System.getProperty("line.separator") + "    baseVariant: " + variant + System.getProperty("line.separator");
-            byte[] variantBytes = variantPrefix.getBytes();
-            byte[] c = new byte[variantBytes.length + content.length];
-            System.arraycopy(variantBytes, 0, c, 0, variantBytes.length);
-            System.arraycopy(content, 0, c, variantBytes.length, content.length);
+
+            byte[] prefixBytes = prefix.getBytes();
+            byte[] content = resource.getContent();
+            byte[] c = new byte[prefixBytes.length + content.length];
+            System.arraycopy(prefixBytes, 0, c, 0, prefixBytes.length);
+            System.arraycopy(content, 0, c, prefixBytes.length, content.length);
             return c;
         }
 
@@ -362,7 +366,7 @@ public class ExtenderUtil {
         }
         return folders;
     }
-    
+
     /**
      * Returns true if the project should build remotely
      * @param project
@@ -377,7 +381,7 @@ public class ExtenderUtil {
                 return true;
             }
         }
-        
+
         ArrayList<String> paths = new ArrayList<>();
         project.findResourcePaths("", paths);
         for (String p : paths) {
@@ -394,7 +398,7 @@ public class ExtenderUtil {
      * @param project
      * @return A list of IExtenderResources that can be supplied to ExtenderClient
      */
-    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform, String variant) throws CompileExceptionError {
+    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform, Map<String, String> appmanifestOptions) throws CompileExceptionError {
         List<ExtenderResource> sources = new ArrayList<>();
 
         List<String> platformFolderAlternatives = new ArrayList<String>();
@@ -408,24 +412,28 @@ public class ExtenderUtil {
             IResource resource = project.getResource(appManifest);
             if (resource.exists()) {
                 // We use an alias so the the app manifest has a predefined name
-                sources.add( new FSAppManifestResource( resource, project.getRootDirectory(), appManifestPath, variant ) );
+                sources.add( new FSAppManifestResource( resource, project.getRootDirectory(), appManifestPath, appmanifestOptions ) );
             } else {
                 IResource projectResource = project.getResource("game.project");
                 throw new CompileExceptionError(projectResource, 0, String.format("No such resource: %s", resource.getAbsPath()));
             }
         }
-        else if (variant != null)
+        else if (appmanifestOptions != null)
         {
             // Make up appmanifest
         	IResource resource = new EmptyResource(project.getRootDirectory(), appManifestPath);
-        	sources.add( new FSAppManifestResource( resource, project.getRootDirectory(), appManifestPath, variant ) );
+        	sources.add( new FSAppManifestResource( resource, project.getRootDirectory(), appManifestPath, appmanifestOptions ) );
         }
 
         // Find extension folders
         List<String> extensionFolders = getExtensionFolders(project);
         for (String extension : extensionFolders) {
+            IResource resource = project.getResource(extension + "/" + ExtenderClient.extensionFilename);
+            if (!resource.exists()) {
+                throw new CompileExceptionError(resource, 1, "Resource doesn't exist!");
+            }
 
-            sources.add( new FSExtenderResource( project.getResource(extension + "/" + ExtenderClient.extensionFilename)) );
+            sources.add( new FSExtenderResource( resource ) );
             sources.addAll( listFilesRecursive( project, extension + "/include/" ) );
             sources.addAll( listFilesRecursive( project, extension + "/src/") );
 
@@ -436,6 +444,54 @@ public class ExtenderUtil {
         }
 
         return sources;
+    }
+
+    /** Makes sure the project doesn't have duplicates wrt relative paths.
+     * This is important since we use both files on disc and in memory. (DEF-3868, )
+     * @return Doesn't return anything. It throws CompileExceptionError if the check fails.
+     */
+    public static void checkProjectForDuplicates(Project project) throws CompileExceptionError {
+        Map<String, IResource> files = new HashMap<String, IResource>();
+
+        ArrayList<String> paths = new ArrayList<>();
+        project.findResourcePaths("", paths);
+        for (String p : paths) {
+            IResource r = project.getResource(p);
+            if (!r.isFile()) // Skip directories
+                continue;
+
+            if (files.containsKey(r.getPath())) {
+                IResource previous = files.get(r.getPath());
+                throw new CompileExceptionError(r, 0, String.format("The files' relative path conflict:\n'%s' and\n'%s", r.getAbsPath(), r.getAbsPath()));
+            }
+            files.put(r.getPath(), r);
+        }
+    }
+
+    /** Get the platform manifests from the extensions
+     */
+    public static List<IResource> getExtensionManifests(Project project, Platform platform, String name) throws CompileExceptionError {
+        List<IResource> out = new ArrayList<>();
+
+        List<String> platformFolderAlternatives = new ArrayList<String>();
+        platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths())); // we skip "common" here since it makes little sense
+
+        // Find extension folders
+        List<String> extensionFolders = getExtensionFolders(project);
+        for (String extension : extensionFolders) {
+            for (String platformAlt : platformFolderAlternatives) {
+                List<ExtenderResource> files = listFilesRecursive( project, extension + "/manifests/" + platformAlt + "/");
+                for (ExtenderResource r : files) {
+                    if (!(r instanceof FSExtenderResource))
+                        continue;
+                    File f = new File(r.getAbsPath());
+                    if (f.getName().equals(name)) {
+                        out.add( ((FSExtenderResource)r).getResource() );
+                    }
+                }
+            }
+        }
+        return out;
     }
 
     /**
@@ -648,5 +704,4 @@ public class ExtenderUtil {
         }
         return null;
     }
-
 }

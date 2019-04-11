@@ -19,6 +19,8 @@
 /libexec/*/*dmengine*
 /libexec/*/*luajit*
 /libexec/*/*apkc*
+/libexec/*/glslc*
+/libexec/*/spirv-cross*
 /share/luajit
 /res
 /src/com/dynamo/bob/archive/EngineVersion.java

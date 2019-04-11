@@ -14,7 +14,7 @@
 
 #include <script/script.h>
 
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 using namespace Vectormath::Aos;
 
 /**
@@ -73,33 +73,46 @@ namespace dmGui
      */
     struct TextureSetAnimDesc
     {
+        struct State;
+
         inline void Init()
         {
-            m_State = 0;
-            m_Playback = PLAYBACK_ONCE_FORWARD;
+            m_State.m_OriginalTextureWidth = 0;
+            m_State.m_OriginalTextureHeight = 0;
+            m_State.m_Start = 0;
+            m_State.m_End = 0;
+            m_State.m_FPS = 0;
+            m_State.m_Playback = PLAYBACK_ONCE_FORWARD;
             m_TexCoords = 0;
             m_FlipHorizontal = 0;
             m_FlipVertical = 0;
         }
 
-        union
+        struct State
         {
-            struct
+            inline bool IsEqual(const TextureSetAnimDesc::State other)
             {
-                uint64_t m_Start : 13;
-                uint64_t m_End : 13;
-                uint64_t m_OriginalTextureWidth : 13;
-                uint64_t m_OriginalTextureHeight : 13;
-                uint64_t m_FPS : 8;
-                uint64_t m_Playback : 4;
-            };
-            uint64_t m_State;
-        };
+                return m_Start              == other.m_Start &&
+                    m_End                   == other.m_End &&
+                    m_OriginalTextureWidth  == other.m_OriginalTextureWidth &&
+                    m_OriginalTextureHeight == other.m_OriginalTextureHeight &&
+                    m_FPS                   == other.m_FPS &&
+                    m_Playback              == other.m_Playback;
+            }
+
+            uint32_t m_Start : 13;
+            uint32_t m_End : 13;
+            uint32_t m_Playback : 4;
+            uint32_t : 2;
+            uint16_t m_OriginalTextureWidth;
+            uint16_t m_OriginalTextureHeight;
+            uint8_t  m_FPS;
+        } m_State;
 
         const float* m_TexCoords;
-        uint32_t m_FlipHorizontal : 1;
-        uint32_t m_FlipVertical : 1;
-        uint32_t m_Padding : 14;
+        uint8_t m_FlipHorizontal : 1;
+        uint8_t m_FlipVertical : 1;
+        uint8_t : 6;
     };
 
     enum FetchTextureSetAnimResult
@@ -379,6 +392,15 @@ namespace dmGui
         PIEBOUNDS_ELLIPSE   = 1,
     };
 
+    // This enum denotes what kind of texture type the m_Texture pointer is referencing.
+    enum NodeTextureType
+    {
+        NODE_TEXTURE_TYPE_NONE,
+        NODE_TEXTURE_TYPE_TEXTURE,
+        NODE_TEXTURE_TYPE_TEXTURE_SET,
+        NODE_TEXTURE_TYPE_DYNAMIC
+    };
+
     /**
      * Container of input related information.
      */
@@ -551,7 +573,7 @@ namespace dmGui
      * @param original_height Original Height of the texture
      * @return Outcome of the operation
      */
-    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset, uint32_t original_width, uint32_t original_height);
+    Result AddTexture(HScene scene, const char* texture_name, void* texture, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height);
 
     /**
      * Removes a texture with the specified name from the scene.
@@ -657,7 +679,7 @@ namespace dmGui
      * @param particlefx_name Name of the particlefx that will be used in the gui scripts
      */
     void RemoveParticlefx(HScene scene, const char* particlefx_name);
-    
+
     /**
      * Adds a spine scene with the specified name to the scene.
      * @note Any nodes connected to the same spine_scene_name will also be connected to the new spine scene. This makes this function O(n), where n is #nodes.
@@ -936,7 +958,7 @@ namespace dmGui
     void SetNodeTextTracking(HScene scene, HNode node, float tracking);
     float GetNodeTextTracking(HScene scene, HNode node);
 
-    void* GetNodeTexture(HScene scene, HNode node);
+    void* GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut);
     dmhash_t GetNodeTextureId(HScene scene, HNode node);
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);
@@ -953,8 +975,12 @@ namespace dmGui
     Result SetNodeParticlefx(HScene scene, HNode node, dmhash_t particlefx_id);
     Result GetNodeParticlefx(HScene scene, HNode node, dmhash_t& particlefx_id);
 
-    Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
-    Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
+    Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, float offset, float playback_rate, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
+    Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, float offset, float playback_rate, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
+    float GetNodeFlipbookCursor(HScene scene, HNode node);
+    void SetNodeFlipbookCursor(HScene scene, HNode node, float cursor);
+    float GetNodeFlipbookPlaybackRate(HScene scene, HNode node);
+    void SetNodeFlipbookPlaybackRate(HScene scene, HNode node, float playback_rate);
     void CancelNodeFlipbookAnim(HScene scene, HNode node);
     dmhash_t GetNodeFlipbookAnimId(HScene scene, HNode node);
     const float* GetNodeFlipbookAnimUV(HScene scene, HNode node);

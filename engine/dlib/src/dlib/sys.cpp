@@ -245,7 +245,11 @@ namespace dmSys
     __attribute__((no_sanitize_address)) Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
         FSRef file;
-        FSFindFolder(kUserDomain, kApplicationSupportFolderType, kCreateFolder, &file);
+        OSErr err = FSFindFolder(kUserDomain, kApplicationSupportFolderType, kCreateFolder, &file);
+        if (err != 0)
+        {
+            return RESULT_INVAL;
+        }
         FSRefMakePath(&file, (UInt8*) path, path_len);
         if (dmStrlCat(path, "/", path_len) >= path_len)
             return RESULT_INVAL;
@@ -417,9 +421,18 @@ namespace dmSys
 #elif defined(__linux__)
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
-        char* home = getenv("HOME");
-        if (!home)
-            return RESULT_UNKNOWN;
+        const char* dirs[] = {"HOME", "TMPDIR", "TMP", "TEMP"}; // Added common temp directories since server instances usually don't have a HOME set
+        size_t count = sizeof(dirs)/sizeof(dirs[0]);
+        char* home = 0;
+        for (size_t i = 0; i < count; ++i)
+        {
+            home = getenv(dirs[i]);
+            if (home)
+                break;
+        }
+        if (!home) {
+            home = "."; // fall back to current directory, because the server instance might not have any of those paths set
+        }
 
         if (dmStrlCpy(path, home, path_len) >= path_len)
             return RESULT_INVAL;

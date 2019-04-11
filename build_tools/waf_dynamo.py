@@ -22,16 +22,18 @@ ANDROID_MIN_API_LEVEL='9'
 ANDROID_GCC_VERSION='4.8'
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
-DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault.xctoolchain')
-IOS_SDK_VERSION="11.2"
+IOS_SDK_VERSION="12.1"
 IOS_SIMULATOR_SDK_VERSION="11.2"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
-# Need 5.1 as minimum for fat/universal binaries (armv7 + arm64) to work
-MIN_IOS_SDK_VERSION="6.0"
+MIN_IOS_SDK_VERSION="8.0"
 
 OSX_SDK_VERSION="10.13"
 MIN_OSX_SDK_VERSION="10.7"
+
+XCODE_VERSION="10.1"
+
+DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault%s.xctoolchain' % XCODE_VERSION)
 
 # TODO: HACK
 FLASCC_ROOT=os.path.join(HOME, 'local', 'FlasCC1.0', 'sdk')
@@ -181,6 +183,7 @@ def dmsdk_add_files(bld, target, source):
 # I don't know if this is entirely correct
 @before('apply_core')
 def default_flags(self):
+    global MIN_IOS_SDK_VERSION
     build_util = create_build_utility(self.env)
 
     opt_level = Options.options.opt_level
@@ -188,6 +191,10 @@ def default_flags(self):
         opt_level = "3" # emscripten highest opt level
     elif opt_level == "0" and 'win' in build_util.get_target_os():
         opt_level = "d" # how to disable optimizations in windows
+
+    # For nicer better output (i.e. in CI logs), and still get some performance, let's default to -O1
+    if Options.options.with_asan and opt_level != '0':
+        opt_level = 1
 
     FLAG_ST = '/%s' if 'win' == build_util.get_target_os() else '-%s'
 
@@ -227,8 +234,6 @@ def default_flags(self):
                 # tr1/tuple isn't available on clang/darwin and gtest 1.5.0 assumes that
                 # see corresponding flag in build_gtest.sh
                 self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
-                # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-                # Force libstdc++ for now
                 self.env.append_value(f, ['-stdlib=libstdc++'])
                 self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
                 self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION)])
@@ -236,28 +241,28 @@ def default_flags(self):
         if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
             self.env.append_value('LINKFLAGS', ['-m32'])
         if 'osx' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon','-flto'])
-        if Options.options.with_asan:
-            self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer'])
+            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION,'-lSystem', '-framework', 'Carbon','-flto'])
+
     elif 'ios' == build_util.get_target_os() and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture() or 'x86_64' == build_util.get_target_architecture()):
+        if Options.options.with_asan:
+            MIN_IOS_SDK_VERSION="8.0" # embedded dylibs/frameworks are only supported on iOS 8.0 and later
+
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
-            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-            # Force libstdc++ for now
             if 'x86_64' == build_util.get_target_architecture():
-                self.env.append_value(f, ['-g', '-stdlib=libstdc++', '-DIOS_SIMULATOR', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
+                self.env.append_value(f, ['-g', '-stdlib=libc++', '-DIOS_SIMULATOR', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
                                             '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION,
                                             '-isysroot', '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SIMULATOR_SDK_VERSION)])
             else:
-                self.env.append_value(f, ['-g', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
+                self.env.append_value(f, ['-g', '-stdlib=libc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
                                             '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION,
                                             '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)])
 
         if 'x86_64' == build_util.get_target_architecture():
-            self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SIMULATOR_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+            self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-fobjc-link-runtime', '-isysroot', '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SIMULATOR_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
         else:
-            self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+            self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-fobjc-link-runtime', '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
 
     elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
 
@@ -309,7 +314,7 @@ def default_flags(self):
                                       '-I%s/system/lib/libcxxabi/include' % EMSCRIPTEN_ROOT]) # gtest uses cxxabi.h and for some reason, emscripten doesn't find it (https://github.com/kripken/emscripten/issues/3484)
 
         # NOTE: Disabled lto for when upgrading to 1.35.23, see https://github.com/kripken/emscripten/issues/3616
-        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]'])
+        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]', '-s','ERROR_ON_UNDEFINED_SYMBOLS=1'])
 
     elif 'as3' == build_util.get_target_architecture() and 'web' == build_util.get_target_os():
         # NOTE: -g set on both C*FLAGS and LINKFLAGS
@@ -338,6 +343,7 @@ def default_flags(self):
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('sdk','include'))
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('include'))
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('include', build_util.get_target_platform()))
+    self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include', build_util.get_target_platform()))
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
 
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
@@ -365,10 +371,10 @@ def asan_cxxflags(self):
     if getattr(self, 'skip_asan', False):
         return
     build_util = create_build_utility(self.env)
-    if Options.options.with_asan and "osx" == build_util.get_target_os():
-        self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-DSANITIZE_ADDRESS'])
-        self.env.append_value('CCFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-DSANITIZE_ADDRESS'])
-        self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer'])
+    if Options.options.with_asan and build_util.get_target_os() in ('osx','ios'):
+        self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
+        self.env.append_value('CCFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
+        self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
 
 @taskgen
 @feature('cprogram', 'cxxprogram')
@@ -732,7 +738,11 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
 
     <uses-feature android:required="true" android:glEsVersion="0x00020000" />
     <uses-sdk android:minSdkVersion="%(min_api_level)s" android:targetSdkVersion="%(target_api_level)s" />
-    <application android:label="%(app_name)s" android:hasCode="true" android:debuggable="true">
+    <application
+        android:label="%(app_name)s"
+        android:hasCode="true"
+        android:debuggable="true"
+        android:name="android.support.multidex.MultiDexApplication">
 
         <!-- For Local Notifications -->
         <receiver android:name="com.defold.push.LocalNotificationReceiver" >
@@ -743,10 +753,17 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
             android:name="com.google.android.gms.version"
             android:value="@integer/google_play_services_version" />
 
+        <!-- Disable Firebase Analytics -->
+        <meta-data android:name="firebase_analytics_collection_deactivated" android:value="true" />
+        <!-- For Facebook -->
+        <meta-data android:name="com.facebook.sdk.ApplicationName"
+            android:value="%(app_name)s" />
+
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="%(app_name)s"
                 android:configChanges="orientation|screenSize|keyboardHidden"
                 android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+                android:screenOrientation="portrait"
                 android:launchMode="singleTask">
             <meta-data android:name="android.app.lib_name"
                     android:value="%(lib_name)s" />
@@ -755,14 +772,21 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name="com.dynamo.android.DispatcherActivity" android:theme="@android:style/Theme.NoDisplay">
+        <activity android:name="com.dynamo.android.DispatcherActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <activity android:name="com.facebook.FacebookActivity"
+          android:theme="@android:style/Theme.Translucent.NoTitleBar"
+          android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
+          android:label="%(app_name)s" />
+        <activity android:name="com.defold.iap.IapGooglePlayActivity"
+          android:theme="@android:style/Theme.Translucent.NoTitleBar"
+          android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
+          android:label="IAP">
         </activity>
 
-        <!-- For Local Notifications -->
-        <activity android:name="com.defold.push.LocalPushDispatchActivity"
+        <!-- For local and Firebase notifications -->
+        <activity android:name="com.defold.push.PushDispatchActivity"
             android:theme="@android:style/Theme.Translucent.NoTitleBar"
             android:launchMode="singleTask"
-            android:noHistory="true"
             android:configChanges="keyboardHidden|orientation|screenSize">
             <intent-filter>
                 <action android:name="com.defold.push.FORWARD" />
@@ -770,38 +794,59 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
             </intent-filter>
         </activity>
 
-        <!-- For GCM (push) -->
-        <activity android:name="com.defold.push.PushDispatchActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar">
+        <!-- For Firebase Cloud Messaging -->
+        <service android:enabled="true" android:exported="true" android:name="com.defold.push.FirebaseMessagingService">
             <intent-filter>
-                <action android:name="com.defold.push.FORWARD" />
-                <category android:name="com.defold.push" />
+                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
             </intent-filter>
-        </activity>
-        <receiver
-            android:name="com.defold.push.GcmBroadcastReceiver"
-            android:permission="com.google.android.c2dm.permission.SEND" >
+        </service>
+        <service android:exported="true" android:name="com.google.firebase.messaging.FirebaseMessagingService">
+            <intent-filter android:priority="-500">
+                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
+            </intent-filter>
+        </service>
+        <service android:exported="false" android:name="com.google.firebase.components.ComponentDiscoveryService">
+            <meta-data android:name="com.google.firebase.components:com.google.firebase.analytics.connector.internal.AnalyticsConnectorRegistrar" android:value="com.google.firebase.components.ComponentRegistrar"/>
+            <meta-data android:name="com.google.firebase.components:com.google.firebase.iid.Registrar" android:value="com.google.firebase.components.ComponentRegistrar"/>
+        </service>
+        <receiver android:exported="true" android:name="com.google.firebase.iid.FirebaseInstanceIdReceiver" android:permission="com.google.android.c2dm.permission.SEND">
             <intent-filter>
-                <action android:name="com.google.android.c2dm.intent.RECEIVE" />
-                <action android:name="com.defold.push.FORWARD" />
-                <category android:name="com.defold.push" />
+                <action android:name="com.google.android.c2dm.intent.RECEIVE"/>
             </intent-filter>
         </receiver>
 
-        %(extra_activities)s
+        <!-- For IAC Invocations -->
+        <activity android:name="com.defold.iac.IACActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:launchMode="singleTask"
+            android:configChanges="keyboardHidden|orientation|screenSize">
+            <intent-filter>
+               <action android:name="android.intent.action.VIEW" />
+               <category android:name="android.intent.category.DEFAULT" />
+               <category android:name="android.intent.category.BROWSABLE" />
+               <data android:scheme="{{android.package}}" />
+            </intent-filter>
+        </activity>
+
+        <!-- For Amazon IAP -->
+        <receiver android:name="com.amazon.device.iap.ResponseReceiver" >
+            <intent-filter>
+                <action android:name="com.amazon.inapp.purchasing.NOTIFY" android:permission="com.amazon.inapp.purchasing.Permission.NOTIFY" />
+            </intent-filter>
+        </receiver>
+
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="com.android.vending.BILLING" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- For GCM (push) -->
-    <!-- NOTE: Package name from actual app here! -->
-    <permission android:name="%(package)s.permission.C2D_MESSAGE" android:protectionLevel="signature" />
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
-    <!-- NOTE: Package name from actual app here! -->
-    <uses-permission android:name="%(package)s.permission.C2D_MESSAGE" />
     <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
 
 </manifest>
@@ -827,23 +872,32 @@ def android_package(task):
 
     bld = task.generator.bld
 
-    activities = ''
-    for activity, attr in task.activities:
-        activities += '<activity android:name="%s" %s/>' % (activity, attr)
-
     package = 'com.defold.%s' % task.exe_name
     if task.android_package:
         package = task.android_package
 
     manifest_file = open(task.manifest.bldpath(task.env), 'wb')
-    manifest_file.write(ANDROID_MANIFEST % { 'package' : package, 'app_name' : task.exe_name, 'lib_name' : task.exe_name, 'extra_activities' : activities, 'min_api_level' : ANDROID_MIN_API_LEVEL, 'target_api_level' : ANDROID_TARGET_API_LEVEL })
+    manifest_file.write(ANDROID_MANIFEST % { 'package' : package, 'app_name' : task.exe_name, 'lib_name' : task.exe_name, 'min_api_level' : ANDROID_MIN_API_LEVEL, 'target_api_level' : ANDROID_TARGET_API_LEVEL })
     manifest_file.close()
 
     aapt = '%s/android-sdk/build-tools/%s/aapt' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
     dx = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
     dynamo_home = task.env['DYNAMO_HOME']
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
-    res_dirs = glob.glob('%s/ext/share/java/res/*' % (dynamo_home))
+
+    # DEF-3873
+    # Previously we looped over all subfolders in ext/share/java/res and added them to this list.
+    # After the release of 1.2.149 Facebook dialogs stopped working, unless the engine was built
+    # on NE server. It was narrowed down to what order the res dirs were listed in the aapt
+    # argument list and now we use the same order on all places.
+    res_dirs = ["%s/ext/share/java/res/facebook" % dynamo_home,
+                "%s/ext/share/java/res/com.android.support.support-compat-27.1.1" % dynamo_home,
+                "%s/ext/share/java/res/com.android.support.support-core-ui-27.1.1" % dynamo_home,
+                "%s/ext/share/java/res/com.android.support.support-media-compat-27.1.1" % dynamo_home,
+                "%s/ext/share/java/res/com.google.android.gms.play-services-base-16.0.1" % dynamo_home,
+                "%s/ext/share/java/res/com.google.android.gms.play-services-basement-16.0.1" % dynamo_home,
+                "%s/ext/share/java/res/com.google.firebase.firebase-messaging-17.3.4" % dynamo_home]
+
     manifest = task.manifest.abspath(task.env)
     dme_and = os.path.normpath(os.path.join(os.path.dirname(task.manifest.abspath(task.env)), '..', '..'))
     r_java_gen_dir = task.r_java_gen_dir.abspath(task.env)
@@ -871,11 +925,6 @@ def android_package(task):
     for d in res_dirs:
         res_args += ' -S %s' % d
 
-    ret = bld.exec_command('%s package -f -m --output-text-symbols %s --auto-add-overlay -M %s -I %s -J %s --generate-dependencies -G %s %s' % (aapt, bin, manifest, android_jar, gen, os.path.join(bin, 'proguard.txt'), res_args))
-    if ret != 0:
-        error('Error running aapt')
-        return 1
-
     clspath = ':'.join(task.jars)
     dx_jars = []
     for jar in task.jars:
@@ -888,7 +937,7 @@ def android_package(task):
     else:
         extra_packages_cmd = ''
 
-    ret = bld.exec_command('%s package --no-crunch -f --debug-mode --auto-add-overlay -M %s -I %s %s -F %s -m -J %s %s' % (aapt, manifest, android_jar, res_args, ap_, r_java_gen_dir, extra_packages_cmd))
+    ret = bld.exec_command('%s package --no-crunch -f %s -m --debug-mode --auto-add-overlay -M %s -I %s -J %s %s -F %s' % (aapt, extra_packages_cmd, manifest, android_jar, r_java_gen_dir, res_args, ap_))
     if ret != 0:
         error('Error running aapt')
         return 1
@@ -986,8 +1035,7 @@ def create_android_package(self):
     android_package_task.set_inputs(self.link_task.outputs)
     android_package_task.android_package = self.android_package
 
-    Utils.def_attrs(self, activities=[], extra_packages = "")
-    android_package_task.activities = Utils.to_list(self.activities)
+    Utils.def_attrs(self, extra_packages = "")
     android_package_task.extra_packages = Utils.to_list(self.extra_packages)
 
     Utils.def_attrs(self, jars=[])
@@ -1157,9 +1205,9 @@ def run_gtests(valgrind = False, configfile = None):
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
         return
 
-# TODO: Add something similar to this
-# http://code.google.com/p/v8/source/browse/trunk/tools/run-valgrind.py
-# to find leaks and set error code
+    # TODO: Add something similar to this
+    # http://code.google.com/p/v8/source/browse/trunk/tools/run-valgrind.py
+    # to find leaks and set error code
 
     if not Build.bld.env['VALGRIND']:
         valgrind = False
@@ -1172,7 +1220,7 @@ def run_gtests(valgrind = False, configfile = None):
         return
 
     for t in Build.bld.all_task_gen:
-        if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
+        if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1 and 'test' in t.features:
             output = t.path
             cmd = "%s %s" % (os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target), configfile)
             if 'web' in Build.bld.env.PLATFORM:
@@ -1251,6 +1299,34 @@ def js_web_web_link_flags(self):
             else:
                 js = os.path.join(jsLibHome, lib)
             self.link_task.env.append_value('LINKFLAGS', ['--js-library', js])
+
+Task.simple_task_type('dSYM', '${DSYMUTIL} -o ${TGT} ${SRC}',
+                      color='YELLOW',
+                      after='cxx_link',
+                      shell=True)
+
+Task.simple_task_type('DSYMZIP', '${ZIP} -r ${TGT} ${SRC}',
+                      color='BROWN',
+                      after='dSYM') # Not sure how I could ensure this task running after the dSYM task /MAWE
+
+@feature('extract_symbols')
+@after('cprogram')
+def extract_symbols(self):
+    platform = self.env['PLATFORM']
+    if not 'darwin' in platform:
+        return
+
+    engine = self.path.find_or_declare(self.target)
+    dsym = engine.change_ext('.dSYM')
+    dsymtask = self.create_task('dSYM')
+    dsymtask.set_inputs(engine)
+    dsymtask.set_outputs(dsym)
+
+    archive = engine.change_ext('.dSYM.zip')
+    ziptask = self.create_task('DSYMZIP')
+    ziptask.set_inputs(dsymtask.outputs[0])
+    ziptask.set_outputs(archive)
+    ziptask.install_path = self.install_path
 
 def create_clang_wrapper(conf, exe):
     clang_wrapper_path = os.path.join(conf.env['DYNAMO_HOME'], 'bin', '%s-wrapper.sh' % exe)
@@ -1375,6 +1451,16 @@ def detect(conf):
     if not platform:
         platform = build_platform
 
+    if platform == "win32":
+        bob_build_platform = "x86-win32"
+    elif platform == "linux":
+        bob_build_platform = "x86-linux"
+    elif platform == "darwin":
+        bob_build_platform = "x86-darwin"
+    else:
+        bob_build_platform = platform
+
+    conf.env['BOB_BUILD_PLATFORM'] = bob_build_platform
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = build_platform
 
@@ -1410,6 +1496,10 @@ def detect(conf):
 
         conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = search_path)
 
+    if  build_util.get_target_os() in ('osx', 'ios'):
+        conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True) # or possibly llvm-dsymutil
+        conf.find_program('zip', var='ZIP', mandatory = True)
+
     if 'osx' == build_util.get_target_os():
         # Force gcc without llvm on darwin.
         # We got strange bugs with http cache with gcc-llvm...
@@ -1424,7 +1514,7 @@ def detect(conf):
         conf.env['RANLIB']  = '%s/usr/bin/ranlib' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['LD']      = '%s/usr/bin/ld' % (DARWIN_TOOLCHAIN_ROOT)
 
-    if 'ios' == build_util.get_target_os() and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture()):
+    elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7','arm64'):
         # Wrap clang in a bash-script due to a bug in clang related to cwd
         # waf change directory from ROOT to ROOT/build when building.
         # clang "thinks" however that cwd is ROOT instead of ROOT/build
@@ -1457,6 +1547,18 @@ def detect(conf):
         conf.env['LD'] = '%s/arm-linux-androideabi-ld' % (bin)
 
         conf.env['DX'] =  '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
+    elif 'linux' == build_util.get_target_os():
+        conf.find_program('gcc-5', var='GCC5', mandatory = False)
+        if conf.env.GCC5 and "gcc-5" in conf.env.GCC5:
+            conf.env.CXX = "g++-5"
+            conf.env.CC = "gcc-5"
+            conf.env.CPP = "cpp-5"
+            conf.env.AR = "gcc-ar-5"
+            conf.env.RANLIB = "gcc-ranlib-5"
+        else:
+            conf.env.CXX = "g++"
+            conf.env.CC = "gcc"
+            conf.env.CPP = "cpp"
 
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')

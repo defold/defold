@@ -9,7 +9,6 @@ def set_options(opt):
 
 def build(bld):
     bld.add_subdirs('test')
-    bld.add_subdirs('examples')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 

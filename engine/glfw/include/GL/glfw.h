@@ -401,6 +401,7 @@ typedef unsigned char   GLubyte;
 #define GLFW_PHASE_ENDED (3)
 #define GLFW_PHASE_CANCELLED (4)
 #define GLFW_PHASE_TAPPED (5)
+#define GLFW_PHASE_IDLE (6)
 
 /*************************************************************************
  * Typedefs
@@ -479,6 +480,7 @@ GLFWAPI int  GLFWAPIENTRY glfwGetWindowParam( int param );
 GLFWAPI void GLFWAPIENTRY glfwSetWindowSizeCallback( GLFWwindowsizefun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwSetWindowCloseCallback( GLFWwindowclosefun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwSetWindowRefreshCallback( GLFWwindowrefreshfun cbfun );
+GLFWAPI int  GLFWAPIENTRY glfwGetWindowRefreshRate( void );
 
 /* Video mode functions */
 GLFWAPI int  GLFWAPIENTRY glfwGetVideoModes( GLFWvidmode *list, int maxcount );

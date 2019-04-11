@@ -79,6 +79,12 @@ public:
     virtual ~ResourceFailTest() {}
 };
 
+class InvalidVertexSpaceTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~InvalidVertexSpaceTest() {}
+};
+
 class ComponentTest : public GamesysTest<const char*>
 {
 public:
@@ -163,6 +169,27 @@ public:
     dmhash_t hash_property_id;
     dmhash_t hash_property_id_invalid;
     virtual ~TexturePropTest() {}
+};
+
+class FlipbookTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~FlipbookTest() {}
+};
+
+struct CursorTestParams
+{
+    const char* m_AnimationId;
+    float m_CursorStart;
+    float m_PlaybackRate;
+    float m_Expected[16];
+    uint8_t m_ExpectedCount;
+};
+
+class CursorTest : public GamesysTest<CursorTestParams>
+{
+public:
+    virtual ~CursorTest() {}
 };
 
 bool CopyResource(const char* src, const char* dst);

@@ -18,7 +18,7 @@ public class SupportPath {
             case "linux":
                 return getLinuxSupportPath(applicationName);
             default:
-                return null;
+                throw new RuntimeException("Unsupported platform: " + platform.getOs());
         }
     }
 

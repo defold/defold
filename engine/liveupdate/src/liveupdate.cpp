@@ -42,6 +42,8 @@ namespace dmLiveUpdate
             case dmResource::RESULT_INVALID_DATA:
                 result = RESULT_BUNDLED_RESOURCE_MISMATCH;
                 break;
+            case dmResource::RESULT_DDF_ERROR:
+                result = RESULT_FORMAT_ERROR;
             default:
                 result = RESULT_INVALID_RESOURCE;
                 break;
@@ -176,7 +178,7 @@ namespace dmLiveUpdate
     static Result VerifyManifestBundledResources(dmResource::Manifest* manifest)
     {
         dmResource::Result res;
-        dmMutex::Mutex mutex = dmResource::GetLoadMutex(m_ResourceFactory);
+        dmMutex::HMutex mutex = dmResource::GetLoadMutex(m_ResourceFactory);
         while(!dmMutex::TryLock(mutex))
         {
             dmTime::Sleep(100);

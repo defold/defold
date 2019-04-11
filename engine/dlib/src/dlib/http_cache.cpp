@@ -115,7 +115,7 @@ namespace dmHttpCache
         char*                m_Path;
         uint64_t             m_MaxCacheEntryAge;
         dmHashTable64<Entry> m_CacheTable;
-        dmMutex::Mutex       m_Mutex;
+        dmMutex::HMutex      m_Mutex;
         dmIndexPool16        m_CacheCreatorsPool;
         dmArray<CacheCreator> m_CacheCreators;
         ConsistencyPolicy    m_Policy;

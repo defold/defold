@@ -26,19 +26,22 @@
 
 (defn ->progress
   ([render-progress!]
-   (->progress render-progress! (atom [])))
-  ([render-progress! msg-stack-atom]
+   (->progress render-progress! (constantly false)))
+  ([render-progress! task-cancelled?]
+   (->progress render-progress! task-cancelled? (atom [])))
+  ([render-progress! task-cancelled? msg-stack-atom]
    (assert (ifn? render-progress!))
+   (assert (ifn? task-cancelled?))
    (assert (vector? @msg-stack-atom))
    (reify IProgress
      (isCanceled [_this]
-       false)
+       (task-cancelled?))
      (subProgress [_this _work-claimed-from-this]
-       (->progress render-progress! msg-stack-atom))
+       (->progress render-progress! task-cancelled? msg-stack-atom))
      (beginTask [_this name _steps]
        (error-reporting/catch-all!
          (swap! msg-stack-atom conj name)
-         (render-progress! (progress/make-indeterminate name))))
+         (render-progress! (progress/make-cancellable-indeterminate name))))
      (worked [_this _amount]
        ;; Bob reports misleading progress amounts.
        ;; We report only "busy" and the name of the task.
@@ -47,7 +50,7 @@
        (error-reporting/catch-all!
          (let [msg (peek (swap! msg-stack-atom pop))]
            (render-progress! (if (some? msg)
-                               (progress/make-indeterminate msg)
+                               (progress/make-cancellable-indeterminate msg)
                                progress/done))))))))
 
 (defn- ->graph-resource-scanner [ws]
@@ -77,14 +80,14 @@
   (let [proj-settings (project/settings project)]
     (get proj-settings ["project" "title"] "Unnamed")))
 
-(defn- run-commands! [project ^Project bob-project commands render-progress!]
+(defn- run-commands! [project evaluation-context ^Project bob-project commands render-progress! task-cancelled?]
   (try
     (let [result (ui/with-progress [render-progress! render-progress!]
-                   (.build bob-project (->progress render-progress!) (into-array String commands)))
+                   (.build bob-project (->progress render-progress! task-cancelled?) (into-array String commands)))
           failed-tasks (filter (fn [^TaskResult r] (not (.isOk r))) result)]
       (if (empty? failed-tasks)
         nil
-        {:error {:causes (engine-build-errors/failed-tasks-error-causes project failed-tasks)}}))
+        {:error {:causes (engine-build-errors/failed-tasks-error-causes project evaluation-context failed-tasks)}}))
     (catch Exception e
       {:exception e})))
 
@@ -93,20 +96,21 @@
 (defn build-in-progress? []
   @build-in-progress-atom)
 
-(defn bob-build! [project bob-commands bob-args render-progress!]
+(defn bob-build! [project evaluation-context bob-commands bob-args render-progress! task-cancelled?]
   (assert (vector? bob-commands))
   (assert (every? string? bob-commands))
   (assert (map? bob-args))
   (assert (every? (fn [[key val]] (and (string? key) (string? val))) bob-args))
   (assert (ifn? render-progress!))
+  (assert (ifn? task-cancelled?))
   (reset! build-in-progress-atom true)
   (try
     (if (and (some #(= "build" %) bob-commands)
-             (native-extensions/has-extensions? project)
+             (native-extensions/has-extensions? project evaluation-context)
              (not (native-extensions/supported-platform? (get bob-args "platform"))))
-      {:error {:causes (engine-build-errors/unsupported-platform-error-causes project)}}
-      (let [ws (project/workspace project)
-            proj-path (str (workspace/project-path ws))
+      {:error {:causes (engine-build-errors/unsupported-platform-error-causes project evaluation-context)}}
+      (let [ws (project/workspace project evaluation-context)
+            proj-path (str (workspace/project-path ws evaluation-context))
             bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
         (doseq [[key val] bob-args]
           (.setOption bob-project key val))
@@ -118,11 +122,11 @@
           (when (seq deps)
             (.setLibUrls bob-project (map #(.toURL ^URI %) deps))
             (ui/with-progress [render-progress! render-progress!]
-              (.resolveLibUrls bob-project (->progress render-progress!)))))
+              (.resolveLibUrls bob-project (->progress render-progress! task-cancelled?)))))
         (.mount bob-project (->graph-resource-scanner ws))
         (.findSources bob-project proj-path skip-dirs)
         (ui/with-progress [render-progress! render-progress!]
-          (run-commands! project bob-project bob-commands render-progress!))))
+          (run-commands! project evaluation-context bob-project bob-commands render-progress! task-cancelled?))))
     (catch Throwable error
       {:exception error})
     (finally

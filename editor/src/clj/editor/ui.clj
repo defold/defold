@@ -10,7 +10,6 @@
    [editor.progress :as progress]
    [editor.math :as math]
    [editor.menu :as menu]
-   [editor.ui.tree-view-hack :as tree-view-hack]
    [editor.util :as eutil]
    [internal.util :as util]
    [service.log :as log]
@@ -19,7 +18,9 @@
    [com.defold.control LongField]
    [com.defold.control ListCell]
    [com.defold.control TreeCell]
+   [com.sun.javafx.application PlatformImpl]
    [com.sun.javafx.event DirectEvent]
+   [com.sun.javafx.scene KeyboardShortcutsHandler SceneEventDispatcher]
    [java.awt Desktop Desktop$Action]
    [java.io File IOException]
    [java.net URI]
@@ -27,7 +28,6 @@
    [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
    [javafx.application Platform]
    [javafx.beans InvalidationListener]
-   [javafx.beans.binding Bindings]
    [javafx.beans.value ChangeListener ObservableValue]
    [javafx.collections FXCollections ListChangeListener ObservableList]
    [javafx.css Styleable]
@@ -42,15 +42,17 @@
    [javafx.scene.shape SVGPath]
    [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
    [javafx.stage Stage Modality Window PopupWindow StageStyle]
-   [javafx.util Callback Duration StringConverter]
-   [com.sun.javafx.scene KeyboardShortcutsHandler SceneEventDispatcher]))
+   [javafx.util Callback Duration StringConverter]))
 
 (set! *warn-on-reflection* true)
 
-;; These two lines initialize JavaFX and OpenGL when we're generating
-;; API docs
-(import com.sun.javafx.application.PlatformImpl)
-(PlatformImpl/startup (constantly nil))
+;; Next line of code makes sure JavaFX is initialized, which is required during
+;; compilation even when we are not actually running the editor. To properly
+;; generate reflection-less code, clojure compiler loads classes and searches
+;; for fitting methods while compiling it. Loading javafx.scene.control.Control
+;; class requires application to be running, because it sets default platform
+;; stylesheet, and this requires Application to be running.
+(PlatformImpl/startup (fn []))
 
 (defonce text-cursor-white (ImageCursor. (jfx/get-image "text-cursor-white.png") 16.0 16.0))
 (defonce ^:dynamic *main-stage* (atom nil))
@@ -111,20 +113,19 @@
 (defn set-main-stage [main-stage]
   (reset! *main-stage* main-stage))
 
-(defn ^Stage main-stage []
+(defn main-stage ^Stage []
   @*main-stage*)
 
-(defn ^Scene main-scene []
+(defn main-scene ^Scene []
   (.. (main-stage) (getScene)))
 
-(defn ^Node main-root []
+(defn main-root ^Node []
   (.. (main-scene) (getRoot)))
 
-(defn- ^MenuBar main-menu-id []
+(defn- main-menu-id ^MenuBar []
   (:menu-id (user-data (main-root) ::menubar)))
 
-(defn node-with-id
-  ^Node [id nodes]
+(defn node-with-id ^Node [id nodes]
   (some (fn [^Node node]
           (when (= id (.getId node))
             node))
@@ -194,12 +195,12 @@
 (defn choose-directory
   ([title ^File initial-dir] (choose-directory title initial-dir @*main-stage*))
   ([title ^File initial-dir parent]
-    (let [chooser (DirectoryChooser.)]
-      (when initial-dir
-        (.setInitialDirectory chooser initial-dir))
-      (.setTitle chooser title)
-      (let [file (.showDialog chooser parent)]
-        (when file (.getAbsolutePath file))))))
+   (let [chooser (DirectoryChooser.)]
+     (when initial-dir
+       (.setInitialDirectory chooser initial-dir))
+     (.setTitle chooser title)
+     (let [file (.showDialog chooser parent)]
+       (when file (.getAbsolutePath file))))))
 
 (defn collect-controls [^Parent root keys]
   (let [controls (zipmap (map keyword keys) (map #(.lookup root (str "#" %)) keys))
@@ -265,16 +266,16 @@
 
 (defn observe-list
   ([^ObservableList observable listen-fn]
-    (observe-list nil observable listen-fn))
+   (observe-list nil observable listen-fn))
   ([^Node node ^ObservableList observable listen-fn]
-    (let [listener (reify ListChangeListener
-                     (onChanged [this change]
-                       (listen-fn observable (into [] (.getList change)))))]
-      (.addListener observable listener)
-      (when node
-        (let [listeners (-> (or (user-data node ::list-listeners) [])
-                          (conj listener))]
-          (user-data! node ::list-listeners listeners))))))
+   (let [listener (reify ListChangeListener
+                    (onChanged [this change]
+                      (listen-fn observable (into [] (.getList change)))))]
+     (.addListener observable listener)
+     (when node
+       (let [listeners (-> (or (user-data node ::list-listeners) [])
+                           (conj listener))]
+         (user-data! node ::list-listeners listeners))))))
 
 (defn remove-list-observers
   [^Node node ^ObservableList observable]
@@ -320,6 +321,16 @@
   `(reify EventHandler
      (handle [~'this ~event]
        ~@body)))
+
+(defmacro event-dispatcher [event tail & body]
+  `(reify EventDispatcher
+     (dispatchEvent [~'this ~event ~tail]
+       ~@body)))
+
+(def null-event-dispatcher (event-dispatcher event tail))
+
+(defn kill-event-dispatch! [^Node target]
+  (.setEventDispatcher target null-event-dispatcher))
 
 (defmacro change-listener [observable old-val new-val & body]
   `(reify ChangeListener
@@ -838,15 +849,16 @@
 
 (defn select-indices!
   [^TreeView tree-view indices]
-  (doto (.getSelectionModel tree-view)
-    (tree-view-hack/subvert-broken-selection-model-optimization!)
-    (.selectIndices (int (first indices)) (int-array (rest indices)))))
+  (let [selection-model (.getSelectionModel tree-view)]
+    (doseq [^long index indices]
+      (.select selection-model index))))
 
 (extend-type TreeView
   CollectionView
-  (selection [this] (some->> this
-                      tree-view-hack/broken-selected-tree-items
-                      (mapv #(.getValue ^TreeItem %))))
+  (selection [this] (->> this
+                         .getSelectionModel
+                         .getSelectedItems
+                         (mapv #(.getValue ^TreeItem %))))
   (select! [this item] (let [tree-items (tree-item-seq (.getRoot this))]
                          (when-let [tree-item (some (fn [^TreeItem tree-item] (and (= item (.getValue tree-item)) tree-item)) tree-items)]
                            (doto (.getSelectionModel this)
@@ -861,7 +873,7 @@
     (.setCellFactory this (make-tree-cell-factory render-fn))))
 
 (defn selection-root-items [^TreeView tree-view path-fn id-fn]
-  (let [selection (tree-view-hack/broken-selected-tree-items tree-view)]
+  (let [selection (.getSelectedItems (.getSelectionModel tree-view))]
     (let [items (into {} (map #(do [(path-fn %) %]) (filter id-fn selection)))
           roots (loop [paths (keys items)
                        roots []]
@@ -968,11 +980,11 @@
 
 (defn context!
   ([^Node node name env selection-provider]
-    (context! node name env selection-provider {}))
+   (context! node name env selection-provider {}))
   ([^Node node name env selection-provider dynamics]
-    (context! node name env selection-provider dynamics {}))
+   (context! node name env selection-provider dynamics {}))
   ([^Node node name env selection-provider dynamics adapters]
-    (user-data! node ::context (handler/->context name env selection-provider dynamics adapters))))
+   (user-data! node ::context (handler/->context name env selection-provider dynamics adapters))))
 
 (defn context
   [^Node node]
@@ -1135,13 +1147,20 @@
 (defn- make-menu-items [^Scene scene menu command-contexts command->shortcut]
   (keep (fn [item] (make-menu-item scene item command-contexts command->shortcut)) menu))
 
-(defn- ^ContextMenu make-context-menu [menu-items]
-  (let [^ContextMenu context-menu (ContextMenu.)]
+(defn- make-context-menu ^ContextMenu [menu-items]
+  (let [context-menu (ContextMenu.)]
     (.addAll (.getItems context-menu) (to-array menu-items))
     context-menu))
 
 (declare refresh-separator-visibility)
 (declare refresh-menu-item-styles)
+
+(let [method (.getDeclaredMethod ContextMenu
+                                 "setShowRelativeToWindow"
+                                 (into-array Class [Boolean/TYPE]))]
+  (.setAccessible method true)
+  (defn set-show-relative-to-window! [context-menu x]
+    (.invoke method context-menu (into-array Object [(boolean x)]))))
 
 (defn- show-context-menu! [menu-id ^ContextMenuEvent event]
   (when-not (.isConsumed event)
@@ -1154,7 +1173,7 @@
         (refresh-menu-item-styles))
       ;; Required for autohide to work when the event originates from the anchor/source node
       ;; See RT-15160 and Control.java
-      (.setImpl_showRelativeToWindow cm true)
+      (set-show-relative-to-window! cm true)
       (.show cm node (.getScreenX event) (.getScreenY event)))))
 
 (defn register-context-menu [^Control control menu-id]
@@ -1178,7 +1197,7 @@
   [^MenuBar menu-bar]
   (let [menu-bar-skin (.getSkin menu-bar)
         first-menu-runnable-field (doto (.. menu-bar-skin getClass (getDeclaredField "firstMenuRunnable"))
-                                 (.setAccessible true))]
+                                    (.setAccessible true))]
     (.set first-menu-runnable-field menu-bar-skin (fn []))))
 
 (defn register-menubar [^Scene scene menubar menu-id]
@@ -1204,15 +1223,15 @@
 
 (defn bind-action!
   ([^Node node command]
-    (bind-action! node command {}))
+   (bind-action! node command {}))
   ([^Node node command user-data]
-    (user-data! node ::bound-action {:command command :user-data user-data})
-    (on-action! node (fn [^Event e] (run-command node command user-data true (fn [] (.consume e)))))))
+   (user-data! node ::bound-action {:command command :user-data user-data})
+   (on-action! node (fn [^Event e] (run-command node command user-data true (fn [] (.consume e)))))))
 
 (defn refresh-bound-action-enabled!
   [^Node node]
   (let [{:keys [command user-data]
-         :or {:user-data {}}} (user-data node ::bound-action)
+         :or {user-data {}}} (user-data node ::bound-action)
         command-contexts (node-contexts node true)
         handler-ctx (handler/active command command-contexts user-data)
         enabled (and handler-ctx
@@ -1221,11 +1240,11 @@
 
 (defn bind-double-click!
   ([^Node node command]
-    (bind-double-click! node command {}))
+   (bind-double-click! node command {}))
   ([^Node node command user-data]
-    (.addEventFilter node MouseEvent/MOUSE_CLICKED
-      (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
-                         (run-command node command user-data false (fn [] (.consume e))))))))
+   (.addEventFilter node MouseEvent/MOUSE_CLICKED
+                    (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
+                                       (run-command node command user-data false (fn [] (.consume e))))))))
 
 (defn key-combo
   [^String acc]
@@ -1277,20 +1296,6 @@
                                                                   binding
                                                                   [binding {}])]
                                         (run-command node command user-data true #(.consume event))))))))
-
-(defn bind-presence!
-  "Make the nodes presence in the scene dependent on an ObservableValue.
-  If the ObservableValue evaluates to false, the node is both hidden and
-  collapsed so it won't take up any space in the layout pass."
-  [^Node node ^ObservableValue value]
-  (.bind (.visibleProperty node) value)
-  (.bind (.managedProperty node) (.visibleProperty node)))
-
-(defn bind-enabled-to-selection!
-  "Disables the node unless an item is selected in selection-owner."
-  [^Node node selection-owner]
-  (.bind (.disableProperty node)
-         (Bindings/isNull (.selectedItemProperty (selection-model selection-owner)))))
 
 (defn- ^KeyboardShortcutsHandler keyboard-shortcuts-handler
   [^Node node]
@@ -1353,21 +1358,21 @@
 (defprotocol HasMenuItemList
   (menu-items ^ObservableList [this] "returns a ObservableList of MenuItems or nil"))
 
- (extend-protocol HasMenuItemList
-   MenuBar
-   (menu-items [this] (.getMenus this))
+(extend-protocol HasMenuItemList
+  MenuBar
+  (menu-items [this] (.getMenus this))
 
-   ContextMenu
-   (menu-items [this] (.getItems this))
+  ContextMenu
+  (menu-items [this] (.getItems this))
 
-   Menu
-   (menu-items [this] (.getItems this))
+  Menu
+  (menu-items [this] (.getItems this))
 
-   MenuItem
-   (menu-items [this])
+  MenuItem
+  (menu-items [this])
 
-   CheckMenuItem
-   (menu-items [this]))
+  CheckMenuItem
+  (menu-items [this]))
 
 (defn- replace-menu!
   [^MenuItem old ^MenuItem new]
@@ -1808,7 +1813,7 @@ command."
 
 (defn ->timer
   ([name tick-fn]
-    (->timer nil name tick-fn))
+   (->timer nil name tick-fn))
   ([fps name tick-fn]
    (let [start      (System/nanoTime)
          last       (atom start)
@@ -1901,7 +1906,7 @@ command."
 
 (defn- show-dialog-stage [^Stage stage show-fn]
   (if (and (eutil/is-mac-os?)
-             (= (.getOwner stage) (main-stage)))
+           (= (.getOwner stage) (main-stage)))
     (let [scene (.getScene stage)
           root-pane ^Pane (.getRoot scene)
           menu-bar (doto (MenuBar.)
@@ -2006,19 +2011,19 @@ command."
 
 (defn open-file
   ([^File file]
-    (open-file file nil))
+   (open-file file nil))
   ([^File file on-error-fn]
-    (if (some-> desktop (.isSupported Desktop$Action/OPEN))
-      (do
-        (.start (Thread. (fn []
-                           (try
-                             (.open desktop file)
-                             (catch IOException e
-                               (if on-error-fn
-                                 (on-error-fn (.getMessage e))
-                                 (throw e)))))))
-        true)
-      false)))
+   (if (some-> desktop (.isSupported Desktop$Action/OPEN))
+     (do
+       (.start (Thread. (fn []
+                          (try
+                            (.open desktop file)
+                            (catch IOException e
+                              (if on-error-fn
+                                (on-error-fn (.getMessage e))
+                                (throw e)))))))
+       true)
+     false)))
 
 (defn- make-path-data
   ^String [^double col ^double row outlines]

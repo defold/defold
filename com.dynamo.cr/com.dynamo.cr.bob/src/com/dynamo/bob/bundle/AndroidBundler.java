@@ -58,17 +58,16 @@ public class AndroidBundler implements IBundler {
             return copyIcon(projectProperties, projectRoot, resDir, name + "_" + dpi, "drawable-" + dpi + "/" + outName);
     }
 
-    private Pattern aaptResourceErrorRe = Pattern.compile("^invalid resource directory name:\\s(.+)\\s(.+)\\s.*$", Pattern.MULTILINE);
-
     @Override
-    public void bundleApplication(Project project, File bundleDir) throws IOException, CompileExceptionError {
+    public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
+        Bob.initAndroid(); // extract resources
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         final boolean strip_executable = project.hasOption("strip-executable");
 
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
-        String exeName = title.replace(' ', '_');
+        String exeName = BundleHelper.projectNameToBinaryName(title);
 
         String certificate = project.option("certificate", "");
         String key = project.option("private-key", "");
@@ -77,7 +76,9 @@ public class AndroidBundler implements IBundler {
         // If a custom engine was built we need to copy it
         Platform targetPlatform = Platform.Armv7Android;
 
-        ArrayList<File> classesDex = new ArrayList<File>();
+        BundleHelper.throwIfCanceled(canceled);
+
+        ArrayList<File> classesDex = new ArrayList<>();
         classesDex.add(new File(Bob.getPath("lib/classes.dex")));
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
         List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
@@ -85,7 +86,7 @@ public class AndroidBundler implements IBundler {
             bundleExes = Bob.getDefaultDmengineFiles(targetPlatform, variant);
         }
         else {
-            classesDex = new ArrayList<File>();
+            classesDex = new ArrayList<>();
             int i = 1;
             while(true)
             {
@@ -105,49 +106,43 @@ public class AndroidBundler implements IBundler {
 
         File appDir = new File(bundleDir, title);
         File resDir = new File(appDir, "res");
+        File tmpResourceDir = Files.createTempDirectory("res").toFile();
 
         String contentRoot = project.getBuildDirectory();
         String projectRoot = project.getRootDirectory();
 
+        BundleHelper.throwIfCanceled(canceled);
+
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
         resDir.mkdirs();
-        FileUtils.forceMkdir(new File(resDir, "drawable"));
-        FileUtils.forceMkdir(new File(resDir, "drawable-ldpi"));
-        FileUtils.forceMkdir(new File(resDir, "drawable-mdpi"));
-        FileUtils.forceMkdir(new File(resDir, "drawable-hdpi"));
-        FileUtils.forceMkdir(new File(resDir, "drawable-xhdpi"));
-        FileUtils.forceMkdir(new File(resDir, "drawable-xxhdpi"));
-        FileUtils.forceMkdir(new File(resDir, "drawable-xxxhdpi"));
         FileUtils.forceMkdir(new File(appDir, "libs/armeabi-v7a"));
 
-        // Create AndroidManifest.xml and output icon resources (if available)
         BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, "");
-        File manifestFile = new File(appDir, "AndroidManifest.xml");
-        helper.createAndroidManifest(projectProperties, projectRoot, manifestFile, resDir, exeName);
 
         // Create APK
         File ap1 = new File(appDir, title + ".ap1");
 
-        Map<String, String> aaptEnv = new HashMap<String, String>();
-        if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
-            aaptEnv.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
-        }
+        File manifestFile = new File(appDir, "AndroidManifest.xml"); // the final, merged manifest
+        IResource sourceManifestFile = helper.getResource("android", "manifest");
+
+        Map<String, Object> properties = helper.createAndroidManifestProperties(project.getRootDirectory(), resDir, exeName);
+        helper.mergeManifests(project, targetPlatform, properties, sourceManifestFile, manifestFile);
+
+        BundleHelper.throwIfCanceled(canceled);
+
+        // Create properties and output icon resources (if available)
+        helper.generateAndroidResources(project, targetPlatform, resDir, manifestFile, ap1, tmpResourceDir);
+
+        BundleHelper.throwIfCanceled(canceled);
 
         // AAPT needs all resources on disc
-        File tmpResourceDir = Files.createTempDirectory("res").toFile();
         Map<String, IResource> androidResources = ExtenderUtil.getAndroidResources(project);
-
-        // Write out all resources to disc. Needed for those resources that are located withing .zip files (libraries)
-        ExtenderUtil.storeAndroidResources(tmpResourceDir, androidResources);
 
         // Find the actual android resource folders on disc
         Set<String> androidResourceFolders = new HashSet<>();
         {
-            Iterator<Map.Entry<String, IResource>> it = androidResources.entrySet().iterator();
-            while (it.hasNext()) {
-                Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>) it.next();
-
+            for (Map.Entry<String, IResource> entry : androidResources.entrySet()) {
                 String absPath = entry.getValue().getAbsPath();                                 // /topfolder/extension/res/android/res/path/to/res.xml
                 String relativePath = entry.getKey();                                           // path/to/res.xml
                 String dir = absPath.substring(0, absPath.length() - relativePath.length());    // /topfolder/extension/res/android/res
@@ -155,77 +150,33 @@ public class AndroidBundler implements IBundler {
             }
         }
 
+        BundleHelper.throwIfCanceled(canceled);
+
         // Collect bundle/package resources to be included in APK zip
         Map<String, IResource> allResources = ExtenderUtil.collectResources(project, targetPlatform);
 
+        // bundleResources = allResources - androidResources
         // Remove any paths that begin with any android resource paths so they are not added twice (once by us, and once by aapt)
         // This step is used to detect which resources that shouldn't be manually bundled, since aapt does that for us.
-        Map<String, IResource> bundleResources = null;
+        Map<String, IResource> bundleResources;
         {
-            Map<String, IResource> newBundleResources = new HashMap<String, IResource>();
-            Iterator<Map.Entry<String, IResource>> it = allResources.entrySet().iterator();
-            while (it.hasNext()) {
-                Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>)it.next();
-
+            Map<String, IResource> newBundleResources = new HashMap<>();
+            for (Map.Entry<String, IResource> entry : allResources.entrySet()) {
                 boolean discarded = false;
-                for( String resourceFolder : androidResourceFolders )
-                {
-                    if( entry.getValue().getAbsPath().startsWith(resourceFolder) )
-                    {
+                for (String resourceFolder : androidResourceFolders) {
+                    if (entry.getValue().getAbsPath().startsWith(resourceFolder)) {
                         discarded = true;
                         break;
                     }
                 }
-                if(!discarded) {
+                if (!discarded) {
                     newBundleResources.put(entry.getKey(), entry.getValue());
                 }
             }
             bundleResources = newBundleResources;
         }
 
-        List<String> args = new ArrayList<String>();
-        args.add(Bob.getExe(Platform.getHostPlatform(), "aapt"));
-        args.add("package");
-        args.add("--no-crunch");
-        args.add("-f");
-        args.add("--extra-packages");
-        args.add("com.facebook:com.google.android.gms");
-        args.add("-m");
-        args.add("--auto-add-overlay");
-
-        if (debuggable) {
-            args.add("--debug-mode");
-        }
-
-        // Resources here will both be added to R.java, and also be added to the .apk file
-        args.add("-S"); args.add(tmpResourceDir.getAbsolutePath());
-
-        args.add("-S"); args.add(resDir.getAbsolutePath());
-        args.add("-S"); args.add(Bob.getPath("res/facebook"));
-        args.add("-S"); args.add(Bob.getPath("res/google-play-services"));
-
-        args.add("-M"); args.add(manifestFile.getAbsolutePath());
-        args.add("-I"); args.add(Bob.getPath("lib/android.jar"));
-        args.add("-F"); args.add(ap1.getAbsolutePath());
-        Result res = Exec.execResultWithEnvironment(aaptEnv, args);
-
-        if (res.ret != 0) {
-            String msg = new String(res.stdOutErr);
-
-            // Try our best to visualize the error from aapt
-            Matcher m = aaptResourceErrorRe.matcher(msg);
-            if (m.matches()) {
-                String path = m.group(1);
-                if (path.startsWith(project.getRootDirectory())) {
-                    path = path.substring(project.getRootDirectory().length());
-                }
-                IResource r = project.getResource(FilenameUtils.concat(path, m.group(2))); // folder + filename
-                if (r != null) {
-                    throw new CompileExceptionError(r, 1, String.format("Invalid Android resource folder name: '%s'\nSee https://developer.android.com/guide/topics/resources/providing-resources.html#table1 for valid directory names.\nAAPT Error: %s", m.group(2), msg));
-                }
-            }
-            throw new IOException(msg);
-        }
+        BundleHelper.throwIfCanceled(canceled);
 
         for(File dex : classesDex)
         {
@@ -233,17 +184,26 @@ public class AndroidBundler implements IBundler {
             File tmpClassesDex = new File(appDir, name);
             FileUtils.copyFile(dex, tmpClassesDex);
 
-            res = Exec.execResultWithEnvironmentWorkDir(aaptEnv, appDir, Bob.getExe(Platform.getHostPlatform(), "aapt"),
+            BundleHelper.throwIfCanceled(canceled);
+
+            Map<String, String> aaptEnv = new HashMap<>();
+            if (Platform.getHostPlatform() == Platform.X86_64Linux) {
+                aaptEnv.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
+            }
+
+            Result res = Exec.execResultWithEnvironmentWorkDir(aaptEnv, appDir, Bob.getExe(Platform.getHostPlatform(), "aapt"),
                     "add",
                     ap1.getAbsolutePath(),
                     name);
 
             tmpClassesDex.delete();
+
+            if (res.ret != 0) {
+                throw new IOException(new String(res.stdOutErr));
+            }
         }
 
-        if (res.ret != 0) {
-            throw new IOException(new String(res.stdOutErr));
-        }
+        BundleHelper.throwIfCanceled(canceled);
 
         File ap2 = File.createTempFile(title, ".ap2");
         ap2.deleteOnExit();
@@ -255,21 +215,25 @@ public class AndroidBundler implements IBundler {
 
             ZipEntry inE = zipIn.getNextEntry();
             while (inE != null) {
+                BundleHelper.throwIfCanceled(canceled);
                 zipOut.putNextEntry(new ZipEntry(inE.getName()));
                 IOUtils.copy(zipIn, zipOut);
                 inE = zipIn.getNextEntry();
             }
 
             for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
+                BundleHelper.throwIfCanceled(canceled);
                 File source = new File(new File(projectRoot, contentRoot), name);
                 ZipEntry ze = new ZipEntry(normalize("assets/" + name, true));
                 zipOut.putNextEntry(ze);
                 FileUtils.copyFile(source, zipOut);
             }
 
+            BundleHelper.throwIfCanceled(canceled);
             // Copy bundle resources into .apk zip (actually .ap2 in this case)
             ExtenderUtil.writeResourcesToZip(bundleResources, zipOut);
 
+            BundleHelper.throwIfCanceled(canceled);
             // Strip executable
             String strippedpath = bundleExe.getAbsolutePath();
             if( strip_executable )
@@ -279,12 +243,13 @@ public class AndroidBundler implements IBundler {
                 strippedpath = tmp.getAbsolutePath();
                 FileUtils.copyFile(bundleExe, tmp);
 
-                res = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_android"), strippedpath);
+                Result res = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_android"), strippedpath);
                 if (res.ret != 0) {
                     throw new IOException(new String(res.stdOutErr));
                 }
             }
 
+            BundleHelper.throwIfCanceled(canceled);
             // Copy executable
             String filename = FilenameUtils.concat("lib/armeabi-v7a", "lib" + exeName + ".so");
             filename = FilenameUtils.normalize(filename, true);
@@ -297,6 +262,7 @@ public class AndroidBundler implements IBundler {
 
         File ap3 = new File(appDir, title + ".ap3");
 
+        BundleHelper.throwIfCanceled(canceled);
         // Sign
         if (certificate.length() > 0 && key.length() > 0) {
             Result r = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "apkc"),
@@ -318,6 +284,7 @@ public class AndroidBundler implements IBundler {
             }
         }
 
+        BundleHelper.throwIfCanceled(canceled);
         // Rezip with some files as STORED
         File ap4 = File.createTempFile(title, ".ap4");
         ap4.deleteOnExit();
@@ -329,6 +296,8 @@ public class AndroidBundler implements IBundler {
 
             Enumeration<? extends ZipEntry> entries = zipFileIn.entries();
             while (entries.hasMoreElements()) {
+                BundleHelper.throwIfCanceled(canceled);
+
                 ZipEntry inE = entries.nextElement();
 
                 ZipEntry ze = new ZipEntry(inE.getName());
@@ -382,6 +351,8 @@ public class AndroidBundler implements IBundler {
             IOUtils.closeQuietly(zipFileIn);
             IOUtils.closeQuietly(zipOut);
         }
+
+        BundleHelper.throwIfCanceled(canceled);
 
         File apk = new File(appDir, title + ".apk");
         Result r = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "zipalign"),

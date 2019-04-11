@@ -24,7 +24,18 @@ var Combine = {
     _onDownloadProgress: [],    // signature: downloaded, total
 
     _totalDownloadBytes: 0,
+
+    _retry_time: 0,             // pause before retry file loading after error
+    _max_retry_count: 0,        // how many attempts we do when trying to download a file.
+    _can_not_download_file_callback: undefined, //Function that is called if you can't download file after 'retry_count' attempts.
+
     _archiveLocationFilter: function(path) { return "split" + path; },
+
+    can_not_download_file: function(file) { 
+        if (typeof Combine._can_not_download_file_callback === 'function') {
+            Combine._can_not_download_file_callback(file);
+        }
+    },
 
     addProgressListener: function(callback) {
         if (typeof callback !== 'function') {
@@ -48,12 +59,26 @@ var Combine = {
     },
 
     // descriptUrl: location of text file describing files to be preloaded
-    process: function(descriptUrl) {
+    process: function(descriptUrl, attempt_count) {
+        if (!attempt_count) {
+            attempt_count = 0;
+        }
         var xhr = new XMLHttpRequest();
         xhr.open('GET', descriptUrl);
         xhr.responseType = 'text';
         xhr.onload = function(evt) {
             Combine.onReceiveDescription(xhr);
+        };
+        xhr.onerror = function(evt) {
+            attempt_count += 1;
+            if (attempt_count < Combine._max_retry_count) {
+                console.warn("Can't download file '" + descriptUrl + "' . Next try in " + Combine._retry_time + " sec.");
+                setTimeout(function() {
+                    Combine.process(descriptUrl, attempt_count);
+                }, Combine._retry_time * 1000);
+             } else {
+                    Combine.can_not_download_file(descriptUrl);
+            }
         };
         xhr.send(null);
     },
@@ -95,7 +120,11 @@ var Combine = {
         }
     },
 
-    requestPiece: function(target, index) {
+    requestPiece: function(target, index, attempt_count) {
+        if (!attempt_count) {
+            attempt_count = 0;
+        }
+
         if (index <  target.lastRequestedPiece) {
             throw "Request out of order";
         }
@@ -126,6 +155,21 @@ var Combine = {
             Combine.onPieceLoaded(target, item);
             Combine.updateProgress(target);
             item.data = undefined;
+        };
+        xhr.onerror = function(evt) {
+            if (target.progress[item.name]) {
+                target.progress[item.name].downloaded = 0;
+                Combine.updateProgress(target);
+            }
+            attempt_count += 1;
+            if (attempt_count < Combine._max_retry_count) {
+                console.warn("Can't download file '" + item.name + "' . Next try in " + Combine._retry_time + " sec.");
+                setTimeout(function() {
+                    Combine.requestPiece(target, index, attempt_count);
+                }, Combine._retry_time * 1000);
+            } else {
+                    Combine.can_not_download_file(item.name);
+            }
         };
         xhr.send(null);
     },
@@ -377,7 +421,7 @@ var Module = {
     getHiddenProperty: function () {
         if ('hidden' in document) return 'hidden';
         var prefixes = ['webkit','moz','ms','o'];
-        for (var i = 0; i < prefixes.length; i++){
+        for (var i = 0; i < prefixes.length; i++) {
             if ((prefixes[i] + 'Hidden') in document)
                 return prefixes[i] + 'Hidden';
         }
@@ -418,6 +462,17 @@ var Module = {
     *     'custom_heap_size':
     *         Number of bytes specifying the memory heap size.
     *
+    *     'disable_context_menu':
+    *         Disables the right-click context menu on the canvas element if true.
+    *
+    *     'retry_time':
+    *         Pause before retry file loading after error.
+    *
+    *     'retry_count':
+    *         How many attempts we do when trying to download a file.
+    *
+    *     'can_not_download_file_callback':
+    *         Function that is called if you can't download file after 'retry_count' attempts.
     **/
     runApp: function(app_canvas_id, extra_params) {
         app_canvas_id = (typeof app_canvas_id === 'undefined') ?  'canvas' : app_canvas_id;
@@ -428,7 +483,11 @@ var Module = {
             unsupported_webgl_callback: undefined,
             engine_arguments: [],
             persistent_storage: true,
-            custom_heap_size: undefined
+            custom_heap_size: undefined,
+            disable_context_menu: true,
+            retry_time: 1, 
+            retry_count: 10,
+            can_not_download_file_callback: undefined,
         };
 
         for (var k in extra_params) {
@@ -454,6 +513,19 @@ var Module = {
             // Add progress visuals
             Progress.addProgress(Module.canvas);
 
+            // Add context menu hide-handler if requested
+            if (params["disable_context_menu"])
+            {
+                Module.canvas.oncontextmenu = function(e) {
+                    e.preventDefault();
+                };
+            }
+
+            Combine._retry_time = params["retry_time"];
+            Combine._max_retry_count = params["retry_count"];
+            if (typeof params["can_not_download_file_callback"] === "function") {
+                Combine._can_not_download_file_callback = params["can_not_download_file_callback"];
+            }
             // Load and assemble archive
             Combine.addCombineCompletedListener(Module.onArchiveFileLoaded);
             Combine.addAllTargetsBuiltListener(Module.onArchiveLoaded);

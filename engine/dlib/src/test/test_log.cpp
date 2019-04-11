@@ -3,6 +3,7 @@
 #include <string>
 #include <map>
 #include <gtest/gtest.h>
+#include "../dlib/array.h"
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
 #include "../dlib/dstrings.h"
@@ -93,6 +94,37 @@ TEST(dmLog, LogFile)
     ASSERT_TRUE(strstr(tmp, "TESTING_LOG") != 0);
     dmSys::Unlink(path);
     fclose(f);
+}
+
+static void TestLogCaptureCallback(void* user_data, const char* log)
+{
+    dmArray<char>* log_output = (dmArray<char>*)user_data;
+    uint32_t len = (uint32_t)strlen(log);
+    log_output->SetCapacity(log_output->Size() + len + 1);
+    log_output->PushArray(log, len);
+}
+
+TEST(dmLog, TestCapture)
+{
+    dmArray<char> log_output;
+    dmSetCustomLogCallback(TestLogCaptureCallback, &log_output);
+    dmLogDebug("This is a debug message");
+    dmLogInfo("This is a info message");
+    dmLogWarning("This is a warning message");
+    dmLogError("This is a error message");
+    dmLogFatal("This is a fata message");
+
+    log_output.Push(0);
+
+    const char* ExpectedOutput =
+                "INFO:DLIB: This is a info message\n"
+                "WARNING:DLIB: This is a warning message\n"
+                "ERROR:DLIB: This is a error message\n"
+                "FATAL:DLIB: This is a fata message\n";
+
+    ASSERT_STREQ(ExpectedOutput,
+                log_output.Begin());
+    dmSetCustomLogCallback(0x0, 0x0);
 }
 
 int main(int argc, char **argv)

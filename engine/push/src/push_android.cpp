@@ -178,6 +178,14 @@ static int Push_Schedule(lua_State* L)
     const char* payload = 0;
     if (top > 3) {
         payload = luaL_checkstring(L, 4);
+
+        // Verify that the payload is valid and can be delivered later on.
+        char payload_err[128];
+        if (!dmPush::VerifyPayload(L, payload, payload_err, sizeof(payload_err))) {
+            lua_pushnil(L);
+            lua_pushstring(L, payload_err);
+            return 2;
+        }
     }
 
     // param: notification_settings
@@ -626,7 +634,13 @@ void HandlePushMessageResult(const Command* cmd, bool local)
     dmJson::Document doc;
     dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
     if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-        dmScript::JsonToLua(L, &doc, 0);
+        char err_str[128];
+        if (dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str)) < 0) {
+            dmLogError("Failed converting push result JSON to Lua; %s", err_str);
+            assert(top == lua_gettop(L));
+            dmJson::Free(&doc);
+            return;
+        }
 
         if (local) {
             lua_pushnumber(L, DM_PUSH_EXTENSION_ORIGIN_LOCAL);
@@ -638,6 +652,7 @@ void HandlePushMessageResult(const Command* cmd, bool local)
 
         dmScript::PCall(L, 4, 0);
     } else {
+        lua_pop(L, 2);
         dmLogError("Failed to parse push response (%d)", r);
     }
     dmJson::Free(&doc);
@@ -712,7 +727,7 @@ static dmExtension::Result AppInitializePush(dmExtension::AppParams* params)
     jclass push_jni_class = (jclass)env->CallObjectMethod(cls, find_class, str_class_name);
     env->DeleteLocalRef(str_class_name);
 
-    g_Push.m_Start = env->GetMethodID(push_class, "start", "(Landroid/app/Activity;Lcom/defold/push/IPushListener;Ljava/lang/String;Ljava/lang/String;)V");
+    g_Push.m_Start = env->GetMethodID(push_class, "start", "(Landroid/app/Activity;Lcom/defold/push/IPushListener;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
     g_Push.m_Stop = env->GetMethodID(push_class, "stop", "()V");
     g_Push.m_FlushStored = env->GetMethodID(push_class, "flushStoredNotifications", "()V");
     g_Push.m_Register = env->GetMethodID(push_class, "register", "(Landroid/app/Activity;)V");
@@ -726,11 +741,14 @@ static dmExtension::Result AppInitializePush(dmExtension::AppParams* params)
     g_Push.m_PushJNI = env->NewGlobalRef(env->NewObject(push_jni_class, jni_constructor));
 
     const char* sender_id = dmConfigFile::GetString(params->m_ConfigFile, "android.gcm_sender_id", "");
+    const char* application_id = dmConfigFile::GetString(params->m_ConfigFile, "android.fcm_application_id", "");
     const char* project_title = dmConfigFile::GetString(params->m_ConfigFile, "project.title", "");
     jstring sender_id_string = env->NewStringUTF(sender_id);
+    jstring application_id_string = env->NewStringUTF(application_id);
     jstring project_title_string = env->NewStringUTF(project_title);
-    env->CallVoidMethod(g_Push.m_Push, g_Push.m_Start, g_AndroidApp->activity->clazz, g_Push.m_PushJNI, sender_id_string, project_title_string);
+    env->CallVoidMethod(g_Push.m_Push, g_Push.m_Start, g_AndroidApp->activity->clazz, g_Push.m_PushJNI, sender_id_string, application_id_string, project_title_string);
     env->DeleteLocalRef(sender_id_string);
+    env->DeleteLocalRef(application_id_string);
     env->DeleteLocalRef(project_title_string);
 
     // loop through all stored local push notifications

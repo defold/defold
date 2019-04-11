@@ -92,7 +92,7 @@
   (name (:name ctx)))
 
 (defn run [[handler command-context]]
-  (analytics/track-screen (ctx->screen-name command-context))
+  (analytics/track-screen! (ctx->screen-name command-context))
   (invoke-fnk handler :run command-context nil))
 
 (defn state [[handler command-context]]

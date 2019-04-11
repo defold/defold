@@ -6,6 +6,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/array.h>
+#include <dlib/json.h>
 #include <dlib/mutex.h>
 #include <script/script.h>
 
@@ -73,7 +74,7 @@ struct Facebook
     int m_RefCount;
     int m_DisableFaceBookEvents;
 
-    dmMutex::Mutex m_Mutex;
+    dmMutex::HMutex m_Mutex;
     dmArray<Command> m_CmdQueue;
 };
 
@@ -196,11 +197,16 @@ static void RunDialogResultCallback(Command* cmd)
             dmJson::Document doc;
             dmJson::Result r = dmJson::Parse((const char*) cmd->m_Results, &doc);
             if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-                dmScript::JsonToLua(L, &doc, 0);
+                char err_str[128];
+                if (dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str)) < 0) {
+                    dmLogError("Failed converting dialog result JSON to Lua; %s", err_str);
+                    lua_pushnil(L);
+                }
             } else {
                 dmLogError("Failed to parse dialog JSON result (%d)", r);
                 lua_pushnil(L);
             }
+            dmJson::Free(&doc);
         } else {
             lua_pushnil(L);
         }

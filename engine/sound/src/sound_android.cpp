@@ -16,9 +16,7 @@ struct SoundManager
     }
 
     jobject     m_SoundManager;
-    jmethodID   m_AcquireAudioFocus;
     jmethodID   m_IsMusicPlaying;
-    jmethodID   m_ReleaseAudioFocus;
     bool        m_IsPhoneCallActive;
 };
 
@@ -88,7 +86,7 @@ namespace dmSound
         JNIEnv* environment = ::Attach();
 
         g_SoundManager.m_IsPhoneCallActive       = false; // It will get updated by the call to the construct
-        
+
         jclass      jni_class_NativeActivity     = environment->FindClass("android/app/NativeActivity");
         jmethodID   jni_method_getClassLoader    = environment->GetMethodID(jni_class_NativeActivity, "getClassLoader", "()Ljava/lang/ClassLoader;");
         jobject     jni_object_getClassLoader    = environment->CallObjectMethod(g_AndroidApp->activity->clazz, jni_method_getClassLoader);
@@ -100,8 +98,6 @@ namespace dmSound
         jmethodID   jni_constructor_SoundManager = environment->GetMethodID(jni_class_SoundManager, "<init>", "(Landroid/app/Activity;)V");
 
         g_SoundManager.m_SoundManager            = environment->NewGlobalRef(environment->NewObject(jni_class_SoundManager, jni_constructor_SoundManager, g_AndroidApp->activity->clazz));
-        g_SoundManager.m_AcquireAudioFocus       = environment->GetMethodID(jni_class_SoundManager, "acquireAudioFocus", "()Z");
-        g_SoundManager.m_ReleaseAudioFocus       = environment->GetMethodID(jni_class_SoundManager, "releaseAudioFocus", "()Z");
         g_SoundManager.m_IsMusicPlaying          = environment->GetMethodID(jni_class_SoundManager, "isMusicPlaying", "()Z");
 
         environment->DeleteLocalRef(jni_string_SoundManager);
@@ -115,18 +111,10 @@ namespace dmSound
         return (::CheckException(environment) && ::Detach(environment)) ? RESULT_OK : RESULT_FINI_ERROR;
     }
 
-    bool PlatformAcquireAudioFocus()
+    bool PlatformIsMusicPlaying(bool is_device_started)
     {
-        return ::CallZ(g_SoundManager.m_AcquireAudioFocus, false);
-    }
-
-    bool PlatformReleaseAudioFocus()
-    {
-        return ::CallZ(g_SoundManager.m_ReleaseAudioFocus, false);
-    }
-
-    bool PlatformIsMusicPlaying()
-    {
+        if (is_device_started)
+            return false;
         return ::CallZ(g_SoundManager.m_IsMusicPlaying, false);
     }
 

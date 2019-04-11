@@ -100,6 +100,8 @@ public:
 
     void SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hull, CellFlags flags);
 
+    void ClearCellData();
+
     uint32 CalculateCellMask(b2Fixture* fixture, uint32 row, uint32 column);
 
     b2Vec2  m_position;

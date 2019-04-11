@@ -27,7 +27,7 @@ public class LocalNotificationReceiver extends WakefulBroadcastReceiver {
 
         nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
 
-        Intent new_intent = new Intent(context, LocalPushDispatchActivity.class).setAction("com.defold.push.FORWARD");
+        Intent new_intent = new Intent(context, PushDispatchActivity.class).setAction(Push.ACTION_FORWARD_PUSH);
 
         Bundle extras = intent.getExtras();
         extras.putByte("wasActivated", (byte) (DefoldActivity.isActivityVisible() ? 0 : 1));
@@ -59,9 +59,15 @@ public class LocalNotificationReceiver extends WakefulBroadcastReceiver {
                 int largeIconId = extras.getInt("largeIcon");
                 if (smallIconId == 0) {
                     smallIconId = info.icon;
+                    if (smallIconId == 0) {
+                        smallIconId = android.R.color.transparent;
+                    }
                 }
                 if (largeIconId == 0) {
                     largeIconId = info.icon;
+                    if (largeIconId == 0) {
+                        largeIconId = android.R.color.transparent;
+                    }
                 }
 
                 // Get bitmap for large icon resource

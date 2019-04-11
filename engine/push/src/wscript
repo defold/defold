@@ -11,14 +11,14 @@ def build(bld):
 
     source = []
 
+
     if re.match('arm.*?darwin', bld.env.PLATFORM) or bld.env.PLATFORM == 'x86_64-ios':
-        source += ['push_ios.mm']
+        source += ['push_ios.mm', 'push_utils.cpp']
     elif re.match('arm.*?android', bld.env.PLATFORM):
-        source += ['push_android.cpp']
+        source += ['push_android.cpp', 'push_utils.cpp']
 
         classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME,
                      '%s/ext/share/java/android-support-v4.jar' % bld.env.DYNAMO_HOME,
-                     '%s/ext/share/java/google-play-services.jar' % bld.env.DYNAMO_HOME,
                      '%s/share/java/gamesys_android.jar' % bld.env.DYNAMO_HOME,
                      '%s/share/java/glfw_android.jar' % bld.env.DYNAMO_HOME]
         classpath = os.pathsep.join(classpath)

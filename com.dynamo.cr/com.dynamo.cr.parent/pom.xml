@@ -72,11 +72,6 @@
                         <environment>
                             <os>linux</os>
                             <ws>gtk</ws>
-                            <arch>x86</arch>
-                        </environment>
-                        <environment>
-                            <os>linux</os>
-                            <ws>gtk</ws>
                             <arch>x86_64</arch>
                         </environment>
                     </environments>
@@ -143,20 +138,5 @@
         <module>../slf4j</module>
     </modules>
 
-    <profiles>
-        <profile>
-            <id>server</id>
-            <modules>
-		        <module>../com.dynamo.cr.server-product</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>editor</id>
-            <modules>
-                <module>../com.dynamo.cr.editor-product</module>
-            </modules>
-        </profile>
-    </profiles>
 
 </project>

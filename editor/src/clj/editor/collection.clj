@@ -4,6 +4,7 @@
             [schema.core :as s]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.build-target :as bt]
             [editor.protobuf :as protobuf]
             [editor.graph-util :as gu]
             [editor.dialogs :as dialogs]
@@ -182,19 +183,20 @@
   (output build-targets g/Any (g/fnk [build-resource source-build-targets build-error ddf-message transform]
                                      (let [target (assoc (first source-build-targets)
                                                          :resource build-resource)]
-                                       [(assoc target :instance-data {:resource (:resource target)
-                                                                      :instance-msg ddf-message
-                                                                      :transform transform})])))
+                                       [(bt/with-content-hash
+                                          (assoc target
+                                            :instance-data
+                                            {:resource (:resource target)
+                                             :instance-msg ddf-message
+                                             :transform transform}))])))
   (output build-error g/Err (g/constantly nil))
 
   (output scene g/Any :cached (g/fnk [_node-id id transform scene child-scenes]
-                                     (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (or (:aabb scene) (geom/null-aabb)) child-scenes)
-                                           aabb (geom/aabb-transform (geom/aabb-incorporate aabb 0 0 0) transform)]
-                                       (-> (scene/claim-scene scene _node-id id)
+                                     (-> (scene/claim-scene scene _node-id id)
                                          (assoc :transform transform
-                                                :aabb aabb
+                                                :aabb geom/empty-bounding-box
                                                 :renderable {:passes [pass/selection]})
-                                         (update :children (fn [s] (reduce conj (or s []) child-scenes)))))))
+                                         (update :children (fn [s] (reduce conj (or s []) child-scenes))))))
   (output go-inst-ids g/Any :cached (g/fnk [_node-id id]
                                            {id _node-id}))
   (output ddf-properties g/Any :cached (g/fnk [id ddf-component-properties] {:id id :properties ddf-component-properties})))
@@ -240,6 +242,11 @@
   (or (validation/prop-error :fatal node-id :path validation/prop-nil? resource "Path")
       (validation/prop-error :fatal node-id :path validation/prop-resource-not-exists? resource "Path")))
 
+(defn- substitute-error [val-or-error substitute]
+  (if-not (g/error? val-or-error)
+    val-or-error
+    substitute))
+
 (g/defnode ReferencedGOInstanceNode
   (inherits GameObjectInstanceNode)
 
@@ -271,9 +278,9 @@
                              (g/override go-node {:traverse? or-go-traverse?}
                                          (fn [evaluation-context id-mapping]
                                            (let [or-node (get id-mapping go-node)
-                                                 component-ids (g/node-value go-node :component-ids evaluation-context)
+                                                 component-ids (substitute-error (g/node-value go-node :component-ids evaluation-context) {})
                                                  id-mapping (fn [id]
-                                                              (-> id
+                                                              (some-> id
                                                                 component-ids
                                                                 (g/node-value :source-id evaluation-context)
                                                                 id-mapping))]
@@ -292,7 +299,8 @@
                                                  (g/connect self from or-node to))
                                                (for [[id p] component-overrides
                                                      [key [type value]] p
-                                                     :let [comp-id (id-mapping id)]]
+                                                     :let [comp-id (id-mapping id)]
+                                                     :when (some? comp-id)]
                                                  (let [refd-component (component-ids id)
                                                        refd-component-props (:properties (g/node-value refd-component :_properties evaluation-context))
                                                        original-type (get-in refd-component-props [key :type])
@@ -363,15 +371,16 @@
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
         (when (not-empty dup-ids)
           (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
-    (let [sub-build-targets (flatten sub-build-targets)
-         dep-build-targets (flatten dep-build-targets)
-         instance-data (map :instance-data dep-build-targets)
-         instance-data (reduce concat instance-data (map #(get-in % [:user-data :instance-data]) sub-build-targets))]
-     [{:node-id _node-id
-       :resource (workspace/make-build-resource resource)
-       :build-fn build-collection
-       :user-data {:name name :instance-data instance-data :scale-along-z scale-along-z}
-       :deps (vec (reduce into dep-build-targets (map :deps sub-build-targets)))}])))
+      (let [sub-build-targets (flatten sub-build-targets)
+            dep-build-targets (flatten dep-build-targets)
+            instance-data (map :instance-data dep-build-targets)
+            instance-data (reduce concat instance-data (map #(get-in % [:user-data :instance-data]) sub-build-targets))]
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-collection
+            :user-data {:name name :instance-data instance-data :scale-along-z scale-along-z}
+            :deps (vec (reduce into dep-build-targets (map :deps sub-build-targets)))})])))
 
 (declare CollectionInstanceNode)
 
@@ -430,7 +439,7 @@
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
                                      {:node-id _node-id
                                       :children child-scenes
-                                      :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))}))
+                                      :aabb geom/null-aabb}))
   (output go-inst-ids g/Any :cached (g/fnk [go-inst-ids] (reduce merge {} go-inst-ids)))
   (output ddf-properties g/Any (g/fnk [ddf-properties] (reduce (fn [props m]
                                                                  (if (empty? (:properties m))
@@ -467,7 +476,12 @@
             base-id (str id path-sep)
             instance-data (get-in build-targets [0 :user-data :instance-data])
             child-ids (reduce (fn [child-ids data] (into child-ids (:children (:instance-msg data)))) #{} instance-data)]
-        (assoc-in build-targets [0 :user-data :instance-data] (map #(flatten-instance-data % base-id transform child-ids ddf-properties) instance-data)))))
+        (update build-targets 0
+                (fn [build-target]
+                  (bt/with-content-hash
+                    (assoc-in build-target [:user-data :instance-data]
+                              (map #(flatten-instance-data % base-id transform child-ids ddf-properties)
+                                   instance-data))))))))
 
 (g/defnk produce-coll-inst-outline [_node-id id source-resource source-outline source-id source-resource]
   (-> {:node-id _node-id
@@ -506,11 +520,11 @@
                (when-some [{connect-tx-data :tx-data coll-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
                  (concat
                    connect-tx-data
-                   (g/override coll-node {:tranverse? or-coll-traverse?}
+                   (g/override coll-node {:traverse? or-coll-traverse?}
                                (fn [evaluation-context id-mapping]
-                                 (let [go-inst-ids (g/node-value coll-node :go-inst-ids evaluation-context)
+                                 (let [go-inst-ids (substitute-error (g/node-value coll-node :go-inst-ids evaluation-context) {})
                                        component-overrides (for [{:keys [id properties]} (:overrides new-value)
-                                                                 :let [comp-ids (-> id
+                                                                 :let [comp-ids (some-> id
                                                                                   go-inst-ids
                                                                                   (g/node-value :source-id evaluation-context)
                                                                                   (g/node-value :component-ids evaluation-context))]
@@ -569,7 +583,7 @@
   (output scene g/Any :cached (g/fnk [_node-id id transform scene]
                                      (assoc (scene/claim-scene scene _node-id id)
                                             :transform transform
-                                            :aabb (geom/aabb-transform (or (:aabb scene) (geom/null-aabb)) transform)
+                                            :aabb geom/empty-bounding-box
                                             :renderable {:passes [pass/selection]})))
   (output build-targets g/Any :cached produce-coll-inst-build-targets)
   (output sub-ddf-properties g/Any :cached (g/fnk [id ddf-properties]
@@ -702,8 +716,10 @@
   (run [selection workspace project app-view]
        (if-let [coll-node (selection->collection selection)]
          (let [ext           "collection"
-               resource-type (workspace/get-resource-type workspace ext)]
-           (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext ext :title "Select Collection File"}))]
+               resource-type (workspace/get-resource-type workspace ext)
+               coll-node-path (resource/proj-path (g/node-value coll-node :resource))
+               accept (fn [x] (not= (resource/proj-path x) coll-node-path))]
+           (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext ext :title "Select Collection File" :accept-fn accept}))]
              (let [base (resource/base-name resource)
                    id (gen-instance-id coll-node base)
                    op-seq (gensym)

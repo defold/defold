@@ -45,6 +45,7 @@ pre {
 
 pre > code {
     border: none;
+    line-height: 1.5em;
 }
 
 img {

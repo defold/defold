@@ -206,7 +206,7 @@ TEST_F(dmSSDPTest, RegisterDevice)
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
 
     r = dmSSDP::RegisterDevice(ssdp, &m_DeviceDesc);
-    ASSERT_EQ(dmSSDP::RESULT_ALREADY_REGISTRED, r);
+    ASSERT_EQ(dmSSDP::RESULT_ALREADY_REGISTERED, r);
 
     r = dmSSDP::DeregisterDevice(ssdp, "my_root_device");
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
@@ -218,7 +218,7 @@ TEST_F(dmSSDPTest, RegisterDevice)
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
 
     r = dmSSDP::DeregisterDevice(ssdp, "my_root_device");
-    ASSERT_EQ(dmSSDP::RESULT_NOT_REGISTRED, r);
+    ASSERT_EQ(dmSSDP::RESULT_NOT_REGISTERED, r);
 
     r = dmSSDP::Delete(ssdp);
     ASSERT_EQ(dmSSDP::RESULT_OK, r);

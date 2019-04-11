@@ -10,35 +10,37 @@
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.ui :as ui]
+            [editor.ui.bindings :as b]
             [editor.ui.fuzzy-choices-popup :as popup]
             [editor.util :as eutil]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s])
-  (:import (clojure.lang IPersistentVector)
-           (com.defold.control ListView)
-           (com.sun.javafx.font FontResource FontStrike PGFont)
-           (com.sun.javafx.geom.transform BaseTransform)
-           (com.sun.javafx.perf PerformanceTracker)
-           (com.sun.javafx.tk Toolkit)
-           (com.sun.javafx.util Utils)
-           (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect)
-           (java.util Collection)
-           (java.util.regex Pattern)
-           (javafx.beans.binding Bindings StringBinding)
-           (javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleStringProperty)
-           (javafx.beans.value ChangeListener)
-           (javafx.geometry HPos Point2D VPos)
-           (javafx.scene Node Parent Scene)
-           (javafx.scene.canvas Canvas GraphicsContext)
-           (javafx.scene.control Button CheckBox PopupControl Tab TextField)
-           (javafx.scene.input Clipboard DataFormat KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent)
-           (javafx.scene.layout ColumnConstraints GridPane Pane Priority)
-           (javafx.scene.paint Color LinearGradient Paint)
-           (javafx.scene.shape Rectangle)
-           (javafx.scene.text Font FontSmoothingType TextAlignment)
-           (javafx.stage Stage)))
+  (:import [com.defold.control ListView]
+           [com.sun.javafx.font FontResource FontStrike PGFont]
+           [com.sun.javafx.geom.transform BaseTransform]
+           [com.sun.javafx.perf PerformanceTracker]
+           [com.sun.javafx.scene.text FontHelper]
+           [com.sun.javafx.tk Toolkit]
+           [com.sun.javafx.util Utils]
+           [editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect]
+           [java.util Collection]
+           [java.util.regex Pattern]
+           [javafx.beans.binding ObjectBinding]
+           [javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty]
+           [javafx.beans.value ChangeListener]
+           [javafx.event EventHandler]
+           [javafx.geometry HPos Point2D VPos]
+           [javafx.scene Node Parent Scene]
+           [javafx.scene.canvas Canvas GraphicsContext]
+           [javafx.scene.control Button CheckBox PopupControl Tab TextField]
+           [javafx.scene.input Clipboard DataFormat KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent]
+           [javafx.scene.layout ColumnConstraints GridPane Pane Priority]
+           [javafx.scene.paint Color LinearGradient Paint]
+           [javafx.scene.shape Rectangle]
+           [javafx.scene.text Font FontSmoothingType TextAlignment]
+           [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -68,8 +70,10 @@
 (g/deftype MatchingBraces [[(s/one r/TCursorRange "brace") (s/one r/TCursorRange "counterpart")]])
 (g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
 (g/deftype ResizeReference (s/enum :bottom :top))
-(g/deftype SyntaxInfo IPersistentVector)
-(g/deftype SideEffect (s/eq nil))
+(g/deftype VisibleWhitespace (s/enum :all :none :rogue))
+
+(defn- boolean->visible-whitespace [visible?]
+  (if visible? :all :rogue))
 
 (defn- enable-performance-tracker! [scene]
   (reset! *performance-tracker (PerformanceTracker/getSceneTracker scene)))
@@ -89,20 +93,42 @@
                                    [(mime-type->DataFormat mime-type) representation]))
                             representation-by-mime-type))))
 
-(defrecord GlyphMetrics [^FontStrike font-strike ^double line-height ^double ascent]
+(def ^:private ^:const min-cached-char-width
+  (double (inc Byte/MIN_VALUE)))
+
+(def ^:private ^:const max-cached-char-width
+  (double Byte/MAX_VALUE))
+
+(defn- make-char-width-cache [^FontStrike font-strike]
+  (let [cache (byte-array (inc (int Character/MAX_VALUE)) Byte/MIN_VALUE)]
+    (fn get-char-width [^Character character]
+      (let [ch (unchecked-char character)
+            i (unchecked-int ch)
+            cached-width (aget cache i)]
+        (if (= cached-width Byte/MIN_VALUE)
+          (let [width (Math/floor (.getCharAdvance font-strike ch))]
+            (when (and (<= min-cached-char-width width)
+                       (<= width max-cached-char-width))
+              (aset cache i (byte width)))
+            width)
+          cached-width)))))
+
+(defrecord GlyphMetrics [char-width-cache ^double line-height ^double ascent]
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
-  (char-width [_this character] (Math/floor (.getCharAdvance font-strike character))))
+  (char-width [_this character] (char-width-cache character)))
 
 (defn make-glyph-metrics
   ^GlyphMetrics [^Font font ^double line-height-factor]
   (let [font-loader (.getFontLoader (Toolkit/getToolkit))
         font-metrics (.getFontMetrics font-loader font)
-        font-strike (.getStrike ^PGFont (.impl_getNativeFont font) BaseTransform/IDENTITY_TRANSFORM FontResource/AA_GREYSCALE)
+        font-strike (.getStrike ^PGFont (FontHelper/getNativeFont font)
+                                BaseTransform/IDENTITY_TRANSFORM
+                                FontResource/AA_GREYSCALE)
         line-height (Math/ceil (* (inc (.getLineHeight font-metrics)) line-height-factor))
         ascent (Math/ceil (* (.getAscent font-metrics) line-height-factor))]
-    (->GlyphMetrics font-strike line-height ascent)))
+    (->GlyphMetrics (make-char-width-cache font-strike) line-height ascent)))
 
 (def ^:private default-editor-color-scheme
   (let [^Color foreground-color (Color/valueOf "#DDDDDD")
@@ -127,6 +153,7 @@
      ["editor.gutter.execution-marker.current" execution-marker-color]
      ["editor.gutter.execution-marker.frame" execution-marker-frame-color]
      ["editor.gutter.shadow" (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%")]
+     ["editor.indentation.guide" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]
      ["editor.matching.brace" (Color/valueOf "#A2B0BE")]
      ["editor.minimap.shadow" (LinearGradient/valueOf "to left, rgba(0, 0, 0, 0.2) 0%, transparent 100%")]
      ["editor.minimap.viewed.range" (Color/valueOf "#393C41")]
@@ -134,8 +161,7 @@
      ["editor.scroll.tab.hovered" (.deriveColor foreground-color 0.0 1.0 1.0 0.5)]
      ["editor.whitespace.space" (.deriveColor foreground-color 0.0 1.0 1.0 0.2)]
      ["editor.whitespace.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]
-     ["editor.whitespace.rogue" (Color/valueOf "#FBCE2F")]
-     ["editor.indentation.guide" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]]))
+     ["editor.whitespace.rogue" (Color/valueOf "#FBCE2F")]]))
 
 (defn make-color-scheme [ordered-paints-by-pattern]
   (into []
@@ -317,14 +343,19 @@
           (when inside-visible-end?
             (recur next-i next-x)))))))
 
-(defn- draw-code! [^GraphicsContext gc ^Font font ^LayoutInfo layout color-scheme lines syntax-info indent-type visible-whitespace?]
+(defn- draw-code! [^GraphicsContext gc ^Font font ^LayoutInfo layout color-scheme lines syntax-info indent-type visible-whitespace]
   (let [^Rect canvas-rect (.canvas layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
         drawn-line-count (.drawn-line-count layout)
         ^double ascent (data/ascent (.glyph layout))
         ^double line-height (data/line-height (.glyph layout))
-        foreground-color (color-lookup color-scheme "editor.foreground")]
+        visible-whitespace? (= :all visible-whitespace)
+        highlight-rogue-whitespace? (not= :none visible-whitespace)
+        foreground-color (color-lookup color-scheme "editor.foreground")
+        space-color (color-lookup color-scheme "editor.whitespace.space")
+        tab-color (color-lookup color-scheme "editor.whitespace.tab")
+        rogue-whitespace-color (color-lookup color-scheme "editor.whitespace.rogue")]
     (.setFont gc font)
     (.setTextAlign gc TextAlignment/LEFT)
     (loop [drawn-line-index 0
@@ -357,10 +388,7 @@
           (let [line-length (count line)
                 baseline-offset (Math/ceil (/ line-height 4.0))
                 visible-start-x (.x canvas-rect)
-                visible-end-x (+ visible-start-x (.w canvas-rect))
-                rogue-indent-color (color-lookup color-scheme "editor.whitespace.rogue")
-                space-color (color-lookup color-scheme "editor.whitespace.space")
-                tab-color (color-lookup color-scheme "editor.whitespace.tab")]
+                visible-end-x (+ visible-start-x (.w canvas-rect))]
             (loop [inside-leading-whitespace? true
                    i 0
                    x 0.0]
@@ -377,8 +405,10 @@
                       \space (let [sx (+ line-x (Math/floor (* (+ x next-x) 0.5)))
                                    sy (- line-y baseline-offset)]
                                (cond
-                                 (and inside-leading-whitespace? (= :tabs indent-type))
-                                 (do (.setFill gc rogue-indent-color)
+                                 (and highlight-rogue-whitespace?
+                                      inside-leading-whitespace?
+                                      (= :tabs indent-type))
+                                 (do (.setFill gc rogue-whitespace-color)
                                      (.fillRect gc sx sy 1.0 1.0))
 
                                  visible-whitespace?
@@ -388,8 +418,10 @@
                       \tab (let [sx (+ line-x x 2.0)
                                  sy (- line-y baseline-offset)]
                              (cond
-                               (and inside-leading-whitespace? (not= :tabs indent-type))
-                               (do (.setFill gc rogue-indent-color)
+                               (and highlight-rogue-whitespace?
+                                    inside-leading-whitespace?
+                                    (not= :tabs indent-type))
+                               (do (.setFill gc rogue-whitespace-color)
                                    (.fillRect gc sx sy (- next-x x 4.0) 1.0))
 
                                visible-whitespace?
@@ -461,7 +493,7 @@
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))))
 
-(defn- draw! [^GraphicsContext gc ^Font font gutter-view hovered-element ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?]
+(defn- draw! [^GraphicsContext gc ^Font font gutter-view hovered-element ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace]
   (let [^Rect canvas-rect (.canvas layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
@@ -469,7 +501,8 @@
         ^double line-height (data/line-height (.glyph layout))
         background-color (color-lookup color-scheme "editor.background")
         scroll-tab-color (color-lookup color-scheme "editor.scroll.tab")
-        scroll-tab-hovered-color (color-lookup color-scheme "editor.scroll.tab.hovered")]
+        scroll-tab-hovered-color (color-lookup color-scheme "editor.scroll.tab.hovered")
+        hovered-ui-element (:ui-element hovered-element)]
     (.setFill gc background-color)
     (.fillRect gc 0 0 (.. gc getCanvas getWidth) (.. gc getCanvas getHeight))
     (.setFontSmoothingType gc FontSmoothingType/GRAY) ; FontSmoothingType/LCD is very slow.
@@ -500,7 +533,7 @@
                    (if line-has-text? (conj guide-positions guide-x) guide-positions))))))
 
     ;; Draw syntax-highlighted code.
-    (draw-code! gc font layout color-scheme lines syntax-info indent-type visible-whitespace?)
+    (draw-code! gc font layout color-scheme lines syntax-info indent-type visible-whitespace)
 
     ;; Draw minimap.
     (when visible-minimap?
@@ -512,8 +545,16 @@
             viewed-height (Math/ceil (* minimap-ratio (.h canvas-rect)))]
         (.setFill gc background-color)
         (.fillRect gc (.x r) (.y r) (.w r) (.h r))
-        (.setFill gc (color-lookup color-scheme "editor.minimap.viewed.range"))
-        (.fillRect gc (.x r) viewed-start-y (.w r) viewed-height)
+
+        ;; Draw the viewed range if the mouse hovers the minimap.
+        (case hovered-ui-element
+          (:minimap :minimap-viewed-range)
+          (let [color (color-lookup color-scheme  "editor.minimap.viewed.range")]
+            (.setFill gc color)
+            (.fillRect gc (.x r) viewed-start-y (.w r) viewed-height))
+
+          nil)
+
         (draw-cursor-ranges! gc minimap-layout lines minimap-cursor-range-draw-infos)
         (draw-minimap-code! gc minimap-layout color-scheme lines syntax-info)
 
@@ -525,13 +566,12 @@
 
     ;; Draw horizontal scroll bar.
     (when-some [^Rect r (some-> (.scroll-tab-x layout) (data/expand-rect -3.0 -3.0))]
-      (.setFill gc (if (= :scroll-tab-x (:ui-element hovered-element)) scroll-tab-hovered-color scroll-tab-color))
+      (.setFill gc (if (= :scroll-tab-x hovered-ui-element) scroll-tab-hovered-color scroll-tab-color))
       (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) (.h r) (.h r)))
 
     ;; Draw vertical scroll bar.
     (when-some [^Rect r (some-> (.scroll-tab-y layout) (data/expand-rect -3.0 -3.0))]
-      (let [hovered-ui-element (:ui-element hovered-element)
-            color (case hovered-ui-element
+      (let [color (case hovered-ui-element
                     (:scroll-bar-y-down :scroll-bar-y-up :scroll-tab-y) scroll-tab-hovered-color
                     scroll-tab-color)]
         (.setFill gc color)
@@ -591,40 +631,22 @@
   (let [[gutter-width gutter-margin] gutter-metrics]
     (data/layout-info canvas-width canvas-height document-width scroll-x scroll-y lines gutter-width gutter-margin glyph-metrics tab-spaces visible-minimap?)))
 
-(defn- invalidated-row [seen-invalidated-rows invalidated-rows]
+(defn- invalidated-row
+  "Find the first invalidated row by comparing ever-growing histories of all
+  invalidated rows. Seen means the history at the point the view was last drawn.
+  By looking at the subset of added-since-seen or removed-since-seen, we can
+  find the first invalidated row since the previous repaint."
+  [seen-invalidated-rows invalidated-rows]
   (let [seen-invalidated-rows-count (count seen-invalidated-rows)
         invalidated-rows-count (count invalidated-rows)]
     (cond
-      (or (zero? seen-invalidated-rows-count)
-          (zero? invalidated-rows-count))
-      0
-
       ;; Redo scenario or regular use.
       (< seen-invalidated-rows-count invalidated-rows-count)
       (reduce min (subvec invalidated-rows seen-invalidated-rows-count))
 
       ;; Undo scenario.
       (> seen-invalidated-rows-count invalidated-rows-count)
-      (reduce min (subvec seen-invalidated-rows (dec invalidated-rows-count))))))
-
-(g/defnk produce-invalidated-syntax-info [canvas invalidated-rows lines]
-  (let [seen-invalidated-rows (or (ui/user-data canvas ::invalidated-rows) [])]
-    (ui/user-data! canvas ::invalidated-rows invalidated-rows)
-    (let [syntax-info (or (ui/user-data canvas ::syntax-info) [])]
-      (when-some [invalidated-row (invalidated-row seen-invalidated-rows invalidated-rows)]
-        (let [invalidated-syntax-info (data/invalidate-syntax-info syntax-info invalidated-row (count lines))]
-          (ui/user-data! canvas ::syntax-info invalidated-syntax-info)
-          nil)))))
-
-(g/defnk produce-syntax-info [canvas grammar invalidated-syntax-info layout lines]
-  (assert (nil? invalidated-syntax-info))
-  (if (some? grammar)
-    (let [invalidated-syntax-info (or (ui/user-data canvas ::syntax-info) [])
-          syntax-info (data/highlight-visible-syntax lines invalidated-syntax-info layout grammar)]
-      (when-not (identical? invalidated-syntax-info syntax-info)
-        (ui/user-data! canvas ::syntax-info syntax-info))
-      syntax-info)
-    []))
+      (reduce min (subvec seen-invalidated-rows invalidated-rows-count)))))
 
 (g/defnk produce-matching-braces [lines cursor-ranges focus-state]
   (when (= :input-focused focus-state)
@@ -648,8 +670,8 @@
 (g/defnk produce-visible-cursor-ranges [lines cursor-ranges layout]
   (data/visible-cursor-ranges lines layout cursor-ranges))
 
-(g/defnk produce-visible-regions-by-type [lines regions layout]
-  (group-by :type (data/visible-cursor-ranges lines layout regions)))
+(g/defnk produce-visible-regions [lines regions layout]
+  (data/visible-cursor-ranges lines layout regions))
 
 (g/defnk produce-visible-matching-braces [lines matching-braces layout]
   (data/visible-cursor-ranges lines layout (into [] (mapcat identity) matching-braces)))
@@ -663,7 +685,7 @@
     :current-frame
     (cursor-range-draw-info :word nil frame-color execution-marker)))
 
-(g/defnk produce-cursor-range-draw-infos [color-scheme lines cursor-ranges focus-state layout visible-cursors visible-cursor-ranges visible-regions-by-type visible-matching-braces highlighted-find-term find-case-sensitive? find-whole-word? execution-markers]
+(g/defnk produce-cursor-range-draw-infos [color-scheme lines cursor-ranges focus-state layout visible-cursors visible-cursor-ranges visible-regions visible-matching-braces highlighted-find-term find-case-sensitive? find-whole-word? execution-markers]
   (let [background-color (color-lookup color-scheme "editor.background")
         ^Color selection-background-color (color-lookup color-scheme "editor.selection.background")
         selection-background-color (if (not= :not-focused focus-state) selection-background-color (color-lookup color-scheme "editor.selection.background.inactive"))
@@ -673,6 +695,8 @@
         execution-marker-current-row-color (color-lookup color-scheme "editor.execution-marker.current")
         execution-marker-frame-row-color (color-lookup color-scheme "editor.execution-marker.frame")
         matching-brace-color (color-lookup color-scheme "editor.matching.brace")
+        foreground-color (color-lookup color-scheme "editor.foreground")
+        visible-regions-by-type (group-by :type visible-regions)
         active-tab-trigger-scope-ids (into #{}
                                            (keep (fn [tab-trigger-scope-region]
                                                    (when (some #(data/cursor-range-contains? tab-trigger-scope-region (data/CursorRange->Cursor %))
@@ -685,6 +709,8 @@
              visible-cursor-ranges)
         (map (partial cursor-range-draw-info :underline nil matching-brace-color)
              visible-matching-braces)
+        (map (partial cursor-range-draw-info :underline nil foreground-color)
+             (visible-regions-by-type :resource-reference))
         (map (partial make-execution-marker-draw-info execution-marker-current-row-color execution-marker-frame-row-color)
              execution-markers)
         (cond
@@ -692,7 +718,7 @@
           (keep (fn [tab-trigger-word-region]
                   (when (and (contains? active-tab-trigger-scope-ids (:scope-id tab-trigger-word-region))
                              (not-any? #(data/cursor-range-contains? tab-trigger-word-region %)
-                                         visible-cursors))
+                                       visible-cursors))
                     (cursor-range-draw-info :range nil tab-trigger-word-outline-color tab-trigger-word-region)))
                 (visible-regions-by-type :tab-trigger-word))
 
@@ -734,10 +760,16 @@
                        (data/execution-marker lines (dec line) type))))
           debugger-execution-locations)))
 
-(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap? execution-markers]
+(g/defnk produce-canvas-repaint-info [canvas color-scheme cursor-range-draw-infos execution-markers font grammar gutter-view hovered-element indent-type invalidated-rows layout lines minimap-cursor-range-draw-infos minimap-layout regions repaint-trigger visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace :as canvas-repaint-info]
+  canvas-repaint-info)
+
+(defn- repaint-canvas! [{:keys [^Canvas canvas execution-markers font gutter-view hovered-element layout minimap-layout color-scheme lines regions cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace] :as _canvas-repaint-info} syntax-info]
   (let [regions (into [] cat [regions execution-markers])]
-    (draw! (.getGraphicsContext2D canvas) font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?))
+    (draw! (.getGraphicsContext2D canvas) font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-minimap? visible-whitespace))
   nil)
+
+(g/defnk produce-cursor-repaint-info [canvas color-scheme cursor-opacity layout lines repaint-trigger visible-cursors :as cursor-repaint-info]
+  cursor-repaint-info)
 
 (defn- make-cursor-rectangle
   ^Rectangle [^Paint fill opacity ^Rect cursor-rect]
@@ -746,7 +778,7 @@
     (.setFill fill)
     (.setOpacity opacity)))
 
-(g/defnk produce-repaint-cursors [repaint-trigger ^Canvas canvas ^LayoutInfo layout color-scheme lines visible-cursors cursor-opacity]
+(defn- repaint-cursors! [{:keys [^Canvas canvas ^LayoutInfo layout color-scheme lines visible-cursors cursor-opacity] :as _cursor-repaint-info}]
   ;; To avoid having to redraw everything while the cursor blink animation
   ;; plays, the cursors are children of the Pane that also hosts the Canvas.
   (let [^Pane canvas-pane (.getParent canvas)
@@ -819,8 +851,8 @@
   (property font-size g/Num (default (g/constantly default-font-size)))
   (property line-height-factor g/Num (default 1.0))
   (property visible-indentation-guides? g/Bool (default false))
-  (property visible-whitespace? g/Bool (default false))
   (property visible-minimap? g/Bool (default false))
+  (property visible-whitespace VisibleWhitespace (default :none))
 
   (input completions g/Any)
   (input cursor-ranges r/CursorRanges)
@@ -842,22 +874,20 @@
   (output glyph-metrics data/GlyphMetrics :cached produce-glyph-metrics)
   (output gutter-metrics GutterMetrics :cached produce-gutter-metrics)
   (output layout LayoutInfo :cached produce-layout)
-  (output invalidated-syntax-info SideEffect :cached produce-invalidated-syntax-info)
-  (output syntax-info SyntaxInfo :cached produce-syntax-info)
   (output matching-braces MatchingBraces :cached produce-matching-braces)
   (output tab-trigger-scope-regions r/Regions :cached produce-tab-trigger-scope-regions)
   (output tab-trigger-word-regions-by-scope-id r/RegionGrouping :cached produce-tab-trigger-word-regions-by-scope-id)
   (output visible-cursors r/Cursors :cached produce-visible-cursors)
   (output visible-cursor-ranges r/CursorRanges :cached produce-visible-cursor-ranges)
-  (output visible-regions-by-type r/RegionGrouping :cached produce-visible-regions-by-type)
+  (output visible-regions r/Regions :cached produce-visible-regions)
   (output visible-matching-braces r/CursorRanges :cached produce-visible-matching-braces)
   (output cursor-range-draw-infos CursorRangeDrawInfos :cached produce-cursor-range-draw-infos)
   (output minimap-glyph-metrics data/GlyphMetrics :cached produce-minimap-glyph-metrics)
   (output minimap-layout LayoutInfo :cached produce-minimap-layout)
   (output minimap-cursor-range-draw-infos CursorRangeDrawInfos :cached produce-minimap-cursor-range-draw-infos)
   (output execution-markers r/Regions :cached produce-execution-markers)
-  (output repaint-canvas SideEffect :cached produce-repaint-canvas)
-  (output repaint-cursors SideEffect :cached produce-repaint-cursors))
+  (output canvas-repaint-info g/Any :cached produce-canvas-repaint-info)
+  (output cursor-repaint-info g/Any :cached produce-cursor-repaint-info))
 
 (defn- mouse-button [^MouseEvent event]
   (condp = (.getButton event)
@@ -885,10 +915,6 @@
           [(g/operation-sequence opseq)
            (g/set-property view-node :undo-grouping-info [undo-grouping opseq])])))))
 
-;; Since the elapsed time updates at 60 fps, we keep it outside the graph to avoid transaction churn.
-;; This is updated from the repaint-view! function elsewhere in this file.
-(defonce ^:private *elapsed-time-by-view-node (atom {}))
-
 (defn- prelude-tx-data [view-node undo-grouping values-by-prop-kw]
   ;; Along with undo grouping info, we also keep track of when an action was
   ;; last performed in the document. We use this to stop the cursor from
@@ -896,7 +922,7 @@
   (into (operation-sequence-tx-data view-node undo-grouping)
         (when (or (contains? values-by-prop-kw :cursor-ranges)
                   (contains? values-by-prop-kw :lines))
-          (g/set-property view-node :elapsed-time-at-last-action (get @*elapsed-time-by-view-node view-node 0.0)))))
+          (g/set-property view-node :elapsed-time-at-last-action (or (g/user-data view-node :elapsed-time) 0.0)))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -912,8 +938,8 @@
   [view-node prop-kw]
   (case prop-kw
     :invalidated-row
-    (invalidated-row (ui/user-data (g/node-value view-node :canvas) ::invalidated-rows)
-                     (g/node-value (g/node-value view-node :resource-node) :invalidated-rows))
+    (invalidated-row (:invalidated-rows (g/user-data view-node :canvas-repaint-info))
+                     (g/node-value view-node :invalidated-rows))
 
     (g/node-value view-node prop-kw)))
 
@@ -931,8 +957,13 @@
                           (:cursor-ranges :regions)
                           (g/set-property resource-node prop-kw value)
 
-                          ;; Several rows could have been invalidated between repaints.
-                          ;; We accumulate these to compare against seen invalidations.
+                          ;; Several actions might have invalidated rows since
+                          ;; we last produced syntax-info. We keep an ever-
+                          ;; growing history of invalidated-rows. Then when
+                          ;; producing syntax-info we find the first invalidated
+                          ;; row by comparing the history of invalidated rows to
+                          ;; what it was at the time of the last call. See the
+                          ;; invalidated-row function for details.
                           :invalidated-row
                           (g/update-property resource-node :invalidated-rows conj value)
 
@@ -969,8 +1000,7 @@
 
 (defn- cursor-bottom
   ^Point2D [^LayoutInfo layout lines ^Cursor adjusted-cursor]
-  (let [^Rect canvas (.canvas layout)
-        ^Rect r (data/cursor-rect layout lines adjusted-cursor)]
+  (let [^Rect r (data/cursor-rect layout lines adjusted-cursor)]
     (Point2D. (.x r) (+ (.y r) (.h r)))))
 
 (defn- pref-suggestions-popup-position
@@ -1237,7 +1267,9 @@
         undo-grouping (when cursor-ranges-empty? :typing)
         delete-fn (case delete-type
                     :delete-before data/delete-character-before-cursor
-                    :delete-after data/delete-character-after-cursor)]
+                    :delete-word-before data/delete-word-before-cursor
+                    :delete-after data/delete-character-after-cursor
+                    :delete-word-after data/delete-word-after-cursor)]
     (when-not single-character-backspace?
       (hide-suggestions! view-node))
     (set-properties! view-node undo-grouping
@@ -1391,6 +1423,9 @@
                      (= :scroll-bar-y-hold-down gesture-type))
                  javafx.scene.Cursor/DEFAULT
 
+                 (some? (:on-click! (:region hovered-element)))
+                 javafx.scene.Cursor/HAND
+
                  (data/rect-contains? (.canvas layout) x y)
                  ;; TODO:
                  ;; Currently using an image cursor results in a corrupted mouse pointer under macOS High Sierra.
@@ -1417,6 +1452,7 @@
                                        (get-property view-node :cursor-ranges)
                                        (get-property view-node :regions)
                                        (get-property view-node :layout)
+                                       (get-property view-node :minimap-layout)
                                        (mouse-button event)
                                        (.getClickCount event)
                                        (.getX event)
@@ -1427,21 +1463,28 @@
 
 (defn handle-mouse-moved! [view-node ^MouseDragEvent event]
   (.consume event)
-  (refresh-mouse-cursor! view-node event)
   (set-properties! view-node :selection
                    (data/mouse-moved (get-property view-node :lines)
                                      (get-property view-node :cursor-ranges)
+                                     (get-property view-node :visible-regions)
                                      (get-property view-node :layout)
+                                     (get-property view-node :minimap-layout)
                                      (get-property view-node :gesture-start)
                                      (get-property view-node :hovered-element)
                                      (.getX event)
-                                     (.getY event))))
+                                     (.getY event)))
+  (refresh-mouse-cursor! view-node event))
 
 (defn handle-mouse-released! [view-node ^MouseEvent event]
   (.consume event)
+  (when-some [{:keys [on-click!] :as hovered-region} (:region (get-property view-node :hovered-element))]
+    (on-click! hovered-region))
   (refresh-mouse-cursor! view-node event)
   (set-properties! view-node :selection
-                   (data/mouse-released (get-property view-node :layout)
+                   (data/mouse-released (get-property view-node :lines)
+                                        (get-property view-node :visible-regions)
+                                        (get-property view-node :layout)
+                                        (get-property view-node :minimap-layout)
                                         (get-property view-node :gesture-start)
                                         (mouse-button event)
                                         (.getX event)
@@ -1460,6 +1503,7 @@
                                       (get-property view-node :scroll-x)
                                       (get-property view-node :scroll-y)
                                       (get-property view-node :layout)
+                                      (get-property view-node :gesture-start)
                                       (.getDeltaX event)
                                       (.getDeltaY event)))
     (hide-suggestions! view-node)))
@@ -1593,6 +1637,12 @@
 (handler/defhandler :delete-backward :code-view
   (run [view-node] (delete! view-node :delete-before)))
 
+(handler/defhandler :delete-prev-word :code-view
+  (run [view-node] (delete! view-node :delete-word-before)))
+
+(handler/defhandler :delete-next-word :code-view
+  (run [view-node] (delete! view-node :delete-word-after)))
+
 (handler/defhandler :select-next-occurrence :code-view
   (run [view-node] (select-next-occurrence! view-node)))
 
@@ -1665,22 +1715,22 @@
 ;; cause a memory leak. You must manually unhook them or use weak listeners.
 ;; Source: https://community.oracle.com/message/10360893#10360893
 
-(defonce ^SimpleStringProperty bar-ui-type-property (doto (SimpleStringProperty.) (.setValue (name :hidden))))
-(defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
-(defonce ^SimpleStringProperty find-replacement-property (doto (SimpleStringProperty.) (.setValue "")))
-(defonce ^SimpleBooleanProperty find-whole-word-property (doto (SimpleBooleanProperty.) (.setValue false)))
-(defonce ^SimpleBooleanProperty find-case-sensitive-property (doto (SimpleBooleanProperty.) (.setValue false)))
-(defonce ^SimpleBooleanProperty find-wrap-property (doto (SimpleBooleanProperty.) (.setValue true)))
-(defonce ^SimpleDoubleProperty font-size-property (doto (SimpleDoubleProperty.) (.setValue default-font-size)))
-(defonce ^SimpleBooleanProperty visible-indentation-guides-property (doto (SimpleBooleanProperty.) (.setValue true)))
-(defonce ^SimpleBooleanProperty visible-minimap-property (doto (SimpleBooleanProperty.) (.setValue true)))
-(defonce ^SimpleBooleanProperty visible-whitespace-property (doto (SimpleBooleanProperty.) (.setValue true)))
+(defonce ^:private ^SimpleObjectProperty bar-ui-type-property (SimpleObjectProperty. :hidden))
+(defonce ^:private ^SimpleStringProperty find-term-property (SimpleStringProperty. ""))
+(defonce ^:private ^SimpleStringProperty find-replacement-property (SimpleStringProperty. ""))
+(defonce ^:private ^SimpleBooleanProperty find-whole-word-property (SimpleBooleanProperty. false))
+(defonce ^:private ^SimpleBooleanProperty find-case-sensitive-property (SimpleBooleanProperty. false))
+(defonce ^:private ^SimpleBooleanProperty find-wrap-property (SimpleBooleanProperty. true))
+(defonce ^:private ^SimpleDoubleProperty font-size-property (SimpleDoubleProperty. default-font-size))
+(defonce ^:private ^SimpleBooleanProperty visible-indentation-guides-property (SimpleBooleanProperty. true))
+(defonce ^:private ^SimpleBooleanProperty visible-minimap-property (SimpleBooleanProperty. true))
+(defonce ^:private ^SimpleBooleanProperty visible-whitespace-property (SimpleBooleanProperty. true))
 
-(defonce ^StringBinding highlighted-find-term-property
-  (-> (Bindings/when (Bindings/or (Bindings/equal (name :find) bar-ui-type-property)
-                                  (Bindings/equal (name :replace) bar-ui-type-property)))
-      (.then find-term-property)
-      (.otherwise "")))
+(defonce ^:private ^ObjectBinding highlighted-find-term-property
+  (b/if (b/or (b/= :find bar-ui-type-property)
+              (b/= :replace bar-ui-type-property))
+    find-term-property
+    ""))
 
 (defn- init-property-and-bind-preference! [^Property property prefs preference default]
   (.setValue property (prefs/get-prefs prefs preference default))
@@ -1731,10 +1781,10 @@
 ;; -----------------------------------------------------------------------------
 
 (defn- bar-ui-visible? []
-  (not= (name :hidden) (.getValue bar-ui-type-property)))
+  (not= :hidden (.getValue bar-ui-type-property)))
 
 (defn- set-bar-ui-type! [ui-type]
-  (case ui-type (:hidden :goto-line :find :replace) (.setValue bar-ui-type-property (name ui-type))))
+  (case ui-type (:hidden :goto-line :find :replace) (.setValue bar-ui-type-property ui-type)))
 
 (defn- focus-code-editor! [view-node]
   (let [^Canvas canvas (g/node-value view-node :canvas)]
@@ -1762,7 +1812,7 @@
         maybe-row))))
 
 (defn- setup-goto-line-bar! [^GridPane goto-line-bar view-node]
-  (ui/bind-presence! goto-line-bar (Bindings/equal (name :goto-line) bar-ui-type-property))
+  (b/bind-presence! goto-line-bar (b/= :goto-line bar-ui-type-property))
   (ui/with-controls goto-line-bar [^TextField line-field ^Button go-button]
     (ui/bind-keys! goto-line-bar {KeyCode/ENTER :goto-entered-line})
     (ui/bind-action! go-button :goto-entered-line)
@@ -1782,7 +1832,7 @@
     (GridPane/setConstraints 0 1)))
 
 (defn- dispose-goto-line-bar! [^GridPane goto-line-bar]
-  (.unbind (.visibleProperty goto-line-bar)))
+  (b/unbind! (.visibleProperty goto-line-bar)))
 
 (handler/defhandler :goto-line :code-view-tools
   (run [goto-line-bar]
@@ -1812,15 +1862,15 @@
 
 (defn- setup-find-bar! [^GridPane find-bar view-node]
   (doto find-bar
-    (ui/bind-presence! (Bindings/equal (name :find) bar-ui-type-property))
+    (b/bind-presence! (b/= :find bar-ui-type-property))
     (ui/context! :code-view-find-bar {:find-bar find-bar :view-node view-node} nil)
     (.setMaxWidth Double/MAX_VALUE)
     (GridPane/setConstraints 0 1))
   (ui/with-controls find-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^Button next ^Button prev]
-    (.bindBidirectional (.textProperty term) find-term-property)
-    (.bindBidirectional (.selectedProperty whole-word) find-whole-word-property)
-    (.bindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
-    (.bindBidirectional (.selectedProperty wrap) find-wrap-property)
+    (b/bind-bidirectional! (.textProperty term) find-term-property)
+    (b/bind-bidirectional! (.selectedProperty whole-word) find-whole-word-property)
+    (b/bind-bidirectional! (.selectedProperty case-sensitive) find-case-sensitive-property)
+    (b/bind-bidirectional! (.selectedProperty wrap) find-wrap-property)
     (ui/bind-key-commands! find-bar {"Enter" :find-next
                                      "Shift+Enter" :find-prev})
     (ui/bind-action! next :find-next)
@@ -1828,25 +1878,25 @@
   find-bar)
 
 (defn- dispose-find-bar! [^GridPane find-bar]
-  (.unbind (.visibleProperty find-bar))
+  (b/unbind! (.visibleProperty find-bar))
   (ui/with-controls find-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term]
-    (.unbindBidirectional (.textProperty term) find-term-property)
-    (.unbindBidirectional (.selectedProperty whole-word) find-whole-word-property)
-    (.unbindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
-    (.unbindBidirectional (.selectedProperty wrap) find-wrap-property)))
+    (b/unbind-bidirectional! (.textProperty term) find-term-property)
+    (b/unbind-bidirectional! (.selectedProperty whole-word) find-whole-word-property)
+    (b/unbind-bidirectional! (.selectedProperty case-sensitive) find-case-sensitive-property)
+    (b/unbind-bidirectional! (.selectedProperty wrap) find-wrap-property)))
 
 (defn- setup-replace-bar! [^GridPane replace-bar view-node]
   (doto replace-bar
-    (ui/bind-presence! (Bindings/equal (name :replace) bar-ui-type-property))
+    (b/bind-presence! (b/= :replace bar-ui-type-property))
     (ui/context! :code-view-replace-bar {:replace-bar replace-bar :view-node view-node} nil)
     (.setMaxWidth Double/MAX_VALUE)
     (GridPane/setConstraints 0 1))
   (ui/with-controls replace-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^TextField replacement ^Button next ^Button replace ^Button replace-all]
-    (.bindBidirectional (.textProperty term) find-term-property)
-    (.bindBidirectional (.textProperty replacement) find-replacement-property)
-    (.bindBidirectional (.selectedProperty whole-word) find-whole-word-property)
-    (.bindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
-    (.bindBidirectional (.selectedProperty wrap) find-wrap-property)
+    (b/bind-bidirectional! (.textProperty term) find-term-property)
+    (b/bind-bidirectional! (.textProperty replacement) find-replacement-property)
+    (b/bind-bidirectional! (.selectedProperty whole-word) find-whole-word-property)
+    (b/bind-bidirectional! (.selectedProperty case-sensitive) find-case-sensitive-property)
+    (b/bind-bidirectional! (.selectedProperty wrap) find-wrap-property)
     (ui/bind-action! next :find-next)
     (ui/bind-action! replace :replace-next)
     (ui/bind-keys! replace-bar {KeyCode/ENTER :replace-next})
@@ -1854,13 +1904,13 @@
   replace-bar)
 
 (defn- dispose-replace-bar! [^GridPane replace-bar]
-  (.unbind (.visibleProperty replace-bar))
+  (b/unbind! (.visibleProperty replace-bar))
   (ui/with-controls replace-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^TextField replacement]
-    (.unbindBidirectional (.textProperty term) find-term-property)
-    (.unbindBidirectional (.textProperty replacement) find-replacement-property)
-    (.unbindBidirectional (.selectedProperty whole-word) find-whole-word-property)
-    (.unbindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
-    (.unbindBidirectional (.selectedProperty wrap) find-wrap-property)))
+    (b/unbind-bidirectional! (.textProperty term) find-term-property)
+    (b/unbind-bidirectional! (.textProperty replacement) find-replacement-property)
+    (b/unbind-bidirectional! (.selectedProperty whole-word) find-whole-word-property)
+    (b/unbind-bidirectional! (.selectedProperty case-sensitive) find-case-sensitive-property)
+    (b/unbind-bidirectional! (.selectedProperty wrap) find-wrap-property)))
 
 (defn- focus-term-field! [^Parent bar]
   (ui/with-controls bar [^TextField term]
@@ -2078,29 +2128,63 @@
     (.setFill gc Color/WHITE)
     (.fillText gc (format "%.3f fps" fps) (- right 5.0) (+ top 16.0))))
 
-(defn repaint-view! [view-node elapsed-time]
-  (swap! *elapsed-time-by-view-node assoc view-node elapsed-time)
-  (let [evaluation-context (g/make-evaluation-context)
-        elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action evaluation-context)
-        old-cursor-opacity (g/node-value view-node :cursor-opacity evaluation-context)
-        new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
-    (set-properties! view-node nil
-                     (cond-> (data/tick (g/node-value view-node :lines evaluation-context)
-                                        (g/node-value view-node :layout evaluation-context)
-                                        (g/node-value view-node :gesture-start evaluation-context))
-                             (not= old-cursor-opacity new-cursor-opacity) (assoc :cursor-opacity new-cursor-opacity)))
-    (g/update-cache-from-evaluation-context! evaluation-context))
-  (let [evaluation-context (g/make-evaluation-context)]
-    (g/node-value view-node :repaint-canvas evaluation-context)
-    (g/node-value view-node :repaint-cursors evaluation-context)
+(defn repaint-view! [view-node elapsed-time {:keys [cursor-visible?] :as _opts}]
+  (assert (boolean? cursor-visible?))
+
+  ;; Since the elapsed time updates at 60 fps, we store it as user-data to avoid transaction churn.
+  (g/user-data! view-node :elapsed-time elapsed-time)
+
+  ;; Perform necessary property updates in preparation for repaint.
+  (g/with-auto-evaluation-context evaluation-context
+    (let [tick-props (data/tick (g/node-value view-node :lines evaluation-context)
+                                (g/node-value view-node :layout evaluation-context)
+                                (g/node-value view-node :gesture-start evaluation-context))
+          props (if-not cursor-visible?
+                  tick-props
+                  (let [elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action evaluation-context)
+                        old-cursor-opacity (g/node-value view-node :cursor-opacity evaluation-context)
+                        new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
+                    (cond-> tick-props
+                            (not= old-cursor-opacity new-cursor-opacity)
+                            (assoc :cursor-opacity new-cursor-opacity))))]
+      (set-properties! view-node nil props)))
+
+  ;; Repaint the view.
+  (let [prev-canvas-repaint-info (g/user-data view-node :canvas-repaint-info)
+        prev-cursor-repaint-info (g/user-data view-node :cursor-repaint-info)
+        [resource-node canvas-repaint-info cursor-repaint-info]
+        (g/with-auto-evaluation-context evaluation-context
+          [(g/node-value view-node :resource-node evaluation-context)
+           (g/node-value view-node :canvas-repaint-info evaluation-context)
+           (g/node-value view-node :cursor-repaint-info evaluation-context)])]
+
+    ;; Repaint canvas if needed.
+    (when-not (identical? prev-canvas-repaint-info canvas-repaint-info)
+      (g/user-data! view-node :canvas-repaint-info canvas-repaint-info)
+      (let [{:keys [grammar layout lines]} canvas-repaint-info
+            syntax-info (if (nil? grammar)
+                          []
+                          (if-some [prev-syntax-info (g/user-data resource-node :syntax-info)]
+                            (let [invalidated-syntax-info (if-some [invalidated-row (invalidated-row (:invalidated-rows prev-canvas-repaint-info) (:invalidated-rows canvas-repaint-info))]
+                                                            (data/invalidate-syntax-info prev-syntax-info invalidated-row (count lines))
+                                                            prev-syntax-info)]
+                              (data/highlight-visible-syntax lines invalidated-syntax-info layout grammar))
+                            (data/highlight-visible-syntax lines [] layout grammar)))]
+        (g/user-data! resource-node :syntax-info syntax-info)
+        (repaint-canvas! canvas-repaint-info syntax-info)))
+
+    ;; Repaint cursors if needed.
+    (when-not (identical? prev-cursor-repaint-info cursor-repaint-info)
+      (g/user-data! view-node :cursor-repaint-info cursor-repaint-info)
+      (repaint-cursors! cursor-repaint-info))
+
+    ;; Draw average fps indicator if enabled.
     (when-some [^PerformanceTracker performance-tracker @*performance-tracker]
-      (let [^long repaint-trigger (g/node-value view-node :repaint-trigger evaluation-context)
-            ^Canvas canvas (g/node-value view-node :canvas evaluation-context)]
+      (let [{:keys [^Canvas canvas ^long repaint-trigger]} canvas-repaint-info]
         (g/set-property! view-node :repaint-trigger (unchecked-inc repaint-trigger))
         (draw-fps-counters! (.getGraphicsContext2D canvas) (.getInstantFPS performance-tracker))
         (when (= 0 (mod repaint-trigger 10))
-          (.resetAverageFPS performance-tracker))))
-    (g/update-cache-from-evaluation-context! evaluation-context)))
+          (.resetAverageFPS performance-tracker))))))
 
 (defn- make-suggestions-list-view
   ^ListView [^Canvas canvas]
@@ -2223,12 +2307,14 @@
                      (inc source-line-index)))))))))
 
 (defn make-property-change-setter
-  ^ChangeListener [node-id prop-kw]
-  (assert (integer? node-id))
-  (assert (keyword? prop-kw))
-  (reify ChangeListener
-    (changed [_this _observable _old new]
-      (g/set-property! node-id prop-kw new))))
+  (^ChangeListener [node-id prop-kw]
+   (make-property-change-setter node-id prop-kw identity))
+  (^ChangeListener [node-id prop-kw observable-value->node-value]
+   (assert (integer? node-id))
+   (assert (keyword? prop-kw))
+   (reify ChangeListener
+     (changed [_this _observable _old new]
+       (g/set-property! node-id prop-kw (observable-value->node-value new))))))
 
 (defn make-focus-change-listener
   ^ChangeListener [view-node parent canvas]
@@ -2247,6 +2333,24 @@
 
                          :else
                          :not-focused)))))
+
+;; JavaFX generally reports wrong key-typed events when typing tilde on Swedish
+;; keyboard layout, which is a problem when writing Lua because it uses ~ for negation,
+;; so typing "AltGr ` =" inserts "~¨=" instead of "~="
+;; Original JavaFX issue: https://bugs.openjdk.java.net/browse/JDK-8183521
+;; See also: https://github.com/javafxports/openjdk-jfx/issues/358
+
+(defn- wrap-disallow-diaeresis-after-tilde
+  ^EventHandler [^EventHandler handler]
+  (let [last-event-volatile (volatile! nil)]
+    (ui/event-handler event
+      (let [^KeyEvent new-event event
+            ^KeyEvent prev-event @last-event-volatile]
+        (vreset! last-event-volatile event)
+        (when-not (and (some? prev-event)
+                       (= "~" (.getCharacter prev-event))
+                       (= "¨" (.getCharacter new-event)))
+          (.handle handler event))))))
 
 (defn- make-view! [graph parent resource-node opts]
   (let [^Tab tab (:tab opts)
@@ -2271,14 +2375,14 @@
                                              :undo-grouping-info undo-grouping-info
                                              :visible-indentation-guides? (.getValue visible-indentation-guides-property)
                                              :visible-minimap? (.getValue visible-minimap-property)
-                                             :visible-whitespace? (.getValue visible-whitespace-property))
+                                             :visible-whitespace (boolean->visible-whitespace (.getValue visible-whitespace-property)))
                                app-view)
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
         repainter (ui/->timer "repaint-code-editor-view" (fn [_ elapsed-time]
                                                            (when (and (.isSelected tab) (not (ui/ui-disabled?)))
-                                                             (repaint-view! view-node elapsed-time))))
+                                                             (repaint-view! view-node elapsed-time {:cursor-visible? true}))))
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :goto-line-bar goto-line-bar
                      :find-bar find-bar
@@ -2286,8 +2390,8 @@
                      :view-node view-node}]
 
     ;; Canvas stretches to fit view, and updates properties in view node.
-    (.bind (.widthProperty canvas) (.widthProperty canvas-pane))
-    (.bind (.heightProperty canvas) (.heightProperty canvas-pane))
+    (b/bind! (.widthProperty canvas) (.widthProperty canvas-pane))
+    (b/bind! (.heightProperty canvas) (.heightProperty canvas-pane))
     (ui/observe (.widthProperty canvas) (fn [_ _ width] (g/set-property! view-node :canvas-width width)))
     (ui/observe (.heightProperty canvas) (fn [_ _ height] (g/set-property! view-node :canvas-height height)))
 
@@ -2296,7 +2400,8 @@
       (.setFocusTraversable true)
       (.setCursor javafx.scene.Cursor/TEXT)
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (handle-key-pressed! view-node event)))
-      (.addEventHandler KeyEvent/KEY_TYPED (ui/event-handler event (handle-key-typed! view-node event)))
+      (.addEventHandler KeyEvent/KEY_TYPED (wrap-disallow-diaeresis-after-tilde
+                                             (ui/event-handler event (handle-key-typed! view-node event))))
       (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-mouse-pressed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-moved! view-node event)))
@@ -2342,7 +2447,7 @@
           highlighted-find-term-setter (make-property-change-setter view-node :highlighted-find-term)
           visible-indentation-guides-setter (make-property-change-setter view-node :visible-indentation-guides?)
           visible-minimap-setter (make-property-change-setter view-node :visible-minimap?)
-          visible-whitespace-setter (make-property-change-setter view-node :visible-whitespace?)]
+          visible-whitespace-setter (make-property-change-setter view-node :visible-whitespace boolean->visible-whitespace)]
       (.addListener find-case-sensitive-property find-case-sensitive-setter)
       (.addListener find-whole-word-property find-whole-word-setter)
       (.addListener font-size-property font-size-setter)
@@ -2360,12 +2465,11 @@
 
         ;; Remove callbacks when our tab is closed.
         (ui/on-closed! tab (fn [_]
+                             (ui/kill-event-dispatch! canvas)
                              (ui/timer-stop! repainter)
                              (dispose-goto-line-bar! goto-line-bar)
                              (dispose-find-bar! find-bar)
                              (dispose-replace-bar! replace-bar)
-                             (swap! *elapsed-time-by-view-node dissoc view-node)
-                             (g/set-property! view-node :elapsed-time-at-last-action 0.0)
                              (.removeListener find-case-sensitive-property find-case-sensitive-setter)
                              (.removeListener find-whole-word-property find-whole-word-setter)
                              (.removeListener font-size-property font-size-setter)

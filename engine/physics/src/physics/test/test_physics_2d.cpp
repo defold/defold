@@ -404,6 +404,7 @@ TYPED_TEST(PhysicsTest, GridShapeTrigger)
     dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
     typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &grid_shape, 1u);
 
+    dmPhysics::ClearGridShapeHulls(grid_co);
     dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, 0, EMPTY_FLAGS);
     dmPhysics::SetGridShapeHull(grid_co, 0, 0, 1, 0, EMPTY_FLAGS);
 
@@ -547,7 +548,7 @@ TYPED_TEST(PhysicsTest, GridShapeCrack)
     dmPhysics::DeleteHullSet2D(hull_set);
 }
 
-// We changed tilegrids from doind edge checks to polygon checks
+// We changed tilegrids from doing edge checks to polygon checks
 // in order to get more solid collisions
 TYPED_TEST(PhysicsTest, PolygonShape)
 {
