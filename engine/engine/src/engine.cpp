@@ -38,6 +38,8 @@
 #include "engine_version.h"
 #include "physics_debug_render.h"
 
+// (╯°□°)╯︵ ┻━┻
+
 // Embedded resources
 // Unfortunately, the draw_line et. al are used in production code
 extern unsigned char DEBUG_VPC[];
