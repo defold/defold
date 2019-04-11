@@ -389,11 +389,15 @@ namespace dmHttpService
         {
             dmHttpService::Worker* worker = http_service->m_Workers[i];
             url.m_Socket = worker->m_Socket;
-            dmDNS::StopChannel(dmHttpClient::GetDNSChannel(worker->m_Client));
+            if (worker->m_Client)
+            {
+                dmDNS::StopChannel(dmHttpClient::GetDNSChannel(worker->m_Client));
+            }
             dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0, 0);
             dmThread::Join(worker->m_Thread);
             dmMessage::DeleteSocket(worker->m_Socket);
-            if (worker->m_Client) {
+            if (worker->m_Client)
+			{
                 dmHttpClient::Delete(worker->m_Client);
             }
             delete worker;
