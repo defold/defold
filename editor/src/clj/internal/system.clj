@@ -344,11 +344,8 @@
   cache, then return that value. Otherwise, produce the value by
   gathering inputs to call a production function, invoke the function,
   maybe cache the value that was produced, and return it."
-  [system node-or-node-id label evaluation-context]
-  (in/node-value node-or-node-id label evaluation-context))
-
-(defn node-property-value [node-or-node-id label evaluation-context]
-  (in/node-property-value node-or-node-id label evaluation-context))
+  [system node-id label evaluation-context]
+  (in/node-value node-id label evaluation-context))
 
 (defn user-data [system node-id key]
   (let [graph-id (gt/node-id->graph-id node-id)]
