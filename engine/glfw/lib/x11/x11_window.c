@@ -950,7 +950,7 @@ static GLboolean createWindow( int width, int height,
         XFree(hints);
     }
 
-    _glfwPlatformSetWindowTitle( "GLFW Window" );
+    _glfwPlatformSetWindowTitle( "" );
 
     // Make sure the window is mapped before proceeding
     XMapWindow( _glfwLibrary.display, _glfwWin.window );
@@ -2018,5 +2018,5 @@ void _glfwPlatformUnacquireAuxContext(void* context)
 
 GLFWAPI void glfwAccelerometerEnable()
 {
-    
+
 }
