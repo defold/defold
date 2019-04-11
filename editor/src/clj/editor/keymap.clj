@@ -570,7 +570,8 @@
                   (loop [[command & rest] commands]
                     (when (some? command)
                       (let [ret (ui/invoke-handler command-contexts command)]
-                        (if (= ret :editor.ui/not-active)
+                        (if (or (= ret ::ui/not-active)
+                                (= ret ::ui/not-enabled))
                           (recur rest)
                           ret)))))))
 

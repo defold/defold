@@ -21,9 +21,8 @@
            [editor.debugging.mobdebug LuaStructure]
            [java.nio.file Files]
            [java.util Collection]
-           [javafx.beans.value ChangeListener]
            [javafx.event ActionEvent]
-           [javafx.scene Parent]
+           [javafx.scene Parent Scene]
            [javafx.scene.control Button Label ListView SplitPane TreeItem TreeView TextField]
            [javafx.scene.layout HBox Pane Priority]
            [org.apache.commons.io FilenameUtils]))
@@ -112,6 +111,7 @@
   (property suspension-state g/Any)
 
   (property root Parent)
+  (property scene Scene)
 
   (input active-resource resource/Resource)
 
@@ -353,8 +353,9 @@
   debug-view)
 
 (defn make-view!
-  [app-view view-graph project ^Parent root open-resource-fn]
+  [app-view view-graph project root scene open-resource-fn]
   (let [view-id (setup-view! (g/make-node! view-graph DebugView
+                                           :scene scene
                                            :open-resource-fn (make-open-resource-fn project open-resource-fn))
                              app-view)
         timer (make-update-timer project view-id)]
@@ -371,6 +372,7 @@
 
 (defn show!
   [debug-view]
+  (ui/user-data! (g/node-value debug-view :scene) ::ui/refresh-requested? true)
   (ui/with-controls (g/node-value debug-view :root) [tool-tabs]
     (ui/select-tab! tool-tabs "console-tab")))
 
@@ -387,7 +389,10 @@
                      (update-suspension-state! debug-view debug-session)
                      (show! debug-view)))
    :on-resumed   (fn [debug-session]
-                   (ui/run-later (g/set-property! debug-view :suspension-state nil)))})
+                   (ui/run-later
+                     (ui/user-data! (g/node-value debug-view :scene)
+                                    ::ui/refresh-requested? true)
+                     (g/set-property! debug-view :suspension-state nil)))})
 
 (def ^:private mobdebug-port 8172)
 
@@ -406,18 +411,23 @@
                          (show! debug-view)))
                      (fn [debug-session]
                        (ui/run-now
+                         (ui/user-data! (g/node-value debug-view :scene)
+                                        ::ui/refresh-requested? true)
                          (g/set-property! debug-view
                                           :debug-session nil
                                           :suspension-state nil)))))
 
 (defn current-session
-  [debug-view]
-  (g/node-value debug-view :debug-session))
+  ([debug-view]
+   (g/with-auto-evaluation-context evaluation-context
+     (current-session debug-view evaluation-context)))
+  ([debug-view evaluation-context]
+   (g/node-value debug-view :debug-session evaluation-context)))
 
 (defn suspended?
-  [debug-view]
-  (and (current-session debug-view)
-       (some? (g/node-value debug-view :suspension-state))))
+  [debug-view evaluation-context]
+  (and (current-session debug-view evaluation-context)
+       (some? (g/node-value debug-view :suspension-state evaluation-context))))
 
 (def ^:private debugger-init-script "/_defold/debugger/start.lua")
 
@@ -461,53 +471,60 @@
     (mobdebug/done! debug-session)))
 
 (handler/defhandler :break :global
-  (enabled? [debug-view] (= :running (some-> (current-session debug-view) mobdebug/state)))
+  (enabled? [debug-view evaluation-context]
+            (= :running (some-> (current-session debug-view evaluation-context) mobdebug/state)))
   (run [debug-view] (mobdebug/suspend! (current-session debug-view))))
 
 (handler/defhandler :continue :global
-  (enabled? [debug-view] (= :suspended (some-> (current-session debug-view) mobdebug/state)))
+  (enabled? [debug-view evaluation-context]
+            (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
   (run [debug-view] (mobdebug/run! (current-session debug-view)
                                    (make-debugger-callbacks debug-view))))
 
 (handler/defhandler :step-over :global
-  (enabled? [debug-view] (= :suspended (some-> (current-session debug-view) mobdebug/state)))
+  (enabled? [debug-view evaluation-context]
+            (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
   (run [debug-view] (mobdebug/step-over! (current-session debug-view)
                                          (make-debugger-callbacks debug-view))))
 
 (handler/defhandler :step-into :global
-  (enabled? [debug-view] (= :suspended (some-> (current-session debug-view) mobdebug/state)))
+  (enabled? [debug-view evaluation-context]
+            (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
   (run [debug-view] (mobdebug/step-into! (current-session debug-view)
                                          (make-debugger-callbacks debug-view))))
 
 (handler/defhandler :step-out :global
-  (enabled? [debug-view] (= :suspended (some-> (current-session debug-view) mobdebug/state)))
+  (enabled? [debug-view evaluation-context]
+            (= :suspended (some-> (current-session debug-view evaluation-context) mobdebug/state)))
   (run [debug-view] (mobdebug/step-out! (current-session debug-view)
                                         (make-debugger-callbacks debug-view))))
 
 (handler/defhandler :detach-debugger :global
-  (enabled? [debug-view] (current-session debug-view))
+  (enabled? [debug-view evaluation-context]
+            (current-session debug-view evaluation-context))
   (run [debug-view] (mobdebug/done! (current-session debug-view))))
 
 (handler/defhandler :stop-debugger :global
-  (enabled? [debug-view] (current-session debug-view))
+  (enabled? [debug-view evaluation-context]
+            (current-session debug-view evaluation-context))
   (run [debug-view] (mobdebug/exit! (current-session debug-view))))
 
-(defn- can-change-resolution? [debug-view prefs]
+(defn- can-change-resolution? [debug-view prefs evaluation-context]
   (and (targets/controllable-target? (targets/selected-target prefs))
-       (not (suspended? debug-view))))
+       (not (suspended? debug-view evaluation-context))))
 
 (def should-rotate-device?
   (atom false))
 
 (handler/defhandler :set-resolution :global
-  (enabled? [debug-view prefs]
-            (can-change-resolution? debug-view prefs))
+  (enabled? [debug-view prefs evaluation-context]
+            (can-change-resolution? debug-view prefs evaluation-context))
   (run [project app-view prefs build-errors-view selection user-data]
        (engine/change-resolution! (targets/selected-target prefs) (:width user-data) (:height user-data) @should-rotate-device?)))
 
 (handler/defhandler :set-custom-resolution :global
-  (enabled? [debug-view prefs]
-            (can-change-resolution? debug-view prefs))
+  (enabled? [debug-view prefs evaluation-context]
+            (can-change-resolution? debug-view prefs evaluation-context))
   (run [project app-view prefs build-errors-view selection user-data]
        (let [[ok width height] (dialogs/make-resolution-dialog)]
          (when ok
