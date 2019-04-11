@@ -190,6 +190,9 @@ def build(bld):
                                 defines= ['VALGRIND'] + extra_defines,
                                 uselib = 'UUID PLATFORM_SOCKET CARES')
 
+        if bld.env.PLATFORM == "arm64-darwin" or bld.env.PLATFORM == "armv7-darwin":
+            dlib.env.append_value('LINKFLAGS', ['-l', 'resolv'])
+
         dlib.find_sources_in_dirs(source_dirs)
         dlib.source.extend(webp_source_no_neon)
         if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or 'web' in bld.env.PLATFORM):
