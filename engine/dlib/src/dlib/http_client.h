@@ -124,6 +124,9 @@ namespace dmHttpClient
         /// HTTP-cache. Default value 0. Set to a http-cache to enable http-caching
         dmHttpCache::HCache m_HttpCache;
 
+        /// DNS-Channel.
+        dmDNS::HChannel m_DNSChannel;
+
         NewParams()
         {
             SetDefaultParams(this);
@@ -237,8 +240,6 @@ namespace dmHttpClient
      * @return dmHttpCache::HCache handle
      */
     dmHttpCache::HCache GetHttpCache(HClient client);
-
-    dmDNS::HChannel GetDNSChannel(HClient client);
 
     /**
      * Delete HTTP client
