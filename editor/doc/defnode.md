@@ -176,8 +176,9 @@ the `inherits` clauses of the node definition.
   could make this map contain irrelevant entries - we could be
   invalidating outputs unnecessarily.**
 * Generate function forms for what should happen ("behavior") when you
-  do `g/node-value` on an input, property or output. Discussed in
-  detail below.
+  do `g/node-value` on an input, property or output. We also generate
+  special behavior for `_declared-properties`. We'll discuss behaviors
+  in detail below.
 * Collect all inputs marked as `:cascade-delete` - every node
   connected to these will be deleted together with the owning node.
 * Collect the names of all non-intrinsic properties, available as
@@ -209,12 +210,16 @@ happen?
 
 For an input we trace arcs backwards to find what is connected to the
 input, and ask the source node to produce the output. If it's an
-`:array` input, we do this for all connected arcs. If a `:substitute`
-function is specified, and the produced value (or _any_ value in the
-case of `:array`) is an error, the `:substitute` function gets a
-chance to repair the result (see
-`internal.node/node-input-value-function-form`). **Actually, this
-substitution is still TODO**
+`:array` input, we do this for all connected arcs. For inputs you can
+also specify a `:substitute` function. The idea is that if a
+`:substitute` function is specified, and the produced value (or _any_
+value in the case of `:array`) is an error, the `:substitute` function
+gets a chance to repair the result (see
+`internal.node/node-input-value-function-form`). **In fact, this
+substitution is still commented with a TODO in the code. No
+substitution happens if you do `g/node-value` on an input, but it does
+happen if you refer to an input in the argument list of another
+production function**
 
 For a property, we mentioned that a corresponding output was created
 automatically. The production function for this output is essentially
@@ -280,10 +285,16 @@ outputs or properties in the node definition. The declaration order of
 these have no impact.
 
 Declaring an explicit `output` with the same name as a `property`
-(overriding the property) requires special care. Any argument to an
-output production function that has the same name as the output, is
-assumed to refer to a property - if there is one. Any other production
-function will by default refer to the output.
+(overriding the property) requires special care. If you refer to the
+shared name in the argument list of the output production function,
+that argument is assumed to refer to the property. For any other
+production function, using that name in the argument list will refer
+to the output - not the property.
+
+Similarly you can declare an explicit `output` with the same name as
+an `input`. Here, the name will refer to the input when used in the
+output production function, but everywhere else it will refer to the
+output.
 
 There is also a special case for properties with `(value ...)`
 clause. The `value` should produce the current value of the property
@@ -298,11 +309,6 @@ out of sync during resource "refactoring" for instance, where the
 `value` clause essentially returns the value of an `input`**
 
 See `internal.node/fnk-argument-form` for details.
-
-**We pass the name of the current output + requested argument to
-`fnk-argument-form`. In the case of property dynamics, we pass the
-name of the dynamic as the output. This could go wrong if there is
-another output with the same name.**
 
 #### Behavior of `_declared-properties`
 
@@ -420,8 +426,11 @@ used argument names and lift the property dependencies.
 
 The relevant difference is that arguments to the `fnk`s have now been
 pulled out to `:argument` and `:dependencies` sets next to the
-`:fn`. We also have `:key`, `:name`, `:supertypes`, `:input`
-(**why?**) and `:display-order-decl` entries.
+`:fn`. We also have `:key`, `:name`, `:supertypes`, `:input` and
+`:display-order-decl` entries. The `:supertypes`, `:input` and
+`:display-order-decl` comes from the implementation of
+inheritance. **Slightly sloppy in merge-supertypes, no real problem
+though**
 
     {:property-display-order (internal.node/merge-display-order nil []),
      :key :internal.defnode-test/EmptyNodeType,
@@ -473,7 +482,7 @@ pulled out to `:argument` and `:dependencies` sets next to the
      {...
       :_declared-properties
       {:value-type {:k :dynamo.graph/Properties},
-       :flags #{:cached},
+       :flags #{:cached},                         ; _declared-properties is cached
        :arguments #{},
        :dependencies #{}}}                        ; note there is no user supplied :fn here, behavior will be added later
     }
@@ -496,7 +505,7 @@ Explanation in code comments.
            (or (internal.node/output-jammer node node-id label (:basis evaluation-context))
                ;; Add the current output to the set of "in production" outputs in order to find/prevent circular dependencies
                (let [evaluation-context (internal.node/mark-in-production node-id label evaluation-context)]
-                 ;; This (intrinsic) output is not :cached. We still if it has already been produced during this node-value
+                 ;; This (intrinsic) output is not :cached. We still check if it has already been produced during this node-value
                  ;; by looking in the temp cache
                  (if-some [result (internal.node/check-local-temp-cache node-id label evaluation-context)]
                    ;; If it was found, we trace that it was found in the :cache
@@ -850,7 +859,8 @@ The `:property-behavior` for `custom-property` (used during `update-property`), 
         ;; No jam checking, no check for cycles
         (internal.node/trace-expr node-id :custom-property evaluation-context :property
                                   (fn []
-                                    ;; The reference to custom-property will not use produce-value, but get-property, to avoid failing recursion.
+                                    ;; The reference to custom-property will use get-property. Using produce-value might invoke the behavior of an
+									;; overriding an explicit output, and we can't invoke the property-behaviour recursively.
                                     (let [arguments__11811__auto__ {:simple-property (internal.graph.types/produce-value node :simple-property evaluation-context),
                                                                     :custom-property (internal.graph.types/get-property node (:basis evaluation-context) :custom-property)}]
                                       (or (internal.node/argument-error-aggregate node-id :custom-property arguments__11811__auto__)
@@ -924,7 +934,8 @@ for this node type:
                                          ;; Here comes our `dynamic`
                                          :matches-input (internal.node/trace-expr node-id [:custom-property :matches-input] evaluation-context :dynamic
                                                                                   (fn []
-                                                                                    ;; Collect arguments for the dynamic. Note that the reference to simple-property will prioritise an output with the same name, since we use produce-value.
+                                                                                    ;; Collect arguments for the dynamic. Note that the reference to custom-property will prioritise
+																					;; an overriding explicit output with the same name, since we use produce-value.
                                                                                     (let [arguments__11811__auto__ {:simple-input (internal.node/error-checked-input-value node-id :simple-input (internal.node/pull-first-input-value node :simple-input evaluation-context)),
                                                                                                                     :custom-property (internal.graph.types/produce-value node :custom-property evaluation-context)}]
                                                                                       (or (internal.node/argument-error-aggregate node-id :matches-input arguments__11811__auto__)
@@ -1060,27 +1071,29 @@ difference is only what caches we use for lookup and update.
                  ;; * The "global" copied from the system when creating the evaluation context
                  ;; * The "local" which contains the results of newly produced :cached outputs.
                  ;;   These will typically be added to the system cache at the end of the `node-value` call.
+				 ;; internal.node/check-caches! will do trace-expr internally
                  (if-some [[result] (internal.node/check-caches! node-id label evaluation-context)]
-                   result (internal.node/trace-expr node-id label evaluation-context :output
-                                                    (fn []
-                                                      (let [arguments {:data (internal.graph.types/produce-value node :data evaluation-context),
-                                                                       :_node-id node-id,
-                                                                       :_basis (:basis evaluation-context)}]
-                                                        (let [result (or (internal.node/argument-error-aggregate node-id label arguments)
-                                                                         (when-not (:dry-run evaluation-context)
-                                                                           (#'internal.defnode-test/CachedOutputs$output$cached
-                                                                             arguments)))]
-                                                          (do (internal.node/schema-check-result node-id label evaluation-context
-                                                                                                 (schema.core/maybe
-                                                                                                   (schema.core/conditional
-                                                                                                     internal.graph.error-values/error-value?
-                                                                                                     internal.graph.error_values.ErrorValue
-                                                                                                     :else
-                                                                                                     java.lang.String))
-                                                                                                 result)
-                                                              ;; Here internal.node/update-local-cache! will, well, add the result to the local cache
-                                                              (do (internal.node/update-local-cache! node-id label evaluation-context result)
-                                                                  result)))))))))))},
+                   result
+				   (internal.node/trace-expr node-id label evaluation-context :output
+                                             (fn []
+                                               (let [arguments {:data (internal.graph.types/produce-value node :data evaluation-context),
+                                                                :_node-id node-id,
+                                                                :_basis (:basis evaluation-context)}]
+                                                 (let [result (or (internal.node/argument-error-aggregate node-id label arguments)
+                                                                  (when-not (:dry-run evaluation-context)
+                                                                    (#'internal.defnode-test/CachedOutputs$output$cached
+                                                                      arguments)))]
+                                                   (do (internal.node/schema-check-result node-id label evaluation-context
+                                                                                          (schema.core/maybe
+                                                                                            (schema.core/conditional
+                                                                                              internal.graph.error-values/error-value?
+                                                                                              internal.graph.error_values.ErrorValue
+                                                                                              :else
+                                                                                              java.lang.String))
+                                                                                          result)
+                                                       ;; Here internal.node/update-local-cache! will, well, add the result to the local cache
+                                                       (do (internal.node/update-local-cache! node-id label evaluation-context result)
+                                                           result)))))))))))},
       :non-cached
       {:fn
        (fn [node label evaluation-context]
