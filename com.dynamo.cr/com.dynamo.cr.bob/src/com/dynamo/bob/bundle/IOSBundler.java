@@ -293,8 +293,13 @@ public class IOSBundler implements IBundler {
         properties.put("orientation-support", orientationSupport);
 
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app");
-        helper.format(properties, "ios", "infoplist", new File(appDir, "Info.plist"));
         helper.copyIosIcons();
+
+        Platform targetPlatform = Platform.Armv7Darwin;
+
+        File manifestFile = new File(appDir, "Info.plist");
+        IResource sourceManifestFile = helper.getResource("ios", "infoplist");
+        helper.mergeManifests(project, targetPlatform, properties, sourceManifestFile, manifestFile);
 
         BundleHelper.throwIfCanceled(canceled);
         // Copy bundle resources into .app folder
