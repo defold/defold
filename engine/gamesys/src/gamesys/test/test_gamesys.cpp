@@ -13,6 +13,8 @@
 
 #include <ddf/ddf.h>
 #include <gameobject/gameobject_ddf.h>
+#include "../proto/gamesys_ddf.h"
+#include "../proto/sprite_ddf.h"
 
 namespace dmGameSystem
 {
@@ -189,7 +191,7 @@ TEST_P(ComponentTest, Test)
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, component_name, 0));
 
-    for (int i = 0; i < sizeof(update_after_reload)/sizeof(update_after_reload[0]); ++i)
+    for (size_t i = 0; i < sizeof(update_after_reload)/sizeof(update_after_reload[0]); ++i)
     {
         if(strcmp(update_after_reload[i], component_name) == 0)
         {
@@ -536,6 +538,101 @@ TEST_F(SpriteAnimTest, GoDeletion)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+static float GetFloatProperty(dmGameObject::HInstance go, dmhash_t component_id, dmhash_t property_id)
+{
+    dmGameObject::PropertyDesc property_desc;
+    dmGameObject::GetProperty(go, component_id, property_id, property_desc);
+    return property_desc.m_Variant.m_Number;
+}
+
+
+TEST_F(CursorTest, GuiFlipbookCursor)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmhash_t go_id = dmHashString64("/go");
+    dmhash_t gui_comp_id = dmHashString64("gui");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    dmMessage::URL msg_url;
+    dmMessage::ResetURL(msg_url);
+    msg_url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    msg_url.m_Path = go_id;
+    msg_url.m_Fragment = gui_comp_id;
+
+    // Update one second at a time.
+    // The tilesource animation is one frame per second,
+    // will make it easier to predict the cursor.
+    m_UpdateContext.m_DT = 1.0f;
+
+    bool continue_test = true;
+    while (continue_test) {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if there was an error
+        lua_getglobal(L, "test_err");
+        bool test_err = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+        lua_getglobal(L, "test_err_str");
+        const char* test_err_str = lua_tostring(L, -1);
+        lua_pop(L, 1);
+
+        ASSERT_FALSE(test_err) << test_err_str;
+
+        // continue test?
+        lua_getglobal(L, "continue_test");
+        continue_test = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_P(CursorTest, Cursor)
+{
+    const CursorTestParams& params = GetParam();
+    const char* anim_id_str = params.m_AnimationId;
+    dmhash_t go_id = dmHashString64("/go");
+    dmhash_t cursor_prop_id = dmHashString64("cursor");
+    dmhash_t sprite_comp_id = dmHashString64("sprite");
+    dmhash_t animation_id = dmHashString64(anim_id_str);
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/cursor.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    // Dummy URL, just needed to kick flipbook animation on sprite
+    dmMessage::URL msg_url;
+    dmMessage::ResetURL(msg_url);
+    msg_url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    msg_url.m_Path = go_id;
+    msg_url.m_Fragment = sprite_comp_id;
+
+    // Send animation to sprite component
+    dmGameSystemDDF::PlayAnimation msg;
+    msg.m_Id = animation_id;
+    msg.m_Offset = params.m_CursorStart;
+    msg.m_PlaybackRate = params.m_PlaybackRate;
+
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&msg_url, &msg_url, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)go, (uintptr_t)dmGameSystemDDF::PlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0));
+
+    m_UpdateContext.m_DT = 0.0f;
+    dmGameObject::Update(m_Collection, &m_UpdateContext);
+
+    // Update one second at a time.
+    // The tilesource animation is one frame per second,
+    // will make it easier to predict the cursor.
+    m_UpdateContext.m_DT = 1.0f;
+
+    for (int i = 0; i < params.m_ExpectedCount; ++i)
+    {
+        ASSERT_FLOAT_EQ(params.m_Expected[i], GetFloatProperty(go, sprite_comp_id, cursor_prop_id));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
 
 TEST_F(WindowEventTest, Test)
 {
@@ -1470,6 +1567,64 @@ DrawCountParams draw_count_params[] =
     {"/gui/draw_count_test2.goc", 1},
 };
 INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, ::testing::ValuesIn(draw_count_params));
+
+/* Sprite cursor property */
+#define F1T3 1.0f/3.0f
+#define F2T3 2.0f/3.0f
+const CursorTestParams cursor_properties[] = {
+
+    // Forward & backward
+    {"anim_once",       0.0f, 1.0f, {0.0f, 0.25f, 0.5f, 0.75f, 1.0f}, 5},
+    {"anim_once",      -1.0f, 1.0f, {0.0f, 0.25f, 0.5f, 0.75f, 1.0f}, 5}, // Same as above, but cursor should be clamped
+    {"anim_once",       1.0f, 1.0f, {1.0f, 1.0f}, 2},                     // Again, clamped, but will also be at end of anim.
+    {"anim_once_back",  0.0f, 1.0f, {1.0f, 0.75f, 0.5f, 0.25f, 0.0f}, 5},
+    {"anim_loop",       0.0f, 1.0f, {0.0f, 0.25f, 0.5f, 0.75f, 0.0f, 0.25f, 0.5f, 0.75f}, 8},
+    {"anim_loop_back",  0.0f, 1.0f, {1.0f, 0.75f, 0.5f, 0.25f, 1.0f, 0.75f, 0.5f, 0.25f}, 8},
+
+    // Ping-pong goes up to the "early end" and skip duplicate of "last" frame, this equals:
+    // duration = orig_frame_count*2 - 2
+    // In our test animation this equals; 4*2-2 = 6
+    // However, the cursor will go from 0 -> 1 and back again during the whole ping pong animation.
+    // This means the cursor will go in these steps: 0/3 -> 1/3 -> 2/3 -> 3/3 -> 2/3 -> 1/3
+    {"anim_once_pingpong", 0.0f, 1.0f, {0.0f, F1T3, F2T3, 1.0f, F2T3, F1T3, 0.0f, 0.0f}, 8},
+    {"anim_loop_pingpong", 0.0f, 1.0f, {0.0f, F1T3, F2T3, 1.0f, F2T3, F1T3, 0.0f, F1T3}, 8},
+
+    // Cursor start
+    {"anim_once",          0.5f, 1.0f, {0.5f, 0.75f, 1.0f, 1.0f}, 4},
+    {"anim_once_back",     0.5f, 1.0f, {0.5f, 0.25f, 0.0f, 0.0f}, 4},
+    {"anim_loop",          0.5f, 1.0f, {0.5f, 0.75f, 0.0f, 0.25f, 0.5f, 0.75f, 0.0f}, 7},
+    {"anim_loop_back",     0.5f, 1.0f, {0.5f, 0.25f, 1.0f, 0.75f, 0.5f, 0.25f, 1.0f}, 7},
+    {"anim_once_pingpong", F1T3, 1.0f, {F1T3, F2T3, 1.0f, F2T3, F1T3, 0.0f, 0.0f}, 7},
+    {"anim_loop_pingpong", F1T3, 1.0f, {F1T3, F2T3, 1.0f, F2T3, F1T3, 0.0f, F1T3}, 7},
+
+    // Playback rate, x2 speed
+    {"anim_once",          0.0f, 2.0f, {0.0f, 0.5f, 1.0f, 1.0f}, 4},
+    {"anim_once_back",     0.0f, 2.0f, {1.0f, 0.5f, 0.0f, 0.0f}, 4},
+    {"anim_loop",          0.0f, 2.0f, {0.0f, 0.5f, 0.0f, 0.5f, 0.0f}, 5},
+    {"anim_loop_back",     0.0f, 2.0f, {1.0f, 0.5f, 1.0f, 0.5f, 1.0f}, 5},
+    {"anim_once_pingpong", 0.0f, 2.0f, {0.0f, F2T3, F2T3, 0.0f, 0.0f}, 5},
+    {"anim_loop_pingpong", 0.0f, 2.0f, {0.0f, F2T3, F2T3, 0.0f, F2T3, F2T3, 0.0f}, 7},
+
+    // Playback rate, x0 speed
+    {"anim_once",          0.0f, 0.0f, {0.0f, 0.0f, 0.0f}, 3},
+    {"anim_once_back",     0.0f, 0.0f, {1.0f, 1.0f, 1.0f}, 3},
+    {"anim_loop",          0.0f, 0.0f, {0.0f, 0.0f, 0.0f}, 3},
+    {"anim_loop_back",     0.0f, 0.0f, {1.0f, 1.0f, 1.0f}, 3},
+    {"anim_once_pingpong", 0.0f, 0.0f, {0.0f, 0.0f, 0.0f}, 3},
+    {"anim_loop_pingpong", 0.0f, 0.0f, {0.0f, 0.0f, 0.0f}, 3},
+
+    // Playback rate, -x2 speed
+    {"anim_once",          0.0f, -2.0f, {0.0f, 0.0f, 0.0f}, 3},
+    {"anim_once_back",     0.0f, -2.0f, {1.0f, 1.0f, 1.0f}, 3},
+    {"anim_loop",          0.0f, -2.0f, {0.0f, 0.0f, 0.0f}, 3},
+    {"anim_loop_back",     0.0f, -2.0f, {1.0f, 1.0f, 1.0f}, 3},
+    {"anim_once_pingpong", 0.0f, -2.0f, {0.0f, 0.0f, 0.0f}, 3},
+    {"anim_loop_pingpong", 0.0f, -2.0f, {0.0f, 0.0f, 0.0f}, 3},
+
+};
+INSTANTIATE_TEST_CASE_P(Cursor, CursorTest, ::testing::ValuesIn(cursor_properties));
+#undef F1T3
+#undef F2T3
 
 int main(int argc, char **argv)
 {

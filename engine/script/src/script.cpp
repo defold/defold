@@ -535,18 +535,6 @@ namespace dmScript
     {
         // [-1] instance
 
-        lua_pushlstring(L, INSTANCE_NAME, sizeof(INSTANCE_NAME) - 1);
-        // [-1] name
-        // [-2] instance
-
-        lua_pushvalue(L, -2);
-        // [-1] instance
-        // [-2] name
-        // [-3] instance
-
-        lua_settable(L, LUA_GLOBALSINDEX);
-        // [-1] instance
-
         lua_pushinteger(L, (lua_Integer)INSTANCE_NAME_HASH);
         // [-1] name_hash
         // [-2] instance

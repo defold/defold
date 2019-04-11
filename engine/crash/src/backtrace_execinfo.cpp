@@ -29,7 +29,7 @@ namespace dmCrash
 
         char** stacktrace = backtrace_symbols(g_AppState.m_Ptr, g_AppState.m_PtrCount);
         uint32_t offset = 0;
-        for (int i = 0; i < g_AppState.m_PtrCount; ++i)
+        for (uint32_t i = 0; i < g_AppState.m_PtrCount; ++i)
         {
             // Write each symbol on a separate line, just like
             // backgrace_symbols_fd would do.

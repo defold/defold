@@ -37,9 +37,12 @@ Here are some commands to help out with the process:
 
     # Supported: macosx,linux,windows
     PLATFORM=macosx
-    wget http://dl.google.com/android/android-sdk_r24.4.1-$PLATFORM.zip
-    tar xvf android-sdk_r24.4.1-$PLATFORM.zip
-    mv android-sdk-$PLATFORM android-sdk
+    # The sdkmanager tool is provided in the Android SDK Tools package (25.2.3 and higher) and is located in android_sdk/tools/bin/ https://developer.android.com/studio/command-line/sdkmanager . 
+    TOOL_VERSION=25.2.3
+    wget https://dl.google.com/android/repository/tools_r$TOOL_VERSION-$PLATFORM.zip
+    tar xvf tools_r$TOOL_VERSION-$PLATFORM.zip
+    mkdir android-sdk
+    mv tools android-sdk/tools
 
     # You can list all the packages contained (not just the latest versions)
     # and see their aliases (e.g. "tools")
