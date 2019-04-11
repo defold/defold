@@ -33,7 +33,9 @@
   (inherits outline/OutlineNode)
   (inherits resource/ResourceNode)
 
-  (extern editable? g/Bool (default true) (dynamic visible (g/constantly false)))
+  (property editable? g/Bool :unjammable
+            (default true)
+            (dynamic visible (g/constantly false)))
 
   (output save-data g/Any :cached produce-save-data)
   (output source-value g/Any :cached (g/fnk [_node-id resource editable?]

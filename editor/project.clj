@@ -170,6 +170,7 @@
                                 :omit-source  true
                                 :source-paths ["sidecar"]}
                       :release {:jvm-opts          ["-Ddefold.build=release"]}
+                      :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
                       :dev     {:plugins           [[jonase/eastwood "0.3.5" :exclusions [org.clojure/clojure]]]
                                 :dependencies      [[clj-async-profiler-mg "0.4.0"]
                                                     [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
