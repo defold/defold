@@ -90,6 +90,7 @@ def build(bld):
 
     source_dirs = 'dlib dlib/jsmn zlib lz4'.split(' ')
     axtls_dirs = 'axtls/crypto axtls/ssl'.split(' ')
+    req_libs = ['CARES']
 
     if re.match('arm.*?android', bld.env.PLATFORM):
         source_dirs.append('dlib/linux')
@@ -188,9 +189,6 @@ def build(bld):
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
                                 uselib = 'UUID PLATFORM_SOCKET CARES')
-
-        if bld.env.PLATFORM == "arm64-darwin" or bld.env.PLATFORM == "armv7-darwin":
-            dlib.env.append_value('LINKFLAGS', ['-l', 'resolv'])
 
         dlib.find_sources_in_dirs(source_dirs)
         dlib.source.extend(webp_source_no_neon)

@@ -4,6 +4,8 @@
 #include "mutex.h"
 
 #include <assert.h>
+
+#define CARES_STATICLIB
 #include <ares.h>
 
 #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
@@ -135,6 +137,7 @@ namespace dmDNS
     Result Finalize()
     {
         ares_library_cleanup();
+        return RESULT_OK;
     }
 
     HChannel NewChannel()
