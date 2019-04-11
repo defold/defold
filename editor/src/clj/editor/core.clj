@@ -48,9 +48,6 @@ connected to the Scope's :nodes input.
 When a Scope is deleted, all nodes within that scope will also be deleted."
   (input nodes g/Any :array :cascade-delete))
 
-(g/defnode SimpleScope
-  (inherits Scope))
-
 (defn scope
   ([node-id]
    (scope (g/now) node-id))
