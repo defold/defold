@@ -190,13 +190,13 @@ the `inherits` clauses of the node definition.
 
 Intrinsic outputs and properties:
 
-
+```clj
     (property _node-id g/NodeID :unjammable)
     (property _output-jammers g/KeywordMap :unjammable)
     (output _properties g/Properties (g/fnk [_declared-properties] _declared-properties))
     (output _overridden-properties g/KeywordMap (g/fnk [_this _basis] (gt/overridden-properties _this _basis)))
+```
 
-  
 ### Behavior of inputs, property and outputs
 
 "Behavior" roughly means what happens whenever you do
@@ -353,9 +353,9 @@ further into this:
 ### EmptyNodeType
 
 Let's see what happens with an empty node type.
-
+```clj
     (g/defnode EmptyNodeType)
-
+```
 Even this simple node type declaration creates a flood of
 definitions. `g/defnode` quickly dispatches to
 `internal.node/process-node-type-forms` so first let have a look at
@@ -369,18 +369,19 @@ We receive a fully qualified (namespaced) node type symbol
 #### After adding intrinsics
 
 Our forms are now:
-
+```clj
     ((property _node-id :dynamo.graph/NodeID :unjammable)
      (property _output-jammers :dynamo.graph/KeywordMap :unjammable)
      (output _properties :dynamo.graph/Properties (dynamo.graph/fnk [_declared-properties] _declared-properties))
      (output _overridden-properties :dynamo.graph/KeywordMap (dynamo.graph/fnk [_this _basis] (internal.graph.types/overridden-properties _this _basis))))
+```
 
 The properties `_node-id` and `_output-jammers` are `:unjammable`
 meaning if we mark this node defective, we still get sane values if we
 do `g/node-value` for these properties.
 
 #### After parsing the forms
-
+```clj
     {:register-type-info nil,                     ; we don't refer to any non-g/deftype types in a schema
      :property                                    ; Map of all properties
      {:_node-id
@@ -418,7 +419,7 @@ do `g/node-value` for these properties.
        :flags #{:explicit},
        :options {},
        :fn (dynamo.graph/fnk [_this _basis] (internal.graph.types/overridden-properties _this _basis))}}}
-
+```
 After this step, nothing really exciting happens until we extract the
 used argument names and lift the property dependencies.
 
@@ -431,7 +432,7 @@ pulled out to `:argument` and `:dependencies` sets next to the
 `:display-order-decl` comes from the implementation of
 inheritance. **Slightly sloppy in merge-supertypes, no real problem
 though**
-
+```clj
     {:property-display-order (internal.node/merge-display-order nil []),
      :key :internal.defnode-test/EmptyNodeType,
      :property
@@ -468,9 +469,9 @@ though**
      :supertypes nil,
      :input nil,
      :display-order-decl nil}
-
+```
 #### Added `_declared-properties`, collected transitive dependencies
-
+```clj
     {...
      :input-dependencies
      {:_node-id #{:_node-id},
@@ -486,7 +487,7 @@ though**
        :arguments #{},
        :dependencies #{}}}                        ; note there is no user supplied :fn here, behavior will be added later
     }
-
+```
 #### Added generated behaviors
 
 The code looks a bit wonky with unnecessary `do`'s etc because of how
@@ -494,7 +495,7 @@ the different steps that need to be performed are broken up into
 different helper functions.
 
 Explanation in code comments.
-
+```clj
     {...
      :behavior
      {:_overridden-properties
@@ -643,15 +644,15 @@ Explanation in code comments.
                                       (when-not (:dry-run evaluation-context)
                                         (internal.graph.types/get-property node (:basis evaluation-context) :_node-id))))))}}
      ...}
-
+```
 #### Back to `g/defnode`
 
 After `internal.node/process-node-type-forms` has massaged the
 `defnode ...` clauses into a map, `defnode` needs to turn it into a
 list of `def`'s and setup calls. We'll go through this below.
-
+```clj
     fn-paths (in/extract-def-fns node-type-def)
-
+```
 This will find all `{:fn ...}` maps under the `[:output <label>]`,
 `[:property <label> :dynamics]`, `[:property <label> :value]`,
 `[:property <label> :default]`, `[:behavior <label>]` and
@@ -663,7 +664,7 @@ the path to the `{:fn ...}` and the `fn` forms from the map.
 
 Turn the `fn-paths` into a list of `fn` `def`'s. For instance, the
 behavior clauses for `_node-id` will turn into:
-
+```clj
     (def EmptyNodeType$behavior$_node-id
       (fn [node label evaluation-context]
        (let [node-id (internal.graph.types/node-id node)]
@@ -671,67 +672,66 @@ behavior clauses for `_node-id` will turn into:
                                   (fn []
                                     (when-not (:dry-run evaluation-context)
                                       (internal.graph.types/get-property node (:basis evaluation-context) label)))))))
-
+```
 Next,
-
+```clj
     node-type-def (util/update-paths node-type-def fn-paths
                                      (fn [path func curr]
                                        (assoc curr :fn (list `var (in/dollar-name symb path)))))
-
+```
 Here, we update the `{:fn ...}`'s, replacing the function clauses with
 a reference to the `def`'d version. Now the behavior for `_node-id` in the map is simply:
-
-
+```clj
     {:fn #'EmptyNodeType$behavior$_node-id}
-
+```
 Next,
-
+```clj
     node-key (:key node-type-def)
     derivations (for [tref (:supertypes node-type-def)]
                   `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
                      (derive ~node-key ~(:key (deref tref)))))
     node-type-def (update node-type-def :supertypes #(list `quote %))
-
+```
 This translates the `inherits` clauses to `derive`'s so `isa?` etc
 works as expected.
-
+```clj
     runtime-definer (symbol (str symb "*"))
-
+```
 This is just a name to be use for the function that returns the final
 form of the node type map, the "runtime definer". In this case
 "EmptyNodeType*".
-
+```clj
     type-regs (for [[key-form value-type-form] (:register-type-info node-type-def)]
                `(in/register-value-type ~key-form ~value-type-form))
     node-type-def (dissoc node-type-def :register-type-info)]
-
+```
 This generates calls to register the non-`deftype`'d types we've used,
 using `register-value-type`.  We have no other use for this
 information so `dissoc` it.
-
+```clj
     `(do
        ~@type-regs
        ~@fn-defs
        (defn ~runtime-definer [] ~node-type-def)
        (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
        ~@derivations))
-
+```
 Finally, we emit all these `def`'s and function calls.
 
 ### ProductionDefs
 
 Here we'll have a look at the different ways of specifying a
 production function.
-
+```clj
     (g/defnk produce-defnk-output [] "defnk output")
     
     (g/defnode ProductionDefs
       (output fnk-output g/Str (g/fnk [] "fnk output"))
       (output defnk-output g/Str produce-defnk-output)
       (output constant-output g/Str "constant output"))
-
+```
 After `process-node-type-forms`, relevant parts of the node type map looks like this:
-
+```clj
     {...
      :output
      {:fnk-output
@@ -784,18 +784,18 @@ After `process-node-type-forms`, relevant parts of the node type map looks like 
      }
      ...
     }
-
+```
 In the `:output` section we see that the `produce-defnk-output`
 remains, and the `"constant output"` string has been wrapped in a
 `fnk`. In the behavior section, we see that all behavior functions
 contain a call to a dollar-name'd production function.
 
 Checking what `g/defnode` emits we see:
-
+```clj
     (def ProductionDefs$output$fnk-output (g/fnk [] "fnk output"))
     (def ProductionDefs$output$defnk-output produce-defnk-output)
     (def ProductionDefs$output$constant-output (dynamo.graph/fnk [] "constant output"))
-
+```
 ### CustomProperty
 
 Here we demonstrate
@@ -821,7 +821,7 @@ Here we demonstrate
 
 The `(value ...)` clause for `:custom-property` ends up as an
 production function in the `:output` section:
-
+```clj
     :custom-property
     {:value-type {:k :dynamo.graph/Str},
      :flags #{},
@@ -829,9 +829,9 @@ production function in the `:output` section:
      :fn (g/fnk [simple-property custom-property] (str simple-property custom-property)),
      :arguments #{:simple-property :custom-property},
      :dependencies #{:simple-property :custom-property}}
-
+```
 And the corresponding behavior in the `:behavior` section:
-
+```clj
     (fn [node label evaluation-context]
       (let [node-id (internal.graph.types/node-id node)]
         (or (internal.node/output-jammer node node-id label (:basis evaluation-context))
@@ -849,11 +849,11 @@ And the corresponding behavior in the `:behavior` section:
                            (when-not (:dry-run evaluation-context)
                              (#'internal.defnode-test/CustomProperty$output$custom-property arguments)))]
                              ...
-
+```
 #### A look at `:property-behavior` and how it differs from the usual `:behavior`
 
 The `:property-behavior` for `custom-property` (used during `update-property`), looks like this:
-
+```clj
     (fn [node label evaluation-context]
       (let [node-id (internal.graph.types/node-id node)]
         ;; No jam checking, no check for cycles
@@ -871,7 +871,7 @@ The `:property-behavior` for `custom-property` (used during `update-property`), 
                                              ;; This prevents us from calling the production function of an explicit
                                              ;; overriding output.
                                              #'internal.defnode-test/CustomProperty$property$custom-property$value (constantly nil)) arguments__11811__auto__)))))))
-
+```
 #### Where `dynamic`s and the `default` value function end up
 
 Property dynamics and the default function end up under the
@@ -881,7 +881,7 @@ map.
 As you can see, the production function for `(value ...)` also ends up
 here in the `:property` map. This version will be used for
 `_properties` later on.
-
+```clj
     :property
     {...
      :custom-property
@@ -899,7 +899,7 @@ here in the `:property` map. This version will be used for
         :arguments #{:simple-input :custom-property},
         :dependencies #{:simple-input :custom-property}}},
       :dependencies #{:simple-property :simple-input}}}
-
+```
 All these `fn`'s will be emitted as `def`'s by `defnode` and the node
 type map updated with the corresponding vars.
 
@@ -911,7 +911,7 @@ provide values if none were supplied.
 The intrinsic version of `_properties` just passes through
 `_declared-properties`. Looking at the `_declared-properties` behavior
 for this node type:
-
+```clj
     (fn [node label evaluation-context]
       (let [node-id (internal.graph.types/node-id node)
             display-order (internal.node/property-display-order (internal.graph.types/node-type node (:basis evaluation-context)))
@@ -947,22 +947,22 @@ for this node type:
           {:properties value-map,
            :display-order display-order,
            :node-id node-id}))
-
+```
 ### OverridenProperty
 
 Lets have a look what happens when you have an output with the same
 name as a property.
-
+```clj
     (g/defnode OverriddenProperty
       (property data g/Str (value (g/fnk [] 1)))
       (input nonsense-input g/Str)
       (output data g/Str (g/fnk [data nonsense-input]
                            (str data nonsense-input))))
-
+```
 In the `:output` section, only the explicit output production function
 remains, but the definition in `:property` remains.
 
-
+```clj
     {:output
      {:data
       {:value-type {:k :dynamo.graph/Str},
@@ -983,7 +983,7 @@ remains, but the definition in `:property` remains.
        :value {:fn (g/fnk [] 1), :arguments #{}, :dependencies #{}},
        :dependencies #{}}}
     }
-
+```
 If you look into the code generated for the data output behavior, you
 would find that it calls
 `#'internal.defnode-test/OverriddenProperty$property$data$value` to get the property value. 
@@ -997,15 +997,15 @@ broken in that they do not perform error substitution**. They are
 used in a handful places in the editor (we do `(g/node-value
 ... :some-input)`) and are sometimes useful for debugging, but we could
 probably do without them.
-
+```clj
     (g/defnode InputVarieties
       (input single-input g/Str)
       (input array-input g/Str :array)
       (input subst-single-input g/Str :substitute (fn [err] "error!"))
       (input subst-array-input g/Str :array :substitute (fn [inputs] (map #(if (g/error? %) "error!" %) inputs))))
-
+```
 The behavior (in `:behavior`) looks like this:
-
+```clj
     {:array-input {:fn internal.node/pull-input-values},
      :subst-single-input
      {:fn (clojure.core/partial internal.node/pull-first-input-with-substitute (fn [err] "error!"))},
@@ -1016,7 +1016,7 @@ The behavior (in `:behavior`) looks like this:
                                     (fn* [p1__26210#] (if (g/error? p1__26210#) "error!" p1__26210#))
                                     inputs)))},
      :single-input {:fn internal.node/pull-first-input-value}}
-
+```
 The inputs do not need individual production functions - these are the
 four varieties possible.
 
@@ -1025,7 +1025,7 @@ four varieties possible.
 ### InputVarietiesUsed
 
 If, however we use these inputs as argument to a production function:
-
+```clj
     (g/defnode InputVarietiesUsed
       (input single-input g/Str)
       (input array-input g/Str :array)
@@ -1035,10 +1035,10 @@ If, however we use these inputs as argument to a production function:
       (output output-array-input g/Str (g/fnk [array-input] array-input))
       (output output-subst-single-input g/Str (g/fnk [subst-single-input] subst-single-input))
       (output output-subst-array-input g/Str (g/fnk [subst-array-input] subst-array-input)))
-
+```
 The behavior for `:output-subst-array-input` for instance will, when
 collecting arguments, perform the error substitution:
-
+```clj
     (let [arguments {:subst-array-input (internal.node/error-substituted-array-input-value
                                           (internal.node/pull-input-values node :subst-array-input evaluation-context)
                                           (fn [inputs]
@@ -1047,17 +1047,18 @@ collecting arguments, perform the error substitution:
                                                  inputs))),
                      :_node-id node-id,
                      :_basis (:basis evaluation-context)}]
-
+```
 ### CachedOutputs
 
 How does the `:cached` flag affect the behavior function? The
 difference is only what caches we use for lookup and update.
-
+```clj
     (g/defnode CachedOutputs
       (property data g/Str)
       (output non-cached g/Str (g/fnk [data] data))
       (output cached g/Str :cached (g/fnk [data] data)))
-
+```
+```clj
     {...
      :behavior
      {...
@@ -1129,6 +1130,7 @@ difference is only what caches we use for lookup and update.
                                                            result)))))))))))}
      }
     }
+```
 
 ### BaseNode, DerivedNode
 
@@ -1136,7 +1138,7 @@ When using `inherits`, be careful not to unintentionally override a
 property from the base node type. The semantics of `inherits` is
 almost "merge the node type map of the base node type with the
 current" / copy-paste the definition.
-
+```clj
     (g/defnode BaseNode
       (property surprise g/Str
                 (dynamic dynamic-value (g/fnk [surprise] surprise)))
@@ -1145,7 +1147,7 @@ current" / copy-paste the definition.
     (g/defnode DerivedNode
       (inherits BaseNode)
       (output surprise g/Str (g/fnk [] "DerivedNode/surprise")))
-
+```
 With this definition, the behavior for `use-surprise` will call
 `produce-value` to get the argument for `surprise`. So on a
 `DerivedNode`, `use-surprise` will actually return
@@ -1155,6 +1157,7 @@ get the value, but `dynamic-value` will use `produce-value` and get
 "DerivedNode/surprise". This might or might not be surprising.
 
 For reference, the `derive` calls emitted by `defnode` are:
-
+```clj
     (when-not (contains? (descendants :internal.defnode-test/BaseNode) :internal.defnode-test/DerivedNode)
       (derive :internal.defnode-test/DerivedNode :internal.defnode-test/BaseNode))
+```
