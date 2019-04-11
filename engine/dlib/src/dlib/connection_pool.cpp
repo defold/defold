@@ -381,9 +381,7 @@ namespace dmConnectionPool
             return RESULT_SHUT_DOWN;
         }
 
-        // TODO: Make this async, making it able to timeout (it can take up to 30 seconds). Look into getaddrinfo_a
-        dmSocket::Address address,address2;
-        dmSocket::Result sr2 = dmSocket::GetHostByName(host, &address2);
+        dmSocket::Address address;
         dmDNS::Result sr = dmDNS::GetHostByName(host, &address, dns_channel);
 
         dmhash_t conn_id = CalculateConnectionID(address, port, ssl);

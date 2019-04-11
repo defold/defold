@@ -35,6 +35,7 @@ namespace dmHttpService
     struct Worker
     {
         dmThread::Thread      m_Thread;
+        dmDNS::HChannel       m_DNSChannel;
         dmMessage::HSocket    m_Socket;
         dmHttpClient::HClient m_Client;
         dmURI::Parts          m_CurrentURL;
@@ -207,6 +208,8 @@ namespace dmHttpService
             params.m_HttpWriteHeaders = &HttpWriteHeaders;
             params.m_Userdata = worker;
             params.m_HttpCache = worker->m_Service->m_HttpCache;
+            params.m_DNSChannel = worker->m_DNSChannel;
+
             worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port, strcmp(url.m_Scheme, "https") == 0);
             if (worker->m_Client) {
                 dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_MAX_GET_RETRIES, 1);
@@ -363,6 +366,7 @@ namespace dmHttpService
             worker->m_Service = service;
             worker->m_CacheFlusher = i == 0;
             worker->m_Run = true;
+            worker->m_DNSChannel = dmDNS::NewChannel();
             service->m_Workers.Push(worker);
 
             dmThread::Thread t = dmThread::New(&Loop, THREAD_STACK_SIZE, worker, "http");
@@ -389,13 +393,11 @@ namespace dmHttpService
         {
             dmHttpService::Worker* worker = http_service->m_Workers[i];
             url.m_Socket = worker->m_Socket;
-            if (worker->m_Client)
-            {
-                dmDNS::StopChannel(dmHttpClient::GetDNSChannel(worker->m_Client));
-            }
+            dmDNS::StopChannel(http_service->m_Workers[i]->m_DNSChannel);
             dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0, 0);
             dmThread::Join(worker->m_Thread);
             dmMessage::DeleteSocket(worker->m_Socket);
+            dmDNS::DeleteChannel(worker->m_DNSChannel);
             if (worker->m_Client)
 			{
                 dmHttpClient::Delete(worker->m_Client);
