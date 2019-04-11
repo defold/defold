@@ -15,6 +15,10 @@ local function set_render_mode(self, action_id)
 	msg.post("@render:", action_id)
 end
 
+local function quit(self, action_id)
+	sys.exit(0)
+end
+
 function init(self)
 	math.randomseed(1)
 	msg.post(nil, "acquire_input_focus")
@@ -25,7 +29,8 @@ function init(self)
 		[hash("render1")] = set_render_mode,
 		[hash("render2")] = set_render_mode,
 		[hash("render3")] = set_render_mode,
-		[hash("render4")] = set_render_mode
+		[hash("render4")] = set_render_mode,
+		[hash("quit")] = quit
 	}
 	self.timer = 0
 	self.outro = false
