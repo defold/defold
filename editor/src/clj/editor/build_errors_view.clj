@@ -269,10 +269,7 @@
     (when-let [first-error (->> (ui/tree-item-seq (.getRoot errors-tree))
                                 (filter (fn [^TreeItem item] (.isLeaf item)))
                                 first)]
-      (.select (.getSelectionModel errors-tree) first-error))
-    ;; Select tab-pane
-    (let [^TabPane tab-pane (.getParent (.getParent (.getParent errors-tree)))]
-      (ui/select-tab! tab-pane "build-errors-tab"))))
+      (.select (.getSelectionModel errors-tree) first-error))))
 
 (defn clear-build-errors [^TreeView errors-tree]
   (.setRoot errors-tree nil))
