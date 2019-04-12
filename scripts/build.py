@@ -813,7 +813,7 @@ class Configuration(object):
 
         env = self._form_env()
         self._set_java_8(env)
-        self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+        self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-bob-light']),
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
 
     def build_engine(self):
@@ -970,7 +970,7 @@ class Configuration(object):
 
         env = self._form_env()
         self._set_java_8(env)
-        self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
+        self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
                               cwd = cwd, shell = True, env = env)
 
     def build_sdk(self):
