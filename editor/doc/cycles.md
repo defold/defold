@@ -56,7 +56,7 @@ override nodes - is automatically expanded/contracted when new nodes
 are connected/disconnected to the original nodes, or original nodes
 deleted. This is handled by the graph system as part of performing
 transactions, using the traversal predicate to determine for what
-nodes override nodes should exist.
+nodes there should exist corresponding override nodes.
 
 In our gui case, when we add `button.gui` to `menu.gui` (using a
 template gui node), the editor creates an override (`g/override`) of
@@ -108,7 +108,7 @@ The traversal will step in to the overriden `button.gui` scene node,
 in to the Template node, where it will find a gui scene node
 connected. Then, step in to the `button.gui` node again, and again in
 to the Template node, where it will find a gui scene node
-connected. Then,step in to the `button.gui` node yet again, and yet
+connected. Then, step in to the `button.gui` node yet again, and yet
 again in to the Template node... Along with the traversal we also
 create new layers of override nodes so eventually we run out of
 memory.
@@ -124,7 +124,7 @@ Right to Left in the diagrams below**
      -  = Is connected to 
      
     A'
-    | = A' is an override node of A
+    |   = A' is an override node of A
     v
     A
 
