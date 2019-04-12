@@ -197,7 +197,7 @@ public class Project {
 
         for (String className : classNames) {
             // Ignore TexcLibrary to avoid it being loaded and initialized
-            // We're also skipping the some bundling classes, since we're only building content,
+            // We're also skipping some of the bundler classes, since we're only building content,
             // not doing bundling when using bob-light
             boolean skip = className.startsWith("com.dynamo.bob.TexcLibrary") ||
                     (is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) ||

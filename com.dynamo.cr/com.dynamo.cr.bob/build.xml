@@ -287,9 +287,6 @@
                 <include name="lib/**/*PVRTexLib*"/>
                 <include name="lib/**/*msvcr120.dll*"/>
             </fileset>
-<!--             <fileset dir=".">
-                <include name="libexec/**/*"/>
-            </fileset> -->
 
             <fileset dir=".">
                 <include name="libexec/**/glslc*"/>
@@ -299,9 +296,6 @@
             <zipfileset src="tmp/external-libs-light.jar">
               <exclude name="**/META-INF/**"/>
             </zipfileset>
-<!--             <fileset dir=".">
-                <include name="lib/*.zip"/>
-            </fileset> -->
             <fileset dir=".">
                 <include name="lib/luajit-share.zip"/>
             </fileset>
