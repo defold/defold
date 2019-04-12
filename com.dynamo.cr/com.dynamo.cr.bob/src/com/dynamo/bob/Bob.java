@@ -92,6 +92,9 @@ public class Bob {
                 if (!rootFolder.exists()) {
                     rootFolder.mkdirs();
                 }
+                if (!rootFolder.isDirectory()) {
+                    throw new IOException(String.format("Error when specifying DM_BOB_ROOTFOLDER: %s is not a directory!", rootFolder.getAbsolutePath()));
+                }
                 System.out.println("env DM_BOB_ROOTFOLDER=" + rootFolder);
             } else {
                 rootFolder = Files.createTempDirectory(null).toFile();

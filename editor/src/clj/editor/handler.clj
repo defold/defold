@@ -19,13 +19,13 @@
 
 (defn ->context
   ([name env]
-    (->context name env nil))
+   (->context name env nil))
   ([name env selection-provider]
-    (->context name env selection-provider {}))
+   (->context name env selection-provider {}))
   ([name env selection-provider dynamics]
-    (->context name env selection-provider dynamics {}))
+   (->context name env selection-provider dynamics {}))
   ([name env selection-provider dynamics adapters]
-    (->Context name env selection-provider dynamics adapters)))
+   (->Context name env selection-provider dynamics adapters)))
 
 ; TODO: Validate arguments for all functions and log appropriate message
 
@@ -75,17 +75,20 @@
               nil)))
         default))))
 
-(defn- get-active-handler [command command-context]
-  (let [ctx-name (:name command-context)]
+(defn- get-active-handler [command command-context evaluation-context]
+  (let [ctx-name (:name command-context)
+        ctx (assoc-in command-context [:env :evaluation-context] evaluation-context)]
     (some (fn [handler]
-            (when (invoke-fnk handler :active? command-context true)
+            (when (invoke-fnk handler :active? ctx true)
               handler))
           (vals (get @*handlers* [command ctx-name])))))
 
-(defn- get-active [command command-contexts user-data]
-  (let [command-contexts (mapv (fn [ctx] (assoc-in ctx [:env :user-data] user-data)) command-contexts)]
-    (some (fn [ctx] (when-let [handler (get-active-handler command ctx)]
-                      [handler ctx])) command-contexts)))
+(defn- get-active [command command-contexts user-data evaluation-context]
+  (some (fn [ctx]
+          (let [full-ctx (assoc-in ctx [:env :user-data] user-data)]
+            (when-let [handler (get-active-handler command full-ctx evaluation-context)]
+              [handler full-ctx])))
+        command-contexts))
 
 (defn- ctx->screen-name [ctx]
   ;; TODO distinguish between scene/form etc when workbench is the context
@@ -98,8 +101,13 @@
 (defn state [[handler command-context]]
   (invoke-fnk handler :state command-context nil))
 
-(defn enabled? [[handler command-context]]
-  (boolean (invoke-fnk handler :enabled? command-context true)))
+(defn enabled?
+  ([handler+command-context]
+   (g/with-auto-evaluation-context evaluation-context
+     (enabled? handler+command-context evaluation-context)))
+  ([[handler command-context] evaluation-context]
+   (let [ctx (assoc-in command-context [:env :evaluation-context] evaluation-context)]
+     (boolean (invoke-fnk handler :enabled? ctx true)))))
 
 (defn label [[handler command-context]]
   (invoke-fnk handler :label command-context nil))
@@ -112,8 +120,12 @@
     (contains? context :dynamics)
     (update :env merge (into {} (map (fn [[k [node v]]] [k (g/node-value (get-in context [:env node]) v)]) (:dynamics context))))))
 
-(defn active [command command-contexts user-data]
-  (get-active command command-contexts user-data))
+(defn active
+  ([command command-contexts user-data]
+   (g/with-auto-evaluation-context evaluation-context
+     (active command command-contexts user-data evaluation-context)))
+  ([command command-contexts user-data evaluation-context]
+   (get-active command command-contexts user-data evaluation-context)))
 
 (defn- context-selections [context]
   (if-let [s (get-in context [:env :selection])]

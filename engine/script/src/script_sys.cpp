@@ -877,7 +877,7 @@ union SaveLoadBuffer
     /*# exits application
     * Terminates the game application and reports the specified <code>code</code> to the OS.
     *
-    * @name exit
+    * @name sys.exit
     * @param code [type:number] exit code to report to the OS, 0 means clean exit
     * @examples
     *
@@ -915,7 +915,7 @@ union SaveLoadBuffer
     * On startup the engine reads configuration from "game.project" in the
     * project root.
     *
-    * @name reboot
+    * @name sys.reboot
     * @param arg1 [type:string] argument 1
     * @param arg2 [type:string] argument 2
     * @param arg3 [type:string] argument 3
@@ -966,7 +966,7 @@ union SaveLoadBuffer
     *
     * This setting may be overridden by driver settings.
     *
-    * @name set_vsync_swap_interval
+    * @name sys.set_vsync_swap_interval
     * @param swap_interval target swap interval.
     * @examples
     *
@@ -999,7 +999,7 @@ union SaveLoadBuffer
     * unchecked the engine will try to respect the rate in software using timers. There is no
     * guarantee that the frame cap will be achieved depending on platform specifics and hardware settings.
     *
-    * @name set_update_frequency
+    * @name sys.set_update_frequency
     * @param frequency target frequency. 60 for 60 fps
     * @examples
     * 
