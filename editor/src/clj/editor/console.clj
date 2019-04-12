@@ -65,11 +65,6 @@
                           :entries (pop-n entries n)})))]
     (update batch :entries #(take n %))))
 
-(defn show! [view-node]
-  (let [canvas (g/node-value view-node :canvas)
-        ^TabPane tab-pane (ui/closest-node-of-type TabPane canvas)]
-    (.select (.getSelectionModel tab-pane) 0)))
-
 ;; -----------------------------------------------------------------------------
 ;; Tool Bar
 ;; -----------------------------------------------------------------------------
