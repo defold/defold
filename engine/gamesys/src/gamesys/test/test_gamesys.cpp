@@ -501,7 +501,11 @@ TEST_F(CursorTest, GuiFlipbookCursor)
         const char* test_err_str = lua_tostring(L, -1);
         lua_pop(L, 1);
 
-        ASSERT_FALSE(test_err) << test_err_str;
+        if (test_err) {
+            dmLogError("Lua Error: %s", test_err_str);
+        }
+
+        ASSERT_FALSE(test_err);
 
         // continue test?
         lua_getglobal(L, "continue_test");
@@ -548,7 +552,7 @@ TEST_P(CursorTest, Cursor)
 
     for (int i = 0; i < params.m_ExpectedCount; ++i)
     {
-        ASSERT_FLOAT_EQ(params.m_Expected[i], GetFloatProperty(go, sprite_comp_id, cursor_prop_id));
+        ASSERT_EQ(params.m_Expected[i], GetFloatProperty(go, sprite_comp_id, cursor_prop_id));
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     }
@@ -1538,7 +1542,7 @@ const CursorTestParams cursor_properties[] = {
     {"anim_loop_pingpong", 0.0f, -2.0f, {0.0f, 0.0f, 0.0f}, 3},
 
 };
-INSTANTIATE_TEST_CASE_P(Cursor, CursorTest, ::testing::ValuesIn(cursor_properties));
+INSTANTIATE_TEST_CASE_P(Cursor, CursorTest, jc_test_values_in(cursor_properties));
 #undef F1T3
 #undef F2T3
 
