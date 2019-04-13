@@ -111,6 +111,19 @@ TEST(dmDisplayProfilesTest, TestOptimalProfile)
     delete[] device_models;
 }
 
+TEST(dmDisplayProfilesTest, TestProjectWithoutProfiles)
+{
+    dmRenderDDF::DisplayProfiles display_profiles = {};
+
+    dmRender::HDisplayProfiles profiles = dmRender::NewDisplayProfiles();
+    dmRender::DisplayProfilesParams params;
+    params.m_DisplayProfilesDDF = &display_profiles;
+    params.m_NameHash = dmHashString64("profiles");
+
+    dmRender::SetDisplayProfiles(profiles, params);
+    dmRender::DeleteDisplayProfiles(profiles);
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);

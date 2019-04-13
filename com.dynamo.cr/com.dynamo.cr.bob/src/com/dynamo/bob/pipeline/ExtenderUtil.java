@@ -428,8 +428,12 @@ public class ExtenderUtil {
         // Find extension folders
         List<String> extensionFolders = getExtensionFolders(project);
         for (String extension : extensionFolders) {
+            IResource resource = project.getResource(extension + "/" + ExtenderClient.extensionFilename);
+            if (!resource.exists()) {
+                throw new CompileExceptionError(resource, 1, "Resource doesn't exist!");
+            }
 
-            sources.add( new FSExtenderResource( project.getResource(extension + "/" + ExtenderClient.extensionFilename)) );
+            sources.add( new FSExtenderResource( resource ) );
             sources.addAll( listFilesRecursive( project, extension + "/include/" ) );
             sources.addAll( listFilesRecursive( project, extension + "/src/") );
 
@@ -462,6 +466,32 @@ public class ExtenderUtil {
             }
             files.put(r.getPath(), r);
         }
+    }
+
+    /** Get the platform manifests from the extensions
+     */
+    public static List<IResource> getExtensionManifests(Project project, Platform platform, String name) throws CompileExceptionError {
+        List<IResource> out = new ArrayList<>();
+
+        List<String> platformFolderAlternatives = new ArrayList<String>();
+        platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths())); // we skip "common" here since it makes little sense
+
+        // Find extension folders
+        List<String> extensionFolders = getExtensionFolders(project);
+        for (String extension : extensionFolders) {
+            for (String platformAlt : platformFolderAlternatives) {
+                List<ExtenderResource> files = listFilesRecursive( project, extension + "/manifests/" + platformAlt + "/");
+                for (ExtenderResource r : files) {
+                    if (!(r instanceof FSExtenderResource))
+                        continue;
+                    File f = new File(r.getAbsPath());
+                    if (f.getName().equals(name)) {
+                        out.add( ((FSExtenderResource)r).getResource() );
+                    }
+                }
+            }
+        }
+        return out;
     }
 
     /**
@@ -674,5 +704,4 @@ public class ExtenderUtil {
         }
         return null;
     }
-
 }

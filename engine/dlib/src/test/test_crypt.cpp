@@ -21,7 +21,7 @@ TEST(dmCrypt, SameAsLibMCrypt)
     uint8_t expected[] = { 0x81, 0xb4, 0xa1, 0x4, 0x2d, 0xac, 0xe5, 0xcb, 0x77,
                            0x89, 0xec, 0x11, 0x61, 0xc3, 0xdc, 0xfa, 0xb9, 0xa3, 0x25 };
 
-    ASSERT_EQ(sizeof(expected), n);
+    ASSERT_EQ(sizeof(expected), (size_t)n);
 
     for (uint32_t i = 0; i < sizeof(expected); i++) {
         ASSERT_EQ(expected[i], buf[i]);

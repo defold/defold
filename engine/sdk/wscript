@@ -45,11 +45,15 @@ def compile_sdk_headers(task):
     for root, dirs, files in os.walk(sdk_includes):
         for file in files:
             if file.endswith('.h'):
+                path = os.path.join(root, file)
                 if(file == 'sdk.h'):
                     continue
                 if('vectormath' in root):
                     continue
-                includes.append(os.path.join(root, file))
+                includes.append(path)
+
+    # the vector math libraries are so many so we only include the one we want
+    includes.append(os.path.join(sdk_includes, 'vectormath/cpp/vectormath_aos.h'))
 
     with open(os.path.join(task.install_path, task.target), "w") as f:
         f.write("#ifndef DMSDK_SDK_H\n")

@@ -436,7 +436,7 @@ private:
 
         m_TrackIdxToPose.SetCapacity(bone_count);
         m_TrackIdxToPose.SetSize(bone_count);
-        for (int i = 0; i < bone_count; ++i)
+        for (uint32_t i = 0; i < bone_count; ++i)
         {
             m_TrackIdxToPose[i] = i;
         }
@@ -538,11 +538,11 @@ private:
 
         // Every slot will get two attachment points.
         // Make all slot attachment point to -1, ie no meshes attached/visible
-        for (int i = 0; i < m_MeshSet->m_MeshEntries.m_Count; i++) {
+        for (uint32_t i = 0; i < m_MeshSet->m_MeshEntries.m_Count; i++) {
             m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data = new dmRigDDF::MeshSlot[m_MeshSet->m_SlotCount];
             m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Count = m_MeshSet->m_SlotCount;
 
-            for (int j = 0; j < m_MeshSet->m_SlotCount; j++) {
+            for (uint32_t j = 0; j < m_MeshSet->m_SlotCount; j++) {
                 m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data = new uint32_t[2];
                 m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Count = 2;
                 m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data[0] = -1;
@@ -552,7 +552,7 @@ private:
             }
         }
 
-        int available_mesh_count = 2;
+        uint32_t available_mesh_count = 2;
         m_MeshSet->m_MeshAttachments.m_Data = new dmRigDDF::Mesh[available_mesh_count];
         m_MeshSet->m_MeshAttachments.m_Count = 0;
 
@@ -603,7 +603,7 @@ private:
 
         // Delete mesh attachments and their data
         uint32_t mesh_count = m_MeshSet->m_MeshAttachments.m_Count;
-        for (int i = 0; i < mesh_count; ++i)
+        for (uint32_t i = 0; i < mesh_count; ++i)
         {
             dmRigDDF::Mesh& mesh = m_MeshSet->m_MeshAttachments.m_Data[i];
             if (mesh.m_NormalsIndices.m_Count > 0)   { delete [] mesh.m_NormalsIndices.m_Data; }
@@ -620,11 +620,11 @@ private:
 
         // Delete mesh entries and their slot data
         uint32_t mesh_entry_count = m_MeshSet->m_MeshEntries.m_Count;
-        for (int i = 0; i < mesh_entry_count; ++i)
+        for (uint32_t i = 0; i < mesh_entry_count; ++i)
         {
             dmRigDDF::MeshEntry& mesh_entry = m_MeshSet->m_MeshEntries.m_Data[i];
             uint32_t mesh_slot_count = mesh_entry.m_MeshSlots.m_Count;
-            for (int j = 0; j < mesh_slot_count; j++) {
+            for (uint32_t j = 0; j < mesh_slot_count; j++) {
                 dmRigDDF::MeshSlot& mesh_slot = mesh_entry.m_MeshSlots.m_Data[j];
                 if (mesh_slot.m_MeshAttachments.m_Count > 0) { delete [] mesh_slot.m_MeshAttachments.m_Data; }
                 if (mesh_slot.m_SlotColor.m_Count > 0) { delete [] mesh_slot.m_SlotColor.m_Data; }
@@ -860,7 +860,7 @@ TEST_F(dmGuiTest, NodeTextureType)
     ASSERT_EQ(node_texture_type, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET);
 
     // Test NODE_TEXTURE_TYPE_TEXTURE_SET: Playing flipbook animation
-    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0x0);
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0.0f, 1.0f, 0x0);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
@@ -878,7 +878,7 @@ TEST_F(dmGuiTest, NodeTextureType)
     ASSERT_EQ(node_texture_type, dmGui::NODE_TEXTURE_TYPE_TEXTURE);
 
     // Test NODE_TEXTURE_TYPE_TEXTURE: Playing flipbook animation should not work!
-    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta2", 0x0);
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta2", 0.0f, 1.0f, 0x0);
     ASSERT_EQ(r, dmGui::RESULT_INVAL_ERROR);
     ASSERT_EQ(dmGui::GetNodeFlipbookAnimId(m_Scene, node), 0);
 
@@ -931,7 +931,7 @@ TEST_F(dmGuiTest, FlipbookAnim)
     uint64_t fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
     ASSERT_EQ(0, dmGui::GetNodeFlipbookAnimId(m_Scene, node));
 
-    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0x0);
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0.0f, 1.0f, 0x0);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
@@ -958,7 +958,7 @@ TEST_F(dmGuiTest, FlipbookAnim)
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
     ASSERT_EQ(0, fb_id);
 
-    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0x0);
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0.0f, 1.0f, 0x0);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
@@ -5199,11 +5199,11 @@ static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
 
         // Every slot will get two attachment points.
         // Make all slot attachment point to -1, ie no meshes attached/visible
-        for (int i = 0; i < mesh_set->m_MeshEntries.m_Count; i++) {
+        for (uint32_t i = 0; i < mesh_set->m_MeshEntries.m_Count; i++) {
             mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data = new dmRigDDF::MeshSlot[mesh_set->m_SlotCount];
             mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Count = mesh_set->m_SlotCount;
 
-            for (int j = 0; j < mesh_set->m_SlotCount; j++) {
+            for (uint32_t j = 0; j < mesh_set->m_SlotCount; j++) {
                 mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data = new uint32_t[2];
                 mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Count = 2;
                 mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data[0] = -1;
@@ -5218,7 +5218,7 @@ static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
     }
 
     char buf[64];
-    for (int i = 0; i < num_dummy_mesh_entries; ++i)
+    for (uint32_t i = 0; i < num_dummy_mesh_entries; ++i)
     {
         sprintf(buf, "skin%i", i);
         CreateTestSkin(mesh_set, i, dmHashString64(buf), Vector4(float(i)/float(num_dummy_mesh_entries)));
@@ -5233,7 +5233,7 @@ static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
     if (num_dummy_mesh_entries > 0)
     {
         // Delete mesh attachments and their data
-        for (int i = 0; i < num_dummy_mesh_entries; ++i)
+        for (uint32_t i = 0; i < num_dummy_mesh_entries; ++i)
         {
             dmRigDDF::Mesh& mesh = dummy_data->m_MeshSet->m_MeshAttachments.m_Data[i];
             if (mesh.m_NormalsIndices.m_Count > 0)   { delete [] mesh.m_NormalsIndices.m_Data; }
@@ -5249,11 +5249,11 @@ static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
         delete [] dummy_data->m_MeshSet->m_MeshAttachments.m_Data;
 
         // Delete mesh entries and their slot data
-        for (int i = 0; i < num_dummy_mesh_entries; ++i)
+        for (uint32_t i = 0; i < num_dummy_mesh_entries; ++i)
         {
             dmRigDDF::MeshEntry& mesh_entry = dummy_data->m_MeshSet->m_MeshEntries.m_Data[i];
             uint32_t mesh_slot_count = mesh_entry.m_MeshSlots.m_Count;
-            for (int j = 0; j < mesh_slot_count; j++) {
+            for (uint32_t j = 0; j < mesh_slot_count; j++) {
                 dmRigDDF::MeshSlot& mesh_slot = mesh_entry.m_MeshSlots.m_Data[j];
                 if (mesh_slot.m_MeshAttachments.m_Count > 0) { delete [] mesh_slot.m_MeshAttachments.m_Data; }
                 if (mesh_slot.m_SlotColor.m_Count > 0) { delete [] mesh_slot.m_SlotColor.m_Data; }
@@ -5773,7 +5773,7 @@ TEST_F(dmGuiTest, PlayNodeParticlefxAdjustModeStretch)
     dmGui::InternalNode* n = dmGui::GetNode(m_Scene, node_pfx);
 
     n->m_Node.m_AdjustMode = (uint32_t) dmGui::ADJUST_MODE_STRETCH;
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));    
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
     ASSERT_EQ(dmGui::ADJUST_MODE_FIT, (dmGui::AdjustMode)n->m_Node.m_AdjustMode);
 
     dmGui::FinalScene(m_Scene);

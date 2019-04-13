@@ -369,7 +369,7 @@ TEST(dmProfile, ThreadProfile)
     dmProfile::Release(profile);
 
     ASSERT_EQ(20000U * 2U, samples.size());
-    ASSERT_EQ(20000 * 2, scopes["X"]->m_Count);
+    ASSERT_EQ(20000 * 2U, scopes["X"]->m_Count);
 
     dmProfile::Finalize();
 }

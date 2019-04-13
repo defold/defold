@@ -16,7 +16,8 @@
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [schema.core :as s])
+            [schema.core :as s]
+            [service.smoke-log :as slog])
   (:import [com.defold.control ListView]
            [com.sun.javafx.font FontResource FontStrike PGFont]
            [com.sun.javafx.geom.transform BaseTransform]
@@ -935,13 +936,16 @@
 
 (defn get-property
   "Gets the value of a property that is managed by the functions in the code.data module."
-  [view-node prop-kw]
-  (case prop-kw
-    :invalidated-row
-    (invalidated-row (:invalidated-rows (g/user-data view-node :canvas-repaint-info))
-                     (g/node-value view-node :invalidated-rows))
+  ([view-node prop-kw]
+   (g/with-auto-evaluation-context evaluation-context
+     (get-property view-node prop-kw evaluation-context)))
+  ([view-node prop-kw evaluation-context]
+   (case prop-kw
+     :invalidated-row
+     (invalidated-row (:invalidated-rows (g/user-data view-node :canvas-repaint-info))
+                      (g/node-value view-node :invalidated-rows evaluation-context))
 
-    (g/node-value view-node prop-kw)))
+     (g/node-value view-node prop-kw evaluation-context))))
 
 (defn set-properties!
   "Sets values of properties that are managed by the functions in the code.data module.
@@ -1427,12 +1431,7 @@
                  javafx.scene.Cursor/HAND
 
                  (data/rect-contains? (.canvas layout) x y)
-                 ;; TODO:
-                 ;; Currently using an image cursor results in a corrupted mouse pointer under macOS High Sierra.
-                 ;; We should test periodically and use the white cursor on macOS as well when the bug is fixed.
-                 (if (eutil/is-mac-os?)
-                   javafx.scene.Cursor/TEXT
-                   ui/text-cursor-white)
+                 javafx.scene.Cursor/TEXT
 
                  :else
                  javafx.scene.Cursor/DEFAULT)]
@@ -1510,11 +1509,12 @@
 
 ;; -----------------------------------------------------------------------------
 
-(defn has-selection? [view-node]
-  (not-every? data/cursor-range-empty? (get-property view-node :cursor-ranges)))
+(defn has-selection? [view-node evaluation-context]
+  (not-every? data/cursor-range-empty?
+              (get-property view-node :cursor-ranges evaluation-context)))
 
-(defn can-paste? [view-node clipboard]
-  (data/can-paste? (get-property view-node :cursor-ranges) clipboard))
+(defn can-paste? [view-node clipboard evaluation-context]
+  (data/can-paste? (get-property view-node :cursor-ranges evaluation-context) clipboard))
 
 (defn cut! [view-node clipboard]
   (hide-suggestions! view-node)
@@ -1617,15 +1617,18 @@
   (run [view-node] (move! view-node :selection :file-end)))
 
 (handler/defhandler :cut :code-view
-  (enabled? [view-node] (has-selection? view-node))
+  (enabled? [view-node evaluation-context]
+            (has-selection? view-node evaluation-context))
   (run [view-node clipboard] (cut! view-node clipboard)))
 
 (handler/defhandler :copy :code-view
-  (enabled? [view-node] (has-selection? view-node))
+  (enabled? [view-node evaluation-context]
+            (has-selection? view-node evaluation-context))
   (run [view-node clipboard] (copy! view-node clipboard)))
 
 (handler/defhandler :paste :code-view
-  (enabled? [view-node clipboard] (can-paste? view-node clipboard))
+  (enabled? [view-node clipboard evaluation-context]
+            (can-paste? view-node clipboard evaluation-context))
   (run [view-node clipboard] (paste! view-node clipboard)))
 
 (handler/defhandler :select-all :code-view
@@ -1664,7 +1667,9 @@
                                                   breakpoint-rows)))))
 
 (handler/defhandler :reindent :code-view
-  (enabled? [view-node] (not-every? data/cursor-range-empty? (get-property view-node :cursor-ranges)))
+  (enabled? [view-node evaluation-context]
+            (not-every? data/cursor-range-empty?
+                        (get-property view-node :cursor-ranges evaluation-context)))
   (run [view-node]
        (set-properties! view-node nil
                         (data/reindent (get-property view-node :indent-level-pattern)
@@ -1688,10 +1693,10 @@
 ;; Sort Lines
 ;; -----------------------------------------------------------------------------
 
-(defn can-sort-lines? [view-node]
-  (some data/cursor-range-multi-line? (get-property view-node :cursor-ranges)))
+(defn- can-sort-lines? [view-node evaluation-context]
+  (some data/cursor-range-multi-line? (get-property view-node :cursor-ranges evaluation-context)))
 
-(defn sort-lines! [view-node sort-key-fn]
+(defn- sort-lines! [view-node sort-key-fn]
   (set-properties! view-node nil
                    (data/sort-lines (get-property view-node :lines)
                                     (get-property view-node :cursor-ranges)
@@ -1699,11 +1704,11 @@
                                     sort-key-fn)))
 
 (handler/defhandler :sort-lines :code-view
-  (enabled? [view-node] (can-sort-lines? view-node))
+  (enabled? [view-node evaluation-context] (can-sort-lines? view-node evaluation-context))
   (run [view-node] (sort-lines! view-node string/lower-case)))
 
 (handler/defhandler :sort-lines-case-sensitive :code-view
-  (enabled? [view-node] (can-sort-lines? view-node))
+  (enabled? [view-node evaluation-context] (can-sort-lines? view-node evaluation-context))
   (run [view-node] (sort-lines! view-node identity)))
 
 ;; -----------------------------------------------------------------------------
@@ -1801,15 +1806,23 @@
       (catch NumberFormatException _
         "Input must be a number"))))
 
-(defn- try-parse-goto-line-text [view-node ^String text]
-  (let [lines (get-property view-node :lines)]
-    (try-parse-row (count lines) text)))
+(defn- try-parse-goto-line-text
+  ([view-node text]
+   (g/with-auto-evaluation-context evaluation-context
+     (try-parse-goto-line-text view-node text evaluation-context)))
+  ([view-node ^String text evaluation-context]
+   (let [lines (get-property view-node :lines evaluation-context)]
+     (try-parse-row (count lines) text))))
 
-(defn- try-parse-goto-line-bar-row [view-node ^GridPane goto-line-bar]
-  (ui/with-controls goto-line-bar [^TextField line-field]
-    (let [maybe-row (try-parse-goto-line-text view-node (.getText line-field))]
-      (when (number? maybe-row)
-        maybe-row))))
+(defn- try-parse-goto-line-bar-row
+  ([view-node goto-line-bar]
+   (g/with-auto-evaluation-context evaluation-context
+     (try-parse-goto-line-bar-row view-node goto-line-bar evaluation-context)))
+  ([view-node ^GridPane goto-line-bar evaluation-context]
+   (ui/with-controls goto-line-bar [^TextField line-field]
+     (let [maybe-row (try-parse-goto-line-text view-node (.getText line-field) evaluation-context)]
+       (when (number? maybe-row)
+         maybe-row)))))
 
 (defn- setup-goto-line-bar! [^GridPane goto-line-bar view-node]
   (b/bind-presence! goto-line-bar (b/= :goto-line bar-ui-type-property))
@@ -1842,7 +1855,8 @@
          (.selectAll line-field))))
 
 (handler/defhandler :goto-entered-line :goto-line-bar
-  (enabled? [goto-line-bar view-node] (some? (try-parse-goto-line-bar-row view-node goto-line-bar)))
+  (enabled? [goto-line-bar view-node evaluation-context]
+            (some? (try-parse-goto-line-bar-row view-node goto-line-bar evaluation-context)))
   (run [goto-line-bar view-node]
        (when-some [line-number (try-parse-goto-line-bar-row view-node goto-line-bar)]
          (let [cursor-range (data/Cursor->CursorRange (data/->Cursor line-number 0))]
@@ -2481,6 +2495,9 @@
 
     ;; Start repaint timer.
     (ui/timer-start! repainter)
+    ;; Initial draw
+    (ui/run-later (repaint-view! view-node 0 {:cursor-visible? true})
+                  (ui/run-later (slog/smoke-log "code-view-visible")))
     view-node))
 
 (defn- focus-view! [view-node {:keys [line]}]

@@ -1664,8 +1664,6 @@ TEST_F(ParticleTest, AccelerationScaledEmitter)
 {
     float dt = 1.0f;
 
-    float scale = 2.0f;
-
     ASSERT_TRUE(LoadPrototype("mod_acc_em.particlefxc", &m_Prototype));
     Vector3 delta[2];
 

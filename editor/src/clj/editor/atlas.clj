@@ -334,7 +334,7 @@
 
   (input gpu-texture g/Any)
 
-  (output animation Animation (g/fnk [this id atlas-images fps flip-horizontal flip-vertical playback]
+  (output animation Animation (g/fnk [id atlas-images fps flip-horizontal flip-vertical playback]
                                       (types/->Animation id atlas-images fps flip-horizontal flip-vertical playback)))
 
   (output node-outline outline/OutlineData :cached
