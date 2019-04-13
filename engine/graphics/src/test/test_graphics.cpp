@@ -443,7 +443,7 @@ TEST_F(dmGraphicsTest, TestSetTextureBounds)
     params.m_Y         = HEIGHT / 2;
 
     dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
-    ASSERT_DEATH_IF_SUPPORTED(dmGraphics::SetTexture(texture, params),"");
+    ASSERT_DEATH(dmGraphics::SetTexture(texture, params),"");
 
     delete [] (char*)params.m_Data;
 
@@ -454,7 +454,7 @@ TEST_F(dmGraphicsTest, TestSetTextureBounds)
     params.m_DataSize  = params.m_Width * params.m_Height;
     params.m_Data      = new char[params.m_DataSize];
 
-    ASSERT_DEATH_IF_SUPPORTED(dmGraphics::SetTexture(texture, params),"");
+    ASSERT_DEATH(dmGraphics::SetTexture(texture, params),"");
 
     delete [] (char*)params.m_Data;
 

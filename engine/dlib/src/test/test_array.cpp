@@ -183,7 +183,7 @@ TEST(dmArray, UserAllocated)
     array[0] = 2;
     dmArray<uint32_t> b(array, 1, 2);
     ASSERT_EQ(2u, b[0]);
-    ASSERT_DEATH_IF_SUPPORTED(dmArray<uint32_t> c(array, 2, 1), "");
+    ASSERT_DEATH(dmArray<uint32_t> c(array, 2, 1), "");
 }
 
 int main(int argc, char **argv)
