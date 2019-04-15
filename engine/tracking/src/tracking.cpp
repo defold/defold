@@ -17,6 +17,7 @@ namespace dmTracking
 {
     const char* TRACKING_SOCKET_NAME = "@tracking";
     const char* TRACKING_SCRIPT = "TrackingScript";
+    static uint32_t TRACKING_SCRIPT_TYPE_HASH = 0;
 
     struct Context
     {
@@ -37,9 +38,9 @@ namespace dmTracking
         dmMessage::ResetURL(url);
 
         dmScript::GetInstance(L);
-        Script* script = 0x0;
-        if (dmScript::IsUserType(L, -1, TRACKING_SCRIPT)) {
-            script = (Script*)lua_touserdata(L, -1);
+        Script* script = (Script*)dmScript::ToUserType(L, -1, TRACKING_SCRIPT_TYPE_HASH);
+        if (script)
+        {
             url.m_Socket = script->m_Context->m_Socket;
         }
 
@@ -88,7 +89,7 @@ namespace dmTracking
 
         lua_State* L = dmScript::GetLuaState(ctx->m_ScriptCtx);
 
-        dmScript::RegisterUserType(L, TRACKING_SCRIPT, TrackingScript_methods, TrackingScript_meta);
+        TRACKING_SCRIPT_TYPE_HASH = dmScript::RegisterUserType(L, TRACKING_SCRIPT, TrackingScript_methods, TrackingScript_meta);
 
         Script* script = (Script*)lua_newuserdata(L, sizeof(Script));
         script->m_Context = ctx;

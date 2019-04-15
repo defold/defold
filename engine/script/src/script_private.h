@@ -3,13 +3,11 @@
 
 #include <dlib/hashtable.h>
 
-#define SCRIPT_CONTEXT "__script_context"
 #define SCRIPT_MAIN_THREAD "__script_main_thread"
 #define SCRIPT_ERROR_HANDLER_VAR "__error_handler"
 
 namespace dmScript
 {
-
 ///////////////////////////////////////////////////////////////
 // NOTE: Helper functions to get more logging on issue DEF-3714
 #define PUSH_TABLE_LOGGER_CAPACITY 128
@@ -67,11 +65,11 @@ namespace dmScript
         bool                        m_EnableExtensions;
     };
 
+    HContext GetScriptContext(lua_State* L);
+
     bool ResolvePath(lua_State* L, const char* path, uint32_t path_size, dmhash_t& out_hash);
 
     bool GetURL(lua_State* L, dmMessage::URL& out_url);
-
-    bool GetUserData(lua_State* L, uintptr_t& out_user_data, const char* user_type);
 
     bool IsValidInstance(lua_State* L);
 

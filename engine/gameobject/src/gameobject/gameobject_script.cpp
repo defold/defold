@@ -133,6 +133,9 @@ namespace dmGameObject
 #define SCRIPTINSTANCE "GOScriptInstance"
 #define SCRIPT "GOScript"
 
+    static uint32_t SCRIPT_TYPE_HASH = 0;
+    static uint32_t SCRIPTINSTANCE_TYPE_HASH = 0;
+
     using namespace dmPropertiesDDF;
 
     const char* SCRIPT_INSTANCE_TYPE_NAME = SCRIPTINSTANCE;
@@ -160,12 +163,8 @@ namespace dmGameObject
     {
         int top = lua_gettop(L);
         (void)top;
-        Script* script = 0x0;
         dmScript::GetInstance(L);
-        if (dmScript::IsUserType(L, -1, SCRIPT))
-        {
-            script = (Script*)lua_touserdata(L, -1);
-        }
+        Script* script = (Script*)dmScript::ToUserType(L, -1, SCRIPT_TYPE_HASH);
         // Clear stack and return
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
@@ -209,7 +208,7 @@ namespace dmGameObject
 
     static ScriptInstance* ScriptInstance_Check(lua_State *L, int index)
     {
-        return (ScriptInstance*)dmScript::CheckUserType(L, index, SCRIPTINSTANCE, "You can only access go.* functions and values from a script instance (.script file)");
+        return (ScriptInstance*)dmScript::CheckUserType(L, index, SCRIPTINSTANCE_TYPE_HASH, "You can only access go.* functions and values from a script instance (.script file)");
     }
 
     static ScriptInstance* ScriptInstance_Check(lua_State *L)
@@ -220,15 +219,6 @@ namespace dmGameObject
         return i;
     }
 
-    static int ScriptInstance_gc (lua_State *L)
-    {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
-        memset(i, 0, sizeof(*i));
-        (void) i;
-        assert(i);
-        return 0;
-    }
-
     static int ScriptInstance_tostring (lua_State *L)
     {
         lua_pushfstring(L, "Script: %p", lua_touserdata(L, 1));
@@ -237,7 +227,7 @@ namespace dmGameObject
 
     static int ScriptInstance_index(lua_State *L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
         (void) i;
         assert(i);
 
@@ -252,7 +242,7 @@ namespace dmGameObject
     {
         int top = lua_gettop(L);
 
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
         (void) i;
         assert(i);
 
@@ -353,7 +343,6 @@ namespace dmGameObject
 
     static const luaL_reg ScriptInstance_meta[] =
     {
-        {"__gc",                                        ScriptInstance_gc},
         {"__tostring",                                  ScriptInstance_tostring},
         {"__index",                                     ScriptInstance_index},
         {"__newindex",                                  ScriptInstance_newindex},
@@ -527,7 +516,7 @@ namespace dmGameObject
 
     HInstance GetInstanceFromLua(lua_State* L) {
         uintptr_t user_data;
-        if (dmScript::GetUserData(L, &user_data, SCRIPTINSTANCE)) {
+        if (dmScript::GetUserData(L, &user_data, SCRIPTINSTANCE_TYPE_HASH)) {
             return (HInstance)user_data;
         } else {
             return 0;
@@ -1865,9 +1854,9 @@ namespace dmGameObject
         int top = lua_gettop(L);
         (void)top;
 
-        dmScript::RegisterUserType(L, SCRIPT, Script_methods, Script_meta);
+        SCRIPT_TYPE_HASH = dmScript::RegisterUserType(L, SCRIPT, Script_methods, Script_meta);
 
-        dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
+        SCRIPTINSTANCE_TYPE_HASH = dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
 
         luaL_register(L, "go", GO_methods);
 
