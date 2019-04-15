@@ -7,10 +7,14 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -82,30 +86,59 @@ public class Bob {
         }
 
         try {
-            rootFolder = Files.createTempDirectory(null).toFile();
+            String envRootFolder = System.getenv("DM_BOB_ROOTFOLDER");
+            if (envRootFolder != null) {
+                rootFolder = new File(envRootFolder);
+                if (!rootFolder.exists()) {
+                    rootFolder.mkdirs();
+                }
+                if (!rootFolder.isDirectory()) {
+                    throw new IOException(String.format("Error when specifying DM_BOB_ROOTFOLDER: %s is not a directory!", rootFolder.getAbsolutePath()));
+                }
+                System.out.println("env DM_BOB_ROOTFOLDER=" + rootFolder);
+            } else {
+                rootFolder = Files.createTempDirectory(null).toFile();
+                // Make sure we remove the temp folder on exit
+                registerShutdownHook();
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
-            // Make sure we remove the temp folder on exit
-            registerShutdownHook();
+    public static void initLua() {
+        init();
+        try {
+            extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(rootFolder, "share"));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
+    public static void initAndroid() {
+        init();
+        try {
             // Android SDK aapt is dynamically linked against libc++.so, we need to extract it so that
             // aapt will find it later when AndroidBundler is run.
             String libc_filename = Platform.getHostPlatform().getLibPrefix() + "c++" + Platform.getHostPlatform().getLibSuffix();
             URL libc_url = Bob.class.getResource("/lib/" + Platform.getHostPlatform().getPair() + "/" + libc_filename);
             if (libc_url != null) {
-                FileUtils.copyURLToFile(libc_url, new File(rootFolder, Platform.getHostPlatform().getPair() + "/lib/" + libc_filename));
+                File f = new File(rootFolder, Platform.getHostPlatform().getPair() + "/lib/" + libc_filename);
+                atomicCopy(libc_url, f, false);
             }
 
             extract(Bob.class.getResource("/lib/android-res.zip"), rootFolder);
-            extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(rootFolder, "share"));
 
             // NOTE: android.jar and classes.dex aren't are only available in "full bob", i.e. from CI
             URL android_jar = Bob.class.getResource("/lib/android.jar");
             if (android_jar != null) {
-                FileUtils.copyURLToFile(android_jar, new File(rootFolder, "lib/android.jar"));
+                File f = new File(rootFolder, "lib/android.jar");
+                atomicCopy(android_jar, f, false);
             }
             URL classes_dex = Bob.class.getResource("/lib/classes.dex");
             if (classes_dex != null) {
-                FileUtils.copyURLToFile(classes_dex, new File(rootFolder, "lib/classes.dex"));
+                File f = new File(rootFolder, "lib/classes.dex");
+                atomicCopy(classes_dex, f, false);
             }
 
         } catch (Exception e) {
@@ -179,18 +212,57 @@ public class Bob {
         return exes.get(0);
     }
 
+    // https://stackoverflow.com/a/30755071/468516
+    private static final String ENOTEMPTY = "Directory not empty";
+    private static void move(final File source, final File target) throws FileAlreadyExistsException, IOException {
+        try {
+            Files.move(source.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE);
+
+        } catch (AccessDeniedException e) {
+            // directory move collision on Windows
+            throw new FileAlreadyExistsException(source.toString(), target.toString(), e.getMessage());
+
+        } catch (FileSystemException e) {
+            if (ENOTEMPTY.equals(e.getReason())) {
+                // directory move collision on Unix
+                throw new FileAlreadyExistsException(source.toString(), target.toString(), e.getMessage());
+            } else {
+                // other problem
+                throw e;
+            }
+        }
+    }
+
+    private static void atomicCopy(URL source, File target, boolean executable) throws IOException {
+        if (target.exists()) {
+            return;
+        }
+
+        long t = System.nanoTime();
+        File tmp = new File(target.getParent(), String.format("%s_%d", target.getName(), t));
+        FileUtils.copyURLToFile(source, tmp);
+        tmp.setExecutable(executable);
+
+        try {
+            move(tmp, target);
+        } catch (FileAlreadyExistsException e) {
+            // pass
+            tmp.delete();
+        }
+    }
+
     public static String getExeWithExtension(Platform platform, String name, String extension) throws IOException {
         init();
 
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
-        URL url = Bob.class.getResource("/libexec/" + exeName);
-        if (url == null) {
-            throw new RuntimeException(String.format("/libexec/%s could not be found locally, create an application manifest to build the engine remotely.", exeName));
-        }
         File f = new File(rootFolder, exeName);
         if (!f.exists()) {
-            FileUtils.copyURLToFile(url, f);
-            f.setExecutable(true);
+            URL url = Bob.class.getResource("/libexec/" + exeName);
+            if (url == null) {
+                throw new RuntimeException(String.format("/libexec/%s could not be found locally, create an application manifest to build the engine remotely.", exeName));
+            }
+
+            atomicCopy(url, f, true);
         }
 
         return f.getAbsolutePath();
@@ -198,13 +270,14 @@ public class Bob {
 
     public static String getLibExecPath(String filename) throws IOException {
         init();
-        URL url = Bob.class.getResource("/libexec/" + filename);
-        if (url == null) {
-            throw new RuntimeException(String.format("/libexec/%s not found", filename));
-        }
         File f = new File(rootFolder, filename);
         if (!f.exists()) {
-            FileUtils.copyURLToFile(url, f);
+            URL url = Bob.class.getResource("/libexec/" + filename);
+            if (url == null) {
+                throw new RuntimeException(String.format("/libexec/%s not found", filename));
+            }
+
+            atomicCopy(url, f, false);
         }
         return f.getAbsolutePath();
     }
@@ -256,14 +329,14 @@ public class Bob {
         init();
 
         String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
-        URL url = Bob.class.getResource("/lib/" + libName);
-        if (url == null) {
-            throw new RuntimeException(String.format("/lib/%s not found", libName));
-        }
         File f = new File(rootFolder, libName);
         if (!f.exists()) {
-            FileUtils.copyURLToFile(url, f);
-            f.setExecutable(true);
+            URL url = Bob.class.getResource("/lib/" + libName);
+            if (url == null) {
+                throw new RuntimeException(String.format("/lib/%s not found", libName));
+            }
+
+            atomicCopy(url, f, true);
         }
         return f.getAbsolutePath();
     }
