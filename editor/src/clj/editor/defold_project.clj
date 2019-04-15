@@ -524,7 +524,7 @@
 (g/defnode Project
   (inherits core/Scope)
 
-  (extern workspace g/Any)
+  (property workspace g/Any)
 
   (input resources g/Any)
   (input resource-map g/Any)

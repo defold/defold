@@ -28,6 +28,20 @@
 #define LAUNCHER_PATH_KEY ("bootstrap.launcherpath")
 #define MAX_ARGS_SIZE (10 * DMPATH_MAX_PATH)
 
+// setenv does not exist in Windows. Make a wrapper for putenv for consistent API.
+#ifdef _WIN32
+static int setenv(const char *name, const char *value, int overwrite)
+{
+  int result = SetEnvironmentVariable(name, value);
+  if(result != 0) {
+    return 0;
+  }
+  else {
+    return -1;
+  }
+}
+#endif
+
 struct ReplaceContext
 {
     dmConfigFile::HConfig m_Config;
@@ -195,6 +209,11 @@ int Launch(int argc, char **argv) {
     for (int j = 0; j < i; j++) {
         dmLogDebug("arg %d: %s", j, args[j]);
     }
+
+    // Explicitly set the java environment variables so that our JVM does not
+    // read some strange value configured in the system.
+    setenv("_JAVA_OPTIONS", "", 1);
+    setenv("JAVA_TOOL_OPTIONS", "", 1);
 
 #ifdef _WIN32
     STARTUPINFO si;

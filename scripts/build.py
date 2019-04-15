@@ -16,7 +16,7 @@ from ConfigParser import ConfigParser
     Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.6.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
 PACKAGES_HOST="protobuf-2.3.0 gtest-1.8.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.0.5 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.0.5 tremolo-0.0.8 bullet-2.77".split()
@@ -811,10 +811,17 @@ class Configuration(object):
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
             self.exec_env_shell_command("./scripts/copy.sh", cwd = cwd)
 
-        self.exec_env_shell_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
-                                    cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'))
+        env = self._form_env()
+        self._set_java_8(env)
+        self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+                                    cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
 
     def build_engine(self):
+        # We want random folder to thoroughly test bob-light
+        # We dont' want it to unpack for _every_ single invocation during the build
+        os.environ['DM_BOB_ROOTFOLDER'] = tempfile.mkdtemp(prefix='bob-light-')
+        self._log("env DM_BOB_ROOTFOLDER=" + os.environ['DM_BOB_ROOTFOLDER'])
+
         cmd = self._build_engine_cmd(**self._get_build_flags())
         args = cmd.split()
         host = self.host2
@@ -854,6 +861,9 @@ class Configuration(object):
             print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
             shutil.rmtree(scan_output_dir)
 
+        if os.path.exists(os.environ['DM_BOB_ROOTFOLDER']):
+            print "Removing", os.environ['DM_BOB_ROOTFOLDER']
+            shutil.rmtree(os.environ['DM_BOB_ROOTFOLDER'])
     def build_go(self):
         exe_ext = '.exe' if 'win32' in self.target_platform else ''
         go = '%s/ext/go/%s/go/bin/go%s' % (self.dynamo_home, self.target_platform, exe_ext)
@@ -958,8 +968,10 @@ class Configuration(object):
         else:
             self.copy_local_bob_artefacts()
 
-        self.exec_env_shell_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
-                              cwd = cwd)
+        env = self._form_env()
+        self._set_java_8(env)
+        self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
+                              cwd = cwd, shell = True, env = env)
 
     def build_sdk(self):
         tempdir = tempfile.mkdtemp() # where the sdk ends up
@@ -1100,11 +1112,19 @@ instructions.configure=\
         for p in glob(join(build_dir, 'build/distributions/*.zip')):
             self.upload_file(p, full_archive_path)
 
+    def _set_java_8(self, env):
+        if 'linux' in self.host2:
+            env['JAVA_HOME'] = '/usr/lib/jvm/java-8-oracle'
+        elif 'darwin' in self.host2:
+            env['JAVA_HOME'] = self.exec_command(['/usr/libexec/java_home','-v','1.8']).strip()
+        elif 'win32' in self.host2:
+            env['PATH'] = 'C:\\Program Files\\Java\\jdk1.8.0_162\\bin' + os.path.pathsep + env['PATH']
+        self._log("Setting JAVA to 1.8")
+
     def _build_cr(self, product):
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
         env = self._form_env()
-        if 'linux' in self.host2:
-            env['JAVA_HOME'] = '/usr/lib/jvm/java-8-oracle'
+        self._set_java_8(env)
         self._exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'], cwd = cwd, env = env)
 
     def build_editor2(self):
@@ -1122,11 +1142,19 @@ instructions.configure=\
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, 'editor2')
+        full_archive_path = join(self.archive_path, sha1, self.channel, 'editor2')
 
         for ext in ['zip', 'dmg']:
             for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
                 self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+
+        # TODO: Remove this block after one release with both json files.
+        # TODO: ---- CUT HERE ----
+        full_archive_path = join('s3://d.defold.com/editor2', sha1, 'editor2')
+        for ext in ['zip', 'dmg']:
+            for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
+                self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+        # TODO: ---- CUT TO HERE ----
 
         self.wait_uploads()
 
@@ -1143,10 +1171,18 @@ instructions.configure=\
         archive_url = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(archive_url.hostname)
 
+        # TODO: Remove this block after one release with both json files.
+        # TODO: ---- CUT HERE ----
         key_v2 = bucket.new_key('editor2/channels/%(channel)s/update-v2.json' % {'channel': self.channel})
         key_v2.content_type = 'application/json'
         self._log("Updating channel '%s' for update-v2.json: %s" % (self.channel, key_v2))
         key_v2.set_contents_from_string(json.dumps({'sha1': sha1}))
+        # TODO: ---- CUT TO HERE ----
+
+        key_v3 = bucket.new_key('editor2/channels/%(channel)s/update-v3.json' % {'channel': self.channel})
+        key_v3.content_type = 'application/json'
+        self._log("Updating channel '%s' for update-v3.json: %s" % (self.channel, key_v3))
+        key_v3.set_contents_from_string(json.dumps({'sha1': sha1}))
 
     def bump(self):
         sha1 = self._git_sha1()
@@ -1633,11 +1669,11 @@ instructions.configure=\
             print("No editor2 bundle found for %s" % host2)
             return None
 
-    def _install_editor2(self, bundle):
+    def _install_editor2(self, path):
         host2 = get_host_platform2()
         install_path = join('tmp', 'smoke_test')
         if 'darwin' in host2:
-            out = self.exec_command(['hdiutil', 'attach', bundle])
+            out = self.exec_command(['hdiutil', 'attach', path])
             print("cmd:" + out)
             last = [l2 for l2 in (l1.strip() for l1 in out.split('\n')) if l2][-1]
             words = last.split()
@@ -1652,7 +1688,10 @@ instructions.configure=\
                       'config': join(install_path, 'Contents', 'Resources', 'config')}
             return result
         else:
-            self._extract(bundle, install_path)
+            if 'win32' in host2 or 'linux' in host2:
+                self._extract_zip(path, install_path)
+            else:
+                self._extract(path, install_path)
             install_path = join(install_path, 'Defold')
             result = {'install_path': install_path,
                       'resources_path': 'Defold',
@@ -1685,32 +1724,47 @@ instructions.configure=\
         cwd = join('tmp', 'smoke_test')
         if os.path.exists(cwd):
             shutil.rmtree(cwd)
-        bundle = self._download_editor2(sha1)
-        info = self._install_editor2(bundle)
+        path = self._download_editor2(sha1)
+        info = self._install_editor2(path)
         config = ConfigParser()
         config.read(info['config'])
         overrides = {'bootstrap.resourcespath': info['resources_path']}
-        java = join('Defold.app', 'Contents', 'Resources', 'packages', 'jdk11.0.1', 'bin', 'java')
+        jdk = 'jdk11.0.1'
+        host2 = get_host_platform2()
+        if 'win32' in host2:
+            java = join('Defold', 'packages', jdk, 'bin', 'java.exe')
+        elif 'linux' in host2:
+            self.exec_command(['chmod', '-R', '755', 'tmp/smoke_test/Defold'])
+            java = join('Defold', 'packages', jdk, 'bin', 'java')
+        else:
+            java = join('Defold.app', 'Contents', 'Resources', 'packages', jdk, 'bin', 'java')
         jar = self._get_config(config, 'launcher', 'jar', overrides)
-        vmargs = self._get_config(config, 'launcher', 'vmargs', overrides).split(',') + ['-Ddefold.log.dir=.']
+        vmargs = self._get_config(config, 'launcher', 'vmargs', overrides).split(',') + ['-Ddefold.log.dir=.', '-Ddefold.smoke.log=true']
         vmargs = filter(lambda x: not str.startswith(x, '-Ddefold.update.url='), vmargs)
         main = self._get_config(config, 'launcher', 'main', overrides)
         game_project = '../../editor/test/resources/geometry_wars/game.project'
         args = [java, '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test_prefs.json', game_project]
         robot_jar = '%s/ext/share/java/defold-robot.jar' % self.dynamo_home
         robot_args = [java, '-jar', robot_jar, '-s', '../../share/smoke-test.edn', '-o', 'result']
+        origdir = os.getcwd()
+        origcwd = cwd
+        if 'win32' in host2:
+            os.chdir(cwd)
+            cwd = '.'
         print('Running robot: %s' % robot_args)
         robot_proc = subprocess.Popen(robot_args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
         time.sleep(2)
         self._log('Running editor: %s' % args)
-        ed_proc = subprocess.Popen(args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
-
+        ed_proc = subprocess.Popen(args, cwd = cwd, shell = False)
+        os.chdir(origdir)
+        cwd = origcwd
         output = robot_proc.communicate()[0]
         if ed_proc.poll() == None:
             ed_proc.terminate()
+            ed_proc.wait()
         self._uninstall_editor2(info)
 
-        result_archive_path = '/'.join(['int.d.defold.com', 'archive', sha1, 'editor2', 'smoke_test'])
+        result_archive_path = '/'.join(['int.d.defold.com', 'archive', sha1, self.channel, 'editor2', 'smoke_test'])
         def _findwebfiles(libdir):
             paths = os.listdir(libdir)
             paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.html', '.css', '.png')]
@@ -1720,6 +1774,36 @@ instructions.configure=\
         self.wait_uploads()
         self._log('Log: https://s3-eu-west-1.amazonaws.com/%s/index.html' % (result_archive_path))
 
+        if robot_proc.returncode != 0:
+            sys.exit(robot_proc.returncode)
+        return True
+
+    def local_smoke(self):
+        host2 = get_host_platform2()
+        cwd = './editor'
+        if os.path.exists('editor/log.txt'):
+            os.remove('editor/log.txt')
+        game_project = 'test/resources/geometry_wars/game.project'
+        args = ['./scripts/lein', 'with-profile', '+smoke-test', 'run', game_project]
+        robot_jar = '../defold-robot/target/defold-robot-0.7.0-standalone.jar'
+        robot_args = ['java', '-jar', robot_jar, '-s', '../share/smoke-test.edn', '-o', 'local_smoke_result']
+        origdir = os.getcwd()
+        origcwd = cwd
+        if 'win32' in host2:
+            os.chdir(cwd)
+            args = ['sh'] + args
+            cwd = '.'
+        print('Running robot: %s' % robot_args)
+        robot_proc = subprocess.Popen(robot_args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
+        time.sleep(2)
+        self._log('Running editor: %s' % args)
+        ed_proc = subprocess.Popen(args, cwd = cwd, shell = False)
+        os.chdir(origdir)
+        cwd = origcwd
+        output = robot_proc.communicate()[0]
+        if ed_proc.poll() == None:
+            ed_proc.terminate()
+            ed_proc.wait()
         if robot_proc.returncode != 0:
             sys.exit(robot_proc.returncode)
         return True
@@ -1979,6 +2063,7 @@ bump            - Bump version number
 release         - Release editor
 shell           - Start development shell
 smoke_test      - Test editor and engine in combination
+local_smoke     - Test run smoke test using local dev environment
 
 Multiple commands can be specified
 

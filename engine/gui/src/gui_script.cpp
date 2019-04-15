@@ -34,6 +34,10 @@ namespace dmGui
     #define LIB_NAME "gui"
     #define NODE_PROXY_TYPE_NAME "NodeProxy"
 
+    static uint32_t GUI_SCRIPT_TYPE_HASH = 0;
+    static uint32_t GUI_SCRIPT_INSTANCE_TYPE_HASH = 0;
+    static uint32_t NODE_PROXY_TYPE_HASH = 0;
+
     static int GuiScriptGetURL(lua_State* L)
     {
         dmMessage::URL url;
@@ -74,10 +78,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
         dmScript::GetInstance(L);
-        Scene* scene = 0x0;
-        if (dmScript::IsUserType(L, -1, GUI_SCRIPT_INSTANCE)) {
-            scene = (Scene*)lua_touserdata(L, -1);
-        }
+        Scene* scene = (Scene*)dmScript::ToUserType(L, -1, GUI_SCRIPT_INSTANCE_TYPE_HASH);
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
         return scene;
@@ -85,7 +86,7 @@ namespace dmGui
 
     static Scene* GuiScriptInstance_Check(lua_State *L, int index)
     {
-        return (Scene*)dmScript::CheckUserType(L, index, GUI_SCRIPT_INSTANCE, "You can only access gui.* functions and values from a gui script instance (.gui_script file)");
+        return (Scene*)dmScript::CheckUserType(L, index, GUI_SCRIPT_INSTANCE_TYPE_HASH, "You can only access gui.* functions and values from a gui script instance (.gui_script file)");
     }
 
     static Scene* GuiScriptInstance_Check(lua_State *L)
@@ -96,15 +97,6 @@ namespace dmGui
         return scene;
     }
 
-    static int GuiScriptInstance_gc (lua_State *L)
-    {
-        Scene* i = GuiScriptInstance_Check(L, 1);
-        memset(i, 0, sizeof(*i));
-        (void) i;
-        assert(i);
-        return 0;
-    }
-
     static int GuiScriptInstance_tostring (lua_State *L)
     {
         lua_pushfstring(L, "GuiScript: %p", lua_touserdata(L, 1));
@@ -113,7 +105,7 @@ namespace dmGui
 
     static int GuiScriptInstance_index(lua_State *L)
     {
-        Scene* i = GuiScriptInstance_Check(L, 1);
+        Scene* i = (Scene*)lua_touserdata(L, 1);
         assert(i);
 
         // Try to find value in instance data
@@ -127,7 +119,7 @@ namespace dmGui
     {
         int top = lua_gettop(L);
 
-        Scene* i = GuiScriptInstance_Check(L, 1);
+        Scene* i = (Scene*)lua_touserdata(L, 1);
         assert(i);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_DataReference);
@@ -184,7 +176,6 @@ namespace dmGui
 
     static const luaL_reg GuiScriptInstance_meta[] =
     {
-        {"__gc",                                        GuiScriptInstance_gc},
         {"__tostring",                                  GuiScriptInstance_tostring},
         {"__index",                                     GuiScriptInstance_index},
         {"__newindex",                                  GuiScriptInstance_newindex},
@@ -197,12 +188,12 @@ namespace dmGui
 
     static NodeProxy* NodeProxy_Check(lua_State *L, int index)
     {
-        return (NodeProxy*)dmScript::CheckUserType(L, index, NODE_PROXY_TYPE_NAME, NULL);
+        return (NodeProxy*)dmScript::CheckUserType(L, index, NODE_PROXY_TYPE_HASH, 0);
     }
 
     static bool LuaIsNode(lua_State *L, int index)
     {
-        return dmScript::IsUserType(L, index, NODE_PROXY_TYPE_NAME);
+        return dmScript::GetUserType(L, index) == NODE_PROXY_TYPE_HASH;
     }
 
     static bool IsValidNode(HScene scene, HNode node)
@@ -238,11 +229,6 @@ namespace dmGui
         }
 
         return 0; // Never reached
-    }
-
-    static int NodeProxy_gc (lua_State *L)
-    {
-        return 0;
     }
 
     static int NodeProxy_tostring (lua_State *L)
@@ -313,20 +299,14 @@ namespace dmGui
 
     static int NodeProxy_eq(lua_State *L)
     {
-        if (!LuaIsNode(L, 1))
+        NodeProxy* np1 = (NodeProxy*)dmScript::ToUserType(L, 1, NODE_PROXY_TYPE_HASH);
+        NodeProxy* np2 = (NodeProxy*)dmScript::ToUserType(L, 2, NODE_PROXY_TYPE_HASH);
+        if (np1 == 0 || np2 == 0)
         {
             lua_pushboolean(L, 0);
             return 1;
         }
 
-        if (!LuaIsNode(L, 2))
-        {
-            lua_pushboolean(L, 0);
-            return 1;
-        }
-
-        NodeProxy* np1 = NodeProxy_Check(L, 1);
-        NodeProxy* np2 = NodeProxy_Check(L, 2);
         if (np1->m_Scene != np2->m_Scene)
         {
             lua_pushboolean(L, 0);
@@ -350,7 +330,6 @@ namespace dmGui
 
     static const luaL_reg NodeProxy_meta[] =
     {
-        {"__gc",       NodeProxy_gc},
         {"__tostring", NodeProxy_tostring},
         {"__index",    NodeProxy_index},
         {"__newindex", NodeProxy_newindex},
@@ -1501,6 +1480,14 @@ namespace dmGui
      * `node`
      * :        [type:node] The node that is animated.
      *
+     * @param [play_properties] [type:table] optional table with properties
+     *
+     * `offset`
+     * : [type:number] The normalized initial value of the animation cursor when the animation starts playing
+     *
+     * `playback_rate`
+     * : [type:number] The rate with which the animation will be played. Must be positive
+     *
      * @examples
      *
      * Set the texture of a node to a flipbook animation from an atlas:
@@ -1549,14 +1536,32 @@ namespace dmGui
             lua_pop(L, 1);
         }
 
+        lua_Number offset = 0.0, playback_rate = 1.0;
+
+        if (top > 3) // table with args
+        {
+            luaL_checktype(L, 4, LUA_TTABLE);
+            lua_pushvalue(L, 4);
+
+            lua_getfield(L, -1, "offset");
+            offset = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "playback_rate");
+            playback_rate = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
         if (lua_isstring(L, 2))
         {
             const char* anim_id = luaL_checkstring(L, 2);
             Result r;
             if(cbk != 0x0)
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, offset, playback_rate, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
             else
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, offset, playback_rate);
             if (r != RESULT_OK)
             {
                 luaL_error(L, "Animation '%s' invalid for node '%s' (no animation set)", anim_id, dmHashReverseSafe64(n->m_NameHash));
@@ -1567,9 +1572,9 @@ namespace dmGui
             dmhash_t anim_id = dmScript::CheckHash(L, 2);
             Result r;
             if(cbk != 0x0)
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, offset, playback_rate, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
             else
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, offset, playback_rate);
             if (r != RESULT_OK)
             {
                 luaL_error(L, "Animation '%s' invalid for node '%s' (no animation set)", dmHashReverseSafe64(anim_id), dmHashReverseSafe64(n->m_NameHash));
@@ -4004,7 +4009,7 @@ namespace dmGui
      * This is only useful for spine nodes. Gets the normalized cursor of the animation on a spine node.
      *
      * @name gui.get_spine_cursor
-     * @param node spine node to set the cursor for (node)
+     * @param node spine node to get the cursor for (node)
      * @return cursor value [type:number] cursor value
      */
     int LuaGetSpineCursor(lua_State* L)
@@ -4024,6 +4029,107 @@ namespace dmGui
         lua_pushnumber(L, cursor);
 
         return 1;
+    }
+
+    /*# gets the normalized cursor of the animation on a node with flipbook animation
+     * This is only useful nodes with flipbook animations. Gets the normalized cursor of the flipbook animation on a node.
+     *
+     * @name gui.get_flipbook_cursor
+     * @param node node to get the cursor for (node)
+     * @return cursor value [type:number] cursor value
+     */
+    static int LuaGetFlipbookCursor(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode node;
+        LuaCheckNode(L, 1, &node);
+
+        if (dmGui::GetNodeIsBone(scene, node))
+        {
+            return DM_LUA_ERROR("cannot get cursor for bone");
+        }
+
+        float cursor = dmGui::GetNodeFlipbookCursor(scene, node);
+        lua_pushnumber(L, cursor);
+
+        return 1;
+    }
+
+    /*# sets the normalized cursor of the animation on a node with flipbook animation
+     * This is only useful nodes with flipbook animations. The cursor is normalized.
+     *
+     * @name gui.set_flipbook_cursor
+     * @param node [type:node] node to set the cursor for
+     * @param cursor [type:number] cursor value
+     */
+    static int LuaSetFlipbookCursor(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode node;
+        LuaCheckNode(L, 1, &node);
+
+        if (dmGui::GetNodeIsBone(scene, node))
+        {
+            return DM_LUA_ERROR("cannot set cursor for bone");
+        }
+
+        dmGui::SetNodeFlipbookCursor(scene, node, luaL_checknumber(L, 2));
+
+        return 0;
+    }
+
+    /*# gets the playback rate of the flipbook animation on a node
+     * This is only useful nodes with flipbook animations. Gets the playback rate of the flipbook animation on a node.
+     *
+     * @name gui.get_flipbook_playback_rate
+     * @param node [type:node] node to set the cursor for
+     * @return rate [type:number] playback rate
+     */
+    static int LuaGetFlipbookPlaybackRate(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode node;
+        LuaCheckNode(L, 1, &node);
+
+        if (dmGui::GetNodeIsBone(scene, node))
+        {
+            return DM_LUA_ERROR("cannot get playback rate for bone");
+        }
+
+        lua_pushnumber(L, dmGui::GetNodeFlipbookPlaybackRate(scene, node));
+
+        return 1;
+    }
+
+    /*# sets the playback rate of the flipbook animation on a node
+     * This is only useful nodes with flipbook animations. Sets the playback rate of the flipbook animation on a node. Must be positive.
+     *
+     * @name gui.set_flipbook_playback_rate
+     * @param node [type:node] node to set the cursor for
+     * @param playback_rate [type:number] playback rate
+     */
+    static int LuaSetFlipbookPlaybackRate(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        HNode node;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &node);
+
+        if(dmGui::GetNodeIsBone(scene, node))
+        {
+            return DM_LUA_ERROR("cannot set playback rate for bone");
+        }
+
+        SetNodeFlipbookPlaybackRate(scene, node, luaL_checknumber(L, 2));
+
+        return 0;
     }
 
     /*# sets the playback rate of the animation on a spine node
@@ -4466,8 +4572,12 @@ namespace dmGui
         {"get_spine_animation",  LuaGetSpineAnimation},
         {"set_spine_cursor", LuaSetSpineCursor},
         {"get_spine_cursor", LuaGetSpineCursor},
+        {"get_flipbook_cursor", LuaGetFlipbookCursor},
+        {"set_flipbook_cursor", LuaSetFlipbookCursor},
         {"set_spine_playback_rate", LuaSetSpinePlaybackRate},
         {"get_spine_playback_rate", LuaGetSpinePlaybackRate},
+        {"get_flipbook_playback_rate", LuaGetFlipbookPlaybackRate},
+        {"set_flipbook_playback_rate", LuaSetFlipbookPlaybackRate},
         {"new_particlefx_node",  LuaNewParticlefxNode},
         {"set_particlefx",  LuaSetParticlefx},
         {"get_particlefx",  LuaGetParticlefx},
@@ -4704,11 +4814,11 @@ namespace dmGui
         int top = lua_gettop(L);
         (void)top;
 
-        dmScript::RegisterUserType(L, GUI_SCRIPT, GuiScript_methods, GuiScript_meta);
+        GUI_SCRIPT_TYPE_HASH = dmScript::RegisterUserType(L, GUI_SCRIPT, GuiScript_methods, GuiScript_meta);
 
-        dmScript::RegisterUserType(L, GUI_SCRIPT_INSTANCE, GuiScriptInstance_methods, GuiScriptInstance_meta);
+        GUI_SCRIPT_INSTANCE_TYPE_HASH = dmScript::RegisterUserType(L, GUI_SCRIPT_INSTANCE, GuiScriptInstance_methods, GuiScriptInstance_meta);
 
-        dmScript::RegisterUserType(L, NODE_PROXY_TYPE_NAME, NodeProxy_methods, NodeProxy_meta);
+        NODE_PROXY_TYPE_HASH = dmScript::RegisterUserType(L, NODE_PROXY_TYPE_NAME, NodeProxy_methods, NodeProxy_meta);
 
         luaL_register(L, LIB_NAME, Gui_methods);
 

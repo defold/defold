@@ -46,11 +46,11 @@ static const char* content[]            = {
 
 static const uint64_t liveupdate_path_hash[2] = { 0x68b7e06402ee965c, 0xe7b921ca4d761083 };
 
-static const uint8_t sorted_first_hash[20] = 
+static const uint8_t sorted_first_hash[20] =
     {  0U,   1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
-static const uint8_t sorted_middle_hash[20] = 
+static const uint8_t sorted_middle_hash[20] =
     {  70U,  250U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
-static const uint8_t sorted_last_hash[20] = 
+static const uint8_t sorted_last_hash[20] =
     { 226U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
 
 static const uint8_t content_hash[][20] = {
@@ -120,7 +120,7 @@ void GetMutableBundledIndexData(void*& arci_data, uint32_t& arci_size, uint32_t 
     uint8_t* cursor_entry = (uint8_t*)((uintptr_t)arci_data + entries_offset - num_lu_entries * DMRESOURCE_MAX_HASH);
     memcpy(cursor, RESOURCES_ARCI, sizeof(dmResourceArchive::ArchiveIndex)); // Copy header
     int lu_entries_to_copy = num_entries_to_keep;
-    for (int i = 0; i < entry_count; ++i)
+    for (uint32_t i = 0; i < entry_count; ++i)
     {
         dmResourceArchive::EntryData& e = entries[i];
         bool is_lu_entry = JAVA_TO_C(e.m_Flags) & dmResourceArchive::ENTRY_FLAG_LIVEUPDATE_DATA;
@@ -326,7 +326,7 @@ void PrintHash(const uint8_t* hash, uint32_t len)
 {
     char* buf = new char[len*2+1];
     buf[len] = '\0';
-    for (int i = 0; i < len; ++i)
+    for (uint32_t i = 0; i < len; ++i)
     {
         sprintf(buf+i*2, "%02X", hash[i]);
     }
