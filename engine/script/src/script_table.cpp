@@ -449,7 +449,7 @@ namespace dmScript
                     }
                     else if (IsHash(L, -1))
                     {
-                        dmhash_t hash = CheckHash(L, -1);
+                        dmhash_t hash = *(dmhash_t*)lua_touserdata(L, -1);
                         const uint32_t hash_size = sizeof(dmhash_t);
 
                         if (buffer_end - buffer < int32_t(hash_size))
@@ -464,7 +464,7 @@ namespace dmScript
                     }
                     else if (IsURL(L, -1))
                     {
-                        dmMessage::URL* url = CheckURL(L, -1);
+                        dmMessage::URL* url = (dmMessage::URL*)lua_touserdata(L, -1);
                         const uint32_t url_size = sizeof(dmMessage::URL);
 
                         if (buffer_end - buffer < int32_t(url_size))
