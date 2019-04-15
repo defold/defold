@@ -142,20 +142,21 @@ namespace dmDNS
         return RESULT_OK;
     }
 
-    HChannel NewChannel()
+    Result NewChannel(HChannel* channel)
     {
         Channel* dns_channel = new Channel();
 
         if (ares_init(&dns_channel->m_Handle) != ARES_SUCCESS)
         {
             delete dns_channel;
-            return 0;
+            return RESULT_INIT_ERROR;
         }
 
         dns_channel->m_RunMutex = dmMutex::New();
         dns_channel->m_Running  = true;
+        *channel = dns_channel;
 
-        return dns_channel;
+        return RESULT_OK;
     }
 
     void StopChannel(HChannel channel)
@@ -273,12 +274,12 @@ namespace dmDNS
         return dns_res;
     }
 
-    Result   Initialize() { return RESULT_OK; }
-    Result   Finalize() { return RESULT_OK; }
-    HChannel NewChannel() { return 0; }
-    void     StopChannel(HChannel channel) {}
-    void     DeleteChannel(HChannel channel) {}
-    Result   GetHostByName(const char* name, dmSocket::Address* address, HChannel channel, bool ipv4, bool ipv6)
+    Result Initialize() { return RESULT_OK; }
+    Result Finalize() { return RESULT_OK; }
+    Result NewChannel(HChannel* channel) { return RESULT_OK; }
+    void   StopChannel(HChannel channel) {}
+    void   DeleteChannel(HChannel channel) {}
+    Result GetHostByName(const char* name, dmSocket::Address* address, HChannel channel, bool ipv4, bool ipv6)
     {
         return SocketResultToDNS(dmSocket::GetHostByName(name, address, ipv4, ipv6));
     }
