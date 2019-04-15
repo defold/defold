@@ -48,7 +48,7 @@ TEST_F(dlib, HashIncremental32)
         uint32_t n = rand() % 32 + 1;
         for (uint32_t j = 0; j < n; ++j)
         {
-            char tmp[] = { rand() % 256, 0 };
+            char tmp[] = { (char)rand(), 0 };
             s += tmp;
         }
         uint32_t h1 = dmHashString32(s.c_str());
@@ -81,7 +81,7 @@ TEST_F(dlib, HashIncremental64)
         uint32_t n = rand() % 32 + 1;
         for (uint32_t j = 0; j < n; ++j)
         {
-            char tmp[] = { rand() % 256, 0 };
+            char tmp[] = { (char)rand(), 0 };
             s += tmp;
         }
         uint64_t h1 = dmHashString64(s.c_str());
@@ -116,7 +116,7 @@ TEST_F(dlib, HashToString32)
         uint32_t n = rand() % 32 + 1;
         for (uint32_t j = 0; j < n; ++j)
         {
-            char tmp[] = { (rand() % ('z' - '0')) + '0', 0 };
+            char tmp[] = { (char)((rand() % ('z' - '0')) + '0'), 0 };
             s += tmp;
         }
 
@@ -148,7 +148,7 @@ TEST_F(dlib, HashToString64)
         uint32_t n = rand() % 32 + 1;
         for (uint32_t j = 0; j < n; ++j)
         {
-            char tmp[] = { (rand() % ('z' - '0')) + '0', 0 };
+            char tmp[] = { (char)((rand() % ('z' - '0')) + '0'), 0 };
             s += tmp;
         }
 
@@ -210,7 +210,7 @@ TEST_F(dlib, HashToStringIncremental32)
         uint32_t n = rand() % 32 + 1;
         for (uint32_t j = 0; j < n; ++j)
         {
-            char tmp[] = { (rand() % ('z' - '0')) + '0', 0 };
+            char tmp[] = { (char)((rand() % ('z' - '0')) + '0'), 0 };
             s += tmp;
         }
 
@@ -254,7 +254,7 @@ TEST_F(dlib, HashToStringIncremental64)
         uint32_t n = rand() % 32 + 1;
         for (uint32_t j = 0; j < n; ++j)
         {
-            char tmp[] = { (rand() % ('z' - '0')) + '0', 0 };
+            char tmp[] = { (char)((rand() % ('z' - '0')) + '0'), 0 };
             s += tmp;
         }
 

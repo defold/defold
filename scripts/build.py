@@ -811,10 +811,17 @@ class Configuration(object):
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
             self.exec_env_shell_command("./scripts/copy.sh", cwd = cwd)
 
-        self.exec_env_shell_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
-                                    cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'))
+        env = self._form_env()
+        self._set_java_8(env)
+        self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+                                    cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
 
     def build_engine(self):
+        # We want random folder to thoroughly test bob-light
+        # We dont' want it to unpack for _every_ single invocation during the build
+        os.environ['DM_BOB_ROOTFOLDER'] = tempfile.mkdtemp(prefix='bob-light-')
+        self._log("env DM_BOB_ROOTFOLDER=" + os.environ['DM_BOB_ROOTFOLDER'])
+
         cmd = self._build_engine_cmd(**self._get_build_flags())
         args = cmd.split()
         host = self.host2
@@ -854,6 +861,9 @@ class Configuration(object):
             print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
             shutil.rmtree(scan_output_dir)
 
+        if os.path.exists(os.environ['DM_BOB_ROOTFOLDER']):
+            print "Removing", os.environ['DM_BOB_ROOTFOLDER']
+            shutil.rmtree(os.environ['DM_BOB_ROOTFOLDER'])
     def build_go(self):
         exe_ext = '.exe' if 'win32' in self.target_platform else ''
         go = '%s/ext/go/%s/go/bin/go%s' % (self.dynamo_home, self.target_platform, exe_ext)
@@ -958,8 +968,10 @@ class Configuration(object):
         else:
             self.copy_local_bob_artefacts()
 
-        self.exec_env_shell_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
-                              cwd = cwd)
+        env = self._form_env()
+        self._set_java_8(env)
+        self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
+                              cwd = cwd, shell = True, env = env)
 
     def build_sdk(self):
         tempdir = tempfile.mkdtemp() # where the sdk ends up
@@ -1100,11 +1112,19 @@ instructions.configure=\
         for p in glob(join(build_dir, 'build/distributions/*.zip')):
             self.upload_file(p, full_archive_path)
 
+    def _set_java_8(self, env):
+        if 'linux' in self.host2:
+            env['JAVA_HOME'] = '/usr/lib/jvm/java-8-oracle'
+        elif 'darwin' in self.host2:
+            env['JAVA_HOME'] = self.exec_command(['/usr/libexec/java_home','-v','1.8']).strip()
+        elif 'win32' in self.host2:
+            env['PATH'] = 'C:\\Program Files\\Java\\jdk1.8.0_162\\bin' + os.path.pathsep + env['PATH']
+        self._log("Setting JAVA to 1.8")
+
     def _build_cr(self, product):
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
         env = self._form_env()
-        if 'linux' in self.host2:
-            env['JAVA_HOME'] = '/usr/lib/jvm/java-8-oracle'
+        self._set_java_8(env)
         self._exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'], cwd = cwd, env = env)
 
     def build_editor2(self):
