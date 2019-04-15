@@ -18,12 +18,12 @@ namespace dmDNS
         RESULT_UNKNOWN_ERROR  = -3
     };
 
-	Result   Initialize();
-	Result   Finalize();
-	HChannel NewChannel();
-	void     StopChannel(HChannel channel);
-	void     DeleteChannel(HChannel channel);
-	Result   GetHostByName(const char* name, dmSocket::Address* address, HChannel channel, bool ipv4 = true, bool ipv6 = true);
+	Result Initialize();
+	Result Finalize();
+	Result NewChannel(HChannel* channel);
+	void   StopChannel(HChannel channel);
+	void   DeleteChannel(HChannel channel);
+	Result GetHostByName(const char* name, dmSocket::Address* address, HChannel channel, bool ipv4 = true, bool ipv6 = true);
 }
 
 #endif //DM_DSTRINGS_H

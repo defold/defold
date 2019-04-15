@@ -366,8 +366,12 @@ namespace dmHttpService
             worker->m_Service = service;
             worker->m_CacheFlusher = i == 0;
             worker->m_Run = true;
-            worker->m_DNSChannel = dmDNS::NewChannel();
             service->m_Workers.Push(worker);
+
+            if (dmDNS::NewChannel(&worker->m_DNSChannel) != dmDNS::RESULT_OK)
+            {
+                worker->m_DNSChannel = 0;
+            }
 
             dmThread::Thread t = dmThread::New(&Loop, THREAD_STACK_SIZE, worker, "http");
             worker->m_Thread = t;
