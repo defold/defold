@@ -975,8 +975,12 @@ namespace dmGui
     Result SetNodeParticlefx(HScene scene, HNode node, dmhash_t particlefx_id);
     Result GetNodeParticlefx(HScene scene, HNode node, dmhash_t& particlefx_id);
 
-    Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
-    Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
+    Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, float offset, float playback_rate, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
+    Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, float offset, float playback_rate, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
+    float GetNodeFlipbookCursor(HScene scene, HNode node);
+    void SetNodeFlipbookCursor(HScene scene, HNode node, float cursor);
+    float GetNodeFlipbookPlaybackRate(HScene scene, HNode node);
+    void SetNodeFlipbookPlaybackRate(HScene scene, HNode node, float playback_rate);
     void CancelNodeFlipbookAnim(HScene scene, HNode node);
     dmhash_t GetNodeFlipbookAnimId(HScene scene, HNode node);
     const float* GetNodeFlipbookAnimUV(HScene scene, HNode node);
