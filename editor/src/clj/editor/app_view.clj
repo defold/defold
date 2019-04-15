@@ -1505,7 +1505,7 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :synchronize :global
   (enabled? [] (disk-availability/available?))
-  (run [changes-view dashboard-client project workspace]
+  (run [changes-view dashboard-client project workspace app-view]
        (let [render-reload-progress! (make-render-task-progress :resource-sync)
              render-save-progress! (make-render-task-progress :save-all)]
          (if (changes-view/project-is-git-repo? changes-view)
@@ -1517,6 +1517,7 @@ If you do not specifically require different script states, consider changing th
              (disk/async-save! render-reload-progress! render-save-progress! project changes-view
                                (fn [successful?]
                                  (when successful?
+                                   (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
                                    (when (changes-view/regular-sync! changes-view dashboard-client)
                                      (disk/async-reload! render-reload-progress! workspace [] changes-view))))))
 
@@ -1524,6 +1525,7 @@ If you do not specifically require different script states, consider changing th
            (disk/async-save! render-reload-progress! render-save-progress! project changes-view
                              (fn [successful?]
                                (when successful?
+                                 (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
                                  (changes-view/first-sync! changes-view dashboard-client project))))))))
 
 (handler/defhandler :save-all :global
@@ -1531,7 +1533,10 @@ If you do not specifically require different script states, consider changing th
   (run [app-view changes-view project]
        (let [render-reload-progress! (make-render-task-progress :resource-sync)
              render-save-progress! (make-render-task-progress :save-all)]
-         (disk/async-save! render-reload-progress! render-save-progress! project changes-view))))
+         (disk/async-save! render-reload-progress! render-save-progress! project changes-view
+                           (fn [successful?]
+                             (when successful?
+                               (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)))))))
 
 (handler/defhandler :show-in-desktop :global
   (active? [app-view selection evaluation-context]
