@@ -743,7 +743,7 @@ TEST_F(HierarchyTest, TestHierarchyBonesMulti)
 
     dmTransform::Transform component_transform;
     component_transform.SetIdentity();
-    ASSERT_EQ(2, SetBoneTransforms(p1, component_transform, t, 2));
+    ASSERT_EQ(2u, SetBoneTransforms(p1, component_transform, t, 2));
 
     ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
