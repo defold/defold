@@ -19,7 +19,7 @@
         <receiver android:name="com.defold.push.LocalNotificationReceiver" >
         </receiver>
 
-        <!-- For GCM (push) -->
+        <!-- For Google Play Services -->
         <meta-data
             android:name="com.google.android.gms.version"
             android:value="@integer/google_play_services_version" />

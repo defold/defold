@@ -207,7 +207,7 @@ namespace dmCrash
      *
      * @name crash.get_sys_field
      * @param handle [type:number] crash dump handle
-     * @param index [type:number] system field enum. Must be less than [ref: crash.SYSFIELD_MAX]
+     * @param index [type:number] system field enum. Must be less than [ref:crash.SYSFIELD_MAX]
      * @return value [type:string] value recorded in the crash dump, or nil if it didn't exist
      */
     static int Crash_GetSysField(lua_State* L)
