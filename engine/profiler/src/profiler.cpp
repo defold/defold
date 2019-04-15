@@ -16,7 +16,7 @@ namespace dmProfiler
 /*# Profiler API documentation
  *
  * Functions for getting profiling data in runtime.
- * More detailed profiling and debugging information can be found under the [Debugging](http://www.defold.com/manuals/debugging/) section in the manuals.
+ * More detailed [profiling](https://www.defold.com/manuals/profiling/) and [debugging](http://www.defold.com/manuals/debugging/) information available in the manuals.
  *
  * @document
  * @name Profiler
@@ -130,7 +130,8 @@ static int CPUUsage(lua_State* L)
  *
  * @examples
  * ```lua
- *      profiler.enable_ui(true)
+ * -- Show the profiler UI
+ * profiler.enable_ui(true)
  * ```
  */
 static int EnableProfilerUI(lua_State* L)
@@ -213,7 +214,8 @@ static int SetProfileUIMode(lua_State* L)
  *
  * @examples
  * ```lua
- *      profiler.set_ui_view_mode(profiler.VIEW_MODE_MINIMIZED)
+ * -- Minimize the profiler view
+ * profiler.set_ui_view_mode(profiler.VIEW_MODE_MINIMIZED)
  * ```
  */
 static int SetProfilerUIViewMode(lua_State* L)
@@ -253,8 +255,8 @@ static int SetProfilerUIViewMode(lua_State* L)
  *
  * @examples
  * ```lua
- *      profiler.set_ui_vsync_wait_visible(false)
- * end
+ * -- Exclude frame wait time form the profiler ui
+ * profiler.set_ui_vsync_wait_visible(false)
  * ```
  */
 static int SetProfileUIVSyncWaitVisible(lua_State* L)
@@ -282,14 +284,13 @@ static int SetProfileUIVSyncWaitVisible(lua_State* L)
  * Get the number of recorded frames in the on-screen profiler ui recording buffer
  *
  * @name profiler.recorded_frame_count
- * @return [type:number] the number of recorded frames, zero if on-screen profiler is disabled
+ * @return frame_count [type:number] the number of recorded frames, zero if on-screen profiler is disabled
  *
  * @examples
  * ```lua
- *      -- Show the last recorded frame
- *      local recorded_frame_count = profiler.recorded_frame_count()
- *      profiler.view_recorded_frame(recorded_frame_count)
- * end
+ * -- Show the last recorded frame
+ * local recorded_frame_count = profiler.recorded_frame_count()
+ * profiler.view_recorded_frame(recorded_frame_count)
  * ```
  */
 static int ProfilerUIRecordedFrameCount(lua_State* L)
@@ -322,8 +323,8 @@ static int ProfilerUIRecordedFrameCount(lua_State* L)
  *
  * @examples
  * ```lua
- *      profiler.view_recorded_frame({distance = -1})
- * end
+ * -- Go back one frame
+ * profiler.view_recorded_frame({distance = -1})
  * ```
  */
 static int ProfilerUIViewRecordedFrame(lua_State* L)
@@ -368,6 +369,37 @@ static int ProfilerUIViewRecordedFrame(lua_State* L)
     }
     return 0;
 }
+
+/*# continously show latest frame
+*
+* @name profiler.MODE_RUN
+* @variable
+*/
+/*# pause on current frame
+*
+* @name profiler.MODE_PAUSE
+* @variable
+*/
+/*# pause at peak frame
+*
+* @name profiler.MODE_SHOW_PEAK_FRAME
+* @variable
+*/
+/*# start recording
+*
+* @name profiler.MODE_RECORD
+* @variable
+*/
+/*# show full profiler ui
+*
+* @name profiler.VIEW_MODE_FULL
+* @variable
+*/
+/*# show mimimal profiler ui
+*
+* @name profiler.VIEW_MODE_MINIMIZED
+* @variable
+*/
 
 } // dmProfiler
 

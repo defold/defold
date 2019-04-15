@@ -497,6 +497,8 @@
   (input picking-rect Rect)
   (input sub-selection g/Any)
 
+  (output info-text g/Str (g/fnk [scene tool-info-text]
+                            (or tool-info-text (:info-text scene))))
   (output all-renderables g/Any :cached (g/fnk [aux-render-data curve-renderables cp-renderables tool-renderables]
                                           (reduce (partial merge-with into)
                                                   (:renderables aux-render-data)
