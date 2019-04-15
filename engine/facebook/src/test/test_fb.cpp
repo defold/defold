@@ -702,7 +702,7 @@ TEST_F(FBTest, luaTableToCArray_NullBuffer)
     lua_rawset(L, -3);
 
     uint32_t result = dmFacebook::luaTableToCArray(L, -1, NULL, 0);
-    ASSERT_EQ(0, result);
+    ASSERT_EQ(0u, result);
 }
 
 TEST_F(FBTest, luaTableToCArray_SmallerBuffer)
@@ -734,7 +734,7 @@ TEST_F(FBTest, luaTableToCArray_EmptyTable)
     char* buffer[1] = { 0 };
     uint32_t result = dmFacebook::luaTableToCArray(L, 1, buffer, sizeof(buffer) / sizeof(buffer[0]));
 
-    ASSERT_EQ(0, result);
+    ASSERT_EQ(0u, result);
 }
 
 TEST_F(FBTest, luaTableToCArray_SingleElement)
@@ -815,8 +815,8 @@ TEST_F(FBTest, CountStringArrayLength)
     lua_newtable(L);
     size_t entry_count = 0;
     size_t len = dmFacebook::CountStringArrayLength(L, lua_gettop(L), entry_count);
-    ASSERT_EQ(0, len);
-    ASSERT_EQ(0, entry_count);
+    ASSERT_EQ(0u, len);
+    ASSERT_EQ(0u, entry_count);
     lua_pop(L, 1);
 
     // Test table with 3 string value
@@ -850,8 +850,8 @@ TEST_F(FBTest, CountStringArrayLength)
     entry_count = 0;
     len = dmFacebook::CountStringArrayLength(L, lua_gettop(L), entry_count);
     // Expected length: "one" + "2" = 4
-    ASSERT_EQ(4, len);
-    ASSERT_EQ(2, entry_count);
+    ASSERT_EQ(4u, len);
+    ASSERT_EQ(2u, entry_count);
     lua_pop(L, 1);
 
 

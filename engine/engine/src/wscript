@@ -86,8 +86,6 @@ def build(bld):
 
     dynamo_home = os.getenv('DYNAMO_HOME')
 
-    activities=[('com.facebook.FacebookActivity', 'android:theme="@android:style/Theme.Translucent.NoTitleBar" android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation" android:label="dmengine"'),
-                ('com.defold.iap.IapGooglePlayActivity', 'android:theme="@android:style/Theme.Translucent.NoTitleBar" android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation" android:label="IAP"')]
     extra_packages = 'com.facebook:com.google.android.gms:com.google.android.gms.common'
 
     android_jar_paths = ['%s/ext/share/java/facebooksdk.jar' % (dynamo_home),
@@ -116,7 +114,6 @@ def build(bld):
         target = 'dmengine',
         bundleid = 'com.defold.engine',
         source=['main.cpp'],
-        activities = activities,
         extra_packages = extra_packages,
         jars = android_jar_paths)
 
@@ -144,7 +141,6 @@ def build(bld):
         protoc_includes = '../proto',
         target = 'dmengine_release',
         source=['main.cpp'],
-        activities = activities,
         extra_packages = extra_packages,
         jars = android_jar_paths)
 

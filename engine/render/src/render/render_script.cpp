@@ -48,6 +48,11 @@ namespace dmRender
     #define RENDER_SCRIPT_U_WRAP_NAME "u_wrap"
     #define RENDER_SCRIPT_V_WRAP_NAME "v_wrap"
 
+    static uint32_t RENDER_SCRIPT_TYPE_HASH = 0;
+    static uint32_t RENDER_SCRIPT_INSTANCE_TYPE_HASH = 0;
+    static uint32_t RENDER_SCRIPT_CONSTANTBUFFER_TYPE_HASH = 0;
+    
+
     const char* RENDER_SCRIPT_FUNCTION_NAMES[MAX_RENDER_SCRIPT_FUNCTION_COUNT] =
     {
         "init",
@@ -58,12 +63,12 @@ namespace dmRender
 
     static HNamedConstantBuffer* RenderScriptConstantBuffer_Check(lua_State *L, int index)
     {
-        return (HNamedConstantBuffer*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_CONSTANTBUFFER, "Expected a constant buffer (acquired from a render.* function)");
+        return (HNamedConstantBuffer*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_CONSTANTBUFFER_TYPE_HASH, "Expected a constant buffer (acquired from a render.* function)");
     }
 
     static int RenderScriptConstantBuffer_gc (lua_State *L)
     {
-        HNamedConstantBuffer* cb = RenderScriptConstantBuffer_Check(L, 1);
+        HNamedConstantBuffer* cb = (HNamedConstantBuffer*)lua_touserdata(L, 1);
         DeleteNamedConstantBuffer(*cb);
         *cb = 0;
         return 0;
@@ -77,7 +82,7 @@ namespace dmRender
 
     static int RenderScriptConstantBuffer_index(lua_State *L)
     {
-        HNamedConstantBuffer* cb = RenderScriptConstantBuffer_Check(L, 1);
+        HNamedConstantBuffer* cb = (HNamedConstantBuffer*)lua_touserdata(L, 1);
         assert(cb);
 
         const char* name = luaL_checkstring(L, 2);
@@ -98,7 +103,7 @@ namespace dmRender
     static int RenderScriptConstantBuffer_newindex(lua_State *L)
     {
         int top = lua_gettop(L);
-        HNamedConstantBuffer* cb = RenderScriptConstantBuffer_Check(L, 1);
+        HNamedConstantBuffer* cb = (HNamedConstantBuffer*)lua_touserdata(L, 1);
         assert(cb);
 
         const char* name = luaL_checkstring(L, 2);
@@ -196,7 +201,7 @@ namespace dmRender
 
     static RenderScriptInstance* RenderScriptInstance_Check(lua_State *L, int index)
     {
-        return (RenderScriptInstance*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_INSTANCE, "You can only access render.* functions and values from a render script instance (.render_script file)");
+        return (RenderScriptInstance*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_INSTANCE_TYPE_HASH, "You can only access render.* functions and values from a render script instance (.render_script file)");
     }
 
     static RenderScriptInstance* RenderScriptInstance_Check(lua_State *L)
@@ -210,15 +215,6 @@ namespace dmRender
 
         assert(top == lua_gettop(L));
         return i;
-    }
-
-    static int RenderScriptInstance_gc (lua_State *L)
-    {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
-        memset(i, 0, sizeof(*i));
-        (void) i;
-        assert(i);
-        return 0;
     }
 
     static int RenderScriptInstance_tostring (lua_State *L)
@@ -306,7 +302,6 @@ namespace dmRender
 
     static const luaL_reg RenderScriptInstance_meta[] =
     {
-        {"__gc",                                        RenderScriptInstance_gc},
         {"__tostring",                                  RenderScriptInstance_tostring},
         {"__index",                                     RenderScriptInstance_index},
         {"__newindex",                                  RenderScriptInstance_newindex},
@@ -2390,11 +2385,11 @@ namespace dmRender
         int top = lua_gettop(L);
         (void)top;
 
-        dmScript::RegisterUserType(L, RENDER_SCRIPT, RenderScript_methods, RenderScript_meta);
+        RENDER_SCRIPT_TYPE_HASH = dmScript::RegisterUserType(L, RENDER_SCRIPT, RenderScript_methods, RenderScript_meta);
 
-        dmScript::RegisterUserType(L, RENDER_SCRIPT_INSTANCE, RenderScriptInstance_methods, RenderScriptInstance_meta);
+        RENDER_SCRIPT_INSTANCE_TYPE_HASH = dmScript::RegisterUserType(L, RENDER_SCRIPT_INSTANCE, RenderScriptInstance_methods, RenderScriptInstance_meta);
 
-        dmScript::RegisterUserType(L, RENDER_SCRIPT_CONSTANTBUFFER, RenderScriptConstantBuffer_methods, RenderScriptConstantBuffer_meta);
+        RENDER_SCRIPT_CONSTANTBUFFER_TYPE_HASH = dmScript::RegisterUserType(L, RENDER_SCRIPT_CONSTANTBUFFER, RenderScriptConstantBuffer_methods, RenderScriptConstantBuffer_meta);
 
         luaL_register(L, RENDER_SCRIPT_LIB_NAME, Render_methods);
 
@@ -2813,7 +2808,9 @@ bail:
             }
 
             {
-                DM_PROFILE_FMT(Script, "%s%s%s%s@%s", RENDER_SCRIPT_FUNCTION_NAMES[script_function], message_name ? "[" : "", message_name ? message_name : "", message_name ? "]" : "", script->m_SourceFileName);
+                uint32_t profiler_hash = 0;
+                const char* profiler_string = dmScript::GetProfilerString(L, 0, script->m_SourceFileName, RENDER_SCRIPT_FUNCTION_NAMES[script_function], message_name, &profiler_hash);
+                DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
                 if (dmScript::PCall(L, arg_count, 0) != 0)
                 {
                     assert(top == lua_gettop(L));

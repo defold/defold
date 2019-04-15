@@ -1,5 +1,6 @@
 (ns internal.defnode-test
   (:require [clojure.test :refer :all]
+            [clojure.set :as set]
             [dynamo.graph :as g]
             [internal.graph.types :as gt]
             [internal.node :as in]
@@ -274,8 +275,8 @@
 
 (g/defnode GetterFnPropertyNode
   (property reports-higher g/Int
-            (value (g/fnk [this]
-                          (inc (or (get this :int-val) 0))))))
+            (value (g/fnk [_this]
+                          (inc (or (get _this :int-val) 0))))))
 
 (g/defnode ComplexGetterFnPropertyNode
   (input a g/Any)
@@ -283,7 +284,7 @@
   (input c g/Any)
 
   (property weirdo g/Any
-            (value (g/fnk [this a b c] [this a b c]))))
+            (value (g/fnk [_this a b c] [_this a b c]))))
 
 (g/defnode ReflexivePropertyValueFnNode
   (property zort g/Int
@@ -296,8 +297,8 @@
       (is (:a-property (-> node g/node-type g/declared-property-labels)))
       (is (some #{:a-property} (keys node)))))
 
-  (testing "_node-id is an internal property"
-    (is (= #{:_node-id :_output-jammers} (g/internal-property-labels SinglePropertyNode)))
+  (testing "_node-id and :_output-jammers are intrinsic, non-declared properties"
+    (is (= #{} (set/intersection #{:_node-id :_output-jammers} (g/declared-property-labels SinglePropertyNode))))
     (is (= #{:a-property} (g/declared-property-labels SinglePropertyNode))))
 
   (testing "two properties"
@@ -419,20 +420,8 @@
                  (eval '(dynamo.graph/defnode BadProperty
                           (property no-schema (fn [] "no value type provided"))))))))
 
-(g/defnode ExternNode
-  (property internal-resource g/Str (default "/bar"))
-  (extern external-resource g/Str (default "/foo")))
-
-(deftest node-externs
-  (testing "Nodes can have externs"
-    (let [node (g/construct ExternNode)]
-      (is (= "/foo" (:external-resource node)))
-      (is (contains? (g/declared-property-labels ExternNode) :external-resource))
-      (is (contains? (g/externs ExternNode) :external-resource))
-      (is (some #{:external-resource} (keys node))))))
-
-(g/defnk string-production-fnk [this integer-input] "produced string")
-(g/defnk integer-production-fnk [this] 42)
+(g/defnk string-production-fnk [_this integer-input] "produced string")
+(g/defnk integer-production-fnk [_this] 42)
 
 (g/defnode MultipleOutputNode
   (input integer-input g/Int)
@@ -792,12 +781,19 @@
   (input input-three g/Any)
 
   (property a-property g/Any
-            (default  (g/constantly false))
+            (default (g/constantly false))
             (dynamic error (g/fnk [input-three] (nil? input-three)))
-            (value    (g/fnk [input-two] (inc input-two))))
+            (value (g/fnk [input-two] (inc input-two))))
+
+  (property overridden g/Any
+            (default (g/constantly false))
+            (dynamic error (g/fnk [input-three] (nil? input-three)))
+            (value (g/fnk [input-two] (inc input-two))))
 
   (output an-output g/Any
-          (g/fnk [input-one a-property] :ok)))
+          (g/fnk [input-one a-property] :ok))
+
+  (output overridden g/Any (g/fnk [] "this overriding output should not be dependent on the corresponding property's stuff.")))
 
 (defn- affected-by? [out in]
   (let [affected-outputs (-> PropertiesWithDynamics g/input-dependencies (get in))]
@@ -816,6 +812,10 @@
       :input-one
       :_properties
       :_declared-properties)))
+
+#_(deftest overriding-outputs-dont-automatically-inherit-dependencies-of-corresponding-property
+  ;; TODO: This test fails. The error it suggests does not cause any serious problems - at worst, some output gets unnecessarily invalidated.
+  (is (not (affected-by? :overridden :input-three))))
 
 (g/defnode CustomPropertiesOutput
   (output _properties g/Properties :cached

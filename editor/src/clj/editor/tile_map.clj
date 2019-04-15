@@ -2,6 +2,7 @@
   ;; switch to released version once https://dev.clojure.org/jira/browse/DIMAP-15 has been fixed
   (:require [clojure.data.int-map-fixed :as int-map]
             [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.geom :as geom]
@@ -380,12 +381,13 @@
                                [label (get deps-by-resource resource)])
                              [[:tile-set tile-source]
                               [:material material]])]
-      [{:node-id _node-id
-        :resource (workspace/make-build-resource resource)
-        :build-fn build-tile-map
-        :user-data {:pb-msg pb-msg
-                    :dep-resources dep-resources}
-        :deps dep-build-targets}])))
+      [(bt/with-content-hash
+         {:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-tile-map
+          :user-data {:pb-msg pb-msg
+                      :dep-resources dep-resources}
+          :deps dep-build-targets})])))
 
 (g/defnode TileMapNode
   (inherits resource-node/ResourceNode)
@@ -1075,7 +1077,7 @@
   (output input-handler Runnable :cached (g/constantly (make-input-handler)))
   (output info-text g/Str (g/fnk [cursor-world-pos tile-dimensions]
                             (when-some [[x y] (get-current-tile cursor-world-pos tile-dimensions)]
-                              (format "Cell: %d, %d" x y)))))
+                              (format "Cell: %d, %d" (+ 1 x) (+ 1 y))))))
 
 (defmethod scene/attach-tool-controller ::TileMapController
   [_ tool-id view-id resource-id]
@@ -1132,15 +1134,19 @@
 (defn- erase-tool-handler [tool-controller]
   (g/set-property! tool-controller :brush erase-brush))
 
-(defn- active-tile-map [app-view]
-  (when-let [resource-node (g/node-value app-view :active-resource-node)]
+(defn- active-tile-map [app-view evaluation-context]
+  (when-let [resource-node (g/node-value app-view :active-resource-node evaluation-context)]
     (when (g/node-instance? TileMapNode resource-node)
       resource-node)))
 
-(defn- active-scene-view [app-view]
-  (when-let [view-node (g/node-value app-view :active-view)]
-    (when (g/node-instance? scene/SceneView view-node)
-      view-node)))
+(defn- active-scene-view
+  ([app-view]
+   (g/with-auto-evaluation-context evaluation-context
+     (active-scene-view app-view evaluation-context)))
+  ([app-view evaluation-context]
+   (when-let [view-node (g/node-value app-view :active-view evaluation-context)]
+     (when (g/node-instance? scene/SceneView view-node)
+       view-node))))
 
 (defn- scene-view->tool-controller [scene-view]
   ;; TODO Hack, but better than before
@@ -1149,24 +1155,26 @@
 
 (handler/defhandler :erase-tool :workbench
   (label [user-data] "Select Eraser")
-  (active? [app-view] (and (active-tile-map app-view)
-                        (active-scene-view app-view)))
-  (enabled? [app-view selection]
+  (active? [app-view evaluation-context]
+           (and (active-tile-map app-view evaluation-context)
+                (active-scene-view app-view evaluation-context)))
+  (enabled? [app-view selection evaluation-context]
     (and (selection->layer selection)
-         (-> (active-tile-map app-view)
-             (g/node-value :tile-source-resource))))
+         (-> (active-tile-map app-view evaluation-context)
+             (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (erase-tool-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
 
 (defn- tile-map-palette-handler [tool-controller]
   (g/update-property! tool-controller :mode (toggler :palette :editor)))
 
 (handler/defhandler :show-palette :workbench
-  (active? [app-view] (and (active-tile-map app-view)
-                        (active-scene-view app-view)))
-  (enabled? [app-view selection]
+  (active? [app-view evaluation-context]
+           (and (active-tile-map app-view evaluation-context)
+                (active-scene-view app-view evaluation-context)))
+  (enabled? [app-view selection evaluation-context]
     (and (selection->layer selection)
-         (-> (active-tile-map app-view)
-             (g/node-value :tile-source-resource))))
+         (-> (active-tile-map app-view evaluation-context)
+             (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (tile-map-palette-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
 
 (ui/extend-menu ::menubar :editor.app-view/edit-end

@@ -37,7 +37,6 @@ Important: *Make sure your branches are up to date!*
     This will trigger the beta channel to be built on build bot.
 
  1. Wait for [sign-editor-beta](http://ci.defold.com/builders/sign-editor-beta) to finish, make sure autobuilders are green.
- 1. Write release beta release notes.
  1. (Optional) Download and run beta:
 
     http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-darwin.dmg
@@ -63,13 +62,17 @@ Important: *Make sure your branches are up to date!*
 
     Important: *Make sure the SHA1 and channel is correct!*
 
- 1. Build QRT test apps on [Jenkins](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt_pipeline/) ([old link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/)).
+ 1. Build QRT test apps on [Jenkins](https://jenkins-defold.ess.midasplayer.com/job/defold-qrt_pipeline) ([old link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt_pipeline/)) ([older link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/)).
 
     Log in and open "Build with Parameters"
 
     In "DEFOLD_CHANNEL" select "beta"
 
     Let ATL or PO know about the started build so they can monitor and smoke test the apps when build is done.
+
+ 1. Write release beta release notes (while CI builds the test apps)
+
+ 1. (Optional) Verify dev mobile apps from [app store](https://app-store.king.com/#/builds/DefoldQRT?filterByUserAgent=true&buildName=beta&onlyFeaturedBuilds=false)
 
  1. Verify release by updating an old editor, OSX, Win and Linux.
 

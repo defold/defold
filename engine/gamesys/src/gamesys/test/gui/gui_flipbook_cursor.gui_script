@@ -1,0 +1,108 @@
+continue_test = true
+test_err = false
+test_err_str = ""
+
+cursor_test_params = {
+    {"anim_once",       0.0, 1.0, {0.0, 0.25, 0.5, 0.75, 1.0}},
+    {"anim_once",      -1.0, 1.0, {0.0, 0.25, 0.5, 0.75, 1.0}}, -- Same as above, but cursor should be clamped
+    {"anim_once",       1.0, 1.0, {1.0, 1.0}},                  -- Again, clamped, but will also be at end of anim.
+    {"anim_once_back",  0.0, 1.0, {0.0, 0.75, 0.5, 0.25, 0.0}},
+    {"anim_loop",       0.0, 1.0, {0.0, 0.25, 0.5, 0.75, 1.0, 0.25, 0.5, 0.75}},
+    {"anim_loop_back",  0.0, 1.0, {0.0, 0.75, 0.5, 0.25, 0.0, 0.75, 0.5, 0.25}},
+
+    -- Ping-pong in GUI is different from Sprite flipbook animations.
+    -- In GUI the flipbook animations doesn't skip duplicate mid and ending frame.
+    -- It's a separate issue and up for discussion how we should solve this.
+    -- For now the GUI tests will validate current behaviour.
+    {"anim_once_pingpong", 0.0, 1.0, {0.0, 0.25, 0.5, 0.75, 1.0, 0.75, 0.5, 0.25, 0.0, 0.0}},
+    {"anim_loop_pingpong", 0.0, 1.0, {0.0, 0.25, 0.5, 0.75, 1.0, 0.75, 0.5, 0.25, 0.0, 0.25, 0.5}},
+
+    -- Cursor start
+    {"anim_once",          0.5, 1.0, {0.5, 0.75, 1.0, 1.0}},
+    {"anim_once_back",     0.5, 1.0, {0.5, 0.25, 0.0, 0.0}},
+    {"anim_loop",          0.5, 1.0, {0.5, 0.75, 1.0, 0.25, 0.5, 0.75, 1.0}},
+    {"anim_loop_back",     0.5, 1.0, {0.5, 0.25, 0.0, 0.75, 0.5, 0.25, 0.0}},
+    {"anim_once_pingpong", 0.5, 1.0, {0.5, 0.75, 1.0, 0.75, 0.5, 0.25, 0.0, 0.0}},
+    {"anim_loop_pingpong", 0.5, 1.0, {0.5, 0.75, 1.0, 0.75, 0.5, 0.25, 0.0, 0.25, 0.5}},
+
+    -- Playback rate, x2 speed
+    {"anim_once",          0.0, 2.0, {0.0, 0.5, 1.0, 1.0}},
+    {"anim_once_back",     0.0, 2.0, {0.0, 0.5, 0.0, 0.0}},
+    {"anim_loop",          0.0, 2.0, {0.0, 0.5, 1.0, 0.5, 1.0}},
+    {"anim_loop_back",     0.0, 2.0, {0.0, 0.5, 0.0, 0.5, 0.0}},
+    {"anim_once_pingpong", 0.0, 2.0, {0.0, 0.5, 1.0, 0.5, 0.0, 0.0}},
+    {"anim_loop_pingpong", 0.0, 2.0, {0.0, 0.5, 1.0, 0.5, 0.0, 0.5, 1.0}},
+
+    -- Playback rate, x0 speed
+    {"anim_once",          0.0, 0.0, {0.0, 0.0, 0.0}},
+    {"anim_once_back",     0.0, 0.0, {0.0, 1.0, 1.0}},
+    {"anim_loop",          0.0, 0.0, {0.0, 0.0, 0.0}},
+    {"anim_loop_back",     0.0, 0.0, {0.0, 1.0, 1.0}},
+    {"anim_once_pingpong", 0.0, 0.0, {0.0, 0.0, 0.0}},
+    {"anim_loop_pingpong", 0.0, 0.0, {0.0, 0.0, 0.0}},
+
+    -- Playback rate, -x2 speed
+    {"anim_once",          0.0, -2.0, {0.0, 0.0, 0.0}},
+    {"anim_once_back",     0.0, -2.0, {0.0, 1.0, 1.0}},
+    {"anim_loop",          0.0, -2.0, {0.0, 0.0, 0.0}},
+    {"anim_loop_back",     0.0, -2.0, {0.0, 1.0, 1.0}},
+    {"anim_once_pingpong", 0.0, -2.0, {0.0, 0.0, 0.0}},
+    {"anim_loop_pingpong", 0.0, -2.0, {0.0, 0.0, 0.0}},
+}
+
+local function float_equal(a, b)
+    return math.abs(a - b) < 0.0001
+end
+
+local function throw_error(str)
+    continue_test = false
+    test_err = true
+    test_err_str = str
+end
+
+function init( self )
+    self.node = gui.get_node("box")
+
+    self.test_p = coroutine.create(function (self)
+        -- loop different test inputs
+        for i,test in ipairs(cursor_test_params) do
+            local anim_id       = test[1]
+            local offset        = test[2]
+            local playback_rate = test[3]
+            local test_data     = test[4]
+            print("Test param #" .. i .. " anim: " .. anim_id)
+
+            -- start flipbook animation
+            gui.play_flipbook(self.node, anim_id, nil, { offset = offset, playback_rate = playback_rate })
+
+            -- loop over expected cursor values
+            -- will yeild after each check, so that c++ side can tick/update once (with 1 second dt)
+            for j,expected_cursor in ipairs(test_data) do
+                local actual_cursor = gui.get_flipbook_cursor(self.node)
+                -- print("Expecting: " .. expected_cursor)
+                -- print("Actual: " .. actual_cursor)
+                if not float_equal(expected_cursor, actual_cursor) then
+                    throw_error(string.format([[
+gui_flipbook_cursor.gui_script assert:
+      Expected: test_data[%d]
+      Which is: %f
+To be equal to: gui.get_flipbook_cursor(self.node)
+      Which is: %f
+]], j, expected_cursor, actual_cursor))
+                end
+                coroutine.yield()
+            end
+        end
+
+        continue_test = false
+     end)
+end
+
+function update( self, dt )
+    --print("update", )
+    local r, err = coroutine.resume(self.test_p, self)
+    if not r then
+        throw_error(err)
+    end
+end
+

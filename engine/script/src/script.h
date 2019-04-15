@@ -39,10 +39,10 @@ namespace dmScript
         RESULT_MODULE_NOT_LOADED = -3,
     };
 
-    extern const char* META_TABLE_RESOLVE_PATH;
-    extern const char* META_TABLE_GET_URL;
-    extern const char* META_TABLE_GET_USER_DATA;
-    extern const char* META_TABLE_IS_VALID;
+    extern const char META_TABLE_RESOLVE_PATH[];
+    extern const char META_TABLE_GET_URL[];
+    extern const char META_TABLE_GET_USER_DATA[];
+    extern const char META_TABLE_IS_VALID[];
 
     /**
      * Implementor should return a Ref to the instance context table.
@@ -58,7 +58,7 @@ namespace dmScript
      *  [-1] ref to instance context table or LUA_NOREF
      *
      */
-    extern const char* META_GET_INSTANCE_CONTEXT_TABLE_REF;
+    extern const char META_GET_INSTANCE_CONTEXT_TABLE_REF[];
 
     /**
      * Create and return a new context.
@@ -73,6 +73,22 @@ namespace dmScript
      * Delete an existing context.
      */
     void DeleteContext(HContext context);
+
+    /**
+     * Sets the value at top of stack as a global accessible value
+     * under the name supplied and under the hash of the name
+     * @param L lua state
+     * @param name name of the global value
+     * @return name_hash the hash of the name
+     */
+    uint32_t SetGlobal(lua_State* L, const char* name);
+
+    /**
+     * Gets the global value and puts it at top of stack
+     * @param L lua state
+     * @param name_hash the hash of the name returned by SetGlobal
+     */
+    void GetGlobal(lua_State*L, uint32_t name_hash);
 
     /**
      * Use a ScriptExtension to hook into various callbacks of the script lifetime
@@ -357,7 +373,7 @@ namespace dmScript
      * @param out_user_data Pointer to a uintptr_t to be written to
      * @return true if the user data could be found
      */
-    bool GetUserData(lua_State* L, uintptr_t* out_user_data, const char* user_type);
+    bool GetUserData(lua_State* L, uintptr_t* out_user_data, uint32_t user_type_hash);
 
 
     /**
@@ -573,26 +589,14 @@ namespace dmScript
      */
     bool ModuleLoaded(HContext context, dmhash_t path_hash);
 
-
     /**
-     * Check if the object at the given index is of the specified user type.
+     * Sets the type key in the table to the type name.
      * @param L lua state
-     * @param idx object index
-     * @param type user type
-     * @return true if the object has the specified type
+     * @param meta_table_index the stack index of the meta table
+     * @param name user type name
+     * @return type_key the hash key registered for this user type
      */
-    bool IsUserType(lua_State* L, int idx, const char* type);
-
-    /**
-     * Check if the object at the given index is of the specified user type.
-     * This might result in lua errors so it should only be called from within a lua context.
-     * @param L lua state
-     * @param idx object index
-     * @param type user type
-     * @param error_message The error message to show if the type doesn't match. Set to null to show a generic type error message.
-     * @return the object if it has the specified type, 0 otherwise
-     */
-    void* CheckUserType(lua_State* L, int idx, const char* type, const char* error_message);
+    uint32_t SetUserType(lua_State* L, int meta_table_index, const char* name);
 
     /**
      * Register a user type along with methods and meta methods.
@@ -600,8 +604,36 @@ namespace dmScript
      * @param name user type name
      * @param methods array of methods
      * @param meta array of meta methods
+     * @return type_key the hash key registered for this user type
      */
-    void RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]);
+    uint32_t RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]);
+
+    /**
+     * Gets the type key of a user datas meta table.
+     * @param L lua state
+     * @param user_data_index the stack index of the user data
+     * @return type_key the hash key for the user data meta table, 0 if type is not set
+     */
+    uint32_t GetUserType(lua_State* L, int user_data_index);
+
+    /**
+     * Validates type of user data and returns pointer to it.
+     * @param L lua state
+     * @param user_data_index the stack index of the user data
+     * @param type_hash the type of the user data we require
+     * @return pointer to the user data, 0 if the value at user_data_index is not the correct type
+     */
+    void* ToUserType(lua_State* L, int user_data_index, uint32_t type_hash);
+
+    /**
+     * Validates type of user data and returns pointer to it.
+     * @param L lua state
+     * @param user_data_index the stack index of the user data
+     * @param type_hash the type of the user data we require
+     * @param error_message luaL_error error message to output if data is not correct type, if 0 a lua typeerror is issued
+     * @return pointer to the user data, a lua error is issued if the value at user_data_index is not the correct type
+     */
+    void* CheckUserType(lua_State* L, int user_data_index, uint32_t type_hash, const char* error_message);
 
     /**
      * This function wraps lua_pcall with the addition of specifying an error handler which produces a backtrace.
@@ -667,25 +699,6 @@ namespace dmScript
      */
     bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context);
 
-    /** Information about a function, in which file and at what line it is defined
-     * Use with GetLuaFunctionRefInfo
-     */
-    struct LuaFunctionInfo
-    {
-        const char* m_FileName;
-        const char* m_OptionalName;
-        int m_LineNumber;
-    };
-
-    /**
-     * Get information about where a Lua function is defined
-     * @param L lua state
-     * @param stack_index which index on the stack that contains the lua function ref
-     * @param out_function_info pointer to the function information that is filled out
-     * @return true on success, out_function_info is only touched if the function succeeds
-     */
-    bool GetLuaFunctionRefInfo(lua_State* L, int stack_index, LuaFunctionInfo* out_function_info);
-
     /**
      * Get an integer value at a specific key in a table.
      * @param L lua state
@@ -705,7 +718,19 @@ namespace dmScript
      * @return String value at key, or the default value if not found or invalid value type.
      */
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value);
-}
 
+    /**
+     * Build a profiler function name string and calculate its hash.
+     * @param L lua state
+     * @param optional_callback_index Index of optional function ref on Lua stack - zero if no callback on stack
+     * @param source_file_name Default source file name (may be overriden by callback info)
+     * @param function_name Default function name (may be overriden by callback info)
+     * @param optional_message_name Optional message name
+     * @param out_profiler_hash Pointer to resulting string hash
+     * @return Pointer to internalized string - the string is safe to use until profiler in finalized, null if profiling is disabled
+     */
+    const char* GetProfilerString(lua_State* L, int optional_callback_index, const char* source_file_name, const char* function_name, const char* optional_message_name, uint32_t* out_profiler_hash);
+
+} // dmScript
 
 #endif // DM_SCRIPT_H
