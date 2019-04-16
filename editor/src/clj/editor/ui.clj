@@ -1,21 +1,21 @@
 (ns editor.ui
-  (:require
-   [clojure.java.io :as io]
-   [clojure.set :as set]
-   [clojure.string :as string]
-   [clojure.xml :as xml]
-   [dynamo.graph :as g]
-   [editor.error-reporting :as error-reporting]
-   [editor.handler :as handler]
-   [editor.jfx :as jfx]
-   [editor.progress :as progress]
-   [editor.math :as math]
-   [editor.menu :as menu]
-   [editor.util :as eutil]
-   [internal.util :as util]
-   [service.log :as log]
-   [service.smoke-log :as slog]
-   [util.profiler :as profiler])
+  (:require [cljfx.api :as fx]
+            [clojure.java.io :as io]
+            [clojure.set :as set]
+            [clojure.string :as string]
+            [clojure.xml :as xml]
+            [dynamo.graph :as g]
+            [editor.error-reporting :as error-reporting]
+            [editor.handler :as handler]
+            [editor.jfx :as jfx]
+            [editor.progress :as progress]
+            [editor.math :as math]
+            [editor.menu :as menu]
+            [editor.util :as eutil]
+            [internal.util :as util]
+            [service.log :as log]
+            [service.smoke-log :as slog]
+            [util.profiler :as profiler])
   (:import
    [com.defold.control LongField]
    [com.defold.control ListCell]
@@ -149,6 +149,15 @@
                         (.contains (.getStyleClass node) style-class))
                       leaf-node))
 
+(defn fx-stage [props]
+  {:fx/type fx/ext-on-instance-lifecycle
+   :on-created (fn [^Stage stage]
+                 (.addListener (.focusedProperty stage) ^ChangeListener focus-change-listener))
+   :desc (merge
+           {:fx/type :stage
+            :icons (if (eutil/is-mac-os?) [] [application-icon-image])}
+           props)})
+
 (defn make-stage
   ^Stage []
   (let [stage (Stage.)]
@@ -164,6 +173,14 @@
     (when-not (eutil/is-mac-os?)
       (.. stage getIcons (add application-icon-image)))
     stage))
+
+(defn fx-dialog-stage [props]
+  (merge
+    {:fx/type fx-stage
+     :resizable false
+     :style :decorated
+     :modality (if (contains? props :owner) :window-modal :application-modal)}
+    props))
 
 (defn make-dialog-stage
   (^Stage []

@@ -530,9 +530,8 @@
   (enabled? [debug-view prefs evaluation-context]
             (can-change-resolution? debug-view prefs evaluation-context))
   (run [project app-view prefs build-errors-view selection user-data]
-       (let [[ok width height] (dialogs/make-resolution-dialog)]
-         (when ok
-           (engine/change-resolution! (targets/selected-target prefs) width height @should-rotate-device?)))))
+       (when-let [{:keys [width height]} (dialogs/make-resolution-dialog)]
+         (engine/change-resolution! (targets/selected-target prefs) width height @should-rotate-device?))))
 
 (handler/defhandler :set-rotate-device :global
   (enabled? [] true)

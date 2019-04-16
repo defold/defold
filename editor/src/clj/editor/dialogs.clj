@@ -1,5 +1,6 @@
 (ns editor.dialogs
-  (:require [clojure.string :as str]
+  (:require [cljfx.api :as fx]
+            [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.ui :as ui]
             [editor.ui.bindings :as b]
@@ -15,19 +16,106 @@
             [editor.defold-project :as project]
             [editor.github :as github]
             [editor.field-expression :as field-expression])
-  (:import [clojure.lang Named]
+  (:import [cljfx.lifecycle Lifecycle]
+           [clojure.lang Named]
            [java.io File]
            [java.util List Collection]
+           [java.util.function UnaryOperator]
            [java.nio.file Path Paths]
+           [javafx.application Platform]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control CheckBox Button Label ListView TextArea TextField Hyperlink]
+           [javafx.scene.control CheckBox Button Label ListView TextArea TextField TextFormatter TextFormatter$Change Hyperlink]
            [javafx.scene.input KeyCode]
            [javafx.scene.layout HBox VBox Region]
            [javafx.scene.text Text TextFlow]
            [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]))
 
 (set! *warn-on-reflection* true)
+
+(def fx-ext-value
+  (reify Lifecycle
+    (create [_ desc _]
+      (:value desc))
+    (advance [_ _ desc _]
+      (:value desc))
+    (delete [_ _ _])))
+
+(defn- fx-dialog-body [{:keys [size header content footer]
+                        :or {size :small}}]
+  {:fx/type :v-box
+   :style-class ["dialog-body" (case size
+                                 :small "dialog-body-small"
+                                 :large "dialog-body-large")]
+   :children (if (some? content)
+               [{:fx/type :v-box
+                 :style-class "dialog-with-content-header"
+                 :children [header]}
+                {:fx/type :v-box
+                 :style-class "dialog-content"
+                 :children [content]}
+                {:fx/type :v-box
+                 :style-class "dialog-with-content-footer"
+                 :children [footer]}]
+               [{:fx/type :v-box
+                 :style-class "dialog-without-content-header"
+                 :children [header]}
+                {:fx/type :region :style-class "dialog-no-content"}
+                {:fx/type :v-box
+                 :style-class "dialog-without-content-footer"
+                 :children [footer]}])})
+
+(defn- fx-header [props]
+  (merge {:fx/type :label
+          :style-class "header"}
+         props))
+
+(defn- fx-button [{:keys [variant] :as props
+                   :or {variant :secondary}}]
+  (merge {:fx/type :button
+          :style-class ["button" (case variant
+                                   :primary "button-primary"
+                                   :secondary "button-secondary")]}
+         (dissoc props :variant)))
+
+(defn- fx-dialog-buttons [props]
+  (merge {:fx/type :h-box
+          :style-class ["dialog-buttons"]}
+         props))
+
+(defn- fx-two-col-input-grid-pane [props]
+  (merge {:fx/type :grid-pane
+          :style-class "input-grid"
+          :column-constraints [{:fx/type :column-constraints}
+                               {:fx/type :column-constraints
+                                :hgrow :always}]}
+         (update props :children (fn [children]
+                                   (->> children
+                                        (partition 2)
+                                        (map-indexed
+                                          (fn [row [label input]]
+                                            [(assoc label :grid-pane/column 0
+                                                          :grid-pane/row row
+                                                          :grid-pane/halignment :right)
+                                             (assoc input :grid-pane/column 1
+                                                          :grid-pane/row row)]))
+                                        (mapcat identity))))))
+
+(defn- fx-text-field [{:keys [variant] :as props
+                       :or {variant :default}}]
+  (merge {:fx/type :text-field
+          :style-class ["text-field" (case variant
+                                       :default "text-field-default"
+                                       :error "text-field-error")]}
+         (dissoc props :variant)))
+
+(defn- numbers-only-text-formatter []
+  (TextFormatter.
+    (reify UnaryOperator
+      (apply [_ change]
+        (let [^TextFormatter$Change change change]
+          (when (some? (re-find #"^\d*$" (.getControlNewText change)))
+            change))))))
 
 (defn ^:dynamic make-alert-dialog [text]
   (let [root ^Parent (ui/load-fxml "alert.fxml")
@@ -165,42 +253,74 @@
      (ui/show-and-wait! stage)
      @result-atom)))
 
+(defn fx-resolution-dialog [{:keys [width height showing owner]}]
+  {:fx/type ui/fx-dialog-stage
+   :showing showing
+   :owner {:fx/type fx-ext-value :value owner}
+   :on-close-request {:event-type :cancel}
+   :title "Set Custom Resolution"
+   :scene {:fx/type :scene
+           :stylesheets ["dialogs.css"]
+           :root {:fx/type fx-dialog-body
+                  :header {:fx/type fx-two-col-input-grid-pane
+                           :children [{:fx/type :label
+                                       :text "Width"}
+                                      {:fx/type fx-text-field
+                                       :variant (if (nil? width) :error :default)
+                                       :text (str width)
+                                       :text-formatter (numbers-only-text-formatter)
+                                       :on-text-changed {:event-type :set-width}}
+                                      {:fx/type :label
+                                       :text "Height"}
+                                      {:fx/type fx-text-field
+                                       :variant (if (nil? height) :error :default)
+                                       :text (str height)
+                                       :text-formatter (numbers-only-text-formatter)
+                                       :on-text-changed {:event-type :set-height}}]}
+                  :footer {:fx/type fx-dialog-buttons
+                           :children [{:fx/type fx-button
+                                       :cancel-button true
+                                       :on-action {:event-type :cancel}
+                                       :text "Cancel"}
+                                      {:fx/type fx-button
+                                       :variant :primary
+                                       :disable (or (nil? width) (nil? height))
+                                       :default-button true
+                                       :text "Set resolution"
+                                       :on-action {:event-type :confirm}}]}}}})
+
+(defn- mount-renderer-and-wait [state-atom renderer result-promise]
+  (let [event-loop-key (Object.)]
+    (future
+      (let [result @result-promise]
+        (fx/on-fx-thread
+          (Platform/exitNestedEventLoop event-loop-key result))))
+    (fx/mount-renderer state-atom renderer)
+    (Platform/enterNestedEventLoop event-loop-key)))
+
 (defn make-resolution-dialog []
-  (let [root     ^Region (ui/load-fxml "resolution.fxml")
-        stage    (ui/make-dialog-stage)
-        scene    (Scene. root)
-        result   (atom false)
-        width    (atom 320)
-        height   (atom 420)]
-    (ui/with-controls root [^TextField resolution-width ^TextField resolution-height ^Button ok ^Button cancel]
-      (let [validate-size-element (fn [^TextField element]
-                                    (let [value (field-expression/to-int (.getText element))
-                                          valid? (and (some? value) (> value 0))]
-                                      (if valid?
-                                        (ui/remove-style! element "error")
-                                        (ui/add-style! element "error"))
-                                      valid?))
-            do-validation (fn []
-                            (let [width-valid (validate-size-element resolution-width)
-                                  height-valid (validate-size-element resolution-height)
-                                  valid? (and width-valid height-valid)]
-                              (ui/enable! ok valid?)
-                              valid?))]
-        (ui/on-edit! resolution-width (fn [_old _new] (do-validation)))
-        (ui/on-edit! resolution-height (fn [_old _new] (do-validation))))
-      (ui/on-action! ok (fn [_]
-                          (let [w (field-expression/to-int (.getText resolution-width))
-                                h (field-expression/to-int (.getText resolution-height))]
-                            (reset! width w)
-                            (reset! height h)
-                            (reset! result true)
-                            (.close stage))))
-      (ui/on-action! cancel (fn [_]
-                              (.close stage))))
-    (ui/title! stage "Custom resolution")
-    (.setScene stage scene)
-    (ui/show-and-wait! stage)
-  [@result @width @height]))
+  (let [state-atom (atom {:width 320
+                          :height 420
+                          :showing true
+                          :owner (ui/main-stage)})
+        result-promise (promise)
+        renderer (fx/create-renderer
+                   :opts {:fx.opt/map-event-handler
+                          (-> (fn [{:keys [fx/event state event-type]}]
+                                (case event-type
+                                  :set-width {:state (assoc state :width (field-expression/to-int event))}
+                                  :set-height {:state (assoc state :height (field-expression/to-int event))}
+                                  :cancel {:state (assoc state :showing false)
+                                           :result nil}
+                                  :confirm {:state (assoc state :showing false)
+                                            :result (select-keys state [:width :height])}))
+                              (fx/wrap-co-effects
+                                {:state (fx/make-deref-co-effect state-atom)})
+                              (fx/wrap-effects
+                                {:state (fx/make-reset-effect state-atom)
+                                 :result (fn [v _] (deliver result-promise v))}))}
+                   :middleware (fx/wrap-map-desc assoc :fx/type fx-resolution-dialog))]
+    (mount-renderer-and-wait state-atom renderer result-promise)))
 
 (defn make-update-failed-dialog [^Stage owner]
   (let [root ^Parent (ui/load-fxml "update-failed-alert.fxml")
