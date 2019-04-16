@@ -2,6 +2,7 @@
 #include "macos_events.h"
 #include <assert.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
@@ -23,6 +24,14 @@
 #include <dlib/safe_windows.h>
 #endif
 
+#ifdef __MACH__
+#include <sys/sysctl.h>
+#endif
+
+#ifdef __linux__
+#include <sys/sysinfo.h>
+#endif
+
 // bootstrap.resourcespath must default to resourcespath of the installation
 #define RESOURCES_PATH_KEY ("bootstrap.resourcespath")
 #define LAUNCHER_PATH_KEY ("bootstrap.launcherpath")
@@ -41,6 +50,35 @@ static int setenv(const char *name, const char *value, int overwrite)
   }
 }
 #endif
+
+// We want to set the Xmx parameter of the JVM to 75% of the system physical
+// memory to support large projects. Default is 25%. This parameter has to be
+// set at start so we need to find out the amount of memory here in the
+// launcher.
+static uint64_t GetTotalRAM() {
+  uint64_t value = 0;
+#if defined(__MACH__)
+  int mib [] = { CTL_HW, HW_MEMSIZE };
+  size_t length = sizeof(value);
+  sysctl(mib, 2, &value, &length, NULL, 0);
+#elif defined(_WIN32)
+  MEMORYSTATUSEX memstat;
+  memstat.dwLength = sizeof(MEMORYSTATUSEX);
+  GlobalMemoryStatusEx(&memstat);
+  value = memstat.ullTotalPhys;
+#elif defined(__linux__)
+  struct sysinfo sinfo;
+  sysinfo(&sinfo);
+  value = sinfo.totalram;
+#endif
+  return value;
+}
+
+static uint64_t GetThreeQuartersRAM() {
+  double d_total_ram = (double)GetTotalRAM();
+  double d_seventyfive_percent_ram = 0.75 * d_total_ram;
+  return (uint64_t)d_seventyfive_percent_ram;;
+}
 
 struct ReplaceContext
 {
@@ -184,6 +222,10 @@ int Launch(int argc, char **argv) {
         args[i++] = s;
         s = dmStrTok(0, ",", &last);
     }
+
+    char ram_str_buf[100];
+    sprintf(ram_str_buf, "-Xmx%" PRIu64, GetThreeQuartersRAM());
+    args[i++] = ram_str_buf;
 
     args[i++] = (char*) main;
 #if defined(__MACH__)
