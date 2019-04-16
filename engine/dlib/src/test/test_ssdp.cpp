@@ -1,14 +1,17 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 #include <string>
 #include <map>
-#include <gtest/gtest.h>
 #include "../dlib/ssdp.h"
 #include "../dlib/time.h"
 #include "../dlib/log.h"
 #include "../dlib/dstrings.h"
 #include "../dlib/hash.h"
 #include "../dlib/socket.h"
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 static const char* DEVICE_DESC_STATIC =
     "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
@@ -69,7 +72,7 @@ void WaitPackage()
     dmTime::Sleep(50 * 1000);
 }
 
-class dmSSDPTest: public ::testing::Test
+class dmSSDPTest: public jc_test_base_class
 {
 public:
     std::map<dmhash_t, dmSSDP::HDevice> m_ServerDevices;
@@ -427,8 +430,8 @@ int main(int argc, char **argv)
     srand(time(NULL));
     dmLogSetlevel(DM_LOG_SEVERITY_DEBUG);
     dmSocket::Initialize();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = jc_test_run_all();
     dmSocket::Finalize();
     return ret;
 }

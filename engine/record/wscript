@@ -24,7 +24,6 @@ def configure(conf):
     conf.sub_config('src')
 
     conf.env.append_value('CPPPATH', "default/src")
-    conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['LIB_VPX'] = 'vpx'
 
@@ -39,4 +38,4 @@ import os, subprocess
 def shutdown():
     if not Options.commands['build']:
         return
-    waf_dynamo.run_gtests(valgrind = True)
+    waf_dynamo.run_tests(valgrind = True)
