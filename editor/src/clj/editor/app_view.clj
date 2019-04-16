@@ -370,7 +370,8 @@
 
 (defn restore-window-dimensions [^Stage stage prefs]
   (when-let [dims (prefs/get-prefs prefs prefs-window-dimensions nil)]
-    (let [{:keys [x y width height maximized full-screen]} dims]
+    (let [{:keys [x y width height maximized full-screen]} dims
+          maximized (and maximized (not system/mac?))] ; Maximized is not really a thing on macOS, and if set, cannot become false.
       (when (and (number? x) (number? y) (number? width) (number? height))
         (when-let [_ (seq (Screen/getScreensForRectangle x y width height))]
           (doto stage
