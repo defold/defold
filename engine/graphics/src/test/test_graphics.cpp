@@ -1,5 +1,6 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 #include <dlib/log.h>
 
@@ -13,7 +14,7 @@
 
 using namespace Vectormath::Aos;
 
-class dmGraphicsTest : public ::testing::Test
+class dmGraphicsTest : public jc_test_base_class
 {
 protected:
     struct ResizeData
@@ -442,7 +443,7 @@ TEST_F(dmGraphicsTest, TestSetTextureBounds)
     params.m_Y         = HEIGHT / 2;
 
     dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
-    ASSERT_DEATH_IF_SUPPORTED(dmGraphics::SetTexture(texture, params),"");
+    ASSERT_DEATH(dmGraphics::SetTexture(texture, params),"");
 
     delete [] (char*)params.m_Data;
 
@@ -453,7 +454,7 @@ TEST_F(dmGraphicsTest, TestSetTextureBounds)
     params.m_DataSize  = params.m_Width * params.m_Height;
     params.m_Data      = new char[params.m_DataSize];
 
-    ASSERT_DEATH_IF_SUPPORTED(dmGraphics::SetTexture(texture, params),"");
+    ASSERT_DEATH(dmGraphics::SetTexture(texture, params),"");
 
     delete [] (char*)params.m_Data;
 
@@ -669,6 +670,6 @@ TEST_F(dmGraphicsTest, TestTextureFormatBPP)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

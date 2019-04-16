@@ -1,11 +1,13 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/hash.h>
 #include <dlib/math.h>
 
 #include <script/script.h>
+#include <algorithm> // std::stable_sort
 
 #include "render/render.h"
 #include "render/render_private.h"
@@ -16,7 +18,7 @@ const static uint32_t HEIGHT = 400;
 
 using namespace Vectormath::Aos;
 
-class dmRenderTest : public ::testing::Test
+class dmRenderTest : public jc_test_base_class
 {
 protected:
     dmRender::HRenderContext m_Context;
@@ -722,6 +724,6 @@ TEST_F(dmRenderTest, FindRanges)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }
