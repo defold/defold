@@ -66,6 +66,7 @@
 *  Includes
 **************************************/
 #include "lz4.h"
+#include <dmsdk/dlib/shared_library.h>
 
 
 /**************************************

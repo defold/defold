@@ -334,7 +334,7 @@ def build(bld):
     def new_test(dir, exts = ['.cpp', '.proto', '.go_pb', '.script']):
         test_task_gen = bld.new_task_gen(features = 'cxx cprogram test',
                                          includes = '../../../src . .. ../../../proto',
-                                         uselib = 'GTEST RESOURCE DDF PLATFORM_SOCKET PLATFORM_THREAD SCRIPT LUA EXTENSION DLIB RIG',
+                                         uselib = 'RESOURCE DDF PLATFORM_SOCKET PLATFORM_THREAD SCRIPT LUA EXTENSION DLIB RIG',
                                          uselib_local = 'gameobject',
                                          proto_gen_py = True,
                                          target = '%s/test_gameobject_%s' % (dir, dir))

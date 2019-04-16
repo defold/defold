@@ -1,5 +1,6 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include "render/render.h"
@@ -24,7 +25,7 @@ namespace
     }
 }
 
-class dmRenderScriptTest : public ::testing::Test
+class dmRenderScriptTest : public jc_test_base_class
 {
 protected:
     dmScript::HContext m_ScriptContext;
@@ -1015,6 +1016,6 @@ TEST_F(dmRenderScriptTest, DeltaTime)
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }
