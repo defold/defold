@@ -4,7 +4,7 @@ from TaskGen import extension, declare_extension
 def build(bld):
     test_hid = bld.new_task_gen(features = 'cxx cprogram test',
                                 includes = '../../../src .',
-                                uselib = 'GTEST DLIB PLATFORM_SOCKET LUA SCRIPT',
+                                uselib = 'DLIB PLATFORM_SOCKET LUA SCRIPT',
                                 uselib_local = 'hid_null',
                                 target = 'test_hid',
                                 source = 'test_hid.cpp')

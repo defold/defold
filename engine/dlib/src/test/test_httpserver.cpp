@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <map>
 #include <string>
-#include <gtest/gtest.h>
 #include "../dlib/time.h"
 #include "../dlib/socket.h"
 #include "../dlib/math.h"
@@ -14,7 +13,10 @@
 #include "../dlib/hash.h"
 #include "../dlib/network_constants.h"
 
-class dmHttpServerTest: public ::testing::Test
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+
+class dmHttpServerTest: public jc_test_base_class
 {
 public:
     dmHttpServer::HServer m_Server;
@@ -159,7 +161,7 @@ public:
     }
 };
 
-class dmHttpServerParserTest: public ::testing::Test
+class dmHttpServerParserTest: public jc_test_base_class
 {
 public:
     std::map<std::string, std::string> m_Headers;
@@ -333,8 +335,8 @@ int main(int argc, char **argv)
 {
     dmDNS::Initialize();
     dmSocket::Initialize();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = jc_test_run_all();
     dmSocket::Finalize();
     dmDNS::Finalize();
     return ret;
