@@ -26,6 +26,7 @@ class dmHttpClientTest: public ::testing::TestWithParam<const char*>
 {
 public:
     dmHttpClient::HClient m_Client;
+    dmDNS::HChannel m_DNSChannel;
     std::map<std::string, std::string> m_Headers;
     std::string m_Content;
     std::string m_ToPost;
@@ -106,6 +107,7 @@ public:
 #endif
         ASSERT_EQ(0, ret);
 
+        dmDNS::NewChannel(&m_DNSChannel);
         dmHttpClient::NewParams params;
         params.m_Userdata = this;
         params.m_HttpContent = dmHttpClientTest::HttpContent;
@@ -113,6 +115,7 @@ public:
         params.m_HttpSendContentLength = dmHttpClientTest::HttpSendContentLength;
         params.m_HttpWrite = dmHttpClientTest::HttpWrite;
         params.m_HttpWriteHeaders = dmHttpClientTest::HttpWriteHeaders;
+        params.m_DNSChannel = m_DNSChannel;
         bool secure = strcmp(m_URI.m_Scheme, "https") == 0;
         m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, secure);
         ASSERT_NE((void*) 0, m_Client);
@@ -125,6 +128,7 @@ public:
     {
         if (m_Client)
             dmHttpClient::Delete(m_Client);
+        dmDNS::DeleteChannel(m_DNSChannel);
     }
 };
 
@@ -358,20 +362,24 @@ struct HttpStressHelper
     int m_StatusCode;
     std::string m_Content;
     dmHttpClient::HClient m_Client;
+    dmDNS::HChannel m_DNSChannel;
 
     HttpStressHelper(const dmURI::Parts& uri)
     {
         bool secure = strcmp(uri.m_Scheme, "https") == 0;
         m_StatusCode = 0;
+        dmDNS::NewChannel(&m_DNSChannel);
         dmHttpClient::NewParams params;
         params.m_Userdata = this;
         params.m_HttpContent = HttpStressHelper::HttpContent;
+        params.m_DNSChannel = m_DNSChannel;
         m_Client = dmHttpClient::New(&params, uri.m_Hostname, uri.m_Port, secure);
     }
 
     ~HttpStressHelper()
     {
         dmHttpClient::Delete(m_Client);
+        dmDNS::DeleteChannel(m_DNSChannel);
     }
 
     static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
@@ -696,6 +704,7 @@ TEST_P(dmHttpClientTest, Cache)
     params.m_Userdata = this;
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+    params.m_DNSChannel = m_DNSChannel;
     dmHttpCache::NewParams cache_params;
     cache_params.m_Path = "tmp/cache";
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
@@ -738,6 +747,7 @@ TEST_P(dmHttpClientTest, MaxAgeCache)
     params.m_Userdata = this;
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+    params.m_DNSChannel = m_DNSChannel;
     dmHttpCache::NewParams cache_params;
     cache_params.m_Path = "tmp/cache";
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
@@ -846,6 +856,7 @@ TEST_P(dmHttpClientTestCache, DirectFromCache)
     params.m_Userdata = this;
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+    params.m_DNSChannel = m_DNSChannel;
     dmHttpCache::NewParams cache_params;
     cache_params.m_Path = "tmp/cache";
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
@@ -886,6 +897,7 @@ TEST_P(dmHttpClientTestCache, TrustCacheNoValidate)
     params.m_Userdata = this;
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+    params.m_DNSChannel = m_DNSChannel;
     dmHttpCache::NewParams cache_params;
     cache_params.m_Path = "tmp/cache";
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
@@ -922,6 +934,7 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     params.m_Userdata = this;
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+    params.m_DNSChannel = m_DNSChannel;
     dmHttpCache::NewParams cache_params;
     cache_params.m_Path = "tmp/cache";
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
@@ -942,7 +955,7 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     ASSERT_NE((void*) 0, m_Client);
 
 
-    dmHttpCacheVerify::Result verify_r = dmHttpCacheVerify::VerifyCache(params.m_HttpCache, &m_URI, 60 * 60 * 24 * 5);
+    dmHttpCacheVerify::Result verify_r = dmHttpCacheVerify::VerifyCache(params.m_HttpCache, &m_URI, m_DNSChannel, 60 * 60 * 24 * 5);
     ASSERT_EQ(dmHttpCacheVerify::RESULT_OK, verify_r);
 
     // Change consistency police to "trust-cache". After the first four files are files should be directly retrieved from the cache.
@@ -1004,19 +1017,23 @@ INSTANTIATE_TEST_CASE_P(dmHttpClientTestCache,
 TEST(dmHttpClient, HostNotFound)
 {
     dmHttpClient::NewParams params;
+    dmDNS::NewChannel(&params.m_DNSChannel);
     dmHttpClient::HClient client = dmHttpClient::New(&params, "host_not_found", g_HttpPort);
     ASSERT_EQ((void*) 0, client);
+    dmDNS::DeleteChannel(params.m_DNSChannel);
 }
 
 TEST(dmHttpClient, ConnectionRefused)
 {
     dmHttpClient::NewParams params;
+    dmDNS::NewChannel(&params.m_DNSChannel);
     dmHttpClient::HClient client = dmHttpClient::New(&params, "localhost", 9999);
     ASSERT_NE((void*) 0, client);
     dmHttpClient::Result r = dmHttpClient::Get(client, "");
     ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, dmHttpClient::GetLastSocketResult(client));
     dmHttpClient::Delete(client);
+    dmDNS::DeleteChannel(params.m_DNSChannel);
 }
 
 static void Usage()
@@ -1047,9 +1064,11 @@ int main(int argc, char **argv)
     }
 
     dmLogSetlevel(DM_LOG_SEVERITY_INFO);
+    dmDNS::Initialize();
     dmSocket::Initialize();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
     dmSocket::Finalize();
+    dmDNS::Finalize();
     return ret;
 }
