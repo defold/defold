@@ -498,6 +498,7 @@ namespace dmConfigFile
         params.m_Userdata = &context;
         params.m_HttpContent = &HttpContent;
         params.m_HttpHeader = &HttpHeader;
+        dmDNS::NewChannel(&params.m_DNSChannel);
         dmHttpClient::HClient client = dmHttpClient::New(&params, uri_parts.m_Hostname, uri_parts.m_Port, strcmp(uri_parts.m_Scheme, "https") == 0);
         if (client == 0x0)
         {
@@ -511,6 +512,7 @@ namespace dmConfigFile
             return RESULT_FILE_NOT_FOUND;
         }
         dmHttpClient::Delete(client);
+        dmDNS::DeleteChannel(params.m_DNSChannel);
 
         Result r = LoadFromBufferInternal(url, (const char*) &context.m_Buffer.Front(), context.m_Buffer.Size(), argc, argv, config);
         return r;
