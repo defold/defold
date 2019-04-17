@@ -5,6 +5,7 @@ $light-grey-darker: derive($light-grey, -20%);
 
 $blue: #5BC0FF;
 $blue-lighter: derive($blue, 20%);
+$blue-lightest: derive($blue, 40%);
 
 $orange: #fa6731;
 
@@ -15,7 +16,7 @@ $dark-grey-darker: derive($dark-grey, -40%);
 $dark-grey-darkest: derive($dark-grey, -60%);
 
 $red: #e32f44;
-$red-darker: derive($red, -40%);
+$red-darker: #6b2f34; //derive($red, -40%);
 
 @font-face {
   font-family: 'Source Sans Pro';
@@ -73,12 +74,17 @@ $spacing-largest: 40px;
   -fx-background-color: transparent;
   -fx-padding: 6px 12px;
   &:hover {
-    -fx-background-color: rgba(255,255,255,0.04);
+    -fx-background-color: rgba(255, 255, 255, 0.04);
+  }
+  &:focused {
+    -fx-background-color: rgba(255, 255, 255, 0.04);
   }
   &:armed {
     -fx-background-color: transparent;
   }
   &:disabled {
+    -fx-text-fill: $light-grey;
+    -fx-border-color: $light-grey-darker;
     -fx-opacity: 0.4;
   }
 }
@@ -89,11 +95,20 @@ $spacing-largest: 40px;
     -fx-text-fill: $blue-lighter;
     -fx-border-color: $blue-lighter;
   }
+
+  &:focused {
+    -fx-text-fill: $blue-lighter;
+    -fx-border-color: $blue-lightest;
+  }
 }
 .button-secondary {
   -fx-text-fill: $light-grey;
   -fx-border-color: $light-grey-darker;
   &:hover {
+    -fx-text-fill: $light-grey-lighter;
+  }
+  &:focused {
+    -fx-border-color: $light-grey;
     -fx-text-fill: $light-grey-lighter;
   }
 }
@@ -133,7 +148,7 @@ $spacing-largest: 40px;
   -fx-padding: 4px 8px;
   -fx-background-color: $dark-grey-darker;
   -fx-border-width: 1px;
-  -fx-text-fill: $light-grey-lighter;
+  -fx-text-fill: $light-grey-lightest;
   -fx-prompt-text-fill: #54585e;
   &:focused {
     -fx-border-width: 1px 1px 2px 1px;

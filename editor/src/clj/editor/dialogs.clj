@@ -20,26 +20,17 @@
   (:import [clojure.lang Named]
            [java.io File]
            [java.util List Collection]
-           [java.util.function UnaryOperator]
            [java.nio.file Path Paths]
            [javafx.application Platform]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control CheckBox Button Label ListView TextArea TextField TextFormatter TextFormatter$Change Hyperlink]
+           [javafx.scene.control CheckBox Button Label ListView TextArea TextField Hyperlink]
            [javafx.scene.input KeyCode]
            [javafx.scene.layout HBox VBox Region]
            [javafx.scene.text Text TextFlow]
            [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]))
 
 (set! *warn-on-reflection* true)
-
-(defn- numbers-only-text-formatter []
-  (TextFormatter.
-    (reify UnaryOperator
-      (apply [_ change]
-        (let [^TextFormatter$Change change change]
-          (when (some? (re-find #"^\d*$" (.getControlNewText change)))
-            change))))))
 
 (defn ^:dynamic make-alert-dialog [text]
   (let [root ^Parent (ui/load-fxml "alert.fxml")
@@ -186,21 +177,21 @@
    :scene {:fx/type :scene
            :stylesheets ["dialogs.css"]
            :root {:fx/type fxui/dialog-body
-                  :header {:fx/type fxui/two-col-input-grid-pane
-                           :children [{:fx/type :label
-                                       :text "Width"}
-                                      {:fx/type fxui/text-field
-                                       :variant (if (nil? width) :error :default)
-                                       :text (str width)
-                                       :text-formatter (numbers-only-text-formatter)
-                                       :on-text-changed {:event-type :set-width}}
-                                      {:fx/type :label
-                                       :text "Height"}
-                                      {:fx/type fxui/text-field
-                                       :variant (if (nil? height) :error :default)
-                                       :text (str height)
-                                       :text-formatter (numbers-only-text-formatter)
-                                       :on-text-changed {:event-type :set-height}}]}
+                  :header {:fx/type fxui/header
+                           :text "Set Custom Resolution"}
+                  :content {:fx/type fxui/two-col-input-grid-pane
+                            :children [{:fx/type :label
+                                        :text "Width"}
+                                       {:fx/type fxui/text-field
+                                        :variant (if (nil? width) :error :default)
+                                        :text (str width)
+                                        :on-text-changed {:event-type :set-width}}
+                                       {:fx/type :label
+                                        :text "Height"}
+                                       {:fx/type fxui/text-field
+                                        :variant (if (nil? height) :error :default)
+                                        :text (str height)
+                                        :on-text-changed {:event-type :set-height}}]}
                   :footer {:fx/type fxui/dialog-buttons
                            :children [{:fx/type fxui/button
                                        :cancel-button true
@@ -210,7 +201,7 @@
                                        :variant :primary
                                        :disable (or (nil? width) (nil? height))
                                        :default-button true
-                                       :text "Set resolution"
+                                       :text "Set Resolution"
                                        :on-action {:event-type :confirm}}]}}}})
 
 (defn- mount-renderer-and-wait [state-atom renderer result-promise]
