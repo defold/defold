@@ -15,7 +15,8 @@ namespace dmDNS
         RESULT_OK             = 0,
         RESULT_INIT_ERROR     = -1,
         RESULT_HOST_NOT_FOUND = -2,
-        RESULT_UNKNOWN_ERROR  = -3
+        RESULT_CANCELLED      = -3,
+        RESULT_UNKNOWN_ERROR  = -4
     };
 
 	Result Initialize();
