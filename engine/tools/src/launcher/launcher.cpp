@@ -74,10 +74,15 @@ static uint64_t GetTotalRAM() {
   return value;
 }
 
-static uint64_t GetThreeQuartersRAM() {
+static void GetThreeQuartersRAMStr(char* buf) {
+#if defined(_WIN32)
+  const char* fmt = "-Xmx%I64u";
+#else
+  const char* fmt = "-Xmx%" PRIu64;
+#endif
   double d_total_ram = (double)GetTotalRAM();
   double d_seventyfive_percent_ram = 0.75 * d_total_ram;
-  return (uint64_t)d_seventyfive_percent_ram;;
+  sprintf(buf, fmt, (uint64_t)d_seventyfive_percent_ram);
 }
 
 struct ReplaceContext
@@ -224,7 +229,7 @@ int Launch(int argc, char **argv) {
     }
 
     char ram_str_buf[100];
-    sprintf(ram_str_buf, "-Xmx%" PRIu64, GetThreeQuartersRAM());
+    GetThreeQuartersRAMStr(ram_str_buf);
     args[i++] = ram_str_buf;
 
     args[i++] = (char*) main;
