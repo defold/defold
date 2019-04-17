@@ -1397,14 +1397,18 @@ If you do not specifically require different script states, consider changing th
     (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)
     (let [close-handler (.getOnClosed tab)]
-      (.setOnClosed tab (ui/event-handler
-                         event
-                         (doto tab
-                           (ui/user-data! ::view-type nil)
-                           (ui/user-data! ::view nil))
-                         (g/delete-graph! view-graph)
-                         (when close-handler
-                           (.handle close-handler event)))))
+      (.setOnClosed tab (ui/event-handler event
+                          ;; The menu refresh can occur after the view graph is
+                          ;; deleted but before the tab controls lose input
+                          ;; focus, causing handlers to evaluate against deleted
+                          ;; graph nodes. Using run-later here prevents this.
+                          (ui/run-later
+                            (doto tab
+                              (ui/user-data! ::view-type nil)
+                              (ui/user-data! ::view nil))
+                            (g/delete-graph! view-graph))
+                          (when close-handler
+                            (.handle close-handler event)))))
     tab))
 
 (defn- substitute-args [tmpl args]
