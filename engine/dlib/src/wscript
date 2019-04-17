@@ -184,13 +184,18 @@ def build(bld):
         dlib_noasan.source.remove(os.path.join('dlib', 'socket_null.cpp'))
 
     if bld.env['PLATFORM'] != 'as3-web':
+
+        uselib = ['UUID', 'PLATFORM_SOCKET']
+        if not 'web' in bld.env['PLATFORM']:
+            uselib.append("CARES")
+
         dlib = bld.new_task_gen(features = 'cc cxx cshlib skip_asan',
                                 includes = '.',
                                 add_objects = local_objs,
                                 uselib_local = 'axtls_noasan',
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
-                                uselib = 'UUID PLATFORM_SOCKET CARES')
+                                uselib = uselib)
 
         if bld.env.PLATFORM == "arm64-darwin" or bld.env.PLATFORM == "armv7-darwin":
             dlib.env.append_value('LINKFLAGS', ['-l', 'resolv'])
