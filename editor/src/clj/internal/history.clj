@@ -219,16 +219,24 @@
        :history altered-history
        :outputs-to-refresh (set/union rewound-outputs altered-outputs)})))
 
+(defn reset [history basis history-entry-index]
+  (let [{:keys [context-after context-before]} (history history-entry-index)]
+    (assoc (rewind-history history basis history-entry-index)
+      :context-after context-after
+      :context-before context-before)))
+
 (defn cancel [history basis sequence-label]
   (assert (some? sequence-label))
   (when (= sequence-label (history-sequence-label history))
     (let [history-length (count history)]
-      (rewind-history history basis (- history-length 2)))))
+      (reset history basis (- history-length 2)))))
 
 (defn first-undoable [history context-pred]
   (when-some [[history-entry-index undo-group] (first (find-undoable-entry history context-pred))]
-    [history-entry-index undo-group (:context-after (history history-entry-index))]))
+    (let [{:keys [context-after context-before]} (history history-entry-index)]
+      [history-entry-index undo-group context-after context-before])))
 
 (defn first-redoable [history context-pred]
   (when-some [[history-entry-index undo-group] (first (find-redoable-entry history context-pred))]
-    [history-entry-index undo-group (:context-before (history history-entry-index))]))
+    (let [{:keys [context-after context-before]} (history history-entry-index)]
+      [history-entry-index undo-group context-before context-after])))

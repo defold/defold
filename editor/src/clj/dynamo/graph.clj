@@ -816,9 +816,6 @@
   ([node-id output evaluation-context]
    (get (:initial-invalidate-counters evaluation-context) [node-id output])))
 
-(defn- do-node-value [node-id label evaluation-context]
-  (is/node-value @*the-system* node-id label evaluation-context))
-
 (defn node-value
   "Pull a value from a node's output, property or input, identified by `label`.
   The value may be cached or it may be computed on demand. This is
@@ -839,9 +836,9 @@
   `(node-value node-id :chained-output)`"
   ([node-id label]
    (with-auto-evaluation-context evaluation-context
-     (do-node-value node-id label evaluation-context)))
+     (is/node-value node-id label evaluation-context)))
   ([node-id label evaluation-context]
-   (do-node-value node-id label evaluation-context)))
+   (is/node-value node-id label evaluation-context)))
 
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.
@@ -1235,7 +1232,7 @@
   [& {:keys [history volatility] :or {history false volatility 0}}]
   (let [g (assoc (ig/empty-graph) :_volatility volatility)
         s (swap! *the-system* (if history is/attach-graph-with-history is/attach-graph) g)]
-    (:last-graph s)))
+    (is/last-graph s)))
 
 (defn last-graph-added
   "Retuns the last graph added to the system"
@@ -1286,13 +1283,12 @@
                   system (is/update-cache-from-evaluation-context system evaluation-context)]
               [system history history-context-controller context-pred])))
 
-        [history-entry-index undo-group history-context]
+        [history-entry-index undo-group pre-alteration-context post-alteration-context]
         (alteration-fn history context-pred)
 
         drastic-view-change?
-        (when (some? history-context)
-          (gt/restore-history-context! history-context-controller history-context))]
-
+        (and (some? pre-alteration-context)
+             (gt/restore-history-context! history-context-controller pre-alteration-context))]
     (when-not drastic-view-change?
       (swap! *the-system* is/alter-history graph-id
              (fn [system basis history]
@@ -1300,7 +1296,8 @@
                      node-id-generators (is/id-generators system)
                      override-id-generator (is/override-id-generator system)]
                  (history/alter history basis alterations node-id-generators override-id-generator))))
-      nil)))
+      (when (some? post-alteration-context)
+        (gt/restore-history-context! history-context-controller post-alteration-context)))))
 
 (defn undo!
   "Undoes the last performed action."
@@ -1335,6 +1332,14 @@
            (let [graph (is/graph system graph-id)
                  cleared-history (history/make graph history-label)]
              (assoc-in system [:history graph-id] cleared-history)))))
+
+(defn reset-history!
+  "Resets history to the specified history entry index, permanently destroying
+  any undo / redo steps after that point."
+  [graph-id history-entry-index]
+  (swap! *the-system* is/alter-history graph-id
+         (fn [_system basis history]
+           (history/reset history basis history-entry-index))))
 
 (defn cancel!
   "Given a `graph-id` and a `sequence-id` _cancels_ any sequence of undos on the

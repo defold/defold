@@ -122,24 +122,21 @@
   [system graph-id override-key]
   (id-gen/claim-override-id! (override-id-generator system) graph-id override-key))
 
-(defn- attach-graph*
-  [system graph-id graph]
-  (-> system
-      (assoc :last-graph graph-id)
-      (assoc-in [:id-generators graph-id] (id-gen/make-id-generator))
-      (assoc-in [:graphs graph-id] (assoc graph :_graph-id graph-id))))
-
 (defn attach-graph
-  [system graph]
-  (let [graph-id (next-available-graph-id system)]
-    (attach-graph* system graph-id graph)))
+  [system new-graph]
+  (let [graph-id (next-available-graph-id system)
+        graph (assoc new-graph :_graph-id graph-id)]
+    (-> system
+        (assoc :last-graph graph-id)
+        (assoc-in [:id-generators graph-id] (id-gen/make-id-generator))
+        (assoc-in [:graphs graph-id] graph))))
 
 (defn attach-graph-with-history
-  [system graph]
-  (let [graph-id (next-available-graph-id system)]
-    (-> system
-        (attach-graph* graph-id graph)
-        (assoc-in [:history graph-id] (history/make graph "Genesis")))))
+  [system new-graph]
+  (let [system (attach-graph system new-graph)
+        graph-id (last-graph system)
+        graph (graph system graph-id)]
+    (assoc-in system [:history graph-id] (history/make graph "Genesis"))))
 
 (defn detach-graph
   [system graph]
@@ -317,7 +314,7 @@
   cache, then return that value. Otherwise, produce the value by
   gathering inputs to call a production function, invoke the function,
   maybe cache the value that was produced, and return it."
-  [system node-id label evaluation-context]
+  [node-id label evaluation-context]
   (in/node-value node-id label evaluation-context))
 
 (defn user-data [system node-id key]

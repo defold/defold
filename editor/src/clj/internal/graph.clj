@@ -363,6 +363,7 @@
 (defn graph?
   [value]
   (and (map? value)
+       (gt/graph-id? (:_graph-id value))
        (map? (:nodes value))
        (map? (:sarcs value))
        (map? (:successors value))
@@ -975,8 +976,7 @@
 
   (connected?
     [this source-id source-label target-id target-label]
-    (let [source-graph (node-id->graph this source-id)
-          targets (gt/targets this source-id source-label)]
+    (let [targets (gt/targets this source-id source-label)]
       (some #{[target-id target-label]} targets)))
 
   (dependencies
@@ -1014,12 +1014,14 @@
   ;; NOTE: This was originally written in a simpler way. This longer-form
   ;; implementation is optimized in order to solve performance issues in graphs
   ;; with a large number of connections.
+  (assert (gt/basis? basis))
+  (assert (graph? graph-state))
   (let [graph-id (:_graph-id graph-state)
         graphs (:graphs basis)
         other-graphs (dissoc graphs graph-id)
         old-sarcs (get graph-state :sarcs)
         arc-to-graph? #(= graph-id (gt/node-id->graph-id (.target-id ^Arc %)))
-        valid-arc-from-graph? (partial valid-arc-from-graph? basis graph-id)
+        valid-arc-from-graph? (partial valid-arc-from-graph? graph-id graph-state)
 
         ;; Create a sarcs-like map structure containing just the Arcs that
         ;; connect nodes in our graph to nodes in other graphs. Use the tarcs

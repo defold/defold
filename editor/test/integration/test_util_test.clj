@@ -1,7 +1,9 @@
 (ns integration.test-util-test
   (:require [clojure.test :refer :all]
+            [dynamo.graph :as g]
             [editor.ui :as ui]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [support.test-support :refer [with-clean-system]]))
 
 (deftest run-event-loop-test
 
@@ -109,3 +111,33 @@
                                            (exit-event-loop!)))))))
       (is (empty? @errors))
       (is (= [true true true false true false] @results)))))
+
+(g/defnode TestNode
+  (property title g/Str (default "untitled")))
+
+(deftest graph-reverter-test
+
+  (with-clean-system
+    (let [graph-id (g/make-graph! :history true :volatility 1)
+          node-tx-data (g/make-node graph-id TestNode)
+          node-id (first (g/tx-data-nodes-added node-tx-data))]
+      (with-open [_ (test-util/make-graph-reverter graph-id)]
+        (is (not (g/node-instance? TestNode node-id)))
+        (g/transact node-tx-data)
+        (is (g/node-instance? TestNode node-id)))
+      (is (not (g/node-instance? TestNode node-id)))))
+
+  (with-clean-system
+    (let [graph-id (g/make-graph! :history true :volatility 1)
+          node-tx-data (g/make-node graph-id TestNode)
+          node-id (first (g/tx-data-nodes-added node-tx-data))]
+      (with-open [_ (test-util/make-graph-reverter graph-id)]
+        (is (not (g/node-instance? TestNode node-id)))
+        (g/transact node-tx-data)
+        (is (g/node-instance? TestNode node-id))
+        (with-open [_ (test-util/make-graph-reverter graph-id)]
+          (is (= "untitled" (g/node-value node-id :title)))
+          (g/set-property! node-id :title "titled")
+          (is (= "titled" (g/node-value node-id :title))))
+        (is (= "untitled" (g/node-value node-id :title))))
+      (is (not (g/node-instance? TestNode node-id))))))

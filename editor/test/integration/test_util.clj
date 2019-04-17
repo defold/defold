@@ -18,6 +18,7 @@
             [editor.workspace :as workspace]
             [editor.handler :as handler]
             [editor.view :as view]
+            [internal.graph.types :as gt]
             [internal.system :as is]
             [schema.core :as s]
             [support.test-support :as ts]
@@ -198,7 +199,8 @@
 (g/defnode MockAppView
   (inherits app-view/AppView)
   (property active-tab-history MockTabVec)
-  (output active-tab MockTab (g/fnk [active-tab-history] (peek active-tab-history))))
+  (output active-tab MockTab (g/fnk [active-tab-history] (peek active-tab-history)))
+  (output visible-tabs g/Any (g/fnk [active-tab] (some-> active-tab vector))))
 
 (defn- activate-tab [active-tab-history tab]
   (conj (filterv (partial not= tab)
@@ -232,6 +234,25 @@
         (app-view/select! app-view [resource-node])
         view-node))))
 
+(defrecord MockHistoryContextController [history-context-controller]
+  g/HistoryContextController
+  (history-context [_this evaluation-context]
+    (gt/history-context history-context-controller evaluation-context))
+
+  (history-context-pred [_this evaluation-context]
+    (gt/history-context-pred history-context-controller evaluation-context))
+
+  (restore-history-context! [_this history-context]
+    (gt/restore-history-context! history-context-controller history-context)
+    false)) ; <- Nothing is considered a significant view change during tests.
+
+(defn- make-history-context-controller [app-view project]
+  (->MockHistoryContextController
+    (app-view/make-history-context-controller
+      app-view project
+      (fn [resource-node view-type]
+        (show-resource-tab! app-view resource-node view-type make-mock-view!)))))
+
 (defn setup-app-view! [project]
   (let [view-graph (make-view-graph!)
         [app-view selection-node]
@@ -246,9 +267,7 @@
                           (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
                             (g/connect selection-node label app-view label)))))
         resource-node-listener (partial selection/remap-selection selection-node)
-        show-tab-fn (fn [resource-node view-type]
-                      (show-resource-tab! app-view resource-node view-type make-mock-view!))
-        history-context-controller (app-view/make-history-context-controller app-view project show-tab-fn)]
+        history-context-controller (make-history-context-controller app-view project)]
     (project/add-resource-node-listener! project resource-node-listener)
     (g/set-history-context-controller! history-context-controller)
     app-view))
@@ -557,21 +576,17 @@
                        [(deref var#) calls#]))))
            binding-map#)))
 
-(defn- history-length [graph-id]
-  (count (some-> @g/*the-system* (is/graph-history graph-id))))
-
 (defn make-graph-reverter
   "Returns an AutoCloseable that reverts the specified graph to
   the state it was at construction time when its close method
   is invoked. Suitable for use with the (with-open) macro."
   [graph-id]
-  (let [initial-history-length (history-length graph-id)]
+  (let [history (is/graph-history @g/*the-system* graph-id)
+        history-entry-index (dec (count history))]
+    (assert (not (neg? history-entry-index)) "Graph does not have history.")
     (reify java.lang.AutoCloseable
       (close [_]
-        (loop [history-length (history-length graph-id)]
-          (when (< initial-history-length history-length)
-            (ts/undo! graph-id)
-            (recur (dec history-length))))))))
+        (g/reset-history! graph-id history-entry-index)))))
 
 (defn add-embedded-component!
   "Adds a new instance of an embedded component to the specified

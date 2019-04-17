@@ -201,26 +201,20 @@
 
 (defn- editor-tab-visible? [app-view resource-node evaluation-context]
   (assert (g/node-id? resource-node))
-  (let [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split evaluation-context)
-        tab-panes (.getItems editor-tabs-split)]
-    (boolean
-      (some (fn [tab-pane]
-              (when-some [tab (ui/selected-tab tab-pane)]
-                (= resource-node (tab->resource-node tab evaluation-context))))
-            tab-panes))))
+  (boolean
+    (some #(= resource-node (tab->resource-node % evaluation-context))
+          (g/node-value app-view :visible-tabs evaluation-context))))
 
 (defn- set-selection-from-history-context! [app-view resource-node history-context]
   (let [transaction-steps
         (g/with-auto-evaluation-context evaluation-context
           (let [selection-node (g/node-value app-view :selection-node evaluation-context)
-                old-selection (selection/selected evaluation-context selection-node resource-node)
                 new-selection (:selection history-context)
                 old-sub-selection (selection/sub-selected evaluation-context selection-node resource-node)
                 new-sub-selection (:sub-selection history-context)]
-            (when-not (and (= old-selection new-selection)
-                           (= old-sub-selection new-sub-selection))
-              (g/tx-data-flatten
-                (selection/select evaluation-context selection-node resource-node new-selection)
+            (g/tx-data-flatten
+              (selection/select evaluation-context selection-node resource-node new-selection)
+              (when (not= old-sub-selection new-sub-selection)
                 (selection/sub-select selection-node resource-node new-sub-selection)))))]
     (if (empty? transaction-steps)
       false
@@ -330,6 +324,9 @@
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
   (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
   (output active-tab Tab (g/fnk [^TabPane active-tab-pane] (some-> active-tab-pane ui/selected-tab)))
+  (output visible-tabs g/Any (g/fnk [^SplitPane editor-tabs-split]
+                               (let [tab-panes (.getItems editor-tabs-split)]
+                                 (keep ui/selected-tab tab-panes))))
   (output hidden-renderable-tags types/RenderableTags (gu/passthrough hidden-renderable-tags))
   (output hidden-node-outline-key-paths types/NodeOutlineKeyPaths (gu/passthrough hidden-node-outline-key-paths))
   (output active-outline g/Any (gu/passthrough active-outline))

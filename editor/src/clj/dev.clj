@@ -143,18 +143,19 @@
           (filter (comp some? val))
           history-context)))
 
-(defn history-log []
-  (mapv (fn [history-entry]
-          (-> history-entry
-              (select-keys [:label :undo-group :context-before :context-after])
-              (update :context-before significant-history-context)
-              (update :context-after significant-history-context)))
-        (history)))
+(defn history-log
+  ([]
+   (history-log (history)))
+  ([history]
+   (mapv (fn [history-entry]
+           (-> history-entry
+               (select-keys [:label :undo-group :context-before :context-after])
+               (update :context-before significant-history-context)
+               (update :context-after significant-history-context)))
+         history)))
 
-(defn revert-history! []
-  (swap! g/*the-system* is/alter-history (project-graph)
-         (fn [_system basis history]
-           (#'history/rewind-history history basis 0)))
+(defn reset-history! []
+  (g/reset-history! (project-graph) 0)
   nil)
 
 (defn- node-value-type-symbol [node-value-type]
