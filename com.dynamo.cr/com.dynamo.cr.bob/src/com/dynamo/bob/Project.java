@@ -505,7 +505,7 @@ public class Project {
         return false;
     }
 
-    public String[] getPlatformStrings() throws CompileExceptionError {
+    public Platform getPlatform() throws CompileExceptionError {
         String pair = option("platform", null);
         Platform p = Platform.getHostPlatform();
         if (pair != null) {
@@ -515,6 +515,12 @@ public class Project {
         if (p == null) {
             throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
         }
+
+        return p;
+    }
+
+    public String[] getPlatformStrings() throws CompileExceptionError {
+        Platform p = getPlatform();
         PlatformArchitectures platformArchs = p.getArchitectures();
         String[] platformStrings;
         if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin || p == Platform.JsWeb || p == Platform.WasmWeb)
@@ -531,7 +537,7 @@ public class Project {
         return platformStrings;
     }
 
-    public void buildEngine(IProgress monitor, String[] platformStrings, Map<String,String> appmanifestOptions) throws IOException, CompileExceptionError, MultipleCompileException {
+    public void buildEngine(IProgress monitor, String[] architectures, Map<String,String> appmanifestOptions) throws IOException, CompileExceptionError, MultipleCompileException {
 
         // Store the engine one level above the content build since that folder gets removed during a distclean
         String internalDir = FilenameUtils.concat(rootDirectory, ".internal");
@@ -545,13 +551,13 @@ public class Project {
         File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
         logFile.deleteOnExit();
 
-        IProgress m = monitor.subProgress(platformStrings.length);
+        IProgress m = monitor.subProgress(architectures.length);
         m.beginTask("Building engine...", 0);
 
         // Build all skews of platform
         String outputDir = options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
-        for (int i = 0; i < platformStrings.length; ++i) {
-            Platform platform = Platform.get(platformStrings[i]);
+        for (int i = 0; i < architectures.length; ++i) {
+            Platform platform = Platform.get(architectures[i]);
 
             String buildPlatform = platform.getExtenderPair();
             File buildDir = new File(FilenameUtils.concat(outputDir, buildPlatform));
@@ -717,7 +723,8 @@ public class Project {
                         appmanifestOptions.put("baseVariant", variant);
                         appmanifestOptions.put("withSymbols", withSymbols.toString());
 
-                        buildEngine(monitor, platforms, appmanifestOptions);
+                        final String[] architecturesStrings = this.option("architectures", "").split(",");
+                        buildEngine(monitor, architecturesStrings, appmanifestOptions);
                     } else {
                         // Remove the remote built executables in the build folder, they're still in the cache
                         cleanEngine(monitor, platforms);

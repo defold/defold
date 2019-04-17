@@ -37,7 +37,7 @@ CDN_UPLOAD_URL="s3://d.defold.com/archive"
 
 PACKAGES_EMSCRIPTEN_SDK="emsdk-1.38.12"
 PACKAGES_IOS_SDK="iPhoneOS12.1.sdk"
-PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator11.2.sdk"
+PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator12.1.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.13.sdk"
 PACKAGES_XCODE_TOOLCHAIN="XcodeDefault10.1.xctoolchain"
 PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-14-0"

@@ -129,71 +129,31 @@ public class IOSBundler implements IBundler {
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         final boolean strip_executable = project.hasOption("strip-executable");
 
-        File exeArmv7 = null;
-        File exeArm64 = null;
-        File exeSim64 = null;
-        List<File> binsArmv7 = null;
-        List<File> binsArm64 = null;
-        List<File> binsSim64 = null;
+        List<Platform> architectures = new ArrayList<Platform>();
+        String[] architecturesStrings = project.option("architectures", "").split(",");
+        for (int i = 0; i < architecturesStrings.length; i++) {
+            architectures.add(Platform.get(architecturesStrings[i]));
+        }
 
         // If a custom engine was built we need to copy it
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
-        BundleHelper.throwIfCanceled(canceled);
+        // Loop over all architectures needed for bundling
+        // Pickup each binary, either vanilla or from a extender build.
+        List<File> binaries = new ArrayList<File>();
+        for (Platform architecture : architectures) {
+            List<File> bins = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
+            if (bins == null) {
+                bins = Bob.getDefaultDmengineFiles(architecture, variant);
+            } else {
+                logger.log(Level.INFO, "Using extender binary for " + architecture.getPair());
+            }
 
-        if (simulatorBinary)
-        {
-            // sim64 exe
-            {
-                Platform targetPlatform = Platform.X86_64Ios;
-                binsSim64 = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
-                if (binsSim64 == null) {
-                    binsSim64 = Bob.getDefaultDmengineFiles(targetPlatform, variant);
-                } else {
-                    logger.log(Level.INFO, "Using extender exe for sim64");
-                }
-            }
-            if (binsSim64.size() > 1) {
-                throw new IOException("Invalid number of binaries for (x86_64) iOS when bundling: " + binsSim64.size());
-            }
-            exeSim64 = binsSim64.get(0);
-            logger.log(Level.INFO, "Sim64 exe: " + getFileDescription(exeSim64));
-
-        } else {
-            // armv7 exe
-            {
-                Platform targetPlatform = Platform.Armv7Darwin;
-                binsArmv7 = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
-                if (binsArmv7 == null) {
-                    binsArmv7 = Bob.getDefaultDmengineFiles(targetPlatform, variant);
-                } else {
-                    logger.log(Level.INFO, "Using extender exe for Armv7");
-                }
-            }
-            if (binsArmv7.size() > 1) {
-                throw new IOException("Invalid number of binaries for (armv7) iOS when bundling: " + binsArmv7.size());
-            }
-            exeArmv7 = binsArmv7.get(0);
+            File binary = bins.get(0);
+            logger.log(Level.INFO, architecture.getPair() + " exe: " + getFileDescription(binary));
+            binaries.add(binary);
 
             BundleHelper.throwIfCanceled(canceled);
-
-            // arm64 exe
-            {
-                Platform targetPlatform = Platform.Arm64Darwin;
-                binsArm64 = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
-                if (binsArm64 == null) {
-                    binsArm64 = Bob.getDefaultDmengineFiles(targetPlatform, variant);
-                } else {
-                    logger.log(Level.INFO, "Using extender exe for Arm64");
-                }
-            }
-            if (binsArm64.size() > 1) {
-                throw new IOException("Invalid number of binaries for (arm64) iOS when bundling: " + binsArm64.size());
-            }
-            exeArm64 = binsArm64.get(0);
-
-            logger.log(Level.INFO, "Armv7 exe: " + getFileDescription(exeArmv7));
-            logger.log(Level.INFO, "Arm64 exe: " + getFileDescription(exeArm64));
         }
 
         BundleHelper.throwIfCanceled(canceled);
@@ -205,8 +165,14 @@ public class IOSBundler implements IBundler {
         File appDir = new File(bundleDir, title + ".app");
         logger.log(Level.INFO, "Bundling to " + appDir.getPath());
 
-        String provisioningProfile = project.option("mobileprovisioning", "");
-        String identity = project.option("identity", "");
+        String provisioningProfile = project.option("mobileprovisioning", null);
+        String identity = project.option("identity", null);
+        Boolean shouldSign = provisioningProfile != null && identity != null;
+        if (shouldSign) {
+            logger.log(Level.INFO, "Code signing enabled.");
+        } else {
+            logger.log(Level.INFO, "Code signing disabled.");
+        }
 
         String projectRoot = project.getRootDirectory();
 
@@ -339,7 +305,7 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
         // Copy Provisioning Profile
-        if (!simulatorBinary) {
+        if (shouldSign) {
             File provisioningProfileFile = new File(provisioningProfile);
             if (!provisioningProfileFile.exists()) {
                 throw new IOException(String.format("You must specify a valid provisioning profile '%s'", provisioningProfile.length() == 0 ? "" : provisioningProfileFile.getAbsolutePath()));
@@ -355,19 +321,22 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Run lipo to add exeArmv7 + exeArm64 together into universal bin or
-        // copy simulator binary directly.
-        if (simulatorBinary)
-        {
-            FileUtils.copyFile(exeSim64, new File(exe));
-        } else {
-            Result lipoResult = Exec.execResult( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7.getAbsolutePath(), exeArm64.getAbsolutePath(), "-output", exe );
-            if (lipoResult.ret == 0) {
-                logger.log(Level.INFO, "Universal binary: " + getFileDescription(tmpFile));
-            }
-            else {
-                logger.log(Level.SEVERE, "Error executing lipo command:\n" + new String(lipoResult.stdOutErr));
-            }
+        // Run lipo on supplied architecture binaries.
+        List<String> lipoArgList = new ArrayList<String>();
+        lipoArgList.add(Bob.getExe(Platform.getHostPlatform(), "lipo"));
+        lipoArgList.add("-create");
+        for (File bin : binaries) {
+            lipoArgList.add(bin.getAbsolutePath());
+        }
+        lipoArgList.add("-output");
+        lipoArgList.add(exe);
+
+        Result lipoResult = Exec.execResult( lipoArgList.toArray(new String[0]) );
+        if (lipoResult.ret == 0) {
+            logger.log(Level.INFO, "Universal binary: " + getFileDescription(tmpFile));
+        }
+        else {
+            logger.log(Level.SEVERE, "Error executing lipo command:\n" + new String(lipoResult.stdOutErr));
         }
 
         BundleHelper.throwIfCanceled(canceled);
@@ -392,7 +361,7 @@ public class IOSBundler implements IBundler {
 
         // Sign (only if identity and provisioning profile set)
         // iOS simulator can install non signed apps
-        if (!simulatorBinary && identity != null && provisioningProfile != null && !identity.isEmpty() && !provisioningProfile.isEmpty()) {
+        if (shouldSign && !identity.isEmpty() && !provisioningProfile.isEmpty()) {
             // Copy Provisioning Profile
             FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
 
