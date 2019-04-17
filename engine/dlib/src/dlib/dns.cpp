@@ -52,6 +52,9 @@ namespace dmDNS
             case(ARES_ETIMEOUT):
                 res = RESULT_HOST_NOT_FOUND;
                 break;
+            case(ARES_ECANCELLED):
+                res = RESULT_CANCELLED;
+                break;
             default:
                 res = RESULT_UNKNOWN_ERROR;
         }
