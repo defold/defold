@@ -474,8 +474,9 @@
   (enabled? [active-resource selection]
             (when-let [r (selected-or-active-resource selection active-resource)]
               (resource/exists? r)))
-  (run [active-resource asset-browser selection]
+  (run [active-resource asset-browser selection main-stage]
     (when-let [r (selected-or-active-resource selection active-resource)]
+      (app-view/show-asset-browser! (.getScene ^Stage main-stage))
       (select-resource! asset-browser r {:scroll? true}))))
 
 (defn- item->path [^TreeItem item]
