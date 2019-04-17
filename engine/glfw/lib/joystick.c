@@ -97,6 +97,32 @@ GLFWAPI int GLFWAPIENTRY glfwGetJoystickButtons( int joy,
     return _glfwPlatformGetJoystickButtons( joy, buttons, numbuttons );
 }
 
+//========================================================================
+// Get joystick hat states
+//========================================================================
+
+GLFWAPI int GLFWAPIENTRY glfwGetJoystickHats( int joy,
+                                              unsigned char *hats,
+                                              int numhats )
+{
+    int i;
+
+    if( !_glfwInitialized )
+    {
+        return 0;
+    }
+
+    // Clear button states
+    for( i = 0; i < numhats; i++ )
+    {
+        hats[ i ] = GLFW_HAT_CENTERED;
+    }
+
+    return _glfwPlatformGetJoystickHats( joy, hats, numhats );
+}
+
+
+
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickDeviceId( int joy, char** device_id )
 {
     // Is GLFW initialized?

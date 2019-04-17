@@ -814,6 +814,17 @@ XSDL_PrivateJoystickHat(SDL_Joystick * joystick, Uint8 hat, Uint8 value)
 }
 #endif
 
+static const char* hat_enum_to_str[] = {
+    "GLFW_HAT_CENTERED",
+    "GLFW_HAT_UP",
+    "GLFW_HAT_RIGHTUP",
+    "GLFW_HAT_RIGHT",
+    "GLFW_HAT_RIGHTDOWN",
+    "GLFW_HAT_DOWN",
+    "GLFW_HAT_LEFTDOWN",
+    "GLFW_HAT_LEFT",
+    "GLFW_HAT_LEFTUP"
+};
 
 /* Function to update the state of a joystick - called as a device poll.
  * This function shouldn't update the joystick structure directly,
@@ -840,7 +851,8 @@ XSDL_SYS_JoystickUpdate(int joy_index)
             for (i = 0; i < device->buttons; i++)
                 _glfwJoy[joy_index].Button[i] = GLFW_RELEASE;
 
-            //for (i = 0; i < device->hats; i++)
+            for (i = 0; i < device->hats; i++)
+                _glfwJoy[joy_index].Hat[i] = GLFW_HAT_CENTERED;
               //  XSDL_PrivateJoystickHat(joystick, i, SDL_HAT_CENTERED);
         }
 
@@ -871,13 +883,15 @@ XSDL_SYS_JoystickUpdate(int joy_index)
         ++i;
     }
 
-#if 0
+#if 1
     element = device->firstHat;
     i = 0;
     while (element) {
         uint8_t pos = 0;
 
-        range = (element->max - element->min + 1);
+
+
+        int range = (element->max - element->min + 1);
         value = HIDGetElementValue(device, element) - element->min;
         if (range == 4)         /* 4 position hatswitch - scale up value */
             value *= 2;
@@ -885,39 +899,43 @@ XSDL_SYS_JoystickUpdate(int joy_index)
             value = -1;
         switch (value) {
         case 0:
-            pos = SDL_HAT_UP;
+            pos = GLFW_HAT_UP;
             break;
         case 1:
-            pos = SDL_HAT_RIGHTUP;
+            pos = GLFW_HAT_RIGHTUP;
             break;
         case 2:
-            pos = SDL_HAT_RIGHT;
+            pos = GLFW_HAT_RIGHT;
             break;
         case 3:
-            pos = SDL_HAT_RIGHTDOWN;
+            pos = GLFW_HAT_RIGHTDOWN;
             break;
         case 4:
-            pos = SDL_HAT_DOWN;
+            pos = GLFW_HAT_DOWN;
             break;
         case 5:
-            pos = SDL_HAT_LEFTDOWN;
+            pos = GLFW_HAT_LEFTDOWN;
             break;
         case 6:
-            pos = SDL_HAT_LEFT;
+            pos = GLFW_HAT_LEFT;
             break;
         case 7:
-            pos = SDL_HAT_LEFTUP;
+            pos = GLFW_HAT_LEFTUP;
             break;
         default:
             /* Every other value is mapped to center. We do that because some
              * joysticks use 8 and some 15 for this value, and apparently
              * there are even more variants out there - so we try to be generous.
              */
-            pos = SDL_HAT_CENTERED;
+            pos = GLFW_HAT_CENTERED;
             break;
         }
-        if (pos != joystick->hats[i])
-            SDL_PrivateJoystickHat(joystick, i, pos);
+        if (pos != _glfwJoy[joy_index].Hat[i])
+            _glfwJoy[joy_index].Hat[i] = pos;
+        // if (pos != joystick->hats[i])
+            // SDL_PrivateJoystickHat(joystick, i, pos);
+        // printf("hat elem %p - %d - %d - %d [%s]\n", element, i, value, pos, hat_enum_to_str[pos]);
+
         element = element->pNext;
         ++i;
     }
@@ -945,7 +963,7 @@ int _glfwInitJoysticks( void )
         int i = 0;
         while (device)
         {
-            //printf("%d: %s\n", i, device->product);
+
             _glfwJoy[i].Present = GL_TRUE;
             _glfwJoy[i].Device = device;
             _glfwJoy[i].NumAxes = device->axes;
@@ -953,6 +971,11 @@ int _glfwInitJoysticks( void )
 
             _glfwJoy[i].NumButtons = device->buttons;
             _glfwJoy[i].Button = malloc(sizeof(unsigned char) * device->buttons);
+
+            _glfwJoy[i].NumHats = device->hats;
+            _glfwJoy[i].Hat = malloc(sizeof(unsigned char) * device->hats);
+
+            printf("%d: %s - hatcount: %ld\n", i, device->product, device->hats);
 
             i++;
             device = device->pNext;
@@ -976,8 +999,12 @@ int _glfwTerminateJoysticks()
         if (_glfwJoy[i].Button)
             free(_glfwJoy[i].Button);
 
+        if (_glfwJoy[i].Hat)
+            free(_glfwJoy[i].Hat);
+
         _glfwJoy[i].Axis = 0;
         _glfwJoy[i].Button = 0;
+        _glfwJoy[i].Hat = 0;
     }
 
     return GL_TRUE;
@@ -1003,6 +1030,10 @@ int _glfwPlatformGetJoystickParam( int joy, int param )
     else if (param == GLFW_BUTTONS)
     {
         return _glfwJoy[ joy ].NumButtons;
+    }
+    else if (param == GLFW_HATS)
+    {
+        return _glfwJoy[ joy ].NumHats;
     }
     else
     {
@@ -1073,6 +1104,37 @@ int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons, int numbut
     }
 
     return numbuttons;
+}
+
+int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats )
+{
+    int       i;
+
+    // Is joystick present?
+    if( !_glfwJoy[ joy ].Present )
+    {
+        return 0;
+    }
+
+    // Update joystick state
+    if (joy < XSDL_numjoysticks)
+    {
+        XSDL_SYS_JoystickUpdate(joy);
+    }
+
+    // Does the joystick support less hats than requested?
+    if( _glfwJoy[ joy ].NumHats < numhats )
+    {
+        numhats = _glfwJoy[ joy ].NumHats;
+    }
+
+    // Copy button states from internal state
+    for( i = 0; i < numhats; ++ i )
+    {
+        hats[ i ] = _glfwJoy[ joy ].Hat[ i ];
+    }
+
+    return numhats;
 }
 
 int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )

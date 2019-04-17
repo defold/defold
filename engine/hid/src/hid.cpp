@@ -52,6 +52,11 @@ namespace dmHID
         return gamepad->m_ButtonCount;
     }
 
+    uint32_t GetGamepadHatCount(HGamepad gamepad)
+    {
+        return gamepad->m_HatCount;
+    }
+
     uint32_t GetGamepadAxisCount(HGamepad gamepad)
     {
         return gamepad->m_AxisCount;
@@ -274,6 +279,15 @@ namespace dmHID
         }
     }
 
+/*
+    bool GetGamepadHat(GamepadPacket* packet, uint32_t hat)
+    {
+        if (packet != 0x0)
+            return packet->m_Hat[button / 32] & (1 << (button % 32));
+        else
+            return false;
+    }
+*/
     void SetGamepadAxis(HGamepad gamepad, uint32_t axis, float value)
     {
         if (gamepad != 0x0)

@@ -188,6 +188,7 @@ enum GamepadType
 {
     GAMEPAD_TYPE_AXIS = 0;
     GAMEPAD_TYPE_BUTTON = 1;
+    GAMEPAD_TYPE_HAT = 2;
 }
 
 enum GamepadModifier

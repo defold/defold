@@ -30,6 +30,8 @@ namespace dmHID
     const static uint32_t MAX_GAMEPAD_AXIS_COUNT = 32;
     /// Maximum number of gamepad buttons supported
     const static uint32_t MAX_GAMEPAD_BUTTON_COUNT = 32;
+    /// Maximum number of gamepad hats supported
+    const static uint32_t MAX_GAMEPAD_HAT_COUNT = 8;
 
     /// Maximum number of simultaneous touches supported
     // An iPad supports a maximum of 11 simultaneous touches
@@ -238,6 +240,7 @@ namespace dmHID
     {
         float m_Axis[MAX_GAMEPAD_AXIS_COUNT];
         uint32_t m_Buttons[MAX_GAMEPAD_BUTTON_COUNT / 32 + 1];
+        uint8_t m_Hat[MAX_GAMEPAD_HAT_COUNT];
     };
 
     /**
