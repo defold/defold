@@ -138,9 +138,7 @@
 (defn- dispatch-url!
   [project ^URI uri]
   (when-some [{:keys [command user-data]} (url->command uri {:project project})]
-    (when-let [handler-ctx (handler/active command (ui/contexts (.getScene (ui/main-stage))) user-data)]
-      (when (handler/enabled? handler-ctx)
-        (handler/run handler-ctx)))))
+    (ui/execute-command (ui/contexts (ui/main-scene)) command user-data)))
 
 (defn- string->url
   ^URI [^String str]

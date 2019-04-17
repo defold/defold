@@ -32,7 +32,6 @@ def configure(conf):
     conf.sub_config('src')
 
     conf.env.append_value('CPPPATH', "default/src")
-    conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = ['dlib', 'axtls']
     conf.env['STATICLIB_DDF'] = 'ddf'
 
@@ -67,4 +66,4 @@ def shutdown():
             sys.stdout.flush()
             time.sleep(0.5)
 
-    waf_dynamo.run_gtests(valgrind = True)
+    waf_dynamo.run_tests(valgrind = True)

@@ -559,7 +559,7 @@
 (g/defnode Project
   (inherits core/Scope)
 
-  (extern workspace g/Any)
+  (property workspace g/Any)
 
   (property all-selections g/Any)
   (property all-sub-selections g/Any)

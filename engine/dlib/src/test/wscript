@@ -3,11 +3,12 @@ import os, re
 
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
                 extra_includes = None, extra_defines = None):
-    req_libs = ['GTEST', 'UUID']
+    req_libs = ['UUID']
+    req_defines = []
+
     req_features = ['cxx', 'cprogram', 'test']
     req_includes = ['../../src']
     req_embed = None
-    req_defines = []
 
     if extra_features != None:
         req_features.extend(extra_features)
@@ -124,7 +125,7 @@ def build(bld):
                 )
 
     create_test(bld, 'test_connection_pool', extra_features = ['embed'], extra_libs = ['THREAD'],
-                extra_includes = ['.'])
+                extra_includes = ['.'], extra_defines = extra_defines)
 
     create_test(bld, 'test_pprint', extra_libs = ['THREAD'])
     create_test(bld, 'test_md5', extra_libs = ['THREAD'])

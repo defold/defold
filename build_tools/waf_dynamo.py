@@ -231,9 +231,8 @@ def default_flags(self):
             if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-m32'])
             if "osx" == build_util.get_target_os():
-                # tr1/tuple isn't available on clang/darwin and gtest 1.5.0 assumes that
-                # see corresponding flag in build_gtest.sh
-                self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
+                # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
+                # Force libstdc++ for now
                 self.env.append_value(f, ['-stdlib=libstdc++'])
                 self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
                 self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION)])
@@ -249,7 +248,6 @@ def default_flags(self):
 
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
             if 'x86_64' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-g', '-stdlib=libc++', '-DIOS_SIMULATOR', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
                                             '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION,
@@ -310,7 +308,7 @@ def default_flags(self):
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-fno-exceptions', '-fno-rtti', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS',
-                                      '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]',
+                                      '-Wall', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]',
                                       '-I%s/system/lib/libcxxabi/include' % EMSCRIPTEN_ROOT]) # gtest uses cxxabi.h and for some reason, emscripten doesn't find it (https://github.com/kripken/emscripten/issues/3484)
 
         # NOTE: Disabled lto for when upgrading to 1.35.23, see https://github.com/kripken/emscripten/issues/3616
@@ -321,7 +319,7 @@ def default_flags(self):
         # For fully optimized builds add -O4 and -emit-llvm to C*FLAGS and -O4 to LINKFLAGS
         # NOTE: We can't disable exceptions as exceptions are used in the flash SDK...
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall'])
         self.env.append_value('LINKFLAGS', ['-g'])
     else: # *-win32
         for f in ['CCFLAGS', 'CXXFLAGS']:
@@ -380,10 +378,8 @@ def asan_cxxflags(self):
 @feature('cprogram', 'cxxprogram')
 @after('apply_link')
 def apply_unit_test(self):
-    # Do not execute unit-tests tasks (compile and link)
-    # when --skip-build-tests is set
-    if hasattr(self, 'uselib') and str(self.uselib).find("GTEST") != -1:
-        if getattr(Options.options, 'skip_build_tests', False):
+    # Do not execute unit-tests tasks (compile and link) when --skip-build-tests is set
+    if 'test' in self.features and getattr(Options.options, 'skip_build_tests', False):
             for t in self.tasks:
                 t.hasrun = True
 
@@ -1201,7 +1197,7 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
 
     return ret
 
-def run_gtests(valgrind = False, configfile = None):
+def run_tests(valgrind = False, configfile = None):
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
         return
 
@@ -1220,7 +1216,7 @@ def run_gtests(valgrind = False, configfile = None):
         return
 
     for t in Build.bld.all_task_gen:
-        if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1 and 'test' in t.features:
+        if 'test' in str(t.features) and t.name.startswith('test_') and ('cprogram' in t.features or 'cxxprogram' in t.features):
             output = t.path
             cmd = "%s %s" % (os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target), configfile)
             if 'web' in Build.bld.env.PLATFORM:

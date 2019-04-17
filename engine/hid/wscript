@@ -23,7 +23,6 @@ def configure(conf):
     conf.sub_config('src')
 
     conf.env.append_value('CPPPATH', "default/src")
-    conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
 
@@ -52,5 +51,5 @@ def build(bld):
     bld.add_subdirs('src')
 
 def shutdown():
-    waf_dynamo.run_gtests(valgrind = True)
+    waf_dynamo.run_tests(valgrind = True)
 
