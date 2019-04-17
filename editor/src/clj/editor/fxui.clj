@@ -78,16 +78,18 @@
                                   {:fx/type :column-constraints
                                    :hgrow :always}])
       (update :children (fn [children]
-                          (->> children
-                               (partition 2)
-                               (map-indexed
-                                 (fn [row [label input]]
-                                   [(assoc label :grid-pane/column 0
-                                                 :grid-pane/row row
-                                                 :grid-pane/halignment :right)
-                                    (assoc input :grid-pane/column 1
-                                                 :grid-pane/row row)]))
-                               (mapcat identity))))))
+                          (into []
+                                (comp
+                                  (partition-all 2)
+                                  (map-indexed
+                                    (fn [row [label input]]
+                                      [(assoc label :grid-pane/column 0
+                                                    :grid-pane/row row
+                                                    :grid-pane/halignment :right)
+                                       (assoc input :grid-pane/column 1
+                                                    :grid-pane/row row)]))
+                                  (mapcat identity))
+                                children)))))
 
 (defn text-field [{:keys [variant]
                    :or {variant :default}
