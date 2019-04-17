@@ -66,7 +66,7 @@
 (defonce ^:private application-unfocused-threshold-ms 500)
 (defonce ^:private focus-state (atom nil))
 
-(def ^:private focus-change-listener
+(def focus-change-listener
   (reify ChangeListener
     (changed [_ _ _ focused?]
       (reset! focus-state {:focused? focused?
@@ -149,15 +149,6 @@
                         (.contains (.getStyleClass node) style-class))
                       leaf-node))
 
-(defn fx-stage [props]
-  {:fx/type fx/ext-on-instance-lifecycle
-   :on-created (fn [^Stage stage]
-                 (.addListener (.focusedProperty stage) ^ChangeListener focus-change-listener))
-   :desc (merge
-           {:fx/type :stage
-            :icons (if (eutil/is-mac-os?) [] [application-icon-image])}
-           props)})
-
 (defn make-stage
   ^Stage []
   (let [stage (Stage.)]
@@ -173,14 +164,6 @@
     (when-not (eutil/is-mac-os?)
       (.. stage getIcons (add application-icon-image)))
     stage))
-
-(defn fx-dialog-stage [props]
-  (merge
-    {:fx/type fx-stage
-     :resizable false
-     :style :decorated
-     :modality (if (contains? props :owner) :window-modal :application-modal)}
-    props))
 
 (defn make-dialog-stage
   (^Stage []
