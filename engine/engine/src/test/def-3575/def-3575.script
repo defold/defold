@@ -1,37 +1,59 @@
 function init(self)
     local label_str = ""
 
-	for i = 32, 127 do
-		label_str = label_str .. string.char(i)
-	end
+    for i = 32, 127 do
+        label_str = label_str .. string.char(i)
+    end
 
-	label.set_text("#label", label_str)
+    label.set_text("#label_bitmap", label_str)
+    label.set_text("#label_distance_field", label_str)
 end
 
 function update(self, dt)
+    -- Values are taken from the output from label.get_text_metrics from defold version 1.2.138
+    -- The base settings used are:
+    --  font: "/builtins/fonts/vera_mo_bd.ttf"
+    --  size: 14
+    --  antialias: 1
+    --  alpha: 1.0
+    --  outline_alpha: 1.0
+    --  outline_width: 4.0
+    --  shadow_alpha: 1.0
+    --  shadow_blur: 2
 
-	-- Values are taken from the output from label.get_text_metrics from defold version 1.2.138
-	-- The settings used are:
-	-- 	font: "/builtins/fonts/vera_mo_bd.ttf"
-	-- 	size: 14
-	-- 	antialias: 1
-	-- 	alpha: 1.0
-	-- 	shadow_alpha: 1.0
-	-- 	shadow_blur: 2
+    local function test_label_metrics(label_name,test_metrics)
+        -- Test that we are getting the expected value back from get_text_metrics
+        local metrics = label.get_text_metrics("#" .. label_name)
 
-	local metrics_valid ={
-		max_ascent  = 13,
-		width       = 771,
-		height      = 17,
-		max_descent = 4
-	}
+        return test_metrics.max_ascent  == metrics.max_ascent and
+               test_metrics.max_descent == metrics.max_descent and
+               test_metrics.width       == metrics.width and
+               test_metrics.height      == metrics.height
+    end
 
-	-- Test that we are getting the expected value back from get_text_metrics
-	local metrics = label.get_text_metrics("#label")
-	local success = metrics_valid.max_ascent  == metrics.max_ascent and
-			        metrics_valid.max_descent == metrics.max_descent and
-			        metrics_valid.width       == metrics.width and
-			        metrics_valid.height      == metrics.height
+    local function test_label_bitmap()
+        local metrics_valid = {
+            max_ascent  = 13,
+            width       = 775,
+            height      = 17,
+            max_descent = 4
+        }
+
+        return test_label_metrics("label_bitmap", metrics_valid)
+    end
+
+    local function test_label_df()
+        local metrics_valid ={
+              max_ascent = 13,
+              width = 776,
+              height = 17,
+              max_descent = 4,
+        }
+
+        return test_label_metrics("label_distance_field", metrics_valid)
+    end
+
+    local success = test_label_bitmap() and test_label_df()
 
     if success then
         msg.post("@system:", "exit", { code = 0 })

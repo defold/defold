@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 #include "script.h"
 
@@ -17,6 +18,8 @@ extern "C"
 
 #define USERTYPE "UserType"
 
+static uint32_t USERTYPE_HASH = 0;
+
 struct UserType
 {
     int m_Reference;
@@ -29,7 +32,7 @@ static const luaL_reg UserType_methods[] =
 
 static int UserType_gc(lua_State *L)
 {
-    UserType* object = (UserType*)dmScript::CheckUserType(L, 1, USERTYPE, NULL);
+    UserType* object = (UserType*)dmScript::CheckUserType(L, 1, USERTYPE_HASH, NULL);
     memset(object, 0, sizeof(*object));
     (void) object;
     assert(object);
@@ -95,7 +98,7 @@ void PopUserType(lua_State* L)
     dmScript::SetInstance(L);
 }
 
-class ScriptUserTypeTest : public ::testing::Test
+class ScriptUserTypeTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -104,7 +107,7 @@ protected:
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
 
-        dmScript::RegisterUserType(L, USERTYPE, UserType_methods, UserType_meta);
+        USERTYPE_HASH = dmScript::RegisterUserType(L, USERTYPE, UserType_methods, UserType_meta);
     }
 
     virtual void TearDown()
@@ -158,7 +161,7 @@ TEST_F(ScriptUserTypeTest, TestIsUserType)
     UserType* object = NewUserType(L);
     PushUserType(L, object);
 
-    ASSERT_TRUE(dmScript::IsUserType(L, -1, USERTYPE));
+    ASSERT_TRUE(dmScript::GetUserType(L, -1) == USERTYPE_HASH);
 
     PopUserType(L);
     DeleteUserType(L, object);
@@ -173,7 +176,7 @@ TEST_F(ScriptUserTypeTest, TestCheckUserType)
     UserType* object = NewUserType(L);
     PushUserType(L, object);
 
-    ASSERT_EQ(object, dmScript::CheckUserType(L, -1, USERTYPE, NULL));
+    ASSERT_EQ(object, dmScript::CheckUserType(L, -1, USERTYPE_HASH, NULL));
 
     PopUserType(L);
     DeleteUserType(L, object);
@@ -189,11 +192,11 @@ TEST_F(ScriptUserTypeTest, TestGetUserData)
     PushUserType(L, object);
 
     uintptr_t user_data;
-    ASSERT_TRUE(dmScript::GetUserData(L, &user_data, USERTYPE));
+    ASSERT_TRUE(dmScript::GetUserData(L, &user_data, USERTYPE_HASH));
 
     ASSERT_EQ((uintptr_t)object, user_data);
 
-    ASSERT_FALSE(dmScript::GetUserData(L, &user_data, "incorrect_type"));
+    ASSERT_FALSE(dmScript::GetUserData(L, &user_data, dmHashString32("incorrect_type")));
 
     PopUserType(L);
     DeleteUserType(L, object);
@@ -203,8 +206,8 @@ TEST_F(ScriptUserTypeTest, TestGetUserData)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = jc_test_run_all();
     return ret;
 }

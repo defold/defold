@@ -1,5 +1,6 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 #include <dlib/log.h>
 
@@ -13,7 +14,7 @@
 
 using namespace Vectormath::Aos;
 
-class dmGraphicsTest : public ::testing::Test
+class dmGraphicsTest : public jc_test_base_class
 {
 protected:
     struct ResizeData
@@ -335,14 +336,14 @@ TEST_F(dmGraphicsTest, TestProgram)
             "varying mediump vec4 position;\n"
             "varying mediump vec2 var_texcoord0;\n"
 
-            "uniform lowp sampler2D DIFFUSE_TEXTURE;\n"
+            "uniform lowp sampler2D texture_sampler;\n"
             "uniform lowp vec4 tint;\n"
 
             "void main()\n"
             "{\n"
             "    // Pre-multiply alpha since all runtime textures already are\n"
             "    lowp vec4 tint_pm = vec4(tint.xyz * tint.w, tint.w);\n"
-            "    gl_FragColor = texture2D(DIFFUSE_TEXTURE, var_texcoord0.xy) * tint_pm;\n"
+            "    gl_FragColor = texture2D(texture_sampler, var_texcoord0.xy) * tint_pm;\n"
             "}\n";
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, vertex_data, strlen(vertex_data));
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, fragment_data, strlen(fragment_data));
@@ -350,7 +351,7 @@ TEST_F(dmGraphicsTest, TestProgram)
     ASSERT_EQ(4u, dmGraphics::GetUniformCount(program));
     ASSERT_EQ(0, dmGraphics::GetUniformLocation(program, "view_proj"));
     ASSERT_EQ(1, dmGraphics::GetUniformLocation(program, "world"));
-    ASSERT_EQ(2, dmGraphics::GetUniformLocation(program, "DIFFUSE_TEXTURE"));
+    ASSERT_EQ(2, dmGraphics::GetUniformLocation(program, "texture_sampler"));
     ASSERT_EQ(3, dmGraphics::GetUniformLocation(program, "tint"));
     char buffer[64];
     dmGraphics::Type type;
@@ -361,7 +362,7 @@ TEST_F(dmGraphicsTest, TestProgram)
     ASSERT_STREQ("world", buffer);
     ASSERT_EQ(dmGraphics::TYPE_FLOAT_MAT4, type);
     dmGraphics::GetUniformName(program, 2, buffer, 64, &type);
-    ASSERT_STREQ("DIFFUSE_TEXTURE", buffer);
+    ASSERT_STREQ("texture_sampler", buffer);
     ASSERT_EQ(dmGraphics::TYPE_SAMPLER_2D, type);
     dmGraphics::GetUniformName(program, 3, buffer, 64, &type);
     ASSERT_STREQ("tint", buffer);
@@ -442,7 +443,7 @@ TEST_F(dmGraphicsTest, TestSetTextureBounds)
     params.m_Y         = HEIGHT / 2;
 
     dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
-    ASSERT_DEATH_IF_SUPPORTED(dmGraphics::SetTexture(texture, params),"");
+    ASSERT_DEATH(dmGraphics::SetTexture(texture, params),"");
 
     delete [] (char*)params.m_Data;
 
@@ -453,7 +454,7 @@ TEST_F(dmGraphicsTest, TestSetTextureBounds)
     params.m_DataSize  = params.m_Width * params.m_Height;
     params.m_Data      = new char[params.m_DataSize];
 
-    ASSERT_DEATH_IF_SUPPORTED(dmGraphics::SetTexture(texture, params),"");
+    ASSERT_DEATH(dmGraphics::SetTexture(texture, params),"");
 
     delete [] (char*)params.m_Data;
 
@@ -669,6 +670,6 @@ TEST_F(dmGraphicsTest, TestTextureFormatBPP)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

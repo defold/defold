@@ -27,7 +27,7 @@ def configure(conf):
 
     if platform == "linux" or platform == "x86_64-linux":
         conf.env.append_value('CXXFLAGS', ['-DGL_GLEXT_PROTOTYPES', '-D_GLFW_HAS_GLXGETPROCADDRESS'])
-    elif platform == "js-web":
+    elif 'web' in platform:
         conf.env.append_value('CXXFLAGS', ['-DGL_GLEXT_PROTOTYPES'])
 
     if os.getenv('PYTHONPATH'):
@@ -62,8 +62,6 @@ def configure(conf):
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GRAPHICS"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GRAPHICS"')
 
-
-    conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = 'dlib'
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GRAPHICS"')
@@ -76,4 +74,4 @@ def build(bld):
     bld.install_files('${PREFIX}/bin', 'bin/*', chmod=493)
 
 def shutdown():
-    waf_dynamo.run_gtests(valgrind = True)
+    waf_dynamo.run_tests(valgrind = True)

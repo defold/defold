@@ -59,7 +59,7 @@ def gen_dc(task):
 def build(bld):
     platform = bld.env['PLATFORM']
 
-    if platform == 'js-web':
+    if 'web' in platform:
         lib_dirs = None
         if 'JS_LIB_PATHS' in bld.env:
             lib_dirs = bld.env['JS_LIB_PATHS']
@@ -134,7 +134,7 @@ def build(bld):
                                      embed_source = bld.path.ant_glob('**/*.ogg'))
 
     extra_libs = ''
-    if 'js-web' not in bld.env['PLATFORM'] and 'win32' not in bld.env['PLATFORM']:
+    if 'web' not in bld.env['PLATFORM'] and 'win32' not in bld.env['PLATFORM']:
         exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis", "AudioDecoderTremolo"]
         extra_libs = ' TREMOLO'
         use_tremolo = True
@@ -145,7 +145,7 @@ def build(bld):
     if use_tremolo:
         test_sound_perf = bld.new_task_gen(features = 'cxx cprogram embed test',
                                       includes = '../../../src .',
-                                      uselib = 'GTEST DMGLFW DLIB PLATFORM_SOCKET OPENAL' + extra_libs ,
+                                      uselib = 'DMGLFW DLIB PLATFORM_SOCKET OPENAL' + extra_libs ,
                                       uselib_local = 'sound embedded_wavs embedded_oggs',
                                       exported_symbols = exported_symbols,
                                       target = 'test_sound_perf',
@@ -154,7 +154,7 @@ def build(bld):
 
     test_sound = bld.new_task_gen(features = 'cxx cprogram embed test',
                                   includes = '../../../src .',
-                                  uselib = 'GTEST DMGLFW DLIB PLATFORM_SOCKET OPENAL' + extra_libs,
+                                  uselib = 'DMGLFW DLIB PLATFORM_SOCKET OPENAL' + extra_libs,
                                   uselib_local = 'sound embedded_wavs embedded_oggs',
                                   exported_symbols = exported_symbols,
                                   target = 'test_sound',
@@ -167,7 +167,7 @@ def build(bld):
     extra_libs = ''
     test_sound_null = bld.new_task_gen(features = 'cxx cprogram embed test',
                                   includes = '../../../src .',
-                                  uselib = 'GTEST DMGLFW DLIB PLATFORM_SOCKET' + extra_libs,
+                                  uselib = 'DMGLFW DLIB PLATFORM_SOCKET' + extra_libs,
                                   uselib_local = 'sound_null embedded_wavs embedded_oggs',
                                   exported_symbols = exported_symbols,
                                   target = 'test_sound_null',

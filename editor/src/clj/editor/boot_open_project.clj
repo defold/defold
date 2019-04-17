@@ -1,6 +1,5 @@
 (ns editor.boot-open-project
   (:require [clojure.string :as string]
-            [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
@@ -18,32 +17,34 @@
             [editor.git :as git]
             [editor.graph-view :as graph-view]
             [editor.hot-reload :as hot-reload]
-            [editor.login :as login]
             [editor.html-view :as html-view]
+            [editor.login :as login]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.properties-view :as properties-view]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
             [editor.scene :as scene]
-            [editor.targets :as targets]
-            [editor.text :as text]
-            [editor.ui :as ui]
-            [editor.web-profiler :as web-profiler]
-            [editor.workspace :as workspace]
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
             [editor.sync :as sync]
             [editor.system :as system]
-            [editor.updater :as updater]
+            [editor.targets :as targets]
+            [editor.text :as text]
+            [editor.ui :as ui]
+            [editor.ui.updater :as ui.updater]
             [editor.util :as util]
+            [editor.web-profiler :as web-profiler]
+            [editor.workspace :as workspace]
             [service.log :as log]
+            [service.smoke-log :as slog]
             [util.http-server :as http-server])
   (:import [java.io File]
            [javafx.scene Node Scene]
-           [javafx.stage Stage WindowEvent]
+           [javafx.scene.control MenuBar SplitPane Tab TabPane TreeView]
+           [javafx.scene.input InputEvent KeyEvent MouseEvent]
            [javafx.scene.layout Region VBox]
-           [javafx.scene.control Label MenuBar SplitPane Tab TabPane TreeView]))
+           [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
 
@@ -75,6 +76,7 @@
         (html-view/register-view-types workspace)))
     (resource-types/register-resource-types! workspace)
     (workspace/resource-sync! workspace)
+    (workspace/load-build-cache! workspace)
     workspace))
 
 (defn- async-reload!
@@ -98,30 +100,23 @@
   (app-view/remove-invalid-tabs! tab-panes open-views)
   (changes-view/refresh! changes-view render-progress!))
 
-(defn- install-pending-update-check-timer! [^Stage stage ^Label label update-context]
-  (let [update-visibility! (fn [] (ui/visible! label (let [update (updater/pending-update update-context)]
-                                                       (and (some? update) (not= update (system/defold-editor-sha1))))))
-        tick-fn (fn [_ _] (update-visibility!))
-        timer (ui/->timer 0.1 "pending-update-check" tick-fn)]
-    (update-visibility!)
-    (.addEventHandler stage WindowEvent/WINDOW_SHOWN (ui/event-handler event (ui/timer-start! timer)))
-    (.addEventHandler stage WindowEvent/WINDOW_HIDING (ui/event-handler event (ui/timer-stop! timer)))))
-
-(defn- init-pending-update-indicator! [^Stage stage ^Label label project changes-view update-context]
-  (.setOnMouseClicked label
-                      (ui/event-handler event
-                        (when (dialogs/make-pending-update-dialog stage)
-                          (when (updater/install-pending-update! update-context (io/file (system/defold-resourcespath)))
-                            (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
-                                  render-save-progress! (app-view/make-render-task-progress :save-all)]
-                              (ui/disable-ui!)
-                              (disk/async-save! render-reload-progress! render-save-progress! project nil ; Use nil for changes-view to skip refresh.
-                                                (fn [successful?]
-                                                  (if successful?
-                                                    (updater/restart!)
-                                                    (do (ui/enable-ui!)
-                                                        (changes-view/refresh! changes-view render-reload-progress!))))))))))
-  (install-pending-update-check-timer! stage label update-context))
+(defn- init-pending-update-indicator! [^Stage stage link project changes-view updater]
+  (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
+        render-save-progress! (app-view/make-render-task-progress :save-all)
+        render-download-progress! (app-view/make-render-task-progress :download-update)
+        install-and-restart! (fn install-and-restart! []
+                               (ui/disable-ui!)
+                               (disk/async-save!
+                                 render-reload-progress!
+                                 render-save-progress!
+                                 project
+                                 nil ; Use nil for changes-view to skip refresh.
+                                 (fn [successful?]
+                                   (if successful?
+                                     (ui.updater/install-and-restart! stage updater)
+                                     (do (ui/enable-ui!)
+                                         (changes-view/refresh! changes-view render-reload-progress!))))))]
+    (ui.updater/init! stage link updater install-and-restart! render-download-progress!)))
 
 (defn- show-tracked-internal-files-warning! []
   (dialogs/make-alert-dialog (str "It looks like internal files such as downloaded dependencies or build output were placed under source control.\n"
@@ -129,7 +124,13 @@
                                   "\n"
                                   "To fix this, make a commit where you delete the .internal and build directories, then reopen the project.")))
 
-(defn load-stage [workspace project prefs update-context newly-created?]
+(def ^:private interaction-event-types
+  #{KeyEvent/KEY_PRESSED
+    KeyEvent/KEY_RELEASED
+    MouseEvent/MOUSE_PRESSED
+    MouseEvent/MOUSE_RELEASED})
+
+(defn load-stage [workspace project prefs dashboard-client updater newly-created?]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
         scene      (Scene. root)]
@@ -162,7 +163,7 @@
                                                             bob/html5-url-prefix (partial bob/html5-handler project)})
                                    http-server/start!)
           open-resource        (partial app-view/open-resource app-view prefs workspace project)
-          console-view         (console/make-console! *view-graph* console-tab console-grid-pane)
+          console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource selected-node-ids opts]
                                                                            (when (open-resource resource opts)
@@ -180,16 +181,17 @@
           debug-view           (debug-view/make-view! app-view *view-graph*
                                                       project
                                                       root
+                                                      scene
                                                       open-resource)]
       (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
 
-      (when update-context
-        (let [update-available-label (.lookup root "#status-pane #update-available-label")]
-          (init-pending-update-indicator! stage update-available-label project changes-view update-context)))
+      (when updater
+        (let [update-link (.lookup root "#update-link")]
+          (init-pending-update-indicator! stage update-link project changes-view updater)))
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
       (let [collapse-menu-bar? (and (util/is-mac-os?)
-                                     (.isUseSystemMenuBar menu-bar))]
+                                    (.isUseSystemMenuBar menu-bar))]
         (.setVisible menu-bar-space collapse-menu-bar?)
         (.setManaged menu-bar-space collapse-menu-bar?))
 
@@ -199,6 +201,19 @@
                                             (let [open-views (g/node-value app-view :open-views)
                                                   panes (.getItems ^SplitPane editor-tabs-split)]
                                               (handle-resource-changes! scene panes open-views changes-view render-progress!)))))
+
+      (.addEventFilter scene
+                       InputEvent/ANY
+                       (ui/event-handler e
+                         (when (contains? interaction-event-types (.getEventType ^InputEvent e))
+                           (ui/user-data! scene ::ui/refresh-requested? true))))
+
+      (ui/observe (.focusedProperty stage)
+                  (fn [_ _ focused]
+                    (when focused
+                      (ui/user-data! scene ::ui/refresh-requested? true))))
+
+      (ui/user-data! scene ::ui/refresh-requested? true)
 
       (ui/run-later
         (app-view/restore-split-positions! stage prefs))
@@ -221,6 +236,7 @@
                              #_(g/transact (g/delete-node project))))
 
       (let [context-env {:app-view            app-view
+                         :dashboard-client    dashboard-client
                          :project             project
                          :project-graph       (project/graph project)
                          :prefs               prefs
@@ -266,8 +282,7 @@
         (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"]))))
 
       ;; If sync was in progress when we shut down the editor we offer to resume the sync process.
-      (let [git   (g/node-value changes-view :git)
-            prefs (g/node-value changes-view :prefs)]
+      (let [git (g/node-value changes-view :git)]
         (if (sync/flow-in-progress? git)
           (ui/run-later
             (loop []
@@ -282,7 +297,7 @@
                     (async-reload! workspace changes-view))
 
                 ;; User chose to resume sync.
-                (if-not (login/login prefs)
+                (if-not (login/sign-in! dashboard-client :synchronize)
                   (recur) ;; Ask again. If the user refuses to log in, they must choose "Cancel Sync".
                   (let [creds (git/credentials prefs)
                         flow (sync/resume-flow git creds)]
@@ -313,6 +328,7 @@
                     (show-tracked-internal-files-warning!)))))))))
 
     (reset! the-root root)
+    (ui/run-later (slog/smoke-log "stage-loaded"))
     root))
 
 (defn- show-missing-dependencies-alert! [dependencies]
@@ -323,14 +339,14 @@
                                                         "The project might not work without them. To download, connect to the internet and choose Fetch Libraries from the Project menu."]))))
 
 (defn open-project
-  [^File game-project-file prefs render-progress! update-context newly-created?]
-  (let [project-path (.getPath (.getParentFile game-project-file))
+  [^File game-project-file prefs render-progress! dashboard-client updater newly-created?]
+  (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
         build-settings (workspace/make-build-settings prefs)
         workspace    (setup-workspace project-path build-settings)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
-        project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))]
+        project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/sign-in! dashboard-client :fetch-libraries))]
     (ui/run-now
-      (load-stage workspace project prefs update-context newly-created?)
+      (load-stage workspace project prefs dashboard-client updater newly-created?)
       (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
         (show-missing-dependencies-alert! missing-dependencies)))
     (g/reset-undo! *project-graph*)

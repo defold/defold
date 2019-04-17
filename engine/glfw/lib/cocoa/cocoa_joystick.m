@@ -771,11 +771,8 @@ IOHIDManagerRef gHidManager = nil;
 
 int XSDL_SYS_JoystickInit(void)
 {
-    IOReturn result = kIOReturnSuccess;
     mach_port_t masterPort = 0;
-    io_iterator_t hidObjectIterator = 0;
     CFMutableDictionaryRef hidMatchDictionary = NULL;
-    recDevice *device, *lastDevice;
     io_object_t ioHIDDeviceObject = 0;
 
     XSDL_numjoysticks = 0;
@@ -815,7 +812,6 @@ int XSDL_SYS_JoystickInit(void)
     IOHIDManagerSetDeviceMatchingMultiple(gHidManager, (__bridge CFArrayRef)criterionArray);
     IOHIDManagerRegisterDeviceMatchingCallback(gHidManager, gamepadWasAdded, NULL);
     IOHIDManagerRegisterDeviceRemovalCallback(gHidManager, gamepadWasRemoved, NULL);
-
     IOHIDManagerScheduleWithRunLoop(gHidManager, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
     IOHIDManagerOpen(gHidManager, kIOHIDOptionsTypeNone);
 

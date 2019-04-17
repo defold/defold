@@ -75,8 +75,6 @@
                   :command :referencing-files}
                  {:label "Dependencies..."
                   :command :dependencies}
-                 {:label "Hot Reload"
-                  :command :hot-reload}
                  {:label :separator}
                  {:label "View Diff"
                   :icon "icons/32/Icons_S_06_arrowup.png"
@@ -107,26 +105,26 @@
 (defn project-is-git-repo? [changes-view]
   (some? (g/node-value changes-view :unconfigured-git)))
 
-(defn first-sync! [changes-view project]
+(defn first-sync! [changes-view dashboard-client project]
   (let [workspace (project/workspace project)
         proj-path (.getPath (workspace/project-path workspace))
         project-title (project/project-title project)
         prefs (g/node-value changes-view :prefs)]
-    (-> (sync/begin-first-flow! proj-path project-title prefs
+    (-> (sync/begin-first-flow! proj-path project-title prefs dashboard-client
                                 (fn [git]
                                   (ui/run-later
                                     (g/set-property! changes-view :unconfigured-git git))))
         (sync/open-sync-dialog))))
 
-(defn regular-sync! [changes-view]
-  (let [prefs (g/node-value changes-view :prefs)
-        git (g/node-value changes-view :git)]
-    (if-not (login/login prefs)
-      false
-      (let [creds (git/credentials prefs)
-            flow (sync/begin-flow! git creds)]
-        (sync/open-sync-dialog flow)
-        true))))
+(defn regular-sync! [changes-view dashboard-client]
+  (if-not (login/sign-in! dashboard-client :synchronize)
+    false
+    (let [git (g/node-value changes-view :git)
+          prefs (g/node-value changes-view :prefs)
+          creds (git/credentials prefs)
+          flow (sync/begin-flow! git creds)]
+      (sync/open-sync-dialog flow)
+      true)))
 
 (defn ensure-no-locked-files! [changes-view]
   (let [git (g/node-value changes-view :unconfigured-git)]

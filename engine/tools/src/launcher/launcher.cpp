@@ -1,4 +1,5 @@
-#include <launcher.h>
+#include "launcher.h"
+#include "macos_events.h"
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -26,6 +27,20 @@
 #define RESOURCES_PATH_KEY ("bootstrap.resourcespath")
 #define LAUNCHER_PATH_KEY ("bootstrap.launcherpath")
 #define MAX_ARGS_SIZE (10 * DMPATH_MAX_PATH)
+
+// setenv does not exist in Windows. Make a wrapper for putenv for consistent API.
+#ifdef _WIN32
+static int setenv(const char *name, const char *value, int overwrite)
+{
+  int result = SetEnvironmentVariable(name, value);
+  if(result != 0) {
+    return 0;
+  }
+  else {
+    return -1;
+  }
+}
+#endif
 
 struct ReplaceContext
 {
@@ -171,11 +186,34 @@ int Launch(int argc, char **argv) {
     }
 
     args[i++] = (char*) main;
+#if defined(__MACH__)
+    char** fileList = ReceiveFileOpenEvent();
+    if(fileList) {
+      char** p = fileList;
+      while(*p && i < max_args - 1) {
+        args[i++] = *p;
+        p++;
+      }
+    }
+#else
+    // Assumption that any command line option that does not start with --config
+    // is a command line argument that we should pass on.
+    for(int j = 1; j < argc && i < max_args; ++j) {
+      if(strncmp("--config=", argv[j], sizeof("--config=")-1) != 0) {
+        args[i++] = argv[j];
+      }
+    }
+#endif
     args[i++] = 0;
 
     for (int j = 0; j < i; j++) {
         dmLogDebug("arg %d: %s", j, args[j]);
     }
+
+    // Explicitly set the java environment variables so that our JVM does not
+    // read some strange value configured in the system.
+    setenv("_JAVA_OPTIONS", "", 1);
+    setenv("JAVA_TOOL_OPTIONS", "", 1);
 
 #ifdef _WIN32
     STARTUPINFO si;
@@ -232,6 +270,10 @@ int Launch(int argc, char **argv) {
     }
     int stat;
     wait(&stat);
+
+#if defined(__MACH__)
+    FreeFileList(fileList);
+#endif
 
     delete[] args;
     dmConfigFile::Delete(config);

@@ -339,7 +339,7 @@
         step-count (count @steps)
         progress-tracer (make-progress-tracer :build-targets step-count progress-message-fn (progress/nest-render-progress render-progress! (progress/make "" 10) 5))
         evaluation-context-with-progress-trace (assoc evaluation-context :tracer progress-tracer)
-        prewarm-partitions (partition-all (max (quot step-count (+ (available-processors) 2)) 1000) (reverse @steps))
+        prewarm-partitions (partition-all (max (quot step-count (+ (available-processors) 2)) 1000) (rseq @steps))
         _ (batched-pmap (fn [node-id] (g/node-value node-id :build-targets evaluation-context-with-progress-trace)) prewarm-partitions)
         node-build-targets (g/node-value node :build-targets evaluation-context)
         build-targets (cond-> node-build-targets
@@ -382,6 +382,8 @@
                                                                    :command :bundle
                                                                    :user-data {:platform platform}})
                                                                 bundle-targets)}
+                                               {:label "Rebundle"
+                                                :command :rebundle}
                                                {:label "Fetch Libraries"
                                                 :command :fetch-libraries}
                                                {:label "Live Update Settings"
@@ -401,17 +403,19 @@
                        vals
                        (reduce into [])
                        distinct
-                       vec)]
-    (concat
-      (g/set-property project :all-selections all-selections)
-      (for [[node-id label] (g/sources-of project :all-selected-node-ids)]
-        (g/disconnect node-id label project :all-selected-node-ids))
-      (for [[node-id label] (g/sources-of project :all-selected-node-properties)]
-        (g/disconnect node-id label project :all-selected-node-properties))
-      (for [node-id all-node-ids]
-        (concat
-          (g/connect node-id :_node-id    project :all-selected-node-ids)
-          (g/connect node-id :_properties project :all-selected-node-properties))))))
+                       vec)
+        old-all-selections (g/node-value project :all-selections)]
+    (when-not (= old-all-selections all-selections)
+      (concat
+        (g/set-property project :all-selections all-selections)
+        (for [[node-id label] (g/sources-of project :all-selected-node-ids)]
+          (g/disconnect node-id label project :all-selected-node-ids))
+        (for [[node-id label] (g/sources-of project :all-selected-node-properties)]
+          (g/disconnect node-id label project :all-selected-node-properties))
+        (for [node-id all-node-ids]
+          (concat
+            (g/connect node-id :_node-id    project :all-selected-node-ids)
+            (g/connect node-id :_properties project :all-selected-node-properties)))))))
 
 (defn select
   ([project resource-node node-ids open-resource-nodes]
@@ -555,7 +559,7 @@
 (g/defnode Project
   (inherits core/Scope)
 
-  (extern workspace g/Any)
+  (property workspace g/Any)
 
   (property all-selections g/Any)
   (property all-sub-selections g/Any)

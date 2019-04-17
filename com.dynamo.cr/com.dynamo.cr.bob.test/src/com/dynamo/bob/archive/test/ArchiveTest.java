@@ -27,6 +27,7 @@ import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
+import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 
 public class ArchiveTest {
 
@@ -373,7 +374,7 @@ public class ArchiveTest {
     public void testExcludeResource() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
-        
+
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
         ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
         ResourceNode collection1 = addEntryToManifest("main.collectionc", root);
@@ -382,7 +383,7 @@ public class ArchiveTest {
         ResourceNode gameobject2 = addEntryToManifest("level2.goc", collectionproxy2); // should be excluded
         ResourceNode gameobject11 = addEntryToManifest("level1.goc", collectionproxy1); // should be bundled
         ResourceNode gameobject12 = addEntryToManifest("level1.goc", collectionproxy2);
-        
+
         manifestBuilder.setDependencies(root);
 
         List<String> excludedResources = new ArrayList<String>();
@@ -390,11 +391,11 @@ public class ArchiveTest {
         
         byte[] buffer = "level 2 content".getBytes();
         String normalisedPath = FilenameUtils.separatorsToUnix("/level2.goc");
-        manifestBuilder.addResourceEntry(normalisedPath, buffer);
+        manifestBuilder.addResourceEntry(normalisedPath, buffer, (byte) ResourceEntryFlag.EXCLUDED.getNumber());
         buffer = "level 1 content".getBytes();
         normalisedPath = FilenameUtils.separatorsToUnix("/level1.goc");
-        manifestBuilder.addResourceEntry(normalisedPath, buffer);
-        
+        manifestBuilder.addResourceEntry(normalisedPath, buffer, (byte) ResourceEntryFlag.BUNDLED.getNumber()); // TODO
+
         // Test
         assertFalse(instance.excludeResource("/level1.goc", excludedResources));
         assertTrue(instance.excludeResource("/level2.goc", excludedResources));

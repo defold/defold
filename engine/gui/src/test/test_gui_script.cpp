@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include <dlib/dstrings.h>
 
 #include <ddf/ddf.h>
@@ -33,7 +34,7 @@ static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str)
 void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
 bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data);
 
-class dmGuiScriptTest : public ::testing::Test
+class dmGuiScriptTest : public jc_test_base_class
 {
 public:
     dmScript::HContext m_ScriptContext;
@@ -482,8 +483,8 @@ TEST_F(dmGuiScriptTest, TestSizeMode)
 
     dmGui::Result result;
 
-    int t1, ts1;
-    result = dmGui::AddTexture(scene, "t1", (void*) &t1, (void*) &ts1, 1, 1);
+    int t1;
+    result = dmGui::AddTexture(scene, "t1", (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(result, dmGui::RESULT_OK);
 
     const char* src =
@@ -1232,6 +1233,6 @@ TEST_F(dmGuiScriptTest, TestInstanceContext)
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

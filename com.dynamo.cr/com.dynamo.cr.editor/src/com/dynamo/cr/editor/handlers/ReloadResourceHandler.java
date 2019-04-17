@@ -92,7 +92,7 @@ public class ReloadResourceHandler extends AbstractHandler {
 
                             Reload reload = Resource.Reload
                                     .newBuilder()
-                                    .setResource(sPath)
+                                    .addResources(sPath)
                                     .build();
 
                             ITarget target = targetService.getSelectedTarget();

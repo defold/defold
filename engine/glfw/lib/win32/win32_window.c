@@ -1219,7 +1219,7 @@ static int createWindow( const _GLFWwndconfig *wndconfig,
 
     _glfwWin.window = CreateWindowEx( _glfwWin.dwExStyle,    // Extended style
                                       _GLFW_WNDCLASSNAME,    // Class name
-                                      "GLFW Window",         // Window title
+                                      "",                    // Window title
                                       _glfwWin.dwStyle,      // Defined window style
                                       wa.left, wa.top,       // Window position
                                       fullWidth,             // Decorated window width
@@ -1319,7 +1319,10 @@ static void destroyWindow( void )
     }
 }
 
-
+ int _glfwPlatformGetWindowRefreshRate()
+ {
+    return _glfwWin.refreshRate;
+ }
 
 //************************************************************************
 //****               Platform implementation functions                ****

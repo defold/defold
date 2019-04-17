@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import java.lang.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+
+<VBox id="error-dialog" prefWidth="400.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+  <children>
+    <VBox VBox.vgrow="ALWAYS">
+      <children>
+	<TextFlow id="message"/>
+	<Region id="details-padding" prefHeight="20"/>
+	<CheckBox id="toggle-details" text="Details"/>
+	<TextArea id="details" prefHeight="60" editable="false" styleClass="copyable-text-area" wrapText="true" VBox.vgrow="ALWAYS" />
+      </children>
+    </VBox>
+    <Region id="button-padding" prefHeight="20"/>
+    <HBox>
+      <children>
+	<Region HBox.hgrow="ALWAYS" />
+	<Button id="ok" minWidth="80.0" mnemonicParsing="false" text="OK" />
+      </children>
+    </HBox>
+  </children>
+  <padding>
+    <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />
+  </padding>
+</VBox>

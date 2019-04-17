@@ -1,77 +1,71 @@
 (ns editor.app-view
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [clojure.set :as set]
             [dynamo.graph :as g]
+            [editor.build-errors-view :as build-errors-view]
             [editor.bundle :as bundle]
             [editor.bundle-dialog :as bundle-dialog]
             [editor.changes-view :as changes-view]
             [editor.console :as console]
             [editor.debug-view :as debug-view]
-            [editor.dialogs :as dialogs]
-            [editor.engine :as engine]
-            [editor.fs :as fs]
-            [editor.lua :as lua]
-            [editor.handler :as handler]
-            [editor.jfx :as jfx]
-            [editor.login :as login]
             [editor.defold-project :as project]
-            [editor.github :as github]
+            [editor.dialogs :as dialogs]
+            [editor.disk :as disk]
+            [editor.disk-availability :as disk-availability]
+            [editor.engine :as engine]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.error-reporting :as error-reporting]
+            [editor.fs :as fs]
+            [editor.game-project :as game-project]
+            [editor.github :as github]
+            [editor.graph-util :as gu]
+            [editor.handler :as handler]
+            [editor.hot-reload :as hot-reload]
+            [editor.jfx :as jfx]
+            [editor.keymap :as keymap]
+            [editor.live-update-settings :as live-update-settings]
+            [editor.login :as login]
+            [editor.lua :as lua]
+            [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
             [editor.placeholder-resource :as placeholder-resource]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
             [editor.progress :as progress]
-            [editor.ui :as ui]
-            [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.graph-util :as gu]
-            [editor.util :as util]
-            [editor.keymap :as keymap]
-            [editor.search-results-view :as search-results-view]
-            [editor.targets :as targets]
-            [editor.build-errors-view :as build-errors-view]
-            [editor.hot-reload :as hot-reload]
-            [editor.url :as url]
-            [editor.view :as view]
-            [editor.system :as system]
-            [service.log :as log]
-            [internal.util :refer [first-where]]
-            [util.profiler :as profiler]
-            [util.http-server :as http-server]
             [editor.scene :as scene]
-            [editor.live-update-settings :as live-update-settings]
-            [editor.disk :as disk]
-            [editor.disk-availability :as disk-availability]
-            [editor.scene-visibility :as scene-visibility]
             [editor.scene-cache :as scene-cache]
-            [editor.types :as types])
-  (:import [com.defold.control TabPaneBehavior]
-           [com.defold.editor Editor EditorApplication]
-           [com.defold.editor Start]
-           [java.net URI Socket]
-           [java.util Collection]
-           [javafx.application Platform]
+            [editor.scene-visibility :as scene-visibility]
+            [editor.search-results-view :as search-results-view]
+            [editor.system :as system]
+            [editor.targets :as targets]
+            [editor.types :as types]
+            [editor.ui :as ui]
+            [editor.url :as url]
+            [editor.util :as util]
+            [editor.view :as view]
+            [editor.workspace :as workspace]
+            [internal.util :refer [first-where]]
+            [service.log :as log]
+            [util.http-server :as http-server]
+            [util.profiler :as profiler]
+            [service.smoke-log :as slog])
+  (:import [com.defold.editor Editor EditorApplication]
+           [java.io BufferedReader File IOException]
+           [java.net URL]
+           [java.util Collection List]
+           [java.util.concurrent.atomic AtomicInteger]
            [javafx.beans.value ChangeListener]
-           [javafx.collections FXCollections ObservableList ListChangeListener]
-           [javafx.embed.swing SwingFXUtils]
-           [javafx.event ActionEvent Event EventHandler]
-           [javafx.fxml FXMLLoader]
-           [javafx.geometry Insets Pos]
-           [javafx.scene Scene Node Parent]
-           [javafx.scene.control Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy ProgressBar Tooltip]
-           [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input Clipboard ClipboardContent KeyEvent]
-           [javafx.scene.layout AnchorPane HBox StackPane]
+           [javafx.collections ListChangeListener ObservableList]
+           [javafx.event Event]
+           [javafx.scene Node Parent Scene]
+           [javafx.scene.control MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy Tooltip]
+           [javafx.scene.image Image ImageView]
+           [javafx.scene.input Clipboard ClipboardContent]
+           [javafx.scene.layout AnchorPane StackPane]
            [javafx.scene.shape Ellipse SVGPath]
-           [javafx.stage Screen Stage FileChooser WindowEvent]
-           [javafx.util Callback]
-           [java.io InputStream File IOException BufferedReader]
-           [java.util.prefs Preferences]
-           [com.jogamp.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
+           [javafx.stage Screen Stage WindowEvent]))
 
 (set! *warn-on-reflection* true)
 
@@ -101,6 +95,7 @@
 
 (g/defnode AppView
   (property stage Stage)
+  (property scene Scene)
   (property editor-tabs-split SplitPane)
   (property active-tab-pane TabPane)
   (property tool-tab-pane TabPane)
@@ -156,7 +151,7 @@
                                                                     resource-name)]]
                                                 (ui/text! tab title)))))
   (output keymap g/Any :cached (g/fnk []
-                                 (keymap/make-keymap keymap/default-key-bindings {:valid-command? (set (handler/available-commands))})))
+                                 (keymap/make-keymap keymap/default-host-key-bindings {:valid-command? (set (handler/available-commands))})))
   (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
 
 (defn- selection->openable-resources [selection]
@@ -171,13 +166,21 @@
 (defn- selection->single-resource [selection]
   (handler/adapt-single selection resource/Resource))
 
-(defn- context-resource-file [app-view selection]
-  (or (selection->single-openable-resource selection)
-      (g/node-value app-view :active-resource)))
+(defn- context-resource-file
+  ([app-view selection]
+   (g/with-auto-evaluation-context evaluation-context
+     (context-resource-file app-view selection evaluation-context)))
+  ([app-view selection evaluation-context]
+   (or (selection->single-openable-resource selection)
+       (g/node-value app-view :active-resource evaluation-context))))
 
-(defn- context-resource [app-view selection]
-  (or (selection->single-resource selection)
-      (g/node-value app-view :active-resource)))
+(defn- context-resource
+  ([app-view selection]
+   (g/with-auto-evaluation-context evaluation-context
+     (context-resource app-view selection evaluation-context)))
+  ([app-view selection evaluation-context]
+   (or (selection->single-resource selection)
+       (g/node-value app-view :active-resource evaluation-context))))
 
 (defn- disconnect-sources [target-node target-label]
   (for [[source-node source-label] (g/sources-of target-node target-label)]
@@ -285,7 +288,7 @@
   (when-let [dims (prefs/get-prefs prefs prefs-window-dimensions nil)]
     (let [{:keys [x y width height maximized full-screen]} dims]
       (when (and (number? x) (number? y) (number? width) (number? height))
-        (when-let [screens (seq (Screen/getScreensForRectangle x y width height))]
+        (when-let [_ (seq (Screen/getScreensForRectangle x y width height))]
           (doto stage
             (.setX x)
             (.setY y))
@@ -329,16 +332,9 @@
         (.setDividerPositions sp (into-array Double/TYPE pos))
         (.layout sp)))))
 
-(handler/defhandler :open-project :global
-  (run [] (when-let [file-name (some-> (ui/choose-file {:title "Open Project"
-                                                        :filters [{:description "Project Files"
-                                                                   :exts ["*.project"]}]})
-                                       (.getAbsolutePath))]
-            (EditorApplication/openEditor (into-array String [file-name])))))
-
 (handler/defhandler :logout :global
-  (enabled? [prefs] (login/has-token? prefs))
-  (run [prefs] (login/logout prefs)))
+  (enabled? [dashboard-client] (login/can-sign-out? dashboard-client))
+  (run [dashboard-client] (login/sign-out! dashboard-client)))
 
 (handler/defhandler :preferences :global
   (run [workspace prefs]
@@ -350,8 +346,8 @@
     #{resource}
     (set (concat [resource] (mapcat collect-resources children)))))
 
-(defn- get-active-tabs [app-view]
-  (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane)]
+(defn- get-active-tabs [app-view evaluation-context]
+  (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane evaluation-context)]
     (.getTabs tab-pane)))
 
 (defn- make-render-build-error
@@ -380,7 +376,7 @@
                              (when-let [line (.readLine buffered-reader)] ; line of text or nil if eof reached
                                (sink-fn line)
                                (recur))))))
-                     (catch IOException e
+                     (catch IOException _
                        ;; Losing the log connection is ok and even expected
                        nil)
                      (catch InterruptedException _
@@ -397,10 +393,18 @@
    :build (ref progress/done)
    :resource-sync (ref progress/done)
    :save-all (ref progress/done)
-   :fetch-libraries (ref progress/done)})
+   :fetch-libraries (ref progress/done)
+   :download-update (ref progress/done)})
+
+(defn- cancel-task!
+  [task-key]
+  (dosync
+    (let [progress-ref (task-key app-task-progress)]
+      (ref-set progress-ref (progress/cancel! @progress-ref)))))
 
 (def ^:private app-task-ui-priority
-  [:save-all :resource-sync :fetch-libraries :build :main])
+  "Task priority in descending order (from highest to lowest)"
+  [:save-all :resource-sync :fetch-libraries :build :download-update :main])
 
 (def ^:private render-task-progress-ui-inflight (ref false))
 
@@ -411,26 +415,35 @@
       (ref-set task-progress-snapshot
                (into {} (map (juxt first (comp deref second))) app-task-progress)))
     (let [status-bar (.. (ui/main-stage) (getScene) (getRoot) (lookup "#status-bar"))
-          [key progress] (first (filter (comp (complement progress/done?) second)
-                                        (map (juxt identity @task-progress-snapshot)
-                                             app-task-ui-priority)))
+          [key progress] (->> app-task-ui-priority
+                              (map (juxt identity @task-progress-snapshot))
+                              (filter (comp (complement progress/done?) second))
+                              first)
           show-progress-hbox? (boolean (and (not= key :main)
                                             progress
                                             (not (progress/done? progress))))]
-      (ui/with-controls status-bar [progress-bar progress-hbox progress-percentage-label status-label]
+      (ui/with-controls status-bar [progress-bar progress-hbox progress-percentage-label status-label progress-cancel-button]
         (ui/render-progress-message!
           (if key progress (@task-progress-snapshot :main))
           status-label)
-
         ;; The bottom right of the status bar can show either the progress-hbox
-        ;; or the update-available-label, or both. The progress-hbox will cover
-        ;; the update-available-label if both are visible.
+        ;; or the update-link, or both. The progress-hbox will cover
+        ;; the update-link if both are visible.
         (if-not show-progress-hbox?
           (ui/visible! progress-hbox false)
           (do
             (ui/visible! progress-hbox true)
             (ui/render-progress-bar! progress progress-bar)
-            (ui/render-progress-percentage! progress progress-percentage-label)))))))
+            (ui/render-progress-percentage! progress progress-percentage-label)
+            (if (progress/cancellable? progress)
+              (doto progress-cancel-button
+                (ui/visible! true)
+                (ui/managed! true)
+                (ui/on-action! (fn [_] (cancel-task! key))))
+              (doto progress-cancel-button
+                (ui/visible! false)
+                (ui/managed! false)
+                (ui/on-action! identity)))))))))
 
 (defn- render-task-progress! [key progress]
   (let [schedule-render-task-progress-ui (ref false)]
@@ -446,6 +459,9 @@
   (progress/throttle-render-progress
     (fn [progress] (render-task-progress! key progress))))
 
+(defn make-task-cancelled-query [keyword]
+  (fn [] (progress/cancelled? @(keyword app-task-progress))))
+
 (defn render-main-task-progress! [progress]
   (render-task-progress! :main progress))
 
@@ -455,10 +471,15 @@
 (defn clear-build-launch-progress! []
   (render-main-task-progress! progress/done))
 
-(defn- launch-engine! [project prefs debug?]
+(defn- decorate-target [engine-descriptor target]
+  (assoc target :engine-id (:id engine-descriptor)))
+
+(defn- launch-engine! [engine-descriptor project-directory prefs debug?]
   (try
     (report-build-launch-progress! "Launching engine...")
-    (let [launched-target (->> (engine/launch! project prefs debug?)
+    (let [engine (engine/install-engine! project-directory engine-descriptor)
+          launched-target (->> (engine/launch! engine project-directory prefs debug?)
+                               (decorate-target engine-descriptor)
                                (targets/add-launched-target!)
                                (targets/select-target! prefs))]
       (report-build-launch-progress! (format "Launched %s" (targets/target-message-label launched-target)))
@@ -499,82 +520,85 @@
 
 (def ^:private build-in-progress? (atom false))
 
-(defn- launch-built-project! [project prefs web-server debug? render-error!]
-  (let [selected-target (targets/selected-target prefs)]
+(defn- launch-built-project! [engine-descriptor project-directory prefs web-server debug?]
+  (let [selected-target (targets/selected-target prefs)
+        launch-new-engine! (fn []
+                             (targets/kill-launched-targets!)
+                             (let [launched-target (launch-engine! engine-descriptor project-directory prefs debug?)
+                                   log-stream      (:log-stream launched-target)]
+                               (reset-console-stream! log-stream)
+                               (reset-remote-log-pump-thread! nil)
+                               (start-log-pump! log-stream (make-launched-log-sink launched-target))
+                               launched-target))]
     (try
       (cond
         (not selected-target)
-        (do (targets/kill-launched-targets!)
-            (let [launched-target (launch-engine! project prefs debug?)
-                  log-stream      (:log-stream launched-target)]
-              (reset-console-stream! log-stream)
-              (reset-remote-log-pump-thread! nil)
-              (start-log-pump! log-stream (make-launched-log-sink launched-target))
-              launched-target))
+        (launch-new-engine!)
 
         (not (targets/controllable-target? selected-target))
         (do
           (assert (targets/launched-target? selected-target))
-          (targets/kill-launched-targets!)
-          (let [launched-target (launch-engine! project prefs debug?)
-                log-stream      (:log-stream launched-target)]
-            (reset-console-stream! log-stream)
-            (reset-remote-log-pump-thread! nil)
-            (start-log-pump! log-stream (make-launched-log-sink launched-target))
-            launched-target))
+          (launch-new-engine!))
 
         (and (targets/controllable-target? selected-target) (targets/remote-target? selected-target))
-        (do
-          (let [log-stream (engine/get-log-service-stream selected-target)]
-            (reset-console-stream! log-stream)
-            (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream)))
-            (reboot-engine! selected-target web-server debug?)))
+        (let [log-stream (engine/get-log-service-stream selected-target)]
+          (reset-console-stream! log-stream)
+          (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream)))
+          (reboot-engine! selected-target web-server debug?))
 
         :else
         (do
           (assert (and (targets/controllable-target? selected-target) (targets/launched-target? selected-target)))
-          (reset-console-stream! (:log-stream selected-target))
-          (reset-remote-log-pump-thread! nil)
-          ;; Launched target log pump already
-          ;; running to keep engine process
-          ;; from halting because stdout/err is
-          ;; not consumed.
-          (reboot-engine! selected-target web-server debug?)))
+          (if (= (:id engine-descriptor) (:engine-id selected-target))
+            (do
+              ;; We're running "the same" engine and can reuse the
+              ;; running process by rebooting
+              (reset-console-stream! (:log-stream selected-target))
+              (reset-remote-log-pump-thread! nil)
+              ;; Launched target log pump already
+              ;; running to keep engine process
+              ;; from halting because stdout/err is
+              ;; not consumed.
+              (reboot-engine! selected-target web-server debug?))
+            (launch-new-engine!))))
       (catch Exception e
         (log/warn :exception e)
-        (when-not (engine-build-errors/handle-build-error! render-error! project e)
-          (dialogs/make-alert-dialog (format "Launching %s failed: \n%s"
-                                             (if (some? selected-target)
-                                               (targets/target-message-label selected-target)
-                                               "New Local Engine")
-                                             (.getMessage e))))))))
+        (dialogs/make-error-dialog (format "Launching %s Failed"
+                                           (if (some? selected-target)
+                                             (targets/target-message-label selected-target)
+                                             "New Local Engine"))
+                                   "If the engine is already running, shut down the process manually and retry."
+                                   (.getMessage e))))))
 
-(defn- async-build! [project {:keys [debug?] :or {debug? false} :as opts} old-artifact-map result-fn]
-  (let [render-build-progress! (make-render-task-progress :build)
-        local-system           (g/clone-system)]
-    (assert (not @build-in-progress?))
-    (reset! build-in-progress? true)
-    (future
-      (try
-        (g/with-system local-system
-          (let [evaluation-context  (g/make-evaluation-context)
-                extra-build-targets (when debug?
-                                      (debug-view/build-targets project evaluation-context))
-                build-results       (ui/with-progress [_ render-build-progress!]
-                                      (project/build-project! project evaluation-context extra-build-targets old-artifact-map render-build-progress!))]
-            (ui/run-later
-              (try
-                (g/update-cache-from-evaluation-context! evaluation-context)
-                (when result-fn (result-fn build-results))
-                (finally
-                  (reset! build-in-progress? false))))
-            build-results))
-        (catch Throwable t
-          (reset! build-in-progress? false)
-          (error-reporting/report-exception! t))))))
+(defn async-build! [project evaluation-context prefs {:keys [debug? engine?] :or {debug? false engine? true}} old-artifact-map render-build-progress! result-fn]
+  (assert (not @build-in-progress?))
+  (reset! build-in-progress? true)
+  (future
+    (try
+      (render-build-progress! (progress/make "Building project..." 1))
+      (let [extra-build-targets (when debug?
+                                  (debug-view/build-targets project evaluation-context))
+            build-results (ui/with-progress [_ render-build-progress!]
+                            (project/build-project! project evaluation-context extra-build-targets old-artifact-map render-build-progress!))
+            [engine build-engine-exception] (when (and engine? (nil? (:error build-results)))
+                                              (try
+                                                (ui/with-progress [_ render-build-progress!]
+                                                  (render-build-progress! (progress/make-indeterminate "Fetching Engine"))
+                                                  [(engine/get-engine project evaluation-context prefs (engine/current-platform)) nil])
+                                                (catch Throwable e
+                                                  [nil e])))]
+        (ui/run-later
+          (try
+            (when result-fn (result-fn build-results engine build-engine-exception))
+            (finally
+              (reset! build-in-progress? false)))))
+      (catch Throwable t
+        (reset! build-in-progress? false)
+        (render-build-progress! progress/done)
+        (error-reporting/report-exception! t)))))
 
 (defn- handle-build-results! [workspace build-errors-view build-results]
-  (let [{:keys [error artifacts artifact-map etags]} build-results]
+  (let [{:keys [error artifact-map etags]} build-results]
     (if (some? error)
       (do
         (build-errors-view/update-build-errors build-errors-view error)
@@ -582,19 +606,30 @@
       (do
         (workspace/artifact-map! workspace artifact-map)
         (workspace/etags! workspace etags)
+        (workspace/save-build-cache! workspace)
         (build-errors-view/clear-build-errors build-errors-view)
         build-results))))
 
+(defn- build-handler [project workspace prefs web-server build-errors-view console-view]
+  (let [project-directory (io/file (workspace/project-path workspace))
+        evaluation-context (g/make-evaluation-context)]
+    (async-build! project evaluation-context prefs {:debug? false} (workspace/artifact-map workspace)
+                  (make-render-task-progress :build)
+                  (fn [build-results engine-descriptor build-engine-exception]
+                    (g/update-cache-from-evaluation-context! evaluation-context)
+                    (when (handle-build-results! workspace build-errors-view build-results)
+                      (when engine-descriptor
+                        (console/show! console-view)
+                        (launch-built-project! engine-descriptor project-directory prefs web-server false))
+                      (when build-engine-exception
+                        (log/warn :exception build-engine-exception)
+                        (engine-build-errors/handle-build-error! (make-render-build-error build-errors-view) project evaluation-context build-engine-exception)))))))
 
 (handler/defhandler :build :global
   (enabled? [] (not @build-in-progress?))
   (run [project workspace prefs web-server build-errors-view console-view debug-view]
     (debug-view/detach! debug-view)
-    (async-build! project {:debug? false} (workspace/artifact-map workspace)
-                  (fn [build-results]
-                    (when (handle-build-results! workspace build-errors-view build-results)
-                      (console/show! console-view)
-                      (launch-built-project! project prefs web-server false (make-render-build-error build-errors-view)))))))
+    (build-handler project workspace prefs web-server build-errors-view console-view)))
 
 (defn- debugging-supported?
   [project]
@@ -606,44 +641,51 @@ If you do not specifically require different script states, consider changing th
         false)))
 
 (handler/defhandler :start-debugger :global
-  (enabled? [debug-view]
+  (enabled? [debug-view evaluation-context]
             (and (not @build-in-progress?)
-                 (nil? (debug-view/current-session debug-view))))
+                 (nil? (debug-view/current-session debug-view evaluation-context))))
   (run [project workspace prefs web-server build-errors-view console-view debug-view]
     (when (debugging-supported? project)
-      (async-build! project {:debug? true} (workspace/artifact-map workspace)
-                    (fn [build-results]
-                      (when (handle-build-results! workspace build-errors-view build-results)
-                        (when-let [target (launch-built-project! project prefs web-server true (make-render-build-error build-errors-view))]
-                          (when (nil? (debug-view/current-session debug-view))
-                            (debug-view/start-debugger! debug-view project (:address target "localhost"))))))))))
+      (let [project-directory (io/file (workspace/project-path workspace))
+            evaluation-context (g/make-evaluation-context)]
+        (async-build! project evaluation-context prefs {:debug? true} (workspace/artifact-map workspace)
+                      (make-render-task-progress :build)
+                      (fn [build-results engine-descriptor build-engine-exception]
+                        (g/update-cache-from-evaluation-context! evaluation-context)
+                        (when (handle-build-results! workspace build-errors-view build-results)
+                          (when engine-descriptor
+                            (when-let [target (launch-built-project! engine-descriptor project-directory prefs web-server true)]
+                              (when (nil? (debug-view/current-session debug-view))
+                                (debug-view/start-debugger! debug-view project (:address target "localhost")))))
+                          (when build-engine-exception
+                            (log/warn :exception build-engine-exception)
+                            (engine-build-errors/handle-build-error! (make-render-build-error build-errors-view) project evaluation-context build-engine-exception)))))))))
 
 (handler/defhandler :attach-debugger :global
-  (enabled? [debug-view prefs]
+  (enabled? [debug-view prefs evaluation-context]
             (and (not @build-in-progress?)
-                 (nil? (debug-view/current-session debug-view))
+                 (nil? (debug-view/current-session debug-view evaluation-context))
                  (let [target (targets/selected-target prefs)]
                    (and target (targets/controllable-target? target)))))
   (run [project workspace build-errors-view debug-view prefs]
     (debug-view/detach! debug-view)
     (when (debugging-supported? project)
-      (async-build! project {:debug? true} (workspace/artifact-map workspace)
-                    (fn [build-results]
-                      (when (handle-build-results! workspace build-errors-view build-results)
-                        (let [target (targets/selected-target prefs)]
-                          (when (targets/controllable-target? target)
-                            (debug-view/attach! debug-view project target (:artifacts build-results))))))))))
+      (let [evaluation-context (g/make-evaluation-context)]
+        (async-build! project evaluation-context prefs {:debug? true :engine? false} (workspace/artifact-map workspace)
+                      (make-render-task-progress :build)
+                      (fn [build-results _ _]
+                        (g/update-cache-from-evaluation-context! evaluation-context)
+                        (when (handle-build-results! workspace build-errors-view build-results)
+                          (let [target (targets/selected-target prefs)]
+                            (when (targets/controllable-target? target)
+                              (debug-view/attach! debug-view project target (:artifacts build-results)))))))))))
 
 (handler/defhandler :rebuild :global
   (enabled? [] (not @build-in-progress?))
-  (run [workspace project prefs web-server build-errors-view console-view debug-view]
+  (run [project workspace prefs web-server build-errors-view console-view debug-view]
     (debug-view/detach! debug-view)
-    (workspace/reset-cache! workspace)
-    (async-build! project {:debug? false} (workspace/artifact-map workspace)
-                  (fn [build-results]
-                    (when (handle-build-results! workspace build-errors-view build-results)
-                      (console/show! console-view)
-                      (launch-built-project! project prefs web-server false (make-render-build-error build-errors-view)))))))
+    (workspace/clear-build-cache! workspace)
+    (build-handler project workspace prefs web-server build-errors-view console-view)))
 
 (handler/defhandler :build-html5 :global
   (run [project prefs web-server build-errors-view changes-view]
@@ -652,68 +694,111 @@ If you do not specifically require different script states, consider changing th
           render-reload-progress! (make-render-task-progress :resource-sync)
           render-save-progress! (make-render-task-progress :save-all)
           render-build-progress! (make-render-task-progress :build)
+          task-cancelled? (make-task-cancelled-query :build)
           bob-args (bob/build-html5-bob-args project prefs)]
       (clear-errors!)
       (console/clear-console!)
-      (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress!
+      (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! task-cancelled?
                              render-build-error! bob/build-html5-bob-commands bob-args project changes-view
                              (fn [successful?]
                                (when successful?
                                  (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))
 
+(defn- updated-build-resource-proj-paths [old-etags new-etags]
+  ;; We only want to return resources that were present in the old etags since
+  ;; we don't want to ask the engine to reload something it has not seen yet.
+  ;; It is presumed that the engine will follow any newly-introduced references
+  ;; and load the resources. We might ask the engine to reload these resources
+  ;; the next time they are modified.
+  (into #{}
+        (keep (fn [[proj-path old-etag]]
+                (when-some [new-etag (new-etags proj-path)]
+                  (when (not= old-etag new-etag)
+                    proj-path))))
+        old-etags))
+
+(defn- updated-build-resources [evaluation-context project old-etags new-etags proj-path-or-resource]
+  (let [resource-node (project/get-resource-node project proj-path-or-resource evaluation-context)
+        build-targets (g/node-value resource-node :build-targets evaluation-context)
+        updated-build-resource-proj-paths (updated-build-resource-proj-paths old-etags new-etags)]
+    (into []
+          (keep (fn [{build-resource :resource :as _build-target}]
+                  (when (contains? updated-build-resource-proj-paths (resource/proj-path build-resource))
+                    build-resource)))
+          (rseq (pipeline/flatten-build-targets build-targets)))))
+
+(defn- can-hot-reload? [debug-view prefs evaluation-context]
+  (when-some [target (targets/selected-target prefs)]
+    (and (targets/controllable-target? target)
+         (not (debug-view/suspended? debug-view evaluation-context))
+         (not @build-in-progress?))))
+
+(defn- hot-reload! [project prefs build-errors-view]
+  (let [evaluation-context (g/make-evaluation-context)
+        target (targets/selected-target prefs)
+        workspace (project/workspace project evaluation-context)
+        old-artifact-map (workspace/artifact-map workspace)
+        old-etags (workspace/etags workspace)
+        render-build-progress! (make-render-task-progress :build)
+        opts {:debug? false :engine? false}]
+    ;; NOTE: We must build the entire project even if we only want to reload a
+    ;; subset of resources in order to maintain a functioning build cache.
+    ;; If we decide to support hot reload of a subset of resources, we must
+    ;; keep track of which resource versions have been loaded by the engine,
+    ;; or we might miss resources that were recompiled but never reloaded.
+    (async-build! project evaluation-context prefs opts old-artifact-map render-build-progress!
+                  (fn [{:keys [error artifact-map etags]} _ _]
+                    (g/update-cache-from-evaluation-context! evaluation-context)
+                    (if (some? error)
+                      (build-errors-view/update-build-errors build-errors-view error)
+                      (do
+                        (workspace/artifact-map! workspace artifact-map)
+                        (workspace/etags! workspace etags)
+                        (workspace/save-build-cache! workspace)
+                        (build-errors-view/clear-build-errors build-errors-view)
+                        (try
+                          (when-some [updated-build-resources (not-empty (updated-build-resources evaluation-context project old-etags etags "/game.project"))]
+                            (engine/reload-build-resources! target updated-build-resources))
+                          (catch Exception e
+                            (dialogs/make-error-dialog "Hot Reload Failed"
+                                                       (format "Failed to reload resources on '%s'"
+                                                               (targets/target-message-label (targets/selected-target prefs)))
+                                                       (.getMessage e))))))))))
 
 (handler/defhandler :hot-reload :global
-  (enabled? [app-view debug-view selection prefs]
-            (when-let [resource (context-resource-file app-view selection)]
-              (and (resource/exists? resource)
-                   (some-> (targets/selected-target prefs)
-                           (targets/controllable-target?))
-                   (not (debug-view/suspended? debug-view)))))
+  (enabled? [debug-view prefs evaluation-context]
+            (can-hot-reload? debug-view prefs evaluation-context))
   (run [project app-view prefs build-errors-view selection]
-    (when-let [resource (context-resource-file app-view selection)]
-      (ui/->future 0.01
-                   (fn []
-                     (let [evaluation-context (g/make-evaluation-context)
-                           workspace (project/workspace project)
-                           old-artifact-map (workspace/artifact-map workspace)
-                           {:keys [error artifacts artifact-map etags]} (project/build-project! project
-                                                                                                evaluation-context
-                                                                                                nil
-                                                                                                old-artifact-map
-                                                                                                (make-render-task-progress :build))]
-                       (g/update-cache-from-evaluation-context! evaluation-context)
-                       (if (some? error)
-                         (build-errors-view/update-build-errors build-errors-view error)
-                         (do
-                           (workspace/artifact-map! workspace artifact-map)
-                           (workspace/etags! workspace etags)
-                           (try
-                             (build-errors-view/clear-build-errors build-errors-view)
-                             (engine/reload-resource (targets/selected-target prefs) resource)
-                             (catch Exception e
-                               (dialogs/make-alert-dialog (format "Failed to reload resource on '%s':\n%s" (targets/target-message-label (targets/selected-target prefs)) (.getMessage e)))))))))))))
+       (hot-reload! project prefs build-errors-view)))
 
 (handler/defhandler :close :global
-  (enabled? [app-view] (not-empty (get-active-tabs app-view)))
+  (enabled? [app-view evaluation-context]
+            (not-empty (get-active-tabs app-view evaluation-context)))
   (run [app-view]
     (let [tab-pane (g/node-value app-view :active-tab-pane)]
       (when-let [tab (ui/selected-tab tab-pane)]
         (remove-tab! tab-pane tab)))))
 
 (handler/defhandler :close-other :global
-  (enabled? [app-view] (not-empty (next (get-active-tabs app-view))))
+  (enabled? [app-view evaluation-context]
+            (not-empty (next (get-active-tabs app-view evaluation-context))))
   (run [app-view]
     (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane)]
       (when-let [selected-tab (ui/selected-tab tab-pane)]
-        (doseq [tab (.getTabs tab-pane)]
+        ;; Plain doseq over .getTabs will use the iterable interface
+        ;; and we get a ConcurrentModificationException since we
+        ;; remove from the list while iterating. Instead put the tabs
+        ;; in a (non-lazy) vec before iterating.
+        (doseq [tab (vec (.getTabs tab-pane))]
           (when (not= tab selected-tab)
             (remove-tab! tab-pane tab)))))))
 
 (handler/defhandler :close-all :global
-  (enabled? [app-view] (not-empty (get-active-tabs app-view)))
+  (enabled? [app-view evaluation-context]
+            (not-empty (get-active-tabs app-view evaluation-context)))
   (run [app-view]
     (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane)]
-      (doseq [tab (.getTabs tab-pane)]
+      (doseq [tab (vec (.getTabs tab-pane))]
         (remove-tab! tab-pane tab)))))
 
 (defn- editor-tab-pane
@@ -742,9 +827,9 @@ If you do not specifically require different script states, consider changing th
     (configure-editor-tab-pane! new-tab-pane app-scene app-view)
     new-tab-pane))
 
-(defn open-tab-count
-  ^long [app-view]
-  (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)]
+(defn- open-tab-count
+  ^long [app-view evaluation-context]
+  (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split evaluation-context)]
     (loop [tab-panes (.getItems editor-tabs-split)
            tab-count 0]
       (if-some [^TabPane tab-pane (first tab-panes)]
@@ -752,13 +837,14 @@ If you do not specifically require different script states, consider changing th
                (+ tab-count (.size (.getTabs tab-pane))))
         tab-count))))
 
-(defn open-tab-pane-count
-  ^long [app-view]
-  (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)]
+(defn- open-tab-pane-count
+  ^long [app-view evaluation-context]
+  (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split evaluation-context)]
     (.size (.getItems editor-tabs-split))))
 
 (handler/defhandler :move-tab :global
-  (enabled? [app-view] (< 1 (open-tab-count app-view)))
+  (enabled? [app-view evaluation-context]
+            (< 1 (open-tab-count app-view evaluation-context)))
   (run [app-view user-data]
        (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
              source-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
@@ -771,7 +857,8 @@ If you do not specifically require different script states, consider changing th
          (.requestFocus dest-tab-pane))))
 
 (handler/defhandler :swap-tabs :global
-  (enabled? [app-view] (< 1 (open-tab-pane-count app-view)))
+  (enabled? [app-view evaluation-context]
+            (< 1 (open-tab-pane-count app-view evaluation-context)))
   (run [app-view user-data]
        (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
              active-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
@@ -791,7 +878,8 @@ If you do not specifically require different script states, consider changing th
          (.requestFocus other-tab-pane))))
 
 (handler/defhandler :join-tab-panes :global
-  (enabled? [app-view] (< 1 (open-tab-pane-count app-view)))
+  (enabled? [app-view evaluation-context]
+            (< 1 (open-tab-pane-count app-view evaluation-context)))
   (run [app-view user-data]
        (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
              active-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
@@ -812,8 +900,8 @@ If you do not specifically require different script states, consider changing th
         stage (ui/make-dialog-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["version" "channel" "editor-sha1" "engine-sha1" "time"])]
-    (ui/text! (:version controls) (str "Version: " (System/getProperty "defold.version" "NO VERSION")))
-    (ui/text! (:channel controls) (str "Channel: " (or (system/defold-channel) "No channel")))
+    (ui/text! (:version controls) (System/getProperty "defold.version" "No version"))
+    (ui/text! (:channel controls) (or (system/defold-channel) "No channel"))
     (ui/text! (:editor-sha1 controls) (or (system/defold-editor-sha1) "No editor sha1"))
     (ui/text! (:engine-sha1 controls) (or (system/defold-engine-sha1) "No engine sha1"))
     (ui/text! (:time controls) (or (system/defold-build-time) "No build time"))
@@ -840,7 +928,7 @@ If you do not specifically require different script states, consider changing th
   (run [] (ui/open-url (github/search-issues-link))))
 
 (handler/defhandler :show-logs :global
-  (run [] (ui/open-file (.toFile (Editor/getLogDirectory)))))
+  (run [] (ui/open-file (.getAbsoluteFile (.toFile (Editor/getLogDirectory))))))
 
 (handler/defhandler :about :global
   (run [] (make-about-dialog)))
@@ -883,7 +971,7 @@ If you do not specifically require different script states, consider changing th
                              {:label "Hot Reload"
                               :command :hot-reload}
                              {:label :separator}
-                             {:label "Logout"
+                             {:label "Sign Out"
                               :command :logout}
                              {:label "Preferences..."
                               :command :preferences}
@@ -987,53 +1075,48 @@ If you do not specifically require different script states, consider changing th
                  {:label "Referencing Files..."
                   :command :referencing-files}
                  {:label "Dependencies..."
-                  :command :dependencies}
-                 {:label "Hot Reload"
-                  :command :hot-reload}])
+                  :command :dependencies}])
 
 (defrecord SelectionProvider [app-view]
   handler/SelectionProvider
-  (selection [this] (g/node-value app-view :selected-node-ids))
-  (succeeding-selection [this] [])
-  (alt-selection [this] []))
+  (selection [_] (g/node-value app-view :selected-node-ids))
+  (succeeding-selection [_] [])
+  (alt-selection [_] []))
 
 (defn ->selection-provider [app-view] (SelectionProvider. app-view))
 
-(defn- update-selection [s open-resource-nodes active-resource-node selection-value]
-  (->> (assoc s active-resource-node selection-value)
-    (filter (comp (set open-resource-nodes) first))
-    (into {})))
-
 (defn select
   ([app-view node-ids]
-    (select app-view (g/node-value app-view :active-resource-node) node-ids))
+   (select app-view (g/node-value app-view :active-resource-node) node-ids))
   ([app-view resource-node node-ids]
-    (let [project-id (g/node-value app-view :project-id)
-          open-resource-nodes (g/node-value app-view :open-resource-nodes)]
-      (project/select project-id resource-node node-ids open-resource-nodes))))
+   (g/with-auto-evaluation-context evaluation-context
+     (let [project-id (g/node-value app-view :project-id evaluation-context)
+           open-resource-nodes (g/node-value app-view :open-resource-nodes evaluation-context)]
+       (project/select project-id resource-node node-ids open-resource-nodes)))))
 
 (defn select!
   ([app-view node-ids]
-    (select! app-view node-ids (gensym)))
+   (select! app-view node-ids (gensym)))
   ([app-view node-ids op-seq]
-    (g/transact
-      (concat
-        (g/operation-sequence op-seq)
-        (g/operation-label "Select")
-        (select app-view node-ids)))))
+   (g/transact
+     (concat
+       (g/operation-sequence op-seq)
+       (g/operation-label "Select")
+       (select app-view node-ids)))))
 
 (defn sub-select!
   ([app-view sub-selection]
-    (sub-select! app-view sub-selection (gensym)))
+   (sub-select! app-view sub-selection (gensym)))
   ([app-view sub-selection op-seq]
-    (let [project-id (g/node-value app-view :project-id)
-          active-resource-node (g/node-value app-view :active-resource-node)
-          open-resource-nodes (g/node-value app-view :open-resource-nodes)]
-      (g/transact
-        (concat
-          (g/operation-sequence op-seq)
-          (g/operation-label "Select")
-          (project/sub-select project-id active-resource-node sub-selection open-resource-nodes))))))
+   (g/with-auto-evaluation-context evaluation-context
+     (let [project-id (g/node-value app-view :project-id evaluation-context)
+           active-resource-node (g/node-value app-view :active-resource-node evaluation-context)
+           open-resource-nodes (g/node-value app-view :open-resource-nodes evaluation-context)]
+       (g/transact
+         (concat
+           (g/operation-sequence op-seq)
+           (g/operation-label "Select")
+           (project/sub-select project-id active-resource-node sub-selection open-resource-nodes)))))))
 
 (defn- make-title
   ([] "Defold Editor 2.0")
@@ -1107,15 +1190,7 @@ If you do not specifically require different script states, consider changing th
                 (when (< 1 (count tab-panes))
                   (.remove tab-panes tab-pane)
                   (.requestFocus ^TabPane (.get tab-panes 0)))))))))
-
-  (ui/register-tab-pane-context-menu tab-pane ::tab-menu)
-
-  ;; Workaround for JavaFX bug: https://bugs.openjdk.java.net/browse/JDK-8167282
-  ;; Consume key events that would select non-existing tabs in case we have none.
-  (.addEventFilter tab-pane KeyEvent/KEY_PRESSED (ui/event-handler event
-                                                   (when (and (empty? (.getTabs tab-pane))
-                                                              (TabPaneBehavior/isTraversalEvent event))
-                                                     (.consume event)))))
+  (ui/register-tab-pane-context-menu tab-pane ::tab-menu))
 
 (defn- handle-focus-owner-change! [app-view app-scene new-focus-owner]
   (let [old-editor-tab-pane (g/node-value app-view :active-tab-pane)
@@ -1138,6 +1213,7 @@ If you do not specifically require different script states, consider changing th
     (let [editor-tab-pane (TabPane.)
           app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView
                                                                      :stage stage
+                                                                     :scene app-scene
                                                                      :editor-tabs-split editor-tabs-split
                                                                      :active-tab-pane editor-tab-pane
                                                                      :tool-tab-pane tool-tab-pane
@@ -1153,20 +1229,17 @@ If you do not specifically require different script states, consider changing th
 
       (keymap/install-key-bindings! (.getScene stage) (g/node-value app-view :keymap))
 
-      (let [refresh-tick (java.util.concurrent.atomic.AtomicInteger. 0)
-            refresh-timer (ui/->timer "refresh-app-view"
-                                      (fn [_ _]
-                                        (when-not (ui/ui-disabled?)
-                                          (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)
-                                                tick (.getAndIncrement refresh-tick)]
-                                            (when refresh-requested?
-                                              (ui/user-data! app-scene ::ui/refresh-requested? false))
-                                            (when (or refresh-requested? (zero? (mod tick 20)))
-                                              (refresh-menus-and-toolbars! app-view app-scene))
-                                            (when (or refresh-requested? (zero? (mod tick 5)))
-                                              (refresh-views! app-view))
-                                            (refresh-scene-views! app-view)
-                                            (refresh-app-title! stage project)))))]
+      (let [refresh-timer (ui/->timer
+                            "refresh-app-view"
+                            (fn [_ _]
+                              (when-not (ui/ui-disabled?)
+                                (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)]
+                                  (when refresh-requested?
+                                    (ui/user-data! app-scene ::ui/refresh-requested? false)
+                                    (refresh-menus-and-toolbars! app-view app-scene)
+                                    (refresh-views! app-view))
+                                  (refresh-scene-views! app-view)
+                                  (refresh-app-title! stage project)))))]
         (ui/timer-stop-on-closed! stage refresh-timer)
         (ui/timer-start! refresh-timer))
       (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
@@ -1246,7 +1319,7 @@ If you do not specifically require different script states, consider changing th
                                (:line opts) (assoc :line (:line opts)))
                args (->> (string/split arg-tmpl #" ")
                          (map #(substitute-args % arg-sub)))]
-           (doto (ProcessBuilder. ^java.util.List (cons custom-editor args))
+           (doto (ProcessBuilder. ^List (cons custom-editor args))
              (.directory (workspace/project-path workspace))
              (.start))
            false)
@@ -1272,6 +1345,9 @@ If you do not specifically require different script states, consider changing th
                  ;; needs proper width + height (f.i. code view for
                  ;; scrolling to selected line).
                  (focus (ui/user-data tab ::view) opts)))
+             ;; Do an initial rendering so it shows up as fast as possible.
+             (ui/run-later (refresh-scene-views! app-view)
+                           (ui/run-later (slog/smoke-log "opened-resource")))
              true)
            (let [^String path (or (resource/abs-path resource)
                                   (resource/temp-path resource))
@@ -1310,7 +1386,7 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :synchronize :global
   (enabled? [] (disk-availability/available?))
-  (run [changes-view project workspace]
+  (run [changes-view dashboard-client project workspace]
        (let [render-reload-progress! (make-render-task-progress :resource-sync)
              render-save-progress! (make-render-task-progress :save-all)]
          (if (changes-view/project-is-git-repo? changes-view)
@@ -1322,14 +1398,14 @@ If you do not specifically require different script states, consider changing th
              (disk/async-save! render-reload-progress! render-save-progress! project changes-view
                                (fn [successful?]
                                  (when successful?
-                                   (when (changes-view/regular-sync! changes-view)
+                                   (when (changes-view/regular-sync! changes-view dashboard-client)
                                      (disk/async-reload! render-reload-progress! workspace [] changes-view))))))
 
            ;; The project is not a Git repo. Offer to push it to our servers.
            (disk/async-save! render-reload-progress! render-save-progress! project changes-view
                              (fn [successful?]
                                (when successful?
-                                 (changes-view/first-sync! changes-view project))))))))
+                                 (changes-view/first-sync! changes-view dashboard-client project))))))))
 
 (handler/defhandler :save-all :global
   (enabled? [] (not (bob/build-in-progress?)))
@@ -1339,28 +1415,35 @@ If you do not specifically require different script states, consider changing th
          (disk/async-save! render-reload-progress! render-save-progress! project changes-view))))
 
 (handler/defhandler :show-in-desktop :global
-  (active? [app-view selection] (context-resource app-view selection))
-  (enabled? [app-view selection] (when-let [r (context-resource app-view selection)]
-                                   (and (resource/abs-path r)
-                                        (resource/exists? r))))
+  (active? [app-view selection evaluation-context]
+           (context-resource app-view selection evaluation-context))
+  (enabled? [app-view selection evaluation-context]
+            (when-let [r (context-resource app-view selection evaluation-context)]
+              (and (resource/abs-path r)
+                   (or (resource/exists? r)
+                       (empty? (resource/path r))))))
   (run [app-view selection] (when-let [r (context-resource app-view selection)]
                               (let [f (File. (resource/abs-path r))]
                                 (ui/open-file (fs/to-folder f))))))
 
 (handler/defhandler :referencing-files :global
-  (active? [app-view selection] (context-resource-file app-view selection))
-  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
-                                   (and (resource/abs-path r)
-                                        (resource/exists? r))))
+  (active? [app-view selection evaluation-context]
+           (context-resource-file app-view selection evaluation-context))
+  (enabled? [app-view selection evaluation-context]
+            (when-let [r (context-resource-file app-view selection evaluation-context)]
+              (and (resource/abs-path r)
+                   (resource/exists? r))))
   (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
                                                       (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Referencing Files" :selection :multiple :ok-label "Open" :filter (format "refs:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
 (handler/defhandler :dependencies :global
-  (active? [app-view selection] (context-resource-file app-view selection))
-  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
-                                   (and (resource/abs-path r)
-                                        (resource/exists? r))))
+  (active? [app-view selection evaluation-context]
+           (context-resource-file app-view selection evaluation-context))
+  (enabled? [app-view selection evaluation-context]
+            (when-let [r (context-resource-file app-view selection evaluation-context)]
+              (and (resource/abs-path r)
+                   (resource/exists? r))))
   (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
                                                       (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
@@ -1394,29 +1477,35 @@ If you do not specifically require different script states, consider changing th
                    (.putString s)))))
 
 (handler/defhandler :copy-project-path :global
-  (active? [app-view selection] (context-resource-file app-view selection))
-  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
-                                   (and (resource/proj-path r)
-                                        (resource/exists? r))))
+  (active? [app-view selection evaluation-context]
+           (context-resource-file app-view selection evaluation-context))
+  (enabled? [app-view selection evaluation-context]
+            (when-let [r (context-resource-file app-view selection evaluation-context)]
+              (and (resource/proj-path r)
+                   (resource/exists? r))))
   (run [selection app-view]
     (when-let [r (context-resource-file app-view selection)]
       (put-on-clipboard! (resource/proj-path r)))))
 
 (handler/defhandler :copy-full-path :global
-  (active? [app-view selection] (context-resource-file app-view selection))
-  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
-                                   (and (resource/abs-path r)
-                                        (resource/exists? r))))
+  (active? [app-view selection evaluation-context]
+           (context-resource-file app-view selection evaluation-context))
+  (enabled? [app-view selection evaluation-context]
+            (when-let [r (context-resource-file app-view selection evaluation-context)]
+              (and (resource/abs-path r)
+                   (resource/exists? r))))
   (run [selection app-view]
     (when-let [r (context-resource-file app-view selection)]
       (put-on-clipboard! (resource/abs-path r)))))
 
 (handler/defhandler :copy-require-path :global
-  (active? [app-view selection] (when-let [r (context-resource-file app-view selection)]
-                                  (= "lua" (resource/type-ext r))))
-  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
-                                   (and (resource/proj-path r)
-                                        (resource/exists? r))))
+  (active? [app-view selection evaluation-context]
+           (when-let [r (context-resource-file app-view selection evaluation-context)]
+             (= "lua" (resource/type-ext r))))
+  (enabled? [app-view selection evaluation-context]
+            (when-let [r (context-resource-file app-view selection evaluation-context)]
+              (and (resource/proj-path r)
+                   (resource/exists? r))))
   (run [selection app-view]
      (when-let [r (context-resource-file app-view selection)]
        (put-on-clipboard! (lua/path->lua-module (resource/proj-path r))))))
@@ -1448,16 +1537,25 @@ If you do not specifically require different script states, consider changing th
                                    (dispose-preview-fn preview))
                                  (g/delete-graph! view-graph)))))))))))
 
+(def ^:private open-assets-term-prefs-key "open-assets-term")
+
 (defn- query-and-open! [workspace project app-view prefs term]
-  (doseq [resource (dialogs/make-resource-dialog workspace project
-                                                 (cond-> {:title "Open Assets"
-                                                          :accept-fn resource/editable-resource?
-                                                          :selection :multiple
-                                                          :ok-label "Open"
-                                                          :tooltip-gen (partial gen-tooltip workspace project app-view)}
-                                                   (some? term)
-                                                   (assoc :filter term)))]
-    (open-resource app-view prefs workspace project resource)))
+  (let [prev-filter-term (prefs/get-prefs prefs open-assets-term-prefs-key nil)
+        filter-term-atom (atom prev-filter-term)
+        selected-resources (dialogs/make-resource-dialog workspace project
+                                                         (cond-> {:title "Open Assets"
+                                                                  :accept-fn resource/editable-resource?
+                                                                  :selection :multiple
+                                                                  :ok-label "Open"
+                                                                  :filter-atom filter-term-atom
+                                                                  :tooltip-gen (partial gen-tooltip workspace project app-view)}
+                                                                 (some? term)
+                                                                 (assoc :filter term)))
+        filter-term @filter-term-atom]
+    (when (not= prev-filter-term filter-term)
+      (prefs/set-prefs prefs open-assets-term-prefs-key filter-term))
+    (doseq [resource selected-resources]
+      (open-resource app-view prefs workspace project resource))))
 
 (handler/defhandler :select-items :global
   (run [user-data] (dialogs/make-select-list-dialog (:items user-data) (:options user-data))))
@@ -1472,12 +1570,13 @@ If you do not specifically require different script states, consider changing th
       (query-and-open! workspace project app-view prefs term))))
 
 (handler/defhandler :search-in-files :global
-  (run [project app-view search-results-view]
+  (run [project app-view prefs search-results-view]
     (when-let [term (get-view-text-selection (g/node-value app-view :active-view-info))]
-      (search-results-view/set-search-term! term))
-    (search-results-view/show-search-in-files-dialog! search-results-view project)))
+      (search-results-view/set-search-term! prefs term))
+    (search-results-view/show-search-in-files-dialog! search-results-view project prefs)))
 
 (defn- bundle! [changes-view build-errors-view project prefs platform bundle-options]
+  (g/user-data! project :last-bundle-options (assoc bundle-options :platform-key platform))
   (console/clear-console!)
   (let [output-directory ^File (:output-directory bundle-options)
         clear-errors! (make-clear-build-errors build-errors-view)
@@ -1485,9 +1584,12 @@ If you do not specifically require different script states, consider changing th
         render-reload-progress! (make-render-task-progress :resource-sync)
         render-save-progress! (make-render-task-progress :save-all)
         render-build-progress! (make-render-task-progress :build)
+        task-cancelled? (make-task-cancelled-query :build)
         bob-args (bob/bundle-bob-args prefs platform bundle-options)]
+    (when-not (.exists output-directory)
+      (fs/create-directories! output-directory))
     (clear-errors!)
-    (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress!
+    (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! task-cancelled?
                            render-build-error! bob/bundle-bob-commands bob-args project changes-view
                            (fn [successful?]
                              (when successful?
@@ -1497,12 +1599,19 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :bundle :global
   (run [user-data workspace project prefs app-view changes-view build-errors-view]
-       (let [owner-window (g/node-value app-view :stage)
-             platform (:platform user-data)
-             bundle! (partial bundle! changes-view build-errors-view project prefs platform)]
-         (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
+    (let [owner-window (g/node-value app-view :stage)
+          platform (:platform user-data)
+          bundle! (partial bundle! changes-view build-errors-view project prefs platform)]
+      (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
 
-(defn- fetch-libraries [workspace project prefs changes-view]
+(handler/defhandler :rebundle :global
+  (enabled? [project] (some? (g/user-data project :last-bundle-options)))
+  (run [workspace project prefs app-view changes-view build-errors-view]
+    (let [last-bundle-options (g/user-data project :last-bundle-options)
+          platform (:platform-key last-bundle-options)]
+      (bundle! changes-view build-errors-view project prefs platform last-bundle-options))))
+
+(defn- fetch-libraries [workspace project dashboard-client changes-view]
   (let [library-uris (project/project-dependencies project)
         hosts (into #{} (map url/strip-path) library-uris)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
@@ -1513,7 +1622,7 @@ If you do not specifically require different script states, consider changing th
       (future
         (error-reporting/catch-all!
           (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
-            (when (workspace/dependencies-reachable? library-uris (partial login/login prefs))
+            (when (workspace/dependencies-reachable? library-uris (partial login/sign-in! dashboard-client :fetch-libraries))
               (let [lib-states (workspace/fetch-and-validate-libraries workspace library-uris render-fetch-progress!)
                     render-install-progress! (make-render-task-progress :resource-sync)]
                 (render-install-progress! (progress/make "Installing updated libraries..."))
@@ -1521,9 +1630,20 @@ If you do not specifically require different script states, consider changing th
                   (workspace/install-validated-libraries! workspace library-uris lib-states)
                   (disk/async-reload! render-install-progress! workspace [] changes-view))))))))))
 
+(handler/defhandler :add-dependency :global
+  (enabled? [] (disk-availability/available?))
+  (run [selection app-view prefs workspace dashboard-client project changes-view user-data]
+       (let [game-project (project/get-resource-node project "/game.project")
+             dependencies (game-project/get-setting game-project ["project" "dependencies"])
+             dependency-uri (.toURI (URL. (:dep-url user-data)))]
+         (when (not-any? (partial = dependency-uri) dependencies)
+           (game-project/set-setting! game-project ["project" "dependencies"]
+                                      (conj (vec dependencies) dependency-uri))
+           (fetch-libraries workspace project dashboard-client changes-view)))))
+
 (handler/defhandler :fetch-libraries :global
   (enabled? [] (disk-availability/available?))
-  (run [workspace project prefs changes-view] (fetch-libraries workspace project prefs changes-view)))
+  (run [workspace project dashboard-client changes-view] (fetch-libraries workspace project dashboard-client changes-view)))
 
 (defn- create-and-open-live-update-settings! [app-view changes-view prefs project]
   (let [workspace (project/workspace project)
@@ -1546,12 +1666,13 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :sign-ios-app :global
   (active? [] (util/is-mac-os?))
-  (run [workspace project prefs build-errors-view]
+  (run [workspace project prefs dashboard-client build-errors-view]
     (build-errors-view/clear-build-errors build-errors-view)
-    (let [result (bundle/make-sign-dialog workspace prefs project)]
+    (let [result (bundle/make-sign-dialog workspace prefs dashboard-client project)]
       (when-let [error (:error result)]
-        (if (engine-build-errors/handle-build-error! (make-render-build-error build-errors-view) project error)
-          (dialogs/make-alert-dialog "Failed to build ipa with Native Extensions. Please fix build errors and try again.")
-          (do (error-reporting/report-exception! error)
-              (when-let [message (:message result)]
-                (dialogs/make-alert-dialog message))))))))
+        (g/with-auto-evaluation-context evaluation-context
+          (if (engine-build-errors/handle-build-error! (make-render-build-error build-errors-view) project evaluation-context error)
+            (dialogs/make-alert-dialog "Failed to build ipa with Native Extensions. Please fix build errors and try again.")
+            (do (error-reporting/report-exception! error)
+                (when-let [message (:message result)]
+                  (dialogs/make-alert-dialog message)))))))))

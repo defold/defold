@@ -25,7 +25,6 @@ import com.dynamo.bob.TexcLibrary.CompressionLevel;
 import com.dynamo.bob.TexcLibrary.CompressionType;
 import com.dynamo.bob.TexcLibrary.FlipAxis;
 import com.dynamo.bob.util.TextureUtil;
-import com.dynamo.bob.Platform;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;

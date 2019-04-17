@@ -28,7 +28,7 @@
 (def ^:private ^:dynamic *paste-into-parent* nil)
 
 ;; TreeItem creator
-(defn- ^ObservableList list-children [parent]
+(defn- list-children ^ObservableList [parent]
   (let [children (:children parent)
         items (into-array TreeItem (map tree-item children))]
     (if (empty? children)
@@ -260,14 +260,18 @@
 (defn- selection->nodes [selection]
   (handler/adapt-every selection Long))
 
-(defn- root-iterators [outline-view]
-  (g/node-value outline-view :tree-selection-root-its))
+(defn- root-iterators
+  ([outline-view]
+   (g/with-auto-evaluation-context evaluation-context
+     (root-iterators outline-view evaluation-context)))
+  ([outline-view evaluation-context]
+   (g/node-value outline-view :tree-selection-root-its evaluation-context)))
 
 (handler/defhandler :delete :workbench
   (active? [selection] (handler/selection->node-ids selection))
-  (enabled? [selection outline-view]
+  (enabled? [selection outline-view evaluation-context]
             (and (< 0 (count selection))
-                 (-> (root-iterators outline-view)
+                 (-> (root-iterators outline-view evaluation-context)
                    outline/delete?)))
   (run [app-view selection selection-provider outline-view]
        (let [next (-> (handler/succeeding-selection selection-provider)
@@ -314,9 +318,9 @@
 
 (handler/defhandler :paste :workbench
   (active? [selection] (handler/selection->node-ids selection))
-  (enabled? [project selection outline-view]
+  (enabled? [project selection outline-view evaluation-context]
             (let [cb (Clipboard/getSystemClipboard)
-                  target-item-it (paste-target-it (root-iterators outline-view))
+                  target-item-it (paste-target-it (root-iterators outline-view evaluation-context))
                   data-format (data-format-fn)]
               (and target-item-it
                    (.hasContent cb data-format)
@@ -330,8 +334,8 @@
 
 (handler/defhandler :cut :workbench
   (active? [selection] (handler/selection->node-ids selection))
-  (enabled? [selection outline-view]
-            (let [item-iterators (root-iterators outline-view)]
+  (enabled? [selection outline-view evaluation-context]
+            (let [item-iterators (root-iterators outline-view evaluation-context)]
               (and (< 0 (count item-iterators))
                    (outline/cut? item-iterators))))
   (run [app-view selection-provider outline-view]

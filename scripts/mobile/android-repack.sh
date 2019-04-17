@@ -49,8 +49,8 @@ KEYFILE="${3:-}"
 
 ZIP="zip"
 UNZIP="unzip"
-ZIPALIGN="${DEFOLD_HOME}/com.dynamo.cr/com.dynamo.cr.bob/libexec/x86-darwin/zipalign"
-APKC="${DEFOLD_HOME}/com.dynamo.cr/com.dynamo.cr.bob/libexec/x86-darwin/apkc"
+ZIPALIGN="${DEFOLD_HOME}/com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-darwin/zipalign"
+APKC="${DEFOLD_HOME}/com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-darwin/apkc"
 
 ENGINE_LIB="${DYNAMO_HOME}/bin/armv7-android/libdmengine.so"
 ENGINE_DEX="${DYNAMO_HOME}/share/java/classes.dex"

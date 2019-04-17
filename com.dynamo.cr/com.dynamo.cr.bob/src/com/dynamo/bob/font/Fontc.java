@@ -47,6 +47,7 @@ import com.dynamo.bob.font.BMFont.Char;
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Font.FontTextureFormat;
+import com.dynamo.render.proto.Font.FontRenderMode;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.TextFormat;
 
@@ -112,6 +113,13 @@ public class Fontc {
     public enum InputFontFormat {
         FORMAT_TRUETYPE, FORMAT_BMFONT
     };
+
+    // These values are the same as font_renderer.cpp
+    static final int LAYER_FACE    = 0x1;
+    static final int LAYER_OUTLINE = 0x2;
+    static final int LAYER_SHADOW  = 0x4;
+
+    static final float sdf_edge = 0.75f;
 
     private InputFontFormat inputFormat = InputFontFormat.FORMAT_TRUETYPE;
     private Stroke outlineStroke = null;
@@ -274,6 +282,25 @@ public class Fontc {
         }
     }
 
+    private float getPaddedSdfSpread(float spreadInput)
+    {
+        // Make sure the output spread value is not zero. We distribute the distance values over
+        // the spread when we generate the DF glyphs, so if this value is zero we won't be able to map
+        // the distance values to a valid range..
+        // We use sqrt(2) since it is the diagonal length of a pixel, but any small positive value would do.
+        float  sqrt2 = 1.4142f;
+        return sqrt2 + spreadInput;
+    }
+
+    private float calculateSdfEdgeLimit(float width, float spread)
+    {
+        // Normalize the incoming value to [-1,1]
+        float sdfLimitValue = width / spread;
+
+        // Map the outgoing limit to the same 'space' as the face edge.
+        return sdfLimitValue * (1.0f - sdf_edge) + sdf_edge;
+    }
+
     public BufferedImage generateGlyphData(boolean preview, final FontResourceResolver resourceResolver) throws FontFormatException {
 
         ByteArrayOutputStream glyphDataBank = new ByteArrayOutputStream(1024*1024*4);
@@ -282,18 +309,25 @@ public class Fontc {
         // is the extra padding added to the bitmap data to avoid filtering glitches when rendered.
         int padding = 0;
         int cell_padding = 1;
+        // Spread is the maximum distance to the glyph edge.
         float sdf_spread = 0.0f;
-        float edge = 0.75f;
-        if (fontDesc.getAntialias() != 0)
-            padding = Math.min(4, fontDesc.getShadowBlur()) + (int)(fontDesc.getOutlineWidth());
-        if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
-            padding++; // to give extra range for the outline.
+        // Shadow_spread is the maximum distance to the glyph outline.
+        float sdf_shadow_spread = 0.0f;
 
-            // Make sure the outline edge is not zero which would cause everything outside the edge becoming outline.
-            // We use sqrt(2) since it is the diagonal length of a pixel, but any small positive value would do.
-            float sqrt2 = 1.4142f;
-            sdf_spread = sqrt2 + fontDesc.getOutlineWidth();
+        if (fontDesc.getAntialias() != 0) {
+            if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
+                sdf_spread        = getPaddedSdfSpread(fontDesc.getOutlineWidth());
+                sdf_shadow_spread = getPaddedSdfSpread((float)fontDesc.getShadowBlur());
+
+                // The +1 is needed to give a little bit of extra padding since the spread
+                // always gets padded by the sqrt of a pixel diagonal
+                padding = fontDesc.getShadowBlur() + (int)(fontDesc.getOutlineWidth()) + 1;
+            }
+            else {
+                padding = Math.min(4, fontDesc.getShadowBlur()) + (int)(fontDesc.getOutlineWidth());
+            }
         }
+
         Color faceColor = new Color(fontDesc.getAlpha(), 0.0f, 0.0f);
         Color outlineColor = new Color(0.0f, fontDesc.getOutlineAlpha(), 0.0f);
         ConvolveOp shadowConvolve = null;
@@ -311,13 +345,24 @@ public class Fontc {
             shadowConvolve = new ConvolveOp(kernel, ConvolveOp.EDGE_NO_OP, hints);
         }
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
+            // Calculate edge values for both outline and shadow. We must treat them differently
+            // so that we don't use the same precision range for both edges
+            float outline_edge = calculateSdfEdgeLimit(-fontDesc.getOutlineWidth(), sdf_spread);
+            float shadow_edge  = calculateSdfEdgeLimit(-(float)fontDesc.getShadowBlur(), sdf_shadow_spread);
+
+            // Special case!
+            // If there is no blur, the shadow should essentially work the same way as the outline.
+            // This enables effects like a hard drop shadow. In the shader, the pseudo code
+            // that does this looks something like this:
+            // shadow_alpha = mix(shadow_alpha,outline_alpha,floor(shadow_edge))
+            if (fontDesc.getShadowBlur() == 0)
+            {
+                shadow_edge = 1.0f;
+            }
+
             fontMapBuilder.setSdfSpread(sdf_spread);
-
-            // Transform outline edge from pixel unit to edge offset in distance field unit
-            float outline_edge = -(fontDesc.getOutlineWidth() / (sdf_spread)); // Map to [-1, 1]
-            outline_edge = outline_edge * (1.0f - edge) + edge; // Map to edge distribution
             fontMapBuilder.setSdfOutline(outline_edge);
-
+            fontMapBuilder.setSdfShadow(shadow_edge);
             fontMapBuilder.setAlpha(this.fontDesc.getAlpha());
             fontMapBuilder.setOutlineAlpha(this.fontDesc.getOutlineAlpha());
             fontMapBuilder.setShadowAlpha(this.fontDesc.getShadowAlpha());
@@ -355,8 +400,21 @@ public class Fontc {
             channelCount = 4;
         } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD &&
                    inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
-            channelCount = 1;
+            // If font has shadow, we'll need 3 channels. Not all platforms universally support
+            // texture formats with only 2 channels (such as LUMINANCE_ALPHA)
+            if (fontDesc.getShadowBlur() > 0.0f && fontDesc.getShadowAlpha() > 0.0f) {
+                channelCount = 3;
+            }
+            else {
+                channelCount = 1;
+            }
         }
+
+        // The fontMapLayerMask contains a bitmask of the layers that should be rendered
+        // by the font renderer. Note that this functionality requires that the render mode
+        // property of the font resource must be set to MULTI_LAYER. Default behaviour
+        // is to render the font as single layer (for compatability reasons).
+        int fontMapLayerMask = getFontMapLayerMask();
 
         // We keep track of offset into the glyph data bank,
         // this is saved for each glyph to know where their bitmap data is stored.
@@ -441,7 +499,7 @@ public class Fontc {
                 glyphImage = drawBMFontGlyph(glyph, imageBMFont);
             } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD &&
                        inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
-                glyphImage = makeDistanceField(glyph, padding, sdf_spread, font, edge);
+                glyphImage = makeDistanceField(glyph, padding, sdf_spread, sdf_shadow_spread, font, sdf_edge, shadowConvolve);
                 clearData = 0;
             } else {
                 throw new FontFormatException("Invalid font format combination!");
@@ -511,6 +569,7 @@ public class Fontc {
         fontMapBuilder.setCacheCellHeight(cell_height);
         fontMapBuilder.setGlyphChannels(channelCount);
         fontMapBuilder.setCacheCellMaxAscent(cell_max_ascent);
+        fontMapBuilder.setLayerMask(fontMapLayerMask);
 
         BufferedImage previewImage = null;
         if (preview) {
@@ -550,7 +609,7 @@ public class Fontc {
         return imageBMFontInput.getSubimage(glyph.x, glyph.y, glyph.width, glyph.ascent + glyph.descent);
     }
 
-    private BufferedImage makeDistanceField(Glyph glyph, int padding, float sdf_spread, Font font, float edge) {
+    private BufferedImage makeDistanceField(Glyph glyph, int padding, float sdf_spread, float sdf_shadow_spread, Font font, float edge, ConvolveOp shadowConvolve) {
         int width = glyph.width + padding * 2;
         int height = glyph.ascent + glyph.descent + padding * 2;
 
@@ -596,32 +655,76 @@ public class Fontc {
         double u1 = u0 + width;
         double v1 = v0 + height;
 
-        double[] res = new double[width*height];
-        df.render(res, u0, v0, u1, v1, width, height);
-        double kx = 1 / (double)width;
-        double ky = 1 / (double)height;
+        double[] distance_data = new double[width*height];
+
+        df.render(distance_data, u0, v0, u1, v1, width, height);
+
+        double widthInverse  = 1 / (double)width;
+        double heightInverse = 1 / (double)height;
 
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
+
+        // TODO: Split this work into a pre-pass and subsequent face/outline & shadow passes
         for (int v=0;v<height;v++) {
             int ofs = v * width;
             for (int u=0;u<width;u++) {
-                double gx = u0 + kx * u * (u1 - u0);
-                double gy = v0 + ky * v * (v1 - v0);
-                double value = res[ofs + u];
-                if (!sh.contains(gx, gy)) {
-                    value = -value;
-                }
-                // Transform distance from pixel unit to edge-relative distance field unit
-                float df_norm = (float) ((value / sdf_spread)); // Map to [-1, 1]
-                df_norm = df_norm * (1.0f - edge) + edge; // Map to edge distribution [0, 1]
-                int oval = (int)(255.0f * df_norm); // Map to [0, 255]
+                double gx = u0 + widthInverse * u * (u1 - u0);
+                double gy = v0 + heightInverse * v * (v1 - v0);
+                double distance_to_edge   = distance_data[ofs + u];
+                double distance_to_border = -(distance_to_edge - fontDesc.getOutlineWidth());
 
-                if (oval < 0) {
-                    oval = 0;
-                } else if (oval > 255) {
-                    oval = 255;
+                if (!sh.contains(gx, gy)) {
+                    distance_to_edge = -distance_to_edge;
                 }
-                image.setRGB(u, v, 0x10101 * oval);
+
+                float distance_to_edge_normalized = calculateSdfEdgeLimit((float)distance_to_edge, sdf_spread);
+
+                // Map outgoing distance value to 0..255
+                int outline_channel = (int)(255.0f * distance_to_edge_normalized);
+                outline_channel     = Math.max(0,Math.min(255,outline_channel));
+
+                float sdf_outline = fontMapBuilder.getSdfOutline();
+
+                // This is needed to 'fill' the shadow body since
+                // we have no good way of knowing if the pixel is inside or outside
+                // of the shadow limit
+                if (distance_to_edge_normalized > sdf_outline)
+                {
+                	distance_to_border = edge;
+                }
+
+                // Calculate shadow distribution separately in a different channel since we spread the
+                // values across the distance to the outline border and not to the edge.
+                float distance_to_border_normalized = calculateSdfEdgeLimit((float)distance_to_border, sdf_shadow_spread);
+
+                // Map outgoing distance value to 0..255
+                int shadow_channel = (int)(255.0f * distance_to_border_normalized);
+                shadow_channel     = Math.max(0,Math.min(255,shadow_channel));
+
+                image.setRGB(u, v, 0x010000 * outline_channel | 0x000001 * shadow_channel);
+            }
+        }
+
+        if (fontDesc.getShadowAlpha() > 0.0f && fontDesc.getShadowBlur() > 0) {
+
+            BufferedImage blurredShadowImage = new BufferedImage(width,height, BufferedImage.TYPE_3BYTE_BGR);
+            Graphics2D g = blurredShadowImage.createGraphics();
+            setHighQuality(g);
+            g.drawImage(image, 0, 0, null);
+
+            // When the blur kernel is != 0, make sure to always blur the DF data set
+            // at least once so we can avoid the jaggies around the face edges. This is mostly
+            // prominent when the blur size is small and the offset is large.
+            BufferedImage tmp = blurredShadowImage.getSubimage(0, 0, width, height);
+            shadowConvolve.filter(tmp, blurredShadowImage);
+
+            for (int v=0;v<height;v++) {
+                for (int u=0;u<width;u++) {
+                    int edge_outline_channel = image.getRGB(u,v);
+                    int shadow_channel = blurredShadowImage.getRGB(u,v);
+
+                    image.setRGB(u,v,edge_outline_channel & 0xFFFF00 | shadow_channel & 0xFF);
+                }
             }
         }
 
@@ -713,6 +816,30 @@ public class Fontc {
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
                 RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
        }
+    }
+
+    private int getFontMapLayerMask()
+    {
+        int fontMapLayerMask = LAYER_FACE;
+
+        if (this.fontDesc.getRenderMode() == FontRenderMode.MODE_MULTI_LAYER)
+        {
+            if (this.fontDesc.getAntialias() != 0 &&
+                this.fontDesc.getOutlineAlpha() > 0 &&
+                this.fontDesc.getOutlineWidth() > 0)
+            {
+                fontMapLayerMask |= LAYER_OUTLINE;
+            }
+
+            if (this.fontDesc.getAntialias() != 0 &&
+                this.fontDesc.getShadowAlpha() > 0 &&
+                this.fontDesc.getAlpha() > 0)
+            {
+                fontMapLayerMask |= LAYER_SHADOW;
+            }
+        }
+
+        return fontMapLayerMask;
     }
 
     public BufferedImage compile(InputStream fontStream, FontDesc fontDesc, boolean preview, final FontResourceResolver resourceResolver) throws FontFormatException, IOException {

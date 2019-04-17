@@ -2,7 +2,6 @@
   (:require [clojure.set :as set]
             [clojure.core.reducers :as r]
             [internal.graph.types :as gt]
-            [schema.core :as s]
             [internal.util :as util]
             [internal.node :as in])
   (:import [internal.graph.types Arc]
@@ -352,19 +351,6 @@
 (defn arc-endpoints-p [p arc]
   (and (p (.source-id ^Arc arc))
        (p (.target-id ^Arc arc))))
-
-(defn- rebuild-sarcs
-  [basis graph-state]
-  (let [graph-id (:_graph-id graph-state)
-        all-graphs (vals (assoc (:graphs basis) graph-id graph-state))
-        all-arcs (mapcat (fn [graph] (mapcat (fn [[_ label-tarcs]] (mapcat second label-tarcs))
-                                             (:tarcs graph)))
-                         all-graphs)
-        all-arcs-filtered (filter (fn [^Arc arc] (= (gt/node-id->graph-id (.source-id arc)) graph-id)) all-arcs)]
-    (reduce
-      (fn [sarcs arc] (update-in sarcs [(.source-id ^Arc arc) (.source-label ^Arc arc)] util/conjv arc))
-      {}
-      all-arcs-filtered)))
 
 (defn empty-graph
   []
@@ -1004,21 +990,87 @@
   (let [graph-id (gt/override-id->graph-id override-id)]
     (get-in basis [:graphs graph-id :overrides override-id :traverse-fn])))
 
-(defn- sarcs->arcs [sarcs]
-  (into #{}
-        (comp (mapcat vals)
-              cat)
-        (vals sarcs)))
+(defn- arc-source-id [^Arc arc]
+  (.source-id arc))
 
-(defn hydrate-after-undo
-  [basis graph-state]
-  (let [old-sarcs (get graph-state :sarcs)
-        sarcs (rebuild-sarcs basis graph-state)
-        sarcs-diff (clojure.set/difference (sarcs->arcs sarcs) (sarcs->arcs old-sarcs))
-        graph-id (:_graph-id graph-state)
-        new-basis (update basis :graphs assoc graph-id (assoc graph-state :sarcs sarcs))]
-    {:basis new-basis
-     :outputs-to-refresh (mapv (juxt :source-id :source-label) sarcs-diff)}))
+(defn- arc-source-label [^Arc arc]
+  (.source-label arc))
+
+(defn hydrate-after-undo [basis graph-state]
+  ;; NOTE: This was originally written in a simpler way. This longer-form
+  ;; implementation is optimized in order to solve performance issues in graphs
+  ;; with a large number of connections.
+  (let [graph-id (:_graph-id graph-state)
+        graphs (:graphs basis)
+        other-graphs (dissoc graphs graph-id)
+        old-sarcs (get graph-state :sarcs)
+        arc-from-graph? #(= graph-id (gt/node-id->graph-id (arc-source-id %)))
+        arc-to-graph? #(= graph-id (gt/node-id->graph-id (.target-id ^Arc %)))
+
+        ;; Create a sarcs-like map structure containing just the Arcs that
+        ;; connect nodes in our graph to nodes in other graphs. Use the tarcs
+        ;; from the other graphs as the source of truth.
+        external-sarcs (into {}
+                             (map (juxt key (comp (partial group-by arc-source-label) val)))
+                             (group-by arc-source-id
+                                       (into #{}
+                                             (comp (mapcat :tarcs)
+                                                   (mapcat val)
+                                                   (mapcat val)
+                                                   (filter arc-from-graph?))
+                                             (vals other-graphs))))
+
+        ;; Remove any sarcs that previously connected nodes in our graph to
+        ;; nodes in other graphs. We will replace these connections with the
+        ;; ones in external-sarcs above.
+        internal-sarcs (reduce-kv (fn [internal-sarcs source-id arcs-by-source-label]
+                                    (if-some [internal-arcs-by-source-label (not-empty
+                                                                              (persistent!
+                                                                                (reduce-kv (fn [internal-arcs-by-source-label source-label arcs]
+                                                                                             (if-some [internal-arcs (not-empty (filterv arc-to-graph? arcs))]
+                                                                                               (assoc! internal-arcs-by-source-label source-label internal-arcs)
+                                                                                               (dissoc! internal-arcs-by-source-label source-label)))
+                                                                                           (transient arcs-by-source-label)
+                                                                                           arcs-by-source-label)))]
+                                      (assoc! internal-sarcs source-id internal-arcs-by-source-label)
+                                      (dissoc! internal-sarcs source-id)))
+                                  (transient old-sarcs)
+                                  old-sarcs)
+
+        ;; The merge of the above internal and external sarcs are the new sarcs.
+        new-sarcs (persistent!
+                    (reduce-kv (fn [new-sarcs source-id external-arcs-by-source-label]
+                                 (assoc! new-sarcs source-id
+                                         (persistent!
+                                           (reduce-kv (fn [new-arcs-by-source-label source-label external-arcs]
+                                                        (assoc! new-arcs-by-source-label source-label
+                                                                (into (get new-arcs-by-source-label source-label [])
+                                                                      external-arcs)))
+                                                      (transient (get new-sarcs source-id {}))
+                                                      external-arcs-by-source-label))))
+                               internal-sarcs
+                               external-sarcs))
+
+        ;; We must refresh all outputs for which an Arc was introduced. In
+        ;; addition to being invalidated, we will update successors for these
+        ;; outputs outside this function.
+        outputs-to-refresh (into []
+                                 (mapcat (fn [[source-id external-arcs-by-source-label]]
+                                           (if-some [old-arcs-by-source-label (old-sarcs source-id)]
+                                             (keep (fn [[source-label external-arcs]]
+                                                     ;; The number of arcs from a specific source to a different
+                                                     ;; graph will be small. A linear search should be fine.
+                                                     (let [old-arcs (old-arcs-by-source-label source-label)
+                                                           old-arc? #(some (partial = %) old-arcs)]
+                                                       (when (not-every? old-arc? external-arcs)
+                                                         [source-id source-label])))
+                                                   external-arcs-by-source-label)
+                                             (map (partial vector source-id)
+                                                  (keys external-arcs-by-source-label)))))
+                                 external-sarcs)]
+
+    {:basis (update basis :graphs assoc graph-id (assoc graph-state :sarcs new-sarcs))
+     :outputs-to-refresh outputs-to-refresh}))
 
 (defn- input-deps [basis node-id]
   (some-> (gt/node-by-id-at basis node-id)

@@ -1,0 +1,30 @@
+[{:type :warning,
+  :file "/win32nativeext/src/main.cpp",
+  :line 30,
+  :column 9,
+  :message
+  "unused variable 'a' [-Wunused-variable]\n    int a;\n        ^"}
+ {:type :warning,
+  :file "/win32nativeext/src/main.cpp",
+  :line 46,
+  :column 9,
+  :message
+  "unused variable 'b' [-Wunused-variable]\n    int b = 100;\n        ^"}
+ {:type :warning,
+  :file "/win32nativeext/ext.manifest",
+  :message
+  "clang-6.0: warning: treating 'c' input as 'c++' when in C++ mode, this behavior is deprecated [-Wdeprecated]"}
+ {:type :warning,
+  :file "/ext2/src/main.cpp",
+  :line 16,
+  :column 9,
+  :message
+  "unused variable 'a' [-Wunused-variable]\n    int a;\n        ^"}
+ {:type :error,
+  :file "/win32nativeext/ext.manifest",
+  :message
+  "/usr/local/bin/lld-link: error: could not open plopp.lib: No such file or directory"}
+ {:type :error,
+  :file "/win32nativeext/ext.manifest",
+  :message
+  "clang-6.0: error: linker command failed with exit code 1 (use -v to see invocation)"}]

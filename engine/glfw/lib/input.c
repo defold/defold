@@ -76,7 +76,7 @@ GLFWAPI int GLFWAPIENTRY glfwGetMouseButton( int button )
         return GLFW_RELEASE;
     }
 
-    if( _glfwInput.MouseButton[ button ] == GLFW_STICK )
+    if( _glfwInput.MouseButton[ button ] == GLFW_STICK || _glfwInput.MouseButton[ button ] == GLFW_CLICKED )
     {
         // Sticky mode: release mouse button now
         _glfwInput.MouseButton[ button ] = GLFW_RELEASE;
@@ -318,12 +318,13 @@ GLFWAPI int GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_coun
     for (i = 0; i < GLFW_MAX_TOUCH; ++i) {
         GLFWTouch* t = &_glfwInput.Touch[i];
         if (t->Reference) {
-            touch[touchCount++] = *t;
+            touch[touchCount] = *t;
 
             int phase = t->Phase;
             if (phase == GLFW_PHASE_ENDED || phase == GLFW_PHASE_CANCELLED) {
                 // Clear reference since this touch has ended.
                 t->Reference = 0x0;
+                t->Phase = GLFW_PHASE_IDLE;
             } else if (phase == GLFW_PHASE_BEGAN) {
                 // Touches that has begun will change to stationary until moved or released.
                 t->Phase = GLFW_PHASE_STATIONARY;
@@ -336,6 +337,7 @@ GLFWAPI int GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_coun
                 t->Phase = GLFW_PHASE_ENDED;
             }
 
+            touchCount++;
         }
     }
 

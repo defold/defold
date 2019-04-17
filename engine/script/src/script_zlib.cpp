@@ -90,7 +90,7 @@ namespace dmScript
      * local data = "This is a string with uncompressed data."
      * local compressed_data = zlib.deflate(data)
      * local s = ""
-     * for c in string.gmatch(c_data, ".") do
+     * for c in string.gmatch(compressed_data, ".") do
      *     s = s .. '\\' .. string.byte(c)
      * end
      * print(s) --> \120\94\11\201\200\44\86\0\162\68\133\226\146\162 ...

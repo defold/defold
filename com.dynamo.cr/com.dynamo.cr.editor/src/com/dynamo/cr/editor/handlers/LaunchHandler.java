@@ -97,19 +97,19 @@ public class LaunchHandler extends AbstractHandler {
         final String location = FilenameUtils.concat(branchClient.getNativeLocation(), "build");
 
         final String outputDir = FilenameUtils.concat(location, hostPlatform.getExtenderPair());
-        final String binaryOutputPath = FilenameUtils.concat(outputDir, hostPlatform.formatBinaryName("dmengine"));
+        final String binaryOutputPath = FilenameUtils.concat(outputDir, hostPlatform.formatBinaryName("dmengine").get(0));
         final File inputExe = new File(exeName);
         final File outputExe = new File(binaryOutputPath);
         outputExe.getParentFile().mkdirs();
         try {
 
             if (!store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION)) {
-	            if (hostPlatform == Platform.X86Win32 || hostPlatform == Platform.X86_64Win32) {
-	            	File libOpenAL = new File(Bob.getLib(hostPlatform, "OpenAL32"));
-	            	File libWrapOAL = new File(Bob.getLib(hostPlatform, "wrap_oal"));
-	                Files.copy(libOpenAL.toPath(), new File(FilenameUtils.concat(outputDir, libOpenAL.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
-	                Files.copy(libWrapOAL.toPath(), new File(FilenameUtils.concat(outputDir, libWrapOAL.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
-	            }
+                if (hostPlatform == Platform.X86Win32 || hostPlatform == Platform.X86_64Win32) {
+                    File libOpenAL = new File(Bob.getLib(hostPlatform, "OpenAL32"));
+                    File libWrapOAL = new File(Bob.getLib(hostPlatform, "wrap_oal"));
+                    Files.copy(libOpenAL.toPath(), new File(FilenameUtils.concat(outputDir, libOpenAL.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    Files.copy(libWrapOAL.toPath(), new File(FilenameUtils.concat(outputDir, libWrapOAL.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
             }
         } catch (IOException e) {
             return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("'%s' could not copy engine binary.", exeName));
@@ -170,11 +170,11 @@ public class LaunchHandler extends AbstractHandler {
                             customApplication = outputExe.getAbsolutePath();
                         }
 
-        	            if (hostPlatform == Platform.X86Win32 || hostPlatform == Platform.X86_64Win32) {
-                        	// Waiting for windows to release lock of executable");                            
+                        if (hostPlatform == Platform.X86Win32 || hostPlatform == Platform.X86_64Win32) {
+                            // Waiting for windows to release lock of executable");
                             System.gc();
                         }
-                        
+
                         targetService.launch(customApplication, location, runInDebugger, autoRunDebugger, socksProxy,
                                 socksProxyPort, Activator.SERVER_PORT, quitOnEsc);
                         return Status.OK_STATUS;

@@ -98,7 +98,7 @@
                                                                                        outline-name-path-below-selection? (fn [outline-name-path]
                                                                                                                             (boolean (some #(iutil/seq-starts-with? outline-name-path %)
                                                                                                                                            selected-outline-name-paths)))]
-                                                                                   (iutil/group-into #{}
+                                                                                   (iutil/group-into {} #{}
                                                                                                      outline-name-path-below-selection?
                                                                                                      (scene-outline-name-paths active-scene)))))
 
@@ -176,28 +176,38 @@
                       (g/connect scene-hide-history-node :scene-hide-history-data scene-visibility :scene-hide-history-datas))))))
 
 (handler/defhandler :hide-unselected :workbench
-  (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
-  (enabled? [scene-visibility] (g/node-value scene-visibility :unselected-hideable-outline-name-paths))
+  (active? [scene-visibility evaluation-context]
+           (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
+  (enabled? [scene-visibility evaluation-context]
+            (g/node-value scene-visibility :unselected-hideable-outline-name-paths evaluation-context))
   (run [scene-visibility] (hide-outline-name-paths! scene-visibility (g/node-value scene-visibility :unselected-hideable-outline-name-paths))))
 
 (handler/defhandler :hide-selected :workbench
-  (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
-  (enabled? [scene-visibility] (g/node-value scene-visibility :selected-hideable-outline-name-paths))
+  (active? [scene-visibility evaluation-context]
+           (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
+  (enabled? [scene-visibility evaluation-context]
+            (g/node-value scene-visibility :selected-hideable-outline-name-paths evaluation-context))
   (run [scene-visibility] (hide-outline-name-paths! scene-visibility (g/node-value scene-visibility :selected-hideable-outline-name-paths))))
 
 (handler/defhandler :show-selected :workbench
-  (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
-  (enabled? [scene-visibility] (g/node-value scene-visibility :selected-showable-outline-name-paths))
+  (active? [scene-visibility evaluation-context]
+           (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
+  (enabled? [scene-visibility evaluation-context]
+            (g/node-value scene-visibility :selected-showable-outline-name-paths evaluation-context))
   (run [scene-visibility] (show-outline-name-paths! scene-visibility (g/node-value scene-visibility :selected-showable-outline-name-paths))))
 
 (handler/defhandler :show-last-hidden :workbench
-  (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
-  (enabled? [scene-visibility] (g/node-value scene-visibility :last-hidden-outline-name-paths))
+  (active? [scene-visibility evaluation-context]
+           (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
+  (enabled? [scene-visibility evaluation-context]
+            (g/node-value scene-visibility :last-hidden-outline-name-paths evaluation-context))
   (run [scene-visibility] (show-outline-name-paths! scene-visibility (g/node-value scene-visibility :last-hidden-outline-name-paths))))
 
 (handler/defhandler :show-all-hidden :workbench
-  (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
-  (enabled? [scene-visibility] (g/node-value scene-visibility :hidden-outline-name-paths))
+  (active? [scene-visibility evaluation-context]
+           (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
+  (enabled? [scene-visibility evaluation-context]
+            (g/node-value scene-visibility :hidden-outline-name-paths evaluation-context))
   (run [scene-visibility] (show-outline-name-paths! scene-visibility (g/node-value scene-visibility :hidden-outline-name-paths))))
 
 ;; -----------------------------------------------------------------------------
@@ -312,13 +322,16 @@
   (some? (ui/user-data owner ::popup)))
 
 (handler/defhandler :toggle-visibility-filters :workbench
-  (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
+  (active? [scene-visibility evaluation-context]
+           (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (run [scene-visibility] (toggle-filters-enabled! scene-visibility)))
 
 (handler/defhandler :toggle-component-guides :workbench
-  (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
+  (active? [scene-visibility evaluation-context]
+           (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (run [scene-visibility] (toggle-tag-visibility! scene-visibility :outline)))
 
 (handler/defhandler :toggle-grid :workbench
-  (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
+  (active? [scene-visibility evaluation-context]
+           (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (run [scene-visibility] (toggle-tag-visibility! scene-visibility :grid)))

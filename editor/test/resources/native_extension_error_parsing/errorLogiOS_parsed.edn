@@ -1,0 +1,26 @@
+[{:type :error,
+  :file "/androidnative/src/main.cpp",
+  :line 17,
+  :column 1,
+  :message "unknown type name 'ubar'\nubar g_foo = 0;\n^"}
+ {:type :error,
+  :message
+  "Undefined symbols for architecture arm64:\n  \"__Z6Foobarv\", referenced from:\n      __ZL22AppInitializeExtensionPN11dmExtension9AppParamsE in lib44391c30-91a4-4faf-aef6-2dbc429af9ed.a(main.cpp_0.o)"}
+ {:type :note,
+  :file nil,
+  :message "ld: symbol(s) not found for architecture arm64"}
+ {:type :error,
+  :file nil,
+  :message
+  "clang-3.9: error: linker command failed with exit code 1 (use -v to see invocation)"}
+ {:type :warning,
+  :file nil,
+  :message
+  "ld: warning: directory not found for option '-L/var/extender/sdk/b2ef3a19802728e76adf84d51d02e11d636791a3/defoldsdk//lib/arm64-darwin'"}
+ {:type :note,
+  :file nil,
+  :message "ld: library not found for -lengine"}
+ {:type :error,
+  :file nil,
+  :message
+  "clang-6.0: error: linker command failed with exit code 1 (use -v to see invocation)"}]

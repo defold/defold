@@ -109,7 +109,7 @@
   (when (not (string/blank? params))
     (into {}
           (map (fn [param]
-                 (let [[k v] (string/split param #"=")]
+                 (let [[k ^String v] (string/split param #"=")]
                    [(keyword k) (URLDecoder/decode v "UTF-8")])))
           (string/split params #"&"))))
 
@@ -124,6 +124,13 @@
     {:command   :open
      :user-data {:resources [resource]}}))
 
+(defmethod url->command "add-dependency"
+  [^URI uri {:keys [project]}]
+  (let [params (query-params->map (.getQuery uri))
+        dep-url (:url params)]
+    {:command   :add-dependency
+     :user-data {:dep-url dep-url}}))
+
 (defmethod url->command :default
   [^URI uri _]
   {:command (keyword (.getHost uri))})
@@ -131,9 +138,7 @@
 (defn- dispatch-url!
   [project ^URI uri]
   (when-some [{:keys [command user-data]} (url->command uri {:project project})]
-    (when-let [handler-ctx (handler/active command (ui/contexts (.getScene (ui/main-stage))) user-data)]
-      (when (handler/enabled? handler-ctx)
-        (handler/run handler-ctx)))))
+    (ui/execute-command (ui/contexts (ui/main-scene)) command user-data)))
 
 (defn- string->url
   ^URI [^String str]
@@ -193,9 +198,9 @@
   [^WebEngine web-engine]
   (let [load-worker (.getLoadWorker web-engine)]
     (when-some [ex (.getException load-worker)]
-      (dialogs/make-alert-dialog (str (.getMessage load-worker)
-                                      ": "
-                                      (.getMessage ex))))))
+      (dialogs/make-error-dialog "Could not load page"
+                                 (.getMessage load-worker)
+                                 (.getMessage ex)))))
 
 (g/defnode WebViewNode
   (inherits view/WorkbenchView)

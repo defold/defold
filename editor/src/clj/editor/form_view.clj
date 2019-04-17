@@ -4,12 +4,16 @@
             [editor.form :as form]
             [editor.field-expression :as field-expression]
             [editor.ui :as ui]
+            [editor.ui.bindings :as b]
             [editor.url :as url]
-            [editor.jfx :as jfx]            
+            [editor.jfx :as jfx]
             [editor.dialogs :as dialogs]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [editor.view :as view])
+            [editor.view :as view]
+            [editor.util :as util]
+            [editor.settings :as settings]
+            [editor.settings-core :as settings-core])
   (:import [java.util Collection]
            [javafx.scene Parent Node]
            [javafx.scene.input KeyCode ContextMenuEvent]
@@ -19,8 +23,9 @@
            [javafx.beans.value ObservableNumberValue]
            [javafx.beans.binding Bindings]
            [javafx.scene.layout GridPane HBox VBox Priority ColumnConstraints]
-           [javafx.scene.control Control Cell ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane Label TextField ComboBox CheckBox Button ContextMenu MenuItem SelectionMode]
+           [javafx.scene.control Control Cell ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane Label TextField ComboBox CheckBox Button ContextMenu MenuItem SelectionMode ContentDisplay TableColumnBase]
            [com.defold.control ListView ListCell ListCellSkinWithBehavior TableCell TableCellBehavior TableCellSkinWithBehavior]
+           [com.sun.javafx.scene.control TableColumnBaseHelper]
            [com.sun.javafx.scene.control.behavior ListCellBehavior]))
 
 ;; A note about the cell-factory controls (:list, :table, :2panel):
@@ -52,6 +57,11 @@
 (def ^:private open-icon "icons/32/Icons_S_14_linkarrow.png")
 (def ^:private reset-icon "icons/32/Icons_S_02_Reset.png")
 
+(def ^:private severity-field-style-map
+  {:fatal "field-error"
+   :warning "field-warning"
+   :info "field-info"})
+
 (defmulti create-field-control (fn [field-info field-ops ctxt] (:type field-info)))
 
 (def ^:private default-value-alignments
@@ -80,6 +90,18 @@
     (ui/on-key! ctrl (fn [key]
                        (when (= key KeyCode/ESCAPE)
                          (cancel))))))
+
+(defn get-form-setting-value [form-data path d]
+  (let [data (get (get form-data :values) path d)]
+    data))
+
+(defn update-section-setting [section path f]
+  (if-let [index (first (util/positions #(= path (:path %)) (get section :fields)))]
+    (update-in section [:fields index] f)
+    section))
+
+(defn update-form-setting [form-data path f]
+  (update form-data :sections (fn [section] (mapv #(update-section-setting % path f) section))))
 
 (defn- create-text-field-control [parse serialize {:keys [path help] :as field-info} {:keys [set cancel]}]
   (let [tf (TextField.)
@@ -245,7 +267,7 @@
                         (ui/add-style! "button-small"))
         open-button (doto (Button. "" (jfx/get-image-view open-icon 16))
                       (.setMaxWidth 26)
-                       (ui/add-style! "button-small"))
+                      (ui/add-style! "button-small"))
         text (let [tf (TextField.)]
                (.setPrefWidth tf (field-width field-info))
                (GridPane/setFillWidth tf true)
@@ -308,7 +330,7 @@
                               (.setPrefWidth tf (field-width field-info))
                               (GridPane/setFillWidth tf true)
                               tf))
-                            labels)
+                          labels)
         box (doto (GridPane.)
               (.setHgap grid-hgap))
         current-value (atom nil)
@@ -370,8 +392,7 @@
 
 (defn- create-cell-field-control [^Cell cell column-info ctxt]
   (let [field-ops {:set (fn [_ value] (.commitEdit cell value))
-                   :cancel #(.cancelEdit cell)
-                   }
+                   :cancel #(.cancelEdit cell)}
         [^Control control api] (create-field-control column-info field-ops ctxt)] ; column-info ~ field-info
     (.setPadding control (Insets. 0 0 0 0))
     [control api]))
@@ -380,7 +401,7 @@
   (let [min-width (.prefWidth ctrl -1)
         curr-width (.getWidth table-column)]
     (when (< curr-width min-width)
-      (.impl_setWidth table-column min-width))))
+      (TableColumnBaseHelper/setWidth table-column min-width))))
 
 (defn- create-table-cell-factory [column-info ctxt edited-cell-atom]
   (reify Callback
@@ -494,7 +515,7 @@
                                                                    (when (or (nil? enabled) (enabled))
                                                                      (menu-item label action)))
                                                                  item-descs))))
-                                            (.setImpl_showRelativeToWindow cm true)
+                                            (ui/set-show-relative-to-window! cm true)
                                             (.show cm ctrl (.getScreenX event) (.getScreenY event))
                                             (.consume event)))))))
 
@@ -542,8 +563,7 @@
     (ui/disable! add-button (nil? default-row))
     (ui/on-action! add-button (fn [_] (on-add-row)))
 
-    (.bind (.disableProperty remove-button)
-           (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel table))))
+    (b/bind-enabled-to-selection! remove-button table)
     (ui/on-action! remove-button (fn [_] (on-remove-rows)))
 
     (.setFixedCellSize table cell-height)
@@ -672,7 +692,7 @@
 
 (defmethod query-values-fn :resource [field-info {:keys [workspace project] :as ctxt}]
   (fn [] (dialogs/make-resource-dialog workspace project {:ext (:filter field-info)
-                                                                 :selection :multiple})))
+                                                          :selection :multiple})))
 
 (defmethod query-values-fn :default [_ _] nil)
 
@@ -733,8 +753,7 @@
     (ui/enable! add-button (or default-row? query-fn?))
     (ui/on-action! add-button (fn [_] (on-add-rows)))
 
-    (.bind (.disableProperty remove-button)
-           (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel list-view))))
+    (b/bind-enabled-to-selection! remove-button list-view)
     (ui/on-action! remove-button (fn [_] (on-remove-rows)))
 
     (.setCellFactory list-view (create-list-cell-factory (:element field-info) ctxt edited-cell))
@@ -795,8 +814,7 @@
                           :clear (when-let [clear (:clear field-ops)]
                                    (fn [path]
                                      (let [selected-index (get-selected-index list-view)]
-                                       (clear (concat (:path field-info) [selected-index] path)))))
-                          }
+                                       (clear (concat (:path field-info) [selected-index] path)))))}
         grid-rows (mapcat (fn [section-info] (create-section-grid-rows section-info nested-field-ops ctxt)) (:sections (:panel-form field-info)))
         updaters (into {} (keep :update-ui-fn grid-rows))
         grid (create-form-grid grid-rows)
@@ -818,7 +836,8 @@
                                    (.setDisable grid false)
                                    (let [selected-field-values (@content selected-index)]
                                      (update-fields (ui/user-data grid ::ui-update-fns)
-                                                    (build-form-values selected-field-values))))
+                                                    (build-form-values selected-field-values)
+                                                    #{})))
                                  (do
                                    (.setDisable grid true)
                                    (wipe-fields (ui/user-data grid ::ui-update-fns)))))
@@ -847,8 +866,7 @@
     (ui/disable! add-button (nil? default-row))
     (ui/on-action! add-button (fn [_] (on-add-row)))
 
-    (.bind (.disableProperty remove-button)
-           (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel list-view))))
+    (b/bind-enabled-to-selection! remove-button list-view)
     (ui/on-action! remove-button (fn [_] (on-remove-rows)))
 
     (ui/user-data! grid ::ui-update-fns updaters)
@@ -889,6 +907,11 @@
 (defn- field-label-valign [field-info]
   (get {:table VPos/TOP :list VPos/TOP :2panel VPos/TOP} (:type field-info) VPos/CENTER))
 
+(defn- set-visible-and-managed! [ui-elements value]
+  (doseq [ui-element ui-elements]
+    (ui/visible! ui-element value)
+    (ui/managed! ui-element value)))
+
 (defn- create-field-grid-row [field-info {:keys [set clear] :as field-ops} ctxt]
   (let [path (:path field-info)
         label (create-field-label (:label field-info))
@@ -912,15 +935,25 @@
                              (do
                                (ui/children! label-box [label])
                                (GridPane/setConstraints label 0 0))))
-                           
-        update-ui-fn (fn [{:keys [value source]}]
-                       (let [value (condp = source
-                                         :explicit value
-                                         :default (form/field-default field-info)
-                                         nil)
+
+        update-ui-fn (fn [update-data]
+                       (let [{:keys [value source]} update-data
+                             value (condp = source
+                                     :explicit value
+                                     :default (form/field-default field-info)
+                                     nil)
                              overridden? (and (form/optional-field? field-info) (= source :explicit))]
                          ((:update api) value)
-                         (update-label-box overridden?)))]
+                         (update-label-box overridden?))
+                       (when (:deprecated (:meta-setting update-data))
+                         (let [error (settings/get-setting-error (:setting-value update-data) (:meta-setting update-data) :build-targets)
+                               severity (:severity error)]
+                           (ui/remove-styles! control (map val severity-field-style-map))
+                           (if (some? error)
+                             (do
+                               (set-visible-and-managed! [label-box control] true)
+                               (ui/add-style! control (severity-field-style-map severity)))
+                             (set-visible-and-managed! [label-box control] false)))))]
 
     (GridPane/setFillWidth label-box true)
     (GridPane/setValignment label-box (field-label-valign field-info))
@@ -949,7 +982,9 @@
             (remove :hidden?)
             (map (fn [field-info] (create-field-grid-row field-info field-ops ctxt))))))))
 
-(defn- update-fields [updaters field-values]
+(defn- update-fields [updaters field-values meta-settings]
+  (doseq [[path updater] updaters]
+    (updater {:meta-setting (settings-core/get-meta-setting meta-settings path) :setting-value (get field-values path)}))
   (doseq [[path val] field-values]
     (when-let [updater (updaters path)]
       (updater {:value val :source :explicit})))
@@ -959,7 +994,7 @@
 
 (defn update-form [form form-data]
   (let [updaters (ui/user-data form ::update-ui-fns)]
-    (update-fields updaters (:values form-data))
+    (update-fields updaters (:values form-data) (:meta-settings form-data))
     form))
 
 (defn- add-grid-row [^GridPane grid row row-data]
@@ -978,8 +1013,7 @@
 (defn- make-base-field-ops [form-ops]
   {:set (fn [path value] (form/set-value! form-ops path value))
    :clear (when (form/can-clear? form-ops)
-            (fn [path] (form/clear-value! form-ops path)))
-   })
+            (fn [path] (form/clear-value! form-ops path)))})
 
 (defn- create-form-grid [grid-rows]
   (let [grid (doto (GridPane.)
@@ -1037,12 +1071,12 @@
   (let [workspace (:workspace opts)
         project (:project opts)
         view-id (g/make-node! graph FormView :parent-view parent :workspace workspace :project project)
-        repainter (ui/->timer 10 "refresh-form-view" (fn [_ _] (g/node-value view-id :form)))]
+        repainter (ui/->timer 10 "refresh-form-view" (fn [_timer _elapsed] (g/node-value view-id :form)))]
     (g/transact
       (concat
         (g/connect resource-node :form-data view-id :form-data)))
     (ui/timer-start! repainter)
-    (ui/timer-stop-on-closed! ^Tab (:tab opts) repainter)
+    (ui/timer-stop-on-closed! (:tab opts) repainter)
     view-id))
 
 (defn- make-form-view [graph ^Parent parent resource-node opts]

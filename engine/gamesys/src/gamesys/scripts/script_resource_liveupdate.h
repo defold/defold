@@ -109,6 +109,8 @@ namespace dmLiveUpdate
      * - `resource.LIVEUPATE_VERSION_MISMATCH`
      * - `resource.LIVEUPATE_ENGINE_VERSION_MISMATCH`
      * - `resource.LIVEUPATE_SIGNATURE_MISMATCH`
+     * - `resource.LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH`
+     * - `resource.LIVEUPDATE_FORMAT_ERROR`
      *
      * @examples
      * 

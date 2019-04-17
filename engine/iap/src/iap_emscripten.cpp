@@ -78,8 +78,14 @@ void IAPList_Callback(void* Lv, const char* result_json)
             dmJson::Document doc;
             dmJson::Result r = dmJson::Parse(result_json, &doc);
             if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-                dmScript::JsonToLua(L, &doc, 0);
-                lua_pushnil(L);
+                char err_str[128];
+                if (dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str)) < 0) {
+                    dmLogError("Failed converting list result JSON to Lua; %s", err_str);
+                    lua_pushnil(L);
+                    IAP_PushError(L, "Failed converting list result JSON to Lua", REASON_UNSPECIFIED);
+                } else {
+                    lua_pushnil(L);
+                }
             } else {
                 dmLogError("Failed to parse list result JSON (%d)", r);
                 lua_pushnil(L);
@@ -156,8 +162,14 @@ void IAPListener_Callback(void* Lv, const char* result_json, int error_code)
         dmJson::Document doc;
         dmJson::Result r = dmJson::Parse(result_json, &doc);
         if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-            dmScript::JsonToLua(L, &doc, 0);
-            lua_pushnil(L);
+            char err_str[128];
+            if (dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str)) < 0) {
+                dmLogError("Failed converting purchase result JSON to Lua; %s", err_str);
+                lua_pushnil(L);
+                IAP_PushError(L, "failed converting purchase result JSON to Lua", REASON_UNSPECIFIED);
+            } else {
+                lua_pushnil(L);
+            }
         } else {
             dmLogError("Failed to parse purchase response (%d)", r);
             lua_pushnil(L);

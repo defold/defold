@@ -55,7 +55,6 @@ package () {
 }
 
 package macosx cocoa x86_64 jre-8u5-macosx-x64.zip &
-package linux gtk x86 jre-8u5-linux-i586.zip &
 package linux gtk x86_64 jre-8u5-linux-x64.zip &
 package win32 win32 x86 jre-8u5-windows-i586.zip &
 

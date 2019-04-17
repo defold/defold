@@ -233,6 +233,9 @@ public class DefoldActivity extends NativeActivity {
                     self.setAdInfo("", false);
                 } catch (GooglePlayServicesRepairableException e) {
                     self.setAdInfo("", false);
+                } catch (Exception e) {
+                    self.setAdInfo("", false);
+                    System.out.println("Unable to get AdvertisingIdClient.Info, unknown exception was thrown: "+ e.toString());
                 }
             }
         }).start();
