@@ -4,12 +4,14 @@ import os, re
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
                 extra_includes = None, extra_defines = None):
 
-    req_libs = ['UUID', 'CARES']
+    req_libs = ['UUID']
     req_defines = []
     req_features = ['cxx', 'cprogram', 'test']
     req_includes = ['../../src']
     req_embed = None
 
+    if not 'web' in bld.env['PLATFORM']:
+        req_libs.append('CARES')
     if extra_features != None:
         req_features.extend(extra_features)
     if extra_libs != None:

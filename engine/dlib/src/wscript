@@ -85,12 +85,14 @@ def build(bld):
     bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')
     bld.install_files('${PREFIX}/bin', '../bin/memprofile.sh', chmod=0755)
 
+    req_libs = []
     if 'web' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'dlib/js/library_sys.js')
+    else:
+        req_libs = ['CARES']
 
     source_dirs = 'dlib dlib/jsmn zlib lz4'.split(' ')
     axtls_dirs = 'axtls/crypto axtls/ssl'.split(' ')
-    req_libs = ['CARES']
 
     if re.match('arm.*?android', bld.env.PLATFORM):
         source_dirs.append('dlib/linux')
