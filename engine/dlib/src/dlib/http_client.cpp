@@ -1142,6 +1142,11 @@ bail:
         return client->m_HttpCache;
     }
 
+    dmDNS::HChannel GetDNSChannel(HClient client)
+    {
+        return client->m_DNSChannel;
+    }
+
     uint32_t ShutdownConnectionPool()
     {
         dmConnectionPool::HPool pool = g_PoolCreator.GetPoolNoCreate();

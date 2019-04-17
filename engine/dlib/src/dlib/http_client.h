@@ -241,6 +241,8 @@ namespace dmHttpClient
      */
     dmHttpCache::HCache GetHttpCache(HClient client);
 
+    dmDNS::HChannel GetDNSChannel(HClient client);
+
     /**
      * Delete HTTP client
      * @param client Client handle
