@@ -21,7 +21,6 @@
            [java.io File]
            [java.util List Collection]
            [java.nio.file Path Paths]
-           [javafx.application Platform]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
            [javafx.scene.control CheckBox Button Label ListView TextArea TextField Hyperlink]
@@ -168,74 +167,67 @@
      (ui/show-and-wait! stage)
      @result-atom)))
 
-(defn fx-resolution-dialog [{:keys [width height showing owner]}]
-  {:fx/type fxui/dialog-stage
-   :showing showing
-   :owner {:fx/type fxui/ext-value :value owner}
-   :on-close-request {:event-type :cancel}
-   :title "Set Custom Resolution"
-   :scene {:fx/type :scene
-           :stylesheets ["dialogs.css"]
-           :root {:fx/type fxui/dialog-body
-                  :header {:fx/type fxui/header
-                           :text "Set Custom Resolution"}
-                  :content {:fx/type fxui/two-col-input-grid-pane
-                            :children [{:fx/type :label
-                                        :text "Width"}
-                                       {:fx/type fxui/text-field
-                                        :variant (if (nil? width) :error :default)
-                                        :text (str width)
-                                        :on-text-changed {:event-type :set-width}}
-                                       {:fx/type :label
-                                        :text "Height"}
-                                       {:fx/type fxui/text-field
-                                        :variant (if (nil? height) :error :default)
-                                        :text (str height)
-                                        :on-text-changed {:event-type :set-height}}]}
-                  :footer {:fx/type fxui/dialog-buttons
-                           :children [{:fx/type fxui/button
-                                       :cancel-button true
-                                       :on-action {:event-type :cancel}
-                                       :text "Cancel"}
-                                      {:fx/type fxui/button
-                                       :variant :primary
-                                       :disable (or (nil? width) (nil? height))
-                                       :default-button true
-                                       :text "Set Resolution"
-                                       :on-action {:event-type :confirm}}]}}}})
+(defn- digit-string? [^String x]
+  (and (pos? (.length x))
+       (every? #(Character/isDigit ^char %) x)))
 
-(defn- mount-renderer-and-wait [state-atom renderer result-promise]
-  (let [event-loop-key (Object.)]
-    (future
-      (let [result @result-promise]
-        (fx/on-fx-thread
-          (Platform/exitNestedEventLoop event-loop-key result))))
-    (fx/mount-renderer state-atom renderer)
-    (Platform/enterNestedEventLoop event-loop-key)))
+(defn fx-resolution-dialog [{:keys [width-text height-text owner] :as props}]
+  (let [width-valid (digit-string? width-text)
+        height-valid (digit-string? height-text)]
+    {:fx/type fxui/dialog-stage
+     :showing (not (contains? props :result))
+     :owner {:fx/type fxui/ext-value :value owner}
+     :on-close-request {:event-type :cancel}
+     :title "Set Custom Resolution"
+     :scene {:fx/type :scene
+             :stylesheets ["dialogs.css"]
+             :root {:fx/type fxui/dialog-body
+                    :header {:fx/type :v-box
+                             :children [{:fx/type fxui/header
+                                         :text "Set Custom Game Resolution"}
+                                        {:fx/type :label
+                                         :text "Game window will be resized to this size"}]}
+                    :content {:fx/type fxui/two-col-input-grid-pane
+                              :children [{:fx/type :label
+                                          :text "Width"}
+                                         {:fx/type fxui/text-field
+                                          :variant (if width-valid :default :error)
+                                          :text width-text
+                                          :on-text-changed {:event-type :set-width}}
+                                         {:fx/type :label
+                                          :text "Height"}
+                                         {:fx/type fxui/text-field
+                                          :variant (if height-valid :default :error)
+                                          :text height-text
+                                          :on-text-changed {:event-type :set-height}}]}
+                    :footer {:fx/type fxui/dialog-buttons
+                             :children [{:fx/type fxui/button
+                                         :cancel-button true
+                                         :on-action {:event-type :cancel}
+                                         :text "Cancel"}
+                                        {:fx/type fxui/button
+                                         :variant :primary
+                                         :disable (or (not width-valid) (not height-valid))
+                                         :default-button true
+                                         :text "Set Resolution"
+                                         :on-action {:event-type :confirm}}]}}}}))
 
 (defn make-resolution-dialog []
-  (let [state-atom (atom {:width 320
-                          :height 420
-                          :showing true
+  (let [state-atom (atom {:width-text "320"
+                          :height-text "420"
                           :owner (ui/main-stage)})
-        result-promise (promise)
         renderer (fx/create-renderer
                    :opts {:fx.opt/map-event-handler
-                          (-> (fn [{:keys [fx/event state event-type]}]
-                                (case event-type
-                                  :set-width {:state (assoc state :width (field-expression/to-int event))}
-                                  :set-height {:state (assoc state :height (field-expression/to-int event))}
-                                  :cancel {:state (assoc state :showing false)
-                                           :result nil}
-                                  :confirm {:state (assoc state :showing false)
-                                            :result (select-keys state [:width :height])}))
-                              (fx/wrap-co-effects
-                                {:state (fx/make-deref-co-effect state-atom)})
-                              (fx/wrap-effects
-                                {:state (fx/make-reset-effect state-atom)
-                                 :result (fn [v _] (deliver result-promise v))}))}
+                          (fxui/wrap-state-handler state-atom
+                            (fn [{:keys [fx/event state event-type]}]
+                              (case event-type
+                                :set-width {:state (assoc state :width-text event)}
+                                :set-height {:state (assoc state :height-text event)}
+                                :cancel {:state (assoc state :result nil)}
+                                :confirm {:state (assoc state :result {:width (field-expression/to-int (:width-text state))
+                                                                       :height (field-expression/to-int (:height-text state))})})))}
                    :middleware (fx/wrap-map-desc assoc :fx/type fx-resolution-dialog))]
-    (mount-renderer-and-wait state-atom renderer result-promise)))
+    (fxui/mount-renderer-and-await-result! state-atom renderer)))
 
 (defn make-update-failed-dialog [^Stage owner]
   (let [root ^Parent (ui/load-fxml "update-failed-alert.fxml")
