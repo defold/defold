@@ -1108,13 +1108,18 @@
           (set! suppress? false))))))
 
 (defn- make-menu-command [^Scene scene id label icon ^Collection style-classes acc user-data command enabled? check]
-  (let [^MenuItem menu-item (if check
+  (let [key-combo (and acc (KeyCombination/keyCombination acc))
+        ^MenuItem menu-item (if check
                               (CheckMenuItem. label)
                               (MenuItem. label))]
+    ;; Currently not allowed due to a problem on macOS. See below.
+    ;; Still a problem in JavaFX 12.
+    (assert (not (and check key-combo)) "Keyboard shortcuts currently cannot be assigned to check menu items.")
+
     (user-data! menu-item ::menu-item-id id)
     (when command
       (.setId menu-item (name command)))
-    (when-some [key-combo (and acc (KeyCombination/keyCombination acc))]
+    (when (some? key-combo)
       (.setAccelerator menu-item key-combo))
     (when icon
       (.setGraphic menu-item (wrap-menu-image (jfx/get-image-view icon 16))))
@@ -1415,8 +1420,8 @@
   (menu-items [this]))
 
 (defn- replace-menu!
-  [^MenuItem old ^MenuItem new]
-  (when-some [parent (.getParentMenu old)]
+  [^MenuBar menu-bar ^MenuItem old ^MenuItem new]
+  (when-some [parent (or (.getParentMenu old) menu-bar)]
     (when-some [parent-children (menu-items parent)]
       (let [index (.indexOf parent-children old)]
         (when (pos? index)
@@ -1474,7 +1479,7 @@
                                               visible-command-contexts
                                               command->shortcut
                                               evaluation-context)]
-            (replace-menu! menu-item new-menu-item)))))
+            (replace-menu! menu-bar menu-item new-menu-item)))))
     (clear-invalidated-menubar-items!)))
 
 (defn- refresh-separator-visibility [menu-items]
