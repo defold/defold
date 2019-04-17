@@ -8,6 +8,7 @@
             [editor.util :as util]
             [editor.handler :as handler]
             [editor.core :as core]
+            [editor.fxui :as fxui]
             [editor.fuzzy-text :as fuzzy-text]
             [editor.jfx :as jfx]
             [editor.workspace :as workspace]
@@ -16,8 +17,7 @@
             [editor.defold-project :as project]
             [editor.github :as github]
             [editor.field-expression :as field-expression])
-  (:import [cljfx.lifecycle Lifecycle]
-           [clojure.lang Named]
+  (:import [clojure.lang Named]
            [java.io File]
            [java.util List Collection]
            [java.util.function UnaryOperator]
@@ -32,82 +32,6 @@
            [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]))
 
 (set! *warn-on-reflection* true)
-
-(def fx-ext-value
-  (reify Lifecycle
-    (create [_ desc _]
-      (:value desc))
-    (advance [_ _ desc _]
-      (:value desc))
-    (delete [_ _ _])))
-
-(defn- fx-dialog-body [{:keys [size header content footer]
-                        :or {size :small}}]
-  {:fx/type :v-box
-   :style-class ["dialog-body" (case size
-                                 :small "dialog-body-small"
-                                 :large "dialog-body-large")]
-   :children (if (some? content)
-               [{:fx/type :v-box
-                 :style-class "dialog-with-content-header"
-                 :children [header]}
-                {:fx/type :v-box
-                 :style-class "dialog-content"
-                 :children [content]}
-                {:fx/type :v-box
-                 :style-class "dialog-with-content-footer"
-                 :children [footer]}]
-               [{:fx/type :v-box
-                 :style-class "dialog-without-content-header"
-                 :children [header]}
-                {:fx/type :region :style-class "dialog-no-content"}
-                {:fx/type :v-box
-                 :style-class "dialog-without-content-footer"
-                 :children [footer]}])})
-
-(defn- fx-header [props]
-  (merge {:fx/type :label
-          :style-class "header"}
-         props))
-
-(defn- fx-button [{:keys [variant] :as props
-                   :or {variant :secondary}}]
-  (merge {:fx/type :button
-          :style-class ["button" (case variant
-                                   :primary "button-primary"
-                                   :secondary "button-secondary")]}
-         (dissoc props :variant)))
-
-(defn- fx-dialog-buttons [props]
-  (merge {:fx/type :h-box
-          :style-class ["dialog-buttons"]}
-         props))
-
-(defn- fx-two-col-input-grid-pane [props]
-  (merge {:fx/type :grid-pane
-          :style-class "input-grid"
-          :column-constraints [{:fx/type :column-constraints}
-                               {:fx/type :column-constraints
-                                :hgrow :always}]}
-         (update props :children (fn [children]
-                                   (->> children
-                                        (partition 2)
-                                        (map-indexed
-                                          (fn [row [label input]]
-                                            [(assoc label :grid-pane/column 0
-                                                          :grid-pane/row row
-                                                          :grid-pane/halignment :right)
-                                             (assoc input :grid-pane/column 1
-                                                          :grid-pane/row row)]))
-                                        (mapcat identity))))))
-
-(defn- fx-text-field [{:keys [variant] :as props
-                       :or {variant :default}}]
-  (merge {:fx/type :text-field
-          :style-class ["text-field" (case variant
-                                       :default "text-field-default"
-                                       :error "text-field-error")]}
-         (dissoc props :variant)))
 
 (defn- numbers-only-text-formatter []
   (TextFormatter.
@@ -254,35 +178,35 @@
      @result-atom)))
 
 (defn fx-resolution-dialog [{:keys [width height showing owner]}]
-  {:fx/type ui/fx-dialog-stage
+  {:fx/type fxui/dialog-stage
    :showing showing
-   :owner {:fx/type fx-ext-value :value owner}
+   :owner {:fx/type fxui/ext-value :value owner}
    :on-close-request {:event-type :cancel}
    :title "Set Custom Resolution"
    :scene {:fx/type :scene
            :stylesheets ["dialogs.css"]
-           :root {:fx/type fx-dialog-body
-                  :header {:fx/type fx-two-col-input-grid-pane
+           :root {:fx/type fxui/dialog-body
+                  :header {:fx/type fxui/two-col-input-grid-pane
                            :children [{:fx/type :label
                                        :text "Width"}
-                                      {:fx/type fx-text-field
+                                      {:fx/type fxui/text-field
                                        :variant (if (nil? width) :error :default)
                                        :text (str width)
                                        :text-formatter (numbers-only-text-formatter)
                                        :on-text-changed {:event-type :set-width}}
                                       {:fx/type :label
                                        :text "Height"}
-                                      {:fx/type fx-text-field
+                                      {:fx/type fxui/text-field
                                        :variant (if (nil? height) :error :default)
                                        :text (str height)
                                        :text-formatter (numbers-only-text-formatter)
                                        :on-text-changed {:event-type :set-height}}]}
-                  :footer {:fx/type fx-dialog-buttons
-                           :children [{:fx/type fx-button
+                  :footer {:fx/type fxui/dialog-buttons
+                           :children [{:fx/type fxui/button
                                        :cancel-button true
                                        :on-action {:event-type :cancel}
                                        :text "Cancel"}
-                                      {:fx/type fx-button
+                                      {:fx/type fxui/button
                                        :variant :primary
                                        :disable (or (nil? width) (nil? height))
                                        :default-button true
