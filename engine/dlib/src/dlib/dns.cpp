@@ -62,12 +62,43 @@ namespace dmDNS
         return res;
     }
 
-    static void dns_addrinfo_callback(void* arg, int status, int timeouts, struct ares_addrinfo* info)
+    static void ares_gethost_callback(void *arg, int status, int timeouts, struct hostent *host)
     {
         assert(arg);
         RequestResult* req = (RequestResult*) arg;
-        req->m_Status      = (uint32_t) status;
-        bool prefer_ipv4   = req->m_Ipv4 && req->m_Ipv6;
+
+        if (status != ARES_ECANCELLED)
+        {
+            req->m_Status = (uint32_t) status;
+        }
+
+        if (host == 0x0 || status != ARES_SUCCESS)
+        {
+            return;
+        }
+
+        assert(host->h_addr_list[0]);
+        if (host->h_addrtype == AF_INET)
+        {
+            req->m_Address->m_family     = dmSocket::DOMAIN_IPV4;
+            req->m_Address->m_address[3] = *(uint32_t*) host->h_addr_list[0];
+        }
+        else if (host->h_addrtype == AF_INET6)
+        {
+            req->m_Address->m_family = dmSocket::DOMAIN_IPV6;
+            memcpy(&req->m_Address->m_address[0], host->h_addr_list[0], sizeof(struct in6_addr));
+        }
+    }
+
+    static void ares_addrinfo_callback(void* arg, int status, int timeouts, struct ares_addrinfo* info)
+    {
+        assert(arg);
+        RequestResult* req = (RequestResult*) arg;
+
+        if (status != ARES_ECANCELLED)
+        {
+            req->m_Status = (uint32_t) status;
+        }
 
         if (info == 0x0 || status != ARES_SUCCESS)
         {
@@ -81,9 +112,10 @@ namespace dmDNS
 
         // Note: This is a bit different than the 'regular' getaddrinfo call in dmSocket.
         //       Since we don't return a list of addresses, we need to pick one and since
-        //       IPV6 sometimes fail when setting up the socket connection (apparently.. e.g google.com),
+        //       IPV6 sometimes fail when setting up the socket connection (apparently google.com),
         //       we try to select an IPV4 address first if possible.
         struct ares_addrinfo* iterator = info, *selected = 0x0;
+        bool prefer_ipv4               = req->m_Ipv4 && req->m_Ipv6;
         while (iterator)
         {
             if (req->m_Ipv4 && iterator->ai_family == AF_INET)
@@ -203,15 +235,32 @@ namespace dmDNS
 
         req.m_Address = address;
         req.m_Status  = ARES_SUCCESS;
-        req.m_Ipv4    = ipv4;
-        req.m_Ipv6    = ipv6;
 
-        ares_addrinfo hints;
-        memset(&hints, 0x0, sizeof(hints));
-        hints.ai_family   = want_family;
-        hints.ai_socktype = SOCK_STREAM; // Note: TCP hint not supported by c-ares it seems..
+        struct in_addr       addr4;
+        struct ares_in6_addr addr6;
 
-        ares_getaddrinfo(dns_channel->m_Handle, name, NULL, &hints, dns_addrinfo_callback, (void*)&req);
+        // We need to check the address if it's an actual IP address or not.
+        // The regular getaddrinfo seems to return an address, so in that case
+        // we need to invoke gethostbyaddr instead.
+        if (ares_inet_pton(AF_INET, name, &addr4) == 1)
+        {
+            ares_gethostbyaddr(dns_channel->m_Handle, &addr4, sizeof(addr4), AF_INET, ares_gethost_callback, (void*)&req);
+        }
+        else if (ares_inet_pton(AF_INET6, name, &addr6) == 1)
+        {
+            ares_gethostbyaddr(dns_channel->m_Handle, &addr6, sizeof(addr6), AF_INET6, ares_gethost_callback, (void*)&req);
+        }
+        else
+        {
+            ares_addrinfo hints;
+            memset(&hints, 0x0, sizeof(hints));
+            hints.ai_family   = want_family;
+            hints.ai_socktype = SOCK_STREAM; // Note: TCP hint not supported
+            req.m_Ipv4        = ipv4;
+            req.m_Ipv6        = ipv6;
+
+            ares_getaddrinfo(dns_channel->m_Handle, name, NULL, &hints, ares_addrinfo_callback, (void*)&req);
+        }
 
         // This is a blocking wait and presumes that a single request is handed at a time.
         // This can easily be turned into a threaded queue, but isn't for simplicity.
@@ -226,6 +275,7 @@ namespace dmDNS
                 if (!dns_channel->m_Running)
                 {
                     ares_cancel(dns_channel->m_Handle);
+                    req.m_Status = ARES_ECANCELLED;
                     break;
                 }
             }
@@ -241,6 +291,12 @@ namespace dmDNS
                 ares_cancel(dns_channel->m_Handle);
                 break;
             }
+            else
+            {
+                // Ares adds a + 1 to the socket, as does dmSocket::Select
+                // So we just compensate for this.
+                selector.m_Nfds -= 1;
+            }
 
             if ((dmTime::GetTime() - request_started) > request_timeout)
             {
@@ -248,8 +304,8 @@ namespace dmDNS
                 break;
             }
 
-            // Select on this socket for a half second
-            dmSocket::Select(&selector, 500000);
+            // Select on this socket for a little bit (50ms)
+            dmSocket::Select(&selector, 50000);
             ares_process(dns_channel->m_Handle,
                 &selector.m_FdSets[dmSocket::SELECTOR_KIND_READ],
                 &selector.m_FdSets[dmSocket::SELECTOR_KIND_WRITE]);
