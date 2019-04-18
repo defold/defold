@@ -178,12 +178,13 @@
           certificate (assoc "certificate" (.getAbsolutePath certificate))
           private-key (assoc "private-key" (.getAbsolutePath private-key))))
 
-(defn- ios-bundle-bob-args [{:keys [code-signing-identity ^File provisioning-profile] :as _bundle-options}]
+(defn- ios-bundle-bob-args [{:keys [code-signing-identity ^File provisioning-profile architectures] :as _bundle-options}]
   (assert (string? (not-empty code-signing-identity)))
   (assert (some-> provisioning-profile .isFile))
   (let [provisioning-profile-path (.getAbsolutePath provisioning-profile)]
     {"mobileprovisioning" provisioning-profile-path
-     "identity" code-signing-identity}))
+     "identity" code-signing-identity
+     "architectures" architectures}))
 
 (def bundle-bob-commands ["distclean" "build" "bundle"])
 

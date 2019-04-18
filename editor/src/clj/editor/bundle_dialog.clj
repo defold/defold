@@ -412,6 +412,12 @@
 (defn- get-code-signing-identity-names []
   (mapv second (bundle/find-identities)))
 
+(defn- make-ios-arch-controls ^VBox [refresh!]
+  (labeled! "Architectures" (doto (VBox.)
+                              (ui/children! [(doto (CheckBox. "armv7") (ui/add-style! "labeled-toggles") (.setId "bundle-arch-armv7-darwin") (.setFocusTraversable false) (ui/on-action! refresh!))
+                                             (doto (CheckBox. "arm64") (ui/add-style! "labeled-toggles") (.setId "bundle-arch-arm64-darwin") (.setFocusTraversable false) (ui/on-action! refresh!))
+                                             (doto (CheckBox. "Simulator") (ui/add-style! "labeled-toggles") (.setId "bundle-arch-x86_64-ios") (.setFocusTraversable false) (ui/on-action! refresh!))]))))
+
 (defn- make-ios-controls [refresh! owner-window]
   (assert (fn? refresh!))
   (let [provisioning-profile-file-field (make-file-field refresh! owner-window "provisioning-profile-text-field" "Choose Provisioning Profile" [["Provisioning Profiles (*.mobileprovision)" "*.mobileprovision"]])
@@ -430,7 +436,8 @@
       (ui/add-style! "settings")
       (ui/add-style! "ios")
       (ui/children! [(labeled! "Code signing identity" code-signing-identity-choice-box)
-                     (labeled! "Provisioning profile" provisioning-profile-file-field)]))))
+                     (labeled! "Provisioning profile" provisioning-profile-file-field)
+                     (make-ios-arch-controls refresh!)]))))
 
 
 (defn- load-ios-prefs! [prefs view code-signing-identity-names]
@@ -450,9 +457,12 @@
     (set-string-pref! prefs "bundle-ios-provisioning-profile" (ui/value provisioning-profile-text-field))))
 
 (defn- get-ios-options [view]
-  (ui/with-controls view [code-signing-identity-choice-box provisioning-profile-text-field]
-    {:code-signing-identity (ui/value code-signing-identity-choice-box)
-     :provisioning-profile (get-file provisioning-profile-text-field)}))
+  (ui/with-controls view [code-signing-identity-choice-box provisioning-profile-text-field bundle-arch-armv7-darwin bundle-arch-arm64-darwin bundle-arch-x86_64-ios]
+    (let [arch-controls [{:widget bundle-arch-armv7-darwin :arch "armv7-darwin"} {:widget bundle-arch-arm64-darwin :arch "arm64-darwin"} {:widget bundle-arch-x86_64-ios :arch "x86_64-ios"}]
+          arch-list (clojure.string/join "," (map :arch (filter (fn [arch] (ui/value (:widget arch))) arch-controls)))]
+      {:code-signing-identity (ui/value code-signing-identity-choice-box)
+       :provisioning-profile (get-file provisioning-profile-text-field)
+       :architectures arch-list})))
 
 (defn- set-ios-options! [view {:keys [code-signing-identity provisioning-profile] :as _options} issues code-signing-identity-names]
   (ui/with-controls view [^ChoiceBox code-signing-identity-choice-box provisioning-profile-text-field ok-button]
