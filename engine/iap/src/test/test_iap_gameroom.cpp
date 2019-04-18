@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include <script/script.h>
 #include <dlib/log.h>
 #include <dlib/json.h>
@@ -215,7 +216,7 @@ static int MockHTTPRequest(lua_State* L)
     return 0;
 }
 
-class IAPGameroomTest : public ::testing::Test
+class IAPGameroomTest : public jc_test_base_class
 {
 public:
     lua_State* L;
@@ -431,7 +432,7 @@ TEST_F(IAPGameroomTest, ValidProduct)
     ASSERT_STREQ(TEST_URL_VALID, product->m_Ident);
     ASSERT_STREQ("Valid product", product->m_Title);
     ASSERT_STREQ("Example description", product->m_Description);
-    ASSERT_DOUBLE_EQ(0.99, product->m_Price);
+    ASSERT_EQ(0.99, product->m_Price);
     ASSERT_STREQ("0.99USD", product->m_PriceString);
     ASSERT_STREQ("USD", product->m_CurrencyCode);
 }
@@ -468,7 +469,7 @@ TEST_F(IAPGameroomTest, ValidProductCaps)
     ASSERT_STREQ(TEST_URL_VALID_CAPS, product->m_Ident);
     ASSERT_STREQ("CAPS PRODUCT", product->m_Title);
     ASSERT_STREQ("CAPS DESCRIPTION", product->m_Description);
-    ASSERT_DOUBLE_EQ(100.0, product->m_Price);
+    ASSERT_EQ(100.0, product->m_Price);
     ASSERT_STREQ("100SEK", product->m_PriceString);
     ASSERT_STREQ("SEK", product->m_CurrencyCode);
 }
@@ -511,7 +512,7 @@ TEST_F(IAPGameroomTest, MultipleProducts)
     ASSERT_STREQ(TEST_URL_VALID, product->m_Ident);
     ASSERT_STREQ("Valid product", product->m_Title);
     ASSERT_STREQ("Example description", product->m_Description);
-    ASSERT_DOUBLE_EQ(0.99, product->m_Price);
+    ASSERT_EQ(0.99, product->m_Price);
     ASSERT_STREQ("0.99USD", product->m_PriceString);
     ASSERT_STREQ("USD", product->m_CurrencyCode);
 
@@ -519,7 +520,7 @@ TEST_F(IAPGameroomTest, MultipleProducts)
     ASSERT_STREQ(TEST_URL_VALID_2, product->m_Ident);
     ASSERT_STREQ("Second product", product->m_Title);
     ASSERT_STREQ("Different description", product->m_Description);
-    ASSERT_DOUBLE_EQ(100.0, product->m_Price);
+    ASSERT_EQ(100.0, product->m_Price);
     ASSERT_STREQ("100SEK", product->m_PriceString);
     ASSERT_STREQ("SEK", product->m_CurrencyCode);
 }
@@ -589,15 +590,15 @@ TEST_F(IAPGameroomTest, ValidProductNoNewlines)
     ASSERT_STREQ(TEST_URL_VALID_3, product->m_Ident);
     ASSERT_STREQ("Third product", product->m_Title);
     ASSERT_STREQ("Different description", product->m_Description);
-    ASSERT_DOUBLE_EQ(100.0, product->m_Price);
+    ASSERT_EQ(100.0, product->m_Price);
     ASSERT_STREQ("100SEK", product->m_PriceString);
     ASSERT_STREQ("SEK", product->m_CurrencyCode);
 }
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = jc_test_run_all();
     return ret;
 }

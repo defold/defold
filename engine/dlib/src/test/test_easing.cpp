@@ -1,7 +1,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <math.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include "../dlib/easing.h"
 #include "../dlib/math.h"
 
@@ -95,6 +96,6 @@ TEST(dmEasing, CurstomCurve)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }
