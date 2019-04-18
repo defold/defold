@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <script/script.h>
 #include <dlib/log.h>
-#include <dlib/json.h>
+#include <dmsdk/dlib/json.h>
 #include <dlib/dstrings.h>
 #include "../iap_private.h"
 #include "../iap.h"

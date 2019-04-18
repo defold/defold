@@ -2,7 +2,7 @@
 
 #include <dlib/array.h>
 #include <dlib/log.h>
-#include <dlib/json.h>
+#include <dmsdk/dlib/json.h>
 #include <script/script.h>
 #include <dmsdk/extension/extension.h>
 

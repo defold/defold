@@ -2,7 +2,7 @@
 #include <gtest/gtest.h>
 #include <string.h>
 #include <string>
-#include "../dlib/json.h"
+#include "../dmsdk/dlib/json.h"
 #include "data/flickr.json.embed.h"
 
 class dmJsonTest: public ::testing::Test
