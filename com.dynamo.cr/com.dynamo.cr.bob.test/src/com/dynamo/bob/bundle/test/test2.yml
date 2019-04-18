@@ -1,0 +1,6 @@
+name: TestExt2
+
+platforms:
+    armv7-android:
+        aapt:
+            extra-packages: ['com.other.package']

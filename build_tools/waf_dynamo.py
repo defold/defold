@@ -744,9 +744,6 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
 
         <!-- Disable Firebase Analytics -->
         <meta-data android:name="firebase_analytics_collection_deactivated" android:value="true" />
-        <!-- For Facebook -->
-        <meta-data android:name="com.facebook.sdk.ApplicationName"
-            android:value="%(app_name)s" />
 
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="%(app_name)s"
@@ -762,10 +759,6 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
             </intent-filter>
         </activity>
         <activity android:name="com.dynamo.android.DispatcherActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-        <activity android:name="com.facebook.FacebookActivity"
-          android:theme="@android:style/Theme.Translucent.NoTitleBar"
-          android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
-          android:label="%(app_name)s" />
         <activity android:name="com.defold.iap.IapGooglePlayActivity"
           android:theme="@android:style/Theme.Translucent.NoTitleBar"
           android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
@@ -879,8 +872,7 @@ def android_package(task):
     # After the release of 1.2.149 Facebook dialogs stopped working, unless the engine was built
     # on NE server. It was narrowed down to what order the res dirs were listed in the aapt
     # argument list and now we use the same order on all places.
-    res_dirs = ["%s/ext/share/java/res/facebook" % dynamo_home,
-                "%s/ext/share/java/res/com.android.support.support-compat-27.1.1" % dynamo_home,
+    res_dirs = ["%s/ext/share/java/res/com.android.support.support-compat-27.1.1" % dynamo_home,
                 "%s/ext/share/java/res/com.android.support.support-core-ui-27.1.1" % dynamo_home,
                 "%s/ext/share/java/res/com.android.support.support-media-compat-27.1.1" % dynamo_home,
                 "%s/ext/share/java/res/com.google.android.gms.play-services-base-16.0.1" % dynamo_home,
@@ -1279,7 +1271,7 @@ def js_web_web_link_flags(self):
             lib_dirs = self.env['JS_LIB_PATHS']
         else:
             lib_dirs = {}
-        libs = getattr(self, 'web_libs', ["library_glfw.js", "library_sys.js", "library_script.js", "library_facebook.js", "library_facebook_iap.js", "library_sound.js"])
+        libs = getattr(self, 'web_libs', ["library_glfw.js", "library_sys.js", "library_script.js", "library_facebook_iap.js", "library_sound.js"])
         jsLibHome = os.path.join(self.env['DYNAMO_HOME'], 'lib', platform, 'js')
         for lib in libs:
             js = ''

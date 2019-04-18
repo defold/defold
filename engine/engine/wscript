@@ -66,8 +66,6 @@ namespace dmEngineVersion
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
     elif operating_sys == 'ios':
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'AudioToolbox'])
-        # For Facebook SDK...
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Security', '-weak_framework', 'Accounts', '-weak_framework', 'Social', '-weak_framework', 'AdSupport'])
         # For IAP
         conf.env.append_value('LINKFLAGS', ['-framework', 'StoreKit'])
     elif operating_sys == 'android':

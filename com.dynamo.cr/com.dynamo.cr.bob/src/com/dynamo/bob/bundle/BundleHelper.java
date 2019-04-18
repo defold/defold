@@ -58,6 +58,7 @@ import java.net.URL;
 
 public class BundleHelper {
     private Project project;
+    private Platform platform;
     private BobProjectProperties projectProperties;
     private String title;
     private File buildDir;
@@ -67,6 +68,7 @@ public class BundleHelper {
     public static final String MANIFEST_NAME_ANDROID    = "AndroidManifest.xml";
     public static final String MANIFEST_NAME_IOS        = "Info.plist";
     public static final String MANIFEST_NAME_OSX        = "Info.plist";
+    public static final String MANIFEST_NAME_HTML5      = "engine_template.html";
 
     private static Logger logger = Logger.getLogger(BundleHelper.class.getName());
 
@@ -80,6 +82,7 @@ public class BundleHelper {
         this.projectProperties = project.getProjectProperties();
 
         this.project = project;
+        this.platform = platform;
         this.title = this.projectProperties.getStringValue("project", "title", "Unnamed");
 
         this.buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
@@ -175,7 +178,7 @@ public class BundleHelper {
     }
 
     // Formats all the manifest files.
-    // This is required for the manifest mergere to not choke on the Mustasch patterns
+    // This is required for the manifest merger to not choke on the Mustasch patterns
     private List<File> formatAll(List<IResource> sources, File toDir, Map<String, Object> properties) throws IOException {
         List<File> out = new ArrayList<File>();
         for (IResource source : sources) {
@@ -188,7 +191,7 @@ public class BundleHelper {
         return out;
     }
 
-    public void mergeManifests(Project project, Platform platform, Map<String, Object> properties, IResource mainManifest, File outManifest) throws CompileExceptionError, IOException {
+    public void mergeManifests(Map<String, Object> properties, IResource mainManifest, File outManifest) throws CompileExceptionError, IOException {
         String name;
         if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
             name = BundleHelper.MANIFEST_NAME_IOS;
@@ -196,12 +199,14 @@ public class BundleHelper {
             name = BundleHelper.MANIFEST_NAME_OSX;
         } else if (platform == Platform.Armv7Android) {
             name = BundleHelper.MANIFEST_NAME_ANDROID;
+        } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
+            name = BundleHelper.MANIFEST_NAME_HTML5;
         } else {
             throw new CompileExceptionError(null, -1, "Unsupported ManifestMergeTool platform: " + platform.toString());
         }
 
         // First, list all manifests
-        List<IResource> sourceManifests = ExtenderUtil.getExtensionManifests(project, platform, name);
+        List<IResource> sourceManifests = ExtenderUtil.getExtensionPlatformManifests(project, platform, name);
         // Put the main manifest in front
         sourceManifests.add(0, mainManifest);
 
@@ -209,9 +214,11 @@ public class BundleHelper {
         File manifestDir = Files.createTempDirectory("manifests").toFile();
         List<File> resolvedManifests = formatAll(sourceManifests, manifestDir, properties);
         File resolvedMainManifest = resolvedManifests.get(0);
+        // Remove the main manifest again
         resolvedManifests.remove(0);
 
         if (resolvedManifests.size() == 0) {
+            // No need to merge a single file
             Files.copy(resolvedMainManifest.toPath(), outManifest.toPath(), StandardCopyOption.REPLACE_EXISTING);
             return;
         }
@@ -223,6 +230,8 @@ public class BundleHelper {
             manifestPlatform = ManifestMergeTool.Platform.ANDROID;
         } else if (platform == Platform.X86_64Darwin) {
             manifestPlatform = ManifestMergeTool.Platform.OSX;
+        } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
+            manifestPlatform = ManifestMergeTool.Platform.HTML5;
         } else {
             throw new CompileExceptionError(null, -1, "Merging manifests for platform unsupported: " + platform.toString());
         }
@@ -330,6 +339,9 @@ public class BundleHelper {
         Map<String, IResource> resources = ExtenderUtil.getAndroidResources(project);
         ExtenderUtil.storeAndroidResources(resDir, resources);
 
+        Map<String, Object> extensionContext = ExtenderUtil.getPlatformSettingsFromExtensions(project, platform);
+        Map<String, Object> bundleContext = (Map<String, Object>)extensionContext.getOrDefault("bundle", null);
+
         resourceDirectories.add(resDir.getAbsolutePath());
 
         copyAndroidIcons(resDir);
@@ -340,7 +352,6 @@ public class BundleHelper {
         javaROutput.mkdir();
 
         // Include built-in/default facebook and gms resources
-        //resourceDirectories.add(Bob.getPath("res/facebook"));
         resourceDirectories.add(Bob.getPath("res/com.android.support.support-compat-27.1.1"));
         resourceDirectories.add(Bob.getPath("res/com.android.support.support-core-ui-27.1.1"));
         resourceDirectories.add(Bob.getPath("res/com.android.support.support-media-compat-27.1.1"));
@@ -349,7 +360,10 @@ public class BundleHelper {
         resourceDirectories.add(Bob.getPath("res/com.google.firebase.firebase-messaging-17.3.4"));
 
         List<String> extraPackages = new ArrayList<>();
-        //extraPackages.add("com.facebook");
+
+        if (bundleContext != null) {
+            extraPackages.addAll((List<String>)bundleContext.getOrDefault("aapt-extra-packages", new ArrayList<String>()));
+        }
         extraPackages.add("com.google.android.gms");
         extraPackages.add("com.google.android.gms.common");
 
