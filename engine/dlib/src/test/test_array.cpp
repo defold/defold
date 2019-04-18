@@ -1,7 +1,9 @@
 #include "dlib/array.h"
 
 #include <stdint.h>
-#include <gtest/gtest.h>
+#include <stdlib.h> // rand
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 const uint32_t array_size = 32;
 const uint32_t array_size_test_offset = 7;
@@ -181,11 +183,11 @@ TEST(dmArray, UserAllocated)
     array[0] = 2;
     dmArray<uint32_t> b(array, 1, 2);
     ASSERT_EQ(2u, b[0]);
-    ASSERT_DEATH_IF_SUPPORTED(dmArray<uint32_t> c(array, 2, 1), "");
+    ASSERT_DEATH(dmArray<uint32_t> c(array, 2, 1), "");
 }
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

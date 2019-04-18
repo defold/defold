@@ -16,18 +16,18 @@ from ConfigParser import ConfigParser
     Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
-PACKAGES_HOST="protobuf-2.3.0 gtest-1.8.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.0.5 tremolo-0.0.8".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest".split()
+PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.0.5 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
-PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 luajit-2.0.5 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_DARWIN="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-1.7.0 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0".split()
+PACKAGES_IOS="protobuf-2.3.0 luajit-2.0.5 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_IOS_64="protobuf-2.3.0 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_DARWIN="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-1.7.0 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0".split()
 PACKAGES_WIN32="facebook-gameroom-2017-08-14 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 bullet-2.77".split()
 PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
 PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
-PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 android-support-v4 android-support-multidex android-27 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
-PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0 bullet-2.77".split()
+PACKAGES_ANDROID="protobuf-2.3.0 android-support-v4 android-support-multidex android-27 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
@@ -813,7 +813,7 @@ class Configuration(object):
 
         env = self._form_env()
         self._set_java_8(env)
-        self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+        self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-bob-light']),
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
 
     def build_engine(self):
@@ -970,7 +970,7 @@ class Configuration(object):
 
         env = self._form_env()
         self._set_java_8(env)
-        self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
+        self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
                               cwd = cwd, shell = True, env = env)
 
     def build_sdk(self):
@@ -1142,11 +1142,19 @@ instructions.configure=\
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, 'editor2')
+        full_archive_path = join(self.archive_path, sha1, self.channel, 'editor2')
 
         for ext in ['zip', 'dmg']:
             for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
                 self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+
+        # TODO: Remove this block after one release with both json files.
+        # TODO: ---- CUT HERE ----
+        full_archive_path = join('s3://d.defold.com/editor2', sha1, 'editor2')
+        for ext in ['zip', 'dmg']:
+            for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
+                self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+        # TODO: ---- CUT TO HERE ----
 
         self.wait_uploads()
 
@@ -1163,10 +1171,18 @@ instructions.configure=\
         archive_url = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(archive_url.hostname)
 
+        # TODO: Remove this block after one release with both json files.
+        # TODO: ---- CUT HERE ----
         key_v2 = bucket.new_key('editor2/channels/%(channel)s/update-v2.json' % {'channel': self.channel})
         key_v2.content_type = 'application/json'
         self._log("Updating channel '%s' for update-v2.json: %s" % (self.channel, key_v2))
         key_v2.set_contents_from_string(json.dumps({'sha1': sha1}))
+        # TODO: ---- CUT TO HERE ----
+
+        key_v3 = bucket.new_key('editor2/channels/%(channel)s/update-v3.json' % {'channel': self.channel})
+        key_v3.content_type = 'application/json'
+        self._log("Updating channel '%s' for update-v3.json: %s" % (self.channel, key_v3))
+        key_v3.set_contents_from_string(json.dumps({'sha1': sha1}))
 
     def bump(self):
         sha1 = self._git_sha1()
@@ -1748,7 +1764,7 @@ instructions.configure=\
             ed_proc.wait()
         self._uninstall_editor2(info)
 
-        result_archive_path = '/'.join(['int.d.defold.com', 'archive', sha1, 'editor2', 'smoke_test'])
+        result_archive_path = '/'.join(['int.d.defold.com', 'archive', sha1, self.channel, 'editor2', 'smoke_test'])
         def _findwebfiles(libdir):
             paths = os.listdir(libdir)
             paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.html', '.css', '.png')]
@@ -1999,7 +2015,6 @@ instructions.configure=\
 
         if self.no_colors:
             env['NOCOLOR'] = '1'
-            env['GTEST_COLOR'] = 'no'
 
         env['EMSCRIPTEN'] = self._form_ems_path()
 

@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 #include "script.h"
 
@@ -16,7 +17,7 @@ extern "C"
 
 #define PATH_FORMAT "build/default/src/test/%s"
 
-class ScriptJsonTest : public ::testing::Test
+class ScriptJsonTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -85,7 +86,7 @@ struct JsonToLuaParams
     bool m_ExpectedConvertOK;
 };
 
-class JsonToLuaTest : public ::testing::TestWithParam<JsonToLuaParams>
+class JsonToLuaTest : public jc_test_params_class<JsonToLuaParams>
 {
 protected:
     virtual void SetUp()
@@ -185,12 +186,12 @@ const JsonToLuaParams json_to_lua_setups[] = {
     {"{ 'data': 'asd' }", true, false}, // DEF-3707
 };
 
-INSTANTIATE_TEST_CASE_P(JsonToLuaTestSequence, JsonToLuaTest, ::testing::ValuesIn(json_to_lua_setups));
+INSTANTIATE_TEST_CASE_P(JsonToLuaTestSequence, JsonToLuaTest, jc_test_values_in(json_to_lua_setups));
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = jc_test_run_all();
     return ret;
 }
