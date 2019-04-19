@@ -466,6 +466,7 @@ GLFWGLOBAL struct {
     int           fd;
     int           NumAxes;
     int           NumButtons;
+    int           InputId;
     float         *Axis;
     unsigned char *Button;
     char DeviceId[DEVICE_ID_LENGTH];
