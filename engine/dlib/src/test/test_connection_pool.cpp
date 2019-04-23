@@ -257,9 +257,11 @@ int main(int argc, char **argv)
     }
 
     dmLogSetlevel(DM_LOG_SEVERITY_INFO);
+    dmDNS::Initialize();
     dmSocket::Initialize();
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
     dmSocket::Finalize();
+    dmDNS::Finalize();
     return ret;
 }
