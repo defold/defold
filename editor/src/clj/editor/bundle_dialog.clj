@@ -412,15 +412,10 @@
 (defn- get-code-signing-identity-names []
   (mapv second (bundle/find-identities)))
 
-(defn- make-ios-arch-controls ^VBox [refresh!]
-  (labeled! "Architectures" (doto (VBox.)
-                              (ui/children! [(doto (CheckBox. "armv7") (ui/add-style! "labeled-toggles") (.setId "bundle-arch-armv7-darwin") (.setFocusTraversable false) (ui/on-action! refresh!))
-                                             (doto (CheckBox. "arm64") (ui/add-style! "labeled-toggles") (.setId "bundle-arch-arm64-darwin") (.setFocusTraversable false) (ui/on-action! refresh!))
-                                             (doto (CheckBox. "Simulator") (ui/add-style! "labeled-toggles") (.setId "bundle-arch-x86_64-ios") (.setFocusTraversable false) (ui/on-action! refresh!))]))))
-
 (defn- make-ios-controls [refresh! owner-window]
   (assert (fn? refresh!))
-  (let [provisioning-profile-file-field (make-file-field refresh! owner-window "provisioning-profile-text-field" "Choose Provisioning Profile" [["Provisioning Profiles (*.mobileprovision)" "*.mobileprovision"]])
+  (let [bundle-ios-sign-app (doto (CheckBox.) (ui/add-style! "labeled-toggles") (.setId "bundle-ios-sign-app") (.setFocusTraversable false) (ui/on-action! refresh!) (ui/value! true))
+        provisioning-profile-file-field (make-file-field refresh! owner-window "provisioning-profile-text-field" "Choose Provisioning Profile" [["Provisioning Profiles (*.mobileprovision)" "*.mobileprovision"]])
         no-identity-label "None"
         code-signing-identity-choice-box (doto (ChoiceBox.)
                                            (.setId "code-signing-identity-choice-box")
@@ -430,66 +425,93 @@
                                                             (toString [value]
                                                               (if (some? value) value no-identity-label))
                                                             (fromString [label]
-                                                              (if (= no-identity-label label) nil label)))))]
+                                                              (if (= no-identity-label label) nil label)))))
+        architecture-controls (doto (VBox.)
+                                (ui/children! [(doto (CheckBox. "armv7") (ui/add-style! "labeled-toggles") (.setId "bundle-ios-arch-armv7-darwin") (.setFocusTraversable false) (ui/on-action! refresh!) (ui/value! true))
+                                               (doto (CheckBox. "arm64") (ui/add-style! "labeled-toggles") (.setId "bundle-ios-arch-arm64-darwin") (.setFocusTraversable false) (ui/on-action! refresh!) (ui/value! true) )
+                                               (doto (CheckBox. "Simulator") (ui/add-style! "labeled-toggles") (.setId "bundle-ios-arch-x86_64-ios") (.setFocusTraversable false) (ui/on-action! refresh!))]))]
     (ui/on-action! code-signing-identity-choice-box refresh!)
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "ios")
-      (ui/children! [(labeled! "Code signing identity" code-signing-identity-choice-box)
+      (ui/children! [(labeled! "Sign application" bundle-ios-sign-app)
+                     (labeled! "Code signing identity" code-signing-identity-choice-box)
                      (labeled! "Provisioning profile" provisioning-profile-file-field)
-                     (make-ios-arch-controls refresh!)]))))
+                     (labeled! "Architectures" architecture-controls)]))))
 
 
 (defn- load-ios-prefs! [prefs view code-signing-identity-names]
   ;; This falls back on settings from the Sign iOS Application dialog if available,
   ;; but we will write to our own keys in the preference for these.
-  (ui/with-controls view [code-signing-identity-choice-box provisioning-profile-text-field]
+  (ui/with-controls view [bundle-ios-sign-app code-signing-identity-choice-box provisioning-profile-text-field bundle-ios-arch-armv7-darwin bundle-ios-arch-arm64-darwin bundle-ios-arch-x86_64-ios]
+    (ui/value! bundle-ios-sign-app (prefs/get-prefs prefs "bundle-ios-sign-app?" true))
     (ui/value! code-signing-identity-choice-box (or (some (set code-signing-identity-names)
                                                           (or (get-string-pref prefs "bundle-ios-code-signing-identity")
                                                               (second (prefs/get-prefs prefs "last-identity" [nil nil]))))
                                                     (first code-signing-identity-names)))
     (ui/value! provisioning-profile-text-field (or (get-string-pref prefs "bundle-ios-provisioning-profile")
-                                                   (get-string-pref prefs "last-provisioning-profile")))))
+                                                   (get-string-pref prefs "last-provisioning-profile")))
+    (ui/value! bundle-ios-arch-armv7-darwin (prefs/get-prefs prefs "bundle-ios-arch-armv7-darwin?" true))
+    (ui/value! bundle-ios-arch-arm64-darwin (prefs/get-prefs prefs "bundle-ios-arch-arm64-darwin?" true))
+    (ui/value! bundle-ios-arch-x86_64-ios (prefs/get-prefs prefs "bundle-ios-arch-x86_64-ios?" false))))
 
 (defn- save-ios-prefs! [prefs view]
-  (ui/with-controls view [code-signing-identity-choice-box provisioning-profile-text-field]
+  (ui/with-controls view [bundle-ios-sign-app code-signing-identity-choice-box provisioning-profile-text-field bundle-ios-arch-armv7-darwin bundle-ios-arch-arm64-darwin bundle-ios-arch-x86_64-ios]
+    (prefs/set-prefs prefs "bundle-ios-sign-app?" (ui/value bundle-ios-sign-app))
     (set-string-pref! prefs "bundle-ios-code-signing-identity" (ui/value code-signing-identity-choice-box))
-    (set-string-pref! prefs "bundle-ios-provisioning-profile" (ui/value provisioning-profile-text-field))))
+    (set-string-pref! prefs "bundle-ios-provisioning-profile" (ui/value provisioning-profile-text-field))
+    (prefs/set-prefs prefs "bundle-ios-arch-armv7-darwin?" (ui/value bundle-ios-arch-armv7-darwin))
+    (prefs/set-prefs prefs "bundle-ios-arch-arm64-darwin?" (ui/value bundle-ios-arch-arm64-darwin))
+    (prefs/set-prefs prefs "bundle-ios-arch-x86_64-ios?" (ui/value bundle-ios-arch-x86_64-ios))))
 
 (defn- get-ios-options [view]
-  (ui/with-controls view [code-signing-identity-choice-box provisioning-profile-text-field bundle-arch-armv7-darwin bundle-arch-arm64-darwin bundle-arch-x86_64-ios]
-    (let [arch-controls [{:widget bundle-arch-armv7-darwin :arch "armv7-darwin"} {:widget bundle-arch-arm64-darwin :arch "arm64-darwin"} {:widget bundle-arch-x86_64-ios :arch "x86_64-ios"}]
+  (ui/with-controls view [bundle-ios-sign-app code-signing-identity-choice-box provisioning-profile-text-field bundle-ios-arch-armv7-darwin bundle-ios-arch-arm64-darwin bundle-ios-arch-x86_64-ios]
+    (let [arch-controls [{:widget bundle-ios-arch-armv7-darwin :arch "armv7-darwin"} {:widget bundle-ios-arch-arm64-darwin :arch "arm64-darwin"} {:widget bundle-ios-arch-x86_64-ios :arch "x86_64-ios"}]
           arch-list (clojure.string/join "," (map :arch (filter (fn [arch] (ui/value (:widget arch))) arch-controls)))]
       {:code-signing-identity (ui/value code-signing-identity-choice-box)
        :provisioning-profile (get-file provisioning-profile-text-field)
-       :architectures arch-list})))
+       :architectures arch-list
+       :bundle-ios-arch-armv7-darwin (ui/value bundle-ios-arch-armv7-darwin)
+       :bundle-ios-arch-arm64-darwin (ui/value bundle-ios-arch-arm64-darwin)
+       :bundle-ios-arch-x86_64-ios (ui/value bundle-ios-arch-x86_64-ios)
+       :bundle-ios-sign-app (ui/value bundle-ios-sign-app)})))
 
-(defn- set-ios-options! [view {:keys [code-signing-identity provisioning-profile] :as _options} issues code-signing-identity-names]
-  (ui/with-controls view [^ChoiceBox code-signing-identity-choice-box provisioning-profile-text-field ok-button]
+(defn- set-ios-options! [view {:keys [bundle-ios-sign-app code-signing-identity provisioning-profile] :as _options} issues code-signing-identity-names]
+  (ui/with-controls view [^ChoiceBox code-signing-identity-choice-box provisioning-profile-text-field bundle-ios-arch-armv7-darwin bundle-ios-arch-arm64-darwin bundle-ios-arch-x86_64-ios ok-button]
     (doto code-signing-identity-choice-box
       (set-choice! (into [nil] code-signing-identity-names) code-signing-identity)
       (set-field-status! (:code-signing-identity issues))
-      (ui/disable! (empty? code-signing-identity-names)))
+      (ui/disable! (or (not bundle-ios-sign-app) (empty? code-signing-identity-names))))
     (doto provisioning-profile-text-field
       (set-file! provisioning-profile)
-      (set-field-status! (:provisioning-profile issues)))
+      (set-field-status! (:provisioning-profile issues))
+      (ui/disable! (not bundle-ios-sign-app)))
+    (doto bundle-ios-arch-armv7-darwin
+      (set-field-status! (:architecture-issue issues)))
+    (doto bundle-ios-arch-arm64-darwin
+      (set-field-status! (:architecture-issue issues)))
+    (doto bundle-ios-arch-x86_64-ios
+      (set-field-status! (:architecture-issue issues)))
     (ui/enable! ok-button (and (some? code-signing-identity)
-                               (fs/existing-file? provisioning-profile)))))
+                               (fs/existing-file? provisioning-profile)
+                               (nil? (:architecture-issue issues))))))
 
-(defn- get-ios-issues [{:keys [code-signing-identity provisioning-profile] :as _options} code-signing-identity-names]
-  {:general (when (empty? code-signing-identity-names)
-              [:fatal "No code signing identities found on this computer."])
-   :code-signing-identity (when (nil? code-signing-identity)
-                            [:fatal "Code signing identity must be set."])
+(defn- get-ios-issues [{:keys [bundle-ios-sign-app code-signing-identity provisioning-profile bundle-ios-arch-armv7-darwin bundle-ios-arch-arm64-darwin bundle-ios-arch-x86_64-ios] :as _options} code-signing-identity-names]
+  {:general (when (and bundle-ios-sign-app (empty? code-signing-identity-names))
+              [:warning "No code signing identities found on this computer."])
+   :code-signing-identity (when (and bundle-ios-sign-app (nil? code-signing-identity))
+                            [:fatal "Code signing identity must be set to sign the application."])
    :provisioning-profile (cond
-                           (nil? provisioning-profile)
-                           [:fatal "Provisioning profile must be set."]
+                           (and bundle-ios-sign-app (nil? provisioning-profile))
+                           [:fatal "Provisioning profile must be set to sign the application."]
 
-                           (not (fs/existing-file? provisioning-profile))
+                           (and bundle-ios-sign-app (not (fs/existing-file? provisioning-profile)))
                            [:fatal "Provisioning profile file not found."]
 
-                           (not (existing-file-of-type? "mobileprovision" provisioning-profile))
-                           [:fatal "Invalid provisioning profile."])})
+                           (and bundle-ios-sign-app (not (existing-file-of-type? "mobileprovision" provisioning-profile)))
+                           [:fatal "Invalid provisioning profile."])
+   :architecture-issue (when (and (not bundle-ios-arch-armv7-darwin) (not bundle-ios-arch-arm64-darwin) (not bundle-ios-arch-x86_64-ios))
+                         [:fatal "At least one architecture needs to be selected."])})
 
 (deftype IOSBundleOptionsPresenter [workspace view variant-choices]
   BundleOptionsPresenter
@@ -513,7 +535,7 @@
           issues (get-ios-issues options code-signing-identity-names)]
       (set-generic-options! view options workspace)
       (set-ios-options! view options issues code-signing-identity-names)
-      (set-generic-headers! view issues [:code-signing-identity :provisioning-profile]))))
+      (set-generic-headers! view issues [:code-signing-identity :provisioning-profile :architecture-issue]))))
 
 ;; -----------------------------------------------------------------------------
 
