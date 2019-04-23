@@ -12,6 +12,7 @@ mkdir -p libexec/x86-win32
 mkdir -p libexec/x86_64-win32
 mkdir -p libexec/armv7-darwin
 mkdir -p libexec/arm64-darwin
+mkdir -p libexec/x86_64-ios
 mkdir -p libexec/armv7-android
 mkdir -p libexec/js-web
 mkdir -p libexec/wasm-web
@@ -91,6 +92,8 @@ copy armv7-darwin/stripped/dmengine armv7-darwin/dmengine
 copy armv7-darwin/stripped/dmengine_release armv7-darwin/dmengine_release
 copy arm64-darwin/stripped/dmengine arm64-darwin/dmengine
 copy arm64-darwin/stripped/dmengine_release arm64-darwin/dmengine_release
+copy x86_64-ios/stripped/dmengine x86_64-ios/dmengine
+copy x86_64-ios/stripped/dmengine_release x86_64-ios/dmengine_release
 copy armv7-android/stripped/libdmengine.so armv7-android/libdmengine.so
 copy armv7-android/stripped/libdmengine_release.so armv7-android/libdmengine_release.so
 copy js-web/dmengine.js js-web/dmengine.js
