@@ -56,6 +56,10 @@
     >.settings.toggles {
       -fx-padding: $vertical-margin-width $horizontal-margin-width 0px ($label-column-width + $horizontal-margin-width);
     }
+
+    .labeled-toggles {
+        -fx-padding: 6px 0px 0px 0px;
+    }
   }
 
   @mixin generic-only-field-layout() {
