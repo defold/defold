@@ -124,7 +124,7 @@ def format_exes(name, platform):
 def format_lib(name, platform):
     prefix = 'lib'
     suffix = ''
-    if 'darwin' in platform:
+    if 'darwin' in platform or 'ios' in platform:
         suffix = '.dylib'
     elif 'win32' in platform:
         prefix = ''
