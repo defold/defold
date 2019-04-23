@@ -451,7 +451,7 @@ class Configuration(object):
         sdkfolder = join(self.ext, 'SDKs')
 
         target_platform = self.target_platform
-        if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin'):
+        if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # macOS SDK
             download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
             download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
