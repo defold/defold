@@ -80,10 +80,12 @@ function cmi_package_common() {
 function cmi_package_platform() {
     local TGZ="$PRODUCT-$VERSION-$1.tar.gz"
     pushd $PREFIX  >/dev/null
-    if [ -z ${TAR_INCLUDES+x} ]; then
-        tar cfvz $TGZ lib bin
-    else
+    if [ ${TAR_SKIP_BIN} -eq "1" ]; then
+        tar cfvz $TGZ lib
+    elif [ ${TAR_INCLUDES} -eq "1" ]; then
         tar cfvz $TGZ lib bin include
+    else
+        tar cfvz $TGZ lib bin
     fi
     popd >/dev/null
 
@@ -134,7 +136,7 @@ function cmi_setup_vs2015_env() {
 
     # These lines will be installation-dependent.
     export VSINSTALLDIR='C:\Program Files (x86)\Microsoft Visual Studio 14.0\'
-    export WindowsSdkDir='C:\Program Files\Microsoft SDKs\Windows\v7.0A\'
+    export WindowsSdkDir='C:\Program Files (x86)\Windows Kits\8.0'
     export FrameworkDir='C:\WINDOWS\Microsoft.NET\Framework\'
     export FrameworkVersion=v4.0.30319
     export Framework35Version=v3.5
