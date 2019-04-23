@@ -74,13 +74,17 @@ static uint64_t GetTotalRAM() {
   return value;
 }
 
-static void GetThreeQuartersRAMStr(char* buf) {
+static void GetThreeQuartersRAMStr(char* buf, uint64_t cap) {
 #if defined(__linux__)
   const char* fmt = "-Xmx%lu";
 #else
   const char* fmt = "-Xmx%llu";
 #endif
-  double d_total_ram = (double)GetTotalRAM();
+  uint64_t total_ram = GetTotalRAM();
+  if(total_ram > cap) {
+    total_ram = cap;
+  }
+  double d_total_ram = (double)total_ram;
   double d_seventyfive_percent_ram = 0.75 * d_total_ram;
   sprintf(buf, fmt, (uint64_t)d_seventyfive_percent_ram);
 }
@@ -229,7 +233,7 @@ int Launch(int argc, char **argv) {
     }
 
     char ram_str_buf[100];
-    GetThreeQuartersRAMStr(ram_str_buf);
+    GetThreeQuartersRAMStr(ram_str_buf, 8589934592ull); // Max 8 gigs.
     args[i++] = ram_str_buf;
 
     args[i++] = (char*) main;
