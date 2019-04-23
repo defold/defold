@@ -461,16 +461,6 @@ class Configuration(object):
             download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SDK), join(sdkfolder, PACKAGES_IOS_SDK))
             download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
 
-        if target_platform in ('x86_64-ios'):
-            # iOS Simulator SDK
-            tgtfolder = join(self.ext, 'SDKs', PACKAGES_IOS_SIMULATOR_SDK)
-            if not os.path.exists(tgtfolder):
-                url = '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_IOS_SIMULATOR_SDK)
-                dlpath = self._download(url)
-                tmpfolder = join(self.ext, 'SDKs')
-                self._extract_tgz(dlpath, tmpfolder)
-                os.rename(join(tmpfolder, 'iPhoneSimulator.sdk'), tgtfolder)
-
         if 'win32' in target_platform and not ('win32' in self.host):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
             download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )

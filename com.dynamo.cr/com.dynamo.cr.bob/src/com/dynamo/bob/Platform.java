@@ -28,7 +28,7 @@ public enum Platform {
         platformPatterns.put(PlatformProfile.OS.OS_ID_WINDOWS, "^x86(_64)?-win32$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_OSX,     "^x86(_64)?-darwin$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_LINUX,   "^x86(_64)?-linux$");
-        platformPatterns.put(PlatformProfile.OS.OS_ID_IOS,     "^(arm(v7)|(64)-darwin)|(x86_64-ios)$");
+        platformPatterns.put(PlatformProfile.OS.OS_ID_IOS,     "^(armv7-darwin)|(arm64-darwin)|(x86_64-ios)$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_ANDROID, "^armv7-android$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_WEB,     "^((js)|(wasm))-web$");
     }

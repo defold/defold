@@ -3,7 +3,7 @@
 IOS_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault10.1.xctoolchain
 ARM_DARWIN_ROOT=${DYNAMO_HOME}/ext
 IOS_SDK_VERSION=12.1
-IOS_SIMULATOR_SDK_VERSION=11.2
+IOS_SIMULATOR_SDK_VERSION=12.1
 
 IOS_MIN_SDK_VERSION=6.0
 OSX_MIN_SDK_VERSION=10.7
@@ -223,7 +223,7 @@ function cmi() {
             export CPPFLAGS="-arch x86_64 -target x86_64-apple-darwin12 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk"
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libstdc++ -arch x86_64 -target x86_64-apple-darwin12 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk"
+            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ -arch x86_64 -target x86_64-apple-darwin12 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk"
             export CFLAGS="${CPPFLAGS}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.

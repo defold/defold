@@ -14,7 +14,6 @@ public class BundleiOSPresenter implements BundleiOSDialog.IPresenter {
     private String profile = "";
     private String identity = "";
     private String[] identities = new String[0];
-    private boolean simulatorBinary;
     private boolean releaseMode;
     private boolean generateReport;
     private boolean publishLiveUpdate = false;
@@ -30,38 +29,40 @@ public class BundleiOSPresenter implements BundleiOSDialog.IPresenter {
         try {
             identities = lister.listIdentities();
             view.setIdentities(identities);
+            validate();
         } catch (IOException e) {
             view.setErrorMessage(e.getMessage());
         }
     }
 
-    // private void validate() {
-    //     // Set defaults
-    //     view.setEnabled(false);
-    //     view.setMessage(Messages.BundleiOSPresenter_DIALOG_MESSAGE);
+    private void validate() {
+        // Set defaults
+        view.setEnabled(false);
+        view.setMessage(Messages.BundleiOSPresenter_DIALOG_MESSAGE);
 
-    //     if (identities.length == 0) {
-    //         view.setErrorMessage(Messages.BundleiOSPresenter_NO_IDENTITY_FOUND);
-    //         return;
-    //     }
+        if (identities.length == 0) {
+            view.setErrorMessage(Messages.BundleiOSPresenter_NO_IDENTITY_FOUND);
+            return;
+        }
 
-    //     if (identity.equals("") || profile.equals("")) {
-    //         // All values not set yet. Just return
-    //         return;
-    //     }
+        if (identity.equals("") || profile.equals("")) {
+            // All values not set yet. Just return
+            return;
+        }
 
-    //     if (!new File(profile).isFile()) {
-    //         view.setErrorMessage(Messages.BundleiOSPresenter_PROFILE_NOT_FOUND);
-    //         return;
-    //     }
+        if (!new File(profile).isFile()) {
+            view.setErrorMessage(Messages.BundleiOSPresenter_PROFILE_NOT_FOUND);
+            return;
+        }
 
-    //     // Only warnings after this point
-    //     view.setEnabled(true);
-    // }
+        // Only warnings after this point
+        view.setEnabled(true);
+    }
 
     @Override
     public void setIdentity(String identity) {
         this.identity = identity;
+        validate();
     }
 
     public String getIdentity() {
@@ -70,7 +71,15 @@ public class BundleiOSPresenter implements BundleiOSDialog.IPresenter {
 
     @Override
     public void setProvisioningProfile(String profile) {
+        this.setProvisioningProfile(profile, true);
+    }
+
+    @Override
+    public void setProvisioningProfile(String profile, boolean validate) {
         this.profile = profile;
+        if (validate) {
+            validate();
+        }
     }
 
     public String getProvisioningProfile() {
@@ -81,16 +90,16 @@ public class BundleiOSPresenter implements BundleiOSDialog.IPresenter {
         return releaseMode;
     }
 
+    @Override
     public void releaseModeSelected(boolean selection) {
+        this.releaseModeSelected(selection, true);
+    }
+
+    public void releaseModeSelected(boolean selection, boolean validate) {
         this.releaseMode = selection;
-    }
-
-    public boolean isSimulatorBinary() {
-        return simulatorBinary;
-    }
-
-    public void simulatorBinarySelected(boolean selection) {
-        this.simulatorBinary = selection;
+        if (validate) {
+            validate();
+        }
     }
 
     public boolean shouldGenerateReport() {
@@ -99,7 +108,7 @@ public class BundleiOSPresenter implements BundleiOSDialog.IPresenter {
 
     @Override
     public void generateReportSelected(boolean selection) {
-        this.generateReport = selection;
+        this.generateReportSelected(selection, true);
     }
 
     @Override
@@ -109,6 +118,13 @@ public class BundleiOSPresenter implements BundleiOSDialog.IPresenter {
 
     public boolean shouldPublishLiveUpdate() {
         return this.publishLiveUpdate;
+    }
+
+    public void generateReportSelected(boolean selection, boolean validate) {
+        this.generateReport = selection;
+        if (validate) {
+            validate();
+        }
     }
 
 }
