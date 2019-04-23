@@ -675,7 +675,7 @@ class Configuration(object):
 
     def _strip_engine(self, path):
         """ Strips the debug symbols from an executable """
-        if self.target_platform not in ['x86_64-linux','x86_64-darwin','armv7-darwin','arm64-darwin','armv7-android','arm64-android']:
+        if self.target_platform not in ['x86_64-linux','x86_64-darwin','armv7-darwin','arm64-darwin','x86_64-ios','armv7-android','arm64-android']:
             return False
 
         strip = "strip"
