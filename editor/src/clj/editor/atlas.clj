@@ -334,7 +334,7 @@
 
   (input gpu-texture g/Any)
 
-  (output animation Animation (g/fnk [this id atlas-images fps flip-horizontal flip-vertical playback]
+  (output animation Animation (g/fnk [id atlas-images fps flip-horizontal flip-vertical playback]
                                       (types/->Animation id atlas-images fps flip-horizontal flip-vertical playback)))
 
   (output node-outline outline/OutlineData :cached
@@ -434,9 +434,10 @@
         (.glEnd gl)))))
 
 (g/defnk produce-scene
-  [_node-id aabb layout-size gpu-texture child-scenes]
+  [_node-id aabb layout-size gpu-texture child-scenes texture-profile]
   (let [[width height] layout-size]
     {:aabb aabb
+     :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))
      :renderable {:render-fn render-atlas
                   :user-data {:gpu-texture gpu-texture
                               :vbuf        (gen-renderable-vertex-buffer width height)}

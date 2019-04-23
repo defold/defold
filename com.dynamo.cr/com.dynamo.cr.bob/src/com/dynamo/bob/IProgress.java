@@ -1,11 +1,11 @@
 package com.dynamo.bob;
 
-public interface IProgress {
+import com.dynamo.bob.bundle.ICanceled;
 
-    public IProgress subProgress(int work);
-    public void worked(int amount);
-    public void beginTask(String name, int work);
-    public void done();
+public interface IProgress extends ICanceled {
+    IProgress subProgress(int work);
+    void worked(int amount);
+    void beginTask(String name, int work);
+    void done();
     boolean isCanceled();
-
 }

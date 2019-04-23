@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 #include <stdint.h>
 
@@ -11,7 +12,7 @@
 
 using namespace Vectormath::Aos;
 
-class CollectionTest : public ::testing::Test
+class CollectionTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -220,7 +221,7 @@ TEST_F(CollectionTest, CollectionSpawning)
 
         bool result = Spawn(m_Factory, coll, "/root1.collectionc", &props, pos, rot, scale, &output);
         ASSERT_TRUE(result);
-        ASSERT_NE(output.Size(), 0);
+        ASSERT_NE(output.Size(), 0u);
 
         ret = dmGameObject::Update(coll, &m_UpdateContext);
         ASSERT_TRUE(ret);
@@ -255,12 +256,12 @@ TEST_F(CollectionTest, CollectionSpawningToFail)
         if (!result)
         {
             ASSERT_NE(i, 0);
-            ASSERT_EQ(output.Size(), 0);
+            ASSERT_EQ(output.Size(), 0u);
             filled = true;
             break;
         }
         ASSERT_TRUE(result);
-        ASSERT_NE(output.Size(), 0);
+        ASSERT_NE(output.Size(), 0u);
         bool ret = dmGameObject::Update(coll, &m_UpdateContext);
         ASSERT_TRUE(ret);
     }
@@ -510,8 +511,8 @@ TEST_F(CollectionTest, CreateCallback)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = jc_test_run_all();
     return ret;
 }

@@ -451,7 +451,7 @@ You probably have an incompatible version of the JDK. 1.8_144 works, 1.8_160 doe
 
 ## Licenses
 
-* **Sony Vectormath Library**: [http://bullet.svn.sourceforge.net/viewvc/bullet/trunk/Extras/vectormathlibrary](http://bullet.svn.sourceforge.net/viewvc/bullet/trunk/Extras/vectormathlibrary) - **BSD**
+* **Sony Vectormath Library**: [https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/bullet/bullet-2.74.tgz](https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/bullet/bullet-2.74.tgz) - **BSD**
 * **json**: Based on [https://bitbucket.org/zserge/jsmn/src](https://bitbucket.org/zserge/jsmn/src) - **MIT**
 * **zlib**: [http://www.zlib.net](http://www.zlib.net) - **zlib**
 * **axTLS**: [http://axtls.sourceforge.net](http://axtls.sourceforge.net) - **BSD**
