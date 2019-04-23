@@ -357,6 +357,14 @@ def android_link_flags(self):
             # but it's probably to late. It works for the name though (libX.so and not X)
             self.link_task.env.append_value('LINKFLAGS', ['-shared'])
 
+@feature('cprogram', 'cxxprogram')
+@before('apply_core')
+def osx_64_luajit(self):
+    # Was previously needed for 64bit OSX, but removed when we updated luajit-2.1.0-beta3,
+    # however it is still needed for 64bit iOS Simulator.
+    if self.env['PLATFORM'] == 'x86_64-ios':
+        self.env.append_value('LINKFLAGS', ['-pagezero_size', '10000', '-image_base', '100000000'])
+
 @feature('skip_asan')
 @before('apply_core')
 def asan_skip(self):
@@ -1636,8 +1644,6 @@ def detect(conf):
 
     use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
     if build_util.get_target_os() == 'web':
-        use_vanilla = True
-    elif build_util.get_target_platform() == 'x86_64-ios':
         use_vanilla = True
 
     conf.env['LUA_BYTECODE_ENABLE_32'] = 'no'

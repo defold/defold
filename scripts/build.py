@@ -19,7 +19,7 @@ from ConfigParser import ConfigParser
 PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest".split()
 PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
-PACKAGES_IOS_X86_64="protobuf-2.3.0 facebook-4.7.0 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_IOS_X86_64="protobuf-2.3.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS="protobuf-2.3.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS_64="protobuf-2.3.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_DARWIN="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 vpx-1.7.0 tremolo-0.0.8 bullet-2.77".split()
