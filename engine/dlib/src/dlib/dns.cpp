@@ -196,9 +196,12 @@ namespace dmDNS
 
     void StopChannel(HChannel channel)
     {
-        Channel* dns_channel = (Channel*) channel;
-        dmMutex::ScopedLock lk(dns_channel->m_RunMutex);
-        dns_channel->m_Running = false;
+        if (channel)
+        {
+            Channel* dns_channel = (Channel*) channel;
+            dmMutex::ScopedLock lk(dns_channel->m_RunMutex);
+            dns_channel->m_Running = false;
+        }
     }
 
     void DeleteChannel(HChannel channel)

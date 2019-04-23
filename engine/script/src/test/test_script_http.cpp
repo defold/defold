@@ -7,6 +7,7 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/socket.h>
+#include <dlib/dns.h>
 #include <dlib/thread.h>
 #include <dlib/sys.h>
 
@@ -359,10 +360,12 @@ TEST_F(ScriptHttpTest, TestDeletedSocket)
 
 int main(int argc, char **argv)
 {
+    dmDNS::Initialize();
     dmSocket::Initialize();
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
     dmSocket::Finalize();
+    dmDNS::Finalize();
     return ret;
 }
