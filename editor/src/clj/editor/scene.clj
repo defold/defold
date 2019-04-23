@@ -41,6 +41,7 @@
            [javafx.embed.swing SwingFXUtils]
            [javafx.geometry HPos VPos]
            [javafx.scene Node Parent]
+           [javafx.scene.control Label]
            [javafx.scene.image ImageView WritableImage]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
@@ -236,6 +237,10 @@
                          :aabbs pass/render-passes
                          :picking-color pass/selection-passes
                          :picking-rect pass/selection-passes})
+(def render-mode-batch-key {:normal :batch-key
+                            :aabbs (constantly nil)
+                            :picking-color :select-batch-key
+                            :picking-rect :select-batch-key})
 
 (defn- render-aabb [^GL2 gl render-args renderables rcount]
   (render/render-aabb-outline gl render-args ::renderable-aabb renderables rcount))
@@ -249,7 +254,8 @@
 
 (defn render! [^GLContext context renderables updatable-states viewport pass->render-args]
   (let [^GL2 gl (.getGL context)
-        render-mode @render-mode-atom]
+        render-mode @render-mode-atom
+        batch-key (render-mode-batch-key render-mode)]
     (gl/gl-clear gl 0.0 0.0 0.0 1)
     (.glColor4f gl 1.0 1.0 1.0 1.0)
     (gl-viewport gl viewport)
@@ -262,8 +268,8 @@
                                        (assoc-updatable-states updatable-states))]]
       (setup-pass gl pass pass-render-args)
       (if (= render-mode :aabbs)
-        (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) (constantly nil))
-        (batch-render gl pass-render-args pass-renderables :batch-key)))))
+        (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) batch-key)
+        (batch-render gl pass-render-args pass-renderables batch-key)))))
 
 (defn- apply-pass-overrides
   [pass renderable]
@@ -480,6 +486,8 @@
            (get renderables-by-pass pass/opaque-selection)])))
 
 (g/defnode SceneRenderer
+  (property info-label Label (dynamic visible (g/constantly false)))
+
   (input active-view g/NodeID)
   (input scene g/Any :substitute substitute-scene)
   (input selection g/Any)
@@ -635,7 +643,7 @@
           (reset! last-picking-rect picking-rect)
           (doseq [pass [pass/opaque-selection pass/selection]]
             (let [pass-render-args (picking-render-args (pass->render-args pass) viewport picking-rect)
-                  pass-renderables (get renderables pass)]
+                  pass-renderables (vec (render-sort (get renderables pass)))]
               (setup-pass gl pass pass-render-args)
               (batch-render gl pass-render-args pass-renderables :select-batch-key)))
           (.glFlush gl)
@@ -723,12 +731,15 @@
 
   (input input-handlers Runnable :array)
   (input picking-rect Rect)
+  (input tool-info-text g/Str)
   (input tool-renderables pass/RenderData :array :substitute substitute-render-data)
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)
   (input updatables g/Any)
   (input selected-updatables g/Any)
   (output inactive? g/Bool (g/fnk [_node-id active-view] (not= _node-id active-view)))
+  (output info-text g/Str (g/fnk [scene tool-info-text]
+                            (or tool-info-text (:info-text scene))))
   (output tool-renderables g/Any produce-tool-renderables)
   (output active-tool g/Keyword (gu/passthrough active-tool))
   (output manip-space g/Keyword (gu/passthrough manip-space))
@@ -744,7 +755,7 @@
                                              {:renderables (reduce (partial merge-with into)
                                                                    {}
                                                                    tool-renderables)})))
-  
+
   (output picking-selection g/Any :cached produce-selection)
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
@@ -754,7 +765,15 @@
     (let [image-view (g/node-value node-id :image-view evaluation-context)]
       (when-not (ui/inside-hidden-tab? image-view)
         (let [drawable (g/node-value node-id :drawable evaluation-context)
-              async-copy-state-atom (g/node-value node-id :async-copy-state evaluation-context)]
+              async-copy-state-atom (g/node-value node-id :async-copy-state evaluation-context)
+              info-label (g/node-value node-id :info-label evaluation-context)
+              info-text (g/node-value node-id :info-text evaluation-context)]
+          (when (instance? Label info-label)
+            (if (or (g/error? info-text)
+                    (empty? info-text))
+              (ui/visible! info-label false)
+              (do (ui/text! info-label info-text)
+                  (ui/visible! info-label true))))
           (when (and (some? drawable) (some? async-copy-state-atom))
             (update-image-view! image-view drawable async-copy-state-atom evaluation-context)))))))
 
@@ -801,10 +820,14 @@
            :world-pos world-pos
            :world-dir world-dir)))
 
-(defn- active-scene-view [app-view]
-  (let [view (g/node-value app-view :active-view)]
-    (when (and view (g/node-instance? SceneView view))
-      view)))
+(defn- active-scene-view
+  ([app-view]
+   (g/with-auto-evaluation-context evaluation-context
+     (active-scene-view app-view evaluation-context)))
+  ([app-view evaluation-context]
+   (let [view (g/node-value app-view :active-view evaluation-context)]
+     (when (and view (g/node-instance? SceneView view))
+       view))))
 
 (defn- play-handler [view-id]
   (let [play-mode (g/node-value view-id :play-mode)
@@ -819,11 +842,13 @@
         (g/set-property view-id :active-updatable-ids selected-updatable-ids)))))
 
 (handler/defhandler :scene-play :global
-  (active? [app-view] (when-let [view (active-scene-view app-view)]
-                        (seq (g/node-value view :updatables))))
-  (enabled? [app-view] (when-let [view (active-scene-view app-view)]
-                         (let [selected (g/node-value view :selected-updatables)]
-                           (not (empty? selected)))))
+  (active? [app-view evaluation-context]
+           (when-let [view (active-scene-view app-view evaluation-context)]
+             (seq (g/node-value view :updatables evaluation-context))))
+  (enabled? [app-view evaluation-context]
+            (when-let [view (active-scene-view app-view evaluation-context)]
+              (let [selected (g/node-value view :selected-updatables evaluation-context)]
+                (not (empty? selected)))))
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (play-handler view))))
 
@@ -835,10 +860,12 @@
       (g/set-property view-id :updatable-states {}))))
 
 (handler/defhandler :scene-stop :global
-  (active? [app-view] (when-let [view (active-scene-view app-view)]
-                        (seq (g/node-value view :updatables))))
-  (enabled? [app-view] (when-let [view (active-scene-view app-view)]
-                         (seq (g/node-value view :active-updatables))))
+  (active? [app-view evaluation-context]
+           (when-let [view (active-scene-view app-view evaluation-context)]
+             (seq (g/node-value view :updatables evaluation-context))))
+  (enabled? [app-view evaluation-context]
+            (when-let [view (active-scene-view app-view evaluation-context)]
+              (seq (g/node-value view :active-updatables evaluation-context))))
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (stop-handler view))))
 
@@ -885,15 +912,18 @@
     (set-camera! camera local-cam end-camera animate?)))
 
 (handler/defhandler :frame-selection :global
-  (active? [app-view] (active-scene-view app-view))
-  (enabled? [app-view] (when-let [view (active-scene-view app-view)]
-                         (let [selected (g/node-value view :selection)]
-                           (not (empty? selected)))))
+  (active? [app-view evaluation-context]
+           (active-scene-view app-view evaluation-context))
+  (enabled? [app-view evaluation-context]
+            (when-let [view (active-scene-view app-view evaluation-context)]
+              (let [selected (g/node-value view :selection evaluation-context)]
+                (not (empty? selected)))))
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (frame-selection view true))))
 
 (handler/defhandler :realign-camera :global
-  (active? [app-view] (active-scene-view app-view))
+  (active? [app-view evaluation-context]
+           (active-scene-view app-view evaluation-context))
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (realign-camera view true))))
 
@@ -902,14 +932,15 @@
   (g/set-property! app-view :manip-space manip-space))
 
 (handler/defhandler :set-manip-space :global
-  (enabled? [app-view user-data] (let [active-tool (g/node-value app-view :active-tool)]
-                                   (contains? (scene-tools/supported-manip-spaces active-tool)
-                                              (:manip-space user-data))))
+  (enabled? [app-view user-data evaluation-context]
+            (let [active-tool (g/node-value app-view :active-tool evaluation-context)]
+              (contains? (scene-tools/supported-manip-spaces active-tool)
+                         (:manip-space user-data))))
   (run [app-view user-data] (set-manip-space! app-view (:manip-space user-data)))
   (state [app-view user-data] (= (g/node-value app-view :manip-space) (:manip-space user-data))))
 
 (handler/defhandler :toggle-move-whole-pixels :global
-  (active? [app-view] (active-scene-view app-view))
+  (active? [app-view evaluation-context] (active-scene-view app-view evaluation-context))
   (state [prefs] (scene-tools/move-whole-pixels? prefs))
   (run [prefs] (scene-tools/set-move-whole-pixels! prefs (not (scene-tools/move-whole-pixels? prefs)))))
 
@@ -1168,6 +1199,8 @@
   (let [view-id (g/make-node! scene-graph SceneView :updatable-states {})
         scene-view-pane (make-scene-view-pane view-id opts)]
     (ui/children! parent [scene-view-pane])
+    (ui/with-controls scene-view-pane [scene-view-info-label]
+      (g/set-property! view-id :info-label scene-view-info-label))
     view-id))
 
 (g/defnk produce-frame [all-renderables ^Region viewport pass->render-args ^GLAutoDrawable drawable]
@@ -1200,6 +1233,7 @@
   (input updatables g/Any)
   (input selected-updatables g/Any)
   (input picking-rect Rect)
+  (input tool-info-text g/Str)
   (input tool-renderables pass/RenderData :array)
   (output tool-renderables g/Any produce-tool-renderables)
   (output inactive? g/Bool (g/constantly false))
@@ -1278,6 +1312,7 @@
                     (g/connect app-view-id     :hidden-node-outline-key-paths view-id         :hidden-node-outline-key-paths)
 
                     (g/connect tool-controller :input-handler                 view-id         :input-handlers)
+                    (g/connect tool-controller :info-text                     view-id         :tool-info-text)
                     (g/connect tool-controller :renderables                   view-id         :tool-renderables)
                     (g/connect view-id         :active-tool                   tool-controller :active-tool)
                     (g/connect view-id         :manip-space                   tool-controller :manip-space)

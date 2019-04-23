@@ -1,5 +1,7 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
+#include <stdlib.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include <string.h>
 #include "dlib/dstrings.h"
 
@@ -159,6 +161,6 @@ TEST(dmStrings, dmStrCaseCmp)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

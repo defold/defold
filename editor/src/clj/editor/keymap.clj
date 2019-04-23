@@ -49,8 +49,10 @@
             ["F11" :step-into]
             ["F2" :rename]
             ["F5" :start-debugger]
-            ["F6" :continue]
-            ["F7" :break]
+            ["F5" :continue]
+            ["F6" :toggle-pane-left]
+            ["F7" :toggle-pane-bottom]
+            ["F8" :toggle-pane-right]
             ["F9" :toggle-breakpoint]
             ["Home" :beginning-of-line-text]
             ["Left" :left]
@@ -102,7 +104,6 @@
             ["Shift+E" :erase-tool]
             ["Shift+End" :select-end-of-line]
             ["Shift+F11" :step-out]
-            ["Shift+F5" :stop-debugger]
             ["Shift+Home" :select-beginning-of-line-text]
             ["Shift+Left" :left-major]
             ["Shift+Left" :select-left]
@@ -183,8 +184,10 @@
            ["F11" :step-into]
            ["F2" :rename]
            ["F5" :start-debugger]
-           ["F6" :continue]
-           ["F7" :break]
+           ["F5" :continue]
+           ["F6" :toggle-pane-left]
+           ["F7" :toggle-pane-bottom]
+           ["F8" :toggle-pane-right]
            ["F9" :toggle-breakpoint]
            ["Home" :beginning-of-line-text]
            ["Left" :left]
@@ -281,8 +284,10 @@
            ["F11" :step-into]
            ["F2" :rename]
            ["F5" :start-debugger]
-           ["F6" :continue]
-           ["F7" :break]
+           ["F5" :continue]
+           ["F6" :toggle-pane-left]
+           ["F7" :toggle-pane-bottom]
+           ["F8" :toggle-pane-right]
            ["F9" :toggle-breakpoint]
            ["Home" :beginning-of-line-text]
            ["Left" :left]
@@ -567,7 +572,8 @@
                   (loop [[command & rest] commands]
                     (when (some? command)
                       (let [ret (ui/invoke-handler command-contexts command)]
-                        (if (= ret :editor.ui/not-active)
+                        (if (or (= ret ::ui/not-active)
+                                (= ret ::ui/not-enabled))
                           (recur rest)
                           ret)))))))
 

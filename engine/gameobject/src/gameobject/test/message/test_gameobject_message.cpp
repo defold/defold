@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 #include <assert.h>
 #include <stdint.h>
@@ -16,7 +17,7 @@
 
 void DispatchCallback(dmMessage::Message *message, void* user_ptr);
 
-class MessageTest : public ::testing::Test
+class MessageTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -593,7 +594,7 @@ TEST_F(MessageTest, MessagePostDispatch)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, TestGameObjectDDF::TestDataMessage::m_DDFDescriptor->m_NameHash, 0, descriptor, &ddf, sizeof(TestGameObjectDDF::TestDataMessage), CustomMessageDestroyCallback));
 
 
-    ASSERT_EQ(0, g_PostDistpatchCalled);
+    ASSERT_EQ(0u, g_PostDistpatchCalled);
 
     dmLogInfo("Expected error ->");
 
@@ -601,7 +602,7 @@ TEST_F(MessageTest, MessagePostDispatch)
 
     dmLogInfo("<- Expected error end");
 
-    ASSERT_EQ(42, g_PostDistpatchCalled);
+    ASSERT_EQ(42u, g_PostDistpatchCalled);
 }
 
 
@@ -609,7 +610,7 @@ TEST_F(MessageTest, MessagePostDispatch)
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = jc_test_run_all();
     return ret;
 }

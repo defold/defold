@@ -543,6 +543,8 @@ public class GameProjectBuilder extends Builder<Void> {
                 }
 
                 // Create output for the data archive
+                String platform = project.option("platform", "generic");
+                project.getPublisher().setPlatform(platform);
                 File archiveIndexHandle = File.createTempFile("defold.index_", ".arci");
                 RandomAccessFile archiveIndex = createRandomAccessFile(archiveIndexHandle);
                 File archiveDataHandle = File.createTempFile("defold.data_", ".arcd");

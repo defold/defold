@@ -2,11 +2,12 @@
 #include <stdlib.h>
 #include <string>
 #include <map>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
 
-class dlib : public ::testing::Test
+class dlib : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -48,7 +49,7 @@ TEST_F(dlib, HashIncremental32)
         uint32_t n = rand() % 32 + 1;
         for (uint32_t j = 0; j < n; ++j)
         {
-            char tmp[] = { rand() % 256, 0 };
+            char tmp[] = { (char)rand(), 0 };
             s += tmp;
         }
         uint32_t h1 = dmHashString32(s.c_str());
@@ -81,7 +82,7 @@ TEST_F(dlib, HashIncremental64)
         uint32_t n = rand() % 32 + 1;
         for (uint32_t j = 0; j < n; ++j)
         {
-            char tmp[] = { rand() % 256, 0 };
+            char tmp[] = { (char)rand(), 0 };
             s += tmp;
         }
         uint64_t h1 = dmHashString64(s.c_str());
@@ -116,7 +117,7 @@ TEST_F(dlib, HashToString32)
         uint32_t n = rand() % 32 + 1;
         for (uint32_t j = 0; j < n; ++j)
         {
-            char tmp[] = { (rand() % ('z' - '0')) + '0', 0 };
+            char tmp[] = { (char)((rand() % ('z' - '0')) + '0'), 0 };
             s += tmp;
         }
 
@@ -148,7 +149,7 @@ TEST_F(dlib, HashToString64)
         uint32_t n = rand() % 32 + 1;
         for (uint32_t j = 0; j < n; ++j)
         {
-            char tmp[] = { (rand() % ('z' - '0')) + '0', 0 };
+            char tmp[] = { (char)((rand() % ('z' - '0')) + '0'), 0 };
             s += tmp;
         }
 
@@ -210,7 +211,7 @@ TEST_F(dlib, HashToStringIncremental32)
         uint32_t n = rand() % 32 + 1;
         for (uint32_t j = 0; j < n; ++j)
         {
-            char tmp[] = { (rand() % ('z' - '0')) + '0', 0 };
+            char tmp[] = { (char)((rand() % ('z' - '0')) + '0'), 0 };
             s += tmp;
         }
 
@@ -254,7 +255,7 @@ TEST_F(dlib, HashToStringIncremental64)
         uint32_t n = rand() % 32 + 1;
         for (uint32_t j = 0; j < n; ++j)
         {
-            char tmp[] = { (rand() % ('z' - '0')) + '0', 0 };
+            char tmp[] = { (char)((rand() % ('z' - '0')) + '0'), 0 };
             s += tmp;
         }
 
@@ -564,7 +565,6 @@ TEST_F(dlib, Log)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }
-

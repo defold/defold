@@ -12,7 +12,7 @@
                      [org.clojure/core.cache                      "0.6.5"]
                      [org.clojure/tools.cli                       "0.3.5"]
                      [org.clojure/tools.macro                     "0.1.5"]
-                     [org.clojure/tools.namespace                 "0.2.10"]
+                     [org.clojure/tools.namespace                 "0.2.11"]
                      [org.clojure/data.int-map                    "0.2.4"]
                      [org.clojure/data.json                       "0.2.6"]
                      [com.cognitect/transit-clj                   "0.8.285"
@@ -39,7 +39,10 @@
                      [org.codehaus.jackson/jackson-mapper-asl     "1.9.13"]
                      [org.eclipse.jgit/org.eclipse.jgit           "4.2.0.201601211800-r"
                       :exclusions [org.apache.httpcomponents/httpclient]] ; jgit -> 4.3.6, amazonica -> 4.5.2
-                     [clj-antlr                                   "0.2.2"]
+                     [clj-antlr                                   "0.2.2"
+                      :exclusions [org.antlr/antlr4 org.antlr/antlr4-runtime]]
+                     [org.antlr/antlr4 "4.7.2"]
+                     [org.antlr/antlr4-runtime "4.7.2"]
                      [org.apache.commons/commons-compress         "1.18"]
 
                      [net.java.dev.jna/jna                        "4.1.0"]
@@ -60,34 +63,34 @@
                      [com.sun.xml.bind/jaxb-core "2.3.0"]
                      [com.sun.xml.bind/jaxb-impl "2.3.0"]
 
-                     [org.openjfx/javafx-base "12-ea+8"]
-                     [org.openjfx/javafx-base "12-ea+8" :classifier "linux"]
-                     [org.openjfx/javafx-base "12-ea+8" :classifier "mac"]
-                     [org.openjfx/javafx-base "12-ea+8" :classifier "win"]
-                     [org.openjfx/javafx-controls "12-ea+8"]
-                     [org.openjfx/javafx-controls "12-ea+8" :classifier "linux"]
-                     [org.openjfx/javafx-controls "12-ea+8" :classifier "mac"]
-                     [org.openjfx/javafx-controls "12-ea+8" :classifier "win"]
-                     [org.openjfx/javafx-graphics "12-ea+8"]
-                     [org.openjfx/javafx-graphics "12-ea+8" :classifier "linux"]
-                     [org.openjfx/javafx-graphics "12-ea+8" :classifier "mac"]
-                     [org.openjfx/javafx-graphics "12-ea+8" :classifier "win"]
-                     [org.openjfx/javafx-media "12-ea+8"]
-                     [org.openjfx/javafx-media "12-ea+8" :classifier "linux"]
-                     [org.openjfx/javafx-media "12-ea+8" :classifier "mac"]
-                     [org.openjfx/javafx-media "12-ea+8" :classifier "win"]
-                     [org.openjfx/javafx-web "12-ea+8"]
-                     [org.openjfx/javafx-web "12-ea+8" :classifier "linux"]
-                     [org.openjfx/javafx-web "12-ea+8" :classifier "mac"]
-                     [org.openjfx/javafx-web "12-ea+8" :classifier "win"]
-                     [org.openjfx/javafx-fxml "12-ea+8"]
-                     [org.openjfx/javafx-fxml "12-ea+8" :classifier "linux"]
-                     [org.openjfx/javafx-fxml "12-ea+8" :classifier "mac"]
-                     [org.openjfx/javafx-fxml "12-ea+8" :classifier "win"]
-                     [org.openjfx/javafx-swing "12-ea+8"]
-                     [org.openjfx/javafx-swing "12-ea+8" :classifier "linux"]
-                     [org.openjfx/javafx-swing "12-ea+8" :classifier "mac"]
-                     [org.openjfx/javafx-swing "12-ea+8" :classifier "win"]
+                     [org.openjfx/javafx-base "12"]
+                     [org.openjfx/javafx-base "12" :classifier "linux"]
+                     [org.openjfx/javafx-base "12" :classifier "mac"]
+                     [org.openjfx/javafx-base "12" :classifier "win"]
+                     [org.openjfx/javafx-controls "12"]
+                     [org.openjfx/javafx-controls "12" :classifier "linux"]
+                     [org.openjfx/javafx-controls "12" :classifier "mac"]
+                     [org.openjfx/javafx-controls "12" :classifier "win"]
+                     [org.openjfx/javafx-graphics "12"]
+                     [org.openjfx/javafx-graphics "12" :classifier "linux"]
+                     [org.openjfx/javafx-graphics "12" :classifier "mac"]
+                     [org.openjfx/javafx-graphics "12" :classifier "win"]
+                     [org.openjfx/javafx-media "12"]
+                     [org.openjfx/javafx-media "12" :classifier "linux"]
+                     [org.openjfx/javafx-media "12" :classifier "mac"]
+                     [org.openjfx/javafx-media "12" :classifier "win"]
+                     [org.openjfx/javafx-web "12"]
+                     [org.openjfx/javafx-web "12" :classifier "linux"]
+                     [org.openjfx/javafx-web "12" :classifier "mac"]
+                     [org.openjfx/javafx-web "12" :classifier "win"]
+                     [org.openjfx/javafx-fxml "12"]
+                     [org.openjfx/javafx-fxml "12" :classifier "linux"]
+                     [org.openjfx/javafx-fxml "12" :classifier "mac"]
+                     [org.openjfx/javafx-fxml "12" :classifier "win"]
+                     [org.openjfx/javafx-swing "12"]
+                     [org.openjfx/javafx-swing "12" :classifier "linux"]
+                     [org.openjfx/javafx-swing "12" :classifier "mac"]
+                     [org.openjfx/javafx-swing "12" :classifier "win"]
 
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2"]
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-linux-amd64"]
@@ -167,17 +170,20 @@
                                 :omit-source  true
                                 :source-paths ["sidecar"]}
                       :release {:jvm-opts          ["-Ddefold.build=release"]}
+                      :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
                       :dev     {:plugins           [[jonase/eastwood "0.3.5" :exclusions [org.clojure/clojure]]]
-                                :dependencies      [[org.clojure/test.check   "0.9.0"]
-                                                    [org.clojure/tools.trace  "0.7.9"]
-                                                    [clj-async-profiler-mg "0.4.0"]
+                                :dependencies      [[clj-async-profiler-mg "0.4.0"]
+                                                    [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
                                                     [criterium "0.4.3"]
+                                                    [org.clojure/test.check   "0.9.0"]
+                                                    [org.clojure/tools.trace  "0.7.9"]
                                                     [org.mockito/mockito-core "1.10.19"]
                                                     [ring "1.4.0"]]
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
+                                                    "-Djdk.gtk.version=2"
                                                     "-Ddefold.log.dir="
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"

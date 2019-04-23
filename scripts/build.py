@@ -16,19 +16,22 @@ from ConfigParser import ConfigParser
     Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.6.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a".split()
-PACKAGES_HOST="protobuf-2.3.0 gtest-1.8.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest".split()
+PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
-PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_DARWIN="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 vpx-1.7.0 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0".split()
+PACKAGES_IOS="protobuf-2.3.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_IOS_64="protobuf-2.3.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_DARWIN="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 vpx-1.7.0 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0".split()
 PACKAGES_WIN32="facebook-gameroom-2017-08-14 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77".split()
 PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
 PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
-PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
-PACKAGES_ANDROID_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
-PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0 bullet-2.77".split()
+PACKAGES_ANDROID="protobuf-2.3.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_ANDROID_64="protobuf-2.3.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+
+PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
+
+DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL="https://s3-eu-west-1.amazonaws.com/defold-packages"
 CDN_UPLOAD_URL="s3://d.defold.com/archive"
@@ -199,6 +202,7 @@ class Configuration(object):
 
         self.dynamo_home = dynamo_home if dynamo_home else join(os.getcwd(), 'tmp', 'dynamo_home')
         self.ext = join(self.dynamo_home, 'ext')
+        self.dmsdk = join(self.dynamo_home, 'sdk')
         self.defold = normpath(join(dirname(abspath(__file__)), '..'))
         self.eclipse_home = eclipse_home if eclipse_home else join(home, 'eclipse')
         self.defold_root = os.getcwd()
@@ -349,6 +353,9 @@ class Configuration(object):
         print("Installing common packages")
         for p in PACKAGES_ALL:
             self._extract_tgz(self._make_package_path('common', p), self.ext)
+
+        for p in DMSDK_PACKAGES_ALL:
+            self._extract_tgz(self._make_package_path('common', p), self.dmsdk)
 
         # TODO: Make sure the order of install does not affect the outcome!
 
@@ -704,8 +711,10 @@ class Configuration(object):
             for engine_name in format_exes(n, self.target_platform):
                 engine = join(bin_dir, engine_name)
                 self.upload_file(engine, '%s/%s' % (full_archive_path, engine_name))
-                if self._strip_engine(engine):
-                    self.upload_file(engine, '%s/stripped/%s' % (full_archive_path, engine_name))
+                engine_stripped = join(bin_dir, engine_name + "_stripped")
+                shutil.copy2(engine, engine_stripped)
+                if self._strip_engine(engine_stripped):
+                    self.upload_file(engine_stripped, '%s/stripped/%s' % (full_archive_path, engine_name))
 
             if 'web' in self.target_platform:
                 self.upload_file(join(bin_dir, 'defold_sound.swf'), join(full_archive_path, 'defold_sound.swf'))
@@ -805,10 +814,17 @@ class Configuration(object):
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
             self.exec_env_shell_command("./scripts/copy.sh", cwd = cwd)
 
-        self.exec_env_shell_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
-                                    cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'))
+        env = self._form_env()
+        self._set_java_8(env)
+        self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-bob-light']),
+                                    cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
 
     def build_engine(self):
+        # We want random folder to thoroughly test bob-light
+        # We dont' want it to unpack for _every_ single invocation during the build
+        os.environ['DM_BOB_ROOTFOLDER'] = tempfile.mkdtemp(prefix='bob-light-')
+        self._log("env DM_BOB_ROOTFOLDER=" + os.environ['DM_BOB_ROOTFOLDER'])
+
         cmd = self._build_engine_cmd(**self._get_build_flags())
         args = cmd.split()
         host = self.host2
@@ -848,6 +864,9 @@ class Configuration(object):
             print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
             shutil.rmtree(scan_output_dir)
 
+        if os.path.exists(os.environ['DM_BOB_ROOTFOLDER']):
+            print "Removing", os.environ['DM_BOB_ROOTFOLDER']
+            shutil.rmtree(os.environ['DM_BOB_ROOTFOLDER'])
     def build_go(self):
         exe_ext = '.exe' if 'win32' in self.target_platform else ''
         go = '%s/ext/go/%s/go/bin/go%s' % (self.dynamo_home, self.target_platform, exe_ext)
@@ -954,8 +973,10 @@ class Configuration(object):
         else:
             self.copy_local_bob_artefacts()
 
-        self.exec_env_shell_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
-                              cwd = cwd)
+        env = self._form_env()
+        self._set_java_8(env)
+        self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+                              cwd = cwd, shell = True, env = env)
 
     def build_sdk(self):
         tempdir = tempfile.mkdtemp() # where the sdk ends up
@@ -1096,9 +1117,20 @@ instructions.configure=\
         for p in glob(join(build_dir, 'build/distributions/*.zip')):
             self.upload_file(p, full_archive_path)
 
+    def _set_java_8(self, env):
+        if 'linux' in self.host2:
+            env['JAVA_HOME'] = '/usr/lib/jvm/java-8-oracle'
+        elif 'darwin' in self.host2:
+            env['JAVA_HOME'] = self.exec_command(['/usr/libexec/java_home','-v','1.8']).strip()
+        elif 'win32' in self.host2:
+            env['PATH'] = 'C:\\Program Files\\Java\\jdk1.8.0_162\\bin' + os.path.pathsep + env['PATH']
+        self._log("Setting JAVA to 1.8")
+
     def _build_cr(self, product):
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
-        self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify', '-P', product, '-Declipse-version=%s' % self.eclipse_version], cwd = cwd)
+        env = self._form_env()
+        self._set_java_8(env)
+        self._exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'], cwd = cwd, env = env)
 
     def build_editor2(self):
         cmd = ['./scripts/bundle.py',
@@ -1115,11 +1147,19 @@ instructions.configure=\
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, 'editor2')
+        full_archive_path = join(self.archive_path, sha1, self.channel, 'editor2')
 
         for ext in ['zip', 'dmg']:
             for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
                 self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+
+        # TODO: Remove this block after one release with both json files.
+        # TODO: ---- CUT HERE ----
+        full_archive_path = join('s3://d.defold.com/editor2', sha1, 'editor2')
+        for ext in ['zip', 'dmg']:
+            for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
+                self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+        # TODO: ---- CUT TO HERE ----
 
         self.wait_uploads()
 
@@ -1136,10 +1176,18 @@ instructions.configure=\
         archive_url = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(archive_url.hostname)
 
+        # TODO: Remove this block after one release with both json files.
+        # TODO: ---- CUT HERE ----
         key_v2 = bucket.new_key('editor2/channels/%(channel)s/update-v2.json' % {'channel': self.channel})
         key_v2.content_type = 'application/json'
         self._log("Updating channel '%s' for update-v2.json: %s" % (self.channel, key_v2))
         key_v2.set_contents_from_string(json.dumps({'sha1': sha1}))
+        # TODO: ---- CUT TO HERE ----
+
+        key_v3 = bucket.new_key('editor2/channels/%(channel)s/update-v3.json' % {'channel': self.channel})
+        key_v3.content_type = 'application/json'
+        self._log("Updating channel '%s' for update-v3.json: %s" % (self.channel, key_v3))
+        key_v3.set_contents_from_string(json.dumps({'sha1': sha1}))
 
     def bump(self):
         sha1 = self._git_sha1()
@@ -1174,41 +1222,52 @@ instructions.configure=\
             self._log(output)
             sys.exit(process.returncode)
 
+    # Get archive files for a single release/sha1
+    def _get_files(self, bucket, sha1):
+        root = urlparse.urlparse(self.archive_path).path[1:]
+        base_prefix = os.path.join(root, sha1)
+        files = []
+        prefix = os.path.join(base_prefix, 'engine')
+        for x in bucket.list(prefix = prefix):
+            if x.name[-1] != '/':
+                # Skip directory "keys". When creating empty directories
+                # a psudeo-key is created. Directories isn't a first-class object on s3
+                if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$', x.name):
+                    name = os.path.relpath(x.name, base_prefix)
+                    files.append({'name': name, 'path': '/' + x.name})
+
+        prefix = os.path.join(base_prefix, 'bob')
+        for x in bucket.list(prefix = prefix):
+            if x.name[-1] != '/':
+                # Skip directory "keys". When creating empty directories
+                # a psudeo-key is created. Directories isn't a first-class object on s3
+                if re.match('.*(/bob.jar)$', x.name):
+                    name = os.path.relpath(x.name, base_prefix)
+                    files.append({'name': name, 'path': '/' + x.name})
+
+        prefix = os.path.join(base_prefix, self.channel, 'editor')
+        for x in bucket.list(prefix = prefix):
+            if x.name[-1] != '/':
+                # Skip directory "keys". When creating empty directories
+                # a psudeo-key is created. Directories isn't a first-class object on s3
+                if re.match('.*(/Defold-*)$', x.name):
+                    name = os.path.relpath(x.name, base_prefix)
+                    files.append({'name': name, 'path': '/' + x.name})
+        return files
+
+    def _get_single_release(self, version_tag, sha1):
+        u = urlparse.urlparse(self.archive_path)
+        bucket = self._get_s3_bucket(u.hostname)
+        files = self._get_files(bucket, sha1)
+
+        return {'tag': version_tag,
+                'sha1': sha1,
+                'abbrevsha1': sha1[:7],
+                'files': files}
+
     def _get_tagged_releases(self):
         u = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(u.hostname)
-
-        def get_files(sha1):
-            root = urlparse.urlparse(self.archive_path).path[1:]
-            base_prefix = os.path.join(root, sha1)
-            files = []
-            prefix = os.path.join(base_prefix, 'engine')
-            for x in bucket.list(prefix = prefix):
-                if x.name[-1] != '/':
-                    # Skip directory "keys". When creating empty directories
-                    # a psudeo-key is created. Directories isn't a first-class object on s3
-                    if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$', x.name):
-                        name = os.path.relpath(x.name, base_prefix)
-                        files.append({'name': name, 'path': '/' + x.name})
-
-            prefix = os.path.join(base_prefix, 'bob')
-            for x in bucket.list(prefix = prefix):
-                if x.name[-1] != '/':
-                    # Skip directory "keys". When creating empty directories
-                    # a psudeo-key is created. Directories isn't a first-class object on s3
-                    if re.match('.*(/bob.jar)$', x.name):
-                        name = os.path.relpath(x.name, base_prefix)
-                        files.append({'name': name, 'path': '/' + x.name})
-
-            prefix = os.path.join(base_prefix, self.channel, 'editor')
-            for x in bucket.list(prefix = prefix):
-                if x.name[-1] != '/':
-                    # Skip directory "keys". When creating empty directories
-                    # a psudeo-key is created. Directories isn't a first-class object on s3
-                    if re.match('.*(/Defold-*)$', x.name):
-                        name = os.path.relpath(x.name, base_prefix)
-                        files.append({'name': name, 'path': '/' + x.name})
-            return files
 
         tags = self.exec_shell_command("git for-each-ref --sort=taggerdate --format '%(*objectname) %(refname)' refs/tags").split('\n')
         tags.reverse()
@@ -1221,7 +1280,7 @@ instructions.configure=\
             sha1, tag = m.groups()
             epoch = self.exec_shell_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
             date = datetime.fromtimestamp(float(epoch))
-            files = get_files(sha1)
+            files = self._get_files(bucket, sha1)
             if len(files) > 0:
                 releases.append({'tag': tag,
                                  'sha1': sha1,
@@ -1287,12 +1346,12 @@ instructions.configure=\
         </div>
 
         <script id="templ-releases" type="text/html">
-            <h2>Editor {{editor.version}}</h2>
-            {{#editor.stable}}
+            <h2>{{release.channel}} {{release.version}}</h2>
+            {{#release.editor}}
                 <p>
                     <a href="{{url}}" class="btn btn-primary" style="width: 20em;" role="button">Download for {{name}}</a>
                 </p>
-            {{/editor.stable}}
+            {{/release.editor}}
 
             {{#has_releases}}
                 <h2>Releases</h2>
@@ -1396,6 +1455,9 @@ instructions.configure=\
             # Move artifacts to a separate page?
             model['releases'] = self._get_tagged_releases()
             model['has_releases'] = True
+        else:
+            model['releases'] = self._get_single_release(self.version, self._git_sha1())
+            model['has_releases'] = True
 
         # NOTE
         # - The stable channel is based on the latest tag
@@ -1412,19 +1474,16 @@ instructions.configure=\
             if response[0] != 'y':
                 return
 
-        # Pick editor URLs from the current SHA1 build.
-        model['editor'] = {'stable': [ dict(name='macOS 10.7+', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-darwin.dmg' % release_sha1),
-                                       dict(name='Windows', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-win32.zip' % release_sha1),
-                                       dict(name='Ubuntu 16.04+', url='https://d.defold.com/editor2/%s/editor2/Defold-x86_64-linux.zip' % release_sha1)] }
+        model['release'] = { 'channel': "Unknown", 'version': self.version }
+        if self.channel:
+            model['release']['channel'] = self.channel.capitalize()
 
         # We handle the stable channel seperately, since we want it to point
         # to the editor-dev release (which uses the latest stable engine).
         if self.channel == "stable":
-            model['editor'] = {'stable': [ dict(name='macOS 10.7+', url='https://www.defold.com/download/editor2/Defold-x86_64-darwin.dmg'),
-                                           dict(name='Windows', url='https://www.defold.com/download/editor2/Defold-x86_64-win32.zip'),
-                                           dict(name='Ubuntu 16.04+', url='https://www.defold.com/download/editor2/Defold-x86_64-linux.zip')] }
-
-        model['editor']['version'] = self.version
+            model['release'] = {'editor': [ dict(name='macOS 10.7+', url='https://www.defold.com/download/editor2/Defold-x86_64-darwin.dmg'),
+                                            dict(name='Windows', url='https://www.defold.com/download/editor2/Defold-x86_64-win32.zip'),
+                                            dict(name='Ubuntu 16.04+', url='https://www.defold.com/download/editor2/Defold-x86_64-linux.zip')] }
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
@@ -1615,11 +1674,11 @@ instructions.configure=\
             print("No editor2 bundle found for %s" % host2)
             return None
 
-    def _install_editor2(self, bundle):
+    def _install_editor2(self, path):
         host2 = get_host_platform2()
         install_path = join('tmp', 'smoke_test')
         if 'darwin' in host2:
-            out = self.exec_command(['hdiutil', 'attach', bundle])
+            out = self.exec_command(['hdiutil', 'attach', path])
             print("cmd:" + out)
             last = [l2 for l2 in (l1.strip() for l1 in out.split('\n')) if l2][-1]
             words = last.split()
@@ -1634,7 +1693,10 @@ instructions.configure=\
                       'config': join(install_path, 'Contents', 'Resources', 'config')}
             return result
         else:
-            self._extract(bundle, install_path)
+            if 'win32' in host2 or 'linux' in host2:
+                self._extract_zip(path, install_path)
+            else:
+                self._extract(path, install_path)
             install_path = join(install_path, 'Defold')
             result = {'install_path': install_path,
                       'resources_path': 'Defold',
@@ -1667,32 +1729,47 @@ instructions.configure=\
         cwd = join('tmp', 'smoke_test')
         if os.path.exists(cwd):
             shutil.rmtree(cwd)
-        bundle = self._download_editor2(sha1)
-        info = self._install_editor2(bundle)
+        path = self._download_editor2(sha1)
+        info = self._install_editor2(path)
         config = ConfigParser()
         config.read(info['config'])
         overrides = {'bootstrap.resourcespath': info['resources_path']}
-        java = join('Defold.app', 'Contents', 'Resources', 'packages', 'jdk11.0.1', 'bin', 'java')
+        jdk = 'jdk11.0.1'
+        host2 = get_host_platform2()
+        if 'win32' in host2:
+            java = join('Defold', 'packages', jdk, 'bin', 'java.exe')
+        elif 'linux' in host2:
+            self.exec_command(['chmod', '-R', '755', 'tmp/smoke_test/Defold'])
+            java = join('Defold', 'packages', jdk, 'bin', 'java')
+        else:
+            java = join('Defold.app', 'Contents', 'Resources', 'packages', jdk, 'bin', 'java')
         jar = self._get_config(config, 'launcher', 'jar', overrides)
-        vmargs = self._get_config(config, 'launcher', 'vmargs', overrides).split(',') + ['-Ddefold.log.dir=.']
+        vmargs = self._get_config(config, 'launcher', 'vmargs', overrides).split(',') + ['-Ddefold.log.dir=.', '-Ddefold.smoke.log=true']
         vmargs = filter(lambda x: not str.startswith(x, '-Ddefold.update.url='), vmargs)
         main = self._get_config(config, 'launcher', 'main', overrides)
         game_project = '../../editor/test/resources/geometry_wars/game.project'
         args = [java, '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test_prefs.json', game_project]
         robot_jar = '%s/ext/share/java/defold-robot.jar' % self.dynamo_home
         robot_args = [java, '-jar', robot_jar, '-s', '../../share/smoke-test.edn', '-o', 'result']
+        origdir = os.getcwd()
+        origcwd = cwd
+        if 'win32' in host2:
+            os.chdir(cwd)
+            cwd = '.'
         print('Running robot: %s' % robot_args)
         robot_proc = subprocess.Popen(robot_args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
         time.sleep(2)
         self._log('Running editor: %s' % args)
-        ed_proc = subprocess.Popen(args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
-
+        ed_proc = subprocess.Popen(args, cwd = cwd, shell = False)
+        os.chdir(origdir)
+        cwd = origcwd
         output = robot_proc.communicate()[0]
         if ed_proc.poll() == None:
             ed_proc.terminate()
+            ed_proc.wait()
         self._uninstall_editor2(info)
 
-        result_archive_path = '/'.join(['int.d.defold.com', 'archive', sha1, 'editor2', 'smoke_test'])
+        result_archive_path = '/'.join(['int.d.defold.com', 'archive', sha1, self.channel, 'editor2', 'smoke_test'])
         def _findwebfiles(libdir):
             paths = os.listdir(libdir)
             paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.html', '.css', '.png')]
@@ -1702,6 +1779,36 @@ instructions.configure=\
         self.wait_uploads()
         self._log('Log: https://s3-eu-west-1.amazonaws.com/%s/index.html' % (result_archive_path))
 
+        if robot_proc.returncode != 0:
+            sys.exit(robot_proc.returncode)
+        return True
+
+    def local_smoke(self):
+        host2 = get_host_platform2()
+        cwd = './editor'
+        if os.path.exists('editor/log.txt'):
+            os.remove('editor/log.txt')
+        game_project = 'test/resources/geometry_wars/game.project'
+        args = ['./scripts/lein', 'with-profile', '+smoke-test', 'run', game_project]
+        robot_jar = '../defold-robot/target/defold-robot-0.7.0-standalone.jar'
+        robot_args = ['java', '-jar', robot_jar, '-s', '../share/smoke-test.edn', '-o', 'local_smoke_result']
+        origdir = os.getcwd()
+        origcwd = cwd
+        if 'win32' in host2:
+            os.chdir(cwd)
+            args = ['sh'] + args
+            cwd = '.'
+        print('Running robot: %s' % robot_args)
+        robot_proc = subprocess.Popen(robot_args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
+        time.sleep(2)
+        self._log('Running editor: %s' % args)
+        ed_proc = subprocess.Popen(args, cwd = cwd, shell = False)
+        os.chdir(origdir)
+        cwd = origcwd
+        output = robot_proc.communicate()[0]
+        if ed_proc.poll() == None:
+            ed_proc.terminate()
+            ed_proc.wait()
         if robot_proc.returncode != 0:
             sys.exit(robot_proc.returncode)
         return True
@@ -1913,7 +2020,6 @@ instructions.configure=\
 
         if self.no_colors:
             env['NOCOLOR'] = '1'
-            env['GTEST_COLOR'] = 'no'
 
         env['EMSCRIPTEN'] = self._form_ems_path()
 
@@ -1961,6 +2067,7 @@ bump            - Bump version number
 release         - Release editor
 shell           - Start development shell
 smoke_test      - Test editor and engine in combination
+local_smoke     - Test run smoke test using local dev environment
 
 Multiple commands can be specified
 

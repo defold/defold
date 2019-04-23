@@ -3,7 +3,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include "../dlib/sys.h"
 #include "../dlib/path.h"
 #include "../dlib/log.h"
@@ -53,7 +54,7 @@ TEST(dmSys, GetApplicationSupportPath)
     struct stat stat_data;
     int ret = stat(path, &stat_data);
     ASSERT_EQ(0, ret);
-    ASSERT_EQ(S_IFDIR, stat_data.st_mode & S_IFDIR);
+    ASSERT_EQ((uint32_t)S_IFDIR, stat_data.st_mode & S_IFDIR);
 }
 
 int g_Argc;
@@ -162,6 +163,6 @@ int main(int argc, char **argv)
 #if !defined(DM_NO_SYSTEM_FUNCTION)
     system("python src/test/test_sys.py");
 #endif
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

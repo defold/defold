@@ -1,5 +1,6 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 #include <dlib/hash.h>
 #include <script/script.h>
@@ -110,8 +111,21 @@ TEST(dmDisplayProfilesTest, TestOptimalProfile)
     delete[] device_models;
 }
 
+TEST(dmDisplayProfilesTest, TestProjectWithoutProfiles)
+{
+    dmRenderDDF::DisplayProfiles display_profiles = {};
+
+    dmRender::HDisplayProfiles profiles = dmRender::NewDisplayProfiles();
+    dmRender::DisplayProfilesParams params;
+    params.m_DisplayProfilesDDF = &display_profiles;
+    params.m_NameHash = dmHashString64("profiles");
+
+    dmRender::SetDisplayProfiles(profiles, params);
+    dmRender::DeleteDisplayProfiles(profiles);
+}
+
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

@@ -1,6 +1,8 @@
 #include <map>
+#include <string>
 #include <stdlib.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
@@ -181,8 +183,8 @@ dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void* texture_set_p
     out_data->Init();
     static float uv_quad[] = {0,1,0,0, 1,0,1,1};
     out_data->m_TexCoords = &uv_quad[0];
-    out_data->m_End = 1;
-    out_data->m_FPS = 30;
+    out_data->m_State.m_End = 1;
+    out_data->m_State.m_FPS = 30;
     out_data->m_FlipHorizontal = 1;
     return dmGui::FETCH_ANIMATION_OK;
 }
@@ -209,7 +211,7 @@ void RigEventDataCallback(dmGui::HScene scene, void* node_ref, void* event_data)
     ++SpineAnimationKeyEventCount;
 }
 
-class dmGuiTest : public ::testing::Test
+class dmGuiTest : public jc_test_base_class
 {
 public:
     dmScript::HContext m_ScriptContext;
@@ -434,7 +436,7 @@ private:
 
         m_TrackIdxToPose.SetCapacity(bone_count);
         m_TrackIdxToPose.SetSize(bone_count);
-        for (int i = 0; i < bone_count; ++i)
+        for (uint32_t i = 0; i < bone_count; ++i)
         {
             m_TrackIdxToPose[i] = i;
         }
@@ -536,11 +538,11 @@ private:
 
         // Every slot will get two attachment points.
         // Make all slot attachment point to -1, ie no meshes attached/visible
-        for (int i = 0; i < m_MeshSet->m_MeshEntries.m_Count; i++) {
+        for (uint32_t i = 0; i < m_MeshSet->m_MeshEntries.m_Count; i++) {
             m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data = new dmRigDDF::MeshSlot[m_MeshSet->m_SlotCount];
             m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Count = m_MeshSet->m_SlotCount;
 
-            for (int j = 0; j < m_MeshSet->m_SlotCount; j++) {
+            for (uint32_t j = 0; j < m_MeshSet->m_SlotCount; j++) {
                 m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data = new uint32_t[2];
                 m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Count = 2;
                 m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data[0] = -1;
@@ -550,7 +552,7 @@ private:
             }
         }
 
-        int available_mesh_count = 2;
+        uint32_t available_mesh_count = 2;
         m_MeshSet->m_MeshAttachments.m_Data = new dmRigDDF::Mesh[available_mesh_count];
         m_MeshSet->m_MeshAttachments.m_Count = 0;
 
@@ -601,7 +603,7 @@ private:
 
         // Delete mesh attachments and their data
         uint32_t mesh_count = m_MeshSet->m_MeshAttachments.m_Count;
-        for (int i = 0; i < mesh_count; ++i)
+        for (uint32_t i = 0; i < mesh_count; ++i)
         {
             dmRigDDF::Mesh& mesh = m_MeshSet->m_MeshAttachments.m_Data[i];
             if (mesh.m_NormalsIndices.m_Count > 0)   { delete [] mesh.m_NormalsIndices.m_Data; }
@@ -618,11 +620,11 @@ private:
 
         // Delete mesh entries and their slot data
         uint32_t mesh_entry_count = m_MeshSet->m_MeshEntries.m_Count;
-        for (int i = 0; i < mesh_entry_count; ++i)
+        for (uint32_t i = 0; i < mesh_entry_count; ++i)
         {
             dmRigDDF::MeshEntry& mesh_entry = m_MeshSet->m_MeshEntries.m_Data[i];
             uint32_t mesh_slot_count = mesh_entry.m_MeshSlots.m_Count;
-            for (int j = 0; j < mesh_slot_count; j++) {
+            for (uint32_t j = 0; j < mesh_slot_count; j++) {
                 dmRigDDF::MeshSlot& mesh_slot = mesh_entry.m_MeshSlots.m_Data[j];
                 if (mesh_slot.m_MeshAttachments.m_Count > 0) { delete [] mesh_slot.m_MeshAttachments.m_Data; }
                 if (mesh_slot.m_SlotColor.m_Count > 0) { delete [] mesh_slot.m_SlotColor.m_Data; }
@@ -858,7 +860,7 @@ TEST_F(dmGuiTest, NodeTextureType)
     ASSERT_EQ(node_texture_type, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET);
 
     // Test NODE_TEXTURE_TYPE_TEXTURE_SET: Playing flipbook animation
-    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0x0);
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0.0f, 1.0f, 0x0);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
@@ -876,7 +878,7 @@ TEST_F(dmGuiTest, NodeTextureType)
     ASSERT_EQ(node_texture_type, dmGui::NODE_TEXTURE_TYPE_TEXTURE);
 
     // Test NODE_TEXTURE_TYPE_TEXTURE: Playing flipbook animation should not work!
-    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta2", 0x0);
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta2", 0.0f, 1.0f, 0x0);
     ASSERT_EQ(r, dmGui::RESULT_INVAL_ERROR);
     ASSERT_EQ(dmGui::GetNodeFlipbookAnimId(m_Scene, node), 0);
 
@@ -929,7 +931,7 @@ TEST_F(dmGuiTest, FlipbookAnim)
     uint64_t fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
     ASSERT_EQ(0, dmGui::GetNodeFlipbookAnimId(m_Scene, node));
 
-    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0x0);
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0.0f, 1.0f, 0x0);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
@@ -956,7 +958,7 @@ TEST_F(dmGuiTest, FlipbookAnim)
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
     ASSERT_EQ(0, fb_id);
 
-    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0x0);
+    r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0.0f, 1.0f, 0x0);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
@@ -3183,15 +3185,15 @@ TEST_F(dmGuiTest, ScriptPicking)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
-::testing::AssertionResult IsEqual(const Vector4& v1, const Vector4& v2) {
-    bool equal = v1.getX() == v2.getX() &&
-                v1.getY() == v2.getY() &&
-                v1.getZ() == v2.getZ() &&
-                v1.getW() == v2.getW();
-  if(equal)
-    return ::testing::AssertionSuccess();
-  else
-    return ::testing::AssertionFailure() << "(" << v1.getX() << ", " << v1.getY() << ", " << v1.getZ() << ", " << v1.getW() << ") != (" << v2.getX() << ", " << v2.getY() << ", " << v2.getZ() << ", " << v2.getW() << ")";
+template <> char* jc_test_print_value(char* buffer, size_t buffer_len, Vector4 v) {
+    return buffer + DM_SNPRINTF(buffer, buffer_len, "vector4(%.3f, %.3f, %.3f, %.3f)", v.getX(), v.getY(), v.getZ(), v.getW());
+}
+
+template <> int jc_test_cmp_EQ(Vector4 a, Vector4 b, const char* exprA, const char* exprB) {
+    bool equal = a.getX() == b.getX() && a.getY() == b.getY() && a.getZ() == b.getZ() && a.getW() == b.getW();
+    if (equal) return 1;
+    jc_test_log_failure(a, b, exprA, exprB, "==");
+    return 0;
 }
 
 TEST_F(dmGuiTest, CalculateNodeTransform)
@@ -3241,9 +3243,9 @@ TEST_F(dmGuiTest, CalculateNodeTransform)
 
     dmGui::CalculateNodeTransform(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
 
-    ASSERT_TRUE( IsEqual( Vector4(4, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
+    ASSERT_EQ( Vector4(4, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale );
 
     //
     dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_FIT);
@@ -3252,9 +3254,9 @@ TEST_F(dmGuiTest, CalculateNodeTransform)
 
     dmGui::CalculateNodeTransform(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
 
-    ASSERT_TRUE( IsEqual( Vector4(2, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(2, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(2, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
+    ASSERT_EQ( Vector4(2, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(2, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(2, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale );
 
     //
     dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_ZOOM);
@@ -3263,9 +3265,9 @@ TEST_F(dmGuiTest, CalculateNodeTransform)
 
     dmGui::CalculateNodeTransform(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
 
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
+    ASSERT_EQ( Vector4(4, 4, 1, 1), nn1->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 4, 1, 1), nn2->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale );
 }
 
 TEST_F(dmGuiTest, CalculateNodeTransformCached)
@@ -3316,9 +3318,9 @@ TEST_F(dmGuiTest, CalculateNodeTransformCached)
 
     dmGui::CalculateNodeTransformAndAlphaCached(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform, opacity);
 
-    ASSERT_TRUE( IsEqual( Vector4(4, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
+    ASSERT_EQ( Vector4(4, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale );
 
     //
     dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_FIT);
@@ -3327,9 +3329,9 @@ TEST_F(dmGuiTest, CalculateNodeTransformCached)
 
     dmGui::CalculateNodeTransformAndAlphaCached(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform, opacity);
 
-    ASSERT_TRUE( IsEqual( Vector4(2, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(2, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(2, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
+    ASSERT_EQ( Vector4(2, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(2, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(2, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale );
 
     //
     dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_ZOOM);
@@ -3338,9 +3340,9 @@ TEST_F(dmGuiTest, CalculateNodeTransformCached)
 
     dmGui::CalculateNodeTransformAndAlphaCached(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform, opacity);
 
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
+    ASSERT_EQ( Vector4(4, 4, 1, 1), nn1->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 4, 1, 1), nn2->m_Node.m_LocalAdjustScale );
+    ASSERT_EQ( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale );
 }
 
 // Helper LUT to get readable form of adjustment mode.
@@ -3376,10 +3378,10 @@ static Vector4 _GET_NODE_SCENE_POSITION(dmGui::HScene scene, dmGui::HNode node)
         Vector4 expected = _GET_NODE_SCENE_POSITION(m_Scene, node); \
         dmGui::SetNodeParent(m_Scene, node, parent, true); \
         Vector4 actual_parented = _GET_NODE_SCENE_POSITION(m_Scene, node); \
-        ASSERT_TRUE( IsEqual( expected, actual_parented) ); \
+        ASSERT_EQ( expected, actual_parented); \
         dmGui::SetNodeParent(m_Scene, node, dmGui::INVALID_HANDLE, true); \
         Vector4 actual_unparented = _GET_NODE_SCENE_POSITION(m_Scene, node); \
-        ASSERT_TRUE( IsEqual( expected, actual_unparented) ); \
+        ASSERT_EQ( expected, actual_unparented); \
     }
 
 // Set adjustment mode for all "box sides" in dmGuiTest::ReparentKeepTrans
@@ -5197,11 +5199,11 @@ static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
 
         // Every slot will get two attachment points.
         // Make all slot attachment point to -1, ie no meshes attached/visible
-        for (int i = 0; i < mesh_set->m_MeshEntries.m_Count; i++) {
+        for (uint32_t i = 0; i < mesh_set->m_MeshEntries.m_Count; i++) {
             mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data = new dmRigDDF::MeshSlot[mesh_set->m_SlotCount];
             mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Count = mesh_set->m_SlotCount;
 
-            for (int j = 0; j < mesh_set->m_SlotCount; j++) {
+            for (uint32_t j = 0; j < mesh_set->m_SlotCount; j++) {
                 mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data = new uint32_t[2];
                 mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Count = 2;
                 mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data[0] = -1;
@@ -5216,7 +5218,7 @@ static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
     }
 
     char buf[64];
-    for (int i = 0; i < num_dummy_mesh_entries; ++i)
+    for (uint32_t i = 0; i < num_dummy_mesh_entries; ++i)
     {
         sprintf(buf, "skin%i", i);
         CreateTestSkin(mesh_set, i, dmHashString64(buf), Vector4(float(i)/float(num_dummy_mesh_entries)));
@@ -5231,7 +5233,7 @@ static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
     if (num_dummy_mesh_entries > 0)
     {
         // Delete mesh attachments and their data
-        for (int i = 0; i < num_dummy_mesh_entries; ++i)
+        for (uint32_t i = 0; i < num_dummy_mesh_entries; ++i)
         {
             dmRigDDF::Mesh& mesh = dummy_data->m_MeshSet->m_MeshAttachments.m_Data[i];
             if (mesh.m_NormalsIndices.m_Count > 0)   { delete [] mesh.m_NormalsIndices.m_Data; }
@@ -5247,11 +5249,11 @@ static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
         delete [] dummy_data->m_MeshSet->m_MeshAttachments.m_Data;
 
         // Delete mesh entries and their slot data
-        for (int i = 0; i < num_dummy_mesh_entries; ++i)
+        for (uint32_t i = 0; i < num_dummy_mesh_entries; ++i)
         {
             dmRigDDF::MeshEntry& mesh_entry = dummy_data->m_MeshSet->m_MeshEntries.m_Data[i];
             uint32_t mesh_slot_count = mesh_entry.m_MeshSlots.m_Count;
-            for (int j = 0; j < mesh_slot_count; j++) {
+            for (uint32_t j = 0; j < mesh_slot_count; j++) {
                 dmRigDDF::MeshSlot& mesh_slot = mesh_entry.m_MeshSlots.m_Data[j];
                 if (mesh_slot.m_MeshAttachments.m_Count > 0) { delete [] mesh_slot.m_MeshAttachments.m_Data; }
                 if (mesh_slot.m_SlotColor.m_Count > 0) { delete [] mesh_slot.m_SlotColor.m_Data; }
@@ -5771,7 +5773,7 @@ TEST_F(dmGuiTest, PlayNodeParticlefxAdjustModeStretch)
     dmGui::InternalNode* n = dmGui::GetNode(m_Scene, node_pfx);
 
     n->m_Node.m_AdjustMode = (uint32_t) dmGui::ADJUST_MODE_STRETCH;
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));    
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
     ASSERT_EQ(dmGui::ADJUST_MODE_FIT, (dmGui::AdjustMode)n->m_Node.m_AdjustMode);
 
     dmGui::FinalScene(m_Scene);
@@ -6195,6 +6197,6 @@ TEST_F(dmGuiTest, InheritAlpha)
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }
