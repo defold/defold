@@ -21,7 +21,7 @@
 #include "async/job_queue.h"
 #include "graphics_opengl.h"
 
-#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
+#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
 // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
 #include <Carbon/Carbon.h>
 #endif
@@ -621,7 +621,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             dmLogInfo("Extensions: %s\n", (char *) glGetString(GL_EXTENSIONS));
         }
 
-#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
+#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
         ProcessSerialNumber psn;
         OSErr err;
 
@@ -681,7 +681,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         context->m_MaxTextureSize = gl_max_texture_size;
         CLEAR_GL_ERROR
 
-#if (defined(__arm__) || defined(__arm64__)) || (defined(ANDROID))
+#if (defined(__arm__) || defined(__arm64__)) || defined(ANDROID) || defined(IOS_SIMULATOR)
         // Hardcoded values for iOS and Android for now. The value is a hint, max number of vertices will still work with performance penalty
         // The below seems to be the reported sweet spot for modern or semi-modern hardware
         context->m_MaxElementVertices = 1024*1024;

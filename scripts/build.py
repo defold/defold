@@ -19,6 +19,7 @@ from ConfigParser import ConfigParser
 PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest".split()
 PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
+PACKAGES_IOS_X86_64="protobuf-2.3.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS="protobuf-2.3.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS_64="protobuf-2.3.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_DARWIN="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 vpx-1.7.0 tremolo-0.0.8 bullet-2.77".split()
@@ -123,7 +124,7 @@ def format_exes(name, platform):
 def format_lib(name, platform):
     prefix = 'lib'
     suffix = ''
-    if 'darwin' in platform:
+    if 'darwin' in platform or 'ios' in platform:
         suffix = '.dylib'
     elif 'win32' in platform:
         prefix = ''
@@ -365,6 +366,7 @@ class Configuration(object):
             'x86_64-darwin':  PACKAGES_DARWIN_64,
             'armv7-darwin':   PACKAGES_IOS,
             'arm64-darwin':   PACKAGES_IOS_64,
+            'x86_64-ios':     PACKAGES_IOS_X86_64,
             'armv7-android':  PACKAGES_ANDROID,
             'js-web':         PACKAGES_EMSCRIPTEN,
             'wasm-web':       PACKAGES_EMSCRIPTEN
@@ -449,7 +451,7 @@ class Configuration(object):
         sdkfolder = join(self.ext, 'SDKs')
 
         target_platform = self.target_platform
-        if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin'):
+        if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # macOS SDK
             download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
             download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
@@ -673,7 +675,7 @@ class Configuration(object):
 
     def _strip_engine(self, path):
         """ Strips the debug symbols from an executable """
-        if self.target_platform not in ['x86_64-linux','x86_64-darwin','armv7-darwin','arm64-darwin','armv7-android','arm64-android']:
+        if self.target_platform not in ['x86_64-linux','x86_64-darwin','armv7-darwin','arm64-darwin','x86_64-ios','armv7-android','arm64-android']:
             return False
 
         strip = "strip"
@@ -937,7 +939,7 @@ class Configuration(object):
         for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android']],
                            'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
                            'js-bundling': [['js-web', 'js-web'], ['wasm-web', 'wasm-web']],
-                           'ios-bundling': [['armv7-darwin', 'armv7-darwin'], ['arm64-darwin', 'arm64-darwin']],
+                           'ios-bundling': [['armv7-darwin', 'armv7-darwin'], ['arm64-darwin', 'arm64-darwin'], ['x86_64-ios', 'x86_64-ios']],
                            'osx-bundling': [['x86_64-darwin', 'x86_64-darwin']],
                            'linux-bundling': [['x86_64-linux', 'x86_64-linux']]}.iteritems():
             # plfs is pairs of src-platform -> dst-platform
@@ -2078,7 +2080,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web', 'wasm-web'],
+                      choices = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'x86_64-ios', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web', 'wasm-web'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',

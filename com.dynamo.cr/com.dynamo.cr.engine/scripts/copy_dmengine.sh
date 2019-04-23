@@ -5,6 +5,7 @@ mkdir -p engine/win32
 mkdir -p engine/x86_64-win32
 mkdir -p engine/ios
 mkdir -p engine/arm64-ios
+mkdir -p engine/x86_64-ios
 mkdir -p engine/android
 mkdir -p engine/js-web
 mkdir -p engine/wasm-web
@@ -32,6 +33,9 @@ copy win32/dmengine_headless.exe engine/win32/dmengine_headless.exe
 copy x86_64-win32/dmengine.exe engine/x86_64-win32/dmengine.exe
 copy x86_64-win32/dmengine_release.exe engine/x86_64-win32/dmengine_release.exe
 copy x86_64-win32/dmengine_headless.exe engine/x86_64-win32/dmengine_headless.exe
+
+copy x86_64-darwin/dmengine engine/x86_64-ios/dmengine
+copy x86_64-darwin/dmengine_release engine/x86_64-ios/dmengine_release
 
 copy arm64-darwin/dmengine engine/arm64-ios/dmengine
 copy arm64-darwin/dmengine_release engine/arm64-ios/dmengine_release
