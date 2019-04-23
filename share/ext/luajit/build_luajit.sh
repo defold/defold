@@ -41,7 +41,7 @@ function luajit_configure() {
 			;;
 		armv7-android)
 			TAR_SKIP_BIN=1
-			XFLAGS="-DLUAJIT_NUMMODE=2 -DLUAJIT_ENABLE_JIT"
+			XFLAGS="-DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT"
 			CROSS="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/${platform}-x86_64/bin/arm-linux-androideabi-"
 			export HOST_CC="gcc -m32"
 			export HOST_CFLAGS="$XFLAGS -m32 -I."
@@ -49,7 +49,7 @@ function luajit_configure() {
 			;;
 		arm64-android)
 			TAR_SKIP_BIN=1
-			XFLAGS="-DLUAJIT_ENABLE_GC64 -DLUAJIT_NUMMODE=2 -DLUAJIT_ENABLE_JIT"
+			XFLAGS="-DLUAJIT_ENABLE_GC64 -DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT"
 			CROSS="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/aarch64-linux-android-${ANDROID_64_GCC_VERSION}/prebuilt/${platform}-x86_64/bin/aarch64-linux-android-"
 			export HOST_CC="gcc -m64"
 			export HOST_CFLAGS="$XFLAGS -m64 -I."
