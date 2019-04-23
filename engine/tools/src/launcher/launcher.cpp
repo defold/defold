@@ -80,12 +80,12 @@ static void GetThreeQuartersRAMStr(char* buf, uint64_t cap) {
 #else
   const char* fmt = "-Xmx%llu";
 #endif
-  uint64_t total_ram = GetTotalRAM();
-  if(total_ram > cap) {
-    total_ram = cap;
-  }
-  double d_total_ram = (double)total_ram;
+  uint64_t d_cap = (double)cap;
+  double d_total_ram = (double)GetTotalRAM();
   double d_seventyfive_percent_ram = 0.75 * d_total_ram;
+  if(d_seventyfive_percent_ram > d_cap) {
+    d_seventyfive_percent_ram = d_cap;
+  }
   sprintf(buf, fmt, (uint64_t)d_seventyfive_percent_ram);
 }
 
