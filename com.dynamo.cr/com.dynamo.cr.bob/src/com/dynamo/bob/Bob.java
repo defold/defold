@@ -501,7 +501,7 @@ public class Bob {
         for (int i = 0; i < architectures.length; i++) {
             String architecture = architectures[i];
             if (!availableArchitectures.contains(architecture)) {
-                System.out.println(String.format("ERROR! %s is not a support architecture for %s platform. Available architectures: %s", architecture, platform.getPair(), String.join(", ", availableArchitectures)));
+                System.out.println(String.format("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s", architecture, platform.getPair(), String.join(", ", availableArchitectures)));
                 System.exit(1);
                 return;
             }

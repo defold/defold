@@ -23,7 +23,7 @@ def build(bld):
         defines = 'TREMOLO_SCORE=10'
         include = 'openal/include'
         source += ['sound_android.cpp', 'devices/device_opensl.cpp']
-    elif re.match('arm.*?darwin', bld.env['PLATFORM']) or bld.env['PLATFORM'] == 'x86_64-ios':
+    elif bld.env['PLATFORM'] in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
         defines = 'TREMOLO_SCORE=10'
         source += ['sound_ios.mm', 'devices/device_openal.cpp']
     elif 'web' in bld.env['PLATFORM']:

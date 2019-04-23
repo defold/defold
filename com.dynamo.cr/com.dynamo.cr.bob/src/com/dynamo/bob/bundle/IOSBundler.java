@@ -168,6 +168,16 @@ public class IOSBundler implements IBundler {
         String provisioningProfile = project.option("mobileprovisioning", null);
         String identity = project.option("identity", null);
         Boolean shouldSign = provisioningProfile != null && identity != null;
+
+        // Verify that the user supplied both of the needed arguments if the application should be signed.
+        if (shouldSign) {
+            if (provisioningProfile == null) {
+                throw new IOException("Cannot sign application without a provisioning profile, missing --mobileprovisioning argument.");
+            } else if (identity == null) {
+                throw new IOException("Cannot sign application without a signing identity, missing --identity argument.");
+            }
+        }
+
         if (shouldSign) {
             logger.log(Level.INFO, "Code signing enabled.");
         } else {

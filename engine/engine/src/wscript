@@ -57,7 +57,7 @@ def build(bld):
         exported_symbols.append('IAPExt')
 
     mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'WebViewExt']
-    if  re.match('arm.*?darwin', bld.env['PLATFORM']) or 'x86_64-ios' in bld.env['PLATFORM']:
+    if bld.env['PLATFORM'] in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
         additional_libs.append('BOLTS')
         additional_libs.append('FBSDKCORE')
         additional_libs.append('FBSDKLOGIN')
