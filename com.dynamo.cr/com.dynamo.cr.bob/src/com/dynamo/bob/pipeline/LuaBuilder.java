@@ -105,7 +105,6 @@ public abstract class LuaBuilder extends Builder<Void> {
                 byte[] buf = new byte[toRead];
                 is.read(buf);
 
-                // (╯°□°)╯︵ ┻━┻ CI
                 String cmdOutput = new String(buf);
                 if (ret != 0) {
                     // first delimiter is the executable name "luajit:"

@@ -1,7 +1,5 @@
 package com.dynamo.bob.bundle;
 
-import java.io.PrintWriter;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -720,20 +718,11 @@ public class BundleHelper {
         try {
             extender.build(platform, sdkVersion, allSource, zipFile, logFile);
         } catch (ExtenderClientException e) {
-            
-            StringWriter writer = new StringWriter();
-            PrintWriter printWriter = new PrintWriter( writer );
-            e.printStackTrace( printWriter );
-            printWriter.flush();
-            String stackTrace = writer.toString();
-
-            System.out.println("ExtenderClientException stacktrace: " + stackTrace);
             String buildError = "<no log file>";
             if (logFile != null) {
                 try {
                     List<ResourceInfo> issues = new ArrayList<>();
                     buildError = FileUtils.readFileToString(logFile);
-                    System.out.println("buildError: " + buildError);
                     parseLog(platform, buildError, issues);
                     MultipleCompileException exception = new MultipleCompileException("Build error", e);
                     IResource extManifestResource = ExtenderUtil.getResource(allSource.get(0).getPath(), allSource);
