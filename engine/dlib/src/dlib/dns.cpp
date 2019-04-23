@@ -1,8 +1,6 @@
 #include "dns.h"
 #include "socket.h"
 
-#if !defined(__EMSCRIPTEN__)
-
 #include "time.h"
 #include "mutex.h"
 
@@ -219,6 +217,11 @@ namespace dmDNS
         }
     }
 
+    // Note: This function should ultimately replace the dmSocket::GetHostByName, but there's a few places
+    //       left in the engine where the old version is still used. This is because we need to pass along a
+    //       dns channel to this function, which needs to be stored somewhere that's easily reachable by
+    //       the calling functions on the main thread. We could do something like a global channel that lives
+    //       in this module that can be accessed everywhere, but we need to make sure this solution works first.
     Result GetHostByName(const char* name, dmSocket::Address* address, HChannel channel, bool ipv4, bool ipv6)
     {
         assert(channel);
@@ -323,33 +326,3 @@ namespace dmDNS
         return AresStatusToDNSResult(req.m_Status);
     }
 }
-#else // no c-ares support for __EMSCRIPTEN__
-namespace dmDNS
-{
-    static Result SocketResultToDNS(const dmSocket::Result res)
-    {
-        Result dns_res = dmDNS::RESULT_UNKNOWN_ERROR;
-        switch(res)
-        {
-            case(dmSocket::RESULT_OK):
-                dns_res = dmDNS::RESULT_OK;
-                break;
-            case(dmSocket::RESULT_HOST_NOT_FOUND):
-                dns_res = dmDNS::RESULT_HOST_NOT_FOUND;
-                break;
-        }
-
-        return dns_res;
-    }
-
-    Result Initialize() { return RESULT_OK; }
-    Result Finalize() { return RESULT_OK; }
-    Result NewChannel(HChannel* channel) { return RESULT_OK; }
-    void   StopChannel(HChannel channel) {}
-    void   DeleteChannel(HChannel channel) {}
-    Result GetHostByName(const char* name, dmSocket::Address* address, HChannel channel, bool ipv4, bool ipv6)
-    {
-        return SocketResultToDNS(dmSocket::GetHostByName(name, address, ipv4, ipv6));
-    }
-}
-#endif
