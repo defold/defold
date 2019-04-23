@@ -172,10 +172,8 @@ public abstract class LuaBuilder extends Builder<Void> {
         srcBuilder.setFilename(task.input(0).getPath());
 
         if (needsLuaSource.contains(project.getPlatform())) {
-            System.out.println("Store lua source in lua ddf");
             srcBuilder.setScript(ByteString.copyFrom(scriptBytes));
         } else {
-            System.out.println("Store lua bytecode in lua ddf");
             byte[] bytecode = constructBytecode(task, "luajit-32");
             if (bytecode != null) {
                 srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
