@@ -14,6 +14,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -218,16 +219,20 @@ public class HTML5Bundler implements IBundler {
         String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
         infoData.put("DEFOLD_HAS_FACEBOOK_APP_ID", facebookAppId != null ? "true" : "false");
 
+        String engineArgumentsString = projectProperties.getStringValue("html5", "engine_arguments", null);
+        List<String> engineArguments = engineArgumentsString != null ? new ArrayList<String>(Arrays.asList(engineArgumentsString.split(","))) : new ArrayList<String>();
+
         // When running "Build HTML and Launch" we need to ignore the archive location prefix/suffix.
         if (localLaunch) {
             infoData.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", "archive");
             infoData.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", "");
-            infoData.put("DEFOLD_ENGINE_ARGUMENTS", "--verify-graphics-calls=false");
             infoData.put("HAS_DEFOLD_ENGINE_ARGUMENTS", "true");
+            engineArguments.add("--verify-graphics-calls=false");
         } else {
             infoData.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", projectProperties.getStringValue("html5", "archive_location_prefix", "archive"));
             infoData.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", projectProperties.getStringValue("html5", "archive_location_suffix", ""));
         }
+        infoData.put("DEFOLD_ENGINE_ARGUMENTS", engineArguments);
 
         BundleHelper.throwIfCanceled(canceled);
         String devInit = "";
