@@ -161,7 +161,8 @@ public class AndroidBundler implements IBundler {
         FileUtils.forceMkdir(new File(appDir, "libs/armeabi-v7a"));
         FileUtils.forceMkdir(new File(appDir, "libs/arm64-v8a"));
 
-        BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, "");
+        Platform targetPlatform = Platform.Armv7Android; // TODO jbnn is this ok? Should differentiate between armv7 arm64?
+        BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, "");
 
         // Create APK
         File ap1 = new File(appDir, title + ".ap1");
@@ -286,7 +287,7 @@ public class AndroidBundler implements IBundler {
                 tmpArmv7.deleteOnExit();
                 strippedpathArmv7 = tmpArmv7.getAbsolutePath();
                 FileUtils.copyFile(bundleExe, tmpArmv7);
-                res = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_android"), strippedpathArmv7);
+                Result res = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_android"), strippedpathArmv7);
                 if (res.ret != 0) {
                     throw new IOException(new String(res.stdOutErr));
                 }

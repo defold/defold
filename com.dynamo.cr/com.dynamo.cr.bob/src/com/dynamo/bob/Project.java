@@ -620,6 +620,7 @@ public class Project {
             List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform, appmanifestOptions);
 
             File classesDexFile = null;
+            File tmpDir = null;
             if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
 
                 // If we are building for Android, we expect a classes.dex file to be returned as well.
