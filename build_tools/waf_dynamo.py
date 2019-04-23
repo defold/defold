@@ -1257,7 +1257,7 @@ def test_flags(self):
         for f in ['CCFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
             self.env.append_value(f, ['--memory-init-file', '0'])
 
-@feature('web')
+@feature('cprogram', 'cxxprogram')
 @after('apply_obj_vars')
 def js_web_web_link_flags(self):
     platform = self.env['PLATFORM']
@@ -1267,7 +1267,7 @@ def js_web_web_link_flags(self):
             lib_dirs = self.env['JS_LIB_PATHS']
         else:
             lib_dirs = {}
-        libs = getattr(self, 'web_libs', ["library_glfw.js", "library_sys.js", "library_script.js", "library_facebook_iap.js", "library_sound.js"])
+        libs = getattr(self, 'web_libs', [])
         jsLibHome = os.path.join(self.env['DYNAMO_HOME'], 'lib', platform, 'js')
         for lib in libs:
             js = ''
