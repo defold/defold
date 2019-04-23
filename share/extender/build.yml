@@ -162,6 +162,37 @@ platforms:
     libCmd: 'ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
 
+  x86_64-ios:
+    env:
+        PLATFORMSDK_DIR:    "{{env.PLATFORMSDK_DIR}}"
+    context:
+        frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "CoreTelephony", "StoreKit", "Security"]
+        weakFrameworks: ["Foundation", "Accounts", "Social", "AdSupport"]
+        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate", "Bolts", "FBSDKCore", "FBSDKLogin", "FBSDKShare"]
+        libPaths:   ["{{dynamo_home}}/lib/x86_64-ios", "{{dynamo_home}}/ext/lib/x86_64-ios"]
+        defines:    ["IOS_SIMULATOR", "DM_PLATFORM_IOS"]
+        flags:      ["-fno-exceptions", "-fvisibility=hidden"]
+        linkFlags:  ['-fobjc-link-runtime', '-dead_strip']
+        libs:       []
+        dynamicLibs: []
+        symbols:    ["AudioDecoderTremolo"]
+
+    exePrefix: ''
+    exeExt: ''
+    shlibRe: 'lib(.+).dylib'
+    stlibRe: 'lib(.+).a'
+    sourceRe: '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+|.mm|.m)'
+    writeLibPattern: 'lib%s.a'
+    writeExePattern: 'dmengine'
+    symbolsPattern: '.*dSYM'
+    zipContentPattern: 'dmengine'
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
+    allowedFlags: ["-ObjC","-ObjC++","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-f(no-)?objc-arc(-exceptions)?","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-Wl,[-_a-zA-Z0-9]+","-fno-rtti"]
+    compileCmd: 'clang++ -c -arch x86_64 -target x86_64-apple-darwin12 -isysroot {{env.PLATFORMSDK_DIR}}/iPhoneSimulator12.1.sdk/ -m64 -O2 -g -stdlib=libc++ -miphoneos-version-min=8.0 {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
+    linkCmd: 'clang++ -arch x86_64 -target x86_64-apple-darwin12 -isysroot {{env.PLATFORMSDK_DIR}}/iPhoneSimulator12.1.sdk/ -m64 -O2 -g -stdlib=libc++ -miphoneos-version-min=8.0 -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#weakFrameworks}}-weak_framework {{{.}}} {{/weakFrameworks}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
+    libCmd: 'ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
+    symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
+
   armv7-android:
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/facebooksdk.jar", "{{dynamo_home}}/ext/share/java/bolts-android-1.2.0.jar", "{{dynamo_home}}/ext/share/java/android-support-v4.jar", "{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/in-app-purchasing-2.0.61.jar", "{{dynamo_home}}/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/facebook_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/iap_android.jar", "{{dynamo_home}}/share/java/push_android.jar", "{{dynamo_home}}/share/java/sound_android.jar", "{{dynamo_home}}/share/java/iac_android.jar"]

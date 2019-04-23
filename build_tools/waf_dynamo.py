@@ -23,6 +23,7 @@ ANDROID_GCC_VERSION='4.8'
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
 IOS_SDK_VERSION="12.1"
+IOS_SIMULATOR_SDK_VERSION="12.1"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 MIN_IOS_SDK_VERSION="8.0"
@@ -175,6 +176,7 @@ def dmsdk_add_files(bld, target, source):
     apidoc_extract_task(bld, doc_files)
 
 
+
 @feature('cc', 'cxx')
 # We must apply this before the objc_hook below
 # Otherwise will .mm-files not be compiled with -arch armv7 etc.
@@ -238,18 +240,27 @@ def default_flags(self):
         if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
             self.env.append_value('LINKFLAGS', ['-m32'])
         if 'osx' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION,'-lSystem','-framework', 'Carbon','-flto'])
+            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION,'-lSystem', '-framework', 'Carbon','-flto'])
 
-    elif 'ios' == build_util.get_target_os() and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture()):
+    elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64', 'x86_64'):
         if Options.options.with_asan:
             MIN_IOS_SDK_VERSION="8.0" # embedded dylibs/frameworks are only supported on iOS 8.0 and later
 
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
+        sys_root = '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)
+        if 'x86_64' == build_util.get_target_architecture():
+            sys_root = '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SIMULATOR_SDK_VERSION)
+
         for f in ['CCFLAGS', 'CXXFLAGS']:
+
             self.env.append_value(f, ['-g', '-stdlib=libc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
-                                        '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-stdlib=libc++',
-                                        '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)])
-        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-fobjc-link-runtime', '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+                                            '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION,
+                                            '-isysroot', sys_root])
+
+            if 'x86_64' == build_util.get_target_architecture():
+                self.env.append_value(f, ['-DIOS_SIMULATOR'])
+
+        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-fobjc-link-runtime', '-isysroot', sys_root, '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
 
     elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
 
@@ -345,6 +356,14 @@ def android_link_flags(self):
             # NOTE: This is a hack We change cprogram -> cshlib
             # but it's probably to late. It works for the name though (libX.so and not X)
             self.link_task.env.append_value('LINKFLAGS', ['-shared'])
+
+@feature('cprogram', 'cxxprogram')
+@before('apply_core')
+def osx_64_luajit(self):
+    # Was previously needed for 64bit OSX, but removed when we updated luajit-2.1.0-beta3,
+    # however it is still needed for 64bit iOS Simulator.
+    if self.env['PLATFORM'] == 'x86_64-ios':
+        self.env.append_value('LINKFLAGS', ['-pagezero_size', '10000', '-image_base', '100000000'])
 
 @feature('skip_asan')
 @before('apply_core')
@@ -1483,6 +1502,7 @@ def detect(conf):
         # We got strange bugs with http cache with gcc-llvm...
         os.environ['CC'] = 'clang'
         os.environ['CXX'] = 'clang++'
+
         conf.env['CC']      = '%s/usr/bin/clang' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['CXX']     = '%s/usr/bin/clang++' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['LINK_CXX']= '%s/usr/bin/clang++' % (DARWIN_TOOLCHAIN_ROOT)
@@ -1491,7 +1511,7 @@ def detect(conf):
         conf.env['RANLIB']  = '%s/usr/bin/ranlib' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['LD']      = '%s/usr/bin/ld' % (DARWIN_TOOLCHAIN_ROOT)
 
-    elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7','arm64'):
+    elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7','arm64','x86_64'):
         # Wrap clang in a bash-script due to a bug in clang related to cwd
         # waf change directory from ROOT to ROOT/build when building.
         # clang "thinks" however that cwd is ROOT instead of ROOT/build
