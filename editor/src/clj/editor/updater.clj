@@ -17,11 +17,11 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- download-url [sha1 ^Platform platform]
-  (format "https://d.defold.com/editor2/%s/editor2/Defold-%s.zip" sha1 (.getPair platform)))
+(defn- download-url [sha1 channel ^Platform platform]
+  (format "https://d.defold.com/archive/%s/%s/editor2/Defold-%s.zip" sha1 channel (.getPair platform)))
 
 (defn- update-url [channel]
-  (format "https://d.defold.com/editor2/channels/%s/update-v2.json" channel))
+  (format "https://d.defold.com/editor2/channels/%s/update-v3.json" channel))
 
 (def ^:private ^File support-dir
   (.getCanonicalFile (.toFile (Editor/getSupportPath))))
@@ -172,9 +172,9 @@
   operation"
   [updater]
   {:pre [(can-download-update? updater)]}
-  (let [{:keys [state-atom platform]} updater
+  (let [{:keys [state-atom platform channel]} updater
         {:keys [current-download server-sha1]} @state-atom
-        url (download-url server-sha1 platform)
+        url (download-url server-sha1 channel platform)
         zip-file (create-temp-zip-file)
         cancelled-atom (atom false)
         track-progress! (fn [progress]
