@@ -94,6 +94,7 @@ namespace dmConnectionPool
      * @param pool pool
      * @param host host
      * @param port port
+     * @param dns_channel The DNS channel that will be used for translating the host to an address
      * @param ssl true for ssl connection
      * @param timeout The timeout (micro seconds) for the connection and ssl handshake
      * @param connection connection (out)

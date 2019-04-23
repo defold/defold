@@ -403,7 +403,7 @@ namespace dmHttpService
             dmMessage::DeleteSocket(worker->m_Socket);
             dmDNS::DeleteChannel(worker->m_DNSChannel);
             if (worker->m_Client)
-			{
+            {
                 dmHttpClient::Delete(worker->m_Client);
             }
             delete worker;

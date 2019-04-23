@@ -67,6 +67,9 @@ namespace dmDNS
         assert(arg);
         RequestResult* req = (RequestResult*) arg;
 
+        // If the request is cancelled, something went wrong with the channel so we cannot
+        // guarantee that the request data is still alive. In that case, we don't touch
+        // the request pointer.
         if (status != ARES_ECANCELLED)
         {
             req->m_Status = (uint32_t) status;
@@ -95,6 +98,7 @@ namespace dmDNS
         assert(arg);
         RequestResult* req = (RequestResult*) arg;
 
+        // Same as ares_gethost_callback, we need to trust the req pointer.
         if (status != ARES_ECANCELLED)
         {
             req->m_Status = (uint32_t) status;
@@ -110,10 +114,11 @@ namespace dmDNS
             return;
         }
 
-        // Note: This is a bit different than the 'regular' getaddrinfo call in dmSocket.
-        //       Since we don't return a list of addresses, we need to pick one and since
-        //       IPV6 sometimes fail when setting up the socket connection (apparently google.com),
-        //       we try to select an IPV4 address first if possible.
+        // Note: The address selection here is a bit different than the 'regular' getaddrinfo call in dmSocket::GetHostByName.
+        //       Since we only return a single address and not a list of addresses to try to connect to, we must pick a good
+        //       candidate here. IPV6 seems to fail sometimes when setting up the socket connection
+        //       (apparently google.com but likely others aswell), so we try to prioritize selecting an IPV4 address first
+        //       if we have both protocols available.
         struct ares_addrinfo* iterator = info, *selected = 0x0;
         bool prefer_ipv4               = req->m_Ipv4 && req->m_Ipv6;
         while (iterator)
@@ -243,8 +248,8 @@ namespace dmDNS
         struct ares_in6_addr addr6;
 
         // We need to check the address if it's an actual IP address or not.
-        // The regular getaddrinfo seems to return an address, so in that case
-        // we need to invoke gethostbyaddr instead.
+        // The regular getaddrinfo returns an address in that case, so we need to
+        // mimick that behaviour here aswell.
         if (ares_inet_pton(AF_INET, name, &addr4) == 1)
         {
             ares_gethostbyaddr(dns_channel->m_Handle, &addr4, sizeof(addr4), AF_INET, ares_gethost_callback, (void*)&req);
@@ -265,11 +270,12 @@ namespace dmDNS
             ares_getaddrinfo(dns_channel->m_Handle, name, NULL, &hints, ares_addrinfo_callback, (void*)&req);
         }
 
-        // This is a blocking wait and presumes that a single request is handed at a time.
-        // This can easily be turned into a threaded queue, but isn't for simplicity.
+        // Here, we block until the request is handled. The engine is built to wait for the result from each
+        // of these requests, so we need to accept that for now. This can easily be translated into a threaded
+        // queue, but is put on hold until we know this solution actually solves the ANR issue.
         while(1)
         {
-            // Early-out if a different thread has decided stopped the channel.
+            // Early-out if a different thread has decided to stop the channel.
             // This might happen when the engine is shutting down, and
             // we have lost or no connection and don't want to wait for
             // the full timeout..
@@ -288,7 +294,6 @@ namespace dmDNS
                 &selector.m_FdSets[dmSocket::SELECTOR_KIND_READ],
                 &selector.m_FdSets[dmSocket::SELECTOR_KIND_WRITE]);
 
-            // No more requests?
             if (selector.m_Nfds == 0)
             {
                 ares_cancel(dns_channel->m_Handle);
@@ -296,11 +301,12 @@ namespace dmDNS
             }
             else
             {
-                // Ares adds a + 1 to the socket, as does dmSocket::Select
-                // So we just compensate for this.
+                // Ares adds a + 1 to the socket, as does our own dmSocket::Select impl,
+                // so we just need to compensate for this.
                 selector.m_Nfds -= 1;
             }
 
+            // This is a manual timeout. C-ares is supposed to handle this, but it doesn't work.
             if ((dmTime::GetTime() - request_started) > request_timeout)
             {
                 req.m_Status = ARES_ETIMEOUT;

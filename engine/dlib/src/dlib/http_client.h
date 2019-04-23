@@ -241,6 +241,11 @@ namespace dmHttpClient
      */
     dmHttpCache::HCache GetHttpCache(HClient client);
 
+    /**
+     * Get the DNS channel associated with this client
+     * @param client client
+     * @return dmDNS::HChannel handle
+     */
     dmDNS::HChannel GetDNSChannel(HClient client);
 
     /**
