@@ -12,6 +12,7 @@ def build(bld):
                                      includes = '..',
                                      uselib = libs,
                                      uselib_local = 'crashext',
+                                     web_libs = ['library_sys.js'],
                                      target = 'test_crash',
                                      source = 'test_crash.cpp')
 
@@ -21,6 +22,7 @@ def build(bld):
                                      includes = '..',
                                      uselib = libs,
                                      uselib_local = 'crashext',
+                                     web_libs = ['library_sys.js','library_script.js'],
                                      target = 'test_script_crash',
                                      exported_symbols = 'CrashExt',
                                      source = 'test_script_crash.cpp test_crash.lua')
