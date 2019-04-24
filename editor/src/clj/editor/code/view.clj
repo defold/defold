@@ -1412,8 +1412,15 @@
 
 (defn handle-key-typed! [view-node ^KeyEvent event]
   (.consume event)
-  (when (typable-key-event? event)
-    (insert-text! view-node (.getCharacter event))))
+  (let [character (.getCharacter event)]
+    (when (and (typable-key-event? event)
+               ;; Ignore characters in the control range and the ASCII delete
+               ;; as it is done by JavaFX in `TextInputControlBehavior`'s
+               ;; `defaultKeyTyped` method.
+               (pos? (.length character))
+               (> (int (.charAt character 0)) 0x1f)
+               (not= (int (.charAt character 0)) 0x7f))
+      (insert-text! view-node (.getCharacter event)))))
 
 (defn- refresh-mouse-cursor! [view-node ^MouseEvent event]
   (let [hovered-element (get-property view-node :hovered-element)
