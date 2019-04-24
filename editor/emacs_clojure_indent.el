@@ -6,6 +6,7 @@
   (fnk 1)
   (precluding-errors 1)
   (with-auto-evaluation-context 1)
+  (with-auto-or-fake-evaluation-context 1)
   (with-system 1)
   (with-config! 1)
   (with-temp-dir 1)
