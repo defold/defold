@@ -1,6 +1,7 @@
 (ns editor.bundle-dialog
   (:require [clojure.java.io :as io]
             [clojure.set :as set]
+            [clojure.string :as string]
             [editor.bundle :as bundle]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
@@ -412,9 +413,12 @@
 (defn- get-code-signing-identity-names []
   (mapv second (bundle/find-identities)))
 
+(defn- make-labeled-check-box ^CheckBox [^String label ^String id ^Boolean default-value refresh!]
+  (doto (CheckBox. label) (ui/add-style! "labeled-check-box") (.setId id) (.setFocusTraversable false) (ui/on-action! refresh!) (ui/value! default-value)))
+
 (defn- make-ios-controls [refresh! owner-window]
   (assert (fn? refresh!))
-  (let [bundle-ios-sign-app (doto (CheckBox.) (ui/add-style! "labeled-toggles") (.setId "bundle-ios-sign-app") (.setFocusTraversable false) (ui/on-action! refresh!) (ui/value! true))
+  (let [sign-app-check-box (doto (CheckBox.) (ui/add-style! "labeled-check-box") (.setId "sign-app-check-box") (.setFocusTraversable false) (ui/on-action! refresh!) (ui/value! true))
         provisioning-profile-file-field (make-file-field refresh! owner-window "provisioning-profile-text-field" "Choose Provisioning Profile" [["Provisioning Profiles (*.mobileprovision)" "*.mobileprovision"]])
         no-identity-label "None"
         code-signing-identity-choice-box (doto (ChoiceBox.)
@@ -427,14 +431,14 @@
                                                             (fromString [label]
                                                               (if (= no-identity-label label) nil label)))))
         architecture-controls (doto (VBox.)
-                                (ui/children! [(doto (CheckBox. "armv7") (ui/add-style! "labeled-toggles") (.setId "bundle-ios-arch-armv7-darwin") (.setFocusTraversable false) (ui/on-action! refresh!) (ui/value! true))
-                                               (doto (CheckBox. "arm64") (ui/add-style! "labeled-toggles") (.setId "bundle-ios-arch-arm64-darwin") (.setFocusTraversable false) (ui/on-action! refresh!) (ui/value! true) )
-                                               (doto (CheckBox. "Simulator") (ui/add-style! "labeled-toggles") (.setId "bundle-ios-arch-x86_64-ios") (.setFocusTraversable false) (ui/on-action! refresh!))]))]
+                                (ui/children! [(make-labeled-check-box "32bit" "architecture-ios-32bit-check-box" true refresh!)
+                                               (make-labeled-check-box "64bit" "architecture-ios-64bit-check-box" true refresh!)
+                                               (make-labeled-check-box "Simulator" "architecture-ios-simulator-check-box" false refresh!)]))]
     (ui/on-action! code-signing-identity-choice-box refresh!)
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "ios")
-      (ui/children! [(labeled! "Sign application" bundle-ios-sign-app)
+      (ui/children! [(labeled! "Sign application" sign-app-check-box)
                      (labeled! "Code signing identity" code-signing-identity-choice-box)
                      (labeled! "Provisioning profile" provisioning-profile-file-field)
                      (labeled! "Architectures" architecture-controls)]))))
@@ -443,74 +447,74 @@
 (defn- load-ios-prefs! [prefs view code-signing-identity-names]
   ;; This falls back on settings from the Sign iOS Application dialog if available,
   ;; but we will write to our own keys in the preference for these.
-  (ui/with-controls view [bundle-ios-sign-app code-signing-identity-choice-box provisioning-profile-text-field bundle-ios-arch-armv7-darwin bundle-ios-arch-arm64-darwin bundle-ios-arch-x86_64-ios]
-    (ui/value! bundle-ios-sign-app (prefs/get-prefs prefs "bundle-ios-sign-app?" true))
+  (ui/with-controls view [sign-app-check-box code-signing-identity-choice-box provisioning-profile-text-field architecture-ios-32bit-check-box architecture-ios-64bit-check-box architecture-ios-simulator-check-box]
+    (ui/value! sign-app-check-box (prefs/get-prefs prefs "sign-app-check-box?" true))
     (ui/value! code-signing-identity-choice-box (or (some (set code-signing-identity-names)
                                                           (or (get-string-pref prefs "bundle-ios-code-signing-identity")
                                                               (second (prefs/get-prefs prefs "last-identity" [nil nil]))))
                                                     (first code-signing-identity-names)))
     (ui/value! provisioning-profile-text-field (or (get-string-pref prefs "bundle-ios-provisioning-profile")
                                                    (get-string-pref prefs "last-provisioning-profile")))
-    (ui/value! bundle-ios-arch-armv7-darwin (prefs/get-prefs prefs "bundle-ios-arch-armv7-darwin?" true))
-    (ui/value! bundle-ios-arch-arm64-darwin (prefs/get-prefs prefs "bundle-ios-arch-arm64-darwin?" true))
-    (ui/value! bundle-ios-arch-x86_64-ios (prefs/get-prefs prefs "bundle-ios-arch-x86_64-ios?" false))))
+    (ui/value! architecture-ios-32bit-check-box (prefs/get-prefs prefs "architecture-ios-32bit-check-box?" true))
+    (ui/value! architecture-ios-64bit-check-box (prefs/get-prefs prefs "architecture-ios-64bit-check-box?" true))
+    (ui/value! architecture-ios-simulator-check-box (prefs/get-prefs prefs "architecture-ios-simulator-check-box?" false))))
 
 (defn- save-ios-prefs! [prefs view]
-  (ui/with-controls view [bundle-ios-sign-app code-signing-identity-choice-box provisioning-profile-text-field bundle-ios-arch-armv7-darwin bundle-ios-arch-arm64-darwin bundle-ios-arch-x86_64-ios]
-    (prefs/set-prefs prefs "bundle-ios-sign-app?" (ui/value bundle-ios-sign-app))
+  (ui/with-controls view [sign-app-check-box code-signing-identity-choice-box provisioning-profile-text-field architecture-ios-32bit-check-box architecture-ios-64bit-check-box architecture-ios-simulator-check-box]
+    (prefs/set-prefs prefs "sign-app-check-box?" (ui/value sign-app-check-box))
     (set-string-pref! prefs "bundle-ios-code-signing-identity" (ui/value code-signing-identity-choice-box))
     (set-string-pref! prefs "bundle-ios-provisioning-profile" (ui/value provisioning-profile-text-field))
-    (prefs/set-prefs prefs "bundle-ios-arch-armv7-darwin?" (ui/value bundle-ios-arch-armv7-darwin))
-    (prefs/set-prefs prefs "bundle-ios-arch-arm64-darwin?" (ui/value bundle-ios-arch-arm64-darwin))
-    (prefs/set-prefs prefs "bundle-ios-arch-x86_64-ios?" (ui/value bundle-ios-arch-x86_64-ios))))
+    (prefs/set-prefs prefs "architecture-ios-32bit-check-box?" (ui/value architecture-ios-32bit-check-box))
+    (prefs/set-prefs prefs "architecture-ios-64bit-check-box?" (ui/value architecture-ios-64bit-check-box))
+    (prefs/set-prefs prefs "architecture-ios-simulator-check-box?" (ui/value architecture-ios-simulator-check-box))))
 
 (defn- get-ios-options [view]
-  (ui/with-controls view [bundle-ios-sign-app code-signing-identity-choice-box provisioning-profile-text-field bundle-ios-arch-armv7-darwin bundle-ios-arch-arm64-darwin bundle-ios-arch-x86_64-ios]
-    (let [arch-controls [{:widget bundle-ios-arch-armv7-darwin :arch "armv7-darwin"} {:widget bundle-ios-arch-arm64-darwin :arch "arm64-darwin"} {:widget bundle-ios-arch-x86_64-ios :arch "x86_64-ios"}]
-          arch-list (clojure.string/join "," (map :arch (filter (fn [arch] (ui/value (:widget arch))) arch-controls)))]
+  (ui/with-controls view [sign-app-check-box code-signing-identity-choice-box provisioning-profile-text-field architecture-ios-32bit-check-box architecture-ios-64bit-check-box architecture-ios-simulator-check-box]
+    (let [arch-controls [{:widget architecture-ios-32bit-check-box :arch "armv7-darwin"} {:widget architecture-ios-64bit-check-box :arch "arm64-darwin"} {:widget architecture-ios-simulator-check-box :arch "x86_64-ios"}]
+          arch-list (string/join "," (map :arch (filter (fn [arch] (ui/value (:widget arch))) arch-controls)))]
       {:code-signing-identity (ui/value code-signing-identity-choice-box)
        :provisioning-profile (get-file provisioning-profile-text-field)
        :architectures arch-list
-       :bundle-ios-arch-armv7-darwin (ui/value bundle-ios-arch-armv7-darwin)
-       :bundle-ios-arch-arm64-darwin (ui/value bundle-ios-arch-arm64-darwin)
-       :bundle-ios-arch-x86_64-ios (ui/value bundle-ios-arch-x86_64-ios)
-       :bundle-ios-sign-app (ui/value bundle-ios-sign-app)})))
+       :architecture-ios-32bit-check-box (ui/value architecture-ios-32bit-check-box)
+       :architecture-ios-64bit-check-box (ui/value architecture-ios-64bit-check-box)
+       :architecture-ios-simulator-check-box (ui/value architecture-ios-simulator-check-box)
+       :sign-app-check-box (ui/value sign-app-check-box)})))
 
-(defn- set-ios-options! [view {:keys [bundle-ios-sign-app code-signing-identity provisioning-profile] :as _options} issues code-signing-identity-names]
-  (ui/with-controls view [^ChoiceBox code-signing-identity-choice-box provisioning-profile-text-field bundle-ios-arch-armv7-darwin bundle-ios-arch-arm64-darwin bundle-ios-arch-x86_64-ios ok-button]
+(defn- set-ios-options! [view {:keys [sign-app-check-box code-signing-identity provisioning-profile] :as _options} issues code-signing-identity-names]
+  (ui/with-controls view [^ChoiceBox code-signing-identity-choice-box provisioning-profile-text-field architecture-ios-32bit-check-box architecture-ios-64bit-check-box architecture-ios-simulator-check-box ok-button]
     (doto code-signing-identity-choice-box
       (set-choice! (into [nil] code-signing-identity-names) code-signing-identity)
       (set-field-status! (:code-signing-identity issues))
-      (ui/disable! (or (not bundle-ios-sign-app) (empty? code-signing-identity-names))))
+      (ui/disable! (or (not sign-app-check-box) (empty? code-signing-identity-names))))
     (doto provisioning-profile-text-field
       (set-file! provisioning-profile)
       (set-field-status! (:provisioning-profile issues))
-      (ui/disable! (not bundle-ios-sign-app)))
-    (doto bundle-ios-arch-armv7-darwin
+      (ui/disable! (not sign-app-check-box)))
+    (doto architecture-ios-32bit-check-box
       (set-field-status! (:architecture-issue issues)))
-    (doto bundle-ios-arch-arm64-darwin
+    (doto architecture-ios-64bit-check-box
       (set-field-status! (:architecture-issue issues)))
-    (doto bundle-ios-arch-x86_64-ios
+    (doto architecture-ios-simulator-check-box
       (set-field-status! (:architecture-issue issues)))
     (ui/enable! ok-button (and (some? code-signing-identity)
                                (fs/existing-file? provisioning-profile)
                                (nil? (:architecture-issue issues))))))
 
-(defn- get-ios-issues [{:keys [bundle-ios-sign-app code-signing-identity provisioning-profile bundle-ios-arch-armv7-darwin bundle-ios-arch-arm64-darwin bundle-ios-arch-x86_64-ios] :as _options} code-signing-identity-names]
-  {:general (when (and bundle-ios-sign-app (empty? code-signing-identity-names))
+(defn- get-ios-issues [{:keys [sign-app-check-box code-signing-identity provisioning-profile architecture-ios-32bit-check-box architecture-ios-64bit-check-box architecture-ios-simulator-check-box] :as _options} code-signing-identity-names]
+  {:general (when (and sign-app-check-box (empty? code-signing-identity-names))
               [:warning "No code signing identities found on this computer."])
-   :code-signing-identity (when (and bundle-ios-sign-app (nil? code-signing-identity))
+   :code-signing-identity (when (and sign-app-check-box (nil? code-signing-identity))
                             [:fatal "Code signing identity must be set to sign the application."])
    :provisioning-profile (cond
-                           (and bundle-ios-sign-app (nil? provisioning-profile))
+                           (and sign-app-check-box (nil? provisioning-profile))
                            [:fatal "Provisioning profile must be set to sign the application."]
 
-                           (and bundle-ios-sign-app (not (fs/existing-file? provisioning-profile)))
+                           (and sign-app-check-box (not (fs/existing-file? provisioning-profile)))
                            [:fatal "Provisioning profile file not found."]
 
-                           (and bundle-ios-sign-app (not (existing-file-of-type? "mobileprovision" provisioning-profile)))
+                           (and sign-app-check-box (not (existing-file-of-type? "mobileprovision" provisioning-profile)))
                            [:fatal "Invalid provisioning profile."])
-   :architecture-issue (when (and (not bundle-ios-arch-armv7-darwin) (not bundle-ios-arch-arm64-darwin) (not bundle-ios-arch-x86_64-ios))
+   :architecture-issue (when (and (not architecture-ios-32bit-check-box) (not architecture-ios-64bit-check-box) (not architecture-ios-simulator-check-box))
                          [:fatal "At least one architecture needs to be selected."])})
 
 (deftype IOSBundleOptionsPresenter [workspace view variant-choices]
