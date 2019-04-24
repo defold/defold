@@ -156,15 +156,13 @@ def build(bld):
     # in the GLFW module.
     additional_libs = ''
     if 'android' in bld.env['PLATFORM']:
-        additional_libs = ['DMGLFW', 'UNWIND']
+        additional_libs = 'DMGLFW UNWIND'
 
     if 'x86_64-darwin' == bld.env['PLATFORM']:
-        additional_libs = ['UNWIND']
+        additional_libs = 'UNWIND'
 
     if re.match('arm.*?darwin', bld.env['PLATFORM']) or bld.env['PLATFORM'] == 'x86_64-ios':
-      additional_libs = ['RESOLV']
-
-    additional_libs = ' '.join(additional_libs)
+      additional_libs += ' RESOLV'
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',

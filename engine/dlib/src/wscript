@@ -191,12 +191,10 @@ def build(bld):
         dlib_noasan.source.remove(os.path.join('dlib', 'dns_null.cpp'))
 
     if bld.env['PLATFORM'] != 'as3-web':
-
         uselib = ['UUID', 'PLATFORM_SOCKET']
 
         if not 'web' in bld.env['PLATFORM']:
             uselib.append('CARES')
-
         if bld.env.PLATFORM == "arm64-darwin" or bld.env.PLATFORM == "armv7-darwin" or bld.env.PLATFORM == "x86_64-ios":
             uselib.append('RESOLV')
 
