@@ -183,18 +183,19 @@
              :stylesheets ["dialogs.css"]
              :root {:fx/type fxui/dialog-body
                     :header {:fx/type :v-box
-                             :children [{:fx/type fxui/header
+                             :children [{:fx/type fxui/label
+                                         :variant :header
                                          :text "Set Custom Game Resolution"}
-                                        {:fx/type :label
+                                        {:fx/type fxui/label
                                          :text "Game window will be resized to this size"}]}
                     :content {:fx/type fxui/two-col-input-grid-pane
-                              :children [{:fx/type :label
+                              :children [{:fx/type fxui/label
                                           :text "Width"}
                                          {:fx/type fxui/text-field
                                           :variant (if width-valid :default :error)
                                           :text width-text
                                           :on-text-changed {:event-type :set-width}}
-                                         {:fx/type :label
+                                         {:fx/type fxui/label
                                           :text "Height"}
                                          {:fx/type fxui/text-field
                                           :variant (if height-valid :default :error)
@@ -214,8 +215,7 @@
 
 (defn make-resolution-dialog []
   (let [state-atom (atom {:width-text "320"
-                          :height-text "420"
-                          :owner (ui/main-stage)})
+                          :height-text "420"})
         renderer (fx/create-renderer
                    :opts {:fx.opt/map-event-handler
                           (fxui/wrap-state-handler state-atom
@@ -226,7 +226,7 @@
                                 :cancel {:state (assoc state :result nil)}
                                 :confirm {:state (assoc state :result {:width (field-expression/to-int (:width-text state))
                                                                        :height (field-expression/to-int (:height-text state))})})))}
-                   :middleware (fx/wrap-map-desc assoc :fx/type fx-resolution-dialog))]
+                   :middleware (fx/wrap-map-desc assoc :fx/type fx-resolution-dialog :owner (ui/main-stage)))]
     (fxui/mount-renderer-and-await-result! state-atom renderer)))
 
 (defn make-update-failed-dialog [^Stage owner]
@@ -274,21 +274,40 @@
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
 
+(defn fx-download-update-dialog [{:keys [owner] :as props}]
+  {:fx/type fxui/dialog-stage
+   :showing (not (contains? props :result))
+   :owner {:fx/type fxui/ext-value :value owner}
+   :on-close-request {:result false}
+   :title "Update Available"
+   :scene {:fx/type :scene
+           :stylesheets ["dialogs.css"]
+           :root {:fx/type fxui/dialog-body
+                  :header {:fx/type fxui/label
+                           :variant :header
+                           :text "A newer version of Defold is available!"}
+                  :footer {:fx/type fxui/dialog-buttons
+                           :children [{:fx/type fxui/button
+                                       :cancel-button true
+                                       :text "Not Now"
+                                       :on-action {:result false}}
+                                      {:fx/type fxui/ext-focused-by-default
+                                       :desc {:fx/type fxui/button
+                                              :variant :primary
+                                              :default-button true
+                                              :text "Download Update"
+                                              :on-action {:result true}}}]}}}})
+
 (defn make-download-update-dialog [^Stage owner]
-  (let [root ^Parent (ui/load-fxml "update-alert.fxml")
-        stage (ui/make-dialog-stage owner)
-        scene (Scene. root)
-        result-atom (atom false)]
-    (ui/title! stage "Update Available")
-    (ui/with-controls root [^Button ok ^Button cancel]
-      (ui/on-action! ok (fn on-ok! [_]
-                          (reset! result-atom true)
-                          (ui/close! stage)))
-      (ui/on-action! cancel (fn on-cancel! [_]
-                              (ui/close! stage))))
-    (.setScene stage scene)
-    (ui/show-and-wait! stage)
-    @result-atom))
+  ;; TODO vlaaad: don't need state here at all? Or need result to show/hide stage???? NEED!
+  (let [state-atom (atom {})
+        renderer (fx/create-renderer
+                   :opts {:fx.opt/map-event-handler
+                          (fxui/wrap-state-handler state-atom
+                            (fn [{:keys [result]}]
+                              {:state {:result result}}))}
+                   :middleware (fx/wrap-map-desc assoc :fx/type fx-download-update-dialog :owner owner))]
+    (fxui/mount-renderer-and-await-result! state-atom renderer)))
 
 (handler/defhandler ::report-error :dialog
   (run [sentry-id-promise]

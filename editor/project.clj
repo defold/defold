@@ -187,6 +187,7 @@
                                 :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
                                                     "-Djdk.gtk.version=2"
                                                     "-Ddefold.log.dir="
+                                                    "-Ddefold.channel=editor-alpha"
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"
                                                     ;"-XX:+UnlockCommercialFeatures"
