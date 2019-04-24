@@ -19,8 +19,8 @@ int engine_main(int argc, char *argv[])
 
     dmCrash::Init(dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
     dmDDF::RegisterAllTypes();
-    dmDNS::Initialize();
     dmSocket::Initialize();
+    dmDNS::Initialize();
     dmMemProfile::Initialize();
     dmProfile::Initialize(256, 1024 * 16, 128);
     dmLogParams params;
@@ -38,7 +38,7 @@ int engine_main(int argc, char *argv[])
     dmLogFinalize();
     dmProfile::Finalize();
     dmMemProfile::Finalize();
-    dmSocket::Finalize();
     dmDNS::Finalize();
+    dmSocket::Finalize();
     return exit_code;
 }

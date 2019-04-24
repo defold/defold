@@ -333,11 +333,11 @@ TEST_F(dmHttpServerTest, TestServerClient)
 
 int main(int argc, char **argv)
 {
-    dmDNS::Initialize();
     dmSocket::Initialize();
+    dmDNS::Initialize();
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
-    dmSocket::Finalize();
     dmDNS::Finalize();
+    dmSocket::Finalize();
     return ret;
 }

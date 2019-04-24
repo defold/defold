@@ -109,61 +109,63 @@ TEST_F(dmDNSTest, GetHostByName_NoValidAddressFamily)
 
 struct ThreadRunnerContext
 {
-	dmDNS::HChannel channel;
-	bool started;
+    dmDNS::HChannel channel;
+    bool started;
 
-	struct
-	{
-		const char*   hostname;
-		dmDNS::Result result;
-	} request;
+    struct
+    {
+        const char*   hostname;
+        dmDNS::Result result;
+    } request;
 };
 
 static void ThreadRunner(void* arg)
 {
-	dmSocket::Address address;
-	ThreadRunnerContext* ctx = (ThreadRunnerContext*) arg;
+    dmSocket::Address address;
+    ThreadRunnerContext* ctx = (ThreadRunnerContext*) arg;
 
-	ctx->started = true;
+    ctx->started = true;
 
-	uint64_t time_start    = dmTime::GetTime();
-	const uint64_t timeout = 5000 * 1000; // 5s timeout
+    uint64_t time_start    = dmTime::GetTime();
+    const uint64_t timeout = 5000 * 1000; // 5s timeout
 
-	while(ctx->request.result != dmDNS::RESULT_CANCELLED)
-	{
-		if ((dmTime::GetTime() - time_start) > timeout)
-		{
-			ASSERT_TRUE(false);
-		}
+    while(ctx->request.result != dmDNS::RESULT_CANCELLED)
+    {
+        if ((dmTime::GetTime() - time_start) > timeout)
+        {
+            ASSERT_TRUE(false);
+        }
 
-		ctx->request.result = dmDNS::GetHostByName(ctx->request.hostname, &address, ctx->channel, true, true);
-	}
+        ctx->request.result = dmDNS::GetHostByName(ctx->request.hostname, &address, ctx->channel, true, true);
+    }
 }
 
 TEST(DNS, GetHostByName_Threaded_Cancel)
 {
-	ThreadRunnerContext ctx;
-	ctx.started          = false;
-	ctx.request.hostname = "localhost";
+    ThreadRunnerContext ctx;
+    ctx.started          = false;
+    ctx.request.hostname = "localhost";
 
-	dmDNS::Result result_channel = dmDNS::NewChannel(&ctx.channel);
+    dmDNS::Result result_channel = dmDNS::NewChannel(&ctx.channel);
     ASSERT_EQ(dmDNS::RESULT_OK, result_channel);
 
-	dmThread::Thread thread = dmThread::New(&ThreadRunner, 0x80000, (void *) &ctx, "runner");
-	WaitForBool(&ctx.started);
+    dmThread::Thread thread = dmThread::New(&ThreadRunner, 0x80000, (void *) &ctx, "runner");
+    WaitForBool(&ctx.started);
 
-	dmDNS::StopChannel(ctx.channel);
-	dmThread::Join(thread);
+    dmDNS::StopChannel(ctx.channel);
+    dmThread::Join(thread);
 
-	ASSERT_EQ(dmDNS::RESULT_CANCELLED, ctx.request.result);
-	dmDNS::DeleteChannel(ctx.channel);
+    ASSERT_EQ(dmDNS::RESULT_CANCELLED, ctx.request.result);
+    dmDNS::DeleteChannel(ctx.channel);
 }
 
 int main(int argc, char **argv)
 {
+    dmSocket::Initialize();
     dmDNS::Initialize();
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
     dmDNS::Finalize();
+    dmSocket::Finalize();
     return ret;
 }
