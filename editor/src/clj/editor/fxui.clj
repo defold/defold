@@ -4,7 +4,9 @@
             [editor.ui :as ui]
             [editor.util :as eutil])
   (:import [cljfx.lifecycle Lifecycle]
-           [javafx.application Platform]))
+           [javafx.application Platform]
+           [javafx.scene Node]
+           [javafx.beans.value ChangeListener]))
 
 (def ext-value
   "Extension lifecycle that returns value on `:value` key"
@@ -14,6 +16,22 @@
     (advance [_ _ desc _]
       (:value desc))
     (delete [_ _ _])))
+
+(defn ext-focused-by-default
+  "Function component that mimics extension lifecycle. Focuses node specified by
+   `:desc` key when it gets added to scene graph"
+  [{:keys [desc]}]
+  {:fx/type fx/ext-on-instance-lifecycle
+   :on-created (fn [^Node node]
+                 (if (some? (.getScene node))
+                   (.requestFocus node)
+                   (.addListener (.sceneProperty node)
+                                 (reify ChangeListener
+                                   (changed [this _ _ new-scene]
+                                     (when (some? new-scene)
+                                       (.removeListener (.sceneProperty node) this)
+                                       (.requestFocus node)))))))
+   :desc desc})
 
 (defn mount-renderer-and-await-result!
   "Mounts `renderer` and blocks current thread until `state-atom`'s value
@@ -87,6 +105,15 @@
 
 (defn header [props]
   (assoc props :fx/type :label :style-class "header"))
+
+(defn label [{:keys [variant]
+              :or {variant :label}
+              :as props}]
+  (-> props
+      (dissoc :variant)
+      (assoc :fx/type :label :style-class (case variant
+                                            :label "label"
+                                            :header "header"))))
 
 (defn button [{:keys [variant]
                :or {variant :secondary}
