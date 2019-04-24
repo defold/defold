@@ -8,6 +8,8 @@ def build(bld):
     libs = 'SCRIPT EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT'
     if 'android' in bld.env['PLATFORM']:
         libs += ' UNWIND'
+    if bld.env.PLATFORM == 'x86_64-ios':
+        libs += ' RESOLV'
     test_crash = bld.new_task_gen(features = 'cxx cprogram test',
                                      includes = '..',
                                      uselib = libs,

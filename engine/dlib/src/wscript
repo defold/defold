@@ -195,7 +195,10 @@ def build(bld):
         uselib = ['UUID', 'PLATFORM_SOCKET']
 
         if not 'web' in bld.env['PLATFORM']:
-            uselib.append("CARES")
+            uselib.append('CARES')
+
+        if bld.env.PLATFORM == "arm64-darwin" or bld.env.PLATFORM == "armv7-darwin" or bld.env.PLATFORM == "x86_64-ios":
+            uselib.append('RESOLV')
 
         dlib = bld.new_task_gen(features = 'cc cxx cshlib skip_asan',
                                 includes = '.',
@@ -204,9 +207,6 @@ def build(bld):
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
                                 uselib = uselib)
-
-        if bld.env.PLATFORM == "arm64-darwin" or bld.env.PLATFORM == "armv7-darwin":
-            dlib.env.append_value('LINKFLAGS', ['-l', 'resolv'])
 
         dlib.find_sources_in_dirs(source_dirs)
         dlib.source.extend(webp_source_no_neon)

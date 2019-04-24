@@ -12,6 +12,8 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     if not 'web' in bld.env['PLATFORM']:
         req_libs.append('CARES')
+        if bld.env.PLATFORM == "x86_64-ios":
+            req_libs.append('RESOLV')
     if extra_features != None:
         req_features.extend(extra_features)
     if extra_libs != None:

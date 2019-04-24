@@ -10,9 +10,13 @@ def configure(conf):
     pass
 
 def build(bld):
+    uselib = 'RESOURCE DLIB DDF THREAD LUA'
+    if bld.env.PLATFORM == 'x86_64-ios':
+      uselib += ' RESOLV'
+
     test_liveupdate = bld.new_task_gen(features = 'cxx cprogram test',
                                        includes = '../../../src',
-                                       uselib = 'RESOURCE DLIB DDF THREAD LUA',
+                                       uselib = uselib,
                                        uselib_local = 'liveupdate',
                                        target = 'test_liveupdate',
                                        source = 'test_liveupdate.cpp')
@@ -21,7 +25,7 @@ def build(bld):
 
     test_liveupdate_async = bld.new_task_gen(features = 'cxx cprogram test',
                                        includes = '../../../src',
-                                       uselib = 'RESOURCE DLIB DDF THREAD LUA',
+                                       uselib = uselib,
                                        target = 'test_liveupdate_async',
                                        source = '../liveupdate_async.cpp test_liveupdate_async.cpp')
 

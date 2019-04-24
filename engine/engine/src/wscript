@@ -161,7 +161,7 @@ def build(bld):
     if 'x86_64-darwin' == bld.env['PLATFORM']:
         additional_libs = ['UNWIND']
 
-    if re.match('arm.*?darwin', bld.env['PLATFORM']):
+    if re.match('arm.*?darwin', bld.env['PLATFORM']) or bld.env['PLATFORM'] == 'x86_64-ios':
       additional_libs = ['RESOLV']
 
     additional_libs = ' '.join(additional_libs)

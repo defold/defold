@@ -80,9 +80,14 @@ def build(bld):
             'sound',
             'spinescene',
             'spinemodel']
+
+    test_task_extra_libs = ''
+    if bld.env.PLATFORM == 'x86_64-ios':
+        test_task_extra_libs += ' RESOLV'
+
     test_task_gen = bld.new_task_gen(features = 'cxx cprogram test',
                                      includes = '../../../src ../../../proto %s' % (dir),
-                                     uselib = 'DMGLFW GAMEOBJECT DDF RESOURCE GRAPHICS_UTIL PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET SCRIPT LUA EXTENSION INPUT HID_NULL PARTICLE RIG GUI SOUND_NULL DLIB LIVEUPDATE CARES',
+                                     uselib = 'DMGLFW GAMEOBJECT DDF RESOURCE GRAPHICS_UTIL PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET SCRIPT LUA EXTENSION INPUT HID_NULL PARTICLE RIG GUI SOUND_NULL DLIB LIVEUPDATE CARES' + test_task_extra_libs,
                                      uselib_local = 'gamesys',
                                      proto_gen_py = True,
                                      content_root='.',

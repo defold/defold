@@ -18,9 +18,14 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
 create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParticleDDF.ParticleFX', before='cc cxx')
 
 def build(bld):
+    uselib = 'SCRIPT EXTENSION RESOURCE PARTICLE RIG HID_NULL DDF DLIB PLATFORM_SOCKET LUA'
+
+    if bld.env.PLATFORM == 'x86_64-ios':
+        uselib += ' RESOLV'
+
     test_gui = bld.new_task_gen(features = 'cxx cprogram embed test',
                                 includes = '../../../src .',
-                                uselib = 'SCRIPT EXTENSION RESOURCE PARTICLE RIG HID_NULL DDF DLIB PLATFORM_SOCKET LUA CARES',
+                                uselib = uselib,
                                 uselib_local = 'gui',
                                 target = 'test_gui',
                                 source = 'test_gui.cpp test_gui_ddf.proto once.particlefx once_three_emitters.particlefx',
@@ -30,7 +35,7 @@ def build(bld):
 
     test_gui_script = bld.new_task_gen(features = 'cxx cprogram embed test',
                                 includes = '../../../src .',
-                                uselib = 'SCRIPT EXTENSION RESOURCE PARTICLE RIG HID_NULL DDF DLIB PLATFORM_SOCKET LUA CARES',
+                                uselib = uselib,
                                 uselib_local = 'gui',
                                 target = 'test_gui_script',
                                 source = 'test_gui_script.cpp')
@@ -39,7 +44,7 @@ def build(bld):
 
     test_gui_clipping = bld.new_task_gen(features = 'cxx cprogram embed test',
                                 includes = '../../../src .',
-                                uselib = 'SCRIPT EXTENSION RESOURCE PARTICLE RIG HID_NULL DDF DLIB PLATFORM_SOCKET LUA CARES',
+                                uselib = uselib,
                                 uselib_local = 'gui',
                                 target = 'test_gui_clipping',
                                 source = 'test_gui_clipping.cpp')
@@ -47,9 +52,14 @@ def build(bld):
     test_gui_clipping.install_path = None
 
     if not bld.env.PLATFORM in ('js-web', 'wasm-web', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+        uselib = 'SCRIPT EXTENSION RESOURCE PARTICLE RIG HID DDF DLIB PLATFORM_SOCKET LUA DMGLFW X'
+
+        if bld.env.PLATFORM == 'x86_64-ios':
+            uselib += ' RESOLV'
+
         guidemo = bld.new_task_gen(features = 'cxx cprogram test',
                                    includes = '../../../src',
-                                   uselib = 'SCRIPT EXTENSION RESOURCE PARTICLE RIG HID DDF DLIB PLATFORM_SOCKET LUA DMGLFW X CARES',
+                                   uselib = uselib,
                                    uselib_local = 'gui',
                                    target = 'guidemo',
                                    source = 'guidemo.cpp')

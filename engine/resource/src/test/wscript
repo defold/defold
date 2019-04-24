@@ -48,9 +48,13 @@ def build(bld):
 
     bld.add_group()
 
+    test_resource_extra_libs = ' '
+    if bld.env.PLATFORM == 'x86_64-ios':
+      test_resource_extra_libs += 'RESOLV'
+
     test_resource = bld.new_task_gen(features = 'cxx cprogram embed test',
                                      includes = '../../../src ../../proto',
-                                     uselib = 'DDF DLIB PLATFORM_SOCKET THREAD LUA',
+                                     uselib = 'DDF DLIB PLATFORM_SOCKET THREAD LUA' + test_resource_extra_libs,
                                      uselib_local = 'resource',
                                      proto_gen_py = True,
                                      target = 'test_resource',
