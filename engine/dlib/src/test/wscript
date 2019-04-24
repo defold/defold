@@ -79,6 +79,10 @@ def build(bld):
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
     create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
 
+    # c-ares not supported for web platform
+    if not 'web' in bld.env['PLATFORM']:
+        create_test(bld, 'test_dns')
+
     bld.new_task_gen(rule = 'echo generated data > ${TGT}',
                      target = 'generated.embed')
 
