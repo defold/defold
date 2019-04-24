@@ -722,6 +722,10 @@
    :default "",
    :path ["html5" "archive_location_suffix"]}
   {:type :string,
+   :help "comma separated list of engine arguments",
+   :default "",
+   :path ["html5" "engine_arguments"]}
+  {:type :string,
    :help "the application id as issued by Facebook",
    :default "",
    :path ["facebook" "appid"]}
