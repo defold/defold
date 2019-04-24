@@ -183,6 +183,14 @@ def build(bld):
         dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
         dlib_noasan.source.remove(os.path.join('dlib', 'socket_null.cpp'))
 
+    if 'web' in bld.env['PLATFORM']:
+        dlib.source.remove(os.path.join('dlib', 'dns.cpp'))
+        dlib_noasan.source.remove(os.path.join('dlib', 'dns.cpp'))
+    else:
+        dlib.source.remove(os.path.join('dlib', 'dns_null.cpp'))
+        dlib_noasan.source.remove(os.path.join('dlib', 'dns_null.cpp'))
+        uselib.append("CARES")
+
     if bld.env['PLATFORM'] != 'as3-web':
 
         uselib = ['UUID', 'PLATFORM_SOCKET']
@@ -208,14 +216,6 @@ def build(bld):
             dlib.source.remove(os.path.join('dlib','socket.cpp'))
         else:
             dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
-
-        if 'web' in bld.env['PLATFORM']:
-            dlib.source.remove(os.path.join('dlib', 'dns.cpp'))
-            dlib_noasan.source.remove(os.path.join('dlib', 'dns.cpp'))
-        else:
-            dlib.source.remove(os.path.join('dlib', 'dns_null.cpp'))
-            dlib_noasan.source.remove(os.path.join('dlib', 'dns_null.cpp'))
-            uselib.append("CARES")
 
     if 'win32' not in bld.env['PLATFORM'] and bld.env['PLATFORM'] != 'as3-web':
         dlib = bld.new_task_gen(features = 'cc cxx cshlib',
