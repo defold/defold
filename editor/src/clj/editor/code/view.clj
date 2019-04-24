@@ -1348,6 +1348,44 @@
 
 ;; -----------------------------------------------------------------------------
 
+(defn- insert-text! [view-node typed]
+  (let [undo-grouping (if (= "\r" typed) :newline :typing)
+        selected-suggestion (selected-suggestion view-node)
+        grammar (get-property view-node :grammar)
+        lines (get-property view-node :lines)
+        cursor-ranges (get-property view-node :cursor-ranges)
+        [insert-typed? show-suggestions?] (cond
+                                            (and (= "\r" typed) (some? selected-suggestion))
+                                            (do (accept-suggestion! view-node)
+                                                [false false])
+
+                                            (and (= "(" typed) (= :function (:type selected-suggestion)))
+                                            (do (accept-suggestion! view-node)
+                                                [false false])
+
+                                            (and (= "." typed) (= :namespace (:type selected-suggestion)))
+                                            (do (accept-suggestion! view-node)
+                                                [true true])
+
+                                            (data/typing-deindents-line? grammar lines cursor-ranges typed)
+                                            [true false]
+
+                                            :else
+                                            [true true])]
+    (when insert-typed?
+      (when (set-properties! view-node undo-grouping
+                             (data/key-typed (get-property view-node :indent-level-pattern)
+                                             (get-property view-node :indent-string)
+                                             grammar
+                                             lines
+                                             cursor-ranges
+                                             (get-property view-node :regions)
+                                             (get-property view-node :layout)
+                                             typed))
+        (if show-suggestions?
+          (show-suggestions! view-node)
+          (hide-suggestions! view-node))))))
+
 (defn handle-key-pressed! [view-node ^KeyEvent event]
   ;; Only handle bare key events that cannot be bound to handlers here.
   (when-not (or (.isAltDown event)
@@ -1362,6 +1400,7 @@
                   KeyCode/RIGHT (move! view-node :navigation :right)
                   KeyCode/UP    (move! view-node :navigation :up)
                   KeyCode/DOWN  (move! view-node :navigation :down)
+                  KeyCode/ENTER (insert-text! view-node "\r")
                   ::unhandled))
       (.consume event))))
 
@@ -1373,44 +1412,15 @@
 
 (defn handle-key-typed! [view-node ^KeyEvent event]
   (.consume event)
-  (when (typable-key-event? event)
-    (let [typed (.getCharacter event)
-          undo-grouping (if (= "\r" typed) :newline :typing)
-          selected-suggestion (selected-suggestion view-node)
-          grammar (get-property view-node :grammar)
-          lines (get-property view-node :lines)
-          cursor-ranges (get-property view-node :cursor-ranges)
-          [insert-typed? show-suggestions?] (cond
-                                              (and (= "\r" typed) (some? selected-suggestion))
-                                              (do (accept-suggestion! view-node)
-                                                  [false false])
-
-                                              (and (= "(" typed) (= :function (:type selected-suggestion)))
-                                              (do (accept-suggestion! view-node)
-                                                  [false false])
-
-                                              (and (= "." typed) (= :namespace (:type selected-suggestion)))
-                                              (do (accept-suggestion! view-node)
-                                                  [true true])
-
-                                              (data/typing-deindents-line? grammar lines cursor-ranges typed)
-                                              [true false]
-
-                                              :else
-                                              [true true])]
-      (when insert-typed?
-        (when (set-properties! view-node undo-grouping
-                               (data/key-typed (get-property view-node :indent-level-pattern)
-                                               (get-property view-node :indent-string)
-                                               grammar
-                                               lines
-                                               cursor-ranges
-                                               (get-property view-node :regions)
-                                               (get-property view-node :layout)
-                                               typed))
-          (if show-suggestions?
-            (show-suggestions! view-node)
-            (hide-suggestions! view-node)))))))
+  (let [character (.getCharacter event)]
+    (when (and (typable-key-event? event)
+               ;; Ignore characters in the control range and the ASCII delete
+               ;; as it is done by JavaFX in `TextInputControlBehavior`'s
+               ;; `defaultKeyTyped` method.
+               (pos? (.length character))
+               (> (int (.charAt character 0)) 0x1f)
+               (not= (int (.charAt character 0)) 0x7f))
+      (insert-text! view-node character))))
 
 (defn- refresh-mouse-cursor! [view-node ^MouseEvent event]
   (let [hovered-element (get-property view-node :hovered-element)
