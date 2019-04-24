@@ -1420,7 +1420,7 @@
                (pos? (.length character))
                (> (int (.charAt character 0)) 0x1f)
                (not= (int (.charAt character 0)) 0x7f))
-      (insert-text! view-node (.getCharacter event)))))
+      (insert-text! view-node character))))
 
 (defn- refresh-mouse-cursor! [view-node ^MouseEvent event]
   (let [hovered-element (get-property view-node :hovered-element)
