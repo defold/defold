@@ -194,7 +194,7 @@ def build(bld):
 
         uselib = ['UUID', 'PLATFORM_SOCKET']
 
-        if 'web' in bld.env['PLATFORM']:
+        if not 'web' in bld.env['PLATFORM']:
             uselib.append("CARES")
 
         dlib = bld.new_task_gen(features = 'cc cxx cshlib skip_asan',
