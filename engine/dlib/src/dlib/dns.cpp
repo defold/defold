@@ -79,15 +79,19 @@ namespace dmDNS
         }
 
         assert(host->h_addr_list[0]);
-        if (host->h_addrtype == AF_INET)
+        if (req->m_Ipv4 && host->h_addrtype == AF_INET)
         {
             req->m_Address->m_family     = dmSocket::DOMAIN_IPV4;
             req->m_Address->m_address[3] = *(uint32_t*) host->h_addr_list[0];
         }
-        else if (host->h_addrtype == AF_INET6)
+        else if (req->m_Ipv6 && host->h_addrtype == AF_INET6)
         {
             req->m_Address->m_family = dmSocket::DOMAIN_IPV6;
             memcpy(&req->m_Address->m_address[0], host->h_addr_list[0], sizeof(struct in6_addr));
+        }
+        else
+        {
+            req->m_Status = ARES_ENOTFOUND;
         }
     }
 
@@ -158,7 +162,7 @@ namespace dmDNS
         }
         else
         {
-            req->m_Status = ARES_EBADQUERY;
+            req->m_Status = ARES_ENOTFOUND;
         }
 
         ares_freeaddrinfo(info);
@@ -235,17 +239,10 @@ namespace dmDNS
         Channel* dns_channel = (Channel*) channel;
 
         RequestResult req;
-        int32_t want_family = 0;
-
-        if (ipv4 == ipv6)
-            want_family = AF_UNSPEC;
-        else if (ipv4)
-            want_family = AF_INET;
-        else if (ipv6)
-            want_family = AF_INET6;
-
         req.m_Address = address;
         req.m_Status  = ARES_SUCCESS;
+        req.m_Ipv4    = ipv4;
+        req.m_Ipv6    = ipv6;
 
         struct in_addr       addr4;
         struct ares_in6_addr addr6;
@@ -263,12 +260,19 @@ namespace dmDNS
         }
         else
         {
+            int32_t want_family = 0;
+
+            if (ipv4 == ipv6)
+                want_family = AF_UNSPEC;
+            else if (ipv4)
+                want_family = AF_INET;
+            else if (ipv6)
+                want_family = AF_INET6;
+
             ares_addrinfo hints;
             memset(&hints, 0x0, sizeof(hints));
             hints.ai_family   = want_family;
             hints.ai_socktype = SOCK_STREAM; // Note: TCP hint not supported
-            req.m_Ipv4        = ipv4;
-            req.m_Ipv6        = ipv6;
 
             ares_getaddrinfo(dns_channel->m_Handle, name, NULL, &hints, ares_addrinfo_callback, (void*)&req);
         }
