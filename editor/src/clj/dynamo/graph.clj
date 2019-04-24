@@ -765,6 +765,16 @@
      (update-cache-from-evaluation-context! ~ec)
      result#))
 
+(def fake-system (is/make-system {:cache-size 0}))
+
+(defmacro with-auto-or-fake-evaluation-context [ec & body]
+  `(let [real-system# @*the-system*
+         ~ec (is/default-evaluation-context (or real-system# fake-system))
+         result# (do ~@body)]
+     (when (some? real-system#)
+       (update-cache-from-evaluation-context! ~ec))
+     result#))
+
 (defn invalidate-counter
   ([node-id output]
    (get (:invalidate-counters @*the-system*) [node-id output]))

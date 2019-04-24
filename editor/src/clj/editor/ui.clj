@@ -1719,7 +1719,7 @@
 
 (defn refresh
   [^Scene scene]
-  (g/with-auto-evaluation-context evaluation-context
+  (g/with-auto-or-fake-evaluation-context evaluation-context
     (refresh-menus! scene (or (user-data scene :command->shortcut) {}) evaluation-context)
     (refresh-toolbars! scene evaluation-context)))
 
