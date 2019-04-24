@@ -98,10 +98,13 @@ def build(bld):
               '%s/share/java/sound_android.jar' % (dynamo_home),
               '%s/share/java/iac_android.jar' % (dynamo_home)]
 
+    web_libs = ['library_glfw.js', 'library_sys.js', 'library_script.js', 'library_facebook_iap.js', 'library_sound.js']
+
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
         uselib = 'WEBVIEWEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine engine_service',
+        web_libs = web_libs,
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
@@ -130,6 +133,7 @@ def build(bld):
         features = 'cc cxx cprogram apk web extract_symbols',
         uselib = 'WEBVIEWEXT PROFILEREXT_NULL GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine_release engine_service_null',
+        web_libs = web_libs,
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
@@ -165,6 +169,7 @@ def build(bld):
         uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH DLIB LIVEUPDATE SOUND_NULL CRASH %s' % (additional_libs,),
         exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine engine_service',
+        web_libs = web_libs,
         includes = '../build ../proto . ..',
         proto_gen_py = True,
         protoc_includes = '../proto',

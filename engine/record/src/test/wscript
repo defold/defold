@@ -2,6 +2,8 @@
 import re
 
 def build(bld):
+    if 'web' in bld.env.PLATFORM:
+        return
     if bld.env.PLATFORM.find('arm') == -1:
         vpx = 'VPX'
         record = 'record'
