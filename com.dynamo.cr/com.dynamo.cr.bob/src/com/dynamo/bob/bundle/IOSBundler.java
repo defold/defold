@@ -115,54 +115,46 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Collect bundle/package resources to be included in .App directory
-        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
+        String tmpPlatform = project.option("platform", null);
+        boolean simulatorBinary = tmpPlatform != null && tmpPlatform.equals("x86_64-ios");
+
+        Map<String, IResource> bundleResources = null;
+        if (simulatorBinary) {
+            bundleResources = ExtenderUtil.collectResources(project, Platform.X86_64Ios);
+        } else {
+            // Collect bundle/package resources to be included in .App directory
+            bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
+        }
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         final boolean strip_executable = project.hasOption("strip-executable");
 
-        List<File> binsArmv7 = null;
-        List<File> binsArm64 = null;
+        List<Platform> architectures = new ArrayList<Platform>();
+        String[] architecturesStrings = project.option("architectures", "").split(",");
+        for (int i = 0; i < architecturesStrings.length; i++) {
+            architectures.add(Platform.get(architecturesStrings[i]));
+        }
 
         // If a custom engine was built we need to copy it
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
-        BundleHelper.throwIfCanceled(canceled);
-        // armv7 exe
-        {
-            Platform targetPlatform = Platform.Armv7Darwin;
-            binsArmv7 = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
-            if (binsArmv7 == null) {
-                binsArmv7 = Bob.getDefaultDmengineFiles(targetPlatform, variant);
+        // Loop over all architectures needed for bundling
+        // Pickup each binary, either vanilla or from a extender build.
+        List<File> binaries = new ArrayList<File>();
+        for (Platform architecture : architectures) {
+            List<File> bins = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
+            if (bins == null) {
+                bins = Bob.getDefaultDmengineFiles(architecture, variant);
+            } else {
+                logger.log(Level.INFO, "Using extender binary for " + architecture.getPair());
             }
-            else {
-                logger.log(Level.INFO, "Using extender exe for Armv7");
-            }
-        }
-        if (binsArmv7.size() > 1) {
-            throw new IOException("Invalid number of binaries for (armv7) iOS when bundling: " + binsArmv7.size());
-        }
-        File exeArmv7 = binsArmv7.get(0);
 
-        BundleHelper.throwIfCanceled(canceled);
-        // arm64 exe
-        {
-            Platform targetPlatform = Platform.Arm64Darwin;
-            binsArm64 = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
-            if (binsArm64 == null) {
-                binsArm64 = Bob.getDefaultDmengineFiles(targetPlatform, variant);
-            }
-            else {
-                logger.log(Level.INFO, "Using extender exe for Arm64");
-            }
-        }
-        if (binsArm64.size() > 1) {
-            throw new IOException("Invalid number of binaries for (arm64) iOS when bundling: " + binsArm64.size());
-        }
-        File exeArm64 = binsArm64.get(0);
+            File binary = bins.get(0);
+            logger.log(Level.INFO, architecture.getPair() + " exe: " + getFileDescription(binary));
+            binaries.add(binary);
 
-        logger.log(Level.INFO, "Armv7 exe: " + getFileDescription(exeArmv7));
-        logger.log(Level.INFO, "Arm64 exe: " + getFileDescription(exeArm64));
+            BundleHelper.throwIfCanceled(canceled);
+        }
 
         BundleHelper.throwIfCanceled(canceled);
         BobProjectProperties projectProperties = project.getProjectProperties();
@@ -173,8 +165,24 @@ public class IOSBundler implements IBundler {
         File appDir = new File(bundleDir, title + ".app");
         logger.log(Level.INFO, "Bundling to " + appDir.getPath());
 
-        String provisioningProfile = project.option("mobileprovisioning", "");
-        String identity = project.option("identity", "");
+        String provisioningProfile = project.option("mobileprovisioning", null);
+        String identity = project.option("identity", null);
+        Boolean shouldSign = provisioningProfile != null && identity != null;
+
+        // Verify that the user supplied both of the needed arguments if the application should be signed.
+        if (shouldSign) {
+            if (provisioningProfile == null) {
+                throw new IOException("Cannot sign application without a provisioning profile, missing --mobileprovisioning argument.");
+            } else if (identity == null) {
+                throw new IOException("Cannot sign application without a signing identity, missing --identity argument.");
+            }
+        }
+
+        if (shouldSign) {
+            logger.log(Level.INFO, "Code signing enabled.");
+        } else {
+            logger.log(Level.INFO, "Code signing disabled.");
+        }
 
         String projectRoot = project.getRootDirectory();
 
@@ -286,11 +294,13 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
         // Copy Provisioning Profile
-        File provisioningProfileFile = new File(provisioningProfile);
-        if (!provisioningProfileFile.exists()) {
-            throw new IOException(String.format("You must specify a valid provisioning profile '%s'", provisioningProfile.length() == 0 ? "" : provisioningProfileFile.getAbsolutePath()));
+        if (shouldSign) {
+            File provisioningProfileFile = new File(provisioningProfile);
+            if (!provisioningProfileFile.exists()) {
+                throw new IOException(String.format("You must specify a valid provisioning profile '%s'", provisioningProfile.length() == 0 ? "" : provisioningProfileFile.getAbsolutePath()));
+            }
+            FileUtils.copyFile(provisioningProfileFile, new File(appDir, "embedded.mobileprovision"));
         }
-        FileUtils.copyFile(provisioningProfileFile, new File(appDir, "embedded.mobileprovision"));
 
         BundleHelper.throwIfCanceled(canceled);
         // Create fat/universal binary
@@ -299,8 +309,18 @@ public class IOSBundler implements IBundler {
         String exe = tmpFile.getPath();
 
         BundleHelper.throwIfCanceled(canceled);
-        // Run lipo to add exeArmv7 + exeArm64 together into universal bin
-        Result lipoResult = Exec.execResult( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7.getAbsolutePath(), exeArm64.getAbsolutePath(), "-output", exe );
+
+        // Run lipo on supplied architecture binaries.
+        List<String> lipoArgList = new ArrayList<String>();
+        lipoArgList.add(Bob.getExe(Platform.getHostPlatform(), "lipo"));
+        lipoArgList.add("-create");
+        for (File bin : binaries) {
+            lipoArgList.add(bin.getAbsolutePath());
+        }
+        lipoArgList.add("-output");
+        lipoArgList.add(exe);
+
+        Result lipoResult = Exec.execResult( lipoArgList.toArray(new String[0]) );
         if (lipoResult.ret == 0) {
             logger.log(Level.INFO, "Universal binary: " + getFileDescription(tmpFile));
         }
@@ -328,8 +348,12 @@ public class IOSBundler implements IBundler {
         destExecutable.setExecutable(true);
         logger.log(Level.INFO, "Bundle binary: " + getFileDescription(destExecutable));
 
-        // Sign
-        if (identity != null && provisioningProfile != null) {
+        // Sign (only if identity and provisioning profile set)
+        // iOS simulator can install non signed apps
+        if (shouldSign && !identity.isEmpty() && !provisioningProfile.isEmpty()) {
+            // Copy Provisioning Profile
+            FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
+
             File textProvisionFile = File.createTempFile("mobileprovision", ".plist");
             textProvisionFile.deleteOnExit();
 
@@ -391,36 +415,37 @@ public class IOSBundler implements IBundler {
             BundleHelper.throwIfCanceled(canceled);
             Process process = processBuilder.start();
             logProcess(process);
-
-            BundleHelper.throwIfCanceled(canceled);
-            // Package zip file
-            File tmpZipDir = createTempDirectory();
-            tmpZipDir.deleteOnExit();
-
-            BundleHelper.throwIfCanceled(canceled);
-            // NOTE: We replaced the java zip file implementation(s) due to the fact that XCode didn't want
-            // to import the resulting zip files.
-            File payloadDir = new File(tmpZipDir, "Payload");
-            payloadDir.mkdir();
-
-            BundleHelper.throwIfCanceled(canceled);
-            processBuilder = new ProcessBuilder("cp", "-r", appDir.getAbsolutePath(), payloadDir.getAbsolutePath());
-            process = processBuilder.start();
-            logProcess(process);
-
-            BundleHelper.throwIfCanceled(canceled);
-            File zipFile = new File(bundleDir, title + ".ipa");
-            File zipFileTmp = new File(bundleDir, title + ".ipa.tmp");
-            processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName());
-            processBuilder.directory(tmpZipDir);
-
-            BundleHelper.throwIfCanceled(canceled);
-            process = processBuilder.start();
-            logProcess(process);
-
-            BundleHelper.throwIfCanceled(canceled);
-            Files.move( Paths.get(zipFileTmp.getAbsolutePath()), Paths.get(zipFile.getAbsolutePath()), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            logger.log(Level.INFO, "Finished ipa: " + getFileDescription(zipFile));
         }
+
+        // Package into IPA zip
+        BundleHelper.throwIfCanceled(canceled);
+
+        // Package zip file
+        File tmpZipDir = createTempDirectory();
+        tmpZipDir.deleteOnExit();
+
+        // NOTE: We replaced the java zip file implementation(s) due to the fact that XCode didn't want
+        // to import the resulting zip files.
+        File payloadDir = new File(tmpZipDir, "Payload");
+        payloadDir.mkdir();
+
+        BundleHelper.throwIfCanceled(canceled);
+        ProcessBuilder processBuilder = new ProcessBuilder("cp", "-r", appDir.getAbsolutePath(), payloadDir.getAbsolutePath());
+        Process process = processBuilder.start();
+        logProcess(process);
+
+        BundleHelper.throwIfCanceled(canceled);
+        File zipFile = new File(bundleDir, title + ".ipa");
+        File zipFileTmp = new File(bundleDir, title + ".ipa.tmp");
+        processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName());
+        processBuilder.directory(tmpZipDir);
+
+        BundleHelper.throwIfCanceled(canceled);
+        process = processBuilder.start();
+        logProcess(process);
+
+        BundleHelper.throwIfCanceled(canceled);
+        Files.move( Paths.get(zipFileTmp.getAbsolutePath()), Paths.get(zipFile.getAbsolutePath()), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        logger.log(Level.INFO, "Finished ipa: " + getFileDescription(zipFile));
     }
 }

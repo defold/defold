@@ -14,7 +14,7 @@ function luajit_configure() {
 	export PREFIX=`pwd`/build
 	export INSTALL_LIB=$PREFIX/lib/$CONF_TARGET
 	export INSTALL_BIN=$PREFIX/bin/$CONF_TARGET
-	
+
 	# These are where the .lua files go. Do not want them in default
 	# folder as that includes the version, which complicates things
 	# in bob, where LUAJIT_PATH must be matched to the location of
@@ -35,6 +35,13 @@ function luajit_configure() {
 		arm64-darwin)
 			TAR_SKIP_BIN=1
 			XFLAGS+="-DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT"
+			export HOST_CC="clang -m64"
+			export HOST_CFLAGS="$XFLAGS -m64 -I."
+			export HOST_ALDFLAGS="-m64"
+			;;
+		x86_64-ios)
+			TAR_SKIP_BIN=1
+			XFLAGS+="-DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT -DLJ_NO_SYSTEM"
 			export HOST_CC="clang -m64"
 			export HOST_CFLAGS="$XFLAGS -m64 -I."
 			export HOST_ALDFLAGS="-m64"
@@ -104,6 +111,9 @@ case $1 in
 		export TARGET_SYS=iOS
 		;;
 	arm64-darwin)
+		export TARGET_SYS=iOS
+		;;
+	x86_64-ios)
 		export TARGET_SYS=iOS
 		;;
 	armv7-android)

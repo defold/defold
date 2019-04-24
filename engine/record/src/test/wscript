@@ -4,7 +4,7 @@ import re
 def build(bld):
     if 'web' in bld.env.PLATFORM:
         return
-    if bld.env.PLATFORM.find('arm') == -1:
+    if bld.env.PLATFORM.find('arm') == -1 and bld.env.PLATFORM != "x86_64-ios":
         vpx = 'VPX'
         record = 'record'
     else:
@@ -12,7 +12,7 @@ def build(bld):
         record = 'record_null'
 
     extra_defines = []
-    if re.match('arm.*?darwin', bld.env.PLATFORM):
+    if bld.env.PLATFORM in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
         extra_defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
     test_record = bld.new_task_gen(features='cxx cprogram test',

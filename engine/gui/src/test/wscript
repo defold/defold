@@ -49,7 +49,7 @@ def build(bld):
 
     test_gui_clipping.install_path = None
 
-    if not ('web' in bld.env.PLATFORM) and (not (re.match('arm.*', bld.env.PLATFORM))):
+    if not bld.env.PLATFORM in ('js-web', 'wasm-web', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
         guidemo = bld.new_task_gen(features = 'cxx cprogram test',
                                    includes = '../../../src',
                                    uselib = 'SCRIPT EXTENSION RESOURCE PARTICLE RIG HID DDF DLIB PLATFORM_SOCKET LUA DMGLFW X',
