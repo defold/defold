@@ -100,7 +100,7 @@ def build(bld):
               '%s/share/java/sound_android.jar' % (dynamo_home),
               '%s/share/java/iac_android.jar' % (dynamo_home)]
 
-    web_libs = ['library_glfw.js', 'library_sys.js', 'library_script.js', 'library_facebook_iap.js', 'library_sound.js']
+    web_libs = ['library_glfw.js', 'library_sys.js', 'library_script.js', 'library_facebook.js', 'library_facebook_iap.js', 'library_sound.js']
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
