@@ -294,7 +294,7 @@ def default_flags(self):
 
         self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-fobjc-link-runtime', '-isysroot', sys_root, '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
 
-    elif 'android' == build_util.get_target_os(): # and 'armv7' == build_util.get_target_architecture():
+    elif 'android' == build_util.get_target_os():
         target_arch = build_util.get_target_architecture()
         sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-%s' % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidNDKAPIVersion(target_arch), getAndroidNDKArch(target_arch))
         stl="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/include" % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidGCCVersion(target_arch))

@@ -149,7 +149,7 @@ public class AndroidBundler implements IBundler {
             FileUtils.forceMkdir(new File(appDir, "libs/" + platformToLibMap.get(architecture)));
         }
 
-        Platform targetPlatform = Platform.Armv7Android; // TODO jbnn is this ok? Should differentiate between armv7 arm64?
+        Platform targetPlatform = Platform.Armv7Android;
         BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, "");
 
         // Create APK
@@ -185,7 +185,7 @@ public class AndroidBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         // Collect bundle/package resources to be included in APK zip
-        Map<String, IResource> allResources = ExtenderUtil.collectResources(project, Platform.Arm64Android);
+        Map<String, IResource> allResources = ExtenderUtil.collectResources(project, targetPlatform);
 
         // bundleResources = allResources - androidResources
         // Remove any paths that begin with any android resource paths so they are not added twice (once by us, and once by aapt)
