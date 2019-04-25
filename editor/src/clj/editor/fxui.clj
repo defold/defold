@@ -103,9 +103,6 @@
 (defn dialog-buttons [props]
   (assoc props :fx/type :h-box :style-class "dialog-buttons"))
 
-(defn header [props]
-  (assoc props :fx/type :label :style-class "header"))
-
 (defn label [{:keys [variant]
               :or {variant :label}
               :as props}]
@@ -155,3 +152,14 @@
              :style-class ["text-field" (case variant
                                           :default "text-field-default"
                                           :error "text-field-error")])))
+
+(defn icon [{:keys [type scale]
+             :or {scale 1}}]
+  {:fx/type :group
+   :children [{:fx/type :svg-path
+               :scale-x scale
+               :scale-y scale
+               :fill (case type
+                       :error "#e32f44")
+               :content (case type
+                          :error "M33.6,27.4L20.1,3.9c-0.6-1-1.6-1.5-2.6-1.5s-2,0.5-2.6,1.5L1.4,27.4C0.2,29.4,1.7,32,4.1,32h26.8 C33.3,32,34.8,29.4,33.6,27.4z M32.7,30c-0.4,0.7-1.1,1.1-1.8,1.1H4.1c-0.8,0-1.4-0.4-1.8-1.1c-0.4-0.7-0.4-1.4,0-2.1L15.8,4.4 c0.4-0.6,1-1,1.7-1s1.3,0.4,1.7,1l13.5,23.4C33.1,28.5,33.1,29.3,32.7,30z M18.1,25.5c0,0.4-0.3,0.7-0.7,0.7s-0.7-0.3-0.7-0.7 c0-0.4,0.3-0.7,0.7-0.7S18.1,25.1,18.1,25.5z M17,22.6v-9.1c0-0.3,0.2-0.5,0.5-0.5s0.5,0.2,0.5,0.5v9.1c0,0.3-0.2,0.5-0.5,0.5 S17,22.9,17,22.6z")}]})

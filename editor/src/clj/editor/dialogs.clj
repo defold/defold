@@ -140,32 +140,67 @@
      (.setScene stage scene)
      (ui/show-and-wait! stage))))
 
-(defn make-confirm-dialog
-  ([text]
-   (make-confirm-dialog text {}))
-  ([text options]
-   (let [root ^Region (ui/load-fxml "confirm.fxml")
-         stage (if-let [owner-window (:owner-window options)]
-                 (ui/make-dialog-stage owner-window)
-                 (ui/make-dialog-stage))
-         scene (Scene. root)
-         result-atom (atom false)]
-     (ui/with-controls root [^Label message ^Button ok ^Button cancel]
-       (ui/text! message text)
-       (ui/text! ok (get options :ok-label "OK"))
-       (ui/text! cancel (get options :cancel-label "Cancel"))
-       (ui/on-action! ok (fn [_]
-                           (reset! result-atom true)
-                           (ui/close! stage)))
-       (ui/on-action! cancel (fn [_]
-                               (ui/close! stage)))
-       (when-let [pref-width (:pref-width options)]
-         (.setPrefWidth root pref-width))
-       (ui/title! stage (get options :title "Please Confirm"))
-       (.setScene stage scene)
-       (.requestFocus ok))
-     (ui/show-and-wait! stage)
-     @result-atom)))
+(defn- make-confirmation-dialog-fx [{:keys [owner header title buttons size content]
+                                     :or {title ""
+                                          size :small
+                                          owner ::no-owner}}]
+  (let [header-desc (if (string? header)
+                      {:fx/type fxui/label
+                       :variant :header
+                       :text header}
+                      header)
+        button-descs (mapv (fn [button-props]
+                             (let [button-desc (-> button-props
+                                                   (assoc :fx/type fxui/button
+                                                          :on-action {:result (:result button-props)})
+                                                   (dissoc :result))]
+                               (if (:default-button button-props)
+                                 {:fx/type fxui/ext-focused-by-default
+                                  :desc (assoc button-desc :variant :primary)}
+                                 button-desc)))
+                           buttons)
+        desc {:fx/type fxui/dialog-stage
+              :on-close-request {:result (:result (some #(when (:cancel-button %) %) buttons))}
+              :title title
+              :owner {:fx/type fxui/ext-value
+                      :value (if (= owner ::no-owner) (ui/main-stage) owner)}
+              :scene {:fx/type :scene
+                      :stylesheets ["dialogs.css"]
+                      :root {:fx/type fxui/dialog-body
+                             :size size
+                             :header header-desc
+                             :content content
+                             :footer {:fx/type fxui/dialog-buttons
+                                      :children button-descs}}}}]
+    (fn [props]
+      (assoc desc :showing (not (contains? props :result))))))
+
+(defn make-confirmation-dialog
+  "Shows a dialog and blocks current thread until users selects one option.
+
+  `props` is a map used to configure such dialog, allowed keys are:
+  - `:header` (required) - either a string or fx description of a dialog header
+  - `:buttons` (required) - a coll of button descriptions. Button
+    description is a map of `fxui/button` props with few caveats:
+    * you don't have to specify `:fx/type`
+    * it should have `:result` key, it's value will be returned from this
+      function
+    * if you specify `:default-button`, it will be styled as primary and receive
+      focus by default
+    * if you specify `:cancel-button`, closing window using `x` button will
+      return `:result` from such button (and `nil` otherwise)
+  - `:content` (optional) - dialogs, content area, fx description
+  - `:title` (optional, default \"\") - window title
+  - `:owner` (optional) - a Stage that dialog will block, if not provided it
+    will block all windows
+  - `:size` (optional, default `:small`) - dialog size, either `:small` or
+    `:large`"
+  [props]
+  (let [state-atom (atom {})
+        renderer (fx/create-renderer
+                   :opts {:fx.opt/map-event-handler #(reset! state-atom {:result (:result %)})}
+                   :middleware (fx/wrap-map-desc assoc :fx/type (make-confirmation-dialog-fx props)))]
+    (fxui/mount-renderer-and-await-result! state-atom renderer)))
 
 (defn- digit-string? [^String x]
   (and (pos? (.length x))
@@ -230,84 +265,69 @@
     (fxui/mount-renderer-and-await-result! state-atom renderer)))
 
 (defn make-update-failed-dialog [^Stage owner]
-  (let [root ^Parent (ui/load-fxml "update-failed-alert.fxml")
-        stage (ui/make-dialog-stage owner)
-        scene (Scene. root)]
-    (ui/title! stage "Update failed")
-    (ui/with-controls root [^Button quit ^Button open-site]
-      (ui/on-action! quit
-        (fn [_]
-          (ui/close! stage)))
-      (ui/on-action! open-site
-        (fn [_]
-          (ui/open-url "https://www.defold.com/")
-          (ui/close! stage))))
-    (.setScene stage scene)
-    (ui/show-and-wait! stage)))
+  (let [result (make-confirmation-dialog
+                 {:title "Update Failed"
+                  :owner owner
+                  :header {:fx/type :v-box
+                           :children [{:fx/type fxui/label
+                                       :variant :header
+                                       :text "An Error Occurred During Update Installation"}
+                                      {:fx/type fxui/label
+                                       :text "You probably should perform a fresh install"}]}
+                  :buttons [{:text "Quit"
+                             :cancel-button true
+                             :result false}
+                            {:text "Open defold.com"
+                             :default-button true
+                             :result true}]})]
+    (when result
+      (ui/open-url "https://www.defold.com/"))
+    result))
 
 (defn make-download-update-or-restart-dialog [^Stage owner]
-  (let [root ^Parent (ui/load-fxml "update-or-restart-alert.fxml")
-        stage (ui/make-dialog-stage owner)
-        scene (Scene. root)
-        result-atom (atom :cancel)
-        make-action-fn (fn action! [result]
-                         (fn [_]
-                           (reset! result-atom result)
-                           (ui/close! stage)))]
-    (ui/title! stage "Update Available")
-    (ui/with-controls root [^Button cancel ^Button restart ^Button download]
-      (ui/on-action! cancel (make-action-fn :cancel))
-      (ui/on-action! restart (make-action-fn :restart))
-      (ui/on-action! download (make-action-fn :download)))
-    (.setScene stage scene)
-    (ui/show-and-wait! stage)
-    @result-atom))
+  (make-confirmation-dialog
+    {:title "Update Available"
+     :size :large
+     :owner owner
+     :header {:fx/type :v-box
+              :children [{:fx/type fxui/label
+                          :variant :header
+                          :text "Update Is Ready, but There Is Even Newer Version Available"}
+                         {:fx/type fxui/label
+                          :text "You can install downloaded update or download newer one"}]}
+     :buttons [{:text "Not Now"
+                :cancel-button true
+                :result :cancel}
+               {:text "Install and Restart"
+                :result :restart}
+               {:text "Download Newer Version"
+                :result :download}]}))
 
 (defn make-platform-no-longer-supported-dialog [^Stage owner]
-  (let [root ^Parent (ui/load-fxml "platform-no-longer-supported-alert.fxml")
-        stage (ui/make-dialog-stage owner)
-        scene (Scene. root)]
-    (ui/title! stage "Update Available")
-    (ui/with-controls root [^Button close]
-      (ui/on-action! close (fn on-close! [_]
-                             (ui/close! stage))))
-    (.setScene stage scene)
-    (ui/show-and-wait! stage)))
-
-(defn fx-download-update-dialog [{:keys [owner] :as props}]
-  {:fx/type fxui/dialog-stage
-   :showing (not (contains? props :result))
-   :owner {:fx/type fxui/ext-value :value owner}
-   :on-close-request {:result false}
-   :title "Update Available"
-   :scene {:fx/type :scene
-           :stylesheets ["dialogs.css"]
-           :root {:fx/type fxui/dialog-body
-                  :header {:fx/type fxui/label
-                           :variant :header
-                           :text "A newer version of Defold is available!"}
-                  :footer {:fx/type fxui/dialog-buttons
-                           :children [{:fx/type fxui/button
-                                       :cancel-button true
-                                       :text "Not Now"
-                                       :on-action {:result false}}
-                                      {:fx/type fxui/ext-focused-by-default
-                                       :desc {:fx/type fxui/button
-                                              :variant :primary
-                                              :default-button true
-                                              :text "Download Update"
-                                              :on-action {:result true}}}]}}}})
+  (make-confirmation-dialog
+    {:title "Update Available"
+     :owner owner
+     :header {:fx/type :v-box
+              :children [{:fx/type fxui/label
+                          :variant :header
+                          :text "Updates Are No Longer Provided for This Platform"}
+                         {:fx/type fxui/label
+                          :text "Supported platforms are 64-bit Linux, MacOS and Windows"}]}
+     :buttons [{:text "Close"
+                :cancel-button true
+                :default-button true}]}))
 
 (defn make-download-update-dialog [^Stage owner]
-  ;; TODO vlaaad: don't need state here at all? Or need result to show/hide stage???? NEED!
-  (let [state-atom (atom {})
-        renderer (fx/create-renderer
-                   :opts {:fx.opt/map-event-handler
-                          (fxui/wrap-state-handler state-atom
-                            (fn [{:keys [result]}]
-                              {:state {:result result}}))}
-                   :middleware (fx/wrap-map-desc assoc :fx/type fx-download-update-dialog :owner owner))]
-    (fxui/mount-renderer-and-await-result! state-atom renderer)))
+  (make-confirmation-dialog
+    {:title "Update Available"
+     :header "A newer version of Defold is available!"
+     :owner owner
+     :buttons [{:text "Not Now"
+                :cancel-button true
+                :result false}
+               {:text "Download Update"
+                :default-button true
+                :result true}]}))
 
 (handler/defhandler ::report-error :dialog
   (run [sentry-id-promise]

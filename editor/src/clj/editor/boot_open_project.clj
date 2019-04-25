@@ -14,6 +14,7 @@
             [editor.disk :as disk]
             [editor.disk-availability :as disk-availability]
             [editor.form-view :as form-view]
+            [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.graph-view :as graph-view]
             [editor.hot-reload :as hot-reload]
@@ -222,7 +223,15 @@
 
       (ui/on-closing! stage (fn [_]
                               (let [result (or (empty? (project/dirty-save-data project))
-                                             (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))]
+                                               (dialogs/make-confirmation-dialog
+                                                 {:title "Close Defold"
+                                                  :header "Unsaved Changes Exist, Are You Sure You Want to Quit?"
+                                                  :buttons [{:text "Cancel and Keep Working"
+                                                             :default-button true
+                                                             :cancel-button true
+                                                             :result false}
+                                                            {:text "Quit Without Saving"
+                                                             :result true}]}))]
                                 (when result
                                   (app-view/store-window-dimensions stage prefs)
                                   (app-view/store-split-positions! scene prefs)
@@ -290,12 +299,21 @@
         (if (sync/flow-in-progress? git)
           (ui/run-later
             (loop []
-              (if-not (dialogs/make-confirm-dialog (str "The editor was shut down while synchronizing with the server.\n"
-                                                        "Resume syncing or cancel and revert to the pre-sync state?")
-                                                   {:title "Resume Sync?"
-                                                    :ok-label "Resume Sync"
-                                                    :cancel-label "Cancel Sync"
-                                                    :pref-width Region/USE_COMPUTED_SIZE})
+              (if-not (dialogs/make-confirmation-dialog
+                        {:title "Resume Sync"
+                         :size :large
+                         :header {:fx/type :v-box
+                                  :children [{:fx/type fxui/label
+                                              :variant :header
+                                              :text "The Editor Was Shut down While Synchronizing with the Server"}
+                                             {:fx/type fxui/label
+                                              :text "Resume syncing or cancel and revert to the pre-sync state?"}]}
+                         :buttons [{:text "Cancel and Revert"
+                                    :cancel-button true
+                                    :result false}
+                                   {:text "Resume Sync"
+                                    :default-button true
+                                    :result true}]})
                 ;; User chose to cancel sync.
                 (do (sync/interactive-cancel! (partial sync/cancel-flow-in-progress! git))
                     (async-reload! workspace changes-view))

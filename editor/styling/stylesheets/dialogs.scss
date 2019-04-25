@@ -33,16 +33,17 @@ $red-darker: #6b2f34; //derive($red, -40%);
   src: url("SourceSansPro-Semibold.ttf");
 }
 
+$spacing-smaller: 16px;
+$spacing-normal: 24px;
+$spacing-larger: 32px;
+$spacing-largest: 40px;
+
 @mixin font-size-default { -fx-font-size: 14px; }
 @mixin font-size-header { -fx-font-size: 22px; }
 @mixin font-default { -fx-font-family: "Source Sans Pro"; }
 @mixin font-light { -fx-font-family: "Source Sans Pro Light"; }
 @mixin text-fill-text-color { -fx-text-fill: $light-grey; }
-
-$spacing-smaller: 16px;
-$spacing-normal: 24px;
-$spacing-larger: 32px;
-$spacing-largest: 40px;
+@mixin spacing-smaller { -fx-spacing: $spacing-smaller;}
 
 .dialog-body {
   -fx-background-color: $dark-grey;
@@ -131,7 +132,7 @@ $spacing-largest: 40px;
 }
 
 .dialog-buttons {
-  -fx-spacing: $spacing-smaller;
+  @include spacing-smaller();
   -fx-alignment: center-right;
 }
 .dialog-with-content-footer {
@@ -139,6 +140,10 @@ $spacing-largest: 40px;
 }
 .dialog-without-content-footer {
   -fx-padding: 0 $spacing-normal $spacing-normal $spacing-normal;
+}
+
+.spacing-smaller {
+  @include spacing-smaller();
 }
 
 .text-field {
