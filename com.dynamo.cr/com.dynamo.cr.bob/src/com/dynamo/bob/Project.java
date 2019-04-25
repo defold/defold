@@ -763,8 +763,17 @@ public class Project {
                         appmanifestOptions.put("baseVariant", variant);
                         appmanifestOptions.put("withSymbols", withSymbols.toString());
 
-                        final String[] architecturesStrings = this.option("architectures", "").split(",");
-                        buildEngine(monitor, architecturesStrings, appmanifestOptions);
+                        // Since this can be a call from Editor we can't expect the architectures option to be set.
+                        // We default to the default architectures for the platform, and take the option value
+                        // only if it has been set.
+                        Platform platform = this.getPlatform();
+                        String[] architectures = platform.getArchitectures().getDefaultArchitectures();
+                        String customArchitectures = this.option("architectures", null);
+                        if (customArchitectures != null) {
+                            architectures = customArchitectures.split(",");
+                        }
+
+                        buildEngine(monitor, architectures, appmanifestOptions);
                     } else {
                         // Remove the remote built executables in the build folder, they're still in the cache
                         cleanEngine(monitor, platforms);
