@@ -585,7 +585,7 @@
                                             :transform transform
                                             :aabb geom/empty-bounding-box
                                             :renderable {:passes [pass/selection]})))
-  (output build-targets g/Any :cached produce-coll-inst-build-targets)
+  (output build-targets g/Any produce-coll-inst-build-targets)
   (output sub-ddf-properties g/Any :cached (g/fnk [id ddf-properties]
                                                   (map (fn [m] (update m :id (fn [s] (format "%s/%s" id s)))) ddf-properties)))
   (output go-inst-ids g/Any :cached (g/fnk [id go-inst-ids] (into {} (map (fn [[k v]] [(format "%s/%s" id k) v]) go-inst-ids)))))
