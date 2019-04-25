@@ -644,7 +644,7 @@ public class Project {
 
                 BundleHelper.throwIfCanceled(monitor);
 
-                List<ExtenderResource> extraSource = helper.generateAndroidResources(this, platform, resDir, manifestFile, null, tmpDir);
+                List<ExtenderResource> extraSource = helper.generateAndroidResources(this, resDir, manifestFile, null, tmpDir);
                 allSource.addAll(extraSource);
             }
 

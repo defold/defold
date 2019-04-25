@@ -321,7 +321,7 @@ public class BundleHelper {
         FileUtils.forceMkdir(new File(dir, "drawable-xxxhdpi"));
     }
 
-    public List<ExtenderResource> generateAndroidResources(Project project, Platform platform, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError, IOException {
+    public List<ExtenderResource> generateAndroidResources(Project project, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError, IOException {
         List<String> resourceDirectories = new ArrayList<>();
 
         BundleHelper.createAndroidResourceFolders(resDir);

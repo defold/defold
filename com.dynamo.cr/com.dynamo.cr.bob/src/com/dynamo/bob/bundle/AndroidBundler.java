@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +66,17 @@ public class AndroidBundler implements IBundler {
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
         Bob.initAndroid(); // extract resources
 
+        Hashtable<Platform, String> platformToLibMap = new Hashtable<Platform, String>();
+        platformToLibMap.put(Platform.Armv7Android, "armeabi-v7a");
+        platformToLibMap.put(Platform.Arm64Android, "arm64-v8a");
+
+        Hashtable<Platform, String> platformToStripToolMap = new Hashtable<Platform, String>();
+        platformToStripToolMap.put(Platform.Armv7Android, "strip_android");
+        platformToStripToolMap.put(Platform.Arm64Android, "strip_android_aarch64");
+
+        Hashtable<Platform, File> platformToExeFileMap = new Hashtable<Platform, File>();
+        Hashtable<Platform, String> platformToExePathMap = new Hashtable<Platform, String>();
+
         BobProjectProperties projectProperties = project.getProjectProperties();
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         final boolean strip_executable = project.hasOption("strip-executable");
@@ -76,27 +88,27 @@ public class AndroidBundler implements IBundler {
         String key = project.option("private-key", "");
         boolean debuggable = Integer.parseInt(projectProperties.getStringValue("android", "debuggable", "0")) != 0;
 
-        // If a custom engine was built we need to copy it
-
         BundleHelper.throwIfCanceled(canceled);
 
-        ArrayList<File> classesDex = new ArrayList<File>();
-        ArrayList<String> classesDexFilenames = new ArrayList<String>();
-        ArrayList<String> classesDex64Filenames = new ArrayList<String>();
-
-        classesDex.add(new File(Bob.getPath("lib/classes.dex")));
+        // If a custom engine was built we need to copy it
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        List<File> bundleExes = null;
-        List<File> bundleArm64Exes = null;
-        // armv7 exe
-        {
-            Platform targetPlatform = Platform.Armv7Android;
-            bundleExes = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
-            if (bundleExes == null) {
-                bundleExes = Bob.getDefaultDmengineFiles(targetPlatform, variant);
+
+        ArrayList<File> classesDex = new ArrayList<File>();
+        classesDex.add(new File(Bob.getPath("lib/classes.dex")));
+
+        List<Platform> architectures = new ArrayList<Platform>();
+        String[] architecturesStrings = project.option("architectures", "").split(",");
+        for (int i = 0; i < architecturesStrings.length; i++) {
+            architectures.add(Platform.get(architecturesStrings[i]));
+        }
+
+        for (Platform architecture : architectures) {
+            List<File> bundleExe = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
+            if (bundleExe == null) {
+                bundleExe = Bob.getDefaultDmengineFiles(architecture, variant);
             }
             else {
-                logger.log(Level.INFO, "Using extender binary for Armv7");
+                logger.log(Level.INFO, "Using extender binary for architecture: " + architecture.toString());
                 classesDex = new ArrayList<File>();
                 int i = 1;
                 while(true)
@@ -104,47 +116,20 @@ public class AndroidBundler implements IBundler {
                     String name = i == 1 ? "classes.dex" : String.format("classes%d.dex", i);
                     ++i;
 
-                    File f = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), name)));
+                    File f = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architecture.getExtenderPair(), name)));
                     if (!f.exists())
                         break;
                     classesDex.add(f);
-                    classesDexFilenames.add(f.getAbsolutePath());
                 }
             }
-        }
-        if (bundleExes.size() > 1) {
-            throw new IOException("Invalid number of armeabi-v7a binaries for Android when bundling: " + bundleExes.size());
-        }
-        File bundleExe = bundleExes.get(0);
+            File exe = bundleExe.get(0);
+            logger.log(Level.INFO, architecture.getPair() + " exe: " + exe.toString());
 
-        // arm64 exe
-        {
-            Platform targetPlatform = Platform.Arm64Android;
-            bundleArm64Exes = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
-            if (bundleArm64Exes == null) {
-                bundleArm64Exes = Bob.getDefaultDmengineFiles(targetPlatform, variant);
-            }
-            else {
-                logger.log(Level.INFO, "Using extender binary for Arm64");
-                classesDex = new ArrayList<File>();
-                int i = 1;
-                while(true)
-                {
-                    String name = i == 1 ? "classes.dex" : String.format("classes%d.dex", i);
-                    ++i;
+            platformToExeFileMap.put(architecture, exe);
+            platformToExePathMap.put(architecture, exe.getAbsolutePath());
 
-                    File f = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), name)));
-                    if (!f.exists())
-                        break;
-                    classesDex.add(f);
-                    classesDex64Filenames.add(f.getAbsolutePath());
-                }
-            }
+            BundleHelper.throwIfCanceled(canceled);
         }
-        if (bundleArm64Exes.size() > 1) {
-            throw new IOException("Invalid number of arm64-v8a binaries for Android when bundling: " + bundleArm64Exes.size());
-        }
-        File bundleArm64Exe = bundleArm64Exes.get(0);
 
         File appDir = new File(bundleDir, title);
         File resDir = new File(appDir, "res");
@@ -158,8 +143,11 @@ public class AndroidBundler implements IBundler {
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
         resDir.mkdirs();
-        FileUtils.forceMkdir(new File(appDir, "libs/armeabi-v7a"));
-        FileUtils.forceMkdir(new File(appDir, "libs/arm64-v8a"));
+
+        for(Platform architecture : architectures)
+        {
+            FileUtils.forceMkdir(new File(appDir, "libs/" + platformToLibMap.get(architecture)));
+        }
 
         Platform targetPlatform = Platform.Armv7Android; // TODO jbnn is this ok? Should differentiate between armv7 arm64?
         BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, "");
@@ -176,7 +164,7 @@ public class AndroidBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         // Create properties and output icon resources (if available)
-        helper.generateAndroidResources(project, targetPlatform, resDir, manifestFile, ap1, tmpResourceDir);
+        helper.generateAndroidResources(project, resDir, manifestFile, ap1, tmpResourceDir);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -276,49 +264,37 @@ public class AndroidBundler implements IBundler {
             BundleHelper.throwIfCanceled(canceled);
             // Copy bundle resources into .apk zip (actually .ap2 in this case)
             ExtenderUtil.writeResourcesToZip(bundleResources, zipOut);
-
             BundleHelper.throwIfCanceled(canceled);
-            // Strip executable
-            String strippedpathArmv7 = bundleExe.getAbsolutePath();
-            String strippedpathArm64 = bundleArm64Exe.getAbsolutePath();
+            
+            // Strip executables
             if( strip_executable )
             {
-                File tmpArmv7 = File.createTempFile(title, "." + bundleExe.getName() + ".stripped");
-                tmpArmv7.deleteOnExit();
-                strippedpathArmv7 = tmpArmv7.getAbsolutePath();
-                FileUtils.copyFile(bundleExe, tmpArmv7);
-                Result res = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_android"), strippedpathArmv7);
-                if (res.ret != 0) {
-                    throw new IOException(new String(res.stdOutErr));
-                }
+                for (Platform architecture : architectures) {
+                    File exe = platformToExeFileMap.get(architecture);
+                    File tmpStrippedExeFile = File.createTempFile(title, "." + exe.getName() + ".stripped");
+                    String strippedExePath = tmpStrippedExeFile.getAbsolutePath();
+                    tmpStrippedExeFile.deleteOnExit();
+                    platformToExePathMap.put(architecture, tmpStrippedExeFile.getAbsolutePath());
+                    FileUtils.copyFile(exe, tmpStrippedExeFile);
 
-                File tmpArm64 = File.createTempFile(title, "." + bundleArm64Exe.getName() + ".stripped");
-                tmpArm64.deleteOnExit();
-                strippedpathArm64 = tmpArm64.getAbsolutePath();
-                FileUtils.copyFile(bundleArm64Exe, tmpArm64);
-                res = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_android_aarch64"), strippedpathArm64);
-
-                if (res.ret != 0) {
-                    throw new IOException(new String(res.stdOutErr));
+                    Result res = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), platformToStripToolMap.get(architecture)), strippedExePath);
+                    if (res.ret != 0) {
+                        throw new IOException(new String(res.stdOutErr));
+                    }
                 }
             }
 
             BundleHelper.throwIfCanceled(canceled);
+
             // Copy executables
-            // armeabi-v7a
-            String filenameArmv7 = FilenameUtils.concat("lib/armeabi-v7a", "lib" + exeName + ".so");
-            filenameArmv7 = FilenameUtils.normalize(filenameArmv7, true);
-            zipOut.putNextEntry(new ZipEntry(filenameArmv7));
-            File fileArmv7 = new File(strippedpathArmv7);
-            fileArmv7.deleteOnExit();
-            FileUtils.copyFile(fileArmv7, zipOut);
-            // arm64-v8a
-            String filenameArm64 = FilenameUtils.concat("lib/arm64-v8a", "lib" + exeName + ".so");
-            filenameArm64 = FilenameUtils.normalize(filenameArm64, true);
-            zipOut.putNextEntry(new ZipEntry(filenameArm64));
-            File fileArm64 = new File(strippedpathArm64);
-            fileArm64.deleteOnExit();
-            FileUtils.copyFile(fileArm64, zipOut);
+            for (Platform architecture : architectures) {
+                String filename = FilenameUtils.concat("lib/" + platformToLibMap.get(architecture), "lib" + exeName + ".so");
+                filename = FilenameUtils.normalize(filename, true);
+                zipOut.putNextEntry(new ZipEntry(filename));
+                File file = new File(platformToExePathMap.get(architecture));
+                file.deleteOnExit();
+                FileUtils.copyFile(file, zipOut);
+            }
         } finally {
             IOUtils.closeQuietly(zipIn);
             IOUtils.closeQuietly(zipOut);
