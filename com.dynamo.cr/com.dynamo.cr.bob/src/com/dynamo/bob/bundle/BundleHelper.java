@@ -194,7 +194,7 @@ public class BundleHelper {
             name = BundleHelper.MANIFEST_NAME_IOS;
         } else if (platform == Platform.X86_64Darwin) {
             name = BundleHelper.MANIFEST_NAME_OSX;
-        } else if (platform == Platform.Armv7Android) {
+        } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             name = BundleHelper.MANIFEST_NAME_ANDROID;
         } else {
             throw new CompileExceptionError(null, -1, "Unsupported ManifestMergeTool platform: " + platform.toString());
@@ -219,7 +219,7 @@ public class BundleHelper {
         ManifestMergeTool.Platform manifestPlatform;
         if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
             manifestPlatform = ManifestMergeTool.Platform.IOS;
-        } else if (platform == Platform.Armv7Android) {
+        } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             manifestPlatform = ManifestMergeTool.Platform.ANDROID;
         } else if (platform == Platform.X86_64Darwin) {
             manifestPlatform = ManifestMergeTool.Platform.OSX;
