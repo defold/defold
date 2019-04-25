@@ -49,7 +49,6 @@
 
         ;; It is fine for node entries to still exist in the cache, but we
         ;; prefer to have the unused structures be garbage collected.
-        ;; TODO: This might be critical now that node-ids are reused? Investigate.
         #_(is (not (cache-contains? node-id :cached-output)))
 
         ;; User-data persists outside history.
@@ -87,6 +86,63 @@
       (set-title! "Newer Title")
       (is (= "NEWER TITLE" (eval-output)))
       (is (false? (g/can-redo? graph-id))))))
+
+(deftest cache-pollution-test
+  (testing "Eval output, undo set property."
+    (with-clean-system
+      (let [graph-id (make-graph-with-history!)
+            node-id (g/make-node! graph-id TestNode)]
+
+        (is (= "UNTITLED" (g/node-value node-id :cached-output)))
+        (g/set-property! node-id :title "New Title")
+        (is (= "NEW TITLE" (g/node-value node-id :cached-output)))
+        (is (cache-contains? node-id :cached-output))
+
+        (g/undo! graph-id) ; Undo set property.
+        (is (not (cache-contains? node-id :cached-output)))
+        (is (= "UNTITLED" (g/node-value node-id :cached-output))))))
+
+  (testing "Eval output, undo set property, undo make node, redo make node."
+    (with-clean-system
+      (let [graph-id (make-graph-with-history!)
+            node-id (g/make-node! graph-id TestNode)]
+
+        (is (= "UNTITLED" (g/node-value node-id :cached-output)))
+        (g/set-property! node-id :title "New Title")
+        (is (= "NEW TITLE" (g/node-value node-id :cached-output)))
+        (is (cache-contains? node-id :cached-output))
+
+        (g/undo! graph-id) ; Undo set property.
+        (g/undo! graph-id) ; Undo make node.
+        (g/redo! graph-id) ; Redo make node.
+        (is (not (cache-contains? node-id :cached-output)))
+        (is (= "UNTITLED" (g/node-value node-id :cached-output))))))
+
+  (testing "Eval output, undo make node, redo make node."
+    (with-clean-system
+      (let [graph-id (make-graph-with-history!)
+            node-id (g/make-node! graph-id TestNode)]
+
+        (is (= "UNTITLED" (g/node-value node-id :cached-output)))
+        (is (cache-contains? node-id :cached-output))
+
+        (g/undo! graph-id) ; Undo make node.
+        (g/redo! graph-id) ; Redo make node.
+        (is (not (cache-contains? node-id :cached-output)))
+        (is (= "UNTITLED" (g/node-value node-id :cached-output))))))
+
+  (testing "Eval output, undo make node."
+    ;; It is fine for node entries to still exist in the cache, but we
+    ;; prefer to have the unused structures be garbage collected.
+    #_(with-clean-system
+      (let [graph-id (make-graph-with-history!)
+            node-id (g/make-node! graph-id TestNode)]
+
+        (is (= "UNTITLED" (g/node-value node-id :cached-output)))
+        (is (cache-contains? node-id :cached-output))
+
+        (g/undo! graph-id) ; Undo make node.
+        (is (not (cache-contains? node-id :cached-output)))))))
 
 (deftest can-undo-redo-test
   (with-clean-system
