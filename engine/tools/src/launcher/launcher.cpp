@@ -2,6 +2,7 @@
 #include "macos_events.h"
 #include <assert.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
@@ -23,6 +24,14 @@
 #include <dlib/safe_windows.h>
 #endif
 
+#ifdef __MACH__
+#include <sys/sysctl.h>
+#endif
+
+#ifdef __linux__
+#include <sys/sysinfo.h>
+#endif
+
 // bootstrap.resourcespath must default to resourcespath of the installation
 #define RESOURCES_PATH_KEY ("bootstrap.resourcespath")
 #define LAUNCHER_PATH_KEY ("bootstrap.launcherpath")
@@ -41,6 +50,44 @@ static int setenv(const char *name, const char *value, int overwrite)
   }
 }
 #endif
+
+// We want to set the Xmx parameter of the JVM to 75% of the system physical
+// memory to support large projects. Default is 25%. This parameter has to be
+// set at start so we need to find out the amount of memory here in the
+// launcher.
+static uint64_t GetTotalRAM() {
+  uint64_t value = 0;
+#if defined(__MACH__)
+  int mib [] = { CTL_HW, HW_MEMSIZE };
+  size_t length = sizeof(value);
+  sysctl(mib, 2, &value, &length, NULL, 0);
+#elif defined(_WIN32)
+  MEMORYSTATUSEX memstat;
+  memstat.dwLength = sizeof(MEMORYSTATUSEX);
+  GlobalMemoryStatusEx(&memstat);
+  value = memstat.ullTotalPhys;
+#elif defined(__linux__)
+  struct sysinfo sinfo;
+  sysinfo(&sinfo);
+  value = sinfo.totalram;
+#endif
+  return value;
+}
+
+static void GetThreeQuartersRAMStr(char* buf, uint64_t cap) {
+#if defined(__linux__)
+  const char* fmt = "-Xmx%lu";
+#else
+  const char* fmt = "-Xmx%llu";
+#endif
+  uint64_t d_cap = (double)cap;
+  double d_total_ram = (double)GetTotalRAM();
+  double d_seventyfive_percent_ram = 0.75 * d_total_ram;
+  if(d_seventyfive_percent_ram > d_cap) {
+    d_seventyfive_percent_ram = d_cap;
+  }
+  sprintf(buf, fmt, (uint64_t)d_seventyfive_percent_ram);
+}
 
 struct ReplaceContext
 {
@@ -184,6 +231,10 @@ int Launch(int argc, char **argv) {
         args[i++] = s;
         s = dmStrTok(0, ",", &last);
     }
+
+    char ram_str_buf[100];
+    GetThreeQuartersRAMStr(ram_str_buf, 8589934592ull); // Max 8 gigs.
+    args[i++] = ram_str_buf;
 
     args[i++] = (char*) main;
 #if defined(__MACH__)
