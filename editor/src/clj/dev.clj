@@ -7,6 +7,7 @@
             [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
             [internal.graph :as ig]
+            [internal.system :as is]
             [internal.util :as util])
   (:import [clojure.lang MapEntry]
            [javafx.stage Window]))
@@ -125,6 +126,8 @@
 (defn console-view []
   (-> (view-of-type console/ConsoleNode) (g/targets-of :lines) ffirst))
 
+(def ^:private node-type-key (comp :k g/node-type*))
+
 (defn- node-value-type-symbol [node-value-type]
   (symbol (if-some [^Class class (:class (deref node-value-type))]
             (.getSimpleName class)
@@ -198,7 +201,7 @@
                      node-successors))]
      (util/group-into (sorted-map)
                       (sorted-set)
-                      (comp :k (partial g/node-type* basis) key)
+                      (comp (partial node-type-key basis) key)
                       val
                       (mapcat select
                               (successor-tree basis node-id label))))))
@@ -226,7 +229,7 @@
   ([basis node-id label]
    (util/group-into (sorted-map)
                     (sorted-set)
-                    (comp :k (partial g/node-type* basis) key)
+                    (comp (partial node-type-key basis) key)
                     val
                     (mapcat (fn [[node-id node-successors]]
                               (map (fn [[label]]
@@ -247,3 +250,39 @@
            (for [[node-id labels] label-seqs-by-node-id
                  label labels]
              (direct-successor-types basis node-id label)))))
+
+(defn ordered-occurrences
+  "Returns a sorted list of [occurrence-count entry]. The list is sorted by
+  occurrence count in descending order."
+  [coll]
+  (sort (fn [[occurrence-count-a entry-a] [occurrence-count-b entry-b]]
+          (cond (< occurrence-count-a occurrence-count-b) 1
+                (< occurrence-count-b occurrence-count-a) -1
+                (and (instance? Comparable entry-a)
+                     (instance? Comparable entry-b)) (compare entry-a entry-b)
+                :else 0))
+        (map (fn [[entry occurrence-count]]
+               (pair occurrence-count entry))
+             (frequencies coll))))
+
+(defn cached-output-report
+  "Returns a sorted list of what node outputs are in the system cache in the
+  format [entry-occurrence-count [node-type-key output-label]]. The list is
+  sorted by entry occurrence count in descending order."
+  []
+  (let [system @g/*the-system*
+        basis (is/basis system)]
+    (ordered-occurrences
+      (map (fn [[[node-id output-label]]]
+             (let [node-type-key (node-type-key basis node-id)]
+               (pair node-type-key output-label)))
+           (is/system-cache system)))))
+
+(defn cached-output-name-report
+  "Returns a sorted list of what output names are in the system cache in the
+  format [entry-occurrence-count output-label]. The list is sorted by entry
+  occurrence count in descending order."
+  []
+  (ordered-occurrences
+    (map (comp second key)
+         (is/system-cache @g/*the-system*))))
