@@ -622,6 +622,7 @@ public class Project {
             File classesDexFile = null;
             File tmpDir = null;
             if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
+                Bob.initAndroid(); // extract resources
 
                 // If we are building for Android, we expect a classes.dex file to be returned as well.
                 classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), "classes.dex"));
@@ -690,7 +691,7 @@ public class Project {
             }
 
             // If we are building for Android, we expect a classes.dex file to be returned as well.
-            if (platform.equals(Platform.Armv7Android)) {
+            if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
                 int nameindex = 1;
                 while(true)
                 {
