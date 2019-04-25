@@ -4,6 +4,7 @@
             [dynamo.graph :as g]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
+            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.ui :as ui]
@@ -395,7 +396,28 @@
     (let [names (apply str (interpose ", " (map resource/resource-name selection)))
           next (-> (handler/succeeding-selection selection-provider)
                    (handler/adapt-single resource/Resource))]
-      (when (dialogs/make-confirm-dialog (format "Are you sure you want to delete %s?" names))
+      (when (if (= 1 (count selection))
+              (dialogs/make-confirmation-dialog
+                {:title "Delete File"
+                 :header (format "Are you sure you want to delete %s?" names)
+                 :buttons [{:text "Cancel"
+                            :cancel-button true
+                            :result false}
+                           {:text "Delete"
+                            :default-button true
+                            :result true}]})
+              (dialogs/make-confirmation-dialog
+                {:title "Delete Files"
+                 :header "Are you sure you want to delete these files?"
+                 :content {:fx/type fxui/label
+                           :wrap-text true
+                           :text (format "You are about to delete %s" names)}
+                 :buttons [{:text "Cancel"
+                            :cancel-button true
+                            :result false}
+                           {:text "Delete"
+                            :default-button true
+                            :result true}]}))
         (when (and (delete selection) next)
           (select-resource! asset-browser next))))))
 

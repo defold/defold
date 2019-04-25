@@ -6,6 +6,7 @@
             [editor.dialogs :as dialogs]
             [editor.diff-view :as diff-view]
             [editor.fs :as fs]
+            [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.handler :as handler]
             [editor.login :as login]
@@ -259,10 +260,24 @@
     (let [result (cancel-fn)]
       (when (not= :success (:type result))
         (if (:can-retry? result)
-          (when (dialogs/make-confirm-dialog (cancel-result-message result)
-                                             {:title "Unable to Cancel Sync"
-                                              :ok-label "Retry"
-                                              :cancel-label "Lose Changes"})
+          (when (dialogs/make-confirmation-dialog
+                  {:title "Unable to Cancel Sync"
+                   :header {:fx/type :h-box
+                            :style-class ["spacing-smaller"]
+                            :children [{:fx/type fxui/icon
+                                        :type :error}
+                                       {:fx/type fxui/label
+                                        :variant :header
+                                        :text "An Error Occurred"}]}
+                   :content {:fx/type fxui/label
+                             :wrap-text true
+                             :text (cancel-result-message result)}
+                   :buttons [{:text "Lose Changes"
+                              :cancel-button true
+                              :result false}
+                             {:text "Retry"
+                              :default-button true
+                              :result true}]})
             (recur))
           (dialogs/make-alert-dialog (cancel-result-message result)))))))
 
