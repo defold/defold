@@ -492,7 +492,7 @@
                                               [:resource :source-resource]
                                               [:_properties :source-properties]
                                               [:node-outline :source-outline]
-                                              [:save-data :save-data]
+                                              [:undecorated-save-data :save-data]
                                               [:scene :scene]
                                               [:build-targets :source-build-targets]])
                   (attach-embedded-component self comp-node)
