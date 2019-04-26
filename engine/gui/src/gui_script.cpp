@@ -191,11 +191,6 @@ namespace dmGui
         return (NodeProxy*)dmScript::CheckUserType(L, index, NODE_PROXY_TYPE_HASH, 0);
     }
 
-    static bool LuaIsNode(lua_State *L, int index)
-    {
-        return dmScript::GetUserType(L, index) == NODE_PROXY_TYPE_HASH;
-    }
-
     static bool IsValidNode(HScene scene, HNode node)
     {
         uint16_t version = (uint16_t) (node >> 16);
