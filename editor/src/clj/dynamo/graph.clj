@@ -1,18 +1,16 @@
 (ns dynamo.graph
   "Main api for graph and node"
   (:refer-clojure :exclude [deftype constantly])
-  (:require [clojure.set :as set]
-            [clojure.tools.macro :as ctm]
+  (:require [clojure.tools.macro :as ctm]
             [cognitect.transit :as transit]
             [internal.util :as util]
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
-            [internal.graph.error-values :as ie]
+            [internal.low-memory :as low-memory]
             [internal.node :as in]
             [internal.system :as is]
             [internal.transaction :as it]
-            [plumbing.core :as pc]
             [potemkin.namespaces :as namespaces]
             [schema.core :as s])
   (:import [internal.graph.error_values ErrorValue]
@@ -767,6 +765,16 @@
      (update-cache-from-evaluation-context! ~ec)
      result#))
 
+(def fake-system (is/make-system {:cache-size 0}))
+
+(defmacro with-auto-or-fake-evaluation-context [ec & body]
+  `(let [real-system# @*the-system*
+         ~ec (is/default-evaluation-context (or real-system# fake-system))
+         result# (do ~@body)]
+     (when (some? real-system#)
+       (update-cache-from-evaluation-context! ~ec))
+     result#))
+
 (defn invalidate-counter
   ([node-id output]
    (get (:invalidate-counters @*the-system*) [node-id output]))
@@ -1178,9 +1186,10 @@
 ;; Boot, initialization, and facade
 ;; ---------------------------------------------------------------------------
 (defn initialize!
-  "Set up the initial system including graphs, caches, and dispoal queues"
+  "Set up the initial system including graphs, caches, and disposal queues"
   [config]
-  (reset! *the-system* (is/make-system config)))
+  (reset! *the-system* (is/make-system config))
+  (low-memory/add-callback! clear-system-cache!))
 
 (defn make-graph!
   "Create a new graph in the system with optional values of `:history` and `:volatility`. If no

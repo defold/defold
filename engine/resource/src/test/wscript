@@ -52,6 +52,7 @@ def build(bld):
                                      includes = '../../../src ../../proto',
                                      uselib = 'DDF DLIB PLATFORM_SOCKET THREAD LUA',
                                      uselib_local = 'resource',
+                                     web_libs = ['library_sys.js'],
                                      proto_gen_py = True,
                                      target = 'test_resource',
                                      source = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb many_refs.cont_pb',

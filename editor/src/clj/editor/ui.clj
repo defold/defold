@@ -1108,13 +1108,18 @@
           (set! suppress? false))))))
 
 (defn- make-menu-command [^Scene scene id label icon ^Collection style-classes acc user-data command enabled? check]
-  (let [^MenuItem menu-item (if check
+  (let [key-combo (and acc (KeyCombination/keyCombination acc))
+        ^MenuItem menu-item (if check
                               (CheckMenuItem. label)
                               (MenuItem. label))]
+    ;; Currently not allowed due to a problem on macOS. See below.
+    ;; Still a problem in JavaFX 12.
+    (assert (not (and check key-combo)) "Keyboard shortcuts currently cannot be assigned to check menu items.")
+
     (user-data! menu-item ::menu-item-id id)
     (when command
       (.setId menu-item (name command)))
-    (when-some [key-combo (and acc (KeyCombination/keyCombination acc))]
+    (when (some? key-combo)
       (.setAccelerator menu-item key-combo))
     (when icon
       (.setGraphic menu-item (wrap-menu-image (jfx/get-image-view icon 16))))
@@ -1176,15 +1181,10 @@
                                 on-open))
                 (make-menu-command scene id label icon style-classes acc user-data command enabled? check)))))))))
 
-(defn- make-menu-items
-  ([^Scene scene menu command-contexts command->shortcut]
-   (g/with-auto-evaluation-context evaluation-context
-     (make-menu-items scene menu command-contexts command->shortcut evaluation-context)))
-  ([^Scene scene menu command-contexts command->shortcut evaluation-context]
-   (->> menu
-        (keep (fn [item]
-                (make-menu-item scene item command-contexts command->shortcut evaluation-context)))
-        (vec))))
+(defn- make-menu-items [^Scene scene menu command-contexts command->shortcut evaluation-context]
+  (into []
+        (keep #(make-menu-item scene % command-contexts command->shortcut evaluation-context))
+        menu))
 
 (defn- make-context-menu ^ContextMenu [menu-items]
   (let [context-menu (ContextMenu.)]
@@ -1206,7 +1206,9 @@
     (.consume event)
     (let [node ^Node (.getTarget event)
           scene ^Scene (.getScene node)
-          cm (make-context-menu (make-menu-items scene (menu/realize-menu menu-id) (contexts scene false) (or (user-data scene :command->shortcut) {})))]
+          menu-items (g/with-auto-or-fake-evaluation-context evaluation-context
+                       (make-menu-items scene (menu/realize-menu menu-id) (contexts scene false) (or (user-data scene :command->shortcut) {}) evaluation-context))
+          cm (make-context-menu menu-items)]
       (doto (.getItems cm)
         (refresh-separator-visibility)
         (refresh-menu-item-styles))
@@ -1415,8 +1417,8 @@
   (menu-items [this]))
 
 (defn- replace-menu!
-  [^MenuItem old ^MenuItem new]
-  (when-some [parent (.getParentMenu old)]
+  [^MenuBar menu-bar ^MenuItem old ^MenuItem new]
+  (when-some [parent (or (.getParentMenu old) menu-bar)]
     (when-some [parent-children (menu-items parent)]
       (let [index (.indexOf parent-children old)]
         (when (pos? index)
@@ -1474,7 +1476,7 @@
                                               visible-command-contexts
                                               command->shortcut
                                               evaluation-context)]
-            (replace-menu! menu-item new-menu-item)))))
+            (replace-menu! menu-bar menu-item new-menu-item)))))
     (clear-invalidated-menubar-items!)))
 
 (defn- refresh-separator-visibility [menu-items]
@@ -1714,7 +1716,7 @@
 
 (defn refresh
   [^Scene scene]
-  (g/with-auto-evaluation-context evaluation-context
+  (g/with-auto-or-fake-evaluation-context evaluation-context
     (refresh-menus! scene (or (user-data scene :command->shortcut) {}) evaluation-context)
     (refresh-toolbars! scene evaluation-context)))
 
