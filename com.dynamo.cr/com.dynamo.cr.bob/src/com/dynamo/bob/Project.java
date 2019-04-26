@@ -9,6 +9,7 @@ import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintStream;
 import java.nio.file.Files;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
@@ -21,12 +22,16 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Enumeration;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.jar.Attributes;
+import java.util.jar.JarFile;
+import java.util.jar.Manifest;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
@@ -159,11 +164,47 @@ public class Project {
         doScan(classNames);
     }
 
+    private static String getManifestInfo(String attribute) {
+        Enumeration resEnum;
+        try {
+            resEnum = Thread.currentThread().getContextClassLoader().getResources(JarFile.MANIFEST_NAME);
+            while (resEnum.hasMoreElements()) {
+                try {
+                    URL url = (URL)resEnum.nextElement();
+                    InputStream is = url.openStream();
+                    if (is != null) {
+                        Manifest manifest = new Manifest(is);
+                        Attributes mainAttribs = manifest.getMainAttributes();
+                        String value = mainAttribs.getValue(attribute);
+                        if(value != null) {
+                            return value;
+                        }
+                    }
+                }
+                catch (Exception e) {
+                    // Silently ignore wrong manifests on classpath?
+                }
+            }
+        } catch (IOException e1) {
+            // Silently ignore wrong manifests on classpath?
+        }
+        return null;
+    }
+
     @SuppressWarnings("unchecked")
     private void doScan(Set<String> classNames) {
+        boolean is_bob_light = getManifestInfo("is-bob-light") != null;
+
         for (String className : classNames) {
             // Ignore TexcLibrary to avoid it being loaded and initialized
-            if (!className.startsWith("com.dynamo.bob.TexcLibrary")) {
+            // We're also skipping some of the bundler classes, since we're only building content,
+            // not doing bundling when using bob-light
+            boolean skip = className.startsWith("com.dynamo.bob.TexcLibrary") ||
+                    (is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) ||
+                    (is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) ||
+                    (is_bob_light && className.startsWith("com.dynamo.bob.bundle.ManifestMergeTool")) ||
+                    (is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper"));
+            if (!skip) {
                 try {
                     Class<?> klass = Class.forName(className);
                     BuilderParams params = klass.getAnnotation(BuilderParams.class);
@@ -452,6 +493,7 @@ public class Project {
         bundlers.put(Platform.X86_64Win32, Win64Bundler.class);
         bundlers.put(Platform.Armv7Android, AndroidBundler.class);
         bundlers.put(Platform.Armv7Darwin, IOSBundler.class);
+        bundlers.put(Platform.X86_64Ios, IOSBundler.class);
         bundlers.put(Platform.JsWeb, HTML5Bundler.class);
     }
 
@@ -504,7 +546,7 @@ public class Project {
         return false;
     }
 
-    public String[] getPlatformStrings() throws CompileExceptionError {
+    public Platform getPlatform() throws CompileExceptionError {
         String pair = option("platform", null);
         Platform p = Platform.getHostPlatform();
         if (pair != null) {
@@ -514,6 +556,12 @@ public class Project {
         if (p == null) {
             throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
         }
+
+        return p;
+    }
+
+    public String[] getPlatformStrings() throws CompileExceptionError {
+        Platform p = getPlatform();
         PlatformArchitectures platformArchs = p.getArchitectures();
         String[] platformStrings;
         if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin || p == Platform.JsWeb || p == Platform.WasmWeb)
@@ -530,7 +578,7 @@ public class Project {
         return platformStrings;
     }
 
-    public void buildEngine(IProgress monitor, String[] platformStrings, Map<String,String> appmanifestOptions) throws IOException, CompileExceptionError, MultipleCompileException {
+    public void buildEngine(IProgress monitor, String[] architectures, Map<String,String> appmanifestOptions) throws IOException, CompileExceptionError, MultipleCompileException {
 
         // Store the engine one level above the content build since that folder gets removed during a distclean
         String internalDir = FilenameUtils.concat(rootDirectory, ".internal");
@@ -544,13 +592,13 @@ public class Project {
         File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
         logFile.deleteOnExit();
 
-        IProgress m = monitor.subProgress(platformStrings.length);
+        IProgress m = monitor.subProgress(architectures.length);
         m.beginTask("Building engine...", 0);
 
         // Build all skews of platform
         String outputDir = options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
-        for (int i = 0; i < platformStrings.length; ++i) {
-            Platform platform = Platform.get(platformStrings[i]);
+        for (int i = 0; i < architectures.length; ++i) {
+            Platform platform = Platform.get(architectures[i]);
 
             String buildPlatform = platform.getExtenderPair();
             File buildDir = new File(FilenameUtils.concat(outputDir, buildPlatform));
@@ -716,7 +764,17 @@ public class Project {
                         appmanifestOptions.put("baseVariant", variant);
                         appmanifestOptions.put("withSymbols", withSymbols.toString());
 
-                        buildEngine(monitor, platforms, appmanifestOptions);
+                        // Since this can be a call from Editor we can't expect the architectures option to be set.
+                        // We default to the default architectures for the platform, and take the option value
+                        // only if it has been set.
+                        Platform platform = this.getPlatform();
+                        String[] architectures = platform.getArchitectures().getDefaultArchitectures();
+                        String customArchitectures = this.option("architectures", null);
+                        if (customArchitectures != null) {
+                            architectures = customArchitectures.split(",");
+                        }
+
+                        buildEngine(monitor, architectures, appmanifestOptions);
                     } else {
                         // Remove the remote built executables in the build folder, they're still in the cache
                         cleanEngine(monitor, platforms);
@@ -909,6 +967,9 @@ run:
                     message = e.getMessage();
                     exception = e;
                     abort = true;
+
+                    // to fix the issue it's easier to see the actual callstack
+                    exception.printStackTrace(new java.io.PrintStream(System.out));
                 }
                 if (!ok) {
                     taskFailed = true;

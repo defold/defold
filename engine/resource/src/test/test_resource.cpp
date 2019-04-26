@@ -1,5 +1,3 @@
-#include <gtest/gtest.h>
-
 #include <dlib/log.h>
 
 #include <dlib/socket.h>
@@ -14,6 +12,11 @@
 #include "../resource.h"
 #include "../resource_private.h"
 #include "test/test_resource_ddf.h"
+
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+
+#include <vector>
 
 extern unsigned char RESOURCES_ARCI[];
 extern uint32_t RESOURCES_ARCI_SIZE;
@@ -30,7 +33,7 @@ extern uint32_t RESOURCES_DMANIFEST_SIZE;
 
 #undef EXT_CONSTANTS
 
-class ResourceTest : public ::testing::Test
+class ResourceTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -53,7 +56,7 @@ protected:
     dmResource::HFactory factory;
 };
 
-class DynamicResourceTest : public ::testing::Test
+class DynamicResourceTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -168,7 +171,7 @@ dmResource::Result FooResourcePostCreate(const dmResource::ResourcePostCreatePar
 
 dmResource::Result FooResourceDestroy(const dmResource::ResourceDestroyParams& params);
 
-class GetResourceTest : public ::testing::TestWithParam<const char*>
+class GetResourceTest : public jc_test_params_class<const char*>
 {
 protected:
     virtual void SetUp()
@@ -494,9 +497,8 @@ TEST_P(GetResourceTest, GetDescriptorWithExt)
     ASSERT_EQ(dmResource::RESULT_NOT_LOADED, e);
 }
 
-INSTANTIATE_TEST_CASE_P(GetResourceTestURI,
-                        GetResourceTest,
-                        ::testing::Values("build/default/src/test/", "http://127.0.0.1:6123", "dmanif:build/default/src/test/resources_pb.dmanifest"));
+const char* params_resource_paths[] = {"build/default/src/test/", "http://127.0.0.1:6123", "dmanif:build/default/src/test/resources_pb.dmanifest"};
+INSTANTIATE_TEST_CASE_P(GetResourceTestURI, GetResourceTest, jc_test_values_in(params_resource_paths));
 
 TEST_P(GetResourceTest, GetReference1)
 {
@@ -914,7 +916,7 @@ TEST(dmResource, Builtins)
     {
         dmResource::Result result = dmResource::Get(factory, path_name[i], &resource);
         ASSERT_EQ(dmResource::RESULT_OK, result);
-        ASSERT_STRCASEEQ(content[i], (const char*) resource);
+        ASSERT_STREQ(content[i], (const char*) resource);
 
         dmResource::Release(factory, resource);
     }
@@ -1603,8 +1605,8 @@ TEST_F(DynamicResourceTest, RefCount)
 int main(int argc, char **argv)
 {
     dmSocket::Initialize();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = jc_test_run_all();
     dmSocket::Finalize();
     return ret;
 }

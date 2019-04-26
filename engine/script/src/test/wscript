@@ -10,17 +10,12 @@ new_copy_task('save_file', '.sav', '.savc')
 def build(bld):
     flist = 'cxx cprogram test'
     if 'web' in bld.env['PLATFORM']:
-        flist = flist + ' web'
-        lib_dirs = None
-        if 'JS_LIB_PATHS' in bld.env:
-            lib_dirs = bld.env['JS_LIB_PATHS']
-        else:
-            lib_dirs = {}
-            lib_dirs['library_script.js'] = '../lib/js'
-            bld.env['JS_LIB_PATHS'] = lib_dirs
+        lib_dirs = {}
+        lib_dirs['library_script.js'] = '../lib/js'
+        bld.env['JS_LIB_PATHS'] = lib_dirs
 
-    web_libs = ["library_sys.js", "library_script.js"]
-    libs = 'GTEST PLATFORM_SOCKET THREAD EXTENSION RESOURCE DDF DLIB LUA'
+    web_libs = ['library_sys.js', 'library_script.js']
+    libs = 'PLATFORM_SOCKET THREAD EXTENSION RESOURCE DDF DLIB LUA'
     test_script_ddf = bld.new_task_gen(features = flist,
                                         includes = '..',
                                         uselib = libs,
@@ -144,16 +139,17 @@ def build(bld):
 
     test_script_json.install_path = None
 
-    test_script_http = bld.new_task_gen(features = flist,
-                                       includes = '..',
-                                       uselib = libs,
-                                       uselib_local = 'script',
-                                       web_libs = web_libs,
-                                       proto_gen_py = True,
-                                       target = 'test_script_http',
-                                       source = 'test_script_http.cpp test_http.lua test_http_timeout.lua')
+    if not 'web' in bld.env['PLATFORM']:
+        test_script_http = bld.new_task_gen(features = flist,
+                                           includes = '..',
+                                           uselib = libs,
+                                           uselib_local = 'script',
+                                           web_libs = web_libs,
+                                           proto_gen_py = True,
+                                           target = 'test_script_http',
+                                           source = 'test_script_http.cpp test_http.lua test_http_timeout.lua')
 
-    test_script_http.install_path = None
+        test_script_http.install_path = None
 
     test_script_zlib = bld.new_task_gen(features = flist,
                                        includes = '..',
@@ -188,7 +184,7 @@ def build(bld):
 
     test_script_buffer.install_path = None
 
-    test_script_user_type = bld.new_task_gen(features = 'cxx cprogram test',
+    test_script_user_type = bld.new_task_gen(features = flist,
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',

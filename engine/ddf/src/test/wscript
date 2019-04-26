@@ -25,8 +25,9 @@ def pf_file(self, node):
 def build(bld):
     test_ddf = bld.new_task_gen(features = 'cxx cprogram ddf test',
                                 source = 'test_ddf.cpp test_ddf_proto.proto test_ddf_import.proto',
-                                uselib = 'GTEST PROTOBUF DLIB PTHREAD',
+                                uselib = 'PROTOBUF DLIB PTHREAD',
                                 uselib_local = 'ddf',
+                                web_libs = ['library_sys.js'],
                                 ddf_namespace = 'DUMMY',
                                 proto_gen_cc = True,
                                 proto_compile_cc = True,
