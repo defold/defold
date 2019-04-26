@@ -50,7 +50,8 @@
             [service.log :as log]
             [util.http-server :as http-server]
             [util.profiler :as profiler]
-            [service.smoke-log :as slog])
+            [service.smoke-log :as slog]
+            [editor.markdown :as markdown])
   (:import [com.defold.editor Editor EditorApplication]
            [java.io BufferedReader File IOException]
            [java.net URL]
@@ -61,12 +62,13 @@
            [javafx.event Event]
            [javafx.geometry Orientation]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy Tooltip]
+           [javafx.scene.control MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy Tooltip Button]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ClipboardContent]
            [javafx.scene.layout AnchorPane StackPane]
            [javafx.scene.shape Ellipse SVGPath]
-           [javafx.stage Screen Stage WindowEvent]))
+           [javafx.stage Screen Stage WindowEvent]
+           (javafx.scene.web WebEngine WebView)))
 
 (set! *warn-on-reflection* true)
 
@@ -1022,6 +1024,29 @@ If you do not specifically require different script states, consider changing th
     (.setScene stage scene)
     (ui/show! stage)))
 
+(handler/defhandler ::close :bundle-dialog
+  (run [stage]
+       (ui/close! stage)))
+
+(defn make-changelog-dialog []
+  (let [root ^Parent (ui/load-fxml "changelog.fxml")
+        stage (ui/make-dialog-stage)
+        scene (Scene. root)
+        controls (ui/collect-controls root ["web-view" "close-button"])
+        ^Button close-button (:close-button controls)
+        ^WebView web-view (:web-view controls)
+        markdown-string (slurp (io/resource "changelog.md"))
+        html-string (markdown/markdown->html markdown-string)
+        ^WebEngine web-view-engine (.getEngine web-view)]
+        (.setUserStyleSheetLocation web-view-engine (str (io/resource "markdown.css")))
+        (.loadContent web-view-engine html-string)
+        (ui/title! stage "Changelog")
+        (.setScene stage scene)
+        (ui/on-action! close-button (fn [_] (ui/close! stage)))
+        ;(.setOnAction close-button (fn [event] (ui/close! stage)))
+        (.setDefaultButton close-button true)
+        (ui/show! stage)))
+
 (handler/defhandler :documentation :global
   (run [] (ui/open-url "https://www.defold.com/learn/")))
 
@@ -1042,6 +1067,9 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :show-logs :global
   (run [] (ui/open-file (.getAbsoluteFile (.toFile (Editor/getLogDirectory))))))
+
+(handler/defhandler :changelog :global
+  (run [] (make-changelog-dialog)))
 
 (handler/defhandler :about :global
   (run [] (make-about-dialog)))
@@ -1161,6 +1189,8 @@ If you do not specifically require different script states, consider changing th
                              {:label "Search Issues"
                               :command :search-issues}
                              {:label :separator}
+                             {:label "Changelog"
+                              :command :changelog}
                              {:label "About"
                               :command :about}]}])
 

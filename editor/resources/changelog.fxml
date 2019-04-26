@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.web.WebView?>
+
+<VBox id="changelog-dialog" prefWidth="960.0" spacing="12.0" stylesheets="@editor.css" styleClass="changelog-dialog" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+  <children>
+    <WebView id="web-view"></WebView>
+    <HBox spacing="10.0" alignment="CENTER_RIGHT">
+      <children>
+        <Button id="close-button" styleClass="df-button, extra-dim" text="Close" focusTraversable="false" />
+      </children>
+    </HBox>
+  </children>
+  <padding>
+    <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />
+  </padding>
+</VBox>
