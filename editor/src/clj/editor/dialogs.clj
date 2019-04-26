@@ -23,9 +23,9 @@
            [java.nio.file Path Paths]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control CheckBox Button Label ListView TextArea TextField Hyperlink]
+           [javafx.scene.control Button ListView TextArea TextField]
            [javafx.scene.input KeyCode]
-           [javafx.scene.layout HBox VBox Region]
+           [javafx.scene.layout HBox VBox]
            [javafx.scene.text Text TextFlow]
            [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]))
 
@@ -57,88 +57,6 @@
       (ui/on-action! ok (fn [_] (.close stage))))
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
-
-(def ^:private link-regex #"\[[^\]]+\]\([^)]+\)")
-(def ^:private split-link-regex #"\[([^\]]+)\]\(([^)]+)\)")
-
-(defn- split-link [link-str]
-  (rest (re-find split-link-regex link-str)))
-
-(defn- mark-matches [re s]
-  (let [matcher (re-matcher re s)]
-    (loop [matches []]
-      (if (re-find matcher)
-        (let [match {:start (.start matcher) :end (.end matcher)}]
-          (recur (conj matches match)))
-        matches))))
-
-(defn- empty-run? [run]
-  (= (:start run) (:end run)))
-
-(defn- message->mark-runs
-  [message]
-  (let [links (mapv (fn [match]
-                      (let [link (subs message (:start match) (:end match))
-                            [label url] (rest (re-find split-link-regex link))]
-                        (assoc match
-                               :type :link
-                               :label label
-                               :url url)))
-                    (mark-matches link-regex message))
-        pseudo-start {:end 0}
-        pseudo-end {:start (count message)}
-        parts (concat [pseudo-start] links [pseudo-end])
-        holes (map (fn [curr next] {:start (:end curr) :end (:start next)})
-                   parts (rest parts))
-        texts (map #(assoc %
-                           :type :text
-                           :text (subs message (:start %) (:end %)))
-                   holes)
-        runs (sort-by :start (into links texts))]
-    (remove empty-run? runs)))
-
-(defn- mark-run->node [run]
-  (case (:type run)
-    :link
-    (let [{:keys [label url]} run]
-      (doto (Hyperlink. label)
-        (ui/add-style! "link-run")
-        (ui/on-action! (fn [_] (ui/open-url url)))))
-
-    :text
-    (doto (Text. (:text run))
-      (ui/add-style! "text-run"))))
-
-(defn make-error-dialog
-  ([title text] (make-error-dialog title text nil))
-  ([title text detail-text]
-   (let [root ^Parent (ui/load-fxml "error-dialog.fxml")
-         stage (ui/make-dialog-stage)
-         scene (Scene. root)]
-     (.setResizable stage true) ; might want to resize if huge detail text
-     (ui/context! root :dialog {:stage stage} nil)
-     (ui/title! stage title)
-     (ui/with-controls root [^TextFlow message ^CheckBox toggle-details ^TextArea details ^Button ok]
-       (if-not (str/blank? detail-text)
-         (do
-           (b/bind-presence! details (.selectedProperty toggle-details))
-           (ui/on-action! toggle-details (fn [_] (.sizeToScene stage)))
-           (ui/text! details detail-text))
-         (do
-           (doto toggle-details
-             (ui/visible! false)
-             (ui/managed! false))
-           (doto details
-             (ui/visible! false)
-             (ui/managed! false))))
-       (let [runs (map mark-run->node (message->mark-runs text))]
-         (ui/children! message runs))
-       (ui/bind-action! ok ::close)
-       (.setDefaultButton ok true)
-       (.setCancelButton ok true)
-       (ui/request-focus! ok))
-     (.setScene stage scene)
-     (ui/show-and-wait! stage))))
 
 (defn- make-confirmation-dialog-fx [{:keys [owner header title buttons size content]
                                      :or {title ""
@@ -202,6 +120,36 @@
                    :middleware (fx/wrap-map-desc assoc :fx/type (make-confirmation-dialog-fx props)))]
     (fxui/mount-renderer-and-await-result! state-atom renderer)))
 
+(defn make-error-dialog
+  ([title text] (make-error-dialog title text nil))
+  ([title text detail-text]
+   (make-confirmation-dialog
+     {:title title
+      :size :large
+      :header {:fx/type :v-box
+               :children [{:fx/type :h-box
+                           :style-class "spacing-smaller"
+                           :alignment :center-left
+                           :children [{:fx/type fxui/icon
+                                       :type :error}
+                                      {:fx/type fxui/label
+                                       :variant :header
+                                       :wrap-text true
+                                       :text text}]}]}
+      :content (cond
+                 (map? detail-text)
+                 detail-text
+
+                 (not (str/blank? detail-text))
+                 {:fx/type fxui/text-area
+                  :style-class "text-area-with-dialog-content-padding"
+                  :variant :borderless
+                  :editable false
+                  :text detail-text})
+      :buttons [{:text "Close"
+                 :cancel-button true
+                 :default-button true}]})))
+
 (defn- digit-string? [^String x]
   (and (pos? (.length x))
        (every? #(Character/isDigit ^char %) x)))
@@ -224,6 +172,7 @@
                                         {:fx/type fxui/label
                                          :text "Game window will be resized to this size"}]}
                     :content {:fx/type fxui/two-col-input-grid-pane
+                              :style-class "dialog-content-padding"
                               :children [{:fx/type fxui/label
                                           :text "Width"}
                                          {:fx/type fxui/text-field

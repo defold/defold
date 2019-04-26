@@ -73,15 +73,19 @@
     :style :decorated
     :modality (if (contains? props :owner) :window-modal :application-modal)))
 
+(defn- add-style-classes [style-class & classes]
+  (let [existing-classes (if (string? style-class) [style-class] style-class)]
+    (into existing-classes classes)))
+
 (defn dialog-body [{:keys [size header content footer]
                     :or {size :small}
                     :as props}]
   (-> props
       (dissoc :size :header :content :footer)
+      (update :style-class add-style-classes "dialog-body" (case size
+                                                             :small "dialog-body-small"
+                                                             :large "dialog-body-large"))
       (assoc :fx/type :v-box
-             :style-class ["dialog-body" (case size
-                                           :small "dialog-body-small"
-                                           :large "dialog-body-large")]
              :children (if (some? content)
                          [{:fx/type :v-box
                            :style-class "dialog-with-content-header"
@@ -101,34 +105,37 @@
                            :children [footer]}]))))
 
 (defn dialog-buttons [props]
-  (assoc props :fx/type :h-box :style-class "dialog-buttons"))
+  (-> props
+      (assoc :fx/type :h-box)
+      (update :style-class add-style-classes "dialog-buttons")))
 
 (defn label [{:keys [variant]
               :or {variant :label}
               :as props}]
   (-> props
+      (assoc :fx/type :label)
       (dissoc :variant)
-      (assoc :fx/type :label :style-class (case variant
-                                            :label "label"
-                                            :header "header"))))
+      (update :style-class add-style-classes (case variant
+                                               :label "label"
+                                               :header "header"))))
 
 (defn button [{:keys [variant]
                :or {variant :secondary}
                :as props}]
   (-> props
+      (assoc :fx/type :button)
       (dissoc :variant)
-      (assoc :fx/type :button
-             :style-class ["button" (case variant
-                                      :primary "button-primary"
-                                      :secondary "button-secondary")])))
+      (update :style-class add-style-classes "button" (case variant
+                                                        :primary "button-primary"
+                                                        :secondary "button-secondary"))))
 
 (defn two-col-input-grid-pane [props]
   (-> props
       (assoc :fx/type :grid-pane
-             :style-class "input-grid"
              :column-constraints [{:fx/type :column-constraints}
                                   {:fx/type :column-constraints
                                    :hgrow :always}])
+      (update :style-class add-style-classes "input-grid")
       (update :children (fn [children]
                           (into []
                                 (comp
@@ -147,11 +154,22 @@
                    :or {variant :default}
                    :as props}]
   (-> props
+      (assoc :fx/type :text-field)
       (dissoc :variant)
-      (assoc :fx/type :text-field
-             :style-class ["text-field" (case variant
-                                          :default "text-field-default"
-                                          :error "text-field-error")])))
+      (update :style-class add-style-classes "text-field" (case variant
+                                                            :default "text-field-default"
+                                                            :error "text-field-error"))))
+
+(defn text-area [{:keys [variant]
+                  :or {variant :default}
+                  :as props}]
+  (-> props
+      (dissoc :variant)
+      (assoc :fx/type :text-area)
+      (update :style-class add-style-classes "text-area" (case variant
+                                                           :default "text-area-default"
+                                                           :error "text-area-error"
+                                                           :borderless "text-area-borderless"))))
 
 (defn icon [{:keys [type scale]
              :or {scale 1}}]
