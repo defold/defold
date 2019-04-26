@@ -258,15 +258,16 @@
   (set-options! [_this options]
     (set-generic-options! view options workspace)))
 
-(defn- make-labeled-check-box ^CheckBox [^String label ^String id ^Boolean default-value refresh!]
-       (doto (if (some? label)
-               (CheckBox. label)
-               (CheckBox.))
-             (ui/add-style! "labeled-check-box")
-             (.setId id)
-             (.setFocusTraversable false)
-             (ui/on-action! refresh!)
-             (ui/value! default-value)))
+(defn- make-labeled-check-box 
+  ^CheckBox [^String label ^String id ^Boolean default-value refresh!]
+  (doto (if (some? label)
+          (CheckBox. label)
+          (CheckBox.))
+    (ui/add-style! "labeled-check-box")
+    (.setId id)
+    (.setFocusTraversable false)
+    (ui/on-action! refresh!)
+    (ui/value! default-value)))
 
 ;; -----------------------------------------------------------------------------
 ;; Selectable platform
@@ -381,9 +382,8 @@
       (ui/value! architecture-64bit?)
       (set-field-status! (:architecture issues)))
     (ui/enable! ok-button (and (nil? (:architecture issues))
-                               (or (and
-                                     (nil? certificate)
-                                     (nil? private-key))
+                               (or (and (nil? certificate)
+                                        (nil? private-key))
                                    (and (existing-file-of-type? "pem" certificate)
                                         (existing-file-of-type? "pk8" private-key)))))))
 

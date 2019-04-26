@@ -177,15 +177,16 @@
    :architecture-64bit? "arm64-android"})
 
 (defn- android-bundle-bob-args [{:keys [^File certificate ^File private-key] :as bundle-options}]
-  (let [bob-architectures (for [[option-key bob-architecture] android-architecture-option->bob-architecture-string
-                               :when (bundle-options option-key)]
-                               bob-architecture)
-       bob-args {"architectures" (string/join "," bob-architectures)}]
-      (assert (or (nil? certificate) (.isFile certificate)))
-      (assert (or (nil? private-key) (.isFile private-key)))
-      (assoc bob-args
-             "certificate" (.getAbsolutePath certificate)
-             "private-key" (.getAbsolutePath private-key))))
+  (let [bob-architectures
+    (for [[option-key bob-architecture] android-architecture-option->bob-architecture-string
+          :when (bundle-options option-key)]
+      bob-architecture)
+    bob-args {"architectures" (string/join "," bob-architectures)}]
+    (assert (or (nil? certificate) (.isFile certificate)))
+    (assert (or (nil? private-key) (.isFile private-key)))
+    (assoc bob-args
+      "certificate" (.getAbsolutePath certificate)
+      "private-key" (.getAbsolutePath private-key))))
 
 (def ^:private ios-architecture-option->bob-architecture-string
   {:architecture-32bit? "armv7-darwin"
