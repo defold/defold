@@ -704,16 +704,16 @@
                                         (cond
                                           (instance? UnknownHostException error)
                                           (dialogs/make-error-dialog "No Internet Connection"
-                                                                     "You must be connected to the internet to download project content.")
+                                                                     "You Must Be Connected to the Internet to Download Project Content")
 
                                           (instance? SocketException error)
                                           (dialogs/make-error-dialog "Host Unreachable"
-                                                                     "A firewall might be blocking network connections."
+                                                                     "A Firewall Might Be Blocking Network Connections"
                                                                      (.getMessage error))
 
                                           (instance? SocketTimeoutException error)
                                           (dialogs/make-error-dialog "Host Not Responding"
-                                                                     "The connection timed out."
+                                                                     "The Connection Timed Out"
                                                                      (.getMessage error))
 
                                           (instance? SSLException error)

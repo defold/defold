@@ -143,6 +143,7 @@
                  (not (str/blank? detail-text))
                  {:fx/type fxui/text-area
                   :style-class "text-area-with-dialog-content-padding"
+                  :pref-row-count (max 3 (count (str/split detail-text #"\n" 10)))
                   :variant :borderless
                   :editable false
                   :text detail-text})
