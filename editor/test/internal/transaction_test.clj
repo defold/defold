@@ -86,15 +86,7 @@
                                      (g/delete-node resource)))
             [node]    (g/tx-nodes-added tx-result)]
         (is (= :ok (:status tx-result)))
-        (is (nil?  node)))))
-
-  (testing "node transformation"
-    (ts/with-clean-system
-      (let [[id1] (ts/tx-nodes (g/make-node world Resource :marker (int 99)))
-            tx-result   (g/transact (it/become id1 (g/construct Downstream)))]
-        (is (= :ok (:status tx-result)))
-        (is (= Downstream (g/node-type* (g/now) id1)))
-        (is (thrown-with-msg? AssertionError #"No such" (g/node-value id1 :marker)))))))
+        (is (nil?  node))))))
 
 (g/defnode NamedThing
   (property name g/Str))
@@ -209,32 +201,6 @@
         (is (= "an-output-value" cached-value))
         (g/transact (g/delete-node node-id))
         (is (nil? (cache-peek node-id :cached-output)))))))
-
-(g/defnode OriginalNode
-  (output original-output g/Str :cached (g/fnk [] "original-output-value")))
-
-(g/defnode ReplacementNode
-  (output original-output g/Str (g/fnk [] "original-value-replaced"))
-  (output additional-output g/Str :cached (g/fnk [] "new-output-added")))
-
-(deftest become-interacts-with-caching
-  (testing "newly uncacheable values are evicted"
-    (ts/with-clean-system
-      (let [[node-id]      (ts/tx-nodes (g/make-node world OriginalNode))
-            expected-value (g/node-value node-id :original-output)]
-        (is (not (nil? expected-value)))
-        (is (= expected-value (cache-peek node-id :original-output)))
-        (let [tx-result (g/transact (g/become node-id (g/construct ReplacementNode)))]
-          (ts/yield)
-          (is (nil? (cache-peek node-id :original-output)))))))
-
-  (testing "newly cacheable values are indeed cached"
-    (ts/with-clean-system
-      (let [[node-id]    (ts/tx-nodes (g/make-node world OriginalNode))
-            tx-result    (g/transact (g/become node-id (g/construct ReplacementNode)))
-            cached-value (g/node-value node-id :additional-output)]
-        (ts/yield)
-        (is (= cached-value (cache-peek node-id :additional-output)))))))
 
 (g/defnode Container
   (input nodes g/Any :array :cascade-delete))

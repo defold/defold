@@ -57,7 +57,7 @@ def build(bld):
         exported_symbols.append('IAPExt')
 
     mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'WebViewExt']
-    if  re.match('arm.*?darwin', bld.env['PLATFORM']):
+    if bld.env['PLATFORM'] in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
         additional_libs.append('BOLTS')
         additional_libs.append('FBSDKCORE')
         additional_libs.append('FBSDKLOGIN')
@@ -85,8 +85,6 @@ def build(bld):
 
     dynamo_home = os.getenv('DYNAMO_HOME')
 
-    activities=[('com.facebook.FacebookActivity', 'android:theme="@android:style/Theme.Translucent.NoTitleBar" android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation" android:label="dmengine"'),
-                ('com.defold.iap.IapGooglePlayActivity', 'android:theme="@android:style/Theme.Translucent.NoTitleBar" android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation" android:label="IAP"')]
     extra_packages = 'com.facebook:com.google.android.gms:com.google.android.gms.common'
 
     android_jar_paths = ['%s/ext/share/java/facebooksdk.jar' % (dynamo_home),
@@ -102,10 +100,13 @@ def build(bld):
               '%s/share/java/sound_android.jar' % (dynamo_home),
               '%s/share/java/iac_android.jar' % (dynamo_home)]
 
+    web_libs = ['library_glfw.js', 'library_sys.js', 'library_script.js', 'library_facebook.js', 'library_facebook_iap.js', 'library_sound.js']
+
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
         uselib = 'WEBVIEWEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine engine_service',
+        web_libs = web_libs,
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
@@ -115,7 +116,6 @@ def build(bld):
         target = 'dmengine',
         bundleid = 'com.defold.engine',
         source=['main.cpp'],
-        activities = activities,
         extra_packages = extra_packages,
         proguard = ['../content/builtins/manifests/android/dmengine.pro'],
         jars = android_jar_paths)
@@ -136,6 +136,7 @@ def build(bld):
         features = 'cc cxx cprogram web apk extract_symbols',
         uselib = 'WEBVIEWEXT PROFILEREXT_NULL GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine_release engine_service_null',
+        web_libs = web_libs,
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
@@ -144,7 +145,6 @@ def build(bld):
         protoc_includes = '../proto',
         target = 'dmengine_release',
         source=['main.cpp'],
-        activities = activities,
         extra_packages = extra_packages,
         jars = android_jar_paths)
 
@@ -169,6 +169,7 @@ def build(bld):
         uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH DLIB LIVEUPDATE SOUND_NULL CRASH %s' % (additional_libs,),
         exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine engine_service',
+        web_libs = web_libs,
         includes = '../build ../proto . ..',
         proto_gen_py = True,
         protoc_includes = '../proto',

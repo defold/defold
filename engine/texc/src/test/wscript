@@ -23,7 +23,7 @@ def build(bld):
             copy_file_task(bld, src)
 
     test_texc = bld.new_task_gen(features = 'cc cxx cprogram test',
-                                     uselib = 'GTEST DLIB',
+                                     uselib = 'DLIB',
                                      uselib_local = 'texc',
                                      proto_gen_py = True,
                                      target = 'test_texc')

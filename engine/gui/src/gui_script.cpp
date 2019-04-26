@@ -191,11 +191,6 @@ namespace dmGui
         return (NodeProxy*)dmScript::CheckUserType(L, index, NODE_PROXY_TYPE_HASH, 0);
     }
 
-    static bool LuaIsNode(lua_State *L, int index)
-    {
-        return dmScript::GetUserType(L, index) == NODE_PROXY_TYPE_HASH;
-    }
-
     static bool IsValidNode(HScene scene, HNode node)
     {
         uint16_t version = (uint16_t) (node >> 16);
@@ -1480,6 +1475,14 @@ namespace dmGui
      * `node`
      * :        [type:node] The node that is animated.
      *
+     * @param [play_properties] [type:table] optional table with properties
+     *
+     * `offset`
+     * : [type:number] The normalized initial value of the animation cursor when the animation starts playing
+     *
+     * `playback_rate`
+     * : [type:number] The rate with which the animation will be played. Must be positive
+     *
      * @examples
      *
      * Set the texture of a node to a flipbook animation from an atlas:
@@ -1528,14 +1531,32 @@ namespace dmGui
             lua_pop(L, 1);
         }
 
+        lua_Number offset = 0.0, playback_rate = 1.0;
+
+        if (top > 3) // table with args
+        {
+            luaL_checktype(L, 4, LUA_TTABLE);
+            lua_pushvalue(L, 4);
+
+            lua_getfield(L, -1, "offset");
+            offset = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "playback_rate");
+            playback_rate = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
         if (lua_isstring(L, 2))
         {
             const char* anim_id = luaL_checkstring(L, 2);
             Result r;
             if(cbk != 0x0)
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, offset, playback_rate, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
             else
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, offset, playback_rate);
             if (r != RESULT_OK)
             {
                 luaL_error(L, "Animation '%s' invalid for node '%s' (no animation set)", anim_id, dmHashReverseSafe64(n->m_NameHash));
@@ -1546,9 +1567,9 @@ namespace dmGui
             dmhash_t anim_id = dmScript::CheckHash(L, 2);
             Result r;
             if(cbk != 0x0)
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, offset, playback_rate, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
             else
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, offset, playback_rate);
             if (r != RESULT_OK)
             {
                 luaL_error(L, "Animation '%s' invalid for node '%s' (no animation set)", dmHashReverseSafe64(anim_id), dmHashReverseSafe64(n->m_NameHash));
@@ -2753,6 +2774,8 @@ namespace dmGui
     /*# determines if the node is pickable by the supplied coordinates
      * Tests whether a coordinate is within the bounding box of a
      * node.
+     *
+     * @note The check returns false if the node, or any of its parents, is disabled
      *
      * @name gui.pick_node
      * @param node [type:node] node to be tested for picking
@@ -3983,7 +4006,7 @@ namespace dmGui
      * This is only useful for spine nodes. Gets the normalized cursor of the animation on a spine node.
      *
      * @name gui.get_spine_cursor
-     * @param node spine node to set the cursor for (node)
+     * @param node spine node to get the cursor for (node)
      * @return cursor value [type:number] cursor value
      */
     int LuaGetSpineCursor(lua_State* L)
@@ -4003,6 +4026,107 @@ namespace dmGui
         lua_pushnumber(L, cursor);
 
         return 1;
+    }
+
+    /*# gets the normalized cursor of the animation on a node with flipbook animation
+     * This is only useful nodes with flipbook animations. Gets the normalized cursor of the flipbook animation on a node.
+     *
+     * @name gui.get_flipbook_cursor
+     * @param node node to get the cursor for (node)
+     * @return cursor value [type:number] cursor value
+     */
+    static int LuaGetFlipbookCursor(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode node;
+        LuaCheckNode(L, 1, &node);
+
+        if (dmGui::GetNodeIsBone(scene, node))
+        {
+            return DM_LUA_ERROR("cannot get cursor for bone");
+        }
+
+        float cursor = dmGui::GetNodeFlipbookCursor(scene, node);
+        lua_pushnumber(L, cursor);
+
+        return 1;
+    }
+
+    /*# sets the normalized cursor of the animation on a node with flipbook animation
+     * This is only useful nodes with flipbook animations. The cursor is normalized.
+     *
+     * @name gui.set_flipbook_cursor
+     * @param node [type:node] node to set the cursor for
+     * @param cursor [type:number] cursor value
+     */
+    static int LuaSetFlipbookCursor(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode node;
+        LuaCheckNode(L, 1, &node);
+
+        if (dmGui::GetNodeIsBone(scene, node))
+        {
+            return DM_LUA_ERROR("cannot set cursor for bone");
+        }
+
+        dmGui::SetNodeFlipbookCursor(scene, node, luaL_checknumber(L, 2));
+
+        return 0;
+    }
+
+    /*# gets the playback rate of the flipbook animation on a node
+     * This is only useful nodes with flipbook animations. Gets the playback rate of the flipbook animation on a node.
+     *
+     * @name gui.get_flipbook_playback_rate
+     * @param node [type:node] node to set the cursor for
+     * @return rate [type:number] playback rate
+     */
+    static int LuaGetFlipbookPlaybackRate(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode node;
+        LuaCheckNode(L, 1, &node);
+
+        if (dmGui::GetNodeIsBone(scene, node))
+        {
+            return DM_LUA_ERROR("cannot get playback rate for bone");
+        }
+
+        lua_pushnumber(L, dmGui::GetNodeFlipbookPlaybackRate(scene, node));
+
+        return 1;
+    }
+
+    /*# sets the playback rate of the flipbook animation on a node
+     * This is only useful nodes with flipbook animations. Sets the playback rate of the flipbook animation on a node. Must be positive.
+     *
+     * @name gui.set_flipbook_playback_rate
+     * @param node [type:node] node to set the cursor for
+     * @param playback_rate [type:number] playback rate
+     */
+    static int LuaSetFlipbookPlaybackRate(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        HNode node;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &node);
+
+        if(dmGui::GetNodeIsBone(scene, node))
+        {
+            return DM_LUA_ERROR("cannot set playback rate for bone");
+        }
+
+        SetNodeFlipbookPlaybackRate(scene, node, luaL_checknumber(L, 2));
+
+        return 0;
     }
 
     /*# sets the playback rate of the animation on a spine node
@@ -4445,8 +4569,12 @@ namespace dmGui
         {"get_spine_animation",  LuaGetSpineAnimation},
         {"set_spine_cursor", LuaSetSpineCursor},
         {"get_spine_cursor", LuaGetSpineCursor},
+        {"get_flipbook_cursor", LuaGetFlipbookCursor},
+        {"set_flipbook_cursor", LuaSetFlipbookCursor},
         {"set_spine_playback_rate", LuaSetSpinePlaybackRate},
         {"get_spine_playback_rate", LuaGetSpinePlaybackRate},
+        {"get_flipbook_playback_rate", LuaGetFlipbookPlaybackRate},
+        {"set_flipbook_playback_rate", LuaSetFlipbookPlaybackRate},
         {"new_particlefx_node",  LuaNewParticlefxNode},
         {"set_particlefx",  LuaSetParticlefx},
         {"get_particlefx",  LuaGetParticlefx},

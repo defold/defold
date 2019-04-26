@@ -5,13 +5,14 @@ from waf_dynamo import new_copy_task
 new_copy_task('luascript', '.lua', '.luac')
 
 def build(bld):
-    libs = 'SCRIPT GTEST EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT'
+    libs = 'SCRIPT EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT'
     if 'android' in bld.env['PLATFORM']:
         libs += ' UNWIND'
     test_crash = bld.new_task_gen(features = 'cxx cprogram test',
                                      includes = '..',
                                      uselib = libs,
                                      uselib_local = 'crashext',
+                                     web_libs = ['library_sys.js'],
                                      target = 'test_crash',
                                      source = 'test_crash.cpp')
 
@@ -21,6 +22,7 @@ def build(bld):
                                      includes = '..',
                                      uselib = libs,
                                      uselib_local = 'crashext',
+                                     web_libs = ['library_sys.js','library_script.js'],
                                      target = 'test_script_crash',
                                      exported_symbols = 'CrashExt',
                                      source = 'test_script_crash.cpp test_crash.lua')

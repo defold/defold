@@ -9,7 +9,7 @@
 
 #elif defined (__MACH__)
 
-#if defined(__arm__) || defined(__arm64__)
+#if defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)
 #include <OpenGLES/ES2/gl.h>
 #include <OpenGLES/ES2/glext.h>
 #else

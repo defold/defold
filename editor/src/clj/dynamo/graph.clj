@@ -1,18 +1,16 @@
 (ns dynamo.graph
   "Main api for graph and node"
   (:refer-clojure :exclude [deftype constantly])
-  (:require [clojure.set :as set]
-            [clojure.tools.macro :as ctm]
+  (:require [clojure.tools.macro :as ctm]
             [cognitect.transit :as transit]
             [internal.util :as util]
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
-            [internal.graph.error-values :as ie]
+            [internal.low-memory :as low-memory]
             [internal.node :as in]
             [internal.system :as is]
             [internal.transaction :as it]
-            [plumbing.core :as pc]
             [potemkin.namespaces :as namespaces]
             [schema.core :as s])
   (:import [internal.graph.error_values ErrorValue]
@@ -24,7 +22,7 @@
 
 (namespaces/import-vars [internal.graph.error-values error-info error-warning error-fatal ->error error? error-info? error-warning? error-fatal? error-aggregate flatten-errors package-errors precluding-errors unpack-errors worse-than])
 
-(namespaces/import-vars [internal.node value-type-schema value-type? isa-node-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes internal-property-labels declared-properties declared-property-labels externs declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-display-order])
+(namespaces/import-vars [internal.node value-type-schema value-type? isa-node-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-display-order])
 
 (namespaces/import-vars [internal.graph arc node-ids pre-traverse])
 
@@ -230,10 +228,10 @@
 
 (defmacro deftype
   [symb & body]
-  (let [fqs           (symbol (str *ns*) (str symb))
-        key           (keyword fqs)]
+  (let [fully-qualified-node-type-symbol (symbol (str *ns*) (str symb))
+        key (keyword fully-qualified-node-type-symbol)]
     `(do
-       (in/register-value-type '~fqs ~key)
+       (in/register-value-type '~fully-qualified-node-type-symbol ~key)
        (def ~symb (in/register-value-type ~key (in/make-value-type '~symb ~key ~@body))))))
 
 (deftype Any        s/Any)
@@ -276,8 +274,6 @@
   (construct GravityModifier :acceleration 16)"
   [node-type-ref & {:as args}]
   (in/construct node-type-ref args))
-
-(defn- var-it [it] (list `var it))
 
 (defmacro defnode
   "Given a name and a specification of behaviors, creates a node,
@@ -349,41 +345,34 @@
 
   Every node always implements dynamo.graph/Node."
   [symb & body]
-  (binding [in/*autotypes* (atom {})]
-    (let [[symb forms]  (ctm/name-with-attributes symb body)
-          fqs           (symbol (str *ns*) (str symb))
-          node-type-def (in/process-node-type-forms fqs forms)
-          fn-paths      (in/extract-functions node-type-def)
-          fn-defs       (for [[path func] fn-paths]
-                          (list `def (in/dollar-name symb path) func))
-          fwd-decls     (map (fn [d] (list `declare (second d))) fn-defs)
-          node-type-def (util/update-paths node-type-def fn-paths
-                                           (fn [path func curr]
-                                             (assoc curr :fn (var-it (in/dollar-name symb path)))))
-          node-key      (:key node-type-def)
-          derivations   (for [tref (:supertypes node-type-def)]
-                          `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
-                             (derive ~node-key ~(:key (deref tref)))))
-          node-type-def (update node-type-def :supertypes #(list `quote %))
-          type-name (str symb)
-          runtime-definer (symbol (str symb "*"))
-          type-regs     (for [[vtr ctor] @in/*autotypes*] `(in/register-value-type ~vtr ~ctor))]
-      ;; This try-block was an attempt to catch "Code too large" errors when method size exceeded 64kb in the JVM.
-      ;; Surprisingly, the addition of the try-block stopped the error from happening, so leaving it here.
-      ;; "Problem solved!" lol
-      `(try
-         (do
-           (declare ~symb)
-           ~@type-regs
-           ~@fwd-decls
-           ~@fn-defs
-           (defn ~runtime-definer [] ~node-type-def)
-           (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
-           ~@derivations
-           (var ~symb))
-         (catch RuntimeException e#
-           (prn (format "defnode exception while generating code for %s" ~type-name))
-           (throw e#))))))
+  (let [[symb forms] (ctm/name-with-attributes symb body)
+        fully-qualified-node-type-symbol (symbol (str *ns*) (str symb))
+        node-type-def (in/process-node-type-forms fully-qualified-node-type-symbol forms)
+        fn-paths (in/extract-def-fns node-type-def)
+        fn-defs (for [[path func] fn-paths]
+                  (list `def (in/dollar-name symb path) func))
+        node-type-def (util/update-paths node-type-def fn-paths
+                                         (fn [path func curr]
+                                           (assoc curr :fn (list `var (in/dollar-name symb path)))))
+        node-key (:key node-type-def)
+        derivations (for [tref (:supertypes node-type-def)]
+                      `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
+                         (derive ~node-key ~(:key (deref tref)))))
+        node-type-def (update node-type-def :supertypes #(list `quote %))
+        runtime-definer (symbol (str symb "*"))
+        ;; TODO - investigate if we even need to register these types
+        ;; in release builds, since we don't do schema checking?
+        type-regs (for [[key-form value-type-form] (:register-type-info node-type-def)]
+                    `(in/register-value-type ~key-form ~value-type-form))
+        node-type-def (dissoc node-type-def :register-type-info)]
+    `(do
+       ~@type-regs
+       ~@fn-defs
+       (defn ~runtime-definer [] ~node-type-def)
+       (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
+       ~@derivations)))
+
+
 
 ;; ---------------------------------------------------------------------------
 ;; Transactions
@@ -555,39 +544,6 @@
    (assert target-id)
     (it/disconnect-sources basis target-id target-label)))
 
-(defn become
-  "Creates the transaction step to turn one kind of node into another, in a transaction. All properties and their values
-   will be carried over from source-node to new-node. The resulting node will still have
-   the same node-id.
-
-  Example:
-
-  `(transact (become counter (construct StringSource))`
-
-   Any input or output connections to labels that exist on both
-  source-node and new-node will continue to exist. Any connections to
-  labels that don't exist on new-node will be disconnected in the same
-  transaction."
-  [node-id new-node]
-  (assert node-id)
-  (it/become node-id new-node))
-
-(defn become!
-  "Creates the transaction step to turn one kind of node into another and applies it in a transaction. All properties and their values
-   will be carried over from source-node to new-node. The resulting node will still have
-   the same node-id.  Returns the transaction-result, (tx-result).
-
-  Example:
-
-  `(become! counter (construct StringSource)`
-
-   Any input or output connections to labels that exist on both
-  source-node and new-node will continue to exist. Any connections to
-  labels that don't exist on new-node will be disconnected in the same
-  transaction."
-  [source-node new-node]
-  (transact (become source-node new-node)))
-
 (defn set-property
   "Creates the transaction step to assign a value to a node's property (or properties) value(s).  It will take effect when the transaction
   is applies in a transact.
@@ -709,7 +665,7 @@
      (list
       (set-property node-id :_output-jammers
                     (zipmap jammable-outputs
-                            (repeat (clojure.core/constantly defective-value))))
+                            (repeat defective-value)))
       (invalidate node-id)))))
 
 (defn mark-defective!
@@ -809,10 +765,19 @@
      (update-cache-from-evaluation-context! ~ec)
      result#))
 
+(def fake-system (is/make-system {:cache-size 0}))
+
+(defmacro with-auto-or-fake-evaluation-context [ec & body]
+  `(let [real-system# @*the-system*
+         ~ec (is/default-evaluation-context (or real-system# fake-system))
+         result# (do ~@body)]
+     (when (some? real-system#)
+       (update-cache-from-evaluation-context! ~ec))
+     result#))
+
 (defn invalidate-counter
   ([node-id output]
-   (with-auto-evaluation-context evaluation-context
-     (invalidate-counter node-id output evaluation-context)))
+   (get (:invalidate-counters @*the-system*) [node-id output]))
   ([node-id output evaluation-context]
    (get (:initial-invalidate-counters evaluation-context) [node-id output])))
 
@@ -820,7 +785,7 @@
   (is/node-value @*the-system* node-id label evaluation-context))
 
 (defn node-value
-  "Pull a value from a node's output, identified by `label`.
+  "Pull a value from a node's output, property or input, identified by `label`.
   The value may be cached or it may be computed on demand. This is
   transparent to the caller.
 
@@ -833,9 +798,6 @@
   The system cache is only updated automatically if the context was left
   out. If passed explicitly, you will need to update the cache
   manually by calling update-cache-from-evaluation-context!.
-
-  The label must exist as a defined transform on the node, or an
-  AssertionError will result.
 
   Example:
 
@@ -857,21 +819,6 @@
    (graph-value (now) graph-id k))
   ([basis graph-id k]
    (get-in basis [:graphs graph-id :graph-values k])))
-
-;; ---------------------------------------------------------------------------
-;; Constructing property maps
-;; ---------------------------------------------------------------------------
-(defn adopt-properties
-  [node-id ps]
-  (update ps :properties #(util/map-vals (fn [prop] (assoc prop :node-id node-id)) %)))
-
-(defn aggregate-properties
-  [x & [y & ys]]
-  (if ys
-    (apply aggregate-properties (aggregate-properties x y) ys)
-    (-> x
-        (update :properties merge (:properties y))
-        (update :display-order #(into (or % []) (:display-order y))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Interrogating the Graph
@@ -1239,9 +1186,10 @@
 ;; Boot, initialization, and facade
 ;; ---------------------------------------------------------------------------
 (defn initialize!
-  "Set up the initial system including graphs, caches, and dispoal queues"
+  "Set up the initial system including graphs, caches, and disposal queues"
   [config]
-  (reset! *the-system* (is/make-system config)))
+  (reset! *the-system* (is/make-system config))
+  (low-memory/add-callback! clear-system-cache!))
 
 (defn make-graph!
   "Create a new graph in the system with optional values of `:history` and `:volatility`. If no
