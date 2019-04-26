@@ -16,6 +16,7 @@
             [editor.engine.build-errors :as engine-build-errors]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
+            [editor.fxui :as fxui]
             [editor.game-project :as game-project]
             [editor.github :as github]
             [editor.graph-util :as gu]
@@ -744,9 +745,15 @@
   [project]
   (if (project/shared-script-state? project)
     true
-    (do (dialogs/make-alert-dialog "This project cannot be used with the debugger because it is configured to disable shared script state.
+    (do (dialogs/make-error-dialog
+          "Debugging Not Supported"
+          "This Project Cannot Be Used with the Debugger"
+          {:fx/type fxui/label
+           :style-class "dialog-content-padding"
+           :wrap-text true
+           :text "It is configured to disable shared script state.
 
-If you do not specifically require different script states, consider changing the script.shared_state property in game.project.")
+If you do not specifically require different script states, consider changing the script.shared_state property in game.project."})
         false)))
 
 (defn- run-with-debugger! [workspace project prefs debug-view render-build-error! web-server]
@@ -1427,7 +1434,9 @@ If you do not specifically require different script states, consider changing th
                               (first (:view-types resource-type)))
                             text-view-type)]
      (if (resource-node/defective? resource-node)
-       (do (dialogs/make-alert-dialog (format "Unable to open '%s', since it appears damaged." (resource/proj-path resource)))
+       (do (dialogs/make-error-dialog
+             "Unable to Open Resource"
+             (format "Unable to Open '%s', since It Appears Damaged" (resource/proj-path resource)))
            false)
        (if-let [custom-editor (and (#{:code :text} (:id view-type))
                                    (let [ed-pref (some->
@@ -1473,11 +1482,11 @@ If you do not specifically require different script states, consider changing th
                                   (resource/temp-path resource))
                  ^File f (File. path)]
              (ui/open-file f (fn [msg]
-                               (let [lines [(format "Could not open '%s'." (.getName f))
-                                            "This can happen if the file type is not mapped to an application in your OS."
-                                            "Underlying error from the OS:"
-                                            msg]]
-                                 (ui/run-later (dialogs/make-alert-dialog (string/join "\n" lines))))))
+                               (ui/run-later
+                                 (dialogs/make-error-dialog
+                                   "Could Not Open File"
+                                   (format "Could Not Open '%s'" (.getName f))
+                                   (str "This can happen if the file type is not mapped to an application in your OS.\n\nUnderlying error from the OS:\n" msg)))))
              false)))))))
 
 (handler/defhandler :open :global
@@ -1726,7 +1735,9 @@ If you do not specifically require different script states, consider changing th
                              (when successful?
                                (if (some-> output-directory .isDirectory)
                                  (ui/open-file output-directory)
-                                 (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again.")))))))
+                                 (dialogs/make-error-dialog
+                                   "Bundle Failed"
+                                   "Failed to Bundle Project, Please Fix Build Errors and Try Again")))))))
 
 (handler/defhandler :bundle :global
   (run [user-data workspace project prefs app-view changes-view build-errors-view main-stage tool-tab-pane]
@@ -1746,10 +1757,11 @@ If you do not specifically require different script states, consider changing th
   (let [library-uris (project/project-dependencies project)
         hosts (into #{} (map url/strip-path) library-uris)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
-      (dialogs/make-alert-dialog (string/join "\n" ["Fetch was aborted because the following host could not be reached:"
-                                                    (str "\u00A0\u00A0\u2022\u00A0" first-unreachable-host) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
-                                                    ""
-                                                    "Please verify internet connection and try again."]))
+      (dialogs/make-error-dialog
+        "Fetch Failed"
+        "Fetch Was Aborted Because a Host Could Not Be Reached"
+        (str "Unreachable host: " first-unreachable-host
+             "\n\nPlease verify internet connection and try again."))
       (future
         (error-reporting/catch-all!
           (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
@@ -1805,7 +1817,8 @@ If you do not specifically require different script states, consider changing th
           (let [main-scene (.getScene ^Stage main-stage)
                 render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
             (if (engine-build-errors/handle-build-error! render-build-error! project evaluation-context error)
-              (dialogs/make-alert-dialog "Failed to build ipa with Native Extensions. Please fix build errors and try again.")
+              (dialogs/make-error-dialog "Build Failed"
+                                         "Failed to Build Ipa with Native Extensions, Please Fix Build Errors and Try Again")
               (do (error-reporting/report-exception! error)
                   (when-let [message (:message result)]
-                    (dialogs/make-alert-dialog message))))))))))
+                    (dialogs/make-error-dialog "Error" message))))))))))

@@ -120,10 +120,19 @@
     (ui.updater/init! stage link updater install-and-restart! render-download-progress!)))
 
 (defn- show-tracked-internal-files-warning! []
-  (dialogs/make-alert-dialog (str "It looks like internal files such as downloaded dependencies or build output were placed under source control.\n"
-                                  "This can happen if a commit was made when the .gitignore file was not properly configured.\n"
-                                  "\n"
-                                  "To fix this, make a commit where you delete the .internal and build directories, then reopen the project.")))
+  (dialogs/make-error-dialog
+    "Internal Files Under Source Control"
+    "Internal Files Were Placed under Source Control"
+    {:fx/type fxui/text-area
+     :style-class "text-area-with-dialog-content-padding"
+     :variant :borderless
+     :pref-row-count 6
+     :wrap-text true
+     :editable false
+     :text (str "It looks like internal files such as downloaded dependencies or build output were placed under source control.\n"
+                "This can happen if a commit was made when the .gitignore file was not properly configured.\n"
+                "\n"
+                "To fix this, make a commit where you delete the .internal and build directories, then reopen the project.")}))
 
 (def ^:private interaction-event-types
   #{DragEvent/DRAG_DONE
@@ -354,11 +363,15 @@
     root))
 
 (defn- show-missing-dependencies-alert! [dependencies]
-  (dialogs/make-alert-dialog (string/join "\n" (concat ["The following dependencies are missing:"]
-                                                       (map #(str "\u00A0\u00A0\u2022\u00A0" %) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
-                                                            (sort-by str dependencies))
-                                                       [""
-                                                        "The project might not work without them. To download, connect to the internet and choose Fetch Libraries from the Project menu."]))))
+  (dialogs/make-error-dialog
+    "Missing Dependencies"
+    "There Are Missing Dependencies"
+    (string/join "\n" (concat ["The following dependencies are missing:"]
+                              (map #(str "\u00A0\u00A0\u2022\u00A0" %) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
+                                   (sort-by str dependencies))
+                              [""
+                               "The project might not work without them. "
+                               "To download, connect to the internet and choose Fetch Libraries from the Project menu."]))))
 
 (defn open-project
   [^File game-project-file prefs render-progress! dashboard-client updater newly-created?]
