@@ -2775,6 +2775,8 @@ namespace dmGui
      * Tests whether a coordinate is within the bounding box of a
      * node.
      *
+     * @note The check returns false if the node, or any of its parents, is disabled
+     *
      * @name gui.pick_node
      * @param node [type:node] node to be tested for picking
      * @param x [type:number] x-coordinate (see <a href="#on_input">on_input</a> )
