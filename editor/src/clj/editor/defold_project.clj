@@ -516,13 +516,16 @@
                                 (:invalidate-outputs plan))]
         (g/invalidate-outputs! all-outputs))
 
-      (let [old->new (into {} (map (fn [[p n]] [(old-nodes-by-path p) n]) resource-path->new-node))]
+      (let [old->new (into {} (map (fn [[p n]] [(old-nodes-by-path p) n]) resource-path->new-node))
+            dissoc-deleted (fn [x] (apply dissoc x (:mark-deleted plan)))]
         (g/transact
           (concat
             (let [all-selections (-> (g/node-value project :all-selections)
+                                     (dissoc-deleted)
                                      (remap-selection old->new (comp vector first)))]
               (perform-selection project all-selections))
             (let [all-sub-selections (-> (g/node-value project :all-sub-selections)
+                                         (dissoc-deleted)
                                          (remap-selection old->new (constantly [])))]
               (perform-sub-selection project all-sub-selections)))))
 
