@@ -410,6 +410,7 @@
                 {:title "Delete Files"
                  :header "Are you sure you want to delete these files?"
                  :content {:fx/type fxui/label
+                           :style-class "dialog-content-padding"
                            :wrap-text true
                            :text (format "You are about to delete %s" names)}
                  :buttons [{:text "Cancel"

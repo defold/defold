@@ -3,6 +3,8 @@ $light-grey-lighter: derive($light-grey, 20%);
 $light-grey-lightest: derive($light-grey, 60%);
 $light-grey-darker: derive($light-grey, -20%);
 
+$grey: #393c41;
+
 $blue: #5BC0FF;
 $blue-lighter: derive($blue, 20%);
 $blue-lightest: derive($blue, 40%);
@@ -67,6 +69,8 @@ $spacing-largest: 40px;
   @include text-fill-text-color();
 }
 
+// button
+
 .button {
   @include font-size-default();
   @include font-default();
@@ -79,9 +83,15 @@ $spacing-largest: 40px;
   }
   &:focused {
     -fx-background-color: rgba(255, 255, 255, 0.04);
+    &:hover {
+      -fx-background-color: rgba(255, 255, 255, 0.08);
+    }
   }
   &:armed {
     -fx-background-color: transparent;
+    &:hover {
+      -fx-background-color: transparent;
+    }
   }
   &:disabled {
     -fx-text-fill: $light-grey;
@@ -96,7 +106,6 @@ $spacing-largest: 40px;
     -fx-text-fill: $blue-lighter;
     -fx-border-color: $blue-lighter;
   }
-
   &:focused {
     -fx-text-fill: $blue-lighter;
     -fx-border-color: $blue-lightest;
@@ -115,10 +124,12 @@ $spacing-largest: 40px;
 }
 
 .dialog-content {
-  -fx-padding: $spacing-larger;
   -fx-background-color: rgba(0, 0, 0, 0.14);
   -fx-border-width: 1 0;
   -fx-border-color: $dark-grey-lighter;
+}
+.dialog-content-padding {
+  -fx-padding: $spacing-larger;
 }
 .dialog-no-content {
   -fx-pref-height: $spacing-largest;
@@ -146,36 +157,140 @@ $spacing-largest: 40px;
   @include spacing-smaller();
 }
 
-.text-field {
+@mixin text-input-defaults() {
   @include font-default();
   @include font-size-default();
   -fx-highlight-fill: $dark-grey-lightest;
-  -fx-padding: 4px 8px;
-  -fx-background-color: $dark-grey-darker;
-  -fx-border-width: 1px;
   -fx-text-fill: $light-grey-lightest;
   -fx-prompt-text-fill: #54585e;
+  -fx-background-color: $dark-grey-darker;
+  -fx-border-width: 1px;
+
+  &:readonly {
+    @include text-fill-text-color();
+    -fx-background-color: transparent;
+    -fx-focus-traversable: false;
+  }
+}
+
+@mixin text-input-variant($border-color, $highlight-color) {
+  -fx-border-color: $border-color;
+  &:focused { -fx-border-color: $border-color $border-color $highlight-color $border-color; }
+  &:readonly { -fx-border-color: $border-color; }
+}
+
+.text-field {
+  @include text-input-defaults();
+  -fx-padding: 4px 8px;
   &:focused {
     -fx-border-width: 1px 1px 2px 1px;
     -fx-padding: 4px 8px 3px 8px;
   }
-}
-
-.text-field-default {
-  -fx-border-color: $dark-grey-lighter;
-  &:focused {
-    -fx-border-color: $dark-grey-lighter $dark-grey-lighter $orange $dark-grey-lighter;
+  &:readonly {
+    -fx-border-width: 1px;
+    -fx-padding: 4px 8px;
   }
 }
 
+.text-field-default {
+  @include text-input-variant($dark-grey-lighter, $orange);
+}
+
 .text-field-error {
-  -fx-border-color: $red-darker;
+  @include text-input-variant($red-darker, $red);
+}
+
+.text-area {
+  @include text-input-defaults();
+
   &:focused {
-    -fx-border-color: $red-darker $red-darker $red $red-darker;
+    -fx-border-width: 1px 1px 2px 1px;
+    -fx-border-insets: 0px 0px 1px 0px;
+  }
+  .content {
+    -fx-padding: 4px 8px;
+    -fx-background-color: transparent;
+  }
+
+  &:readonly {
+    -fx-border-width: 1px;
+    -fx-border-insets: 0px;
+  }
+}
+.text-area-default {
+  @include text-input-variant($dark-grey-lighter, $orange);
+}
+.text-area-error {
+  @include text-input-variant($red-darker, $red);
+}
+.text-area-borderless {
+  @include text-input-variant(transparent, transparent);
+}
+.text-area-with-dialog-content-padding {
+  .content {
+    -fx-padding: $spacing-larger;
+  }
+}
+
+.scroll-bar {
+  -fx-background-color: transparent;
+  > .thumb {
+    -fx-background-color: $dark-grey-lightest;
+    -fx-background-radius: 5px;
+    -fx-background-insets: 1px;
+    &:hover {
+      -fx-background-color: $light-grey-darker;
+    }
+    &:pressed {
+      -fx-background-color: $light-grey-lightest;
+    }
+  }
+  &:vertical {
+    -fx-pref-width: 10px;
+  }
+  &:horizontal {
+    -fx-pref-height: 10px;
+  }
+  > .increment-button,
+  > .increment-button > .increment-arrow,
+  > .decrement-button,
+  > .decrement-button > .decrement-arrow {
+    -fx-shape: null;
+    -fx-padding: 0;
+  }
+}
+
+.scroll-pane {
+  > .viewport {
+    -fx-background-color: transparent;
+  }
+  > .corner {
+    -fx-background-color: transparent;
   }
 }
 
 .input-grid {
   -fx-hgap: $spacing-smaller;
   -fx-vgap: $spacing-smaller;
+}
+
+.hyperlink {
+  @include font-size-default();
+  @include font-default();
+  -fx-text-fill: $blue;
+  -fx-border-width: 0;
+  -fx-padding: 0;
+  &:visited {
+    -fx-underline: false;
+  }
+  &:hover {
+    -fx-text-fill: $blue-lighter;
+    -fx-underline: true;
+  }
+}
+
+Text {
+  @include font-size-default();
+  @include font-default();
+  -fx-fill: $light-grey;
 }

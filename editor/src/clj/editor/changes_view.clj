@@ -145,6 +145,7 @@
               {:title "Not Safe to Sync"
                :header "There Are Locked Files, Retry?"
                :content {:fx/type fxui/label
+                         :style-class "dialog-content-padding"
                          :wrap-text true
                          :text (git/locked-files-error-message locked-files)}
                :buttons [{:text "Cancel"

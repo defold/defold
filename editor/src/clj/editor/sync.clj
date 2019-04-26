@@ -270,6 +270,7 @@
                                         :variant :header
                                         :text "An Error Occurred"}]}
                    :content {:fx/type fxui/label
+                             :style-class "dialog-content-padding"
                              :wrap-text true
                              :text (cancel-result-message result)}
                    :buttons [{:text "Lose Changes"

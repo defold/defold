@@ -717,15 +717,24 @@
                                                                      (.getMessage error))
 
                                           (instance? SSLException error)
-                                          (dialogs/make-error-dialog "SSL Connection Error"
-                                                                     (str "Could not establish an SSL connection. Common causes are:\n"
-                                                                          "\u00A0\u00A0\u2022\u00A0 Antivirus software configured to scan encrypted connections\n"
-                                                                          "\u00A0\u00A0\u2022\u00A0 Expired or misconfigured server certificate\n"
-                                                                          "\u00A0\u00A0\u2022\u00A0 Untrusted server certificate\n"
-                                                                          "\n"
-                                                                          "The following FAQ may apply:\n"
-                                                                          "[PKIX path building failed](https://github.com/defold/editor2-issues/blob/master/faq/pkixpathbuilding.md)")
-                                                                     (string/replace (.getMessage error) ": " ":\n\u00A0\u00A0"))
+                                          (dialogs/make-error-dialog
+                                            "SSL Connection Error"
+                                            "Could Not Establish an SSL Connection"
+                                            {:fx/type :text-flow
+                                             :style-class "dialog-content-padding"
+                                             :children [{:fx/type :text
+                                                         :text (str "Common causes are:\n"
+                                                                    "\u00A0\u00A0\u2022\u00A0 Antivirus software configured to scan encrypted connections\n"
+                                                                    "\u00A0\u00A0\u2022\u00A0 Expired or misconfigured server certificate\n"
+                                                                    "\u00A0\u00A0\u2022\u00A0 Untrusted server certificate\n"
+                                                                    "\n"
+                                                                    "The following FAQ may apply: ")}
+                                                        {:fx/type :hyperlink
+                                                         :text "PKIX path building failed"
+                                                         :on-action (fn [_]
+                                                                      (ui/open-url "https://github.com/defold/editor2-issues/blob/master/faq/pkixpathbuilding.md"))}
+                                                        {:fx/type :text
+                                                         :text (str "\n\n" (string/replace (.getMessage error) ": " ":\n\u00A0\u00A0"))}]})
 
                                           :else
                                           (error-reporting/report-exception! error))))))))
