@@ -2,6 +2,7 @@
  *
  * @document
  * @name Engine runtime
+ * @namespace engine
  */
 
 /*# override the save directory
