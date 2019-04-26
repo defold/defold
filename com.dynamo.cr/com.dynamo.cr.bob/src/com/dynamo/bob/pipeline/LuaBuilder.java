@@ -75,7 +75,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         return string.getBytes();
     }
 
-    public byte[] constructBytecode(Task<Void> task, String luajitExe) throws IOException, CompileExceptionError {
+    public byte[] constructBytecode(Task<Void> task, String luajitExe, byte[] byteString) throws IOException, CompileExceptionError {
 
         java.io.FileOutputStream fo = null;
         RandomAccessFile rdr = null;
@@ -105,7 +105,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             // If a script error occurs in runtime we want Lua to report the end of the filepath
             // associated with the chunk, since this is where the filename is visible.
             //
-            String chunkName = path;
+            String chunkName = task.input(0).getPath();
             if (chunkName.length() >= 59) {
                 chunkName = chunkName.substring(chunkName.length() - 59);
             }
@@ -138,7 +138,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                         if (lineBegin > 0) {
                             int lineEnd = cmdOutput.indexOf(':', lineBegin + 1);
                             if (lineEnd > 0) {
-                                throw new CompileExceptionError(resource,
+                                throw new CompileExceptionError(task.input(0),
                                         Integer.parseInt(cmdOutput.substring(
                                                 lineBegin + 1, lineEnd)),
                                         cmdOutput.substring(lineEnd + 2));
@@ -148,7 +148,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                     // Since parsing out the actual error failed, as a backup just
                     // spit out whatever luajit said.
                     inputFile.delete();
-                    throw new CompileExceptionError(resource, 1, cmdOutput);
+                    throw new CompileExceptionError(task.input(0), 1, cmdOutput);
                 }
             } catch (InterruptedException e) {
                 Logger.getLogger(LuaBuilder.class.getCanonicalName()).log(Level.SEVERE, "Unexpected interruption", e);
@@ -192,25 +192,25 @@ public abstract class LuaBuilder extends Builder<Void> {
         builder.addAllPropertyResources(propertyResources);
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
         byte[] scriptBytesStripped = constructStrippedLuaCode(task.input(0).getContent());
-        srcBuilder.setScript(ByteString.copyFrom(scriptBytesStripped));
-        srcBuilder.setFilename(task.input(0).getPath());
 
+        /*
         // For now it will always return, or throw an exception. This leaves the possibility of
         // disabling bytecode generation.
-        byte[] bytecode = constructBytecode(task.input(0), task.input(0).getPath(), scriptBytesStripped);
+        byte[] bytecode = constructBytecode(task, task.input(0).getPath(), scriptBytesStripped);
         if (bytecode != null)
             srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
+        */
 
         srcBuilder.setFilename(task.input(0).getPath());
 
         if (needsLuaSource.contains(project.getPlatform())) {
-            srcBuilder.setScript(ByteString.copyFrom(scriptBytes));
+            srcBuilder.setScript(ByteString.copyFrom(scriptBytesStripped));
         } else {
-            byte[] bytecode = constructBytecode(task, "luajit-32");
+            byte[] bytecode = constructBytecode(task, "luajit-32", scriptBytesStripped);
             if (bytecode != null) {
                 srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
             }
-            byte[] bytecode64 = constructBytecode(task, "luajit-64");
+            byte[] bytecode64 = constructBytecode(task, "luajit-64", scriptBytesStripped);
             if (bytecode64 != null) {
                 srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
             }

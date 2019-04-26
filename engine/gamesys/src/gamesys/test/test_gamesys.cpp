@@ -1540,7 +1540,7 @@ ResourcePropParams res_prop_params[] =
     {"tile_source", "/tile/valid2.texturesetc", "", "/resource/res_getset_prop.goc", "tilemap", 0},
 };
 
-INSTANTIATE_TEST_CASE_P(TextureProperty, TexturePropTest, jc_test_values_in(texture_prop_params));
+INSTANTIATE_TEST_CASE_P(ResourceProperty, ResourcePropTest, jc_test_values_in(res_prop_params));
 
 /* Validate default and dynamic gameobject factories */
 
