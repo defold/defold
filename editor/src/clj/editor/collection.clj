@@ -662,7 +662,7 @@
                                               [:resource :source-resource]
                                               [:node-outline :source-outline]
                                               [:proto-msg :proto-msg]
-                                              [:save-data :source-save-data]
+                                              [:undecorated-save-data :source-save-data]
                                               [:build-targets :source-build-targets]
                                               [:scene :scene]
                                               [:ddf-component-properties :ddf-component-properties]])
