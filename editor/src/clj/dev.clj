@@ -3,6 +3,7 @@
             [editor.asset-browser :as asset-browser]
             [editor.changes-view :as changes-view]
             [editor.console :as console]
+            [editor.curve-view :as curve-view]
             [editor.outline-view :as outline-view]
             [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
@@ -121,6 +122,7 @@
 (def changed-files-view (partial view-of-type changes-view/ChangesView))
 (def outline-view (partial view-of-type outline-view/OutlineView))
 (def properties-view (partial view-of-type properties-view/PropertiesView))
+(def curve-view (partial view-of-type curve-view/CurveView))
 
 (defn console-view []
   (-> (view-of-type console/ConsoleNode) (g/targets-of :lines) ffirst))
