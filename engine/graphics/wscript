@@ -48,7 +48,7 @@ def configure(conf):
             conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK'])
             conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'QuartzCore', '-framework', 'IOSurface']) # Metal and dependencies
             conf.env.append_value('LINKFLAGS', ['-l', 'c++']) # Metal deps requires libc++ stdlib. Remove once we've updated to use libc++ std rather than deprecated stdc++ (gtest requires stdc++, needs upgrading)
-    elif platform == "armv7-darwin":
+    elif platform == "armv7-darwin" or platform == "x86_64-ios":
         pass
     elif platform == "linux" or platform == "x86_64-linux":
         conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
@@ -67,8 +67,6 @@ def configure(conf):
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GRAPHICS"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GRAPHICS"')
 
-
-    conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = 'dlib'
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GRAPHICS"')
@@ -81,4 +79,4 @@ def build(bld):
     bld.install_files('${PREFIX}/bin', 'bin/*', chmod=493)
 
 def shutdown():
-    waf_dynamo.run_gtests(valgrind = True)
+    waf_dynamo.run_tests(valgrind = True)

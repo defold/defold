@@ -37,10 +37,12 @@
             [editor.web-profiler :as web-profiler]
             [editor.workspace :as workspace]
             [service.log :as log]
+            [service.smoke-log :as slog]
             [util.http-server :as http-server])
   (:import [java.io File]
            [javafx.scene Node Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TreeView]
+           [javafx.scene.input DragEvent InputEvent KeyEvent MouseEvent]
            [javafx.scene.layout Region VBox]
            [javafx.stage Stage]))
 
@@ -122,6 +124,13 @@
                                   "\n"
                                   "To fix this, make a commit where you delete the .internal and build directories, then reopen the project.")))
 
+(def ^:private interaction-event-types
+  #{DragEvent/DRAG_DONE
+    KeyEvent/KEY_PRESSED
+    KeyEvent/KEY_RELEASED
+    MouseEvent/MOUSE_PRESSED
+    MouseEvent/MOUSE_RELEASED})
+
 (defn load-stage [workspace project prefs dashboard-client updater newly-created?]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
@@ -173,7 +182,8 @@
           debug-view           (debug-view/make-view! app-view *view-graph*
                                                       project
                                                       root
-                                                      open-resource)]
+                                                      open-resource
+                                                      (partial app-view/debugger-state-changed! scene tool-tabs))]
       (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
 
       (when updater
@@ -193,15 +203,30 @@
                                                   panes (.getItems ^SplitPane editor-tabs-split)]
                                               (handle-resource-changes! scene panes open-views changes-view render-progress!)))))
 
+      (.addEventFilter scene
+                       InputEvent/ANY
+                       (ui/event-handler e
+                         (when (contains? interaction-event-types (.getEventType ^InputEvent e))
+                           (ui/user-data! scene ::ui/refresh-requested? true))))
+
+      (ui/observe (.focusedProperty stage)
+                  (fn [_ _ focused]
+                    (when focused
+                      (ui/user-data! scene ::ui/refresh-requested? true))))
+
+      (ui/user-data! scene ::ui/refresh-requested? true)
+
       (ui/run-later
-        (app-view/restore-split-positions! stage prefs))
+        (app-view/restore-split-positions! scene prefs)
+        (app-view/restore-hidden-panes! scene prefs))
 
       (ui/on-closing! stage (fn [_]
                               (let [result (or (empty? (project/dirty-save-data project))
                                              (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))]
                                 (when result
                                   (app-view/store-window-dimensions stage prefs)
-                                  (app-view/store-split-positions! stage prefs))
+                                  (app-view/store-split-positions! scene prefs)
+                                  (app-view/store-hidden-panes! scene prefs))
                                 result)))
 
       (ui/on-closed! stage (fn [_]
@@ -228,7 +253,8 @@
                          :changes-view        changes-view
                          :main-stage          stage
                          :asset-browser       asset-browser
-                         :debug-view          debug-view}
+                         :debug-view          debug-view
+                         :tool-tab-pane       tool-tabs}
             dynamics {:active-resource [:app-view :active-resource]}]
         (ui/context! root :global context-env (ui/->selection-provider assets) dynamics)
         (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
@@ -306,6 +332,7 @@
                     (show-tracked-internal-files-warning!)))))))))
 
     (reset! the-root root)
+    (ui/run-later (slog/smoke-log "stage-loaded"))
     root))
 
 (defn- show-missing-dependencies-alert! [dependencies]

@@ -395,6 +395,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
         		case Armv7Darwin:
         		case Arm64Darwin:
+                case X86_64Ios:
         		{
         			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();

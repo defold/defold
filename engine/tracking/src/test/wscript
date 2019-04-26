@@ -2,12 +2,13 @@ import Task, TaskGen
 from TaskGen import extension, declare_extension
 
 def build(bld):
-    libs = 'SCRIPT GTEST PLATFORM_SOCKET THREAD RESOURCE DDF DLIB LUA SCRIPT EXTENSION'
+    libs = 'SCRIPT PLATFORM_SOCKET THREAD RESOURCE DDF DLIB LUA SCRIPT EXTENSION'
     test_tracking = bld.new_task_gen(features = 'cxx cprogram test embed',
                                      includes = '..',
                                      uselib = libs,
                                      uselib_local = 'tracking',
-				     embed_source = 'test_tracking.lua',
+                                     web_libs = ['library_sys.js', 'library_script.js'],
+									 embed_source = 'test_tracking.lua',
                                      target = 'test_tracking',
                                      source = 'test_tracking.cpp')
 

@@ -1,6 +1,7 @@
 (ns editor.pipeline.bob
   (:require
     [clojure.java.io :as io]
+    [clojure.string :as string]
     [dynamo.graph :as g]
     [editor.defold-project :as project]
     [editor.engine.build-errors :as engine-build-errors]
@@ -178,12 +179,24 @@
           certificate (assoc "certificate" (.getAbsolutePath certificate))
           private-key (assoc "private-key" (.getAbsolutePath private-key))))
 
-(defn- ios-bundle-bob-args [{:keys [code-signing-identity ^File provisioning-profile] :as _bundle-options}]
-  (assert (string? (not-empty code-signing-identity)))
-  (assert (some-> provisioning-profile .isFile))
-  (let [provisioning-profile-path (.getAbsolutePath provisioning-profile)]
-    {"mobileprovisioning" provisioning-profile-path
-     "identity" code-signing-identity}))
+(def ^:private ios-architecture-option->bob-architecture-string
+  {:architecture-32bit? "armv7-darwin"
+   :architecture-64bit? "arm64-darwin"
+   :architecture-simulator? "x86_64-ios"})
+
+(defn- ios-bundle-bob-args [{:keys [code-signing-identity ^File provisioning-profile sign-app?] :as bundle-options}]
+  (let [bob-architectures (for [[option-key bob-architecture] ios-architecture-option->bob-architecture-string
+                                :when (bundle-options option-key)]
+                            bob-architecture)
+        bob-args {"architectures" (string/join "," bob-architectures)}]
+    (if-not sign-app?
+      bob-args
+      (do (assert (string? (not-empty code-signing-identity)))
+          (assert (some-> provisioning-profile .isFile))
+          (let [provisioning-profile-path (.getAbsolutePath provisioning-profile)]
+            (assoc bob-args
+              "mobileprovisioning" provisioning-profile-path
+              "identity" code-signing-identity))))))
 
 (def bundle-bob-commands ["distclean" "build" "bundle"])
 

@@ -65,11 +65,6 @@
                           :entries (pop-n entries n)})))]
     (update batch :entries #(take n %))))
 
-(defn show! [view-node]
-  (let [canvas (g/node-value view-node :canvas)
-        ^TabPane tab-pane (ui/closest-node-of-type TabPane canvas)]
-    (.select (.getSelectionModel tab-pane) 0)))
-
 ;; -----------------------------------------------------------------------------
 ;; Tool Bar
 ;; -----------------------------------------------------------------------------
@@ -208,7 +203,7 @@
   (run [view-node] (view/move! view-node :selection :file-end)))
 
 (handler/defhandler :copy :console-view
-  (enabled? [view-node] (view/has-selection? view-node))
+  (enabled? [view-node evaluation-context] (view/has-selection? view-node evaluation-context))
   (run [view-node clipboard] (view/copy! view-node clipboard)))
 
 (handler/defhandler :select-all :console-view
