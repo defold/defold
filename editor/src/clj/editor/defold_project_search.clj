@@ -3,6 +3,7 @@
    [clojure.java.io :as io]
    [clojure.string :as string]
    [dynamo.graph :as g]
+   [editor.defold-project :as project]
    [editor.resource :as resource]
    [editor.ui :as ui]
    [util.text-util :as text-util]
@@ -77,7 +78,8 @@
                                                  save-data))))
                                      (g/node-value project :nodes evaluation-context))
                                (sort-by save-data-sort-key))]
-          (ui/run-later (g/update-cache-from-evaluation-context! evaluation-context))
+          (ui/run-later
+            (project/update-system-cache-save-data! evaluation-context))
           save-data)
         (catch Throwable error
           (report-error! error)

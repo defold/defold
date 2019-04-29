@@ -1181,15 +1181,10 @@
                                 on-open))
                 (make-menu-command scene id label icon style-classes acc user-data command enabled? check)))))))))
 
-(defn- make-menu-items
-  ([^Scene scene menu command-contexts command->shortcut]
-   (g/with-auto-evaluation-context evaluation-context
-     (make-menu-items scene menu command-contexts command->shortcut evaluation-context)))
-  ([^Scene scene menu command-contexts command->shortcut evaluation-context]
-   (->> menu
-        (keep (fn [item]
-                (make-menu-item scene item command-contexts command->shortcut evaluation-context)))
-        (vec))))
+(defn- make-menu-items [^Scene scene menu command-contexts command->shortcut evaluation-context]
+  (into []
+        (keep #(make-menu-item scene % command-contexts command->shortcut evaluation-context))
+        menu))
 
 (defn- make-context-menu ^ContextMenu [menu-items]
   (let [context-menu (ContextMenu.)]
@@ -1211,7 +1206,9 @@
     (.consume event)
     (let [node ^Node (.getTarget event)
           scene ^Scene (.getScene node)
-          cm (make-context-menu (make-menu-items scene (menu/realize-menu menu-id) (contexts scene false) (or (user-data scene :command->shortcut) {})))]
+          menu-items (g/with-auto-or-fake-evaluation-context evaluation-context
+                       (make-menu-items scene (menu/realize-menu menu-id) (contexts scene false) (or (user-data scene :command->shortcut) {}) evaluation-context))
+          cm (make-context-menu menu-items)]
       (doto (.getItems cm)
         (refresh-separator-visibility)
         (refresh-menu-item-styles))
@@ -1719,7 +1716,7 @@
 
 (defn refresh
   [^Scene scene]
-  (g/with-auto-evaluation-context evaluation-context
+  (g/with-auto-or-fake-evaluation-context evaluation-context
     (refresh-menus! scene (or (user-data scene :command->shortcut) {}) evaluation-context)
     (refresh-toolbars! scene evaluation-context)))
 

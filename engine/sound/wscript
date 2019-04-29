@@ -24,7 +24,6 @@ def configure(conf):
     conf.sub_config('src')
 
     conf.env.append_value('CPPPATH', "default/src")
-    conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = ['dlib', 'axtls']
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
     conf.env['STATICLIB_SCRIPT'] = 'script'
@@ -34,7 +33,7 @@ def configure(conf):
 
     if platform == "darwin" or platform == "x86_64-darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenAL', '-framework', 'IOKit'])
-    elif platform == "armv7-darwin" or platform == "arm64-darwin":
+    elif platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
         conf.env.append_value('LINKFLAGS', ['-framework', 'OpenAL', '-framework', 'AudioToolbox', '-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore'])
     elif platform == "linux" or platform == "x86_64-linux":
         conf.env['LIB_OPENAL'] = 'openal'
@@ -58,4 +57,4 @@ def shutdown():
     elif sys.platform == 'darwin':
         run = True
     if run:
-        waf_dynamo.run_gtests(valgrind = True)
+        waf_dynamo.run_tests(valgrind = True)

@@ -468,6 +468,32 @@ public class ExtenderUtil {
         }
     }
 
+    /** Get the platform manifests from the extensions
+     */
+    public static List<IResource> getExtensionManifests(Project project, Platform platform, String name) throws CompileExceptionError {
+        List<IResource> out = new ArrayList<>();
+
+        List<String> platformFolderAlternatives = new ArrayList<String>();
+        platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths())); // we skip "common" here since it makes little sense
+
+        // Find extension folders
+        List<String> extensionFolders = getExtensionFolders(project);
+        for (String extension : extensionFolders) {
+            for (String platformAlt : platformFolderAlternatives) {
+                List<ExtenderResource> files = listFilesRecursive( project, extension + "/manifests/" + platformAlt + "/");
+                for (ExtenderResource r : files) {
+                    if (!(r instanceof FSExtenderResource))
+                        continue;
+                    File f = new File(r.getAbsPath());
+                    if (f.getName().equals(name)) {
+                        out.add( ((FSExtenderResource)r).getResource() );
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
     /**
      * Collect bundle resources from a specific project path and a list of exclude paths.
      * @param project
@@ -678,5 +704,4 @@ public class ExtenderUtil {
         }
         return null;
     }
-
 }
