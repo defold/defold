@@ -8,7 +8,6 @@
 #include <sys/stat.h>
 #include "math.h"
 #include "./socket.h"
-#include "./socks_proxy.h"
 #include "http_client.h"
 #include "http_client_private.h"
 #include "log.h"
