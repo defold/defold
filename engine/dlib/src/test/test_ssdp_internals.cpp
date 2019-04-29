@@ -1,13 +1,14 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <time.h>
 #include <string>
-
-#include <gtest/gtest.h>
 #include <dlib/log.h>
 #include <dlib/hashtable.h>
 #include <dlib/ssdp.h>
 #include <dlib/ssdp_private.h>
 #include <dlib/dstrings.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 namespace
 {
@@ -133,7 +134,7 @@ namespace
     }
 };
 
-class dmSSDPInternalTest: public ::testing::Test
+class dmSSDPInternalTest: public jc_test_base_class
 {
 public:
 
@@ -302,7 +303,7 @@ TEST_F(dmSSDPInternalTest, UpdateListeningSockets)
     dmSocket::IfAddr interfaces[dmSSDP::SSDP_MAX_LOCAL_ADDRESSES];
     memset(interfaces, 0, sizeof(interfaces));
     uint32_t interface_count = GetInterfaces(interfaces, dmSSDP::SSDP_MAX_LOCAL_ADDRESSES);
-    ASSERT_GE(interface_count, 1) << "There are no IPv4 interface(s) available";
+    ASSERT_GE(interface_count, 1u); // "There are no IPv4 interface(s) available"
 
     dmSSDP::UpdateListeningSockets(instance, interfaces, interface_count);
 
@@ -310,10 +311,8 @@ TEST_F(dmSSDPInternalTest, UpdateListeningSockets)
 
     for (unsigned int i = 0; i < interface_count; ++i)
     {
-        ASSERT_EQ(interfaces[i].m_Address, instance->m_LocalAddr[i].m_Address)
-            << "An interface has been ignored";
-        ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance->m_LocalAddrSocket[i])
-            << "An interface has an invalid socket handle";
+        ASSERT_EQ(interfaces[i].m_Address, instance->m_LocalAddr[i].m_Address); // "An interface has been ignored"
+        ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, instance->m_LocalAddrSocket[i]); // "An interface has an invalid socket handle"
     }
 
     // Teardown
@@ -363,7 +362,8 @@ TEST_F(dmSSDPInternalTest, SendUnannounce)
     dmSSDP::UpdateListeningSockets(instance, interfaces, interface_count);
 
     // Test
-    ASSERT_NO_FATAL_FAILURE(dmSSDP::SendUnannounce(instance, *device, 0));
+    //ASSERT_NO_FATAL_FAILURE(dmSSDP::SendUnannounce(instance, *device, 0));
+    dmSSDP::SendUnannounce(instance, *device, 0);
 
     // Teardown
     DestroySSDPInstance(instance);
@@ -399,6 +399,6 @@ int main(int argc, char **argv)
 {
     srand(time(NULL));
     dmLogSetlevel(DM_LOG_SEVERITY_DEBUG);
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }
