@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
 #include "../resource.h"
 #include "../resource_private.h"
 #include "../resource_archive.h"
@@ -12,6 +11,9 @@
 #else
 #error "Unsupported platform"
 #endif
+
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 // new file format, generated test data
 extern unsigned char RESOURCES_ARCI[];
@@ -439,7 +441,7 @@ TEST(dmResourceArchive, ResourceEntries)
 
         if (IsLiveUpdateResource(current_hash)) continue;
 
-        ASSERT_STRCASEEQ(path_name[i], current_path);
+        ASSERT_STREQ(path_name[i], current_path);
         ASSERT_EQ(path_hash[i], current_hash);
 
         for (uint32_t n = 0; n < manifest_data->m_Resources.m_Data[i].m_Hash.m_Data.m_Count; ++n) {
@@ -469,7 +471,7 @@ TEST(dmResourceArchive, ResourceEntries_Compressed)
 
         if (IsLiveUpdateResource(current_hash)) continue;
 
-        ASSERT_STRCASEEQ(path_name[i], current_path);
+        ASSERT_STREQ(path_name[i], current_path);
         ASSERT_EQ(path_hash[i], current_hash);
 
         for (uint32_t n = 0; n < manifest_data->m_Resources.m_Data[i].m_Hash.m_Data.m_Count; ++n) {
@@ -504,7 +506,7 @@ TEST(dmResourceArchive, Wrap)
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
-        ASSERT_STRCASEEQ(content[i], buffer);
+        ASSERT_STREQ(content[i], buffer);
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
@@ -534,7 +536,7 @@ TEST(dmResourceArchive, Wrap_Compressed)
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
-        ASSERT_STRCASEEQ(content[i], buffer);
+        ASSERT_STREQ(content[i], buffer);
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
@@ -566,7 +568,7 @@ TEST(dmResourceArchive, LoadFromDisk)
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
-        ASSERT_STRCASEEQ(content[i], buffer);
+        ASSERT_STREQ(content[i], buffer);
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
@@ -607,7 +609,7 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
-        ASSERT_STRCASEEQ(content[i], buffer);
+        ASSERT_STREQ(content[i], buffer);
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
@@ -619,7 +621,7 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = jc_test_run_all();
     return ret;
 }
