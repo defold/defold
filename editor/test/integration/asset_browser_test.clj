@@ -117,7 +117,7 @@
         (are [target-resource src-files expected]
             (let [alerted (atom false)
                   message (atom "")]
-              (binding [dialogs/make-info-dialog (fn [text] (reset! alerted true) (reset! message text))]
+              (with-redefs [dialogs/make-info-dialog (fn [text] (reset! alerted true) (reset! message text))]
                 (asset-browser/paste! workspace target-resource src-files (constantly nil))
                 (= expected (not (or @alerted (string/includes? message "reserved"))))))
 

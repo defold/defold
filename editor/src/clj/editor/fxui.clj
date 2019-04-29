@@ -93,12 +93,13 @@
     (into existing-classes classes)))
 
 (defn dialog-body [{:keys [size header content footer]
-                    :or {size :small}
+                    :or {size :default}
                     :as props}]
   (-> props
       (dissoc :size :header :content :footer)
       (update :style-class add-style-classes "dialog-body" (case size
                                                              :small "dialog-body-small"
+                                                             :default "dialog-body-default"
                                                              :large "dialog-body-large"))
       (assoc :fx/type :v-box
              :children (if (some? content)

@@ -182,6 +182,7 @@
      :scene {:fx/type :scene
              :stylesheets ["dialogs.css"]
              :root {:fx/type fxui/dialog-body
+                    :size :small
                     :header {:fx/type :v-box
                              :children [{:fx/type fxui/label
                                          :variant :header

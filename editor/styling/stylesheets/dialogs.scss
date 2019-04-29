@@ -51,6 +51,9 @@ $spacing-largest: 40px;
   -fx-background-color: $dark-grey;
 }
 .dialog-body-small {
+  -fx-pref-width: 440px;
+}
+.dialog-body-default {
   -fx-pref-width: 540px;
 }
 .dialog-body-large {
