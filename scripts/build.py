@@ -28,6 +28,7 @@ PACKAGES_WIN32="facebook-gameroom-2017-08-14 webp-0.5.0 luajit-2.1.0-beta3 opena
 PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
 PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
 PACKAGES_ANDROID="protobuf-2.3.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_ANDROID_64="protobuf-2.3.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
@@ -368,6 +369,7 @@ class Configuration(object):
             'arm64-darwin':   PACKAGES_IOS_64,
             'x86_64-ios':     PACKAGES_IOS_X86_64,
             'armv7-android':  PACKAGES_ANDROID,
+            'arm64-android':  PACKAGES_ANDROID_64,
             'js-web':         PACKAGES_EMSCRIPTEN,
             'wasm-web':       PACKAGES_EMSCRIPTEN
         }
@@ -381,7 +383,7 @@ class Configuration(object):
         for platform in other_platforms:
             packages = platform_packages.get(platform, [])
             package_paths = self._make_package_paths(platform, packages)
-            print("Installing %s packages" % platform)
+            print("Installing %s packages " % platform)
             for path in package_paths:
                 self._extract_tgz(path, self.ext)
             installed_packages.update(package_paths)
@@ -935,7 +937,7 @@ class Configuration(object):
                      'osx-bundling': osx_files,
                      'linux-bundling': linux_files}
         # Add dmengine to 'artefacts' procedurally
-        for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android']],
+        for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android']],
                            'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
                            'js-bundling': [['js-web', 'js-web'], ['wasm-web', 'wasm-web']],
                            'ios-bundling': [['armv7-darwin', 'armv7-darwin'], ['arm64-darwin', 'arm64-darwin'], ['x86_64-ios', 'x86_64-ios']],
@@ -986,7 +988,7 @@ class Configuration(object):
         root = urlparse.urlparse(self.archive_path).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        platforms = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios', 'armv7-android', 'js-web', 'wasm-web']
+        platforms = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios', 'armv7-android', 'arm64-android', 'js-web', 'wasm-web']
         for platform in platforms:
             platform_sdk_url = join(self.archive_path, sha1, 'engine', platform).replace('\\', '/')
 
@@ -2079,7 +2081,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'x86_64-ios', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web', 'wasm-web'],
+                      choices = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'x86_64-ios', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'arm64-android', 'js-web', 'wasm-web'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',

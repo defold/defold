@@ -75,8 +75,10 @@ public class BundlerTest {
                 File outputApk = new File(outputDirFile, projectName + ".apk");
                 assertTrue(outputApk.exists());
                 FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), null);
-                Path enginePath = apkZip.getPath("lib/armeabi-v7a/lib" + projectName + ".so");
-                assertTrue(Files.isReadable(enginePath));
+                Path enginePathArmv7 = apkZip.getPath("lib/armeabi-v7a/lib" + projectName + ".so");
+                assertTrue(Files.isReadable(enginePathArmv7));
+                Path enginePathArm64 = apkZip.getPath("lib/arm64-v8a/lib" + projectName + ".so");
+                assertTrue(Files.isReadable(enginePathArm64));
                 Path classesDexPath = apkZip.getPath("classes.dex");
                 assertTrue(Files.isReadable(classesDexPath));
             }
