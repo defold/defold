@@ -754,6 +754,15 @@
   ([] (is/default-evaluation-context @*the-system*))
   ([options] (is/custom-evaluation-context @*the-system* options)))
 
+(defn pruned-evaluation-context
+  "Selectively filters out cache entries from the supplied evaluation context.
+  Returns a new evaluation context with only the cache entries that passed the
+  cache-entry-pred predicate. The predicate function will be called with
+  node-id, output-label, evaluation-context and should return true if the
+  cache entry for the output-label should remain in the cache."
+  [evaluation-context cache-entry-pred]
+  (in/pruned-evaluation-context evaluation-context cache-entry-pred))
+
 (defn update-cache-from-evaluation-context!
   [evaluation-context]
   (swap! *the-system* is/update-cache-from-evaluation-context evaluation-context)
