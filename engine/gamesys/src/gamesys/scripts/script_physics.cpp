@@ -361,7 +361,6 @@ namespace dmGameSystem
         dmMessage::Result socket_result = dmMessage::GetSocket(dmPhysics::PHYSICS_SOCKET_NAME, &physics_context->m_Socket);
         if (socket_result != dmMessage::RESULT_OK)
         {
-            dmLogError("Could not retrieve the physics socket '%s': %d.", dmPhysics::PHYSICS_SOCKET_NAME, socket_result);
             result = false;
         }
         dmResource::ResourceType co_resource_type;
