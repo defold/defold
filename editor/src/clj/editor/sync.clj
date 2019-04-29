@@ -257,30 +257,25 @@
 
 (defn interactive-cancel! [cancel-fn]
   (loop []
-    (let [result (cancel-fn)]
+    (let [result (cancel-fn)
+          dialog-props {:title "Unable to Cancel Sync"
+                        :icon :error
+                        :header "An Error Occurred"
+                        :content {:fx/type fxui/label
+                                  :style-class "dialog-content-padding"
+                                  :wrap-text true
+                                  :text (cancel-result-message result)}}]
       (when (not= :success (:type result))
         (if (:can-retry? result)
-          (when (dialogs/make-confirmation-dialog
-                  {:title "Unable to Cancel Sync"
-                   :header {:fx/type :h-box
-                            :style-class ["spacing-smaller"]
-                            :children [{:fx/type fxui/icon
-                                        :type :error}
-                                       {:fx/type fxui/label
-                                        :variant :header
-                                        :text "An Error Occurred"}]}
-                   :content {:fx/type fxui/label
-                             :style-class "dialog-content-padding"
-                             :wrap-text true
-                             :text (cancel-result-message result)}
-                   :buttons [{:text "Lose Changes"
-                              :cancel-button true
-                              :result false}
-                             {:text "Retry"
-                              :default-button true
-                              :result true}]})
+          (when (dialogs/make-info-dialog
+                  (assoc dialog-props :buttons [{:text "Lose Changes"
+                                                 :cancel-button true
+                                                 :result false}
+                                                {:text "Retry"
+                                                 :default-button true
+                                                 :result true}]))
             (recur))
-          (dialogs/make-alert-dialog (cancel-result-message result)))))))
+          (dialogs/make-info-dialog dialog-props))))))
 
 (defn- upload-project! [project-path project-title prefs dashboard-client on-new-git! settings render-progress!]
   (let [msgs (:msgs settings)]

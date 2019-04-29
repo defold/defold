@@ -23,27 +23,13 @@
            [java.nio.file Path Paths]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control Button ListView TextArea TextField]
+           [javafx.scene.control Button ListView TextField]
            [javafx.scene.input KeyCode]
            [javafx.scene.layout HBox VBox]
            [javafx.scene.text Text TextFlow]
            [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]))
 
 (set! *warn-on-reflection* true)
-
-(defn ^:dynamic make-alert-dialog [text]
-  (let [root ^Parent (ui/load-fxml "alert.fxml")
-        stage (ui/make-dialog-stage)
-        scene (Scene. root)]
-    (ui/title! stage "Alert")
-    (ui/with-controls root [^TextArea message ^Button ok]
-      (ui/text! message text)
-      (ui/on-action! ok (fn [_] (.close stage)))
-      (.setDefaultButton ok true)
-      (.setCancelButton ok true)
-      (.setOnShown stage (ui/event-handler _ (.setScrollTop message 0.0))))
-    (.setScene stage scene)
-    (ui/show-and-wait! stage)))
 
 (defn make-message-box [title text]
   (let [root ^Parent (ui/load-fxml "message.fxml")

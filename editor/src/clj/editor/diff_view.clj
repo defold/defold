@@ -110,9 +110,9 @@
 
 (defn- clip-control! [^Control control]
   (let [clip (Rectangle.)]
-        (.setClip control clip)
-        (.bind (.widthProperty clip) (.widthProperty control))
-        (.bind (.heightProperty clip) (.heightProperty control))))
+    (.setClip control clip)
+    (.bind (.widthProperty clip) (.widthProperty control))
+    (.bind (.heightProperty clip) (.heightProperty control))))
 
 (defn- update-scrollbar [^ScrollBar scroll ^Pane pane total-width]
   (let [w (:width (ui/local-bounds pane))
@@ -172,13 +172,18 @@
 
 (defn present-diff-data [diff-data]
   (let [{:keys [binary? new new-path old old-path]} diff-data]
-    (if (= old new)
-      (dialogs/make-alert-dialog "The file is unchanged.")
-      (if binary?
-        (dialogs/make-alert-dialog "Unable to diff binary files.")
-        (make-diff-viewer old-path old new-path new)))))
+    (cond
+      (= old new)
+      (dialogs/make-info-dialog
+        {:title "The File Is Unchanged"
+         :icon :error
+         :header "The File Is Unchanged"})
 
-; TODO: Remove soon
-#_(ui/run-later (make-diff-viewer "" "1\n2\n3\n4\n5\n6\n7\n8....\nAPA1\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n"
-                                  "" "XXX\n2\n3\n4\n6\n7\n8\nAPA1\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\nNEW STUFF\n"))
-#_(ui/run-later (make-diff-viewer "a.txt" (slurp "a.txt") "b.txt" (slurp "b.txt")))
+      binary?
+      (dialogs/make-info-dialog
+        {:title "Unable to Diff Binary Files"
+         :icon :error
+         :header "Unable to Diff Binary Files"})
+
+      :else
+      (make-diff-viewer old-path old new-path new))))

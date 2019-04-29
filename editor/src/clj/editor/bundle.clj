@@ -5,6 +5,7 @@
             [dynamo.graph :as g]
             [editor.client :as client]
             [editor.fs :as fs]
+            [editor.fxui :as fxui]
             [editor.login :as login]
             [editor.ui :as ui]
             [editor.dialogs :as dialogs]
@@ -273,7 +274,6 @@
                            :identity-id identity-id
                            :prefs prefs
                            :props props}
-              success "Successfully uploaded a signed ipa to the project dashboard. Team members can download it to their device from the Settings page."
               sign-steps [setup-fs-env
                           make-provisioning-profile-plist
                           extract-entitlements-plist
@@ -287,7 +287,16 @@
                           package-ipa
                           ;; only upload if hosted by us
                           (if cr-project-id upload-ipa open-ipa-directory)
-                          (if cr-project-id (g/fnk [] (dialogs/make-alert-dialog success)) noop)]]
+                          (if cr-project-id
+                            (g/fnk []
+                              (dialogs/make-info-dialog
+                                {:title "Upload Successful"
+                                 :icon :check-circle
+                                 :header "Upload Successful"
+                                 :content {:fx/type fxui/label
+                                           :style-class "dialog-content-padding"
+                                           :text "Successfully uploaded a signed ipa to the project dashboard. Team members can download it to their device from the Settings page."}}))
+                            noop)]]
           (loop [steps sign-steps
                  env initial-env]
             (when-let [step (first steps)]
