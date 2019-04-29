@@ -8,6 +8,8 @@
         <fileset dir="../com.dynamo.cr.common/ext" includes="commons*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="vecmath.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="extender-client-*.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext" includes="snakeyaml-1.24.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext" includes="jsoup-1.11.3.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext/android" includes="*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext/aws" includes="*.jar"/>
         <fileset dir="lib" includes="*.jar"/>
@@ -271,6 +273,8 @@
               <include name="commons*.jar"/>
               <include name="vecmath.jar"/>
               <include name="extender-client-*.jar"/>
+              <include name="snakeyaml-1.24.jar"/>
+              <include name="jsoup-1.11.3.jar"/>
             </zipgroupfileset>
             <zipgroupfileset dir="lib">
               <include name="dlib.jar"/>
@@ -319,6 +323,8 @@
               <include name="commons*.jar"/>
               <include name="vecmath.jar"/>
               <include name="extender-client-*.jar"/>
+              <include name="snakeyaml-1.24.jar"/>
+              <include name="jsoup-1.11.3.jar"/>
             </zipgroupfileset>
             <zipgroupfileset dir="../com.dynamo.cr.common/ext/android">
                 <include name="*.jar" />

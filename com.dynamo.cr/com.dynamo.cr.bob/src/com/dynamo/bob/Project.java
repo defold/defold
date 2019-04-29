@@ -641,7 +641,7 @@ public class Project {
                 IResource sourceManifestFile = helper.getResource("android", "manifest");
 
                 Map<String, Object> properties = helper.createAndroidManifestProperties(this.getRootDirectory(), resDir, exeName);
-                helper.mergeManifests(this, platform, properties, sourceManifestFile, manifestFile);
+                helper.mergeManifests(properties, sourceManifestFile, manifestFile);
 
                 BundleHelper.throwIfCanceled(monitor);
 

@@ -1,3 +1,10 @@
+/**
+
+Run standalone with:
+java -cp ./dist/bob-light.jar com.dynamo.bob.bundle.ManifestMergeTool --platform html5 --main main/engine_template.html --lib extension//engine_template.html --out index.html
+
+*/
+
 // https://android.googlesource.com/platform/sdk/+/a35f8af/manifmerger/src/com/android/manifmerger/ManifestMerger.java
 
 package com.dynamo.bob.bundle;
@@ -21,7 +28,7 @@ import com.dynamo.bob.CompileExceptionError;
 public class ManifestMergeTool {
 
     public enum Platform {
-        ANDROID, IOS, OSX, UNKNOWN
+        ANDROID, IOS, OSX, HTML5, UNKNOWN
     }
 
     private static class ILoggerWrapper implements ILogger {
@@ -57,7 +64,7 @@ public class ManifestMergeTool {
         // Good explanation of merge rules: https://android.googlesource.com/platform/tools/base/+/jb-mr2-dev/manifest-merger/src/main/java/com/android/manifmerger/ManifestMerger.java
         // https://github.com/pixnet/android-platform-tools-base/blob/master/build-system/manifest-merger/src/main/java/com/android/manifmerger/ManifestMerger2.java
         // https://android.googlesource.com/platform/tools/base/+/master/build-system/manifest-merger/src/main/java/com/android/manifmerger/Merger.java
-        logger.log(Level.INFO, "Merging manifests for Android");
+        logger.log(Level.FINE, "Merging manifests for Android");
 
         ManifestMerger2.Invoker invoker = ManifestMerger2.newMerger(main, ManifestMergeTool.androidLogger, ManifestMerger2.MergeType.APPLICATION);
         invoker.addLibraryManifests(libraries);
@@ -88,10 +95,15 @@ public class ManifestMergeTool {
 
     private static void mergePlist(File main, File[] libraries, File out) throws RuntimeException {
         InfoPlistMerger merger = new InfoPlistMerger(logger);
-        merger.merge(main, libraries, out)
-;    }
+        merger.merge(main, libraries, out);
+    }
 
-    public static void merge(Platform platform, File main, File output, List<File> libraries) throws RuntimeException {
+    private static void mergeHtml(File main, File[] libraries, File out) throws RuntimeException, IOException {
+        HtmlMerger merger = new HtmlMerger(logger);
+        merger.merge(main, libraries, out);
+    }
+
+    public static void merge(Platform platform, File main, File output, List<File> libraries) throws RuntimeException, IOException {
         if (main == null) {
             logger.log(Level.SEVERE, "You must specify a main manifest file!");
             System.exit(1);
@@ -118,11 +130,12 @@ public class ManifestMergeTool {
             case ANDROID:  mergeAndroid(main, libraries.toArray(new File[0]), output); break;
             case IOS:
             case OSX:      mergePlist(main, libraries.toArray(new File[0]), output); break;
+            case HTML5:    mergeHtml(main, libraries.toArray(new File[0]), output); break;
             default:
                 throw new RuntimeException(String.format("Unsupported platform: %s", platform.toString()));
         };
 
-        logger.log(Level.INFO, "done");
+        logger.log(Level.FINE, "Merging done");
     }
 
     /**
@@ -154,8 +167,8 @@ public class ManifestMergeTool {
                     platform = Platform.ANDROID;
                 } else if (args[i].equals("ios")) {
                     platform = Platform.IOS;
-                // } else if (args[i].equals("html5")) {
-                //     platform = Platform.HTML5;
+                } else if (args[i].equals("html5")) {
+                    platform = Platform.HTML5;
                 } else {
                     ManifestMergeTool.logger.log(Level.SEVERE, String.format("Unsupported platform: %s", args[i]));
                     System.exit(1);
