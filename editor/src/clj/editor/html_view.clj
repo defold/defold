@@ -198,9 +198,11 @@
   [^WebEngine web-engine]
   (let [load-worker (.getLoadWorker web-engine)]
     (when-some [ex (.getException load-worker)]
-      (dialogs/make-error-dialog "Could not load page"
-                                 (.getMessage load-worker)
-                                 (.getMessage ex)))))
+      (dialogs/make-info-dialog
+        {:title "Could not load page"
+         :icon :error
+         :header (.getMessage load-worker)
+         :content (.getMessage ex)}))))
 
 (g/defnode WebViewNode
   (inherits view/WorkbenchView)

@@ -58,15 +58,19 @@
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
 
+(defn- confirmation-dialog-header->fx-desc [header]
+  (if (string? header)
+    {:fx/type fxui/label
+     :variant :header
+     :wrap-text true
+     :text header}
+    header))
+
 (defn- make-confirmation-dialog-fx [{:keys [owner header title buttons size content]
                                      :or {title ""
                                           size :small
                                           owner ::no-owner}}]
-  (let [header-desc (if (string? header)
-                      {:fx/type fxui/label
-                       :variant :header
-                       :text header}
-                      header)
+  (let [header-desc (confirmation-dialog-header->fx-desc header)
         button-descs (mapv (fn [button-props]
                              (let [button-desc (-> button-props
                                                    (assoc :fx/type fxui/button
@@ -120,36 +124,62 @@
                    :middleware (fx/wrap-map-desc assoc :fx/type (make-confirmation-dialog-fx props)))]
     (fxui/mount-renderer-and-await-result! state-atom renderer)))
 
-(defn make-error-dialog
-  ([title text] (make-error-dialog title text nil))
-  ([title text detail-text]
-   (make-confirmation-dialog
-     {:title title
-      :size :large
-      :header {:fx/type :v-box
-               :children [{:fx/type :h-box
+(defn- props->info-dialog-content-fx [props]
+  (-> props
+      (assoc :fx/type fxui/text-area)
+      (update :style-class fxui/add-style-classes "text-area-with-dialog-content-padding")
+      (fxui/provide-defaults
+        :pref-row-count (max 3 (count (str/split (:text props) #"\n" 10)))
+        :variant :borderless
+        :editable false)))
+
+(defn make-info-dialog
+  "Shows a dialog with and block current thread until user closes it.
+
+  `props` is a map to configure such dialog, supports all options from
+  `make-confirmation-dialog`:
+  - `:header` (required) - either a string or fx description of a dialog header,
+    additionally gets wrapped to show an icon
+  - `:icon` (optional, default `:info-circle`) - keyword describing icon, for
+    available options see `editor.fxui/icon`
+  - `:buttons` (optional, close button be default) - a coll of button
+    descriptions as described in `make-confirmation-dialog`
+  - `:content` (optional) - content area, can be:
+    * fx description (a map with `:fx/type` key) - used as is
+    * prop map (map without `:fx/type` key) for `editor.fxui/text-area` -
+      readonly by default to allow user select and copy text, `:text` prop is
+      required
+    * string -  text for readonly text area
+  - `:title` (optional, default \"\") - window title
+  - `:owner` (optional) - a Stage that dialog will block, if not provided it
+    will block all windows
+  - `:size` (optional, default `:small`) - dialog size, either `:small` or
+    `:large`"
+  [{:keys [icon]
+    :or {icon :info-circle}
+    :as props}]
+  (make-confirmation-dialog
+    (-> props
+        (update :header (fn [header]
+                          {:fx/type :h-box
                            :style-class "spacing-smaller"
                            :alignment :center-left
                            :children [{:fx/type fxui/icon
-                                       :type :error}
-                                      {:fx/type fxui/label
-                                       :variant :header
-                                       :wrap-text true
-                                       :text text}]}]}
-      :content (cond
-                 (map? detail-text)
-                 detail-text
+                                       :type icon}
+                                      (confirmation-dialog-header->fx-desc header)]}))
+        (update :content (fn [content]
+                           (cond
+                             (:fx/type content)
+                             content
 
-                 (not (str/blank? detail-text))
-                 {:fx/type fxui/text-area
-                  :style-class "text-area-with-dialog-content-padding"
-                  :pref-row-count (max 3 (count (str/split detail-text #"\n" 10)))
-                  :variant :borderless
-                  :editable false
-                  :text detail-text})
-      :buttons [{:text "Close"
-                 :cancel-button true
-                 :default-button true}]})))
+                             (map? content)
+                             (props->info-dialog-content-fx content)
+
+                             (string? content)
+                             (props->info-dialog-content-fx {:text content}))))
+        (fxui/provide-defaults :buttons [{:text "Close"
+                                          :cancel-button true
+                                          :default-button true}]))))
 
 (defn- digit-string? [^String x]
   (and (pos? (.length x))

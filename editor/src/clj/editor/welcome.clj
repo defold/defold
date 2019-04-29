@@ -703,38 +703,45 @@
                                         (hide-progress! root)
                                         (cond
                                           (instance? UnknownHostException error)
-                                          (dialogs/make-error-dialog "No Internet Connection"
-                                                                     "You Must Be Connected to the Internet to Download Project Content")
+                                          (dialogs/make-info-dialog
+                                            {:title "No Internet Connection"
+                                             :icon :error
+                                             :header "You Must Be Connected to the Internet to Download Project Content"})
 
                                           (instance? SocketException error)
-                                          (dialogs/make-error-dialog "Host Unreachable"
-                                                                     "A Firewall Might Be Blocking Network Connections"
-                                                                     (.getMessage error))
+                                          (dialogs/make-info-dialog
+                                            {:title "Host Unreachable"
+                                             :icon :error
+                                             :header "A Firewall Might Be Blocking Network Connections"
+                                             :content (.getMessage error)})
 
                                           (instance? SocketTimeoutException error)
-                                          (dialogs/make-error-dialog "Host Not Responding"
-                                                                     "The Connection Timed Out"
-                                                                     (.getMessage error))
+                                          (dialogs/make-info-dialog
+                                            {:title "Host Not Responding"
+                                             :icon :error
+                                             :header "The Connection Timed Out"
+                                             :content (.getMessage error)})
 
                                           (instance? SSLException error)
-                                          (dialogs/make-error-dialog
-                                            "SSL Connection Error"
-                                            "Could Not Establish an SSL Connection"
-                                            {:fx/type :text-flow
-                                             :style-class "dialog-content-padding"
-                                             :children [{:fx/type :text
-                                                         :text (str "Common causes are:\n"
-                                                                    "\u00A0\u00A0\u2022\u00A0 Antivirus software configured to scan encrypted connections\n"
-                                                                    "\u00A0\u00A0\u2022\u00A0 Expired or misconfigured server certificate\n"
-                                                                    "\u00A0\u00A0\u2022\u00A0 Untrusted server certificate\n"
-                                                                    "\n"
-                                                                    "The following FAQ may apply: ")}
-                                                        {:fx/type :hyperlink
-                                                         :text "PKIX path building failed"
-                                                         :on-action (fn [_]
-                                                                      (ui/open-url "https://github.com/defold/editor2-issues/blob/master/faq/pkixpathbuilding.md"))}
-                                                        {:fx/type :text
-                                                         :text (str "\n\n" (string/replace (.getMessage error) ": " ":\n\u00A0\u00A0"))}]})
+                                          (dialogs/make-info-dialog
+                                            {:title "SSL Connection Error"
+                                             :icon :error
+                                             :header "Could Not Establish an SSL Connection"
+                                             :content {:fx/type :text-flow
+                                                       :style-class "dialog-content-padding"
+                                                       :children [{:fx/type :text
+                                                                   :text (str "Common causes are:\n"
+                                                                              "\u00A0\u00A0\u2022\u00A0 Antivirus software configured to scan encrypted connections\n"
+                                                                              "\u00A0\u00A0\u2022\u00A0 Expired or misconfigured server certificate\n"
+                                                                              "\u00A0\u00A0\u2022\u00A0 Untrusted server certificate\n"
+                                                                              "\n"
+                                                                              "The following FAQ may apply: ")}
+                                                                  {:fx/type :hyperlink
+                                                                   :text "PKIX path building failed"
+                                                                   :on-action (fn [_]
+                                                                                (ui/open-url "https://github.com/defold/editor2-issues/blob/master/faq/pkixpathbuilding.md"))}
+                                                                  {:fx/type :text
+                                                                   :text (str "\n\n" (string/replace (.getMessage error) ": " ":\n\u00A0\u00A0"))}]}})
 
                                           :else
                                           (error-reporting/report-exception! error))))))))

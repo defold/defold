@@ -671,12 +671,19 @@
             (launch-new-engine!))))
       (catch Exception e
         (log/warn :exception e)
-        (dialogs/make-error-dialog (format "Launching %s Failed"
-                                           (if (some? selected-target)
-                                             (targets/target-message-label selected-target)
-                                             "New Local Engine"))
-                                   "If the engine is already running, shut down the process manually and retry."
-                                   (.getMessage e))))))
+        (dialogs/make-info-dialog
+          {:title "Launch Failed"
+           :icon :error
+           :header {:fx/type :v-box
+                    :children [{:fx/type fxui/label
+                                :variant :header
+                                :text (format "Launching %s Failed"
+                                              (if (some? selected-target)
+                                                (targets/target-message-label selected-target)
+                                                "New Local Engine"))}
+                               {:fx/type fxui/label
+                                :text "If the engine is already running, shut down the process manually and retry"}]}
+           :content (.getMessage e)})))))
 
 (defn async-build! [project evaluation-context prefs {:keys [debug? engine?] :or {debug? false engine? true}} old-artifact-map render-build-progress! result-fn]
   (assert (not @build-in-progress?))
@@ -745,15 +752,15 @@
   [project]
   (if (project/shared-script-state? project)
     true
-    (do (dialogs/make-error-dialog
-          "Debugging Not Supported"
-          "This Project Cannot Be Used with the Debugger"
-          {:fx/type fxui/label
-           :style-class "dialog-content-padding"
-           :wrap-text true
-           :text "It is configured to disable shared script state.
+    (do (dialogs/make-info-dialog
+          {:title "Debugging Not Supported"
+           :icon :error
+           :header "This Project Cannot Be Used with the Debugger"
+           :content {:fx/type fxui/label
+                     :style-class "dialog-content-padding"
+                     :text "It is configured to disable shared script state.
 
-If you do not specifically require different script states, consider changing the script.shared_state property in game.project."})
+If you do not specifically require different script states, consider changing the script.shared_state property in game.project."}})
         false)))
 
 (defn- run-with-debugger! [workspace project prefs debug-view render-build-error! web-server]
@@ -880,10 +887,12 @@ If you do not specifically require different script states, consider changing th
                           (when-some [updated-build-resources (not-empty (updated-build-resources evaluation-context project old-etags etags "/game.project"))]
                             (engine/reload-build-resources! target updated-build-resources))
                           (catch Exception e
-                            (dialogs/make-error-dialog "Hot Reload Failed"
-                                                       (format "Failed to reload resources on '%s'"
-                                                               (targets/target-message-label (targets/selected-target prefs)))
-                                                       (.getMessage e))))))))))
+                            (dialogs/make-info-dialog
+                              {:title "Hot Reload Failed"
+                               :icon :error
+                               :header (format "Failed to reload resources on '%s'"
+                                               (targets/target-message-label (targets/selected-target prefs)))
+                               :content (.getMessage e)})))))))))
 
 (handler/defhandler :hot-reload :global
   (enabled? [debug-view prefs evaluation-context]
@@ -1434,9 +1443,10 @@ If you do not specifically require different script states, consider changing th
                               (first (:view-types resource-type)))
                             text-view-type)]
      (if (resource-node/defective? resource-node)
-       (do (dialogs/make-error-dialog
-             "Unable to Open Resource"
-             (format "Unable to Open '%s', since It Appears Damaged" (resource/proj-path resource)))
+       (do (dialogs/make-info-dialog
+             {:title "Unable to Open Resource"
+              :icon :error
+              :header (format "Unable to Open '%s', Since It Appears Damaged" (resource/proj-path resource))})
            false)
        (if-let [custom-editor (and (#{:code :text} (:id view-type))
                                    (let [ed-pref (some->
@@ -1483,10 +1493,11 @@ If you do not specifically require different script states, consider changing th
                  ^File f (File. path)]
              (ui/open-file f (fn [msg]
                                (ui/run-later
-                                 (dialogs/make-error-dialog
-                                   "Could Not Open File"
-                                   (format "Could Not Open '%s'" (.getName f))
-                                   (str "This can happen if the file type is not mapped to an application in your OS.\n\nUnderlying error from the OS:\n" msg)))))
+                                 (dialogs/make-info-dialog
+                                   {:title "Could Not Open File"
+                                    :icon :error
+                                    :header (format "Could Not Open '%s'" (.getName f))
+                                    :content (str "This can happen if the file type is not mapped to an application in your OS.\n\nUnderlying error from the OS:\n" msg)}))))
              false)))))))
 
 (handler/defhandler :open :global
@@ -1735,9 +1746,10 @@ If you do not specifically require different script states, consider changing th
                              (when successful?
                                (if (some-> output-directory .isDirectory)
                                  (ui/open-file output-directory)
-                                 (dialogs/make-error-dialog
-                                   "Bundle Failed"
-                                   "Failed to Bundle Project, Please Fix Build Errors and Try Again")))))))
+                                 (dialogs/make-info-dialog
+                                   {:title "Bundle Failed"
+                                    :icon :error
+                                    :header "Failed to Bundle Project, Please Fix Build Errors and Try Again"})))))))
 
 (handler/defhandler :bundle :global
   (run [user-data workspace project prefs app-view changes-view build-errors-view main-stage tool-tab-pane]
@@ -1757,11 +1769,13 @@ If you do not specifically require different script states, consider changing th
   (let [library-uris (project/project-dependencies project)
         hosts (into #{} (map url/strip-path) library-uris)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
-      (dialogs/make-error-dialog
-        "Fetch Failed"
-        "Fetch Was Aborted Because a Host Could Not Be Reached"
-        (str "Unreachable host: " first-unreachable-host
-             "\n\nPlease verify internet connection and try again."))
+      (dialogs/make-info-dialog
+        {:title "Fetch Failed"
+         :icon :error
+         :size :large
+         :header "Fetch Was Aborted Because a Host Could Not Be Reached"
+         :content (str "Unreachable host: " first-unreachable-host
+                       "\n\nPlease verify internet connection and try again.")})
       (future
         (error-reporting/catch-all!
           (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
@@ -1817,8 +1831,13 @@ If you do not specifically require different script states, consider changing th
           (let [main-scene (.getScene ^Stage main-stage)
                 render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
             (if (engine-build-errors/handle-build-error! render-build-error! project evaluation-context error)
-              (dialogs/make-error-dialog "Build Failed"
-                                         "Failed to Build Ipa with Native Extensions, Please Fix Build Errors and Try Again")
+              (dialogs/make-info-dialog
+                {:title "Build Failed"
+                 :icon :error
+                 :header "Failed to Build Ipa with Native Extensions, Please Fix Build Errors and Try Again"})
               (do (error-reporting/report-exception! error)
                   (when-let [message (:message result)]
-                    (dialogs/make-error-dialog "Error" message))))))))))
+                    (dialogs/make-info-dialog
+                      {:title "Error"
+                       :icon :error
+                       :header message}))))))))))
