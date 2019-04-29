@@ -330,6 +330,35 @@ public class BundleHelper {
         FileUtils.forceMkdir(new File(dir, "drawable-xxxhdpi"));
     }
 
+    // from extender: ExtenderUtil.java  (public for testing)
+    public static List<String> excludeItems(List<String> input, List<String> expressions) {
+        List<String> items = new ArrayList<>();
+
+        List<Pattern> patterns = new ArrayList<>();
+        for (String expression : expressions) {
+            patterns.add(Pattern.compile(expression));
+        }
+        for (String item : input) {
+            boolean excluded = false;
+            if (expressions.contains(item) ) {
+                excluded = true;
+            }
+            else {
+                for (Pattern pattern : patterns) {
+                    Matcher m = pattern.matcher(item);
+                    if (m.matches()) {
+                        excluded = true;
+                        break;
+                    }
+                }
+            }
+            if (!excluded) {
+                items.add(item);
+            }
+        }
+        return items;
+    }
+
     public List<ExtenderResource> generateAndroidResources(Project project, Platform platform, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError, IOException {
         List<String> resourceDirectories = new ArrayList<>();
 
@@ -362,12 +391,18 @@ public class BundleHelper {
 
         List<String> extraPackages = new ArrayList<>();
         extraPackages.add("com.facebook");
-
-        if (bundleContext != null) {
-            extraPackages.addAll((List<String>)bundleContext.getOrDefault("aapt-extra-packages", new ArrayList<String>()));
-        }
         extraPackages.add("com.google.android.gms");
         extraPackages.add("com.google.android.gms.common");
+
+        if (bundleContext != null) {
+            extraPackages.addAll((List<String>)bundleContext.getOrDefault("aaptExtraPackages", new ArrayList<String>()));
+        }
+
+        List<String> excludePackages = (List<String>)bundleContext.getOrDefault("aaptExcludePackages", new ArrayList<String>());
+        List<String> excludeResourceDirs = (List<String>)bundleContext.getOrDefault("aaptExcludeResourceDirs", new ArrayList<String>());
+
+        extraPackages = excludeItems(extraPackages, excludePackages);
+        resourceDirectories = excludeItems(resourceDirectories, excludeResourceDirs);
 
         return generateRJava(resourceDirectories, extraPackages, manifestFile, apk, javaROutput);
     }

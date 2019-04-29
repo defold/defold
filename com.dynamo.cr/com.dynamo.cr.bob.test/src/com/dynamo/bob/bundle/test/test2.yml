@@ -3,4 +3,4 @@ name: TestExt2
 platforms:
     armv7-android:
         bundle:
-            aapt-extra-packages: ['com.other.package']
+            aaptExtraPackages: ['com.other.package']
