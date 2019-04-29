@@ -29,7 +29,7 @@ def configure(conf):
 
     if platform == "darwin" or platform == "x86_64-darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
-    elif re.match('arm.*?darwin', platform):
+    elif platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
         pass
     elif re.match('arm.*?android', platform):
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
@@ -39,7 +39,6 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib'])
 
     conf.env.append_value('CPPPATH', "default/src")
-    conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = ['dlib', 'axtls']
     conf.env['STATICLIB_DDF'] = 'ddf'
     conf.env['STATICLIB_RESOURCE'] = 'resource'
@@ -78,4 +77,4 @@ import os, subprocess
 def shutdown():
     if not Options.commands['build']:
         return
-    waf_dynamo.run_gtests(valgrind = True)
+    waf_dynamo.run_tests(valgrind = True)

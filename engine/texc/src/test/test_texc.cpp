@@ -1,10 +1,12 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include <dlib/image.h>
 #include <dlib/webp.h>
+#include <string.h> // memcmp
 
 #include "../texc.h"
 
-class TexcTest : public ::testing::Test
+class TexcTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -470,8 +472,8 @@ TEST_F(TexcTest, TranscodeWebEncodedTextureFormat)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = jc_test_run_all();
     return ret;
 }

@@ -12,11 +12,11 @@ def build(bld):
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     source = ['extension.cpp']
-    if re.match('arm.*?darwin', bld.env.PLATFORM):
+    if bld.env.PLATFORM in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
         source += ['extension_ios.cpp']
     if re.match('arm.*?android', bld.env.PLATFORM):
         source += ['extension_android.cpp']
-    
+
     extension = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                                  includes = '.',
                                  source = source,
