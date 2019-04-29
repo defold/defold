@@ -311,11 +311,12 @@
         prospect-pairs (map (fn [^File f] [f (File. tgt-dir (FilenameUtils/getName (.toString f)))]) src-files)
         project-path (workspace/project-path workspace)]
     (if-let [illegal (illegal-copy-move-pairs project-path prospect-pairs)]
-      (dialogs/make-error-dialog
-        "Cannot Paste"
-        "There Are Reserved Target Directories"
-        (str "Following target directories are reserved:\n"
-               (string/join "\n" (map (comp (partial resource/file->proj-path project-path) second) illegal))))
+      (dialogs/make-info-dialog
+        {:title "Cannot Paste"
+         :icon :error
+         :header "There Are Reserved Target Directories"
+         :content (str "Following target directories are reserved:\n"
+                       (string/join "\n" (map (comp (partial resource/file->proj-path project-path) second) illegal)))})
       (let [pairs (ensure-unique-dest-files (fn [_ basename] (str basename "_copy")) prospect-pairs)]
         (doseq [[^File src-file ^File tgt-file] pairs]
           (fs/copy! src-file tgt-file {:target :merge}))
