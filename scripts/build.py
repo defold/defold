@@ -685,9 +685,15 @@ class Configuration(object):
             HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
             ANDROID_ROOT = os.path.join(HOME, 'android')
             ANDROID_NDK_VERSION = '10e'
-            ANDROID_GCC_VERSION = '4.8'
+            if target_platform == 'armv7-android':
+                ANDROID_PLATFORM = 'arm-linux-androideabi'
+                ANDROID_GCC_VERSION = '4.8'
+            elif target_platform == 'arm64-android':
+                ANDROID_PLATFORM = 'aarch64-linux-android'
+                ANDROID_GCC_VERSION = '4.9'
+
             ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
-            strip = "%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-x86_64/bin/arm-linux-androideabi-strip" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, ANDROID_HOST)
+            strip = "%s/android-ndk-r%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_PLATFORM, ANDROID_GCC_VERSION, ANDROID_HOST, ANDROID_PLATFORM)
 
         self.exec_shell_command("%s %s" % (strip, path))
         return True
