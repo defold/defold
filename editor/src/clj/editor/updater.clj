@@ -2,6 +2,7 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as string]
+            [editor.connection-properties :refer [connection-properties]]
             [editor.process :as process]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -18,10 +19,10 @@
 (set! *warn-on-reflection* true)
 
 (defn- download-url [sha1 channel ^Platform platform]
-  (format "https://d.defold.com/archive/%s/%s/editor2/Defold-%s.zip" sha1 channel (.getPair platform)))
+  (format (get-in connection-properties [:updater :download-url-template]) sha1 channel (.getPair platform)))
 
 (defn- update-url [channel]
-  (format "https://d.defold.com/editor2/channels/%s/update-v3.json" channel))
+  (format (get-in connection-properties [:updater :update-url-template]) channel))
 
 (def ^:private ^File support-dir
   (.getCanonicalFile (.toFile (Editor/getSupportPath))))
