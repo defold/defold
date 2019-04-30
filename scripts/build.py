@@ -624,9 +624,7 @@ class Configuration(object):
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # Android Jars (external)
-            external_jars = ("facebooksdk.jar",
-                             "bolts-android-1.2.0.jar",
-                             "android-support-v4.jar",
+            external_jars = ("android-support-v4.jar",
                              "android-support-multidex.jar",
                              "android.jar",
                              "in-app-purchasing-2.0.61.jar")

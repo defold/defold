@@ -102,11 +102,6 @@ namespace dmEngineVersion
     conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
 
     conf.env['STATICLIB_UNWIND'] = 'unwind'
-    conf.env['STATICLIB_BOLTS'] = 'Bolts'
-    conf.env['STATICLIB_FBSDKCORE'] = 'FBSDKCore'
-    conf.env['STATICLIB_FBSDKLOGIN'] = 'FBSDKLogin'
-    conf.env['STATICLIB_FBSDKSHARE'] = 'FBSDKShare'
-    conf.env['LIB_SQLLITE'] = 'sqlite3'
     conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
     conf.env['STATICLIB_GAMEROOMEXT'] = 'gameroomext'
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
