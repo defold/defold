@@ -340,6 +340,7 @@ def build(bld):
                                          includes = '../../../src . .. ../../../proto',
                                          uselib = uselib,
                                          uselib_local = 'gameobject',
+                                         web_libs = ['library_sys.js', 'library_script.js'],
                                          proto_gen_py = True,
                                          target = '%s/test_gameobject_%s' % (dir, dir))
         test_task_gen.find_sources_in_dirs(dir, exts)

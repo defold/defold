@@ -10,6 +10,7 @@ def build(bld):
                                     source = 'test_render.cpp',
                                     uselib = libs,
                                     uselib_local = 'render',
+                                    web_libs = ['library_sys.js', 'library_script.js'],
                                     includes = ['../../src', '../../proto'],
                                     target = 'test_render')
 
@@ -19,6 +20,7 @@ def build(bld):
                                     source = 'test_display_profiles.cpp',
                                     uselib = libs,
                                     uselib_local = 'render',
+                                    web_libs = ['library_sys.js', 'library_script.js'],
                                     includes = ['../../src', '../../proto'],
                                     target = 'test_display_profiles')
 
@@ -28,6 +30,7 @@ def build(bld):
                                     source = 'test_material.cpp',
                                     uselib = libs,
                                     uselib_local = 'render',
+                                    web_libs = ['library_sys.js', 'library_script.js'],
                                     includes = ['../../src', '../../proto'],
                                     target = 'test_material')
 
@@ -37,6 +40,7 @@ def build(bld):
                                     source = 'test_render_script.cpp',
                                     uselib = libs,
                                     uselib_local = 'render',
+                                    web_libs = ['library_sys.js', 'library_script.js'],
                                     includes = ['../../src', '../../proto'],
                                     target = 'test_render_script')
 

@@ -10,8 +10,13 @@ OSX_MIN_SDK_VERSION=10.7
 
 ANDROID_ROOT=~/android
 ANDROID_NDK_VERSION=10e
-ANDROID_VERSION=14
+ANDROID_NDK=${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
+
+ANDROID_VERSION=14 # Android 4.0
 ANDROID_GCC_VERSION='4.8'
+
+ANDROID_64_VERSION=21 # Android 5.0
+ANDROID_64_GCC_VERSION='4.9'
 
 FLASCC=~/local/FlasCC1.0/sdk
 
@@ -247,10 +252,11 @@ function cmi() {
             local stl="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include"
             local stl_lib="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a"
             local stl_arch="${stl_lib}/include"
+            local stl_inc="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_VERSION}/arch-arm/include"
 
             export CFLAGS="${CFLAGS} ${sysroot} -fpic -ffunction-sections -funwind-tables -D__ARM_ARCH_5__ -D__ARM_ARCH_5T__ -D__ARM_ARCH_5E__ -D__ARM_ARCH_5TE__  -Wno-psabi -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -mthumb -Os -fomit-frame-pointer -fno-strict-aliasing -finline-limit=64 -DANDROID -Wa,--noexecstack"
             export CPPFLAGS=${CFLAGS}
-            export CXXFLAGS="${CXXFLAGS} -I${stl} -I${stl_arch} ${CFLAGS}"
+            export CXXFLAGS="${CXXFLAGS} -I${stl} -I${stl_arch} -I${stl_inc} ${CFLAGS}"
             export LDFLAGS="${sysroot} -Wl,--fix-cortex-a8  -Wl,--no-undefined -Wl,-z,noexecstack -L${stl_lib} -lgnustl_static -lsupc++"
             export CPP=${bin}/arm-linux-androideabi-cpp
             export CC=${bin}/arm-linux-androideabi-gcc
@@ -259,6 +265,28 @@ function cmi() {
             export AS=${bin}/arm-linux-androideabi-as
             export LD=${bin}/arm-linux-androideabi-ld
             export RANLIB=${bin}/arm-linux-androideabi-ranlib
+            cmi_cross $1 arm-linux
+            ;;
+
+        arm64-android)
+            local platform=`uname | awk '{print tolower($0)}'`
+            local bin="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/aarch64-linux-android-${ANDROID_64_GCC_VERSION}/prebuilt/${platform}-x86_64/bin"
+            local sysroot="--sysroot=${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_64_VERSION}/arch-arm64"
+            local stl="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_64_GCC_VERSION}/include"
+            local stl_lib="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_64_GCC_VERSION}/libs/arm64-v8a"
+            local stl_arch="${stl_lib}/include"
+
+            export CFLAGS="${CFLAGS} ${sysroot} -fpic -ffunction-sections -funwind-tables -D__aarch64__  -Wno-psabi -march=armv8-a -Os -fomit-frame-pointer -fno-strict-aliasing -finline-limit=64 -DANDROID -Wa,--noexecstack"
+            export CPPFLAGS=${CFLAGS}
+            export CXXFLAGS="${CXXFLAGS} -I${stl} -I${stl_arch} ${CFLAGS}"
+            export LDFLAGS="${sysroot} -Wl,--no-undefined -Wl,-z,noexecstack -L${stl_lib} -lgnustl_static -lsupc++"
+            export CPP=${bin}/aarch64-linux-android-cpp
+            export CC=${bin}/aarch64-linux-android-gcc
+            export CXX=${bin}/aarch64-linux-android-g++
+            export AR=${bin}/aarch64-linux-android-ar
+            export AS=${bin}/aarch64-linux-android-as
+            export LD=${bin}/aarch64-linux-android-ld
+            export RANLIB=${bin}/aarch64-linux-android-ranlib
             cmi_cross $1 arm-linux
             ;;
 

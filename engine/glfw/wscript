@@ -48,7 +48,6 @@ def configure(conf):
 
 def build(bld):
     bld.add_subdirs('lib')
-    bld.add_subdirs('examples')
     bld.install_files('${PREFIX}/include/graphics/glfw', 'include/GL/glfw.h')
     bld.install_files('${PREFIX}/include/graphics/glfw', 'include/GL/glfw_native.h')
 

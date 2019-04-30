@@ -89,11 +89,12 @@ def build(bld):
                                      includes = '../../../src ../../../proto %s' % (dir),
                                      uselib = 'DMGLFW GAMEOBJECT DDF RESOURCE GRAPHICS_UTIL PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET SCRIPT LUA EXTENSION INPUT HID_NULL PARTICLE RIG GUI SOUND_NULL DLIB LIVEUPDATE CARES' + test_task_extra_libs,
                                      uselib_local = 'gamesys',
+                                     web_libs = ['library_sys.js', 'library_script.js'],
                                      proto_gen_py = True,
                                      content_root='.',
                                      target = 'test_gamesys')
     test_task_gen.find_sources_in_dirs('. ' + ' '.join(dirs), exts)
     test_task_gen.install_path = None
 
-    if not bld.env.PLATFORM in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+    if not bld.env.PLATFORM in ('armv7-darwin', 'arm64-darwin', 'arm64-android', 'x86_64-ios'):
         bld.add_subdirs('fontview')

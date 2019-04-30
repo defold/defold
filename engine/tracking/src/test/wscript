@@ -11,7 +11,8 @@ def build(bld):
                                      includes = '..',
                                      uselib = libs,
                                      uselib_local = 'tracking',
-				     embed_source = 'test_tracking.lua',
+                                     web_libs = ['library_sys.js', 'library_script.js'],
+									 embed_source = 'test_tracking.lua',
                                      target = 'test_tracking',
                                      source = 'test_tracking.cpp')
 

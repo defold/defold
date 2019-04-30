@@ -18,6 +18,7 @@ def build(bld):
         uselib = uselib,
         exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine engine_service',
+        web_libs = ['library_sys.js', 'library_script.js'],
         includes = '../../proto .',
         defines = defines,
         source = 'test_engine.cpp',

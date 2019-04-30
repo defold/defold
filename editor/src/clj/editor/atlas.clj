@@ -213,10 +213,10 @@
   (output ddf-message g/Any (g/fnk [maybe-image-resource order]
                               {:image (resource/resource->proj-path maybe-image-resource) :order order}))
   (output scene g/Any :cached produce-image-scene)
-  (output build-errors g/Any :cached (g/fnk [_node-id id id-counts maybe-image-resource]
-                                       (g/package-errors _node-id
-                                                         (validate-image-resource _node-id maybe-image-resource)
-                                                         (validate-image-id _node-id id id-counts)))))
+  (output build-errors g/Any (g/fnk [_node-id id id-counts maybe-image-resource]
+                               (g/package-errors _node-id
+                                                 (validate-image-resource _node-id maybe-image-resource)
+                                                 (validate-image-id _node-id id id-counts)))))
 
 (defn- sort-by-and-strip-order [images]
   (->> images
@@ -350,14 +350,14 @@
   (output ddf-message g/Any :cached produce-anim-ddf)
   (output updatable g/Any :cached produce-animation-updatable)
   (output scene g/Any :cached produce-animation-scene)
-  (output own-build-errors g/Any :cached (g/fnk [_node-id fps id id-counts]
-                                           (g/package-errors _node-id
-                                                             (validate-animation-id _node-id id id-counts)
-                                                             (validate-animation-fps _node-id fps))))
-  (output build-errors g/Any :cached (g/fnk [_node-id child-build-errors own-build-errors]
-                                       (g/package-errors _node-id
-                                                         child-build-errors
-                                                         own-build-errors))))
+  (output own-build-errors g/Any (g/fnk [_node-id fps id id-counts]
+                                   (g/package-errors _node-id
+                                                     (validate-animation-id _node-id id id-counts)
+                                                     (validate-animation-fps _node-id fps))))
+  (output build-errors g/Any (g/fnk [_node-id child-build-errors own-build-errors]
+                               (g/package-errors _node-id
+                                                 child-build-errors
+                                                 own-build-errors))))
 
 (g/defnk produce-save-value [margin inner-padding extrude-borders img-ddf anim-ddf]
   {:margin margin
@@ -579,19 +579,18 @@
                                                                              {:node-type    AtlasAnimation
                                                                               :tx-attach-fn attach-animation-to-atlas}]}))
   (output save-value       g/Any          :cached produce-save-value)
-  (output build-errors     g/Any          :cached produce-build-errors)
   (output build-targets    g/Any          :cached produce-build-targets)
   (output updatable        g/Any          (g/fnk [] nil))
   (output scene            g/Any          :cached produce-scene)
-  (output own-build-errors g/Any          :cached (g/fnk [_node-id extrude-borders inner-padding margin]
-                                                    (g/package-errors _node-id
-                                                                      (validate-margin _node-id margin)
-                                                                      (validate-inner-padding _node-id inner-padding)
-                                                                      (validate-extrude-borders _node-id extrude-borders))))
-  (output build-errors     g/Any          :cached (g/fnk [_node-id child-build-errors own-build-errors]
-                                                    (g/package-errors _node-id
-                                                                      child-build-errors
-                                                                      own-build-errors))))
+  (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin]
+                                            (g/package-errors _node-id
+                                                              (validate-margin _node-id margin)
+                                                              (validate-inner-padding _node-id inner-padding)
+                                                              (validate-extrude-borders _node-id extrude-borders))))
+  (output build-errors     g/Any          (g/fnk [_node-id child-build-errors own-build-errors]
+                                            (g/package-errors _node-id
+                                                              child-build-errors
+                                                              own-build-errors))))
 
 (defn- make-image-nodes
   [attach-fn parent image-resources]

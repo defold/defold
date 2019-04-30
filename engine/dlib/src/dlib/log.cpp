@@ -71,6 +71,18 @@ static void dmLogInitSocket( dmSocket::Socket& server_socket )
     uint16_t port = 0;
     char error_msg[1024] = { 0 };
 
+    // If the env variable DM_LOG_PORT is set we will try to use
+    // that as port for the log server instead of a dynamic one.
+    const char* env_log_port = getenv("DM_LOG_PORT");
+    if (env_log_port != 0x0)
+    {
+        long t_port = strtol(env_log_port, 0, 10);
+        if (t_port > 0 && t_port < UINT16_MAX)
+        {
+            port = t_port;
+        }
+    }
+
     if (server_socket != dmSocket::INVALID_SOCKET_HANDLE)
     {
         r = dmSocket::GetName(server_socket, &address, &port); // need to reuse the port
