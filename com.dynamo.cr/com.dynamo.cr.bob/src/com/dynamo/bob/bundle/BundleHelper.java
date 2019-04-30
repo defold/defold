@@ -250,7 +250,6 @@ public class BundleHelper {
             List<String> args = new ArrayList<String>();
             args.add(Bob.getExe(Platform.getHostPlatform(), "aapt"));
             args.add("package");
-            args.add("--no-crunch");
             args.add("-f");
             args.add("--extra-packages");
             args.add(StringUtils.join(extraPackages, ":"));

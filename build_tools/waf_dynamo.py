@@ -941,7 +941,7 @@ def android_package(task):
     else:
         extra_packages_cmd = ''
 
-    ret = bld.exec_command('%s package --no-crunch -f %s -m --debug-mode --auto-add-overlay -M %s -I %s -J %s %s -F %s' % (aapt, extra_packages_cmd, manifest, android_jar, r_java_gen_dir, res_args, ap_))
+    ret = bld.exec_command('%s package -f %s -m --debug-mode --auto-add-overlay -M %s -I %s -J %s %s -F %s' % (aapt, extra_packages_cmd, manifest, android_jar, r_java_gen_dir, res_args, ap_))
     if ret != 0:
         error('Error running aapt')
         return 1
