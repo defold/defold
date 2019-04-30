@@ -10,10 +10,10 @@ def build(bld):
     source = ['gameroom_null.cpp']
 
     if re.match('.*win32', bld.env.PLATFORM):
-        source = ['gameroom.cpp', 'facebook/faceboook_gameroom.cpp']
+        source = ['gameroom.cpp', './facebook/facebook_gameroom.cpp']
 
     gameroom = bld.new_task_gen(features = 'cxx cstaticlib ddf',
-                            includes = '.',
+                            includes = '. ../src ../src/facebook',
                             source = source,
                             target = 'gameroomext')
 
@@ -23,7 +23,7 @@ def build(bld):
                 'facebook/facebook_gameroom.cpp', 'facebook/facebook_util.cpp']
 
     gameroom = bld.new_task_gen(features = 'cxx cstaticlib ddf',
-                            includes = '.',
+                            includes = '. ../src ../src/facebook',
                             source = source,
                             target = 'facebookext_gr')
 

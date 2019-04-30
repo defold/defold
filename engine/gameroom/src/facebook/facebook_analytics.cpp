@@ -175,33 +175,33 @@ void dmFacebookGR::Analytics::RegisterConstants(lua_State* L)
     #define SETCONSTANT(name, val) \
         lua_pushnumber(L, (lua_Number) val); lua_setfield(L, -2, #name);
 
-    SETCONSTANT(EVENT_ACHIEVED_LEVEL,           dmFacebook::Analytics::ACHIEVED_LEVEL);
-    SETCONSTANT(EVENT_ADDED_PAYMENT_INFO,       dmFacebook::Analytics::ADDED_PAYMENT_INFO);
-    SETCONSTANT(EVENT_ADDED_TO_CART,            dmFacebook::Analytics::ADDED_TO_CART);
-    SETCONSTANT(EVENT_ADDED_TO_WISHLIST,        dmFacebook::Analytics::ADDED_TO_WISHLIST);
-    SETCONSTANT(EVENT_COMPLETED_REGISTRATION,   dmFacebook::Analytics::COMPLETED_REGISTRATION);
-    SETCONSTANT(EVENT_COMPLETED_TUTORIAL,       dmFacebook::Analytics::COMPLETED_TUTORIAL);
-    SETCONSTANT(EVENT_INITIATED_CHECKOUT,       dmFacebook::Analytics::INITIATED_CHECKOUT);
-    SETCONSTANT(EVENT_PURCHASED,                dmFacebook::Analytics::PURCHASED);
-    SETCONSTANT(EVENT_RATED,                    dmFacebook::Analytics::RATED);
-    SETCONSTANT(EVENT_SEARCHED,                 dmFacebook::Analytics::SEARCHED);
-    SETCONSTANT(EVENT_SPENT_CREDITS,            dmFacebook::Analytics::SPENT_CREDITS);
-    SETCONSTANT(EVENT_TIME_BETWEEN_SESSIONS,    dmFacebook::Analytics::TIME_BETWEEN_SESSIONS);
-    SETCONSTANT(EVENT_UNLOCKED_ACHIEVEMENT,     dmFacebook::Analytics::UNLOCKED_ACHIEVEMENT);
-    SETCONSTANT(EVENT_VIEWED_CONTENT,           dmFacebook::Analytics::VIEWED_CONTENT);
+    SETCONSTANT(EVENT_ACHIEVED_LEVEL,           dmFacebookGR::Analytics::ACHIEVED_LEVEL);
+    SETCONSTANT(EVENT_ADDED_PAYMENT_INFO,       dmFacebookGR::Analytics::ADDED_PAYMENT_INFO);
+    SETCONSTANT(EVENT_ADDED_TO_CART,            dmFacebookGR::Analytics::ADDED_TO_CART);
+    SETCONSTANT(EVENT_ADDED_TO_WISHLIST,        dmFacebookGR::Analytics::ADDED_TO_WISHLIST);
+    SETCONSTANT(EVENT_COMPLETED_REGISTRATION,   dmFacebookGR::Analytics::COMPLETED_REGISTRATION);
+    SETCONSTANT(EVENT_COMPLETED_TUTORIAL,       dmFacebookGR::Analytics::COMPLETED_TUTORIAL);
+    SETCONSTANT(EVENT_INITIATED_CHECKOUT,       dmFacebookGR::Analytics::INITIATED_CHECKOUT);
+    SETCONSTANT(EVENT_PURCHASED,                dmFacebookGR::Analytics::PURCHASED);
+    SETCONSTANT(EVENT_RATED,                    dmFacebookGR::Analytics::RATED);
+    SETCONSTANT(EVENT_SEARCHED,                 dmFacebookGR::Analytics::SEARCHED);
+    SETCONSTANT(EVENT_SPENT_CREDITS,            dmFacebookGR::Analytics::SPENT_CREDITS);
+    SETCONSTANT(EVENT_TIME_BETWEEN_SESSIONS,    dmFacebookGR::Analytics::TIME_BETWEEN_SESSIONS);
+    SETCONSTANT(EVENT_UNLOCKED_ACHIEVEMENT,     dmFacebookGR::Analytics::UNLOCKED_ACHIEVEMENT);
+    SETCONSTANT(EVENT_VIEWED_CONTENT,           dmFacebookGR::Analytics::VIEWED_CONTENT);
 
-    SETCONSTANT(PARAM_CONTENT_ID,               dmFacebook::Analytics::CONTENT_ID);
-    SETCONSTANT(PARAM_CONTENT_TYPE,             dmFacebook::Analytics::CONTENT_TYPE);
-    SETCONSTANT(PARAM_CURRENCY,                 dmFacebook::Analytics::CURRENCY);
-    SETCONSTANT(PARAM_DESCRIPTION,              dmFacebook::Analytics::DESCRIPTION);
-    SETCONSTANT(PARAM_LEVEL,                    dmFacebook::Analytics::LEVEL);
-    SETCONSTANT(PARAM_MAX_RATING_VALUE,         dmFacebook::Analytics::MAX_RATING_VALUE);
-    SETCONSTANT(PARAM_NUM_ITEMS,                dmFacebook::Analytics::NUM_ITEMS);
-    SETCONSTANT(PARAM_PAYMENT_INFO_AVAILABLE,   dmFacebook::Analytics::PAYMENT_INFO_AVAILABLE);
-    SETCONSTANT(PARAM_REGISTRATION_METHOD,      dmFacebook::Analytics::REGISTRATION_METHOD);
-    SETCONSTANT(PARAM_SEARCH_STRING,            dmFacebook::Analytics::SEARCH_STRING);
-    SETCONSTANT(PARAM_SOURCE_APPLICATION,       dmFacebook::Analytics::SOURCE_APPLICATION);
-    SETCONSTANT(PARAM_SUCCESS,                  dmFacebook::Analytics::SUCCESS);
+    SETCONSTANT(PARAM_CONTENT_ID,               dmFacebookGR::Analytics::CONTENT_ID);
+    SETCONSTANT(PARAM_CONTENT_TYPE,             dmFacebookGR::Analytics::CONTENT_TYPE);
+    SETCONSTANT(PARAM_CURRENCY,                 dmFacebookGR::Analytics::CURRENCY);
+    SETCONSTANT(PARAM_DESCRIPTION,              dmFacebookGR::Analytics::DESCRIPTION);
+    SETCONSTANT(PARAM_LEVEL,                    dmFacebookGR::Analytics::LEVEL);
+    SETCONSTANT(PARAM_MAX_RATING_VALUE,         dmFacebookGR::Analytics::MAX_RATING_VALUE);
+    SETCONSTANT(PARAM_NUM_ITEMS,                dmFacebookGR::Analytics::NUM_ITEMS);
+    SETCONSTANT(PARAM_PAYMENT_INFO_AVAILABLE,   dmFacebookGR::Analytics::PAYMENT_INFO_AVAILABLE);
+    SETCONSTANT(PARAM_REGISTRATION_METHOD,      dmFacebookGR::Analytics::REGISTRATION_METHOD);
+    SETCONSTANT(PARAM_SEARCH_STRING,            dmFacebookGR::Analytics::SEARCH_STRING);
+    SETCONSTANT(PARAM_SOURCE_APPLICATION,       dmFacebookGR::Analytics::SOURCE_APPLICATION);
+    SETCONSTANT(PARAM_SUCCESS,                  dmFacebookGR::Analytics::SUCCESS);
 
     #undef SETCONSTANT
 
