@@ -57,14 +57,13 @@ def configure(conf):
     conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include" ))
     conf.env.append_value('CPPPATH', os.path.join(dynamo_home, "include", platform))
 
-    conf.env['STATICLIB_DLIB'] = ['dlib', 'axtls', 'cares']
+    conf.env['STATICLIB_DLIB'] = ['dlib', 'axtls']
     conf.env['STATICLIB_DDF'] = 'ddf'
     conf.env['STATICLIB_RESOURCE'] = 'resource'
     conf.env['STATICLIB_GRAPHICS'] = 'graphics'
     conf.env['STATICLIB_GRAPHICS_NULL'] = 'graphics_null'
     conf.env['STATICLIB_SCRIPT'] = 'script'
     conf.env['STATICLIB_EXTENSION'] = 'extension'
-    conf.env['STATICLIB_RESOLV'] = 'resolv'
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="RENDER"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="RENDER"')

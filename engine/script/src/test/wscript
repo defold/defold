@@ -15,10 +15,7 @@ def build(bld):
         bld.env['JS_LIB_PATHS'] = lib_dirs
 
     web_libs = ['library_sys.js', 'library_script.js']
-    libs = 'PLATFORM_SOCKET THREAD EXTENSION RESOURCE DDF DLIB LUA'
-
-    if bld.env.PLATFORM == 'x86_64-ios':
-      libs += ' RESOLV'
+    libs = 'PLATFORM_SOCKET THREAD EXTENSION RESOURCE DDF DLIB LUA CARES'
 
     test_script_ddf = bld.new_task_gen(features = flist,
                                         includes = '..',

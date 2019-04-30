@@ -10,10 +10,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    uselib = ['RESOURCE', 'DLIB', 'DDF', 'THREAD', 'LUA']
-    if bld.env.PLATFORM == 'x86_64-ios':
-      uselib.append('RESOLV')
-    uselib = ' '.join(uselib)
+    uselib = ['RESOURCE', 'DLIB', 'DDF', 'THREAD', 'LUA', 'CARES']
 
     test_liveupdate = bld.new_task_gen(features = 'cxx cprogram test',
                                        includes = '../../../src',

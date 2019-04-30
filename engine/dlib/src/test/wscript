@@ -4,17 +4,13 @@ import os, re
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
                 extra_includes = None, extra_defines = None, skip_run = False):
 
-    req_libs = ['UUID']
+    req_libs = ['UUID', 'CARES']
     req_defines = []
 
     req_features = ['cxx', 'cprogram']
     req_includes = ['../../src']
     req_embed = None
 
-    if not 'web' in bld.env['PLATFORM']:
-        req_libs.append('CARES')
-        if bld.env.PLATFORM == "x86_64-ios":
-            req_libs.append('RESOLV')
     if not skip_run:
         req_features.append('test')
     if extra_features != None:

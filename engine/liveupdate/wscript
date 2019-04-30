@@ -21,8 +21,7 @@ def configure(conf):
 
     conf.env['STATICLIB_DDF'] = 'ddf'
     conf.env['STATICLIB_RESOURCE'] = 'resource'
-    conf.env['STATICLIB_DLIB'] = ['dlib', 'axtls', 'cares']
-    conf.env['STATICLIB_RESOLV'] = 'resolv'
+    conf.env['STATICLIB_DLIB'] = ['dlib', 'axtls']
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="LIVEUPDATE"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="LIVEUPDATE"')

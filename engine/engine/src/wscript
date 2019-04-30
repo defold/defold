@@ -40,7 +40,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
 
-    additional_libs = ['CRASH','CARES']
+    additional_libs = ['CRASH']
     exported_symbols = ['DefaultSoundDevice', 'NullSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt']
 
     # Add stb_vorbis and/or tremolo depending on platform
@@ -63,7 +63,6 @@ def build(bld):
         additional_libs.append('FBSDKLOGIN')
         additional_libs.append('FBSDKSHARE')
         additional_libs.append('SQLLITE')
-        additional_libs.append('RESOLV')
         exported_symbols.extend(mobile_service_symbols)
         exported_symbols.append('FacebookExt')
 
@@ -105,7 +104,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'WEBVIEWEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
+        uselib = 'WEBVIEWEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE CARES %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine engine_service',
         web_libs = web_libs,
         exported_symbols = exported_symbols,
@@ -134,7 +133,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'WEBVIEWEXT PROFILEREXT_NULL GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
+        uselib = 'WEBVIEWEXT PROFILEREXT_NULL GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE CARES %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine_release engine_service_null',
         web_libs = web_libs,
         exported_symbols = exported_symbols,
@@ -158,15 +157,14 @@ def build(bld):
     # We need to link with GLFW on Android for the headless version of the engine.
     # Android expects a slighly different life cycle handling, currently handled
     # in the GLFW module.
-    additional_libs = ''
+    additional_libs = []
     if 'android' in bld.env['PLATFORM']:
-        additional_libs = 'DMGLFW UNWIND'
+        additional_libs += ['DMGLFW','UNWIND']
 
     if 'x86_64-darwin' == bld.env['PLATFORM']:
-        additional_libs = 'UNWIND'
+        additional_libs = ['UNWIND']
 
-    if re.match('arm.*?darwin', bld.env['PLATFORM']) or bld.env['PLATFORM'] == 'x86_64-ios':
-      additional_libs += ' RESOLV'
+    additional_libs = ' '.join(additional_libs)
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',

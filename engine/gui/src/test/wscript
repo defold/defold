@@ -18,12 +18,7 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
 create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParticleDDF.ParticleFX', before='cc cxx')
 
 def build(bld):
-    uselib = ['SCRIPT', 'EXTENSION', 'RESOURCE', 'PARTICLE', 'RIG', 'HID_NULL', 'DDF', 'DLIB', 'PLATFORM_SOCKET', 'LUA']
-
-    if bld.env.PLATFORM == 'x86_64-ios':
-        uselib.append('RESOLV')
-
-    uselib = ' '.join(uselib)
+    uselib = ['SCRIPT', 'EXTENSION', 'RESOURCE', 'PARTICLE', 'RIG', 'HID_NULL', 'DDF', 'DLIB', 'PLATFORM_SOCKET', 'LUA', 'CARES']
 
     test_gui = bld.new_task_gen(features = 'cxx cprogram embed test',
                                 includes = '../../../src .',

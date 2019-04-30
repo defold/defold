@@ -1,10 +1,7 @@
 #! /usr/bin/env python
 
 def build(bld):
-    libs = 'PLATFORM_SOCKET GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB LUA'
-
-    if bld.env.PLATFORM == 'x86_64-ios':
-      libs += ' RESOLV'
+    libs = 'PLATFORM_SOCKET GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB LUA CARES'
 
     test_render = bld.new_task_gen(features = 'cxx cprogram test',
                                     source = 'test_render.cpp',

@@ -1711,6 +1711,12 @@ def detect(conf):
         else:
             conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
 
+    conf.env['STATICLIB_CARES'] = []
+    if platform != 'web':
+        conf.env['STATICLIB_CARES'].append('cares')
+    if platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
+        conf.env['STATICLIB_CARES'].append('resolv')
+
 def configure(conf):
     detect(conf)
 

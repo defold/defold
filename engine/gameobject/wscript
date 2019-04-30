@@ -24,13 +24,12 @@ def configure(conf):
     conf.sub_config('src')
 
     conf.env.append_value('CPPPATH', "default/src")
-    conf.env['STATICLIB_DLIB'] = ['dlib', 'axtls', 'cares']
+    conf.env['STATICLIB_DLIB'] = ['dlib', 'axtls']
     conf.env['STATICLIB_DDF'] = 'ddf'
     conf.env['STATICLIB_RIG'] = 'rig'
     conf.env['STATICLIB_RESOURCE'] = 'resource'
     conf.env['STATICLIB_SCRIPT'] = 'script'
     conf.env['STATICLIB_EXTENSION'] = 'extension'
-    conf.env['STATICLIB_RESOLV'] = 'resolv'
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GAMEOBJECT"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GAMEOBJECT"')

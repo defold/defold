@@ -35,9 +35,6 @@ def configure(conf):
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="DLIB"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="DLIB"')
 
-    conf.env['STATICLIB_CARES']  = 'cares'
-    conf.env['STATICLIB_RESOLV'] = 'resolv'
-
 def build(bld):
     if not os.path.exists('tmp'):
         os.mkdir('tmp')

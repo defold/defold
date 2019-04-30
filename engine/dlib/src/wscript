@@ -85,11 +85,9 @@ def build(bld):
     bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')
     bld.install_files('${PREFIX}/bin', '../bin/memprofile.sh', chmod=0755)
 
-    req_libs = []
+    req_libs = ['CARES']
     if 'web' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'dlib/js/library_sys.js')
-    else:
-        req_libs = ['CARES']
 
     source_dirs = 'dlib dlib/jsmn zlib lz4'.split(' ')
     axtls_dirs = 'axtls/crypto axtls/ssl'.split(' ')
@@ -194,12 +192,7 @@ def build(bld):
         dlib_noasan.source.remove(os.path.join('dlib', 'dns_null.cpp'))
 
     if bld.env['PLATFORM'] != 'as3-web':
-        uselib = ['UUID', 'PLATFORM_SOCKET']
-
-        if not 'web' in bld.env['PLATFORM']:
-            uselib.append('CARES')
-        if bld.env.PLATFORM == "arm64-darwin" or bld.env.PLATFORM == "armv7-darwin" or bld.env.PLATFORM == "x86_64-ios":
-            uselib.append('RESOLV')
+        uselib = ['UUID', 'PLATFORM_SOCKET', 'CARES']
 
         dlib = bld.new_task_gen(features = 'cc cxx cshlib skip_asan',
                                 includes = '.',

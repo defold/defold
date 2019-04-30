@@ -57,8 +57,6 @@ def configure(conf):
     conf.env['STATICLIB_GRAPHICS'] = 'graphics'
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
     conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
-    conf.env['STATICLIB_CARES'] = 'cares'
-    conf.env['STATICLIB_RESOLV'] = 'resolv'
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')
