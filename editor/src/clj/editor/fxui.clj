@@ -74,13 +74,17 @@
       (fx/wrap-effects
         {:state (fx/make-reset-effect state-atom)})))
 
-(defn stage [props]
+(defn stage
+  "Generic `:stage` that mirrors behavior of `editor.ui/make-stage`"
+  [props]
   (assoc props
     :fx/type :stage
     :on-focused-changed ui/focus-change-listener
     :icons (if (eutil/is-mac-os?) [] [ui/application-icon-image])))
 
-(defn dialog-stage [props]
+(defn dialog-stage
+  "Generic dialog `:stage` that mirrors behavior of `editor.ui/make-dialog-stage`"
+  [props]
   (let [owner (:owner props ::no-owner)]
     (-> props
         (assoc :fx/type stage)
@@ -104,42 +108,20 @@
   (let [existing-classes (if (string? style-class) [style-class] style-class)]
     (into existing-classes classes)))
 
-(defn dialog-body [{:keys [size header content footer]
-                    :or {size :default}
-                    :as props}]
-  (-> props
-      (dissoc :size :header :content :footer)
-      (update :style-class add-style-classes "dialog-body" (case size
-                                                             :small "dialog-body-small"
-                                                             :default "dialog-body-default"
-                                                             :large "dialog-body-large"))
-      (assoc :fx/type :v-box
-             :children (if (some? content)
-                         [{:fx/type :v-box
-                           :style-class "dialog-with-content-header"
-                           :children [header]}
-                          {:fx/type :v-box
-                           :style-class "dialog-content"
-                           :children [content]}
-                          {:fx/type :v-box
-                           :style-class "dialog-with-content-footer"
-                           :children [footer]}]
-                         [{:fx/type :v-box
-                           :style-class "dialog-without-content-header"
-                           :children [header]}
-                          {:fx/type :region :style-class "dialog-no-content"}
-                          {:fx/type :v-box
-                           :style-class "dialog-without-content-footer"
-                           :children [footer]}]))))
-
 (defn dialog-buttons [props]
   (-> props
       (assoc :fx/type :h-box)
       (update :style-class add-style-classes "dialog-buttons")))
 
-(defn label [{:keys [variant]
-              :or {variant :label}
-              :as props}]
+(defn label
+  "Generic `:label` with sensible defaults (`:wrap-text` is true)
+
+  Additional keys:
+  - `:variant` (optional, default `:label`) - a styling variant, either `:label`
+     or `:header`"
+  [{:keys [variant]
+    :or {variant :label}
+    :as props}]
   (-> props
       (assoc :fx/type :label)
       (dissoc :variant)
@@ -148,9 +130,15 @@
                                                :label "label"
                                                :header "header"))))
 
-(defn button [{:keys [variant]
-               :or {variant :secondary}
-               :as props}]
+(defn button
+  "Generic button
+
+  Additional keys:
+  - `:variant` (optional, default `:secondary`) - a styling variant, either
+    `:secondary` or `:primary`"
+  [{:keys [variant]
+    :or {variant :secondary}
+    :as props}]
   (-> props
       (assoc :fx/type :button)
       (dissoc :variant)
@@ -158,7 +146,10 @@
                                                         :primary "button-primary"
                                                         :secondary "button-secondary"))))
 
-(defn two-col-input-grid-pane [props]
+(defn two-col-input-grid-pane
+  "Grid pane whose children are partitioned into pairs and displayed in 2
+  columns, useful for multiple label + input fields"
+  [props]
   (-> props
       (assoc :fx/type :grid-pane
              :column-constraints [{:fx/type :column-constraints}
@@ -179,9 +170,15 @@
                                   (mapcat identity))
                                 children)))))
 
-(defn text-field [{:keys [variant]
-                   :or {variant :default}
-                   :as props}]
+(defn text-field
+  "Generic `:text-field`
+
+  Additional keys:
+  - `:variant` (optional, default `:default`) - a styling variant, either
+    `:default` or `:error`"
+  [{:keys [variant]
+    :or {variant :default}
+    :as props}]
   (-> props
       (assoc :fx/type :text-field)
       (dissoc :variant)
@@ -189,19 +186,32 @@
                                                             :default "text-field-default"
                                                             :error "text-field-error"))))
 
-(defn text-area [{:keys [variant]
-                  :or {variant :default}
-                  :as props}]
+(defn text-area
+  "Generic `:text-area`
+
+  Additional keys:
+  - `:variant` (optional, default `:default`) - a styling variant, either
+    `:default`, `:error` or `:borderless`"
+  [{:keys [variant]
+    :or {variant :default}
+    :as props}]
   (-> props
-      (dissoc :variant)
       (assoc :fx/type :text-area)
+      (dissoc :variant)
       (update :style-class add-style-classes "text-area" (case variant
                                                            :default "text-area-default"
                                                            :error "text-area-error"
                                                            :borderless "text-area-borderless"))))
 
-(defn icon [{:keys [type scale]
-             :or {scale 1}}]
+(defn icon
+  "Optionally scaled svg icon
+
+  Supported keys:
+  - `:type` (required) - icon type, either `:error`, `:check-circle` or
+    `:info-circle`
+  - `:scale` (optional, default 1) - icon scale"
+  [{:keys [type scale]
+    :or {scale 1}}]
   {:fx/type :group
    :children [{:fx/type :svg-path
                :scale-x scale

@@ -1,6 +1,5 @@
 (ns editor.ui
-  (:require [cljfx.api :as fx]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
             [clojure.xml :as xml]

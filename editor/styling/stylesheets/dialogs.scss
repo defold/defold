@@ -36,7 +36,7 @@ $red-darker: #6b2f34; //derive($red, -40%);
 }
 
 $spacing-smaller: 16px;
-$spacing-normal: 24px;
+$spacing-default: 24px;
 $spacing-larger: 32px;
 $spacing-largest: 40px;
 
@@ -139,10 +139,10 @@ $spacing-largest: 40px;
 }
 
 .dialog-with-content-header {
-  -fx-padding: $spacing-normal;
+  -fx-padding: $spacing-default;
 }
 .dialog-without-content-header {
-  -fx-padding: $spacing-normal $spacing-normal 0 $spacing-normal;
+  -fx-padding: $spacing-default $spacing-default 0 $spacing-default;
 }
 
 .dialog-buttons {
@@ -150,10 +150,10 @@ $spacing-largest: 40px;
   -fx-alignment: center-right;
 }
 .dialog-with-content-footer {
-  -fx-padding: $spacing-normal;
+  -fx-padding: $spacing-default;
 }
 .dialog-without-content-footer {
-  -fx-padding: 0 $spacing-normal $spacing-normal $spacing-normal;
+  -fx-padding: 0 $spacing-default $spacing-default $spacing-default;
 }
 
 .spacing-smaller {
