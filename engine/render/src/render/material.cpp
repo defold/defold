@@ -77,6 +77,8 @@ namespace dmRender
             {
                 m->m_Samplers.Push(Sampler(i));
             }
+
+            samplers_count = 0;
         }
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
@@ -139,6 +141,14 @@ namespace dmRender
             else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE)
             {
                 m->m_NameHashToLocation.Put(name_hash, location);
+
+                // Vulkan hack to mimick default binding of first texture..
+                if (samplers_count == 0)
+                {
+                    Sampler& s   = m->m_Samplers[samplers_count++];
+                    s.m_NameHash = name_hash;
+                    s.m_Location = location;
+                }
             }
         }
 
