@@ -3,7 +3,6 @@
             [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.ui :as ui]
-            [editor.ui.bindings :as b]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.util :as util]
             [editor.handler :as handler]
@@ -31,28 +30,14 @@
 
 (set! *warn-on-reflection* true)
 
-(defn make-message-box [title text]
-  (let [root ^Parent (ui/load-fxml "message.fxml")
-        stage (ui/make-dialog-stage)
-        scene (Scene. root)]
-    (ui/title! stage title)
-    (ui/with-controls root [message ^Button ok]
-      (ui/text! message text)
-      (.setDefaultButton ok true)
-      (.setCancelButton ok true)
-      (ui/on-action! ok (fn [_] (.close stage))))
-    (.setScene stage scene)
-    (ui/show-and-wait! stage)))
-
 (defn- confirmation-dialog-header->fx-desc [header]
   (if (string? header)
     {:fx/type fxui/label
      :variant :header
-     :wrap-text true
      :text header}
     header))
 
-(defn- make-confirmation-dialog-fx [{:keys [owner header title buttons size content]
+(defn- make-confirmation-dialog-fx [{:keys [owner title size header content buttons]
                                      :or {title ""
                                           size :small
                                           owner ::no-owner}}]
@@ -67,19 +52,18 @@
                                   :desc (assoc button-desc :variant :primary)}
                                  button-desc)))
                            buttons)
-        desc {:fx/type fxui/dialog-stage
-              :on-close-request {:result (:result (some #(when (:cancel-button %) %) buttons))}
-              :title title
-              :owner {:fx/type fxui/ext-value
-                      :value (if (= owner ::no-owner) (ui/main-stage) owner)}
-              :scene {:fx/type :scene
-                      :stylesheets ["dialogs.css"]
-                      :root {:fx/type fxui/dialog-body
-                             :size size
-                             :header header-desc
-                             :content content
-                             :footer {:fx/type fxui/dialog-buttons
-                                      :children button-descs}}}}]
+        desc (cond-> {:fx/type fxui/dialog-stage
+                      :on-close-request {:result (:result (some #(when (:cancel-button %) %) buttons))}
+                      :title title
+                      :scene {:fx/type :scene
+                              :stylesheets ["dialogs.css"]
+                              :root {:fx/type fxui/dialog-body
+                                     :size size
+                                     :header header-desc
+                                     :content content
+                                     :footer {:fx/type fxui/dialog-buttons
+                                              :children button-descs}}}}
+                     (not= owner ::no-owner) (assoc :owner owner))]
     (fn [props]
       (assoc desc :showing (not (contains? props :result))))))
 
@@ -101,8 +85,8 @@
   - `:title` (optional, default \"\") - window title
   - `:owner` (optional) - a Stage that dialog will block, if not provided it
     will block all windows
-  - `:size` (optional, default `:small`) - dialog size, either `:small` or
-    `:large`"
+  - `:size` (optional, default `:default`) - dialog size, either `:small`,
+    `:default` or `:large`"
   [props]
   (let [state-atom (atom {})
         renderer (fx/create-renderer
@@ -110,12 +94,12 @@
                    :middleware (fx/wrap-map-desc assoc :fx/type (make-confirmation-dialog-fx props)))]
     (fxui/mount-renderer-and-await-result! state-atom renderer)))
 
-(defn- props->info-dialog-content-fx [props]
+(defn- info-dialog-content-fx [props]
   (-> props
       (assoc :fx/type fxui/text-area)
       (update :style-class fxui/add-style-classes "text-area-with-dialog-content-padding")
       (fxui/provide-defaults
-        :pref-row-count (max 3 (count (str/split (:text props) #"\n" 10)))
+        :pref-row-count (max 3 (count (str/split (:text props "") #"\n" 10)))
         :variant :borderless
         :editable false)))
 
@@ -139,8 +123,8 @@
   - `:title` (optional, default \"\") - window title
   - `:owner` (optional) - a Stage that dialog will block, if not provided it
     will block all windows
-  - `:size` (optional, default `:small`) - dialog size, either `:small` or
-    `:large`"
+  - `:size` (optional, default `:default`) - dialog size, either `:small`,
+    `:default` or `:large`"
   [{:keys [icon]
     :or {icon :info-circle}
     :as props}]
@@ -159,10 +143,10 @@
                              content
 
                              (map? content)
-                             (props->info-dialog-content-fx content)
+                             (assoc content :fx/type info-dialog-content-fx)
 
                              (string? content)
-                             (props->info-dialog-content-fx {:text content}))))
+                             {:fx/type info-dialog-content-fx :text content})))
         (fxui/provide-defaults :buttons [{:text "Close"
                                           :cancel-button true
                                           :default-button true}]))))
@@ -171,12 +155,11 @@
   (and (pos? (.length x))
        (every? #(Character/isDigit ^char %) x)))
 
-(defn fx-resolution-dialog [{:keys [width-text height-text owner] :as props}]
+(defn fx-resolution-dialog [{:keys [width-text height-text] :as props}]
   (let [width-valid (digit-string? width-text)
         height-valid (digit-string? height-text)]
     {:fx/type fxui/dialog-stage
      :showing (not (contains? props :result))
-     :owner {:fx/type fxui/ext-value :value owner}
      :on-close-request {:event-type :cancel}
      :title "Set Custom Resolution"
      :scene {:fx/type :scene
@@ -228,7 +211,7 @@
                                 :cancel {:state (assoc state :result nil)}
                                 :confirm {:state (assoc state :result {:width (field-expression/to-int (:width-text state))
                                                                        :height (field-expression/to-int (:height-text state))})})))}
-                   :middleware (fx/wrap-map-desc assoc :fx/type fx-resolution-dialog :owner (ui/main-stage)))]
+                   :middleware (fx/wrap-map-desc assoc :fx/type fx-resolution-dialog))]
     (fxui/mount-renderer-and-await-result! state-atom renderer)))
 
 (defn make-update-failed-dialog [^Stage owner]
@@ -296,15 +279,6 @@
                 :default-button true
                 :result true}]}))
 
-(handler/defhandler ::report-error :dialog
-  (run [sentry-id-promise]
-    (let [sentry-id (deref sentry-id-promise 100 nil)
-          fields (cond-> {}
-                   sentry-id
-                   (assoc "Error" (format "<a href='https://sentry.io/defold/editor2/?query=id%%3A\"%s\"'>%s</a>"
-                                          sentry-id sentry-id)))]
-      (ui/open-url (github/new-issue-link fields)))))
-
 (defn- messages
   [ex-map]
   (->> (tree-seq :via :via ex-map)
@@ -317,22 +291,54 @@
                 (format "%s: %s" type-name (or message "Unknown")))))
        (str/join "\n")))
 
-(defn make-unexpected-error-dialog
-  [ex-map sentry-id-promise]
-  (let [root     ^Parent (ui/load-fxml "unexpected-error.fxml")
-        stage    (ui/make-dialog-stage)
-        scene    (Scene. root)
-        controls (ui/collect-controls root ["message" "dismiss" "report"])]
-    (ui/context! root :dialog {:stage stage :sentry-id-promise sentry-id-promise} nil)
-    (ui/title! stage "Error")
-    (ui/text! (:message controls) (messages ex-map))
-    (ui/bind-action! (:dismiss controls) ::close)
-    (.setCancelButton ^Button (:dismiss controls) true)
-    (ui/bind-action! (:report controls) ::report-error)
-    (.setDefaultButton ^Button (:report controls) true)
-    (ui/request-focus! (:report controls))
-    (.setScene stage scene)
-    (ui/show-and-wait! stage)))
+(defn unexpected-error-dialog-fx [{:keys [ex-map] :as props}]
+  {:fx/type fxui/dialog-stage
+   :showing (not (contains? props :result))
+   :on-close-request {:result false}
+   :title "Error"
+   :scene {:fx/type :scene
+           :stylesheets ["dialogs.css"]
+           :root {:fx/type fxui/dialog-body
+                  :header {:fx/type :h-box
+                           :style-class "spacing-smaller"
+                           :alignment :center-left
+                           :children [{:fx/type fxui/icon
+                                       :type :error}
+                                      {:fx/type fxui/label
+                                       :variant :header
+                                       :text "An Error Occurred"}]}
+                  :content {:fx/type info-dialog-content-fx
+                            :text (messages ex-map)}
+                  :footer {:fx/type :v-box
+                           :style-class "spacing-smaller"
+                           :children [{:fx/type fxui/label
+                                       :text "You can help us fix this problem by reporting it and providing more information about what you were doing when it happened."}
+                                      {:fx/type fxui/dialog-buttons
+                                       :children [{:fx/type fxui/button
+                                                   :cancel-button true
+                                                   :on-action {:result false}
+                                                   :text "Dismiss"}
+                                                  {:fx/type fxui/ext-focused-by-default
+                                                   :desc {:fx/type fxui/button
+                                                          :variant :primary
+                                                          :default-button true
+                                                          :on-action {:result true}
+                                                          :text "Report"}}]}]}}}})
+
+(defn make-unexpected-error-dialog [ex-map sentry-id-promise]
+  (let [state-atom (atom {})
+        renderer (fx/create-renderer
+                   :opts {:fx.opt/map-event-handler #(reset! state-atom {:result (:result %)})}
+                   :middleware (fx/wrap-map-desc assoc
+                                                 :fx/type unexpected-error-dialog-fx
+                                                 :ex-map ex-map))]
+    (when (fxui/mount-renderer-and-await-result! state-atom renderer)
+      (let [sentry-id (deref sentry-id-promise 100 nil)
+            fields (if sentry-id
+                     {"Error" (format "<a href='https://sentry.io/defold/editor2/?query=id%%3A\"%s\"'>%s</a>"
+                                      sentry-id sentry-id)}
+                     {})]
+        (ui/open-url (github/new-issue-link fields))))))
 
 (defn make-gl-support-error-dialog [support-error]
   (let [root ^VBox (ui/load-fxml "gl-error.fxml")
@@ -612,29 +618,51 @@
 
     @return))
 
+(defn target-ip-dialog-fx [{:keys [msg ^String ip] :as props}]
+  (let [ip-valid (pos? (.length ip))]
+    {:fx/type fxui/dialog-stage
+     :showing (not (contains? props :result))
+     :on-close-request {:event-type :cancel}
+     :title "Enter Target IP"
+     :scene {:fx/type :scene
+             :stylesheets ["dialogs.css"]
+             :root {:fx/type fxui/dialog-body
+                    :size :small
+                    :header {:fx/type fxui/label
+                             :variant :header
+                             :text msg}
+                    :content {:fx/type fxui/two-col-input-grid-pane
+                              :style-class "dialog-content-padding"
+                              :children [{:fx/type fxui/label
+                                          :text "Target IP Address"}
+                                         {:fx/type fxui/text-field
+                                          :variant (if ip-valid :default :error)
+                                          :text ip
+                                          :on-text-changed {:event-type :set-ip}}]}
+                    :footer {:fx/type fxui/dialog-buttons
+                             :children [{:fx/type fxui/button
+                                         :text "Cancel"
+                                         :cancel-button true
+                                         :on-action {:event-type :cancel}}
+                                        {:fx/type fxui/button
+                                         :disable (not ip-valid)
+                                         :text "Add Target IP"
+                                         :variant :primary
+                                         :default-button true
+                                         :on-action {:event-type :confirm}}]}}}}))
+
 (defn make-target-ip-dialog [ip msg]
-  (let [root     ^Parent (ui/load-fxml "target-ip-dialog.fxml")
-        stage    (ui/make-dialog-stage (ui/main-stage))
-        scene    (Scene. root)
-        controls (ui/collect-controls root ["add" "cancel" "ip" "msg"])
-        return   (atom nil)]
-    (ui/text! (:msg controls) (or msg "Enter Target IP address"))
-    (ui/text! (:ip controls) ip)
-    (ui/title! stage "Target IP")
-
-    (ui/on-action! (:add controls)
-                   (fn [_]
-                     (reset! return (ui/text (:ip controls)))
-                     (.close stage)))
-    (.setDefaultButton ^Button (:add controls) true)
-    (ui/on-action! (:cancel controls)
-                   (fn [_] (.close stage)))
-    (.setCancelButton ^Button (:cancel controls) true)
-
-    (.setScene stage scene)
-    (ui/show-and-wait! stage)
-
-    @return))
+  (let [state-atom (atom {:ip (or ip "")})
+        renderer (fx/create-renderer
+                   :opts {:fx.opt/map-event-handler
+                          (fxui/wrap-state-handler state-atom
+                            (fn [{:keys [fx/event state event-type]}]
+                              {:state (case event-type
+                                        :set-ip (assoc state :ip event)
+                                        :cancel (assoc state :result nil)
+                                        :confirm (assoc state :result (:ip state)))}))}
+                   :middleware (fx/wrap-map-desc assoc :fx/type target-ip-dialog-fx :msg (or msg "Enter Target IP Address")))]
+    (fxui/mount-renderer-and-await-result! state-atom renderer)))
 
 (defn- sanitize-common [name]
   (-> name

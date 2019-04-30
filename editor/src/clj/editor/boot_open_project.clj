@@ -347,9 +347,13 @@
               (if gitignore-was-modified?
                 (do (changes-view/refresh! changes-view app-view/render-main-task-progress!)
                     (ui/run-later
-                      (dialogs/make-message-box "Updated .gitignore File"
-                                                (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
-                                                     "You should include it along with your changes the next time you synchronize."))
+                      (dialogs/make-info-dialog
+                        {:title "Updated .gitignore File"
+                         :header "Updated .gitignore File"
+                         :content {:fx/type fxui/label
+                                   :style-class "dialog-content-padding"
+                                   :text (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
+                                              "You should include it along with your changes the next time you synchronize.")}})
                       (when internal-files-are-tracked?
                         (show-tracked-internal-files-warning!))))
                 (when internal-files-are-tracked?
