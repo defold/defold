@@ -502,6 +502,7 @@ namespace dmConfigFile
         dmHttpClient::HClient client = dmHttpClient::New(&params, uri_parts.m_Hostname, uri_parts.m_Port, strcmp(uri_parts.m_Scheme, "https") == 0);
         if (client == 0x0)
         {
+            dmDNS::DeleteChannel(params.m_DNSChannel);
             return RESULT_FILE_NOT_FOUND;
         }
 

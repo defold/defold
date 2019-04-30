@@ -24,7 +24,17 @@ namespace dmDNS
         RESULT_UNKNOWN_ERROR  = -4
     };
 
+    /**
+     * Initialize the DNS system. Some platforms require socket initialization to be called
+     * before this function. I.e: call dmSocket::Initialize() before dmDNS::Initialize() on win32.
+     * @return RESULT_OK on success
+     */
     Result Initialize();
+
+    /**
+     * Finalize DNS system.
+     * @return RESULT_OK on success
+     */
     Result Finalize();
 
     /**
