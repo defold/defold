@@ -205,17 +205,16 @@
                                    :aabb geom/empty-bounding-box
                                    :renderable {:passes [pass/selection]}})))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
-  (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
-                                             (if-let [target (first source-build-targets)]
-                                               (let [target (->> (assoc target :resource build-resource)
-                                                                 (wrap-if-raw-sound _node-id))]
-                                                 [(bt/with-content-hash
-                                                    (assoc target
-                                                      :instance-data
-                                                      {:resource (:resource target)
-                                                       :instance-msg rt-ddf-message
-                                                       :transform transform}))])
-                                               [])))
+  (output build-targets g/Any (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
+                                (when-some [target (first source-build-targets)]
+                                  (let [target (->> (assoc target :resource build-resource)
+                                                    (wrap-if-raw-sound _node-id))]
+                                    [(bt/with-content-hash
+                                       (assoc target
+                                         :instance-data
+                                         {:resource (:resource target)
+                                          :instance-msg rt-ddf-message
+                                          :transform transform}))]))))
   (output _properties g/Properties :cached produce-component-properties))
 
 (g/defnode EmbeddedComponent
@@ -493,7 +492,7 @@
                                               [:resource :source-resource]
                                               [:_properties :source-properties]
                                               [:node-outline :source-outline]
-                                              [:save-data :save-data]
+                                              [:undecorated-save-data :save-data]
                                               [:scene :scene]
                                               [:build-targets :source-build-targets]])
                   (attach-embedded-component self comp-node)

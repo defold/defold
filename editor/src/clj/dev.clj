@@ -3,6 +3,7 @@
             [editor.asset-browser :as asset-browser]
             [editor.changes-view :as changes-view]
             [editor.console :as console]
+            [editor.curve-view :as curve-view]
             [editor.outline-view :as outline-view]
             [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
@@ -129,6 +130,7 @@
 (def changed-files-view (partial view-of-type changes-view/ChangesView))
 (def outline-view (partial view-of-type outline-view/OutlineView))
 (def properties-view (partial view-of-type properties-view/PropertiesView))
+(def curve-view (partial view-of-type curve-view/CurveView))
 
 (defn console-view []
   (-> (view-of-type console/ConsoleNode) (g/targets-of :lines) ffirst))
@@ -157,6 +159,8 @@
 (defn reset-history! []
   (g/reset-history! (project-graph) 0)
   nil)
+
+(def ^:private node-type-key (comp :k g/node-type*))
 
 (defn- node-value-type-symbol [node-value-type]
   (symbol (if-some [^Class class (:class (deref node-value-type))]
@@ -231,7 +235,7 @@
                      node-successors))]
      (util/group-into (sorted-map)
                       (sorted-set)
-                      (comp :k (partial g/node-type* basis) key)
+                      (comp (partial node-type-key basis) key)
                       val
                       (mapcat select
                               (successor-tree basis node-id label))))))
@@ -259,7 +263,7 @@
   ([basis node-id label]
    (util/group-into (sorted-map)
                     (sorted-set)
-                    (comp :k (partial g/node-type* basis) key)
+                    (comp (partial node-type-key basis) key)
                     val
                     (mapcat (fn [[node-id node-successors]]
                               (map (fn [[label]]
@@ -280,3 +284,39 @@
            (for [[node-id labels] label-seqs-by-node-id
                  label labels]
              (direct-successor-types basis node-id label)))))
+
+(defn ordered-occurrences
+  "Returns a sorted list of [occurrence-count entry]. The list is sorted by
+  occurrence count in descending order."
+  [coll]
+  (sort (fn [[occurrence-count-a entry-a] [occurrence-count-b entry-b]]
+          (cond (< occurrence-count-a occurrence-count-b) 1
+                (< occurrence-count-b occurrence-count-a) -1
+                (and (instance? Comparable entry-a)
+                     (instance? Comparable entry-b)) (compare entry-a entry-b)
+                :else 0))
+        (map (fn [[entry occurrence-count]]
+               (pair occurrence-count entry))
+             (frequencies coll))))
+
+(defn cached-output-report
+  "Returns a sorted list of what node outputs are in the system cache in the
+  format [entry-occurrence-count [node-type-key output-label]]. The list is
+  sorted by entry occurrence count in descending order."
+  []
+  (let [system @g/*the-system*
+        basis (is/basis system)]
+    (ordered-occurrences
+      (map (fn [[[node-id output-label]]]
+             (let [node-type-key (node-type-key basis node-id)]
+               (pair node-type-key output-label)))
+           (is/system-cache system)))))
+
+(defn cached-output-name-report
+  "Returns a sorted list of what output names are in the system cache in the
+  format [entry-occurrence-count output-label]. The list is sorted by entry
+  occurrence count in descending order."
+  []
+  (ordered-occurrences
+    (map (comp second key)
+         (is/system-cache @g/*the-system*))))

@@ -428,7 +428,7 @@
           ;; Generate transaction steps from listeners before we alter things.
           resource-node-listeners (resource-node-listeners project)
           listener-tx-data (when (seq resource-node-listeners)
-                             (let [deleted-node? (set (:delete plan))
+                             (let [deleted-node? (set (:mark-deleted plan))
                                    new-resource-nodes-by-old (into {}
                                                                    (map (fn [[resource-path old-node-id]]
                                                                           [old-node-id (or (resource-path->new-node resource-path)
@@ -678,14 +678,33 @@
         (settings-core/get-setting ["project" "dependencies"])
         (library/parse-library-uris))))
 
+(def ^:private embedded-resource? (comp nil? resource/proj-path))
+
+(defn project-resource-node? [node-id evaluation-context]
+  (let [basis (:basis evaluation-context)]
+    (and (g/node-instance? basis resource-node/ResourceNode node-id)
+         (not (embedded-resource? (g/node-value node-id :resource evaluation-context))))))
+
+(defn- cached-save-data-output? [node-id label evaluation-context]
+  (case label
+    (:save-data :source-value) (project-resource-node? node-id evaluation-context)
+    false))
+
+(defn update-system-cache-save-data! [evaluation-context]
+  ;; To avoid cache churn, we only transfer the most important entries to the system cache.
+  (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cached-save-data-output?)]
+    (g/update-cache-from-evaluation-context! pruned-evaluation-context)))
+
 (defn- cache-save-data! [project]
   ;; Save data is required for the Search in Files feature so we pull
   ;; it in the background here to cache it.
   (let [evaluation-context (g/make-evaluation-context)]
     (future
-      ;; TODO progress reporting
-      (g/node-value project :save-data evaluation-context)
-      (ui/run-later (g/update-cache-from-evaluation-context! evaluation-context)))))
+      (error-reporting/catch-all!
+        ;; TODO: Progress reporting.
+        (g/node-value project :save-data evaluation-context)
+        (ui/run-later
+          (update-system-cache-save-data! evaluation-context))))))
 
 (defn open-project! [graph workspace-id game-project-resource render-progress! login-fn]
   (let [dependencies (read-dependencies game-project-resource)

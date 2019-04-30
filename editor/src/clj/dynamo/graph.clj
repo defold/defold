@@ -9,6 +9,7 @@
             [internal.graph.types :as gt]
             [internal.history :as history]
             [internal.id-gen :as id-gen]
+            [internal.low-memory :as low-memory]
             [internal.node :as in]
             [internal.system :as is]
             [internal.transaction :as it]
@@ -799,6 +800,15 @@
   ([] (is/default-evaluation-context @*the-system*))
   ([options] (is/custom-evaluation-context @*the-system* options)))
 
+(defn pruned-evaluation-context
+  "Selectively filters out cache entries from the supplied evaluation context.
+  Returns a new evaluation context with only the cache entries that passed the
+  cache-entry-pred predicate. The predicate function will be called with
+  node-id, output-label, evaluation-context and should return true if the
+  cache entry for the output-label should remain in the cache."
+  [evaluation-context cache-entry-pred]
+  (in/pruned-evaluation-context evaluation-context cache-entry-pred))
+
 (defn update-cache-from-evaluation-context!
   [evaluation-context]
   (swap! *the-system* is/update-cache-from-evaluation-context evaluation-context)
@@ -808,6 +818,16 @@
   `(let [~ec (make-evaluation-context)
          result# (do ~@body)]
      (update-cache-from-evaluation-context! ~ec)
+     result#))
+
+(def fake-system (is/make-system {:cache-size 0}))
+
+(defmacro with-auto-or-fake-evaluation-context [ec & body]
+  `(let [real-system# @*the-system*
+         ~ec (is/default-evaluation-context (or real-system# fake-system))
+         result# (do ~@body)]
+     (when (some? real-system#)
+       (update-cache-from-evaluation-context! ~ec))
      result#))
 
 (defn invalidate-counter
@@ -1218,9 +1238,10 @@
 ;; Boot, initialization, and facade
 ;; ---------------------------------------------------------------------------
 (defn initialize!
-  "Set up the initial system including graphs, caches, and dispoal queues"
+  "Set up the initial system including graphs, caches, and disposal queues"
   [config]
-  (reset! *the-system* (is/make-system config)))
+  (reset! *the-system* (is/make-system config))
+  (low-memory/add-callback! clear-system-cache!))
 
 (defn make-graph!
   "Create a new graph in the system with optional values of `:history` and `:volatility`. If no

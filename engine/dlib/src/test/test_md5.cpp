@@ -1,11 +1,12 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include "../dlib/md5.h"
 
 static void ASSERT_MD5(uint8_t* expected, const dmMD5::Digest& d)
 {
-    for (int i = 0; i < sizeof(d.m_Digest); ++i) {
+    for (size_t i = 0; i < sizeof(d.m_Digest); ++i) {
         ASSERT_EQ(expected[i], d.m_Digest[i]);
     }
 }
@@ -53,7 +54,7 @@ TEST(dmMD5, Incremental)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }
 
