@@ -1590,18 +1590,47 @@ namespace dmGraphics
             return sampler_index;
         }
 
-        static void UploadTexture(Texture* texture, const TextureParams params)
+        static void UploadTexture(Texture* texture, const TextureParams& params)
         {
             if (params.m_MipMap > 0)
             {
                 return;
             }
 
+            TextureFormat format_orig = params.m_Format;
             uint8_t bpp        = GetTextureFormatBPP(params.m_Format) >> 3;
             size_t data_size   = params.m_DataSize;
+            void*  data        = (void*)params.m_Data;
             VkFormat vk_format = g_vulkan_texture_format_table[params.m_Format];
             uint16_t vk_width  = params.m_Width;
             uint16_t vk_height = params.m_Height;
+
+            if (format_orig == TEXTURE_FORMAT_RGB)
+            {
+                uint8_t bpp_new  = 4;
+                uint8_t* data_new = (uint8_t*) malloc(bpp_new * vk_width * vk_height);
+
+                for(uint32_t px=0; px < vk_width * vk_height; px++)
+                {
+                    uint32_t px_old = px * bpp;
+                    uint32_t px_new = px * bpp_new;
+
+                    data_new[px_new]   = ((uint8_t*)data)[px_old];
+                    data_new[px_new+1] = ((uint8_t*)data)[px_old+1];
+                    data_new[px_new+2] = ((uint8_t*)data)[px_old+2];
+                    data_new[px_new+3] = 255;
+                }
+
+                vk_format = VK_FORMAT_R8G8B8A8_UNORM;
+                data = data_new;
+                data_size = bpp_new * vk_width * vk_height;
+                bpp = bpp_new;
+            }
+
+            if (vk_format == VK_FORMAT_UNDEFINED)
+            {
+                return;
+            }
 
             if (params.m_SubUpdate)
             {
@@ -1666,7 +1695,7 @@ namespace dmGraphics
 
             void* mapped_data_ptr;
             vkMapMemory(g_vk_context.m_LogicalDevice, staging_buffer_memory.m_DeviceMemory, 0, data_size, 0, &mapped_data_ptr);
-            memcpy(mapped_data_ptr, params.m_Data, data_size);
+            memcpy(mapped_data_ptr, data, data_size);
             vkUnmapMemory(g_vk_context.m_LogicalDevice, staging_buffer_memory.m_DeviceMemory);
 
             TransitionImageLayout(texture->m_Image, texture->m_Format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -1677,6 +1706,11 @@ namespace dmGraphics
 
             vkDestroyBuffer(g_vk_context.m_LogicalDevice, staging_buffer_handle, 0);
             vkFreeMemory(g_vk_context.m_LogicalDevice, staging_buffer_memory.m_DeviceMemory, 0);
+
+            if (format_orig == TEXTURE_FORMAT_RGB)
+            {
+                free(data);
+            }
         }
 
         static Texture* CreateColorTexture(uint32_t width, uint32_t height)
