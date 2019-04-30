@@ -81,12 +81,24 @@
     :icons (if (eutil/is-mac-os?) [] [ui/application-icon-image])))
 
 (defn dialog-stage [props]
-  (-> props
-      (assoc :fx/type stage)
-      (provide-defaults
-        :resizable false
-        :style :decorated
-        :modality (if (contains? props :owner) :window-modal :application-modal))))
+  (let [owner (:owner props ::no-owner)]
+    (-> props
+        (assoc :fx/type stage)
+        (assoc :owner (cond
+                        (= owner ::no-owner)
+                        {:fx/type fx/ext-instance-factory
+                         :create ui/main-stage}
+
+                        (:fx/type owner)
+                        owner
+
+                        :else
+                        {:fx/type ext-value
+                         :value owner}))
+        (provide-defaults
+          :resizable false
+          :style :decorated
+          :modality (if (nil? owner) :application-modal :window-modal)))))
 
 (defn add-style-classes [style-class & classes]
   (let [existing-classes (if (string? style-class) [style-class] style-class)]

@@ -455,17 +455,25 @@
                              project-location (location-field-location new-project-location-field)]
                          (cond
                            (string/blank? project-title)
-                           (dialogs/make-message-box "No Project Title"
-                                                     "You must specify a title for the project.")
+                           (dialogs/make-info-dialog
+                             {:title "No Project Title"
+                              :icon :error
+                              :header "You Must Specify a Title for the Project"})
 
                            (not= project-title (string/trim project-title))
-                           (dialogs/make-message-box "Invalid Project Title"
-                                                     "Whitespace is not allowed around the project title.")
+                           (dialogs/make-info-dialog
+                             {:title "Invalid Project Title"
+                              :icon :error
+                              :size :large
+                              :header "Whitespace Is Not Allowed Around the Project Title"})
 
                            (and (.exists project-location)
                                 (not (fs/empty-directory? project-location)))
-                           (dialogs/make-message-box "Conflicting Project Location"
-                                                     "A non-empty folder already exists at the chosen location.")
+                           (dialogs/make-info-dialog
+                             {:title "Conflicting Project Location"
+                              :icon :error
+                              :size :large
+                              :header "A Non-empty Folder Already Exists at the Chosen Location"})
 
                            :else
                            (download-template! (:name project-template) (:zip-url project-template) (:skip-root? project-template) project-location project-title))))))))
@@ -532,17 +540,26 @@
                                  clone-directory (location-field-location import-project-location-field)]
                              (cond
                                (string/blank? project-folder)
-                               (dialogs/make-message-box "No Destination Folder"
-                                                         "You must specify a destination folder for the project.")
+                               (dialogs/make-info-dialog
+                                 {:title "No Destination Folder"
+                                  :icon :error
+                                  :size :large
+                                  :header "You Must Specify a Destination Folder for the Project"})
 
                                (not= project-folder (string/trim project-folder))
-                               (dialogs/make-message-box "Invalid Destination Folder"
-                                                         "Whitespace is not allowed around the folder name.")
+                               (dialogs/make-info-dialog
+                                 {:title "Invalid Destination Folder"
+                                  :icon :error
+                                  :size :large
+                                  :header "Whitespace Is Not Allowed Around the Folder Name"})
 
                                (and (.exists clone-directory)
                                     (not (fs/empty-directory? clone-directory)))
-                               (dialogs/make-message-box "Conflicting Import Location"
-                                                         "A non-empty folder already exists at the chosen location.")
+                               (dialogs/make-info-dialog
+                                 {:title "Conflicting Import Location"
+                                  :icon :error
+                                  :size :large
+                                  :header "A Non-empty Folder Already Exists at the Chosen Location"})
 
                                :else
                                (clone-project! project-title (:repository-url dashboard-project) clone-directory))))))

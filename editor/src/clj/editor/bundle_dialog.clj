@@ -52,7 +52,6 @@
                               :variant :header
                               :text "A Directory Already Exists"}
                              {:fx/type fxui/label
-                              :wrap-text true
                               :text (format "Overwrite \"%s\"?" (.getAbsolutePath existing-entry))}]}
          :buttons [{:text "Cancel"
                     :cancel-button true

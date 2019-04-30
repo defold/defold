@@ -263,7 +263,6 @@
                         :header "An Error Occurred"
                         :content {:fx/type fxui/label
                                   :style-class "dialog-content-padding"
-                                  :wrap-text true
                                   :text (cancel-result-message result)}}]
       (when (not= :success (:type result))
         (if (:can-retry? result)
