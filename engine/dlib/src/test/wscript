@@ -2,7 +2,7 @@
 import os, re
 
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
-                extra_includes = None, extra_defines = None):
+                extra_includes = None, extra_defines = None, skip_run = False):
 
     req_libs = ['UUID']
     req_defines = []
