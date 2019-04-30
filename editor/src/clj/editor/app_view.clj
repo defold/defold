@@ -716,6 +716,15 @@
         (workspace/save-build-cache! workspace)
         build-results))))
 
+(defn- cached-build-target-output? [node-id label evaluation-context]
+  (and (= :build-targets label)
+       (project/project-resource-node? node-id evaluation-context)))
+
+(defn- update-system-cache-build-targets! [evaluation-context]
+  ;; To avoid cache churn, we only transfer the most important entries to the system cache.
+  (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cached-build-target-output?)]
+    (g/update-cache-from-evaluation-context! pruned-evaluation-context)))
+
 (defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane]
   (let [project-directory (io/file (workspace/project-path workspace))
         evaluation-context (g/make-evaluation-context)
@@ -725,7 +734,7 @@
     (async-build! project evaluation-context prefs {:debug? false} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
                   (fn [build-results engine-descriptor build-engine-exception]
-                    (g/update-cache-from-evaluation-context! evaluation-context)
+                    (update-system-cache-build-targets! evaluation-context)
                     (when (handle-build-results! workspace render-build-error! build-results)
                       (when engine-descriptor
                         (show-console! main-scene tool-tab-pane)
@@ -755,7 +764,7 @@ If you do not specifically require different script states, consider changing th
     (async-build! project evaluation-context prefs {:debug? true} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
                   (fn [build-results engine-descriptor build-engine-exception]
-                    (g/update-cache-from-evaluation-context! evaluation-context)
+                    (update-system-cache-build-targets! evaluation-context)
                     (when (handle-build-results! workspace render-build-error! build-results)
                       (when engine-descriptor
                         (when-let [target (launch-built-project! engine-descriptor project-directory prefs web-server true)]
@@ -770,7 +779,7 @@ If you do not specifically require different script states, consider changing th
     (async-build! project evaluation-context prefs {:debug? true :engine? false} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
                   (fn [build-results _ _]
-                    (g/update-cache-from-evaluation-context! evaluation-context)
+                    (update-system-cache-build-targets! evaluation-context)
                     (when (handle-build-results! workspace render-build-error! build-results)
                       (let [target (targets/selected-target prefs)]
                         (when (targets/controllable-target? target)
@@ -862,7 +871,7 @@ If you do not specifically require different script states, consider changing th
     (build-errors-view/clear-build-errors build-errors-view)
     (async-build! project evaluation-context prefs opts old-artifact-map render-build-progress!
                   (fn [{:keys [error artifact-map etags]} _ _]
-                    (g/update-cache-from-evaluation-context! evaluation-context)
+                    (update-system-cache-build-targets! evaluation-context)
                     (if (some? error)
                       (render-build-error! error)
                       (do

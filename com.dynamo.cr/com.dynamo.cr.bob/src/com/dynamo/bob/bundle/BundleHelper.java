@@ -197,7 +197,7 @@ public class BundleHelper {
             name = BundleHelper.MANIFEST_NAME_IOS;
         } else if (platform == Platform.X86_64Darwin) {
             name = BundleHelper.MANIFEST_NAME_OSX;
-        } else if (platform == Platform.Armv7Android) {
+        } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             name = BundleHelper.MANIFEST_NAME_ANDROID;
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
             name = BundleHelper.MANIFEST_NAME_HTML5;
@@ -226,7 +226,7 @@ public class BundleHelper {
         ManifestMergeTool.Platform manifestPlatform;
         if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
             manifestPlatform = ManifestMergeTool.Platform.IOS;
-        } else if (platform == Platform.Armv7Android) {
+        } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             manifestPlatform = ManifestMergeTool.Platform.ANDROID;
         } else if (platform == Platform.X86_64Darwin) {
             manifestPlatform = ManifestMergeTool.Platform.OSX;
@@ -330,7 +330,7 @@ public class BundleHelper {
         FileUtils.forceMkdir(new File(dir, "drawable-xxxhdpi"));
     }
 
-    public List<ExtenderResource> generateAndroidResources(Project project, Platform platform, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError, IOException {
+    public List<ExtenderResource> generateAndroidResources(Project project, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError, IOException {
         List<String> resourceDirectories = new ArrayList<>();
 
         BundleHelper.createAndroidResourceFolders(resDir);

@@ -923,7 +923,7 @@
   (input scene-structure g/Any)
 
   (output save-value g/Any produce-save-value)
-  (output own-build-errors g/Any :cached produce-scene-own-build-errors)
+  (output own-build-errors g/Any produce-scene-own-build-errors)
   (output build-targets g/Any :cached produce-scene-build-targets)
   (output spine-scene-pb g/Any :cached produce-spine-scene-pb)
   (output main-scene g/Any :cached produce-main-scene)
@@ -1090,7 +1090,7 @@
                                                              (assoc :link spine-scene :outline-reference? false))))
   (output model-pb g/Any produce-model-pb)
   (output save-value g/Any (gu/passthrough model-pb))
-  (output own-build-errors g/Any :cached produce-model-own-build-errors)
+  (output own-build-errors g/Any produce-model-own-build-errors)
   (output build-targets g/Any :cached produce-model-build-targets))
 
 

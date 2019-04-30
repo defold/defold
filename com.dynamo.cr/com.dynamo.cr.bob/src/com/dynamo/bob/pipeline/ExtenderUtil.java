@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -625,7 +626,12 @@ public class ExtenderUtil {
         Map<String, IResource> androidResources = new HashMap<String, IResource>();
         List<String> bundleExcludeList = trimExcludePaths(Arrays.asList(project.getProjectProperties().getStringValue("project", "bundle_exclude_resources", "").split(",")));
         List<String> platformFolderAlternatives = new ArrayList<String>();
-        platformFolderAlternatives.addAll(Arrays.asList(Platform.Armv7Android.getExtenderPaths()));
+
+        List<String> armv7ExtenderPaths = new ArrayList<String>(Arrays.asList(Platform.Armv7Android.getExtenderPaths()));
+        List<String> arm64ExtenderPaths = new ArrayList<String>(Arrays.asList(Platform.Arm64Android.getExtenderPaths()));
+        Set<String> set = new LinkedHashSet<>(armv7ExtenderPaths);
+        set.addAll(arm64ExtenderPaths);
+        platformFolderAlternatives = new ArrayList<>(set);
 
         // Project specific bundle resources
         String bundleResourcesPath = project.getProjectProperties().getStringValue("project", "bundle_resources", "").trim();

@@ -46,8 +46,8 @@ namespace dmScript
             return;
         }
 #endif
-    *buf = (const char*)source->m_Script.m_Data;
-    *size = source->m_Script.m_Count;
+        *buf = (const char*)source->m_Script.m_Data;
+        *size = source->m_Script.m_Count;
     }
 
     // Chunkname (the identifying part of a script/source chunk) in Lua has a maximum length,
