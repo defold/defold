@@ -681,10 +681,14 @@ Task.task_type_from_func('app_bundle',
 AUTHENTICODE_CERTIFICATE="Midasplayer Technology AB"
 
 def authenticode_certificate_installed(task):
+    if Options.options.skip_codesign:
+        return 0
     ret = task.exec_command('powershell "Get-ChildItem cert: -Recurse | Where-Object {$_.FriendlyName -Like """%s*"""} | Measure | Foreach-Object { exit $_.Count }"' % AUTHENTICODE_CERTIFICATE, log=True)
     return ret > 0
 
 def authenticode_sign(task):
+    if Options.options.skip_codesign:
+        return
     exe_file = task.inputs[0].abspath(task.env)
     exe_file_to_sign = task.inputs[0].change_ext('_to_sign.exe').abspath(task.env)
     exe_file_signed = task.outputs[0].abspath(task.env)
@@ -1535,8 +1539,6 @@ def detect(conf):
                         search_path = paths[0]
         if search_path == None:
             conf.fatal("Unable to determine search path for platform: %s" % platform)
-
-        conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = search_path)
 
     if  build_util.get_target_os() in ('osx', 'ios'):
         conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True) # or possibly llvm-dsymutil
