@@ -13,6 +13,7 @@ if not 'DYNAMO_HOME' in os.environ:
     sys.exit(1)
 
 HOME=os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
+# Also defined in build.py _strip_engine
 ANDROID_ROOT=os.path.join(HOME, 'android')
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='10e'
