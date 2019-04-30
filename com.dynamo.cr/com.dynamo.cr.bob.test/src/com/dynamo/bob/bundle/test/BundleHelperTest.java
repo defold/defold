@@ -182,7 +182,7 @@ public class BundleHelperTest {
         assertNotNull(platform);
         Map<String, Object> bundle = (Map<String, Object>)platform.getOrDefault("bundle", null);
         assertNotNull(bundle);
-        List<String> packages = (List<String>)aapt.getOrDefault("aapt-extra-packages", new ArrayList<String>());
+        List<String> packages = (List<String>)bundle.getOrDefault("aaptExtraPackages", new ArrayList<String>());
         String[] expectedPackages = {"com.facebook"};
         assertEquals(Arrays.asList(expectedPackages), packages);
     }
@@ -206,8 +206,18 @@ public class BundleHelperTest {
         assertNotNull(platform);
         Map<String, Object> bundle = (Map<String, Object>)platform.getOrDefault("bundle", null);
         assertNotNull(bundle);
-        List<String> packages = (List<String>)bundle.getOrDefault("aapt-extra-packages", new ArrayList<String>());
+
+        List<String> packages = (List<String>)bundle.getOrDefault("aaptExtraPackages", new ArrayList<String>());
         String[] expectedPackages = {"com.facebook", "com.other.package"};
         assertEquals(Arrays.asList(expectedPackages), packages);
+    }
+
+    @Test
+    public void testExcludeString() throws IOException {
+        List<String> input = Arrays.asList(new String[]{"com.facebook", "com.other.package", "com.foobar.blah"});
+
+        List<String> expressions = Arrays.asList(new String[]{"com.f(.*)"});
+        List<String> result = BundleHelper.excludeItems(input, expressions);
+        assertEquals(Arrays.asList(new String[]{"com.other.package"}), result);
     }
 }

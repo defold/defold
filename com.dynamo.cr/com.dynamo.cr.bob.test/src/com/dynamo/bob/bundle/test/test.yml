@@ -1,9 +1,9 @@
 name: FacebookExt
 
 platforms:
-    armv7-android:
-        aapt:
-            extra-packages: ['com.facebook']
+    android:
+        bundle:
+            aaptExtraPackages: ['com.facebook']
 
     armv7-ios:
         context:
