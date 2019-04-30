@@ -359,7 +359,7 @@ public class BundleHelper {
         return items;
     }
 
-    public List<ExtenderResource> generateAndroidResources(Project project, Platform platform, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError, IOException {
+    public List<ExtenderResource> generateAndroidResources(Project project, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError, IOException {
         List<String> resourceDirectories = new ArrayList<>();
 
         BundleHelper.createAndroidResourceFolders(resDir);
@@ -368,8 +368,19 @@ public class BundleHelper {
         Map<String, IResource> resources = ExtenderUtil.getAndroidResources(project);
         ExtenderUtil.storeAndroidResources(resDir, resources);
 
-        Map<String, Object> extensionContext = ExtenderUtil.getPlatformSettingsFromExtensions(project, platform);
-        Map<String, Object> bundleContext = (Map<String, Object>)extensionContext.getOrDefault("bundle", null);
+        Map<String, Object> bundleContext = null;
+        {
+            Map<String, Object> extensionContext = ExtenderUtil.getPlatformSettingsFromExtensions(project, "android");
+            bundleContext = (Map<String, Object>)extensionContext.getOrDefault("bundle", null);
+            if (bundleContext == null) {
+                extensionContext = ExtenderUtil.getPlatformSettingsFromExtensions(project, Platform.Arm64Android.getPair());
+                bundleContext = (Map<String, Object>)extensionContext.getOrDefault("bundle", null);
+            }
+            if (bundleContext == null) {
+                extensionContext = ExtenderUtil.getPlatformSettingsFromExtensions(project, Platform.Armv7Android.getPair());
+                bundleContext = (Map<String, Object>)extensionContext.getOrDefault("bundle", null);
+            }
+        }
 
         resourceDirectories.add(resDir.getAbsolutePath());
 
@@ -396,13 +407,13 @@ public class BundleHelper {
 
         if (bundleContext != null) {
             extraPackages.addAll((List<String>)bundleContext.getOrDefault("aaptExtraPackages", new ArrayList<String>()));
+
+            List<String> excludePackages = (List<String>)bundleContext.getOrDefault("aaptExcludePackages", new ArrayList<String>());
+            List<String> excludeResourceDirs = (List<String>)bundleContext.getOrDefault("aaptExcludeResourceDirs", new ArrayList<String>());
+
+            extraPackages = excludeItems(extraPackages, excludePackages);
+            resourceDirectories = excludeItems(resourceDirectories, excludeResourceDirs);
         }
-
-        List<String> excludePackages = (List<String>)bundleContext.getOrDefault("aaptExcludePackages", new ArrayList<String>());
-        List<String> excludeResourceDirs = (List<String>)bundleContext.getOrDefault("aaptExcludeResourceDirs", new ArrayList<String>());
-
-        extraPackages = excludeItems(extraPackages, excludePackages);
-        resourceDirectories = excludeItems(resourceDirectories, excludeResourceDirs);
 
         return generateRJava(resourceDirectories, extraPackages, manifestFile, apk, javaROutput);
     }

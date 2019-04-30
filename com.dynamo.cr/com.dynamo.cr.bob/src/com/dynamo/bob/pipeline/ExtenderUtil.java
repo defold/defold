@@ -800,7 +800,7 @@ public class ExtenderUtil {
     In this case the values _under_ 'armv7-android' will be returned.
     */
 
-    public static Map<String, Object> getPlatformSettingsFromExtensions(Project project, Platform platform) throws IOException, CompileExceptionError {
+    public static Map<String, Object> getPlatformSettingsFromExtensions(Project project, String platform) throws IOException, CompileExceptionError {
         List<String> folders = ExtenderUtil.getExtensionFolders(project);
         Map<String, Object> ctx = new HashMap<String, Object>();
         for (String folder : folders) {
@@ -812,7 +812,7 @@ public class ExtenderUtil {
                 continue;
             }
 
-            Map<String, Object> platform_ctx = (Map<String, Object>)platforms.getOrDefault(platform.getPair(), null);
+            Map<String, Object> platform_ctx = (Map<String, Object>)platforms.getOrDefault(platform, null);
             if (platform_ctx == null) {
                 continue;
             }

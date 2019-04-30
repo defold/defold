@@ -595,6 +595,7 @@ public class Project {
         m.beginTask("Building engine...", 0);
 
         // Build all skews of platform
+        boolean androidResourcesGenerated = false;
         String outputDir = options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
         for (int i = 0; i < architectures.length; ++i) {
             Platform platform = Platform.get(architectures[i]);
@@ -614,7 +615,9 @@ public class Project {
 
             File classesDexFile = null;
             File tmpDir = null;
-            if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
+            if ((platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) && !androidResourcesGenerated) {
+                androidResourcesGenerated = true;
+
                 Bob.initAndroid(); // extract resources
 
                 // If we are building for Android, we expect a classes.dex file to be returned as well.
