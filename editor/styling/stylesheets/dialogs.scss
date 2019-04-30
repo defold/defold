@@ -145,10 +145,6 @@ $spacing-largest: 40px;
   -fx-padding: $spacing-default $spacing-default 0 $spacing-default;
 }
 
-.dialog-buttons {
-  @include spacing-smaller();
-  -fx-alignment: center-right;
-}
 .dialog-with-content-footer {
   -fx-padding: $spacing-default;
 }

@@ -67,6 +67,33 @@
     (fx/mount-renderer state-atom renderer)
     (Platform/enterNestedEventLoop event-loop-key)))
 
+(defn dialog-showing? [props]
+  (not (contains? props :result)))
+
+(defn show-dialog-and-await-result!
+  "Creates a dialog, shows it and block current thread until dialog has a result
+  (which is checked by presence of a `:result` key in state map)
+
+  Options:
+  - `:initial-state` (optional, default `{}`) - map containing initial state of
+    a dialog, should not contain `:result` key
+  - `:event-handler` (required) - 2-argument event handler, receives current
+    state as first argument and event map as second, returns new state. Once
+    state of a dialog has `:result` key in it, dialog interaction is considered
+    complete and dialog should close
+  - `:description` (required) - fx description used for this dialog, gets merged
+    into current state map, meaning that state map contents, including
+    eventually a `:result` key, will also be present in description props. You
+    can use `editor.fxui/dialog-showing?` and pass it resulting props to check
+    if dialog stage's `:showing` property should be set to true"
+  [& {:keys [initial-state event-handler description]
+      :or {initial-state {}}}]
+  (let [state-atom (atom initial-state)
+        renderer (fx/create-renderer
+                   :opts {:fx.opt/map-event-handler #(swap! state-atom event-handler %)}
+                   :middleware (fx/wrap-map-desc merge description))]
+    (mount-renderer-and-await-result! state-atom renderer)))
+
 (defn wrap-state-handler [state-atom f]
   (-> f
       (fx/wrap-co-effects
@@ -107,11 +134,6 @@
 (defn add-style-classes [style-class & classes]
   (let [existing-classes (if (string? style-class) [style-class] style-class)]
     (into existing-classes classes)))
-
-(defn dialog-buttons [props]
-  (-> props
-      (assoc :fx/type :h-box)
-      (update :style-class add-style-classes "dialog-buttons")))
 
 (defn label
   "Generic `:label` with sensible defaults (`:wrap-text` is true)

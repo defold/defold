@@ -30,13 +30,6 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- confirmation-dialog-header->fx-desc [header]
-  (if (string? header)
-    {:fx/type fxui/label
-     :variant :header
-     :text header}
-    header))
-
 (defn- dialog-stage
   "Dialog `:stage` that manages scene graph itself and provides layout common
   for many dialogs.
@@ -49,7 +42,9 @@
     can use \"dialog-content-padding\" style class to set desired padding (or
     \"text-area-with-dialog-content-padding\" for text areas)
   - `:footer` (required, fx description) - footer of a dialog, padded"
-  [{:keys [size header content footer] :as props}]
+  [{:keys [size header content footer]
+    :or {size :default}
+    :as props}]
   (-> props
       (dissoc :size :header :content :footer)
       (assoc :fx/type fxui/dialog-stage
@@ -78,12 +73,21 @@
                                           :style-class "dialog-without-content-footer"
                                           :children [footer]}])}})))
 
-(defn- make-confirmation-dialog-fx [{:keys [owner title size header content buttons]
-                                     :or {title ""
-                                          size :small
-                                          owner ::no-owner}}]
-  (let [header-desc (confirmation-dialog-header->fx-desc header)
-        button-descs (mapv (fn [button-props]
+(defn- confirmation-dialog-header->fx-desc [header]
+  (if (string? header)
+    {:fx/type fxui/label
+     :variant :header
+     :text header}
+    header))
+
+(defn- dialog-buttons [props]
+  (-> props
+      (assoc :fx/type :h-box)
+      (fxui/provide-defaults :alignment :center-right)
+      (update :style-class fxui/add-style-classes "spacing-smaller")))
+
+(defn- confirmation-dialog [{:keys [buttons] :as props}]
+  (let [button-descs (mapv (fn [button-props]
                              (let [button-desc (-> button-props
                                                    (assoc :fx/type fxui/button
                                                           :on-action {:result (:result button-props)})
@@ -92,47 +96,36 @@
                                  {:fx/type fxui/ext-focused-by-default
                                   :desc (assoc button-desc :variant :primary)}
                                  button-desc)))
-                           buttons)
-        desc (cond-> {:fx/type dialog-stage
-                      :on-close-request {:result (:result (some #(when (:cancel-button %) %) buttons))}
-                      :title title
-                      :size size
-                      :header header-desc
-                      :content content
-                      :footer {:fx/type fxui/dialog-buttons
-                               :children button-descs}}
-                     (not= owner ::no-owner) (assoc :owner owner))]
-    (fn [props]
-      (assoc desc :showing (not (contains? props :result))))))
+                           buttons)]
+    (-> props
+        (assoc :fx/type dialog-stage
+               :showing (fxui/dialog-showing? props)
+               :footer {:fx/type dialog-buttons
+                        :children button-descs}
+               :on-close-request {:result (:result (some #(when (:cancel-button %) %) buttons))})
+        (dissoc :buttons :result)
+        (update :header confirmation-dialog-header->fx-desc))))
 
 (defn make-confirmation-dialog
   "Shows a dialog and blocks current thread until users selects one option.
 
-  `props` is a map used to configure such dialog, allowed keys are:
-  - `:header` (required) - either a string or fx description of a dialog header
-  - `:buttons` (required) - a coll of button descriptions. Button
-    description is a map of `fxui/button` props with few caveats:
-    * you don't have to specify `:fx/type`
-    * it should have `:result` key, it's value will be returned from this
-      function
-    * if you specify `:default-button`, it will be styled as primary and receive
-      focus by default
-    * if you specify `:cancel-button`, closing window using `x` button will
-      return `:result` from such button (and `nil` otherwise)
-  - `:content` (optional) - dialogs, content area, fx description
-  - `:title` (optional, default \"\") - window title
-  - `:owner` (optional) - a Stage that dialog will block, if not provided it
-    will block all windows
-  - `:size` (optional, default `:default`) - dialog size, either `:small`,
-    `:default` or `:large`"
+  `props` is a prop map for `editor.dialogs/dialog-stage`, but instead of
+  `:footer` you use `:buttons`, which is a coll of button descriptions. Button
+  description is a prop map for `editor.fxui/button` with few caveats:
+  - you don't have to specify `:fx/type`
+  - it should have `:result` key, it's value will be returned from this
+    function (default `nil`)
+  - if you specify `:default-button`, it will be styled as primary and receive
+    focus by default
+  - if you specify `:cancel-button`, closing window using `x` button will
+    return `:result` from such button (and `nil` otherwise)"
   [props]
-  (let [state-atom (atom {})
-        renderer (fx/create-renderer
-                   :opts {:fx.opt/map-event-handler #(reset! state-atom {:result (:result %)})}
-                   :middleware (fx/wrap-map-desc assoc :fx/type (make-confirmation-dialog-fx props)))]
-    (fxui/mount-renderer-and-await-result! state-atom renderer)))
+  (fxui/show-dialog-and-await-result!
+    :event-handler (fn [state event]
+                     (assoc state :result (:result event)))
+    :description (assoc props :fx/type confirmation-dialog)))
 
-(defn- info-dialog-content-fx [props]
+(defn- info-dialog-text-area [props]
   (-> props
       (assoc :fx/type fxui/text-area)
       (update :style-class fxui/add-style-classes "text-area-with-dialog-content-padding")
@@ -172,8 +165,7 @@
                           {:fx/type :h-box
                            :style-class "spacing-smaller"
                            :alignment :center-left
-                           :children [{:fx/type fxui/icon
-                                       :type icon}
+                           :children [{:fx/type fxui/icon :type icon}
                                       (confirmation-dialog-header->fx-desc header)]}))
         (update :content (fn [content]
                            (cond
@@ -181,10 +173,10 @@
                              content
 
                              (map? content)
-                             (assoc content :fx/type info-dialog-content-fx)
+                             (assoc content :fx/type info-dialog-text-area)
 
                              (string? content)
-                             {:fx/type info-dialog-content-fx :text content})))
+                             {:fx/type info-dialog-text-area :text content})))
         (fxui/provide-defaults :buttons [{:text "Close"
                                           :cancel-button true
                                           :default-button true}]))))
@@ -221,7 +213,7 @@
                            :variant (if height-valid :default :error)
                            :text height-text
                            :on-text-changed {:event-type :set-height}}]}
-     :footer {:fx/type fxui/dialog-buttons
+     :footer {:fx/type dialog-buttons
               :children [{:fx/type fxui/button
                           :cancel-button true
                           :on-action {:event-type :cancel}
@@ -234,20 +226,17 @@
                           :on-action {:event-type :confirm}}]}}))
 
 (defn make-resolution-dialog []
-  (let [state-atom (atom {:width-text "320"
-                          :height-text "420"})
-        renderer (fx/create-renderer
-                   :opts {:fx.opt/map-event-handler
-                          (fxui/wrap-state-handler state-atom
-                            (fn [{:keys [fx/event state event-type]}]
-                              (case event-type
-                                :set-width {:state (assoc state :width-text event)}
-                                :set-height {:state (assoc state :height-text event)}
-                                :cancel {:state (assoc state :result nil)}
-                                :confirm {:state (assoc state :result {:width (field-expression/to-int (:width-text state))
-                                                                       :height (field-expression/to-int (:height-text state))})})))}
-                   :middleware (fx/wrap-map-desc assoc :fx/type fx-resolution-dialog))]
-    (fxui/mount-renderer-and-await-result! state-atom renderer)))
+  (fxui/show-dialog-and-await-result!
+    :initial-state {:width-text "320"
+                    :height-text "420"}
+    :event-handler (fn [state {:keys [fx/event event-type]}]
+                     (case event-type
+                       :set-width (assoc state :width-text event)
+                       :set-height (assoc state :height-text event)
+                       :cancel (assoc state :result nil)
+                       :confirm (assoc state :result {:width (field-expression/to-int (:width-text state))
+                                                      :height (field-expression/to-int (:height-text state))})))
+    :description {:fx/type fx-resolution-dialog}))
 
 (defn make-update-failed-dialog [^Stage owner]
   (let [result (make-confirmation-dialog
@@ -328,7 +317,7 @@
 
 (defn unexpected-error-dialog-fx [{:keys [ex-map] :as props}]
   {:fx/type dialog-stage
-   :showing (not (contains? props :result))
+   :showing (fxui/dialog-showing? props)
    :on-close-request {:result false}
    :title "Error"
    :header {:fx/type :h-box
@@ -339,13 +328,13 @@
                        {:fx/type fxui/label
                         :variant :header
                         :text "An Error Occurred"}]}
-   :content {:fx/type info-dialog-content-fx
+   :content {:fx/type info-dialog-text-area
              :text (messages ex-map)}
    :footer {:fx/type :v-box
             :style-class "spacing-smaller"
             :children [{:fx/type fxui/label
                         :text "You can help us fix this problem by reporting it and providing more information about what you were doing when it happened."}
-                       {:fx/type fxui/dialog-buttons
+                       {:fx/type dialog-buttons
                         :children [{:fx/type fxui/button
                                     :cancel-button true
                                     :on-action {:result false}
@@ -358,19 +347,17 @@
                                            :text "Report"}}]}]}})
 
 (defn make-unexpected-error-dialog [ex-map sentry-id-promise]
-  (let [state-atom (atom {})
-        renderer (fx/create-renderer
-                   :opts {:fx.opt/map-event-handler #(reset! state-atom {:result (:result %)})}
-                   :middleware (fx/wrap-map-desc assoc
-                                                 :fx/type unexpected-error-dialog-fx
-                                                 :ex-map ex-map))]
-    (when (fxui/mount-renderer-and-await-result! state-atom renderer)
-      (let [sentry-id (deref sentry-id-promise 100 nil)
-            fields (if sentry-id
-                     {"Error" (format "<a href='https://sentry.io/defold/editor2/?query=id%%3A\"%s\"'>%s</a>"
-                                      sentry-id sentry-id)}
-                     {})]
-        (ui/open-url (github/new-issue-link fields))))))
+  (when (fxui/show-dialog-and-await-result!
+          :event-handler (fn [state event]
+                           (assoc state :result (:result event)))
+          :description {:fx/type unexpected-error-dialog-fx
+                        :ex-map ex-map})
+    (let [sentry-id (deref sentry-id-promise 100 nil)
+          fields (if sentry-id
+                   {"Error" (format "<a href='https://sentry.io/defold/editor2/?query=id%%3A\"%s\"'>%s</a>"
+                                    sentry-id sentry-id)}
+                   {})]
+      (ui/open-url (github/new-issue-link fields)))))
 
 (defn make-gl-support-error-dialog [support-error]
   (let [root ^VBox (ui/load-fxml "gl-error.fxml")
@@ -653,7 +640,7 @@
 (defn target-ip-dialog-fx [{:keys [msg ^String ip] :as props}]
   (let [ip-valid (pos? (.length ip))]
     {:fx/type dialog-stage
-     :showing (not (contains? props :result))
+     :showing (fxui/dialog-showing? props)
      :on-close-request {:event-type :cancel}
      :title "Enter Target IP"
      :size :small
@@ -668,7 +655,7 @@
                            :variant (if ip-valid :default :error)
                            :text ip
                            :on-text-changed {:event-type :set-ip}}]}
-     :footer {:fx/type fxui/dialog-buttons
+     :footer {:fx/type dialog-buttons
               :children [{:fx/type fxui/button
                           :text "Cancel"
                           :cancel-button true
@@ -681,17 +668,15 @@
                           :on-action {:event-type :confirm}}]}}))
 
 (defn make-target-ip-dialog [ip msg]
-  (let [state-atom (atom {:ip (or ip "")})
-        renderer (fx/create-renderer
-                   :opts {:fx.opt/map-event-handler
-                          (fxui/wrap-state-handler state-atom
-                            (fn [{:keys [fx/event state event-type]}]
-                              {:state (case event-type
-                                        :set-ip (assoc state :ip event)
-                                        :cancel (assoc state :result nil)
-                                        :confirm (assoc state :result (:ip state)))}))}
-                   :middleware (fx/wrap-map-desc assoc :fx/type target-ip-dialog-fx :msg (or msg "Enter Target IP Address")))]
-    (fxui/mount-renderer-and-await-result! state-atom renderer)))
+  (fxui/show-dialog-and-await-result!
+    :initial-state {:ip (or ip "")}
+    :event-handler (fn [state {:keys [fx/event event-type]}]
+                     (case event-type
+                       :set-ip (assoc state :ip event)
+                       :cancel (assoc state :result nil)
+                       :confirm (assoc state :result (:ip state))))
+    :description {:fx/type target-ip-dialog-fx
+                  :msg (or msg "Enter Target IP Address")}))
 
 (defn- sanitize-common [name]
   (-> name
