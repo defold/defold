@@ -37,6 +37,47 @@
      :text header}
     header))
 
+(defn- dialog-stage
+  "Dialog `:stage` that manages scene graph itself and provides layout common
+  for many dialogs.
+
+  Scene graph is configured using these keys:
+  - `:size` (optional, default `:default`) - a dialog width, either `:small`,
+    `:default` or `:large`
+  - `:header` (required, fx description) - header of a dialog, padded
+  - `:content` (optional, nil allowed) - content of a dialog, not padded, you
+    can use \"dialog-content-padding\" style class to set desired padding (or
+    \"text-area-with-dialog-content-padding\" for text areas)
+  - `:footer` (required, fx description) - footer of a dialog, padded"
+  [{:keys [size header content footer] :as props}]
+  (-> props
+      (dissoc :size :header :content :footer)
+      (assoc :fx/type fxui/dialog-stage
+             :scene {:fx/type :scene
+                     :stylesheets ["dialogs.css"]
+                     :root {:fx/type :v-box
+                            :style-class ["dialog-body" (case size
+                                                          :small "dialog-body-small"
+                                                          :default "dialog-body-default"
+                                                          :large "dialog-body-large")]
+                            :children (if (some? content)
+                                        [{:fx/type :v-box
+                                          :style-class "dialog-with-content-header"
+                                          :children [header]}
+                                         {:fx/type :v-box
+                                          :style-class "dialog-content"
+                                          :children [content]}
+                                         {:fx/type :v-box
+                                          :style-class "dialog-with-content-footer"
+                                          :children [footer]}]
+                                        [{:fx/type :v-box
+                                          :style-class "dialog-without-content-header"
+                                          :children [header]}
+                                         {:fx/type :region :style-class "dialog-no-content"}
+                                         {:fx/type :v-box
+                                          :style-class "dialog-without-content-footer"
+                                          :children [footer]}])}})))
+
 (defn- make-confirmation-dialog-fx [{:keys [owner title size header content buttons]
                                      :or {title ""
                                           size :small
@@ -52,17 +93,14 @@
                                   :desc (assoc button-desc :variant :primary)}
                                  button-desc)))
                            buttons)
-        desc (cond-> {:fx/type fxui/dialog-stage
+        desc (cond-> {:fx/type dialog-stage
                       :on-close-request {:result (:result (some #(when (:cancel-button %) %) buttons))}
                       :title title
-                      :scene {:fx/type :scene
-                              :stylesheets ["dialogs.css"]
-                              :root {:fx/type fxui/dialog-body
-                                     :size size
-                                     :header header-desc
-                                     :content content
-                                     :footer {:fx/type fxui/dialog-buttons
-                                              :children button-descs}}}}
+                      :size size
+                      :header header-desc
+                      :content content
+                      :footer {:fx/type fxui/dialog-buttons
+                               :children button-descs}}
                      (not= owner ::no-owner) (assoc :owner owner))]
     (fn [props]
       (assoc desc :showing (not (contains? props :result))))))
@@ -158,45 +196,42 @@
 (defn fx-resolution-dialog [{:keys [width-text height-text] :as props}]
   (let [width-valid (digit-string? width-text)
         height-valid (digit-string? height-text)]
-    {:fx/type fxui/dialog-stage
+    {:fx/type dialog-stage
      :showing (not (contains? props :result))
      :on-close-request {:event-type :cancel}
      :title "Set Custom Resolution"
-     :scene {:fx/type :scene
-             :stylesheets ["dialogs.css"]
-             :root {:fx/type fxui/dialog-body
-                    :size :small
-                    :header {:fx/type :v-box
-                             :children [{:fx/type fxui/label
-                                         :variant :header
-                                         :text "Set Custom Game Resolution"}
-                                        {:fx/type fxui/label
-                                         :text "Game window will be resized to this size"}]}
-                    :content {:fx/type fxui/two-col-input-grid-pane
-                              :style-class "dialog-content-padding"
-                              :children [{:fx/type fxui/label
-                                          :text "Width"}
-                                         {:fx/type fxui/text-field
-                                          :variant (if width-valid :default :error)
-                                          :text width-text
-                                          :on-text-changed {:event-type :set-width}}
-                                         {:fx/type fxui/label
-                                          :text "Height"}
-                                         {:fx/type fxui/text-field
-                                          :variant (if height-valid :default :error)
-                                          :text height-text
-                                          :on-text-changed {:event-type :set-height}}]}
-                    :footer {:fx/type fxui/dialog-buttons
-                             :children [{:fx/type fxui/button
-                                         :cancel-button true
-                                         :on-action {:event-type :cancel}
-                                         :text "Cancel"}
-                                        {:fx/type fxui/button
-                                         :variant :primary
-                                         :disable (or (not width-valid) (not height-valid))
-                                         :default-button true
-                                         :text "Set Resolution"
-                                         :on-action {:event-type :confirm}}]}}}}))
+     :size :small
+     :header {:fx/type :v-box
+              :children [{:fx/type fxui/label
+                          :variant :header
+                          :text "Set Custom Game Resolution"}
+                         {:fx/type fxui/label
+                          :text "Game window will be resized to this size"}]}
+     :content {:fx/type fxui/two-col-input-grid-pane
+               :style-class "dialog-content-padding"
+               :children [{:fx/type fxui/label
+                           :text "Width"}
+                          {:fx/type fxui/text-field
+                           :variant (if width-valid :default :error)
+                           :text width-text
+                           :on-text-changed {:event-type :set-width}}
+                          {:fx/type fxui/label
+                           :text "Height"}
+                          {:fx/type fxui/text-field
+                           :variant (if height-valid :default :error)
+                           :text height-text
+                           :on-text-changed {:event-type :set-height}}]}
+     :footer {:fx/type fxui/dialog-buttons
+              :children [{:fx/type fxui/button
+                          :cancel-button true
+                          :on-action {:event-type :cancel}
+                          :text "Cancel"}
+                         {:fx/type fxui/button
+                          :variant :primary
+                          :disable (or (not width-valid) (not height-valid))
+                          :default-button true
+                          :text "Set Resolution"
+                          :on-action {:event-type :confirm}}]}}))
 
 (defn make-resolution-dialog []
   (let [state-atom (atom {:width-text "320"
@@ -292,38 +327,35 @@
        (str/join "\n")))
 
 (defn unexpected-error-dialog-fx [{:keys [ex-map] :as props}]
-  {:fx/type fxui/dialog-stage
+  {:fx/type dialog-stage
    :showing (not (contains? props :result))
    :on-close-request {:result false}
    :title "Error"
-   :scene {:fx/type :scene
-           :stylesheets ["dialogs.css"]
-           :root {:fx/type fxui/dialog-body
-                  :header {:fx/type :h-box
-                           :style-class "spacing-smaller"
-                           :alignment :center-left
-                           :children [{:fx/type fxui/icon
-                                       :type :error}
-                                      {:fx/type fxui/label
-                                       :variant :header
-                                       :text "An Error Occurred"}]}
-                  :content {:fx/type info-dialog-content-fx
-                            :text (messages ex-map)}
-                  :footer {:fx/type :v-box
-                           :style-class "spacing-smaller"
-                           :children [{:fx/type fxui/label
-                                       :text "You can help us fix this problem by reporting it and providing more information about what you were doing when it happened."}
-                                      {:fx/type fxui/dialog-buttons
-                                       :children [{:fx/type fxui/button
-                                                   :cancel-button true
-                                                   :on-action {:result false}
-                                                   :text "Dismiss"}
-                                                  {:fx/type fxui/ext-focused-by-default
-                                                   :desc {:fx/type fxui/button
-                                                          :variant :primary
-                                                          :default-button true
-                                                          :on-action {:result true}
-                                                          :text "Report"}}]}]}}}})
+   :header {:fx/type :h-box
+            :style-class "spacing-smaller"
+            :alignment :center-left
+            :children [{:fx/type fxui/icon
+                        :type :error}
+                       {:fx/type fxui/label
+                        :variant :header
+                        :text "An Error Occurred"}]}
+   :content {:fx/type info-dialog-content-fx
+             :text (messages ex-map)}
+   :footer {:fx/type :v-box
+            :style-class "spacing-smaller"
+            :children [{:fx/type fxui/label
+                        :text "You can help us fix this problem by reporting it and providing more information about what you were doing when it happened."}
+                       {:fx/type fxui/dialog-buttons
+                        :children [{:fx/type fxui/button
+                                    :cancel-button true
+                                    :on-action {:result false}
+                                    :text "Dismiss"}
+                                   {:fx/type fxui/ext-focused-by-default
+                                    :desc {:fx/type fxui/button
+                                           :variant :primary
+                                           :default-button true
+                                           :on-action {:result true}
+                                           :text "Report"}}]}]}})
 
 (defn make-unexpected-error-dialog [ex-map sentry-id-promise]
   (let [state-atom (atom {})
@@ -620,36 +652,33 @@
 
 (defn target-ip-dialog-fx [{:keys [msg ^String ip] :as props}]
   (let [ip-valid (pos? (.length ip))]
-    {:fx/type fxui/dialog-stage
+    {:fx/type dialog-stage
      :showing (not (contains? props :result))
      :on-close-request {:event-type :cancel}
      :title "Enter Target IP"
-     :scene {:fx/type :scene
-             :stylesheets ["dialogs.css"]
-             :root {:fx/type fxui/dialog-body
-                    :size :small
-                    :header {:fx/type fxui/label
-                             :variant :header
-                             :text msg}
-                    :content {:fx/type fxui/two-col-input-grid-pane
-                              :style-class "dialog-content-padding"
-                              :children [{:fx/type fxui/label
-                                          :text "Target IP Address"}
-                                         {:fx/type fxui/text-field
-                                          :variant (if ip-valid :default :error)
-                                          :text ip
-                                          :on-text-changed {:event-type :set-ip}}]}
-                    :footer {:fx/type fxui/dialog-buttons
-                             :children [{:fx/type fxui/button
-                                         :text "Cancel"
-                                         :cancel-button true
-                                         :on-action {:event-type :cancel}}
-                                        {:fx/type fxui/button
-                                         :disable (not ip-valid)
-                                         :text "Add Target IP"
-                                         :variant :primary
-                                         :default-button true
-                                         :on-action {:event-type :confirm}}]}}}}))
+     :size :small
+     :header {:fx/type fxui/label
+              :variant :header
+              :text msg}
+     :content {:fx/type fxui/two-col-input-grid-pane
+               :style-class "dialog-content-padding"
+               :children [{:fx/type fxui/label
+                           :text "Target IP Address"}
+                          {:fx/type fxui/text-field
+                           :variant (if ip-valid :default :error)
+                           :text ip
+                           :on-text-changed {:event-type :set-ip}}]}
+     :footer {:fx/type fxui/dialog-buttons
+              :children [{:fx/type fxui/button
+                          :text "Cancel"
+                          :cancel-button true
+                          :on-action {:event-type :cancel}}
+                         {:fx/type fxui/button
+                          :disable (not ip-valid)
+                          :text "Add Target IP"
+                          :variant :primary
+                          :default-button true
+                          :on-action {:event-type :confirm}}]}}))
 
 (defn make-target-ip-dialog [ip msg]
   (let [state-atom (atom {:ip (or ip "")})
