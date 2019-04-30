@@ -25,30 +25,27 @@ extern unsigned char BUG352_LUA[];
 extern uint32_t BUG352_LUA_SIZE;
 
 
-/*
- * Basic
- *  - Create scene
- *  - Create nodes
- *  - Stress tests
- *
- * self table
- *
- * reload script
- *
- * lua script basics
- *  - New/Delete node
- *
- * "Namespaces"
- *
- * Animation
- *
- * Render
- *
- * Adjust reference
- *
- * Spine
- *
- */
+// Basic
+//  - Create scene
+//  - Create nodes
+//  - Stress tests
+//
+// self table
+//
+// reload script
+//
+// lua script basics
+//  - New/Delete node
+//
+// "Namespaces"
+//
+// Animation
+//
+// Render
+//
+// Adjust reference
+//
+// Spine
 
 #define MAX_NODES 64U
 #define MAX_ANIMATIONS 32U
@@ -325,59 +322,56 @@ private:
         m_MeshSet      = new dmRigDDF::MeshSet();
         m_AnimationSet = new dmRigDDF::AnimationSet();
 
-        /*
+        //            Bones:
+        //            A:
+        //            (0)---->(1)---->
+        //             |
+        //         B:  |
+        //             v
+        //            (2)
+        //             |
+        //             |
+        //             v
+        //            (3)
+        //             |
+        //             |
+        //             v
+        //
+        //         A: 0: Pos; (0,0), rotation: 0
+        //            1: Pos; (1,0), rotation: 0
+        //
+        //         B: 0: Pos; (0,0), rotation: 0
+        //            2: Pos; (0,1), rotation: 0
+        //            3: Pos; (0,2), rotation: 0
+        //
+        //        ------------------------------------
+        //
+        //            Animation (id: "valid") for Bone A:
+        //
+        //            I:
+        //            (0)---->(1)---->
+        //
+        //            II:
+        //            (0)---->(1)
+        //                     |
+        //                     |
+        //                     v
+        //
+        //            III:
+        //            (0)
+        //             |
+        //             |
+        //             v
+        //            (1)
+        //             |
+        //             |
+        //             v
+        //
+        //
+        //        ------------------------------------
+        //
+        //            Animation (id: "ik_anim") for IK on Bone B.
 
-            Bones:
-            A:
-            (0)---->(1)---->
-             |
-         B:  |
-             v
-            (2)
-             |
-             |
-             v
-            (3)
-             |
-             |
-             v
-
-         A: 0: Pos; (0,0), rotation: 0
-            1: Pos; (1,0), rotation: 0
-
-         B: 0: Pos; (0,0), rotation: 0
-            2: Pos; (0,1), rotation: 0
-            3: Pos; (0,2), rotation: 0
-
-        ------------------------------------
-
-            Animation (id: "valid") for Bone A:
-
-            I:
-            (0)---->(1)---->
-
-            II:
-            (0)---->(1)
-                     |
-                     |
-                     v
-
-            III:
-            (0)
-             |
-             |
-             v
-            (1)
-             |
-             |
-             v
-
-
-        ------------------------------------
-
-            Animation (id: "ik_anim") for IK on Bone B.
-
-        */
         uint32_t bone_count = 5;
         m_Skeleton->m_Bones.m_Data = new dmRigDDF::Bone[bone_count];
         m_Skeleton->m_Bones.m_Count = bone_count;
@@ -880,7 +874,7 @@ TEST_F(dmGuiTest, NodeTextureType)
     // Test NODE_TEXTURE_TYPE_TEXTURE: Playing flipbook animation should not work!
     r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta2", 0.0f, 1.0f, 0x0);
     ASSERT_EQ(r, dmGui::RESULT_INVAL_ERROR);
-    ASSERT_EQ(dmGui::GetNodeFlipbookAnimId(m_Scene, node), 0);
+    ASSERT_EQ(0U, dmGui::GetNodeFlipbookAnimId(m_Scene, node));
 
     // Test NODE_TEXTURE_TYPE_NONE: Removing known texture should reset node texture types
     dmGui::RemoveTexture(m_Scene, "t2");
@@ -929,7 +923,7 @@ TEST_F(dmGuiTest, FlipbookAnim)
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     uint64_t fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
-    ASSERT_EQ(0, dmGui::GetNodeFlipbookAnimId(m_Scene, node));
+    ASSERT_EQ(0U, dmGui::GetNodeFlipbookAnimId(m_Scene, node));
 
     r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0.0f, 1.0f, 0x0);
     ASSERT_EQ(r, dmGui::RESULT_OK);
@@ -956,7 +950,7 @@ TEST_F(dmGuiTest, FlipbookAnim)
     dmGui::CancelNodeFlipbookAnim(m_Scene, node);
 
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
-    ASSERT_EQ(0, fb_id);
+    ASSERT_EQ(0U, fb_id);
 
     r = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta1", 0.0f, 1.0f, 0x0);
     ASSERT_EQ(r, dmGui::RESULT_OK);
@@ -967,7 +961,7 @@ TEST_F(dmGuiTest, FlipbookAnim)
     dmGui::ClearTextures(m_Scene);
 
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
-    ASSERT_EQ(0, fb_id);
+    ASSERT_EQ(0U, fb_id);
 
     r = dmGui::AddTexture(m_Scene, "t2", (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(r, dmGui::RESULT_OK);
@@ -976,7 +970,7 @@ TEST_F(dmGuiTest, FlipbookAnim)
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
-    ASSERT_EQ(0, dmGui::GetNodeFlipbookAnimId(m_Scene, node));
+    ASSERT_EQ(0U, dmGui::GetNodeFlipbookAnimId(m_Scene, node));
 }
 
 TEST_F(dmGuiTest, TextureFontLayer)
@@ -1147,14 +1141,14 @@ TEST_F(dmGuiTest, DynamicTexture)
 
 
 #define ASSERT_BUFFER(exp, act, count)\
-    for (int i = 0; i < count; ++i) {\
+    for (uint32_t i = 0; i < count; ++i) {\
         ASSERT_EQ((exp)[i], (act)[i]);\
     }\
 
 TEST_F(dmGuiTest, DynamicTextureFlip)
 {
-    const int width = 2;
-    const int height = 2;
+    const uint32_t width = 2;
+    const uint32_t height = 2;
 
     // Test data tuples (regular image data & and flipped counter part)
     const uint8_t data_lum[width * height * 1] = {
@@ -2632,11 +2626,11 @@ TEST_F(dmGuiTest, NodeProperties)
 
 TEST_F(dmGuiTest, ReplaceAnimation)
 {
-    /*
-     * NOTE: We create a node2 which animation duration is set to 0.5f
-     * Internally the animation will removed an "erased-swapped". Used to test that the last animation
-     * for node1 really invalidates the first animation of node1
-     */
+
+     // * NOTE: We create a node2 which animation duration is set to 0.5f
+     // * Internally the animation will removed an "erased-swapped". Used to test that the last animation
+     // * for node1 really invalidates the first animation of node1
+
     dmGui::HNode node1 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::HNode node2 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
 
@@ -2785,6 +2779,7 @@ TEST_F(dmGuiTest, DeltaTime)
     r = dmGui::UpdateScene(m_Scene, 1122);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
+
 
 TEST_F(dmGuiTest, Bug352)
 {
@@ -3863,27 +3858,26 @@ static void RenderNodesOrder(dmGui::HScene scene, const dmGui::RenderEntry* node
     }
 }
 
-/**
- * Verify specific use cases of moving around nodes:
- * - single node (nop)
- *   - move to top
- *   - move to self (up)
- *   - move to bottom
- *   - move to self (down)
- * - two nodes
- *   - initial order
- *   - move to top
- *   - move explicit to top
- *   - move to bottom
- *   - move explicit to bottom
- * - three nodes
- *   - move to top
- *   - move from head to middle
- *   - move from middle to tail
- *   - move to bottom
- *   - move from tail to middle
- *   - move from middle to head
- */
+// Verify specific use cases of moving around nodes:
+// - single node (nop)
+//   - move to top
+//   - move to self (up)
+//   - move to bottom
+//   - move to self (down)
+// - two nodes
+//   - initial order
+//   - move to top
+//   - move explicit to top
+//   - move to bottom
+//   - move explicit to bottom
+// - three nodes
+//   - move to top
+//   - move from head to middle
+//   - move from middle to tail
+//   - move to bottom
+//   - move from tail to middle
+//   - move from middle to head
+
 TEST_F(dmGuiTest, MoveNodes)
 {
     // Setup
@@ -4032,9 +4026,7 @@ static dmGui::HNode PickNode(dmGui::HScene scene, uint32_t* seed)
     return dmGui::INVALID_HANDLE;
 }
 
-/**
- * Verify that the render count holds under random inserts, deletes and moves
- */
+// Verify that the render count holds under random inserts, deletes and moves
 TEST_F(dmGuiTest, MoveNodesLoad)
 {
     const uint32_t node_count = 100;
@@ -4147,21 +4139,20 @@ TEST_F(dmGuiTest, MoveNodesLoad)
     dmGui::DeleteScene(scene);
 }
 
-/**
- * Verify specific use cases of parenting nodes:
- * - single node (nop)
- *   - parent to nil
- *   - parent to self
- * - two nodes
- *   - initial order
- *   - parent first to second
- *   - parent second to first
- *   - unparent first
- *   - parent second to first
- * - three nodes
- *   - initial order
- *   - parent second to third
- */
+// Verify specific use cases of parenting nodes:
+// - single node (nop)
+//   - parent to nil
+//   - parent to self
+// - two nodes
+//   - initial order
+//   - parent first to second
+//   - parent second to first
+//   - unparent first
+//   - parent second to first
+// - three nodes
+//   - initial order
+//   - parent second to third
+
 TEST_F(dmGuiTest, Parenting)
 {
     // Setup
@@ -4238,10 +4229,8 @@ void RenderNodesStoreTransform(dmGui::HScene scene, const dmGui::RenderEntry* no
         ASSERT_NEAR(m1.getElem(row, col), m2.getElem(row, col), EPSILON);\
     }
 
-/**
- * Verify that the rendered transforms are correct with VectorMath library as a reference
- * n1 == Vectormath::Aos::Matrix4
- */
+// Verify that the rendered transforms are correct with VectorMath library as a reference
+// n1 == Vectormath::Aos::Matrix4
 TEST_F(dmGuiTest, NodeTransform)
 {
     Vector3 size(1.0f, 1.0f, 1.0f);
@@ -4270,17 +4259,15 @@ TEST_F(dmGuiTest, NodeTransform)
     ASSERT_MAT4(transforms[0], ref_mat);
 }
 
-/**
- * Verify that the rendered transforms are correct for a hierarchy:
- * - n1
- *   - n2
- *     - n3
- *
- * In three cases, the nodes have different pivots and positions, so that their render transforms will be identical:
- * - n1 center, n2 center, n3 center
- * - n1 south-west, n2 center, n3 south-west
- * - n1 west, n2 east, n3 west
- */
+// Verify that the rendered transforms are correct for a hierarchy:
+// - n1
+//   - n2
+//     - n3
+//
+// In three cases, the nodes have different pivots and positions, so that their render transforms will be identical:
+// - n1 center, n2 center, n3 center
+// - n1 south-west, n2 center, n3 south-west
+// - n1 west, n2 east, n3 west
 TEST_F(dmGuiTest, HierarchicalTransforms)
 {
     // Setup
@@ -4336,16 +4323,14 @@ void RenderNodesStoreOpacityAndTransform(dmGui::HScene scene, const dmGui::Rende
     }
 }
 
-/**
- * Verify that the rendered colors are correct for a hierarchy:
- * - n1
- *   - n2
- *   - n3
- * - n4
- *   - n5
- *     - n6
- *
- */
+// Verify that the rendered colors are correct for a hierarchy:
+// - n1
+//   - n2
+//   - n3
+// - n4
+//   - n5
+//     - n6
+//
 
 TEST_F(dmGuiTest, HierarchicalColors)
 {
@@ -4395,24 +4380,22 @@ TEST_F(dmGuiTest, HierarchicalColors)
     ASSERT_EQ(0.0625f, cbres[5].m_Opacity);
 }
 
-/**
- * Test coherence of dmGui::RenderScene internal node-cache by adding, deleting nodes and altering node
- * properties in two passes of rendering
- *
- * - n1
- *   - n2
- *     - n3
- *       - n4
- * - n5
- *   - n6
- *     - n7
- *       - n8
- *
- * Render
- * Change color and transform properties of n5-n8, delete n3, n4
- * Render
- *
- */
+// Test coherence of dmGui::RenderScene internal node-cache by adding, deleting nodes and altering node
+// properties in two passes of rendering
+//
+// - n1
+//   - n2
+//     - n3
+//       - n4
+// - n5
+//   - n6
+//     - n7
+//       - n8
+//
+// Render
+// Change color and transform properties of n5-n8, delete n3, n4
+// Render
+//
 TEST_F(dmGuiTest, SceneTransformCacheCoherence)
 {
     Vector3 size(1, 1, 0);
@@ -4550,12 +4533,10 @@ TEST_F(dmGuiTest, ScriptClippingFunctions)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
 }
 
-/**
- * Verify layer rendering order.
- * Hierarchy:
- * - n1 (l1)
- * - n2
- */
+// Verify layer rendering order.
+// Hierarchy:
+// - n1 (l1)
+// - n2
 TEST_F(dmGuiTest, LayerRendering)
 {
     // Setup
@@ -4582,20 +4563,18 @@ TEST_F(dmGuiTest, LayerRendering)
     ASSERT_EQ(0u, order[n2]);
 }
 
-/**
- * Verify layer rendering order.
- * Hierarchy:
- * - n1 (l1)
- *   - n2
- * - n3 (l2)
- *   - n4
- * Layers:
- * - l1
- * - l2
- *
- * - initial order: n1, n2, n3, n4
- * - reverse layer order: n3, n4, n1, n2
- */
+// Verify layer rendering order.
+// Hierarchy:
+// - n1 (l1)
+//   - n2
+// - n3 (l2)
+//   - n4
+// Layers:
+// - l1
+// - l2
+//
+// - initial order: n1, n2, n3, n4
+// - reverse layer order: n3, n4, n1, n2
 TEST_F(dmGuiTest, LayerRenderingHierarchies)
 {
     // Setup
@@ -4749,34 +4728,30 @@ TEST_F(dmGuiTest, AdjustReference)
     dmGui::RenderScene(m_Scene, &RenderNodes, this);
 
 
-    /*
-        before resize:
-        a----------------------+
-        |                      |
-        |  b---------------+   |
-        |  |[c]  <-80->    |   |
-        |10+---------------+   |
-        | 10                   |
-        +----------------------+
-
-        after resize:
-        a---------------------------------------------+
-        |                                             |
-        |    b----------------------------------+     |
-        |    |[c]           <-160->             |     |
-        | 20 +----------------------------------+     |
-        |   10                                        |
-        +---------------------------------------------+
-
-
-        a: window (ADJUST_REFERENCE_PARENT)
-        b: node_level_0 (ADJUST_MOD_STRETCH)
-        c: node_level_1 (parent: b, ADJUST_MODE_FIT)
-
-        => node c should not resize or offset inside b
-
-     */
-
+    //        before resize:
+    //        a----------------------+
+    //        |                      |
+    //        |  b---------------+   |
+    //        |  |[c]  <-80->    |   |
+    //        |10+---------------+   |
+    //        | 10                   |
+    //        +----------------------+
+    //
+    //        after resize:
+    //        a---------------------------------------------+
+    //        |                                             |
+    //        |    b----------------------------------+     |
+    //        |    |[c]           <-160->             |     |
+    //        | 20 +----------------------------------+     |
+    //        |   10                                        |
+    //        +---------------------------------------------+
+    //
+    //
+    //        a: window (ADJUST_REFERENCE_PARENT)
+    //        b: node_level_0 (ADJUST_MOD_STRETCH)
+    //        c: node_level_1 (parent: b, ADJUST_MODE_FIT)
+    //
+    //        => node c should not resize or offset inside b
 
     Point3 node_level0_p = m_NodeTextToRenderedPosition["node_level0"];
     Point3 node_level1_p = m_NodeTextToRenderedPosition["node_level1"];
@@ -4837,34 +4812,30 @@ TEST_F(dmGuiTest, AdjustReferenceDisabled)
     dmGui::RenderScene(m_Scene, &RenderNodes, this);
 
 
-    /*
-        before resize:
-        A----------------------+
-        |                      |
-        |  B---------------+   |
-        |  |[C]  <-80->    |   |
-        |10+---------------+   |
-        | 10                   |
-        +----------------------+
-
-        after resize:
-        A---------------------------------------------+
-        |                                             |
-        |  B---------------+                          |
-        |  |[C]  <-80->    |                          |
-        |10+---------------+                          |
-        |   10                                        |
-        +---------------------------------------------+
-
-
-        A: window (ADJUST_REFERENCE_DISABLED)
-        B: node_levelB (ADJUST_MOD_STRETCH)
-        C: node_levelC (parent: B, ADJUST_MODE_FIT)
-
-        => neither node B nor C should resize, since we have disabled automatic adjustments
-
-     */
-
+    //        before resize:
+    //        A----------------------+
+    //        |                      |
+    //        |  B---------------+   |
+    //        |  |[C]  <-80->    |   |
+    //        |10+---------------+   |
+    //        | 10                   |
+    //        +----------------------+
+    //
+    //        after resize:
+    //        A---------------------------------------------+
+    //        |                                             |
+    //        |  B---------------+                          |
+    //        |  |[C]  <-80->    |                          |
+    //        |10+---------------+                          |
+    //        |   10                                        |
+    //        +---------------------------------------------+
+    //
+    //
+    //        A: window (ADJUST_REFERENCE_DISABLED)
+    //        B: node_levelB (ADJUST_MOD_STRETCH)
+    //        C: node_levelC (parent: B, ADJUST_MODE_FIT)
+    //
+    //        => neither node B nor C should resize, since we have disabled automatic adjustments
 
     Point3 node_levelB_p = m_NodeTextToRenderedPosition["node_levelB"];
     Point3 node_levelC_p = m_NodeTextToRenderedPosition["node_levelC"];
@@ -5378,11 +5349,11 @@ TEST_F(dmGuiTest, SpineNodeGetAnimation)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
 
     // get animation id when no animation playing
-    ASSERT_EQ(0, dmGui::GetNodeSpineAnimation(m_Scene, node));
+    ASSERT_EQ(0U, dmGui::GetNodeSpineAnimation(m_Scene, node));
 
     // play invalid animation
     ASSERT_EQ(dmGui::RESULT_INVAL_ERROR, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("non_existant"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, 0.0, 1.0, 0,0,0));
-    ASSERT_EQ(0, dmGui::GetNodeSpineAnimation(m_Scene, node));
+    ASSERT_EQ(0U, dmGui::GetNodeSpineAnimation(m_Scene, node));
 
     // play valid animation
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, 0.0, 1.0, 0,0,0));
@@ -5420,7 +5391,7 @@ TEST_F(dmGuiTest, SpineNodeEventCallback)
     // play animation with event key
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_ONCE_FORWARD, 0.0, 0.0, 1.0, 0x0, (void*)m_Scene, 0));
     ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
-    ASSERT_EQ(SpineAnimationKeyEventCount, 1);
+    ASSERT_EQ(1U, SpineAnimationKeyEventCount);
 }
 
 uint32_t SpineAnimationCompleteCount = 0;
@@ -5460,19 +5431,19 @@ TEST_F(dmGuiTest, SpineNodeCompleteCallback)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_ONCE_FORWARD, 0.0, 0.0, 1.0, &SpineAnimationComplete, (void*)m_Scene, 0));
     ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
     ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
-    ASSERT_EQ(SpineAnimationCompleteCount, 1);
+    ASSERT_EQ(1U, SpineAnimationCompleteCount);
 
     // play animation without cb
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_ONCE_FORWARD, 0.0, 0.0, 1.0, 0, 0, 0));
     ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
     ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
-    ASSERT_EQ(SpineAnimationCompleteCount, 1);
+    ASSERT_EQ(1U, SpineAnimationCompleteCount);
 
     // play animation with cb once more
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_ONCE_FORWARD, 0.0, 0.0, 1.0, &SpineAnimationComplete, (void*)m_Scene, 0));
     ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
     ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
-    ASSERT_EQ(SpineAnimationCompleteCount, 2);
+    ASSERT_EQ(2U, SpineAnimationCompleteCount);
 }
 
 TEST_F(dmGuiTest, SpineNodeSetCursor)
@@ -5611,10 +5582,10 @@ TEST_F(dmGuiTest, SpineNodeGetBoneNodes)
     dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_CENTER);
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"dummy"), dmHashString64((const char*)""), true));
 
-    ASSERT_EQ(0, GetNodeSpineBone(m_Scene, node, 123));
-    ASSERT_NE(0, GetNodeSpineBone(m_Scene, node, 0));
-    ASSERT_NE(0, GetNodeSpineBone(m_Scene, node, 1));
-    ASSERT_EQ(0, GetNodeSpineBone(m_Scene, node, 2));
+    ASSERT_EQ(0U, GetNodeSpineBone(m_Scene, node, 123));
+    ASSERT_NE(0U, GetNodeSpineBone(m_Scene, node, 0));
+    ASSERT_NE(0U, GetNodeSpineBone(m_Scene, node, 1));
+    ASSERT_EQ(0U, GetNodeSpineBone(m_Scene, node, 2));
 
     ASSERT_EQ(0, dmGui::GetNodePosition(m_Scene, GetNodeSpineBone(m_Scene, node, 0)).getX());
     ASSERT_EQ(1, dmGui::GetNodePosition(m_Scene, GetNodeSpineBone(m_Scene, node, 1)).getX());
@@ -5854,14 +5825,14 @@ TEST_F(dmGuiTest, CallbackCalledCorrectNumTimes)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
 
     ASSERT_TRUE(data->m_CallbackWasCalled);
-    ASSERT_EQ(1, data->m_NumStateChanges);
+    ASSERT_EQ(1U, data->m_NumStateChanges);
 
     float dt = 1.2f;
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning & Postspawn
-    ASSERT_EQ(3, data->m_NumStateChanges);
+    ASSERT_EQ(3U, data->m_NumStateChanges);
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Sleeping
-    ASSERT_EQ(4, data->m_NumStateChanges);
+    ASSERT_EQ(4U, data->m_NumStateChanges);
 
     dmGui::DeleteNode(m_Scene, node_pfx, true);
     dmGui::UpdateScene(m_Scene, dt);
@@ -5886,14 +5857,14 @@ TEST_F(dmGuiTest, CallbackCalledSingleTimePerStateChange)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
 
     ASSERT_TRUE(data->m_CallbackWasCalled);
-    ASSERT_EQ(1, data->m_NumStateChanges);
+    ASSERT_EQ(1U, data->m_NumStateChanges);
 
     float dt = 0.1f;
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning
-    ASSERT_EQ(2, data->m_NumStateChanges);
+    ASSERT_EQ(2U, data->m_NumStateChanges);
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Still spawning, should not trigger callback
-    ASSERT_EQ(2, data->m_NumStateChanges);
+    ASSERT_EQ(2U, data->m_NumStateChanges);
 
     dmGui::DeleteNode(m_Scene, node_pfx, true);
     dmGui::UpdateScene(m_Scene, dt);
@@ -5920,14 +5891,14 @@ TEST_F(dmGuiTest, CallbackCalledMultipleEmitters)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
 
     ASSERT_TRUE(data->m_CallbackWasCalled);
-    ASSERT_EQ(3, data->m_NumStateChanges);
+    ASSERT_EQ(3U, data->m_NumStateChanges);
 
     float dt = 1.2f;
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning & Postspawn
-    ASSERT_EQ(9, data->m_NumStateChanges);
+    ASSERT_EQ(9U, data->m_NumStateChanges);
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Sleeping
-    ASSERT_EQ(12, data->m_NumStateChanges);
+    ASSERT_EQ(12U, data->m_NumStateChanges);
 
     dmGui::DeleteNode(m_Scene, node_pfx, true);
     dmGui::UpdateScene(m_Scene, dt);
@@ -5993,14 +5964,14 @@ TEST_F(dmGuiTest, StopNodeParticlefxMultiplePlaying)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
 
-    ASSERT_EQ(dmGui::GetParticlefxCount(m_Scene), 3);
+    ASSERT_EQ(3U, dmGui::GetParticlefxCount(m_Scene));
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx));
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Sleeping
     dmGui::UpdateScene(m_Scene, dt); // Prunes sleeping particlefx
 
-    ASSERT_EQ(dmGui::GetParticlefxCount(m_Scene), 0);
+    ASSERT_EQ(0U, dmGui::GetParticlefxCount(m_Scene));
 
     dmGui::FinalScene(m_Scene);
     UnloadParticlefxPrototype(prototype);
@@ -6104,16 +6075,16 @@ TEST_F(dmGuiTest, DeleteSpineNode)
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
 
-    ASSERT_EQ(0, dmGui::GetNodeCount(m_Scene));
+    ASSERT_EQ(0U, dmGui::GetNodeCount(m_Scene));
     dmGui::HNode node_spine = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_SPINE);
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_spine, "test_spine", 0, 0, true));
 
     // Spine node + 2 bone nodes
-    ASSERT_EQ(3, dmGui::GetNodeCount(m_Scene));
+    ASSERT_EQ(3U, dmGui::GetNodeCount(m_Scene));
 
     // Delete spine node will delete bone nodes also
     dmGui::DeleteNode(m_Scene, node_spine, true);
-    ASSERT_EQ(0, dmGui::GetNodeCount(m_Scene));
+    ASSERT_EQ(0U, dmGui::GetNodeCount(m_Scene));
 
     DeleteSpineDummyData(dummy_data);
 }
@@ -6131,19 +6102,19 @@ TEST_F(dmGuiTest, DeleteBoneNode)
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)dummy_data));
 
-    ASSERT_EQ(0, dmGui::GetNodeCount(m_Scene));
+    ASSERT_EQ(0U, dmGui::GetNodeCount(m_Scene));
     dmGui::HNode node_spine = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_SPINE);
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node_spine, "test_spine", 0, 0, true));
 
     dmGui::HNode node_bone = dmGui::GetNodeSpineBone(m_Scene, node_spine, 1);
-    ASSERT_NE(0, node_bone);
+    ASSERT_NE(0U, node_bone);
 
     // Spine node + 2 bone nodes
-    ASSERT_EQ(3, dmGui::GetNodeCount(m_Scene));
+    ASSERT_EQ(3U, dmGui::GetNodeCount(m_Scene));
 
     // Delete spine node will delete bone nodes also
     dmGui::DeleteNode(m_Scene, node_spine, true);
-    ASSERT_EQ(0, dmGui::GetNodeCount(m_Scene));
+    ASSERT_EQ(0U, dmGui::GetNodeCount(m_Scene));
 
     DeleteSpineDummyData(dummy_data);
 }

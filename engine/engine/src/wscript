@@ -181,7 +181,7 @@ def build(bld):
     if 'win32' in bld.env.BUILD_PLATFORM:
         obj.source.append('engine.rc')
 
-    apidoc_extract_task(bld, ['../proto/engine_ddf.proto'])
+    apidoc_extract_task(bld, ['../proto/engine_ddf.proto', 'engine_doc.h'])
 
     if 'win32' in bld.env.PLATFORM:
         src_dir = "%s/ext/lib/%s" % (bld.env.PREFIX, bld.env.PLATFORM)

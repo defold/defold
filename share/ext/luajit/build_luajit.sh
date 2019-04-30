@@ -84,8 +84,6 @@ function luajit_configure() {
 	# These will be used for the cross compiling
 	export TARGET_TCFLAGS="$CFLAGS $XFLAGS"
 	export TARGET_CFLAGS="$CFLAGS $XFLAGS"
-	export TARGET_LDFLAGS="$CFLAGS"
-	export TARGET_AR="$AR rcus"
 	export TARGET_LD="$CC $CFLAGS"
 
 	# These are used for host compiling
