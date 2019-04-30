@@ -1,6 +1,6 @@
 #include <string.h>
 #include <assert.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #ifdef __MACH__
     #if (defined(__arm__) || defined(__arm64__))
@@ -3555,17 +3555,45 @@ namespace dmGraphics
         Vulkan::Program* p            = (Vulkan::Program*) context->m_CurrentProgram;
         Vulkan::ShaderImageSampler& s = p->m_ImageSamplers[location];
         s.m_TextureUnit               = unit;
+        s.m_IsDirty                   = 1;
     }
 
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
-        assert(0 && "Not implemented");
-        return 0;
+        RenderTarget* rt = new RenderTarget();
+        memset(rt, 0, sizeof(RenderTarget));
+
+        void** buffers[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBuffer, &rt->m_FrameBuffer.m_DepthBuffer, &rt->m_FrameBuffer.m_StencilBuffer};
+        uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBufferSize, &rt->m_FrameBuffer.m_DepthBufferSize, &rt->m_FrameBuffer.m_StencilBufferSize};
+        BufferType buffer_types[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};
+        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
+        {
+            assert(GetBufferTypeIndex(buffer_types[i]) == i);
+            if (buffer_type_flags & buffer_types[i])
+            {
+                uint32_t buffer_size = sizeof(uint32_t) * params[i].m_Width * params[i].m_Height;
+                *(buffer_sizes[i]) = buffer_size;
+                rt->m_BufferTextureParams[i] = params[i];
+                rt->m_BufferTextureParams[i].m_DataSize = 0;
+
+                if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT))
+                {
+                    rt->m_BufferTextureParams[i].m_DataSize = buffer_size;
+                    rt->m_ColorBufferTexture = NewTexture(context, creation_params[i]);
+                }
+            }
+        }
+
+        return rt;
     }
 
     void DeleteRenderTarget(HRenderTarget rt)
     {
-        assert(0 && "Not implemented");
+        if (rt->m_ColorBufferTexture)
+            DeleteTexture(rt->m_ColorBufferTexture);
+        delete [] (char*)rt->m_FrameBuffer.m_DepthBuffer;
+        delete [] (char*)rt->m_FrameBuffer.m_StencilBuffer;
+        delete rt;
     }
 
     void SetRenderTarget(HContext context, HRenderTarget rendertarget, uint32_t transient_buffer_types)
@@ -3577,17 +3605,39 @@ namespace dmGraphics
 
     HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type)
     {
-        assert(0 && "Not implemented");
+        if(buffer_type != BUFFER_TYPE_COLOR_BIT)
+            return 0;
+        return rendertarget->m_ColorBufferTexture;
     }
 
     void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
-        assert(0 && "Not implemented");
+        assert(render_target);
+        uint32_t i = GetBufferTypeIndex(buffer_type);
+        assert(i < MAX_BUFFER_TYPE_COUNT);
+        width = render_target->m_BufferTextureParams[i].m_Width;
+        height = render_target->m_BufferTextureParams[i].m_Height;
     }
 
     void SetRenderTargetSize(HRenderTarget rt, uint32_t width, uint32_t height)
     {
-        assert(0 && "Not implemented");
+        uint32_t buffer_size = sizeof(uint32_t) * width * height;
+
+        void** buffers[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBuffer, &rt->m_FrameBuffer.m_DepthBuffer, &rt->m_FrameBuffer.m_StencilBuffer};
+        uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBufferSize, &rt->m_FrameBuffer.m_DepthBufferSize, &rt->m_FrameBuffer.m_StencilBufferSize};
+        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
+        {
+            if (buffers[i])
+            {
+                *(buffer_sizes[i]) = buffer_size;
+                rt->m_BufferTextureParams[i].m_Width = width;
+                rt->m_BufferTextureParams[i].m_Height = height;
+                if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT))
+                {
+                    rt->m_BufferTextureParams[i].m_DataSize = buffer_size;
+                }
+            }
+        }
     }
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format)
