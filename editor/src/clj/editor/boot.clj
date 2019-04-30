@@ -5,6 +5,7 @@
    [clojure.tools.cli :as cli]
    [editor.analytics :as analytics]
    [editor.code.view :as code-view]
+   [editor.connection-properties :refer [connection-properties]]
    [editor.dialogs :as dialogs]
    [editor.error-reporting :as error-reporting]
    [editor.login :as login]
@@ -99,9 +100,7 @@
   (when (system/defold-dev?)
     (set-sha1-revisions-from-repo!))
   (error-reporting/setup-error-reporting! {:notifier {:notify-fn notify-user}
-                                           :sentry   {:project-id "97739"
-                                                      :key        "9e25fea9bc334227b588829dd60265c1"
-                                                      :secret     "f694ef98d47d42cf8bb67ef18a4e9cdb"}})
+                                           :sentry (get connection-properties :sentry)})
   (disable-imageio-cache!)
 
   (when-let [support-error (gl/gl-support-error)]

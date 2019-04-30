@@ -1009,6 +1009,11 @@ If you do not specifically require different script states, consider changing th
              other-tabs (.getTabs other-tab-pane)
              active-tab (.get active-tabs active-tab-index)
              other-tab (.get other-tabs other-tab-index)]
+         ;; Fix for DEFEDIT-1673:
+         ;; We need to swap in a dummy tab here so that a tab is never in both
+         ;; TabPanes at once, since the tab lists are observed internally. If we
+         ;; do not, the tabs will lose track of their parent TabPane.
+         (.set other-tabs other-tab-index (Tab.))
          (.set active-tabs active-tab-index other-tab)
          (.set other-tabs other-tab-index active-tab)
          (.select active-tab-pane-selection other-tab)

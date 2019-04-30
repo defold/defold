@@ -3,6 +3,7 @@
    [clojure.java.io :as io]
    [clojure.data.json :as json]
    [dynamo.graph :as g]
+   [editor.connection-properties :refer [connection-properties]]
    [editor.prefs :as prefs]
    [editor.defold-project :as project]
    [editor.engine.build-errors :as engine-build-errors]
@@ -30,7 +31,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:const defold-build-server-url "https://build.defold.com")
+(def ^:const defold-build-server-url (get-in connection-properties [:native-extensions :build-server-url]))
 (def ^:const connect-timeout-ms (* 30 1000))
 (def ^:const read-timeout-ms (* 10 60 1000))
 
