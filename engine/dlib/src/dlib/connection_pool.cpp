@@ -382,14 +382,23 @@ namespace dmConnectionPool
         }
 
         dmSocket::Address address;
-        dmDNS::Result sr = dmDNS::GetHostByName(host, &address, dns_channel);
+        bool gethost_did_succeed;
+
+        if (dns_channel)
+        {
+            gethost_did_succeed = dmDNS::GetHostByName(host, &address, dns_channel) == dmDNS::RESULT_OK;
+        }
+        else
+        {
+            gethost_did_succeed = dmSocket::GetHostByName(host, &address) == dmSocket::RESULT_OK;
+        }
 
         dmhash_t conn_id = CalculateConnectionID(address, port, ssl);
 
         Connection* c = 0;
         uint32_t index;
 
-        if (sr == dmDNS::RESULT_OK) {
+        if (gethost_did_succeed) {
             DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
 
             PurgeExpired(pool);

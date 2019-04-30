@@ -226,10 +226,22 @@ namespace dmHttpClient
     HClient New(const NewParams* params, const char* hostname, uint16_t port, bool secure)
     {
         dmSocket::Address address;
-        dmDNS::Result r = dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel);
-        if (r != dmDNS::RESULT_OK)
+
+        if (params->m_DNSChannel)
         {
-            return 0;
+            if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel) != dmDNS::RESULT_OK)
+            {
+                return 0;
+            }
+        }
+        else
+        {
+            // Fallback to socket implementation of GetHostByNamea
+            // in case we couldn't create a proper channel
+            if (dmSocket::GetHostByName(hostname, &address) != dmSocket::RESULT_OK)
+            {
+                return 0;
+            }
         }
 
         Client* client = new Client();
