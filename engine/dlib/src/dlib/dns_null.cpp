@@ -8,10 +8,10 @@ namespace dmDNS
         Result dns_res;
         switch(res)
         {
-            case(dmSocket::RESULT_OK):
+            case dmSocket::RESULT_OK:
                 dns_res = dmDNS::RESULT_OK;
                 break;
-            case(dmSocket::RESULT_HOST_NOT_FOUND):
+            case dmSocket::RESULT_HOST_NOT_FOUND:
                 dns_res = dmDNS::RESULT_HOST_NOT_FOUND;
                 break;
             default:

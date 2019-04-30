@@ -699,6 +699,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         {
             dmLogError("Invalid URI: %s", uri);
             dmMessage::DeleteSocket(socket);
+            dmDNS::DeleteChannel(dns_channel);
             delete factory;
             return 0;
         }

@@ -506,13 +506,13 @@ namespace dmConfigFile
         }
 
         dmHttpClient::Result http_result = dmHttpClient::Get(client, uri_parts.m_Path);
-        if (http_result != dmHttpClient::RESULT_OK)
-        {
-            dmHttpClient::Delete(client);
-            return RESULT_FILE_NOT_FOUND;
-        }
         dmHttpClient::Delete(client);
         dmDNS::DeleteChannel(params.m_DNSChannel);
+
+        if (http_result != dmHttpClient::RESULT_OK)
+        {
+            return RESULT_FILE_NOT_FOUND;
+        }
 
         Result r = LoadFromBufferInternal(url, (const char*) &context.m_Buffer.Front(), context.m_Buffer.Size(), argc, argv, config);
         return r;

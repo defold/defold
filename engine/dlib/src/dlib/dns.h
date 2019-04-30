@@ -12,7 +12,8 @@ namespace dmDNS
      * A channel roughly translates to a socket on which to put the name lookup requests on.
      * Internal implementation resides in dns.cpp.
      */
-    typedef void* HChannel;
+    struct  Channel;
+    typedef Channel* HChannel;
 
     enum Result
     {
@@ -34,19 +35,20 @@ namespace dmDNS
     Result NewChannel(HChannel* channel);
 
     /**
-     * Stops the current request (if available) on a channel. Thread-safe.
+     * Stops the current request (if available) on a channel.
      * @param channel Handle to the channel
      */
-    void   StopChannel(HChannel channel);
+    void StopChannel(HChannel channel);
 
     /**
      * Deletes the current channel and cancels all requests.
+     * Note: You must always make sure to call StopChannel(channel) before calling this function.
      * @param channel Handle to the channel
      */
-    void   DeleteChannel(HChannel channel);
+    void DeleteChannel(HChannel channel);
 
     /**
-     * Get host by name.
+     * Get host by name. Note that this function is not entirely thread-safe, even though it is used in a threaded environment.
      * @param name  Hostname to resolve
      * @param address Host address result
      * @param channel Channel handle to put the request on. The function does not handle invalid handles - the channel handle must exist.

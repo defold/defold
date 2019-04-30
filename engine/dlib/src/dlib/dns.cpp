@@ -2,7 +2,7 @@
 #include "socket.h"
 
 #include "time.h"
-#include "mutex.h"
+#include "atomic.h"
 
 #define CARES_STATICLIB
 #include <ares.h>
@@ -14,7 +14,7 @@
 
 namespace dmDNS
 {
-    struct RequestResult
+    struct RequestInfo
     {
         dmSocket::Address* m_Address;
         uint32_t           m_Status : 30;
@@ -25,32 +25,31 @@ namespace dmDNS
     struct Channel
     {
         ares_channel    m_Handle;
-        dmMutex::HMutex m_RunMutex;
-        bool            m_Running;
+        int32_atomic_t  m_Running;
     };
 
     static inline Result AresStatusToDNSResult(uint32_t ares_status)
     {
         Result res;
 
-        switch(ares_status)
+        switch (ares_status)
         {
-            case(ARES_SUCCESS):
+            case ARES_SUCCESS:
                 res = RESULT_OK;
                 break;
-            case(ARES_ENOTINITIALIZED):
+            case ARES_ENOTINITIALIZED:
                 res = RESULT_INIT_ERROR;
                 break;
-            case(ARES_ENODATA):
-            case(ARES_EFORMERR):
-            case(ARES_ESERVFAIL):
-            case(ARES_ENOTFOUND):
-            case(ARES_ENOTIMP):
-            case(ARES_EREFUSED):
-            case(ARES_ETIMEOUT):
+            case ARES_ENODATA:
+            case ARES_EFORMERR:
+            case ARES_ESERVFAIL:
+            case ARES_ENOTFOUND:
+            case ARES_ENOTIMP:
+            case ARES_EREFUSED:
+            case ARES_ETIMEOUT:
                 res = RESULT_HOST_NOT_FOUND;
                 break;
-            case(ARES_ECANCELLED):
+            case ARES_ECANCELLED:
                 res = RESULT_CANCELLED;
                 break;
             default:
@@ -63,7 +62,7 @@ namespace dmDNS
     static void ares_gethost_callback(void *arg, int status, int timeouts, struct hostent *host)
     {
         assert(arg);
-        RequestResult* req = (RequestResult*) arg;
+        RequestInfo* req = (RequestInfo*) arg;
 
         // If the request is cancelled, something went wrong with the channel so we cannot
         // guarantee that the request data is still alive. In that case, we don't touch
@@ -98,7 +97,7 @@ namespace dmDNS
     static void ares_addrinfo_callback(void* arg, int status, int timeouts, struct ares_addrinfo* info)
     {
         assert(arg);
-        RequestResult* req = (RequestResult*) arg;
+        RequestInfo* req = (RequestInfo*) arg;
 
         // Same as ares_gethost_callback, we need to trust the req pointer.
         if (status != ARES_ECANCELLED)
@@ -194,8 +193,7 @@ namespace dmDNS
             return RESULT_INIT_ERROR;
         }
 
-        dns_channel->m_RunMutex = dmMutex::New();
-        dns_channel->m_Running  = true;
+        dns_channel->m_Running = 1;
         *channel = dns_channel;
 
         return RESULT_OK;
@@ -206,8 +204,7 @@ namespace dmDNS
         if (channel)
         {
             Channel* dns_channel = (Channel*) channel;
-            dmMutex::ScopedLock lk(dns_channel->m_RunMutex);
-            dns_channel->m_Running = false;
+            dmAtomicStore32(&dns_channel->m_Running, 0);
         }
     }
 
@@ -216,7 +213,7 @@ namespace dmDNS
         if (channel)
         {
             Channel* dns_channel = (Channel*) channel;
-            ares_cancel(dns_channel->m_Handle);
+            ares_destroy(dns_channel->m_Handle);
             delete dns_channel;
         }
     }
@@ -238,7 +235,7 @@ namespace dmDNS
 
         Channel* dns_channel = (Channel*) channel;
 
-        RequestResult req;
+        RequestInfo req;
         req.m_Address = address;
         req.m_Status  = ARES_SUCCESS;
         req.m_Ipv4    = ipv4;
@@ -286,14 +283,11 @@ namespace dmDNS
             // This might happen when the engine is shutting down, and
             // we have lost or no connection and don't want to wait for
             // the full timeout..
+            if (dns_channel->m_Running == 0)
             {
-                dmMutex::ScopedLock lk(dns_channel->m_RunMutex);
-                if (!dns_channel->m_Running)
-                {
-                    ares_cancel(dns_channel->m_Handle);
-                    req.m_Status = ARES_ECANCELLED;
-                    break;
-                }
+                ares_cancel(dns_channel->m_Handle);
+                req.m_Status = ARES_ECANCELLED;
+                break;
             }
 
             dmSocket::Selector selector;
