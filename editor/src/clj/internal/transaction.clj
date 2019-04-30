@@ -1,7 +1,6 @@
 (ns internal.transaction
   "Internal functions that implement the transactional behavior."
   (:require [clojure.set :as set]
-            [internal.util :as util]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.id-gen :as id-gen]
@@ -662,7 +661,7 @@
   [{:keys [nodes-affected] :as ctx}]
   (assoc ctx :nodes-modified (set (keys nodes-affected))))
 
-(def tx-report-keys [:basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :label :sequence-label])
+(def tx-report-keys [:basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified])
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph."

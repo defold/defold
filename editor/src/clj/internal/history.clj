@@ -100,26 +100,6 @@
                                                             history)]
             {history-entry-index 0}))))))
 
-(defn- process-tx-data [tx-data graph-id]
-  (loop [unfiltered-transaction-steps (flatten tx-data)
-         filtered-transaction-steps (transient [])
-         label nil
-         sequence-label nil]
-    (if-some [{:keys [type] :as transaction-step} (first unfiltered-transaction-steps)]
-      (recur (next unfiltered-transaction-steps)
-             (if (replay-in-graph? graph-id transaction-step)
-               (conj! filtered-transaction-steps transaction-step)
-               filtered-transaction-steps)
-             (if (= :label type)
-               (:label transaction-step)
-               label)
-             (if (= :sequence-label type)
-               (:label transaction-step)
-               sequence-label))
-      {:label label
-       :sequence-label sequence-label
-       :transaction-steps (persistent! filtered-transaction-steps)})))
-
 (defn- rewind-history [history basis history-entry-index]
   (let [rewound-history-end-index (inc history-entry-index)
         rewound-history (into [] (subvec history 0 rewound-history-end-index))
@@ -185,22 +165,61 @@
                        :outputs-modified #{}
                        :transaction-steps []})])
 
-(defn write [history context-before context-after graph-after outputs-modified tx-data]
+(defn matches-sequence-label? [history sequence-label]
+  (= sequence-label (history-sequence-label history)))
+
+(defn process-tx-data [tx-data history-graph-ids]
+  (loop [transaction-steps (flatten tx-data)
+         transaction-steps-by-graph-id (into {}
+                                             (map (fn [graph-id]
+                                                    [graph-id (transient [])]))
+                                             history-graph-ids)
+         label nil
+         sequence-label nil]
+    (if-some [{:keys [type] :as transaction-step} (first transaction-steps)]
+      (recur (next transaction-steps)
+             (reduce (fn [transaction-steps-by-graph-id graph-id]
+                       (if (replay-in-graph? graph-id transaction-step)
+                         (update transaction-steps-by-graph-id graph-id conj! transaction-step)
+                         transaction-steps-by-graph-id))
+                     transaction-steps-by-graph-id
+                     history-graph-ids)
+             (if (= :label type)
+               (:label transaction-step)
+               label)
+             (if (= :sequence-label type)
+               (:label transaction-step)
+               sequence-label))
+      (let [transaction-steps-by-graph-id (into {}
+                                                (map (juxt key (comp persistent! val)))
+                                                transaction-steps-by-graph-id)]
+        {:label label
+         :sequence-label sequence-label
+         :transaction-steps-by-graph-id transaction-steps-by-graph-id}))))
+
+(defn write [history context-before context-after graph-after outputs-modified transaction-steps label sequence-label]
   (assert (ig/graph? graph-after))
-  (assert (set? outputs-modified))
-  (let [{:keys [label sequence-label transaction-steps]} (process-tx-data tx-data (:_graph-id graph-after))
-        merge-into-previous-history-entry? (some-> sequence-label (= (history-sequence-label history)))]
-    (if merge-into-previous-history-entry?
+  (let [merge-into-previous-history-entry? (some-> sequence-label (= (history-sequence-label history)))]
+    (cond
+      merge-into-previous-history-entry?
       (let [last-history-entry-index (dec (count history))
             last-history-entry (history last-history-entry-index)
-            merged-history-entry (cond-> (assoc last-history-entry :context-after context-after)
+            merged-history-entry (cond-> (assoc last-history-entry
+                                           :context-after context-after
+                                           :graph-after graph-after)
                                          (some? label) (assoc :label label)
                                          (seq outputs-modified) (update :outputs-modified into outputs-modified)
                                          (seq transaction-steps) (update :transaction-steps into transaction-steps))]
         (assert (zero? (:undo-group last-history-entry)))
         (assoc history last-history-entry-index merged-history-entry))
+
+      (seq transaction-steps)
       (let [history-entry (->HistoryEntry 0 label sequence-label context-before context-after graph-after outputs-modified transaction-steps)]
-        (conj history history-entry)))))
+        (assert (set? outputs-modified))
+        (conj history history-entry))
+
+      :else
+      history)))
 
 (defn alter [history basis undo-group-by-history-entry-index node-id-generators override-id-generator]
   (let [history-entry-indices (keys undo-group-by-history-entry-index)

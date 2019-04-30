@@ -137,7 +137,7 @@
         override-id-generator (is/override-id-generator @*the-system*)
         tx-result (it/transact* (it/new-transaction-context basis id-generators override-id-generator) txs)]
     (when (= :ok (:status tx-result))
-      (swap! *the-system* is/merge-graphs txs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
+      (swap! *the-system* is/merge-graphs txs (get-in tx-result [:basis :graphs]) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
     tx-result))
 
 ;; ---------------------------------------------------------------------------
@@ -1318,7 +1318,8 @@
                      override-id-generator (is/override-id-generator system)]
                  (history/alter history basis alterations node-id-generators override-id-generator))))
       (when (some? post-alteration-context)
-        (gt/restore-history-context! history-context-controller post-alteration-context)))))
+        (gt/restore-history-context! history-context-controller post-alteration-context)
+        nil))))
 
 (defn undo!
   "Undoes the last performed action."

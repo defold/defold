@@ -176,40 +176,62 @@
 (declare default-evaluation-context update-cache-from-evaluation-context)
 
 (defn merge-graphs
-  [system tx-data post-tx-graphs significantly-modified-graphs outputs-modified nodes-deleted]
-  (let [outputs-modified-by-graph-id (util/group-into {} #{}
-                                                      (comp gt/node-id->graph-id first)
-                                                      outputs-modified)
-        graphs-after-by-graph-id (into {}
-                                       (map (fn [[graph-id graph]]
-                                              (let [start-tx (:tx-id graph -1)
-                                                    sidereal-tx (graph-time system graph-id)]
-                                                (if (< start-tx sidereal-tx)
-                                                  ;; Graph was modified concurrently by a different transaction.
-                                                  (throw (ex-info "Concurrent modification of graph"
-                                                                  {:_graph-id graph-id :start-tx start-tx :sidereal-tx sidereal-tx}))
-                                                  [graph-id (update graph :tx-id util/safe-inc)]))))
-                                       post-tx-graphs)
-        history-updates (sequence
-                          (keep (fn [[graph-id graph-after]]
-                                  (when (and (contains? significantly-modified-graphs graph-id)
-                                             (some? (graph-history system graph-id)))
-                                    (let [outputs-modified (outputs-modified-by-graph-id graph-id)]
-                                      [graph-id graph-after outputs-modified]))))
-                          graphs-after-by-graph-id)
+  [system tx-data post-tx-graphs outputs-modified nodes-deleted]
+  (let [outputs-modified-by-graph-id
+        (util/group-into {} #{}
+                         (comp gt/node-id->graph-id first)
+                         outputs-modified)
+
+        graphs-after-by-graph-id
+        (into {}
+              (map (fn [[graph-id graph]]
+                     (let [start-tx (:tx-id graph -1)
+                           sidereal-tx (graph-time system graph-id)]
+                       (if (< start-tx sidereal-tx)
+                         ;; Graph was modified concurrently by a different transaction.
+                         (throw (ex-info "Concurrent modification of graph"
+                                         {:_graph-id graph-id :start-tx start-tx :sidereal-tx sidereal-tx}))
+                         [graph-id (update graph :tx-id util/safe-inc)]))))
+              post-tx-graphs)
+
+        history-by-graph-id
+        (into {}
+              (keep (fn [[graph-id]]
+                      (when-some [history (graph-history system graph-id)]
+                        [graph-id history])))
+              post-tx-graphs)
+
+        {:keys [label sequence-label transaction-steps-by-graph-id]}
+        (when (seq history-by-graph-id)
+          (history/process-tx-data tx-data (keys history-by-graph-id)))
+
+        history-updates
+        (keep (fn [[graph-id graph-after]]
+                (when-some [history (history-by-graph-id graph-id)]
+                  (let [transaction-steps (transaction-steps-by-graph-id graph-id)
+                        outputs-modified (outputs-modified-by-graph-id graph-id)]
+                    (when (or (seq transaction-steps)
+                              (history/matches-sequence-label? history sequence-label))
+                      [graph-id graph-after outputs-modified transaction-steps]))))
+              graphs-after-by-graph-id)
+
         history-context-controller (history-context-controller system)
-        history-context-before (when (seq history-updates)
-                                 (let [evaluation-context (default-evaluation-context system)]
-                                   (gt/history-context history-context-controller evaluation-context)))
-        post-system (-> system
-                        (update :graphs merge graphs-after-by-graph-id)
-                        (update :cache c/cache-invalidate outputs-modified)
-                        (update :invalidate-counters bump-invalidate-counters outputs-modified)
-                        (update :user-data (fn [user-data]
-                                             (reduce (fn [user-data [graph-id deleted-node-ids]]
-                                                       (update user-data graph-id (partial apply dissoc) deleted-node-ids))
-                                                     user-data
-                                                     (group-by gt/node-id->graph-id (keys nodes-deleted))))))]
+
+        history-context-before
+        (when (seq history-updates)
+          (let [evaluation-context (default-evaluation-context system)]
+            (gt/history-context history-context-controller evaluation-context)))
+
+        post-system
+        (-> system
+            (update :graphs merge graphs-after-by-graph-id)
+            (update :cache c/cache-invalidate outputs-modified)
+            (update :invalidate-counters bump-invalidate-counters outputs-modified)
+            (update :user-data (fn [user-data]
+                                 (reduce (fn [user-data [graph-id deleted-node-ids]]
+                                           (update user-data graph-id (partial apply dissoc) deleted-node-ids))
+                                         user-data
+                                         (group-by gt/node-id->graph-id (keys nodes-deleted))))))]
     (if (empty? history-updates)
       post-system
       (let [evaluation-context (default-evaluation-context post-system)
@@ -217,7 +239,7 @@
         (-> post-system
             (update-cache-from-evaluation-context evaluation-context)
             (update :history (fn [history-by-graph-id]
-                               (reduce (fn [history-by-graph-id [graph-id graph-after outputs-modified]]
+                               (reduce (fn [history-by-graph-id [graph-id graph-after outputs-modified transaction-steps]]
                                          (update history-by-graph-id
                                                  graph-id
                                                  history/write
@@ -225,7 +247,9 @@
                                                  history-context-after
                                                  graph-after
                                                  outputs-modified
-                                                 tx-data))
+                                                 transaction-steps
+                                                 label
+                                                 sequence-label))
                                        history-by-graph-id
                                        history-updates))))))))
 
