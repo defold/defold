@@ -89,7 +89,7 @@ When the beta has been released the following apps needs to be bundled and sent 
 * BBS - iOS, Android, desktops
 * Presto - iOS, Android
 
-Here is a [Jenkins](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt_pipeline/) ([old link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/)) to a build job that can do this for you. It uploads to [MBDL/DefoldQRT](https://mbdl3.midasplayer.com/#/builds/DefoldQRT)
+Here is a [Jenkins](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt_pipeline/) ([old link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/)) to a build job that can do this for you. It uploads to [App Store/DefoldQRT](https://app-store.king.com/#/builds/DefoldQRT)
 
 You can also download desktop and html5 versions from the artifacts on that page.
 
