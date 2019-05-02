@@ -117,6 +117,7 @@ def build(bld):
         bundleid = 'com.defold.engine',
         source=['main.cpp'],
         extra_packages = extra_packages,
+        proguard = ['../content/builtins/manifests/android/dmengine.pro'],
         jars = android_jar_paths)
 
     if 'win32' in bld.env.BUILD_PLATFORM:
@@ -132,7 +133,7 @@ def build(bld):
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine.android/dmengine.apk')
 
     obj = bld.new_task_gen(
-        features = 'cc cxx cprogram apk web extract_symbols',
+        features = 'cc cxx cprogram web extract_symbols',
         uselib = 'WEBVIEWEXT PROFILEREXT_NULL GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE CARES %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine_release engine_service_null',
         web_libs = web_libs,
@@ -151,9 +152,6 @@ def build(bld):
         obj.source.append('engine.rc')
         obj.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', '/ENTRY:mainCRTStartup'])
 
-    if 'android' in bld.env['PLATFORM']:
-        bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_release.android/dmengine_release.apk')
-
     # We need to link with GLFW on Android for the headless version of the engine.
     # Android expects a slighly different life cycle handling, currently handled
     # in the GLFW module.
@@ -167,7 +165,7 @@ def build(bld):
     additional_libs = ' '.join(additional_libs)
 
     obj = bld.new_task_gen(
-        features = 'cc cxx cprogram apk web extract_symbols',
+        features = 'cc cxx cprogram web extract_symbols',
         uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH DLIB LIVEUPDATE SOUND_NULL CRASH CARES %s' % (additional_libs,),
         exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine engine_service',

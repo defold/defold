@@ -1011,18 +1011,20 @@ def android_package(task):
         dx_jars.append(jar)
     dx_jars.append(r_jar)
 
-    # proguard
-    proguardjar = '%s/android-sdk/tools/proguard/lib/proguard.jar' % ANDROID_ROOT
-    androidjar = '%s/android-sdk/platforms/android-%s/android.jar' % (ANDROID_ROOT, ANDROID_TARGET_API_LEVEL)
-    proguardtxt = '../content/builtins/manifests/android/dmengine.pro'
-    classesjar = '%s/share/java/classes.jar' % dynamo_home
+    if getattr(task, 'proguard', None):
+        proguardtxt = task.proguard[0]
+        proguardjar = '%s/android-sdk/tools/proguard/lib/proguard.jar' % ANDROID_ROOT
+        androidjar = '%s/android-sdk/platforms/android-%s/android.jar' % (ANDROID_ROOT, ANDROID_TARGET_API_LEVEL)
+        dex_input = ['%s/share/java/classes.jar' % dynamo_home]
 
-    ret = bld.exec_command('%s -jar %s -include %s -libraryjars %s -injars %s -outjar %s' % (task.env['JAVA'][0], proguardjar, proguardtxt, androidjar, ':'.join(dx_jars), classesjar))
-    if ret != 0:
-        error('Error running proguard')
-        return 1
+        ret = bld.exec_command('%s -jar %s -include %s -libraryjars %s -injars %s -outjar %s' % (task.env['JAVA'][0], proguardjar, proguardtxt, androidjar, ':'.join(dx_jars), dex_input[0]))
+        if ret != 0:
+            error('Error running proguard')
+            return 1
+    else:
+        dex_input = dx_jars
 
-    ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), classesjar))
+    ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dex_input)))
     if ret != 0:
         error('Error running dx')
         return 1
