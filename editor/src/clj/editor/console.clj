@@ -325,7 +325,7 @@
       (g/connect console-node :regions view-node :regions)))
   view-node)
 
-(def ^:private line-sub-regions-pattern #"(?<=^|\s|[<\"'`])(\/[^\s>\"'`:]+)(?::?)(\d+)?")
+(def ^:private ^:const line-sub-regions-pattern #"([^\s<>\"'`:]+):(\d+)")
 
 (defn- make-resource-reference-region
   ([row start-col end-col resource-proj-path on-click!]
@@ -342,18 +342,25 @@
    (assoc (make-resource-reference-region row start-col end-col resource-proj-path on-click!)
      :row resource-row)))
 
+(defn- find-project-resource-from-partial-match
+  [resource-map partial-path]
+  (if (contains? resource-map partial-path)
+    partial-path ;; Already a valid path
+    (let [partial-matches (filter #(.endsWith ^String % partial-path) (keys resource-map))]
+      (when (= 1 (count partial-matches))
+        (first partial-matches)))))
+
 (defn- make-line-sub-regions [resource-map on-region-click! row line]
   (keep (fn [^MatchResult result]
-          (let [resource-proj-path (.group result 1)]
-            (when (contains? resource-map resource-proj-path)
-              (let [resource-row (some-> (.group result 2) Long/parseUnsignedLong)
-                    start-col (.start result)
-                    end-col (if (string/ends-with? (.group result) ":")
-                              (dec (.end result))
-                              (.end result))]
-                (if (nil? resource-row)
-                  (make-resource-reference-region row start-col end-col resource-proj-path on-region-click!)
-                  (make-resource-reference-region row start-col end-col resource-proj-path (dec (long resource-row)) on-region-click!))))))
+          (when-let [resource-proj-path (find-project-resource-from-partial-match resource-map (.group result 1))]
+            (let [resource-row (some-> (.group result 2) Long/parseUnsignedLong)
+                  start-col (.start result)
+                  end-col (if (string/ends-with? (.group result) ":")
+                            (dec (.end result))
+                            (.end result))]
+              (if (nil? resource-row)
+                (make-resource-reference-region row start-col end-col resource-proj-path on-region-click!)
+                (make-resource-reference-region row start-col end-col resource-proj-path (dec (long resource-row)) on-region-click!)))))
         (re-match-result-seq line-sub-regions-pattern line)))
 
 (defn- make-whole-line-region [type ^long row line]
