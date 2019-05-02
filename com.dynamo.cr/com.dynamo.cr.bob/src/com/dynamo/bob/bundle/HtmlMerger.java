@@ -1,7 +1,10 @@
 
 package com.dynamo.bob.bundle;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
 import java.util.logging.Level;
@@ -13,8 +16,6 @@ import org.jsoup.nodes.Attributes;
 import org.jsoup.nodes.DataNode;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-
-import org.jsoup.nodes.TextNode;
 
 public class HtmlMerger {
     private static Logger logger;
@@ -72,20 +73,19 @@ public class HtmlMerger {
             // they both have MERGE
             mergeNode(elementa, elementb);
         }
-
         for(Element childb : elementb.children()) {
             //String tagb = childb.tagName();
             String idb = childb.hasAttr("id") ? childb.attr("id") : null;
 
             if (idb == null) { // Simply add to the document
-                elementa.appendChild(childb.clone​()); // deep clone
+                elementa.appendChild(childb.clone()); // deep clone
             } else {
                 // See if there is a similar element in the a's children
                 Element childa = findElement(elementa, childb.tagName(), idb);
                 if (childa != null) {
                     mergeElement(childa, childb);
                 } else {
-                    elementa.appendChild(childb.clone​()); // deep clone
+                    elementa.appendChild(childb.clone()); // deep clone
                 }
             }
         }
