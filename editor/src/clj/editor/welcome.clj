@@ -457,23 +457,23 @@
                            (string/blank? project-title)
                            (dialogs/make-info-dialog
                              {:title "No Project Title"
-                              :icon :error
-                              :header "You Must Specify a Title for the Project"})
+                              :icon :icon/error-triangle
+                              :header "You must specify a title for the project"})
 
                            (not= project-title (string/trim project-title))
                            (dialogs/make-info-dialog
-                             {:title "Invalid Project Title"
-                              :icon :error
+                             {:title "Invalid project title"
+                              :icon :icon/error-triangle
                               :size :large
-                              :header "Whitespace Is Not Allowed Around the Project Title"})
+                              :header "Whitespace is not allowed around the project title"})
 
                            (and (.exists project-location)
                                 (not (fs/empty-directory? project-location)))
                            (dialogs/make-info-dialog
                              {:title "Conflicting Project Location"
-                              :icon :error
+                              :icon :icon/error-triangle
                               :size :large
-                              :header "A Non-empty Folder Already Exists at the Chosen Location"})
+                              :header "A non-empty folder already exists at the chosen location"})
 
                            :else
                            (download-template! (:name project-template) (:zip-url project-template) (:skip-root? project-template) project-location project-title))))))))
@@ -542,24 +542,24 @@
                                (string/blank? project-folder)
                                (dialogs/make-info-dialog
                                  {:title "No Destination Folder"
-                                  :icon :error
+                                  :icon :icon/error-triangle
                                   :size :large
-                                  :header "You Must Specify a Destination Folder for the Project"})
+                                  :header "You must specify a destination folder for the project"})
 
                                (not= project-folder (string/trim project-folder))
                                (dialogs/make-info-dialog
                                  {:title "Invalid Destination Folder"
-                                  :icon :error
+                                  :icon :icon/error-triangle
                                   :size :large
-                                  :header "Whitespace Is Not Allowed Around the Folder Name"})
+                                  :header "Whitespace is not allowed around the folder name"})
 
                                (and (.exists clone-directory)
                                     (not (fs/empty-directory? clone-directory)))
                                (dialogs/make-info-dialog
                                  {:title "Conflicting Import Location"
-                                  :icon :error
+                                  :icon :icon/error-triangle
                                   :size :large
-                                  :header "A Non-empty Folder Already Exists at the Chosen Location"})
+                                  :header "A non-empty folder already exists at the chosen location"})
 
                                :else
                                (clone-project! project-title (:repository-url dashboard-project) clone-directory))))))
@@ -722,28 +722,28 @@
                                           (instance? UnknownHostException error)
                                           (dialogs/make-info-dialog
                                             {:title "No Internet Connection"
-                                             :icon :error
-                                             :header "You Must Be Connected to the Internet to Download Project Content"})
+                                             :icon :icon/error-triangle
+                                             :header "You must be connected to the internet to download project content"})
 
                                           (instance? SocketException error)
                                           (dialogs/make-info-dialog
                                             {:title "Host Unreachable"
-                                             :icon :error
-                                             :header "A Firewall Might Be Blocking Network Connections"
+                                             :icon :icon/error-triangle
+                                             :header "A firewall might be blocking network connections"
                                              :content (.getMessage error)})
 
                                           (instance? SocketTimeoutException error)
                                           (dialogs/make-info-dialog
                                             {:title "Host Not Responding"
-                                             :icon :error
-                                             :header "The Connection Timed Out"
+                                             :icon :icon/error-triangle
+                                             :header "The connection timed out"
                                              :content (.getMessage error)})
 
                                           (instance? SSLException error)
                                           (dialogs/make-info-dialog
                                             {:title "SSL Connection Error"
-                                             :icon :error
-                                             :header "Could Not Establish an SSL Connection"
+                                             :icon :icon/error-triangle
+                                             :header "Could not establish an SSL connection"
                                              :content {:fx/type :text-flow
                                                        :style-class "dialog-content-padding"
                                                        :children [{:fx/type :text

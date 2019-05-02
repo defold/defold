@@ -1,3 +1,5 @@
+// definitions
+
 $light-grey: #9FB0BE;
 $light-grey-lighter: derive($light-grey, 20%);
 $light-grey-lightest: derive($light-grey, 60%);
@@ -18,7 +20,22 @@ $dark-grey-darker: derive($dark-grey, -40%);
 $dark-grey-darkest: derive($dark-grey, -60%);
 
 $red: #e32f44;
-$red-darker: #6b2f34; //derive($red, -40%);
+$red-lighter: derive($red, 20%);
+$red-darker: #6b2f34; // just making it darker does not look good: too dirty, needed to desaturate a bit
+
+$spacing-smaller: 16px;
+$spacing-default: 24px;
+$spacing-larger: 32px;
+$spacing-largest: 40px;
+
+@mixin font-size-default { -fx-font-size: 14px; }
+@mixin font-size-header { -fx-font-size: 22px; }
+@mixin font-default { -fx-font-family: "Source Sans Pro"; }
+@mixin font-light { -fx-font-family: "Source Sans Pro Light"; }
+@mixin text-fill-text-color { -fx-text-fill: $light-grey; }
+@mixin spacing-smaller { -fx-spacing: $spacing-smaller;}
+
+// util
 
 @font-face {
   font-family: 'Source Sans Pro';
@@ -35,30 +52,11 @@ $red-darker: #6b2f34; //derive($red, -40%);
   src: url("SourceSansPro-Semibold.ttf");
 }
 
-$spacing-smaller: 16px;
-$spacing-default: 24px;
-$spacing-larger: 32px;
-$spacing-largest: 40px;
+.spacing-smaller {
+  @include spacing-smaller();
+}
 
-@mixin font-size-default { -fx-font-size: 14px; }
-@mixin font-size-header { -fx-font-size: 22px; }
-@mixin font-default { -fx-font-family: "Source Sans Pro"; }
-@mixin font-light { -fx-font-family: "Source Sans Pro Light"; }
-@mixin text-fill-text-color { -fx-text-fill: $light-grey; }
-@mixin spacing-smaller { -fx-spacing: $spacing-smaller;}
-
-.dialog-body {
-  -fx-background-color: $dark-grey;
-}
-.dialog-body-small {
-  -fx-pref-width: 440px;
-}
-.dialog-body-default {
-  -fx-pref-width: 540px;
-}
-.dialog-body-large {
-  -fx-pref-width: 640px;
-}
+// label
 
 .label {
   @include font-size-default();
@@ -105,25 +103,41 @@ $spacing-largest: 40px;
 .button-primary {
   -fx-text-fill: $blue;
   -fx-border-color: $blue;
-  &:hover {
+  &:hover, &:focused {
     -fx-text-fill: $blue-lighter;
     -fx-border-color: $blue-lighter;
-  }
-  &:focused {
-    -fx-text-fill: $blue-lighter;
-    -fx-border-color: $blue-lightest;
   }
 }
 .button-secondary {
   -fx-text-fill: $light-grey;
   -fx-border-color: $light-grey-darker;
-  &:hover {
+  &:hover, &:focused {
     -fx-text-fill: $light-grey-lighter;
-  }
-  &:focused {
     -fx-border-color: $light-grey;
-    -fx-text-fill: $light-grey-lighter;
   }
+}
+.button-danger {
+  -fx-text-fill: $red;
+  -fx-border-color: $red;
+  &:hover, &:focused {
+    -fx-text-fill: $red-lighter;
+    -fx-border-color: $red-lighter;
+  }
+}
+
+// dialog
+
+.dialog-body {
+  -fx-background-color: $dark-grey;
+}
+.dialog-body-small {
+  -fx-pref-width: 440px;
+}
+.dialog-body-default {
+  -fx-pref-width: 540px;
+}
+.dialog-body-large {
+  -fx-pref-width: 640px;
 }
 
 .dialog-content {
@@ -152,9 +166,7 @@ $spacing-largest: 40px;
   -fx-padding: 0 $spacing-default $spacing-default $spacing-default;
 }
 
-.spacing-smaller {
-  @include spacing-smaller();
-}
+// text inputs
 
 @mixin text-input-defaults() {
   @include font-default();
@@ -231,6 +243,8 @@ $spacing-largest: 40px;
   }
 }
 
+// scrolling
+
 .scroll-bar {
   -fx-background-color: transparent;
   > .thumb {
@@ -267,6 +281,8 @@ $spacing-largest: 40px;
     -fx-background-color: transparent;
   }
 }
+
+// components
 
 .input-grid {
   -fx-hgap: $spacing-smaller;

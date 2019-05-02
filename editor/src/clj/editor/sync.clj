@@ -259,8 +259,8 @@
   (loop []
     (let [result (cancel-fn)
           dialog-props {:title "Unable to Cancel Sync"
-                        :icon :error
-                        :header "An Error Occurred"
+                        :icon :icon/error-triangle
+                        :header "An error occurred"
                         :content {:fx/type fxui/label
                                   :style-class "dialog-content-padding"
                                   :text (cancel-result-message result)}}]

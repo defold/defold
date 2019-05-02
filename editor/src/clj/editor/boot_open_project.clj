@@ -123,8 +123,8 @@
   (dialogs/make-info-dialog
     {:title "Internal Files Under Source Control"
      :size :large
-     :icon :error
-     :header "Internal Files Were Placed under Source Control"
+     :icon :icon/error-triangle
+     :header "Internal files were placed under source control"
      :content {:pref-row-count 6
                :wrap-text true
                :text (str "It looks like internal files such as downloaded dependencies or build output were placed under source control.\n"
@@ -232,12 +232,13 @@
                               (let [result (or (empty? (project/dirty-save-data project))
                                                (dialogs/make-confirmation-dialog
                                                  {:title "Close Defold"
-                                                  :header "Unsaved Changes Exist, Are You Sure You Want to Quit?"
+                                                  :header "Unsaved changes exist, are you sure you want to quit?"
                                                   :buttons [{:text "Cancel and Keep Working"
                                                              :default-button true
                                                              :cancel-button true
                                                              :result false}
                                                             {:text "Quit Without Saving"
+                                                             :variant :danger
                                                              :result true}]}))]
                                 (when result
                                   (app-view/store-window-dimensions stage prefs)
@@ -312,7 +313,7 @@
                          :header {:fx/type :v-box
                                   :children [{:fx/type fxui/label
                                               :variant :header
-                                              :text "The Editor Was Shut down While Synchronizing with the Server"}
+                                              :text "The editor was shut down while synchronizing with the server"}
                                              {:fx/type fxui/label
                                               :text "Resume syncing or cancel and revert to the pre-sync state?"}]}
                          :buttons [{:text "Cancel and Revert"
@@ -349,7 +350,7 @@
                     (ui/run-later
                       (dialogs/make-info-dialog
                         {:title "Updated .gitignore File"
-                         :header "Updated .gitignore File"
+                         :header "Updated .gitignore file"
                          :content {:fx/type fxui/label
                                    :style-class "dialog-content-padding"
                                    :text (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
@@ -368,8 +369,8 @@
   (dialogs/make-info-dialog
     {:title "Missing Dependencies"
      :size :large
-     :icon :error
-     :header "There Are Missing Dependencies"
+     :icon :icon/error-triangle
+     :header "There are missing dependencies"
      :content (string/join "\n" (concat ["The following dependencies are missing:"]
                                         (map #(str "\u00A0\u00A0\u2022\u00A0" %) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
                                              (sort-by str dependencies))

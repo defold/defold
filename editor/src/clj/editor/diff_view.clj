@@ -176,14 +176,14 @@
       (= old new)
       (dialogs/make-info-dialog
         {:title "The File Is Unchanged"
-         :icon :error
-         :header "The File Is Unchanged"})
+         :icon :icon/error-triangle
+         :header "The file is unchanged"})
 
       binary?
       (dialogs/make-info-dialog
         {:title "Unable to Diff Binary Files"
-         :icon :error
-         :header "Unable to Diff Binary Files"})
+         :icon :icon/error-triangle
+         :header "Unable to diff binary files"})
 
       :else
       (make-diff-viewer old-path old new-path new))))
