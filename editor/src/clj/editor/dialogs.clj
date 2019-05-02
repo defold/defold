@@ -86,7 +86,9 @@
       (fxui/provide-defaults :alignment :center-right)
       (update :style-class fxui/add-style-classes "spacing-smaller")))
 
-(defn- confirmation-dialog [{:keys [buttons] :as props}]
+(defn- confirmation-dialog [{:keys [buttons icon]
+                             :or {icon ::no-icon}
+                             :as props}]
   (let [button-descs (mapv (fn [button-props]
                              (let [button-desc (-> button-props
                                                    (assoc :fx/type fxui/button
@@ -103,22 +105,35 @@
                :footer {:fx/type dialog-buttons
                         :children button-descs}
                :on-close-request {:result (:result (some #(when (:cancel-button %) %) buttons))})
-        (dissoc :buttons :result)
-        (update :header confirmation-dialog-header->fx-desc))))
+        (dissoc :buttons :icon :result)
+        (update :header (fn [header]
+                          (let [header-desc (confirmation-dialog-header->fx-desc header)]
+                            (if (= icon ::no-icon)
+                              header-desc
+                              {:fx/type :h-box
+                               :style-class "spacing-smaller"
+                               :alignment :center-left
+                               :children [{:fx/type fxui/icon :type icon}
+                                          header-desc]})))))))
 
 (defn make-confirmation-dialog
   "Shows a dialog and blocks current thread until users selects one option.
 
   `props` is a prop map for `editor.dialogs/dialog-stage`, but instead of
-  `:footer` you use `:buttons`, which is a coll of button descriptions. Button
+  `:footer` you use `:buttons`
+
+  Additional keys:
+  - `:buttons` (optional) - a coll of button descriptions. Button
   description is a prop map for `editor.fxui/button` with few caveats:
-  - you don't have to specify `:fx/type`
-  - it should have `:result` key, it's value will be returned from this
-    function (default `nil`)
-  - if you specify `:default-button`, it will be styled as primary and receive
-    focus by default
-  - if you specify `:cancel-button`, closing window using `x` button will
-    return `:result` from such button (and `nil` otherwise)"
+    * you don't have to specify `:fx/type`
+    * it should have `:result` key, it's value will be returned from this
+      function (default `nil`)
+    * if you specify `:default-button`, it will be styled as primary and receive
+      focus by default
+    * if you specify `:cancel-button`, closing window using `x` button will
+      return `:result` from such button (and `nil` otherwise)
+  - `:icon` (optional) - a keyword valid as `:type` for `editor.fxui/icon`, if
+    present, will add an icon to the left of a header"
   [props]
   (fxui/show-dialog-and-await-result!
     :event-handler (fn [state event]
@@ -139,36 +154,17 @@
   user closes it.
 
   `props` is a map to configure such dialog, supports all options from
-  `make-confirmation-dialog`:
-  - `:header` (required) - either a string or fx description of a dialog header,
-    additionally gets wrapped to show an icon
-  - `:icon` (optional, default `:info-circle`) - keyword describing icon, for
-    available options see `editor.fxui/icon`
-  - `:buttons` (optional, close button be default) - a coll of button
-    descriptions as described in `make-confirmation-dialog`
-  - `:content` (optional) - content area, can be:
+  `editor.dialogs/make-confirmation-dialog` with these changes:
+  - `:buttons` have a close button by default
+  - `:content` can be:
     * fx description (a map with `:fx/type` key) - used as is
     * prop map (map without `:fx/type` key) for `editor.fxui/text-area` -
       readonly by default to allow user select and copy text, `:text` prop is
       required
-    * string -  text for readonly text area
-  - `:title` (optional, default \"\") - window title
-  - `:owner` (optional) - a Stage that dialog will block, if not provided it
-    will block all windows
-  - `:size` (optional, default `:default`) - dialog size, either `:small`,
-    `:default` or `:large`"
-  [{:keys [icon]
-    :or {icon :icon/info-circle}
-    :as props}]
+    * string - text for readonly text area"
+  [props]
   (make-confirmation-dialog
     (-> props
-        (dissoc :icon)
-        (update :header (fn [header]
-                          {:fx/type :h-box
-                           :style-class "spacing-smaller"
-                           :alignment :center-left
-                           :children [{:fx/type fxui/icon :type icon}
-                                      (confirmation-dialog-header->fx-desc header)]}))
         (update :content (fn [content]
                            (cond
                              (:fx/type content)
@@ -244,6 +240,7 @@
   (let [result (make-confirmation-dialog
                  {:title "Update Failed"
                   :owner owner
+                  :icon :icon/error-triangle
                   :header {:fx/type :v-box
                            :children [{:fx/type fxui/label
                                        :variant :header
@@ -263,6 +260,7 @@
 (defn make-download-update-or-restart-dialog [^Stage owner]
   (make-confirmation-dialog
     {:title "Update Available"
+     :icon :icon/info-circle
      :size :large
      :owner owner
      :header {:fx/type :v-box
@@ -281,14 +279,15 @@
 
 (defn make-platform-no-longer-supported-dialog [^Stage owner]
   (make-confirmation-dialog
-    {:title "Update Available"
+    {:title "Platform not supported"
+     :icon :icon/circle-sad
      :owner owner
      :header {:fx/type :v-box
               :children [{:fx/type fxui/label
                           :variant :header
                           :text "Updates are no longer provided for this platform"}
                          {:fx/type fxui/label
-                          :text "Supported platforms are 64-bit Linux, MacOS and Windows"}]}
+                          :text "Supported platforms are 64-bit Linux, macOS and Windows"}]}
      :buttons [{:text "Close"
                 :cancel-button true
                 :default-button true}]}))
@@ -297,6 +296,7 @@
   (make-confirmation-dialog
     {:title "Update Available"
      :header "A newer version of Defold is available!"
+     :icon :icon/info-circle
      :owner owner
      :buttons [{:text "Not Now"
                 :cancel-button true

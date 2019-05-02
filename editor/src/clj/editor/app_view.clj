@@ -1767,6 +1767,7 @@ If you do not specifically require different script states, consider changing th
                                  (dialogs/make-info-dialog
                                    {:title "Bundle Failed"
                                     :icon :icon/error-triangle
+                                    :size :large
                                     :header "Failed to bundle project, please fix build errors and try again"})))))))
 
 (handler/defhandler :bundle :global
