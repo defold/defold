@@ -232,6 +232,8 @@
                               (let [result (or (empty? (project/dirty-save-data project))
                                                (dialogs/make-confirmation-dialog
                                                  {:title "Close Defold"
+                                                  :icon :icon/circle-question
+                                                  :size :large
                                                   :header "Unsaved changes exist, are you sure you want to quit?"
                                                   :buttons [{:text "Cancel and Keep Working"
                                                              :default-button true
@@ -350,6 +352,7 @@
                     (ui/run-later
                       (dialogs/make-info-dialog
                         {:title "Updated .gitignore File"
+                         :icon :icon/info-circle
                          :header "Updated .gitignore file"
                          :content {:fx/type fxui/label
                                    :style-class "dialog-content-padding"

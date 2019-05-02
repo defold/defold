@@ -95,6 +95,7 @@
     (when (dialogs/make-confirmation-dialog
             {:title "Revert Changes"
              :size :large
+             :icon :icon/circle-question
              :header "Are you sure you want to revert changes on selected files?"
              :buttons [{:text "Cancel"
                         :cancel-button true
@@ -144,6 +145,7 @@
         ;; Found locked files below the project. Notify user and offer to retry.
         (if (dialogs/make-confirmation-dialog
               {:title "Not Safe to Sync"
+               :icon :icon/circle-question
                :header "There are locked files, retry?"
                :content {:fx/type fxui/label
                          :style-class "dialog-content-padding"

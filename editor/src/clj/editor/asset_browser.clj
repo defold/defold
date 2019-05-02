@@ -403,6 +403,7 @@
       (when (if (= 1 (count selection))
               (dialogs/make-confirmation-dialog
                 {:title "Delete File"
+                 :icon :icon/circle-question
                  :header (format "Are you sure you want to delete %s?" names)
                  :buttons [{:text "Cancel"
                             :cancel-button true
@@ -413,6 +414,7 @@
                             :result true}]})
               (dialogs/make-confirmation-dialog
                 {:title "Delete Files"
+                 :icon :icon/circle-question
                  :header "Are you sure you want to delete these files?"
                  :content {:fx/type fxui/label
                            :style-class "dialog-content-padding"

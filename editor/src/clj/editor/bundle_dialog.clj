@@ -47,6 +47,7 @@
       (dialogs/make-confirmation-dialog
         {:title "Overwrite Existing Directory"
          :owner owner-window
+         :icon :icon/circle-question
          :header {:fx/type :v-box
                   :children [{:fx/type fxui/label
                               :variant :header

@@ -58,6 +58,7 @@
             can-install?
             (when (dialogs/make-confirmation-dialog
                     {:title "Install Update and Restart?"
+                     :icon :icon/circle-question
                      :header "Install downloaded update and restart?"
                      :buttons [{:text "Not Now"
                                 :cancel-button true
