@@ -325,7 +325,7 @@
       (g/connect console-node :regions view-node :regions)))
   view-node)
 
-(def ^:private ^:const line-sub-regions-pattern #"([^\s<>\"'`:]+):(\d+)")
+(def ^:private ^:const line-sub-regions-pattern #"(?<=^|\s|[<\"'`])([^\s<\"'`:]+\.[^\s>\"'`:]+)(?::?)(\d+)?")
 
 (defn- make-resource-reference-region
   ([row start-col end-col resource-proj-path on-click!]
