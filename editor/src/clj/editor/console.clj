@@ -348,7 +348,7 @@
   (if (contains? resource-map partial-path)
     partial-path ;; Already a valid path
     (let [partial-matches (filter #(.endsWith ^String % partial-path) (keys resource-map))]
-      (when (= 1 (count partial-matches))
+      (when (= 1 (bounded-count 2 partial-matches))
         (first partial-matches)))))
 
 (defn- multi-re-match-result-seq
