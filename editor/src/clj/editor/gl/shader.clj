@@ -266,7 +266,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
   "Returns a string in GLSL suitable for compilation. Takes a list of forms.
 These forms should be quoted, as if they came from a macro."
   [params]
-  (apply str (shader-walk params)))
+  (apply str "#version 120" \newline (shader-walk params)))
 
 (defmacro defshader
   "Macro to define the fragment shader program. Defines a new var whose contents will

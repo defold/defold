@@ -564,9 +564,8 @@ public class Project {
         Platform p = getPlatform();
         PlatformArchitectures platformArchs = p.getArchitectures();
         String[] platformStrings;
-        if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin || p == Platform.JsWeb || p == Platform.WasmWeb)
+        if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin || p == Platform.JsWeb || p == Platform.WasmWeb || p == Platform.Armv7Android || p == Platform.Arm64Android)
         {
-            // iOS is currently the only OS we use that supports fat binaries
             // Here we'll get a list of all associated architectures (armv7, arm64) and build them at the same time
             platformStrings = platformArchs.getArchitectures();
         }
@@ -615,7 +614,7 @@ public class Project {
 
             File classesDexFile = null;
             File tmpDir = null;
-            if (platform.equals(Platform.Armv7Android)) {
+            if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
                 Bob.initAndroid(); // extract resources
 
                 // If we are building for Android, we expect a classes.dex file to be returned as well.
@@ -645,7 +644,7 @@ public class Project {
 
                 BundleHelper.throwIfCanceled(monitor);
 
-                List<ExtenderResource> extraSource = helper.generateAndroidResources(this, platform, resDir, manifestFile, null, tmpDir);
+                List<ExtenderResource> extraSource = helper.generateAndroidResources(this, resDir, manifestFile, null, tmpDir);
                 allSource.addAll(extraSource);
             }
 
@@ -685,7 +684,7 @@ public class Project {
             }
 
             // If we are building for Android, we expect a classes.dex file to be returned as well.
-            if (platform.equals(Platform.Armv7Android)) {
+            if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
                 int nameindex = 1;
                 while(true)
                 {
@@ -764,8 +763,17 @@ public class Project {
                         appmanifestOptions.put("baseVariant", variant);
                         appmanifestOptions.put("withSymbols", withSymbols.toString());
 
-                        final String[] architecturesStrings = this.option("architectures", "").split(",");
-                        buildEngine(monitor, architecturesStrings, appmanifestOptions);
+                        // Since this can be a call from Editor we can't expect the architectures option to be set.
+                        // We default to the default architectures for the platform, and take the option value
+                        // only if it has been set.
+                        Platform platform = this.getPlatform();
+                        String[] architectures = platform.getArchitectures().getDefaultArchitectures();
+                        String customArchitectures = this.option("architectures", null);
+                        if (customArchitectures != null) {
+                            architectures = customArchitectures.split(",");
+                        }
+
+                        buildEngine(monitor, architectures, appmanifestOptions);
                     } else {
                         // Remove the remote built executables in the build folder, they're still in the cache
                         cleanEngine(monitor, platforms);

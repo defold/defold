@@ -27,6 +27,10 @@ case $1 in
     	MODE="arm-asm"
     	;;
 
+    arm64-android)
+        EXTRA_FLAGS="-static"
+        ;;
+
     darwin)
         EXTRA_FLAGS="-mmacosx-version-min=10.7"
         ;;
