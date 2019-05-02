@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import Task, TaskGen
+import Task, TaskGen, Options
 from TaskGen import extension, declare_extension
 import os, sys, glob, re
 import waf_gamesys
@@ -30,9 +30,13 @@ def build(bld):
     builtins_src = "content/builtins"
     builtins_dst = "src/test/builtins"
 
+    bob_flags = []
+    if Options.options.use_vanilla_lua:
+        bob_flags.append("--use-vanilla-lua")
+
     # Build engine test content using bob
     # We always run distclean. Hook into waf clean/distclean in some way?
-    bld.new_task_gen(rule = 'java -jar ${SRC[0].abspath(env)} -r ${SRC[1].src_dir(env)} distclean build',
+    bld.new_task_gen(rule = 'java -jar ${SRC[0].abspath(env)} -r ${SRC[1].src_dir(env)} distclean build %s' % ' '.join(bob_flags),
                      source = '../../content/bob-engine.jar wscript',
                      always = True)
 
