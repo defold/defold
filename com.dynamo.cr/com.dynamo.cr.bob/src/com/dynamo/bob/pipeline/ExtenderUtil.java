@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -14,6 +15,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -24,6 +26,8 @@ import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.error.YAMLException;
 
 import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderResource;
@@ -472,7 +476,7 @@ public class ExtenderUtil {
 
     /** Get the platform manifests from the extensions
      */
-    public static List<IResource> getExtensionManifests(Project project, Platform platform, String name) throws CompileExceptionError {
+    public static List<IResource> getExtensionPlatformManifests(Project project, Platform platform, String name) throws CompileExceptionError {
         List<IResource> out = new ArrayList<>();
 
         List<String> platformFolderAlternatives = new ArrayList<String>();
@@ -710,5 +714,115 @@ public class ExtenderUtil {
             }
         }
         return null;
+    }
+
+    private static int countLines(String str){
+       String[] lines = str.split("\r\n|\r|\n");
+       return lines.length;
+    }
+
+    public static Map<String, Object> readYaml(IResource resource) throws IOException {
+        String yaml = new String(resource.getContent(), StandardCharsets.UTF_8);
+        if (yaml.contains("\t")) {
+            int numLines = 1 + countLines(yaml.substring(0, yaml.indexOf("\t")));
+            throw new IOException(String.format("%s:%d: error: Manifest files are YAML files and cannot contain tabs. Indentation should be done with spaces.", resource.getAbsPath(), numLines));
+        }
+
+        try {
+            return new Yaml().load(yaml);
+        } catch(YAMLException e) {
+            throw new IOException(String.format("%s:1: error: %s", resource.getAbsPath(), e.toString()));
+        }
+    }
+
+    static boolean isListOfStrings(List<Object> list) {
+        for (Object o : list) {
+            if (!(o instanceof String)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /* Merges a and b
+    Lists are merged: a + b = [*a, *b]
+    Strings are not allowed, they will throw an error
+    */
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> mergeManifestContext(Map<String, Object> a, Map<String, Object> b) throws RuntimeException {
+        Map<String, Object> merged = new HashMap<String, Object>();
+        Set<String> allKeys = new HashSet<String>();
+        allKeys.addAll(a.keySet());
+        allKeys.addAll(b.keySet());
+        for (String key : allKeys) {
+            Object objA = a.getOrDefault(key, null);
+            Object objB = b.getOrDefault(key, null);
+            if (objA == null || objB == null) {
+                merged.put(key, objA == null ? objB : objA);
+                continue;
+            }
+
+            if (!objA.getClass().equals(objB.getClass())) {
+                throw new RuntimeException(String.format("Class types differ: '%s' != '%s' for values '%s' and '%s'", objA.getClass(), objB.getClass(), objA, objB));
+            }
+
+            if (objA instanceof List && isListOfStrings((List<Object>)objA)) {
+                List<String> listA = (List<String>)objA;
+                List<String> listB = (List<String>)objB;
+                List<String> list = new ArrayList<String>();
+                list.addAll(listA);
+                list.addAll(listB);
+                merged.put(key, list);
+            } else if (objA instanceof Map<?, ?>) {
+                Map<String, Object> mergedChildren = ExtenderUtil.mergeManifestContext((Map<String, Object>)objA, (Map<String, Object>)objB);
+                merged.put(key, mergedChildren);
+            } else {
+                throw new RuntimeException(String.format("Unsupported value types: '%s' != '%s' for values '%s' and '%s'", objA.getClass(), objB.getClass(), objA, objB));
+            }
+        }
+        return merged;
+    }
+
+    /*
+    Reads all extension manifests and merges the platform context + children.
+    An example of a manifest:
+
+    name: foo
+    platforms:
+        armv7-android:
+            context:
+                ...
+            bundle:
+                ...
+            ...
+
+
+    In this case the values _under_ 'armv7-android' will be returned.
+    */
+
+    public static Map<String, Object> getPlatformSettingsFromExtensions(Project project, String platform) throws IOException, CompileExceptionError {
+        List<String> folders = ExtenderUtil.getExtensionFolders(project);
+        Map<String, Object> ctx = new HashMap<String, Object>();
+        for (String folder : folders) {
+            IResource resource = project.getResource(folder + "/" + ExtenderClient.extensionFilename);
+            Map<String, Object> manifest = ExtenderUtil.readYaml(resource);
+
+            Map<String, Object> platforms = (Map<String, Object>)manifest.getOrDefault("platforms", null);
+            if (platforms == null) {
+                continue;
+            }
+
+            Map<String, Object> platform_ctx = (Map<String, Object>)platforms.getOrDefault(platform, null);
+            if (platform_ctx == null) {
+                continue;
+            }
+
+            try {
+                ctx = mergeManifestContext(ctx, platform_ctx);
+            } catch (RuntimeException e) {
+                throw new CompileExceptionError(resource, -1, String.format("Extension manifest '%s' contains invalid values: %s", e.toString()));
+            }
+        }
+        return ctx;
     }
 }
