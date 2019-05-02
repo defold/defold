@@ -679,7 +679,7 @@ Task.task_type_from_func('app_bundle',
                          after  = 'cxx_link cc_link static_link')
 
 
-def _strip_executable(bld, platform, path):
+def _strip_executable(bld, platform, target_arch, path):
     """ Strips the debug symbols from an executable """
     if platform not in ['x86_64-linux','x86_64-darwin','armv7-darwin','arm64-darwin','armv7-android','arm64-android']:
         return 0 # return ok, path is still unstripped
@@ -688,7 +688,8 @@ def _strip_executable(bld, platform, path):
     if 'android' in platform:
         HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
         ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
-        strip = "%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-x86_64/bin/arm-linux-androideabi-strip" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, ANDROID_HOST)
+        build_tool = getAndroidBuildtoolName(target_arch)
+        strip = "%s/android-ndk-r%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_ROOT, ANDROID_NDK_VERSION, build_tool, getAndroidGCCVersion(target_arch), ANDROID_HOST, build_tool)
 
     return bld.exec_command("%s %s" % (strip, path))
 
@@ -1007,17 +1008,15 @@ def android_package(task):
 
     dx_jars = []
     for jar in task.jars:
-        dx_jar = os.path.join(dx_libs, os.path.basename(jar))
         dx_jars.append(jar)
     dx_jars.append(r_jar)
 
     if getattr(task, 'proguard', None):
         proguardtxt = task.proguard[0]
         proguardjar = '%s/android-sdk/tools/proguard/lib/proguard.jar' % ANDROID_ROOT
-        androidjar = '%s/android-sdk/platforms/android-%s/android.jar' % (ANDROID_ROOT, ANDROID_TARGET_API_LEVEL)
         dex_input = ['%s/share/java/classes.jar' % dynamo_home]
 
-        ret = bld.exec_command('%s -jar %s -include %s -libraryjars %s -injars %s -outjar %s' % (task.env['JAVA'][0], proguardjar, proguardtxt, androidjar, ':'.join(dx_jars), dex_input[0]))
+        ret = bld.exec_command('%s -jar %s -include %s -libraryjars %s -injars %s -outjar %s' % (task.env['JAVA'][0], proguardjar, proguardtxt, android_jar, ':'.join(dx_jars), dex_input[0]))
         if ret != 0:
             error('Error running proguard')
             return 1
@@ -1037,7 +1036,7 @@ def android_package(task):
 
     # strip the executable
     path = task.native_lib.abspath(task.env)
-    ret = _strip_executable(bld, task.env.PLATFORM, path)
+    ret = _strip_executable(bld, task.env.PLATFORM, build_util.get_target_architecture(), path)
     if ret != 0:
         error('Error stripping file %s' % path)
         return 1
@@ -1075,7 +1074,7 @@ def android_package(task):
         return 1
 
     with open(task.android_mk.abspath(task.env), 'wb') as f:
-        print >>f, 'APP_ABI := %s' % getAndroidArch(build_util.get_target_architecture)
+        print >>f, 'APP_ABI := %s' % getAndroidArch(build_util.get_target_architecture())
 
     with open(task.application_mk.abspath(task.env), 'wb') as f:
         print >>f, ''
