@@ -461,7 +461,7 @@
                                    (log/error :msg msg :exception exception)
                                    (dialogs/make-info-dialog
                                      {:title "Attach Debugger Failed"
-                                      :icon :error
+                                      :icon :icon/error-triangle
                                       :header msg
                                       :content (.getMessage exception)})
                                    false)))]

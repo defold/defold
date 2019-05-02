@@ -291,8 +291,8 @@
                             (g/fnk []
                               (dialogs/make-info-dialog
                                 {:title "Upload Successful"
-                                 :icon :check-circle
-                                 :header "Upload Successful"
+                                 :icon :icon/check-circle
+                                 :header "Upload successful"
                                  :content {:fx/type fxui/label
                                            :style-class "dialog-content-padding"
                                            :text "Successfully uploaded a signed ipa to the project dashboard. Team members can download it to their device from the Settings page."}}))

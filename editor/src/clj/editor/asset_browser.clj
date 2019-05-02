@@ -313,8 +313,8 @@
     (if-let [illegal (illegal-copy-move-pairs project-path prospect-pairs)]
       (dialogs/make-info-dialog
         {:title "Cannot Paste"
-         :icon :error
-         :header "There Are Reserved Target Directories"
+         :icon :icon/error-triangle
+         :header "There are reserved target directories"
          :content (str "Following target directories are reserved:\n"
                        (string/join "\n" (map (comp (partial resource/file->proj-path project-path) second) illegal)))})
       (let [pairs (ensure-unique-dest-files (fn [_ basename] (str basename "_copy")) prospect-pairs)]
@@ -409,6 +409,7 @@
                             :result false}
                            {:text "Delete"
                             :default-button true
+                            :variant :danger
                             :result true}]})
               (dialogs/make-confirmation-dialog
                 {:title "Delete Files"
@@ -421,6 +422,7 @@
                             :result false}
                            {:text "Delete"
                             :default-button true
+                            :variant :danger
                             :result true}]}))
         (when (and (delete selection) next)
           (select-resource! asset-browser next))))))

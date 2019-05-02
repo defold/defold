@@ -95,12 +95,13 @@
     (when (dialogs/make-confirmation-dialog
             {:title "Revert Changes"
              :size :large
-             :header "Are You Sure You Want to Revert Changes on Selected Files?"
+             :header "Are you sure you want to revert changes on selected files?"
              :buttons [{:text "Cancel"
                         :cancel-button true
                         :result false}
                        {:text "Revert Changes"
                         :default-button true
+                        :variant :danger
                         :result true}]})
       (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
         (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
@@ -143,7 +144,7 @@
         ;; Found locked files below the project. Notify user and offer to retry.
         (if (dialogs/make-confirmation-dialog
               {:title "Not Safe to Sync"
-               :header "There Are Locked Files, Retry?"
+               :header "There are locked files, retry?"
                :content {:fx/type fxui/label
                          :style-class "dialog-content-padding"
                          :text (git/locked-files-error-message locked-files)}

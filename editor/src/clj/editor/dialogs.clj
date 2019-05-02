@@ -94,7 +94,7 @@
                                                    (dissoc :result))]
                                (if (:default-button button-props)
                                  {:fx/type fxui/ext-focused-by-default
-                                  :desc (assoc button-desc :variant :primary)}
+                                  :desc (fxui/provide-defaults button-desc :variant :primary)}
                                  button-desc)))
                            buttons)]
     (-> props
@@ -135,7 +135,8 @@
         :editable false)))
 
 (defn make-info-dialog
-  "Shows a dialog with and block current thread until user closes it.
+  "Shows a dialog with selectable text content and blocks current thread until
+  user closes it.
 
   `props` is a map to configure such dialog, supports all options from
   `make-confirmation-dialog`:
@@ -157,10 +158,11 @@
   - `:size` (optional, default `:default`) - dialog size, either `:small`,
     `:default` or `:large`"
   [{:keys [icon]
-    :or {icon :info-circle}
+    :or {icon :icon/info-circle}
     :as props}]
   (make-confirmation-dialog
     (-> props
+        (dissoc :icon)
         (update :header (fn [header]
                           {:fx/type :h-box
                            :style-class "spacing-smaller"
@@ -196,7 +198,7 @@
      :header {:fx/type :v-box
               :children [{:fx/type fxui/label
                           :variant :header
-                          :text "Set Custom Game Resolution"}
+                          :text "Set custom game resolution"}
                          {:fx/type fxui/label
                           :text "Game window will be resized to this size"}]}
      :content {:fx/type fxui/two-col-input-grid-pane
@@ -245,7 +247,7 @@
                   :header {:fx/type :v-box
                            :children [{:fx/type fxui/label
                                        :variant :header
-                                       :text "An Error Occurred During Update Installation"}
+                                       :text "An error occurred during update installation"}
                                       {:fx/type fxui/label
                                        :text "You probably should perform a fresh install"}]}
                   :buttons [{:text "Quit"
@@ -266,7 +268,7 @@
      :header {:fx/type :v-box
               :children [{:fx/type fxui/label
                           :variant :header
-                          :text "Update Is Ready, but There Is Even Newer Version Available"}
+                          :text "Update is ready, but there is even newer version available"}
                          {:fx/type fxui/label
                           :text "You can install downloaded update or download newer one"}]}
      :buttons [{:text "Not Now"
@@ -284,7 +286,7 @@
      :header {:fx/type :v-box
               :children [{:fx/type fxui/label
                           :variant :header
-                          :text "Updates Are No Longer Provided for This Platform"}
+                          :text "Updates are no longer provided for this platform"}
                          {:fx/type fxui/label
                           :text "Supported platforms are 64-bit Linux, MacOS and Windows"}]}
      :buttons [{:text "Close"
@@ -324,10 +326,10 @@
             :style-class "spacing-smaller"
             :alignment :center-left
             :children [{:fx/type fxui/icon
-                        :type :error}
+                        :type :icon/error-triangle}
                        {:fx/type fxui/label
                         :variant :header
-                        :text "An Error Occurred"}]}
+                        :text "An error occurred"}]}
    :content {:fx/type info-dialog-text-area
              :text (messages ex-map)}
    :footer {:fx/type :v-box

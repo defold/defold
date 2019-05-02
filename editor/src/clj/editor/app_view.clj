@@ -673,11 +673,11 @@
         (log/warn :exception e)
         (dialogs/make-info-dialog
           {:title "Launch Failed"
-           :icon :error
+           :icon :icon/error-triangle
            :header {:fx/type :v-box
                     :children [{:fx/type fxui/label
                                 :variant :header
-                                :text (format "Launching %s Failed"
+                                :text (format "Launching %s failed"
                                               (if (some? selected-target)
                                                 (targets/target-message-label selected-target)
                                                 "New Local Engine"))}
@@ -763,8 +763,8 @@
     true
     (do (dialogs/make-info-dialog
           {:title "Debugging Not Supported"
-           :icon :error
-           :header "This Project Cannot Be Used with the Debugger"
+           :icon :icon/error-triangle
+           :header "This project cannot be used with the debugger"
            :content {:fx/type fxui/label
                      :style-class "dialog-content-padding"
                      :text "It is configured to disable shared script state.
@@ -898,7 +898,7 @@ If you do not specifically require different script states, consider changing th
                           (catch Exception e
                             (dialogs/make-info-dialog
                               {:title "Hot Reload Failed"
-                               :icon :error
+                               :icon :icon/error-triangle
                                :header (format "Failed to reload resources on '%s'"
                                                (targets/target-message-label (targets/selected-target prefs)))
                                :content (.getMessage e)})))))))))
@@ -1463,8 +1463,8 @@ If you do not specifically require different script states, consider changing th
      (if (resource-node/defective? resource-node)
        (do (dialogs/make-info-dialog
              {:title "Unable to Open Resource"
-              :icon :error
-              :header (format "Unable to Open '%s', Since It Appears Damaged" (resource/proj-path resource))})
+              :icon :icon/error-triangle
+              :header (format "Unable to open '%s', since it appears damaged" (resource/proj-path resource))})
            false)
        (if-let [custom-editor (and (#{:code :text} (:id view-type))
                                    (let [ed-pref (some->
@@ -1513,8 +1513,8 @@ If you do not specifically require different script states, consider changing th
                                (ui/run-later
                                  (dialogs/make-info-dialog
                                    {:title "Could Not Open File"
-                                    :icon :error
-                                    :header (format "Could Not Open '%s'" (.getName f))
+                                    :icon :icon/error-triangle
+                                    :header (format "Could not open '%s'" (.getName f))
                                     :content (str "This can happen if the file type is not mapped to an application in your OS.\n\nUnderlying error from the OS:\n" msg)}))))
              false)))))))
 
@@ -1766,8 +1766,8 @@ If you do not specifically require different script states, consider changing th
                                  (ui/open-file output-directory)
                                  (dialogs/make-info-dialog
                                    {:title "Bundle Failed"
-                                    :icon :error
-                                    :header "Failed to Bundle Project, Please Fix Build Errors and Try Again"})))))))
+                                    :icon :icon/error-triangle
+                                    :header "Failed to bundle project, please fix build errors and try again"})))))))
 
 (handler/defhandler :bundle :global
   (run [user-data workspace project prefs app-view changes-view build-errors-view main-stage tool-tab-pane]
@@ -1789,9 +1789,9 @@ If you do not specifically require different script states, consider changing th
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
       (dialogs/make-info-dialog
         {:title "Fetch Failed"
-         :icon :error
+         :icon :icon/error-triangle
          :size :large
-         :header "Fetch Was Aborted Because a Host Could Not Be Reached"
+         :header "Fetch was aborted because a host could not be reached"
          :content (str "Unreachable host: " first-unreachable-host
                        "\n\nPlease verify internet connection and try again.")})
       (future
@@ -1851,11 +1851,11 @@ If you do not specifically require different script states, consider changing th
             (if (engine-build-errors/handle-build-error! render-build-error! project evaluation-context error)
               (dialogs/make-info-dialog
                 {:title "Build Failed"
-                 :icon :error
-                 :header "Failed to Build Ipa with Native Extensions, Please Fix Build Errors and Try Again"})
+                 :icon :icon/error-triangle
+                 :header "Failed to build ipa with native extensions, please fix build errors and try again"})
               (do (error-reporting/report-exception! error)
                   (when-let [message (:message result)]
                     (dialogs/make-info-dialog
                       {:title "Error"
-                       :icon :error
+                       :icon :icon/error-triangle
                        :header message}))))))))))

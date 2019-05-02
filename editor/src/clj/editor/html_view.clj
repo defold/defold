@@ -198,7 +198,7 @@
     (when-some [ex (.getException load-worker)]
       (dialogs/make-info-dialog
         {:title "Could not load page"
-         :icon :error
+         :icon :icon/error-triangle
          :header (.getMessage load-worker)
          :content (.getMessage ex)}))))
 
@@ -272,7 +272,7 @@
       (.setOnAlert (ui/event-handler ev
                      (dialogs/make-info-dialog
                        {:title "Alert"
-                        :icon :info-circle
+                        :icon :icon/info-circle
                         :header (.getData ^WebEvent ev)})))
       (.setUserStyleSheetLocation (str (io/resource "markdown.css")))
       (load-resource! project (g/node-value html-node :resource)))
