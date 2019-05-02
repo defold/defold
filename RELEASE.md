@@ -36,7 +36,7 @@ Important: *Make sure your branches are up to date!*
 
     This will trigger the beta channel to be built on build bot.
 
- 1. Wait for [sign-editor-beta](http://ci.defold.com/builders/sign-editor-beta) to finish, make sure autobuilders are green.
+ 1. Wait for [editor2-beta](http://ci.defold.com/builders/editor2-beta) to finish, make sure autobuilders are green.
  1. (Optional) Download and run beta:
 
     http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-darwin.dmg
