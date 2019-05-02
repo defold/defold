@@ -3,6 +3,7 @@
             [editor.console :as console]))
 
 (def ^:private line-sub-regions-pattern (var-get #'console/line-sub-regions-pattern))
+(def ^:private line-sub-regions-pattern-partial (var-get #'console/line-sub-regions-pattern-partial))
 
 (deftest line-sub-regions-pattern-test
   (are [line matches]
@@ -40,7 +41,11 @@
     "\"/main.lua\""        ["/main.lua" nil]
     "\"/main.lua:12\""     ["/main.lua" "12"]
     "\"/dir/main.lua\""    ["/dir/main.lua" nil]
-    "\"/dir/main.lua:12\"" ["/dir/main.lua" "12"]
+    "\"/dir/main.lua:12\"" ["/dir/main.lua" "12"]))
+
+(deftest line-sub-regions-partial-pattern-test
+  (are [line matches]
+    (= matches (next (re-find line-sub-regions-pattern-partial line)))
 
     "ERROR:SCRIPT: e_name_is_quite_long_how_will_you_deal_with_that_huh.script:2: attempt to call field 'balooba' (a nil value)" ["e_name_is_quite_long_how_will_you_deal_with_that_huh.script" "2"]))
 
