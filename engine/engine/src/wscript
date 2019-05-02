@@ -133,7 +133,7 @@ def build(bld):
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine.android/dmengine.apk')
 
     obj = bld.new_task_gen(
-        features = 'cc cxx cprogram web extract_symbols',
+        features = 'cc cxx cprogram apk web extract_symbols',
         uselib = 'WEBVIEWEXT PROFILEREXT_NULL GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE CARES %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine_release engine_service_null',
         web_libs = web_libs,
@@ -165,7 +165,7 @@ def build(bld):
     additional_libs = ' '.join(additional_libs)
 
     obj = bld.new_task_gen(
-        features = 'cc cxx cprogram web extract_symbols',
+        features = 'cc cxx cprogram apk web extract_symbols',
         uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH DLIB LIVEUPDATE SOUND_NULL CRASH CARES %s' % (additional_libs,),
         exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine engine_service',

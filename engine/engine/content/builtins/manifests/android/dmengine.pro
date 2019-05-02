@@ -144,7 +144,6 @@
 
 -keep public class com.defold.**
 -keep public class com.dynamo.**
--keep public class com.dynamo.android.DefoldActivity
 
 -dontwarn sun.misc.Unsafe
 -dontwarn java.nio.**
@@ -165,19 +164,14 @@
 -dontwarn com.amazon.device.iap.**
 -dontwarn com.amazon.venezia.**
 
-#-dontwarn android.app.NotificationChannel
 -dontwarn android.app.NotificationManager
 
 # Switch off some optimizations that trip older versions of the Dalvik VM.
 
 -optimizations !code/simplification/arithmetic
 
-#-optimizations !code/allocation/variable
-
-
 # Android support (we've assembled it ourselves)
 -dontwarn android.support.coreui.**
-
 
 -keepattributes Signature
 -keep class com.facebook.** {
@@ -347,7 +341,6 @@
 -keep public class java.util.HashSet
 -keep public class java.util.Iterator
 -keep public class java.util.List
-#-keep public class java.util.Map.Entry
 -keep public class java.util.Map
 -keep public class java.util.Set
 -keep public class java.util.StringTokenizer
