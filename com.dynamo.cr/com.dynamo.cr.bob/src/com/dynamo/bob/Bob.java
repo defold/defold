@@ -377,6 +377,8 @@ public class Bob {
         options.addOption(null, "defoldsdk", true, "What version of the defold sdk (sha1) to use");
         options.addOption(null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"");
 
+        options.addOption(null, "use-vanilla-lua", false, "Only ships vanilla source code (i.e. no byte code)");
+
         options.addOption("l", "liveupdate", true, "yes if liveupdate content should be published");
 
         options.addOption("ar", "architectures", true, "comma separated list of architectures to include for the platform");
@@ -538,6 +540,10 @@ public class Bob {
                 texCompression = cmd.getOptionValue("texture-compression");
             }
             project.setOption("texture-compression", texCompression);
+        }
+
+        if (cmd.hasOption("use-vanilla-lua")) {
+            project.setOption("use-vanilla-lua", "true");
         }
 
         List<TaskResult> result = project.build(new ConsoleProgress(), commands);
