@@ -307,7 +307,7 @@ public class IOSBundler implements IBundler {
 
         File manifestFile = new File(appDir, "Info.plist");
         IResource sourceManifestFile = helper.getResource("ios", "infoplist");
-        helper.mergeManifests(project, targetPlatform, properties, sourceManifestFile, manifestFile);
+        helper.mergeManifests(properties, sourceManifestFile, manifestFile);
 
         BundleHelper.throwIfCanceled(canceled);
         // Copy bundle resources into .app folder

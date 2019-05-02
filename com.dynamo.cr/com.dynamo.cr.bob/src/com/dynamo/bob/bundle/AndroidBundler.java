@@ -159,7 +159,7 @@ public class AndroidBundler implements IBundler {
         IResource sourceManifestFile = helper.getResource("android", "manifest");
 
         Map<String, Object> properties = helper.createAndroidManifestProperties(project.getRootDirectory(), resDir, exeName);
-        helper.mergeManifests(project, targetPlatform, properties, sourceManifestFile, manifestFile);
+        helper.mergeManifests(properties, sourceManifestFile, manifestFile);
 
         BundleHelper.throwIfCanceled(canceled);
 
