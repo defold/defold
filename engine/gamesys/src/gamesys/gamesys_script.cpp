@@ -91,6 +91,13 @@ namespace dmGameSystem
     void OnWindowFocus(bool focus)
     {
         ScriptWindowOnWindowFocus(focus);
+        // We need to call ScriptWindowOnWindowFocus before ScriptSoundOnWindowFocus to
+        // allow the is_music_playing() script function to return the correct result.
+        // When the window activation is received the application sound is not yet playing
+        // any sounds and the Android platform function will return the correct result.
+        // Once ScriptSoundOnWindowFocus is called when focus is gained we always say
+        // that background music is off if the game is playing music and the app has focus
+        ScriptSoundOnWindowFocus(focus);
     }
 
     void OnWindowResized(int width, int height)
