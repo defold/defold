@@ -40,7 +40,9 @@
     "\"/main.lua\""        ["/main.lua" nil]
     "\"/main.lua:12\""     ["/main.lua" "12"]
     "\"/dir/main.lua\""    ["/dir/main.lua" nil]
-    "\"/dir/main.lua:12\"" ["/dir/main.lua" "12"]))
+    "\"/dir/main.lua:12\"" ["/dir/main.lua" "12"]
+
+    "ERROR:SCRIPT: e_name_is_quite_long_how_will_you_deal_with_that_huh.script:2: attempt to call field 'balooba' (a nil value)" ["e_name_is_quite_long_how_will_you_deal_with_that_huh.script" "2"]))
 
 (defn- on-region-click! [_region]
   nil)
@@ -56,7 +58,8 @@
 
 (def ^:private resource-map {"/main.lua" 100
                              "/dir/main.lua" 200
-                             "/module.lua" 300})
+                             "/module.lua" 300
+                             "/main/yes_this_is_untitled_and_the_file_name_is_quite_long_how_will_you_deal_with_that_huh.script" 400})
 
 (defn- append-entries [props entries]
   (#'console/append-entries props entries resource-map on-region-click!))
