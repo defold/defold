@@ -3,6 +3,7 @@
 #include <jc_test/jc_test.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
+#include <dlib/dns.h>
 #include <script/script.h>
 
 #include "../tracking.h"
@@ -794,6 +795,7 @@ class dmTrackingNoHookLocalhost : public jc_test_base_class
     public:
         virtual void SetUp()
         {
+            dmDNS::Initialize();
             const char *config = "[tracking]\nurl=http://localhost:9999/\napp_id=APPID\n";
             dmConfigFile::Result r = dmConfigFile::LoadFromBuffer(config, strlen(config), 0, 0, &m_Config);
             ASSERT_EQ(dmConfigFile::RESULT_OK, r);
@@ -805,6 +807,7 @@ class dmTrackingNoHookLocalhost : public jc_test_base_class
 
         virtual void TearDown()
         {
+            dmDNS::Finalize();
             dmTracking::Finalize(m_Tracking);
             dmTracking::Delete(m_Tracking);
             dmConfigFile::Delete(m_Config);
