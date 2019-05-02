@@ -3,7 +3,8 @@ import os, re
 
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
                 extra_includes = None, extra_defines = None, skip_run = False):
-    req_libs = ['UUID']
+
+    req_libs = ['UUID', 'CARES']
     req_defines = []
 
     req_features = ['cxx', 'cprogram']
@@ -12,7 +13,6 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     if not skip_run:
         req_features.append('test')
-
     if extra_features != None:
         req_features.extend(extra_features)
     if extra_libs != None:
@@ -86,6 +86,10 @@ def build(bld):
     create_test(bld, 'test_webserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines)
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
     create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
+
+    # c-ares not supported for web platform
+    if not 'web' in bld.env['PLATFORM']:
+        create_test(bld, 'test_dns')
 
     bld.new_task_gen(rule = 'echo generated data > ${TGT}',
                      target = 'generated.embed')

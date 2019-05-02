@@ -12,7 +12,7 @@ def build(bld):
 
     font_viewer = bld.new_task_gen(features = flist,
                                     source = 'fontview.cpp deja_vu_sans.font vera_mo_bd.font font.vp font.fp font.material',
-                                    uselib = 'RENDER GRAPHICS RESOURCE HID DDF DMGLFW PLATFORM_SOCKET SCRIPT LUA EXTENSION DLIB X',
+                                    uselib = 'RENDER GRAPHICS RESOURCE HID DDF DMGLFW PLATFORM_SOCKET SCRIPT LUA EXTENSION DLIB X CARES',
                                     web_libs = ['library_sys.js', 'library_glfw.js'],
                                     uselib_local = 'gamesys',
                                     includes = ['../../../src', '../../../build'],
