@@ -1021,7 +1021,7 @@
         other-graphs (dissoc graphs graph-id)
         old-sarcs (get graph-state :sarcs)
         arc-to-graph? #(= graph-id (gt/node-id->graph-id (.target-id ^Arc %)))
-        valid-arc-from-graph? (partial valid-arc-from-graph? graph-id graph-state)
+        valid-arc-from-graph? (partial valid-arc-from-graph? basis graph-id)
 
         ;; Create a sarcs-like map structure containing just the Arcs that
         ;; connect nodes in our graph to nodes in other graphs. Use the tarcs

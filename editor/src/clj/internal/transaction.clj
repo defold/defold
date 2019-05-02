@@ -698,7 +698,7 @@
   ;; reachable from the original collection.
   (let [outputs-modified (->> (:nodes-affected ctx)
                               (gt/dependencies (:basis ctx))
-                              (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls)))))]
+                              (into #{} (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls)))))]
     (assoc ctx :outputs-modified outputs-modified)))
 
 (defn transact*

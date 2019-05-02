@@ -58,6 +58,18 @@
 
 (defrecord ^:private HistoryEntry [^long undo-group label sequence-label context-before context-after graph-after outputs-modified transaction-steps])
 
+(declare sequence-label? undo-group?)
+
+(defn- make-history-entry
+  ^HistoryEntry [undo-group label sequence-label context-before context-after graph-after outputs-modified transaction-steps]
+  {:pre [(not (neg? undo-group))
+         (or (nil? label) (string? label))
+         (or (nil? sequence-label) (sequence-label? sequence-label))
+         (ig/graph? graph-after)
+         (set? outputs-modified)
+         (vector? transaction-steps)]}
+  (->HistoryEntry undo-group label sequence-label context-before context-after graph-after outputs-modified transaction-steps))
+
 (defn- history-sequence-label [history]
   (let [^HistoryEntry history-entry (peek history)]
     (when (zero? (.undo-group history-entry))
@@ -132,13 +144,13 @@
           (let [transaction-context (it/new-transaction-context altered-basis node-id-generators override-id-generator)
                 {:keys [basis outputs-modified]} (it/transact* transaction-context transaction-steps)
                 altered-graph (-> basis :graphs (get graph-id))
-                altered-history-entry (->HistoryEntry 0 label sequence-label context-before context-after altered-graph outputs-modified transaction-steps)]
+                altered-history-entry (make-history-entry 0 label sequence-label context-before context-after altered-graph outputs-modified transaction-steps)]
             (recur basis
                    (conj! altered-history altered-history-entry)
                    (reduce conj! outputs-to-refresh outputs-modified)
                    (inc history-entry-index)))
           (let [altered-graph (-> altered-basis :graphs (get graph-id))
-                altered-history-entry (->HistoryEntry undo-group label sequence-label context-before context-after altered-graph #{} transaction-steps)]
+                altered-history-entry (make-history-entry undo-group label sequence-label context-before context-after altered-graph #{} transaction-steps)]
             (recur altered-basis
                    (conj! altered-history altered-history-entry)
                    outputs-to-refresh
@@ -156,14 +168,15 @@
        (not-empty value)
        (instance? HistoryEntry (first value))))
 
+(def sequence-label? symbol?)
+
+(defn undo-group? [value]
+  (and (integer? value)
+       (not (neg? value))))
+
 (defn make [graph label]
-  (assert (ig/graph? graph))
-  (assert (string? label))
-  [(map->HistoryEntry {:undo-group 0
-                       :graph-after graph
-                       :label label
-                       :outputs-modified #{}
-                       :transaction-steps []})])
+  (assert (and (string? label) (not-empty label)))
+  [(make-history-entry 0 label nil nil nil graph #{} [])])
 
 (defn matches-sequence-label? [history sequence-label]
   (= sequence-label (history-sequence-label history)))
@@ -214,8 +227,7 @@
         (assoc history last-history-entry-index merged-history-entry))
 
       (seq transaction-steps)
-      (let [history-entry (->HistoryEntry 0 label sequence-label context-before context-after graph-after outputs-modified transaction-steps)]
-        (assert (set? outputs-modified))
+      (let [history-entry (make-history-entry 0 label sequence-label context-before context-after graph-after (or outputs-modified #{}) transaction-steps)]
         (conj history history-entry))
 
       :else
