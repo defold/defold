@@ -1,5 +1,6 @@
 #include <dlib/dlib.h>
 #include <dlib/socket.h>
+#include <dlib/dns.h>
 #include <dlib/memprofile.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
@@ -19,6 +20,7 @@ int engine_main(int argc, char *argv[])
     dmCrash::Init(dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
     dmDDF::RegisterAllTypes();
     dmSocket::Initialize();
+    dmDNS::Initialize();
     dmMemProfile::Initialize();
     dmProfile::Initialize(256, 1024 * 16, 128);
     dmLogParams params;
@@ -36,6 +38,7 @@ int engine_main(int argc, char *argv[])
     dmLogFinalize();
     dmProfile::Finalize();
     dmMemProfile::Finalize();
+    dmDNS::Finalize();
     dmSocket::Finalize();
     return exit_code;
 }
