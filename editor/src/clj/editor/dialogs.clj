@@ -1,14 +1,14 @@
 (ns editor.dialogs
   (:require [cljfx.api :as fx]
-            [clojure.string :as str]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.ui :as ui]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.util :as util]
             [editor.handler :as handler]
             [editor.core :as core]
-            [editor.fxui :as fxui]
             [editor.fuzzy-text :as fuzzy-text]
+            [editor.fxui :as fxui]
             [editor.jfx :as jfx]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
@@ -145,7 +145,7 @@
       (assoc :fx/type fxui/text-area)
       (update :style-class fxui/add-style-classes "text-area-with-dialog-content-padding")
       (fxui/provide-defaults
-        :pref-row-count (max 3 (count (str/split (:text props "") #"\n" 10)))
+        :pref-row-count (max 3 (count (string/split (:text props "") #"\n" 10)))
         :variant :borderless
         :editable false)))
 
@@ -315,14 +315,14 @@
                                 (instance? Named type) (name type)
                                 :else (str type))]
                 (format "%s: %s" type-name (or message "Unknown")))))
-       (str/join "\n")))
+       (string/join "\n")))
 
 (defn unexpected-error-dialog-fx [{:keys [ex-map] :as props}]
   {:fx/type dialog-stage
    :showing (fxui/dialog-showing? props)
    :on-close-request {:result false}
    :title "Error"
-   :header {:fx/type :h-box
+   :header {:fx/type :h-box ;; TODO vlaaad DRY?
             :style-class "spacing-smaller"
             :alignment :center-left
             :children [{:fx/type fxui/icon
@@ -423,9 +423,9 @@
          (ui/request-focus! node))))
 
 (defn- default-filter-fn [cell-fn text items]
-  (let [text (str/lower-case text)
-        str-fn (comp str/lower-case :text cell-fn)]
-    (filter (fn [item] (str/starts-with? (str-fn item) text)) items)))
+  (let [text (string/lower-case text)
+        str-fn (comp string/lower-case :text cell-fn)]
+    (filter (fn [item] (string/starts-with? (str-fn item) text)) items)))
 
 (defn make-select-list-dialog [items options]
   (let [^Parent root (ui/load-fxml "select-list.fxml")
@@ -449,7 +449,7 @@
                        (fn [_ items]
                          (when (not (empty? items))
                            (ui/select-index! item-list 0))))
-      (ui/items! (if (str/blank? filter-value) items [])))
+      (ui/items! (if (string/blank? filter-value) items [])))
     (let [filter-fn (or (:filter-fn options) (partial default-filter-fn cell-fn))]
       (ui/observe (.textProperty filter-field)
                   (fn [_ _ ^String new]
@@ -540,7 +540,7 @@
     text-view))
 
 (defn- matched-text-runs [text matching-indices]
-  (let [/ (or (some-> text (str/last-index-of \/) inc) 0)]
+  (let [/ (or (some-> text (string/last-index-of \/) inc) 0)]
     (into []
           (mapcat (fn [[matched? start end]]
                     (cond
@@ -594,7 +594,7 @@
                      :filter-fn (fn [filter-value items]
                                   (let [fns {"refs" (partial refs-filter-fn project)
                                              "deps" (partial deps-filter-fn project)}
-                                        [command arg] (let [parts (str/split filter-value #":")]
+                                        [command arg] (let [parts (string/split filter-value #":")]
                                                         (if (< 1 (count parts))
                                                           parts
                                                           [nil (first parts)]))
@@ -682,15 +682,15 @@
 
 (defn- sanitize-common [name]
   (-> name
-      str/trim
-      (str/replace #"[/\\]" "") ; strip path separators
-      (str/replace #"[\"']" "") ; strip quotes
-      (str/replace #"^\.*" ""))) ; prevent hiding files (.dotfile)
+      string/trim
+      (string/replace #"[/\\]" "") ; strip path separators
+      (string/replace #"[\"']" "") ; strip quotes
+      (string/replace #"^\.*" ""))) ; prevent hiding files (.dotfile)
 
 (defn sanitize-file-name [extension name]
   (-> name
       sanitize-common
-      (#(if (empty? extension) (str/replace % #"\..*" "" ) %)) ; disallow adding extension = resource type
+      (#(if (empty? extension) (string/replace % #"\..*" "") %)) ; disallow adding extension = resource type
       (#(if (and (seq extension) (seq %))
           (str % "." extension)
           %)))) ; append extension if there was one
