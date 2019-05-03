@@ -12,6 +12,9 @@
 #include <dlib/math.h>
 #include <dlib/vmath.h>
 #include <dlib/mutex.h>
+#include <dlib/atomic.h>
+#include <dlib/condition_variable.h>
+#include <dlib/thread.h>
 #include <ddf/ddf.h>
 #include "gameobject.h"
 #include "gameobject_script.h"
@@ -26,6 +29,14 @@
 #include "res_anim.h"
 
 #include "../proto/gameobject/gameobject_ddf.h"
+
+#if defined(_WIN32)
+#include <malloc.h>
+#define alloca(_SIZE) _alloca(_SIZE)
+#endif
+
+#define BIKESHED_IMPLEMENTATION
+#include "../../../bikeshed/bikeshed.h"
 
 namespace dmGameObject
 {
@@ -142,16 +153,109 @@ namespace dmGameObject
         m_Bool = v;
     }
 
+    static bool ENABLE_BIKESHED_WORKER_THREADS = true;
+    static const uint32_t BIKESHED_WORKER_COUNT = 8;
+    static const uint32_t BIKESHED_WORKER_THREAD_COUNT = BIKESHED_WORKER_COUNT - 1;
+    static Bikeshed shed = 0;
+    static dmThread::Thread worker_threads[BIKESHED_WORKER_THREAD_COUNT];
+    static int32_atomic_t gBikeshedWorkerExit = 0;
+
+    struct MyReadyCallback {
+         // Add the Bikeshed_ReadyCallback struct *first* in your struct
+         struct Bikeshed_ReadyCallback cb;
+         MyReadyCallback()
+         {
+             cb.SignalReady = Ready;
+            bikeshed_mutex = dmMutex::New();
+            bikeshed_condition_variable = dmConditionVariable::New();
+         }
+         ~MyReadyCallback()
+         {
+            dmConditionVariable::Delete(bikeshed_condition_variable);
+            dmMutex::Delete(bikeshed_mutex);
+         }
+         // Add any custom data here
+        dmMutex::HMutex bikeshed_mutex;
+        dmConditionVariable::HConditionVariable bikeshed_condition_variable;
+
+        static void Ready(struct Bikeshed_ReadyCallback* cb, uint32_t ready_count)
+        {
+            if (!ENABLE_BIKESHED_WORKER_THREADS)
+            {
+                return;
+            }
+            MyReadyCallback* ready_callback = (MyReadyCallback*)cb;
+            dmMutex::Lock(ready_callback->bikeshed_mutex);
+            if (ready_count == 1)
+            {
+                dmConditionVariable::Signal(ready_callback->bikeshed_condition_variable);
+            }
+            else
+            {
+                dmConditionVariable::Broadcast(ready_callback->bikeshed_condition_variable);
+            }
+            dmMutex::Unlock(ready_callback->bikeshed_mutex);
+         }
+    };
+
+    static MyReadyCallback myCallback;
+
+    static void BikeshedWorker(void* context)
+    {
+        Bikeshed shed = (Bikeshed)context;
+        while (gBikeshedWorkerExit == 0)
+        {
+            if (Bikeshed_ExecuteOne(shed, 0))
+            {
+                continue;
+            }
+            dmMutex::Lock(myCallback.bikeshed_mutex);
+            dmConditionVariable::Wait(myCallback.bikeshed_condition_variable, myCallback.bikeshed_mutex);
+            dmMutex::Unlock(myCallback.bikeshed_mutex);
+        }
+    }
+
+    static void CreateBikeshed()
+    {
+        shed = Bikeshed_Create(malloc(BIKESHED_SIZE(65535, 65535, 1)), 65535, 65535, 1, &myCallback.cb);
+        if (!ENABLE_BIKESHED_WORKER_THREADS)
+        {
+            return;
+        }
+        for (uint32_t w = 0; w < BIKESHED_WORKER_THREAD_COUNT; ++w)
+        {
+            worker_threads[w] = dmThread::New(BikeshedWorker, 8192, shed, "worker");
+        }
+    }
+
+    static void DisposeBikshed()
+    {
+        if (ENABLE_BIKESHED_WORKER_THREADS)
+        {
+            dmAtomicIncrement32(&gBikeshedWorkerExit);
+            dmMutex::Lock(myCallback.bikeshed_mutex);
+            dmConditionVariable::Broadcast(myCallback.bikeshed_condition_variable);
+            dmMutex::Unlock(myCallback.bikeshed_mutex);
+            for (uint32_t w = 0; w < BIKESHED_WORKER_THREAD_COUNT; ++w)
+            {
+                dmThread::Join(worker_threads[w]);
+            }
+        }
+        free(shed);
+    }
+
     Register::Register()
     {
         m_ComponentTypeCount = 0;
         m_DefaultCollectionCapacity = DEFAULT_MAX_COLLECTION_CAPACITY;
         m_Mutex = dmMutex::New();
         m_SocketToCollection.SetCapacity(15, 17);
+        CreateBikeshed();
     }
 
     Register::~Register()
     {
+        DisposeBikshed();
         dmMutex::Delete(m_Mutex);
     }
 
@@ -2311,65 +2415,191 @@ namespace dmGameObject
         }
     }
 
+    struct TransformRangeJob
+    {
+        Collection*         m_Collection;
+        uint16_t*           m_Indexes;
+        uint16_t            m_IndexCount;
+        int32_atomic_t*     m_InstancePending;
+    };
+
+    static Bikeshed_TaskResult TransformChildRangeScaleAlongZ(Bikeshed shed, Bikeshed_TaskID , uint8_t, void* context)
+    {
+        TransformRangeJob* job = (TransformRangeJob*)context;
+
+        uint16_t index_count = job->m_IndexCount;
+        uint16_t* index_ptr = job->m_Indexes;
+        Instance** instances = job->m_Collection->m_Instances.Begin();
+        Matrix4* world_transforms = job->m_Collection->m_WorldTransforms.Begin();
+        while (index_count--)
+        {
+            uint16_t index = *index_ptr++;
+            Instance* instance = instances[index];
+            CheckEuler(instance);
+
+            uint16_t parent_index = instance->m_Parent;
+
+            Matrix4* parent_trans = &world_transforms[parent_index];
+            Matrix4 own = dmTransform::ToMatrix4(instance->m_Transform);
+            world_transforms[index] = *parent_trans * own;
+        };
+
+        dmAtomicDecrement32(job->m_InstancePending);
+
+        return BIKESHED_TASK_RESULT_COMPLETE;
+    }
+
+    static Bikeshed_TaskResult TransformChildRangeNoScaleAlongZ(Bikeshed shed, Bikeshed_TaskID , uint8_t, void* context)
+    {
+        TransformRangeJob* job = (TransformRangeJob*)context;
+
+        uint16_t index_count = job->m_IndexCount;
+        uint16_t* index_ptr = job->m_Indexes;
+        Instance** instances = job->m_Collection->m_Instances.Begin();
+        Matrix4* world_transforms = job->m_Collection->m_WorldTransforms.Begin();
+        while (index_count--)
+        {
+            uint16_t index = *index_ptr++;
+            Instance* instance = instances[index];
+            CheckEuler(instance);
+
+            uint16_t parent_index = instance->m_Parent;
+
+            Matrix4* parent_trans = &world_transforms[parent_index];
+            Matrix4 own = dmTransform::ToMatrix4(instance->m_Transform);
+            world_transforms[index] = dmTransform::MulNoScaleZ(*parent_trans, own);
+        };
+
+        dmAtomicDecrement32(job->m_InstancePending);
+
+        return BIKESHED_TASK_RESULT_COMPLETE;
+    }
+
+    static Bikeshed_TaskResult TransformRootRange(Bikeshed shed, Bikeshed_TaskID , uint8_t, void* context)
+    {
+        TransformRangeJob* job = (TransformRangeJob*)context;
+
+        uint16_t index_count = job->m_IndexCount;
+        uint16_t* index_ptr = job->m_Indexes;
+        Instance** instances = job->m_Collection->m_Instances.Begin();
+        Matrix4* world_transforms = job->m_Collection->m_WorldTransforms.Begin();
+        while (index_count--)
+        {
+            uint16_t index = *index_ptr++;
+            Instance* instance = instances[index];
+            CheckEuler(instance);
+
+            world_transforms[index] = dmTransform::ToMatrix4(instance->m_Transform);
+        };
+
+        dmAtomicDecrement32(job->m_InstancePending);
+
+        return BIKESHED_TASK_RESULT_COMPLETE;
+    }
+
     void UpdateTransforms(Collection* collection)
     {
         DM_PROFILE(GameObject, "UpdateTransforms");
 
-        // Calculate world transforms
-        // First root-level instances
-        dmArray<uint16_t>& root_level = collection->m_LevelIndices[0];
-        uint32_t root_count = root_level.Size();
-        for (uint32_t i = 0; i < root_count; ++i)
+        static const uint16_t MINIMUM_INSTANCES_PER_WORKER = 128;
+        int32_atomic_t instances_pending = 0;
+
+        TransformRangeJob transform_jobs[MAX_HIERARCHICAL_DEPTH][BIKESHED_WORKER_COUNT];
+        Bikeshed_TaskID level_task_ids[MAX_HIERARCHICAL_DEPTH][BIKESHED_WORKER_COUNT];
+
+        uint32_t level_job_count[MAX_HIERARCHICAL_DEPTH];
+        static const uint32_t root_level_i = 0;
         {
-            uint16_t index = root_level[i];
-            Instance* instance = collection->m_Instances[index];
-            CheckEuler(instance);
-            collection->m_WorldTransforms[index] = dmTransform::ToMatrix4(instance->m_Transform);
-            uint16_t parent_index = instance->m_Parent;
-            assert(parent_index == INVALID_INSTANCE_INDEX);
+            dmArray<uint16_t>& level = collection->m_LevelIndices[root_level_i];
+            uint32_t instance_count = level.Size();
+
+            uint32_t instances_per_worker = (instance_count + BIKESHED_WORKER_COUNT - 1) / BIKESHED_WORKER_COUNT;
+            if (instances_per_worker < MINIMUM_INSTANCES_PER_WORKER)
+            {
+                instances_per_worker = MINIMUM_INSTANCES_PER_WORKER;
+            }
+
+            BikeShed_TaskFunc level_funcs[BIKESHED_WORKER_COUNT];
+            void* level_contexts[BIKESHED_WORKER_COUNT];
+            uint32_t instance_offset = 0;
+            uint16_t* level_indexes = level.Begin();
+            uint32_t job_count = 0;
+            while (instance_offset < instance_count)
+            {
+                uint32_t range_left = instance_count - instance_offset;
+                uint32_t range_count = range_left >= instances_per_worker ? instances_per_worker : range_left;
+
+                TransformRangeJob* job = &transform_jobs[root_level_i][job_count];
+                job->m_Collection = collection;
+                job->m_Indexes = level_indexes;
+                job->m_IndexCount = range_count;
+                job->m_InstancePending = &instances_pending;
+                level_funcs[job_count] = TransformRootRange;
+                level_contexts[job_count] = job;
+
+                instance_offset += range_count;
+                level_indexes += range_count;
+                ++job_count;
+            }
+            Bikeshed_CreateTasks(shed, job_count, level_funcs, level_contexts, level_task_ids[root_level_i]);
+            dmAtomicAdd32(&instances_pending, job_count);
+            level_job_count[root_level_i] = job_count;
         }
 
-
-        if (collection->m_ScaleAlongZ) {
-            for (uint32_t level_i = 1; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
+        BikeShed_TaskFunc transform_func = collection->m_ScaleAlongZ ? TransformChildRangeScaleAlongZ : TransformChildRangeNoScaleAlongZ;
+        for (uint32_t level_i = 1; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
+        {
+            dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
+            uint32_t instance_count = level.Size();
+            if (instance_count == 0)
             {
-                dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
-                uint32_t instance_count = level.Size();
-                for (uint32_t i = 0; i < instance_count; ++i)
-                {
-                    uint16_t index = level[i];
-                    Instance* instance = collection->m_Instances[index];
-                    CheckEuler(instance);
-                    Matrix4* trans = &collection->m_WorldTransforms[index];
-
-                    uint16_t parent_index = instance->m_Parent;
-                    assert(parent_index != INVALID_INSTANCE_INDEX);
-
-                    Matrix4* parent_trans = &collection->m_WorldTransforms[parent_index];
-                    Matrix4 own = dmTransform::ToMatrix4(instance->m_Transform);
-                    *trans = *parent_trans * own;
-                }
+                break;
             }
-        } else {
-            for (uint32_t level_i = 1; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
+
+            uint32_t instances_per_worker = (instance_count + BIKESHED_WORKER_COUNT - 1) / BIKESHED_WORKER_COUNT;
+            if (instances_per_worker < MINIMUM_INSTANCES_PER_WORKER)
             {
-                dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
-                uint32_t instance_count = level.Size();
-                for (uint32_t i = 0; i < instance_count; ++i)
-                {
-                    uint16_t index = level[i];
-                    Instance* instance = collection->m_Instances[index];
-                    CheckEuler(instance);
-                    Matrix4* trans = &collection->m_WorldTransforms[index];
-
-                    uint16_t parent_index = instance->m_Parent;
-                    assert(parent_index != INVALID_INSTANCE_INDEX);
-
-                    Matrix4* parent_trans = &collection->m_WorldTransforms[parent_index];
-                    Matrix4 own = dmTransform::ToMatrix4(instance->m_Transform);
-                    *trans = dmTransform::MulNoScaleZ(*parent_trans, own);
-                }
+                instances_per_worker = MINIMUM_INSTANCES_PER_WORKER;
             }
+
+            BikeShed_TaskFunc level_funcs[BIKESHED_WORKER_COUNT];
+            void* level_contexts[BIKESHED_WORKER_COUNT];
+            uint32_t instance_offset = 0;
+            uint16_t* level_indexes = level.Begin();
+            uint32_t job_count = 0;
+            while (instance_offset < instance_count)
+            {
+                uint32_t range_left = instance_count - instance_offset;
+                uint32_t range_count = range_left >= instances_per_worker ? instances_per_worker : range_left;
+
+                TransformRangeJob* job = &transform_jobs[level_i][job_count];
+                job->m_Collection = collection;
+                job->m_Indexes = level_indexes;
+                job->m_IndexCount = range_count;
+                job->m_InstancePending = &instances_pending;
+                level_funcs[job_count] = transform_func;
+                level_contexts[job_count] = job;
+
+                instance_offset += range_count;
+                level_indexes += range_count;
+                ++job_count;
+            }
+            Bikeshed_CreateTasks(shed, job_count, level_funcs, level_contexts, level_task_ids[level_i]);
+
+            for (uint32_t job_index = 0; job_index < job_count; ++job_index)
+            {
+                Bikeshed_TaskID job_task_id = level_task_ids[level_i][job_index];
+                Bikeshed_AddDependencies(shed, job_task_id, level_job_count[level_i - 1], level_task_ids[level_i - 1]);
+            }
+            level_job_count[level_i] = job_count;
+            dmAtomicAdd32(&instances_pending, job_count);
+        }
+
+        Bikeshed_ReadyTasks(shed, level_job_count[root_level_i], level_task_ids[root_level_i]);
+
+        while(instances_pending)
+        {
+            Bikeshed_ExecuteOne(shed, 0);
         }
 
         collection->m_DirtyTransforms = false;
