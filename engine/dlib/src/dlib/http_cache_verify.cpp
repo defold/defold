@@ -154,7 +154,7 @@ namespace dmHttpCacheVerify
         verify_context->m_BufferCurrent = buf_current;
     }
 
-    Result VerifyCache(dmHttpCache::HCache cache, dmURI::Parts* uri, uint64_t max_age)
+    Result VerifyCache(dmHttpCache::HCache cache, dmURI::Parts* uri, dmDNS::HChannel channel, uint64_t max_age)
     {
         VerifyContext context(max_age * 1000000);
         context.m_HttpCache = cache;
@@ -164,6 +164,7 @@ namespace dmHttpCacheVerify
         params.m_HttpWrite = HttpWrite;
         params.m_HttpContent = HttpContent;
         params.m_Userdata = &context;
+        params.m_DNSChannel = channel;
         dmHttpClient::HClient client = dmHttpClient::New(&params, uri->m_Hostname, uri->m_Port);
         if (client == 0)
         {

@@ -7,7 +7,7 @@
 	<!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
 
 	<title>{{project.title}} {{project.version}}</title>
-	<style>
+	<style type='text/css'>
 	/* Disable user selection to avoid strange bug in Chrome on Windows:
 	* Selecting a text outside the canvas, then clicking+draging would
 	* drag the selected text but block mouse down/up events to the engine.
@@ -93,10 +93,10 @@
 
 	<!-- -->
 	{{{DEFOLD_DEV_INLINE}}}
-	<script type='text/javascript' src="dmloader.js"></script>
+	<script id='engine-loader' type='text/javascript' src="dmloader.js"></script>
 	<!-- -->
 
-	<script type='text/javascript'>
+	<script id='engine-setup' type='text/javascript'>
 	var extra_params = {
 		archive_location_filter: function( path ) {
 			return ("{{DEFOLD_ARCHIVE_LOCATION_PREFIX}}" + path + "{{DEFOLD_ARCHIVE_LOCATION_SUFFIX}}");
@@ -137,16 +137,18 @@
 		Module.toggleFullscreen();
 	};
 
-	if ({{DEFOLD_HAS_FACEBOOK_APP_ID}}) {
-		// Load Facebook API
-		var fb = document.createElement('script');
-		fb.type = 'text/javascript';
-		fb.src = '//connect.facebook.net/en_US/sdk.js';
-		fb.onload = load_engine;
-		document.head.appendChild(fb);
-	} else {
-		load_engine();
-	}
+	</script>
+	<script id='engine-start' type='text/javascript'>
+		if ({{DEFOLD_HAS_FACEBOOK_APP_ID}}) {
+			// Load Facebook API
+			var fb = document.createElement('script');
+			fb.type = 'text/javascript';
+			fb.src = '//connect.facebook.net/en_US/sdk.js';
+			fb.onload = load_engine;
+			document.head.appendChild(fb);
+		} else {
+			load_engine();
+		}
 	</script>
 </body>
 </html>

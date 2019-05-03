@@ -199,6 +199,8 @@ union SaveLoadBuffer
     /*# gets the save-file path
      * The save-file path is operating system specific and is typically located under the user's home directory.
      *
+     * @note Setting the environment variable `DM_SAVE_HOME` overrides the default application support path.
+     *
      * @name sys.get_save_file
      * @param application_id [type:string] user defined id of the application, which helps define the location of the save-file
      * @param file_name [type:string] file-name to get path for

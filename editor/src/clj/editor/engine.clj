@@ -142,6 +142,7 @@
                                   (map (fn [^Platform platform]
                                          [(.getPair platform) (.getExeSuffix platform)]))
                                   [Platform/Arm64Darwin
+                                   Platform/Arm64Android
                                    Platform/Armv7Android
                                    Platform/Armv7Darwin
                                    Platform/JsWeb

@@ -142,7 +142,7 @@ def build(bld):
     if use_tremolo:
         test_sound_perf = bld.new_task_gen(features = 'cxx cprogram embed test',
                                       includes = '../../../src .',
-                                      uselib = 'DMGLFW DLIB PLATFORM_SOCKET OPENAL' + extra_libs ,
+                                      uselib = 'DMGLFW DLIB PLATFORM_SOCKET OPENAL CARES' + extra_libs ,
                                       uselib_local = 'sound embedded_wavs embedded_oggs',
                                       web_libs = ['library_sound.js'],
                                       exported_symbols = exported_symbols,
@@ -152,7 +152,7 @@ def build(bld):
 
     test_sound = bld.new_task_gen(features = 'cxx cprogram embed test',
                                   includes = '../../../src .',
-                                  uselib = 'DMGLFW DLIB PLATFORM_SOCKET OPENAL' + extra_libs,
+                                  uselib = 'DMGLFW DLIB PLATFORM_SOCKET OPENAL CARES' + extra_libs,
                                   uselib_local = 'sound embedded_wavs embedded_oggs',
                                   web_libs = ['library_sound.js'],
                                   exported_symbols = exported_symbols,
@@ -166,7 +166,7 @@ def build(bld):
     extra_libs = ''
     test_sound_null = bld.new_task_gen(features = 'cxx cprogram embed test',
                                   includes = '../../../src .',
-                                  uselib = 'DMGLFW DLIB PLATFORM_SOCKET' + extra_libs,
+                                  uselib = 'DMGLFW DLIB PLATFORM_SOCKET CARES' + extra_libs,
                                   uselib_local = 'sound_null embedded_wavs embedded_oggs',
                                   web_libs = ['library_sound.js'],
                                   exported_symbols = exported_symbols,

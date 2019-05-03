@@ -23,10 +23,13 @@
       (let [source-value (g/node-value resource-node-id :source-value evaluation-context)]
         (dependencies-fn source-value)))))
 
-(g/defnk produce-save-data [_node-id resource save-value dirty?]
+(g/defnk produce-undecorated-save-data [_node-id resource save-value]
   (let [write-fn (:write-fn (resource/resource-type resource))]
-    (cond-> {:resource resource :dirty? dirty? :value save-value :node-id _node-id}
+    (cond-> {:resource resource :value save-value :node-id _node-id}
             (and write-fn save-value) (assoc :content (write-fn save-value)))))
+
+(g/defnk produce-save-data [undecorated-save-data dirty?]
+  (assoc undecorated-save-data :dirty? dirty?))
 
 (g/defnode ResourceNode
   (inherits core/Scope)
@@ -37,6 +40,7 @@
             (default true)
             (dynamic visible (g/constantly false)))
 
+  (output undecorated-save-data g/Any produce-undecorated-save-data)
   (output save-data g/Any :cached produce-save-data)
   (output source-value g/Any :cached (g/fnk [_node-id resource editable?]
                                        (when-some [read-fn (:read-fn (resource/resource-type resource))]
