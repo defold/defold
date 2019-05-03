@@ -114,7 +114,7 @@ id<UIApplicationDelegate> g_AppDelegates[MAX_APP_DELEGATES];
 int g_AppDelegatesCount = 0;
 id<UIApplicationDelegate> g_ApplicationDelegate = 0;
 
-@interface AppDelegateProxy : NSObject <UIApplicationDelegate>
+@interface AppDelegateProxy: NSObject
 
 @end
 
@@ -152,7 +152,7 @@ id<UIApplicationDelegate> g_ApplicationDelegate = 0;
     }
 
     // handleOpenURL is deprecated. We call it from here as if openURL is implemented, handleOpenURL won't be called.
-    if ([self application: application handleOpenURL:url])
+    if ([g_ApplicationDelegate application: application handleOpenURL:url])
         handled = YES;
 
     return handled;
@@ -173,7 +173,7 @@ id<UIApplicationDelegate> g_ApplicationDelegate = 0;
     }
 
     if (!invoked) {
-        [super forwardInvocation:anInvocation];
+        [g_ApplicationDelegate forwardInvocation:anInvocation];
     }
 }
 
@@ -188,12 +188,12 @@ id<UIApplicationDelegate> g_ApplicationDelegate = 0;
         }
     }
 
-    return [super respondsToSelector: aSelector];
+    return [g_ApplicationDelegate respondsToSelector: aSelector];
 }
 
 - (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
 {
-    NSMethodSignature* signature = [super methodSignatureForSelector:aSelector];
+    NSMethodSignature* signature = [g_ApplicationDelegate methodSignatureForSelector:aSelector];
 
     if (!signature)
     {
@@ -1331,8 +1331,8 @@ _GLFWwin g_Savewin;
     _glfwWin.window = window;
 
     UIApplication* app = [UIApplication sharedApplication];
-    AppDelegateProxy* proxy = [[AppDelegateProxy alloc] init];
     g_ApplicationDelegate = [app.delegate retain];
+    AppDelegateProxy* proxy = [AppDelegateProxy alloc];
     app.delegate = proxy;
 
     for (int i = 0; i < g_AppDelegatesCount; ++i) {
