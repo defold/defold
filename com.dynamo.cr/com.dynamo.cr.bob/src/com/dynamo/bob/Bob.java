@@ -383,6 +383,8 @@ public class Bob {
 
         options.addOption("ar", "architectures", true, "comma separated list of architectures to include for the platform");
 
+        options.addOption(null, "properties", true, "a path to a game project property file. the properties are applied left to right.");
+
         options.addOption(null, "version", false, "Prints the version number to the output");
 
         CommandLineParser parser = new PosixParser();
@@ -544,6 +546,12 @@ public class Bob {
 
         if (cmd.hasOption("use-vanilla-lua")) {
             project.setOption("use-vanilla-lua", "true");
+        }
+
+        if (cmd.hasOption("properties")) {
+            for (String filepath : cmd.getOptionValues("properties")) {
+                project.addPropertyFile(filepath);
+            }
         }
 
         List<TaskResult> result = project.build(new ConsoleProgress(), commands);
