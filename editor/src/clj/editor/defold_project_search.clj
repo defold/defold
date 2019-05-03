@@ -54,11 +54,11 @@
           (keep (fn [{:keys [line row pos]}]
                   (let [matcher (re-matcher pattern line)]
                     (when (.matches matcher)
-                      {:row row
-                       :caret-position pos
-                       :before (.group matcher 1)
-                       :match (.group matcher 2)
-                       :after (.group matcher 3)}))))
+                      {:line line
+                       :row row
+                       :start-col (.start matcher 2)
+                       :end-col (.end matcher 2)
+                       :caret-position pos}))))
           lines)))
 
 (defn- save-data-sort-key [entry]
@@ -138,7 +138,7 @@
   It will either return nil if there is no result currently available, the
   namespaced keyword :defold-project-search/done if the search has completed
   and there will be no more results, or a single match consisting of
-  [Resource, [{:line long, :caret-position long, :match String}, ...]].
+  [Resource, [{:line String :row long, :start-col long, :end-col long}, ...]].
   When abort-search! is called, any spawned background threads will terminate,
   and if there was a previous consumer, stop-consumer! will be called with it.
   Since many operations happen on a background thread, report-error! will be

@@ -12,7 +12,7 @@
             -fx-pref-width: 0;
             -fx-text-overrun: ellipsis;
             Label {
-                &.row {
+                &.line-number {
                     -fx-opacity: 0.5;
                     -fx-padding: 0.0 0.0 0.0 4.0;
                 }

@@ -79,38 +79,46 @@
     (ui/timer-start! timer)
     timer))
 
+(defn- make-matched-item-icon
+  [{:keys [resource] :as _item}]
+  (-> resource
+      workspace/resource-icon
+      (jfx/get-image-view 16)))
+
 (defn- make-matched-item-row-indicator
-  ^Label [^long row]
+  ^Label [{:keys [^long row] :as _item}]
   (doto (Label. (str (inc row) ": "))
-    (ui/add-style! "row")
+    (ui/add-style! "line-number")
     (.setMinWidth Label/USE_PREF_SIZE)))
 
 (defn- make-matched-item-before-text
-  ^Label [^String before]
-  (doto (Label. (string/triml before))
-    (HBox/setHgrow Priority/ALWAYS)
-    (.setPrefWidth Label/USE_COMPUTED_SIZE)))
+  ^Label [{:keys [^String line ^long start-col] :as _item}]
+  (when-some [before-text (not-empty (string/triml (subs line 0 start-col)))]
+    (doto (Label. before-text)
+      (HBox/setHgrow Priority/ALWAYS)
+      (.setPrefWidth Label/USE_COMPUTED_SIZE))))
 
 (defn- make-matched-item-match-text
-  ^Label [^String match]
-  (doto (Label. match)
-    (ui/add-style! "matched")
-    (.setMinWidth Label/USE_PREF_SIZE)))
+  ^Label [{:keys [^String line ^long start-col ^long end-col] :as _item}]
+  (let [match-text (subs line start-col end-col)]
+    (doto (Label. match-text)
+      (ui/add-style! "matched")
+      (.setMinWidth Label/USE_PREF_SIZE))))
 
 (defn- make-matched-item-after-text
-  ^Label [^String after]
-  (doto (Label. (string/trimr after))
-    (HBox/setHgrow Priority/ALWAYS)))
+  ^Label [{:keys [^String line ^long end-col] :as _item}]
+  (when-some [after-text (not-empty (string/trimr (subs line end-col)))]
+    (doto (Label. after-text)
+      (HBox/setHgrow Priority/ALWAYS))))
 
-(defn- make-matched-item-graphic [{:keys [resource ^long row before match after] :as _item}]
-  (let [icon (workspace/resource-icon resource)
-        children (ui/node-array
-                   (filter some?
-                           [(jfx/get-image-view icon 16)
-                            (make-matched-item-row-indicator row)
-                            (some-> before not-empty make-matched-item-before-text)
-                            (make-matched-item-match-text match)
-                            (some-> after not-empty make-matched-item-after-text)]))]
+(defn- make-matched-item-graphic [item]
+  (let [children (ui/node-array
+                   (keep #(% item)
+                         [make-matched-item-icon
+                          make-matched-item-row-indicator
+                          make-matched-item-before-text
+                          make-matched-item-match-text
+                          make-matched-item-after-text]))]
     (doto (HBox. children)
       (.setPrefWidth 0.0)
       (.setAlignment Pos/CENTER_LEFT))))
@@ -147,10 +155,15 @@
                 (if (satisfies? resource/Resource item)
                   (when (resource/exists? item)
                     [item {}])
-                  (let [{:keys [caret-position resource ^long row]} item]
+                  (let [resource (:resource item)]
                     (when (resource/exists? resource)
-                      [resource {:caret-position caret-position
-                                 :line (inc row)}])))))
+                      ;; NOTE: :line and :caret-position are here to support
+                      ;; Open in External Editor and Open as Text, respectively.
+                      ;; :row, :start-col and :end-col are used by the code editor.
+                      (let [opts (-> item
+                                     (select-keys [:row :start-col :end-col :caret-position])
+                                     (assoc :line (inc (:row item))))]
+                        [resource opts]))))))
         selection))
 
 (def ^:private search-in-files-term-prefs-key "search-in-files-term")

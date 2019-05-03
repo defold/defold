@@ -72,8 +72,8 @@
 (defn- consumer-consumed [consumer-atom]
   (-> consumer-atom deref :consumed))
 
-(defn- match->trimmed-text [{:keys [before match after] :as _match}]
-  (string/trim (str before match after)))
+(defn- match->trimmed-text [{:keys [line] :as _match}]
+  (string/trim line))
 
 (defn- matched-text-by-proj-path [consumed]
   (mapv (fn [{:keys [resource matches]}]
