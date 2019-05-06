@@ -6,26 +6,17 @@
   (:require [clojure.java.io :as io]
             [clojure.walk :refer [walk]]))
 
-(declare ^:private translate)
-
-(defn- translate-map
-  [java-map]
-  (->> java-map
-       (reduce (fn [m e] (assoc m (keyword (key e)) (val e))) {})
-       (walk translate identity)))
-
-(defn- translate-list
-  [java-list]
-  (->> java-list
-       (into [])
-       (walk translate identity)))
-
 (defn- translate
   [x]
-  (condp instance? x
-    Map (translate-map x)
-    List (translate-list x)
-    x))
+  (let [wlk (partial walk translate identity)
+        f (condp instance? x
+            ;; Turn maps into clojure maps and change keys to keywords, recurse
+            Map #(wlk (reduce (fn [m e] (assoc m (keyword (key e)) (val e))) {} %))
+            ;; Turn lists into clojure vectors, recurse
+            List #(wlk (into [] %))
+            ;; Other values we leave as is.
+            identity)]
+    (f x)))
 
 (defn- new-loader
   ^Load []
