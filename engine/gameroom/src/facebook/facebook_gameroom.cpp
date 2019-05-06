@@ -1,8 +1,9 @@
 #include <dlib/log.h>
 #include <script/script.h>
-#include <gameroom/gameroom.h>
+//#include <gameroom/gameroom.h>
 #include <extension/extension.h>
 
+#include "../gameroom.h"
 #include "facebook_private.h"
 #include "facebook_analytics.h"
 
