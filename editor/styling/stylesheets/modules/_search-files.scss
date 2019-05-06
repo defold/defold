@@ -1,12 +1,28 @@
-#search-files {
+#search-in-files-dialog {
     .text-input {
         &:focused {
             -fx-background-color: $dark-black-light;
         }
     }
+}
 
-    // Only show the orange selection highlight while the tree view has input focus.
-    #resources-tree {
+.search-results-view {
+    .tree-view {
+        .tree-cell {
+            -fx-pref-width: 0;
+            -fx-text-overrun: ellipsis;
+            Label {
+                &.row {
+                    -fx-opacity: 0.5;
+                    -fx-padding: 0.0 0.0 0.0 4.0;
+                }
+                &.matched {
+                    -fx-text-fill: $defold-light-blue;
+                }
+            }
+        }
+
+        // Only show the orange selection highlight while the tree view has input focus.
         .tree-cell {
             &:filled {
                 &:selected {
