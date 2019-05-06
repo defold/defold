@@ -1286,6 +1286,13 @@
                (suggestions-shown? view-node))
       (show-suggestions! view-node))))
 
+(defn toggle-comment! [view-node]
+  (set-properties! view-node nil
+                   (data/toggle-comment (get-property view-node :lines)
+                                        (get-property view-node :regions)
+                                        (get-property view-node :cursor-ranges)
+                                        (:line-comment (get-property view-node :grammar)))))
+
 (defn select-all! [view-node]
   (hide-suggestions! view-node)
   (set-properties! view-node :selection
@@ -1646,6 +1653,11 @@
 
 (handler/defhandler :delete :code-view
   (run [view-node] (delete! view-node :delete-after)))
+
+(handler/defhandler :toggle-comment :code-view
+  (active? [view-node evaluation-context]
+           (contains? (get-property view-node :grammar) :line-comment))
+  (run [view-node] (toggle-comment! view-node)))
 
 (handler/defhandler :delete-backward :code-view
   (run [view-node] (delete! view-node :delete-before)))

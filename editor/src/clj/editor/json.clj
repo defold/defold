@@ -20,6 +20,7 @@
    ;; https://github.com/textmate/json.tmbundle/blob/master/Preferences/Miscellaneous.tmPreferences
    :indent {:begin #"^.*(\{[^}]*|\[[^\]]*)$"
             :end #"^\s*[}\]],?\s*$"}
+   :line-comment "//"
    :patterns [{:match #"\b(?:true|false|null)\b"
                :name "constant.language.json"}
               {:match #"(?x)-?(?:0|[1-9]\d*)(?:\n(?:\n\.\d+)?(?:[eE][+-]?\d+)?)?"
