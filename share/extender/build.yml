@@ -100,6 +100,9 @@ platforms:
   x86-osx:
     # Intentionally left empty to allow users to have old versions in their manifests
 
+  ios:
+    # It's here to whitelist this as a platform, currently used for general settings
+
   arm64-ios:
     env:
         PLATFORMSDK_DIR:    "{{env.PLATFORMSDK_DIR}}"
@@ -193,6 +196,9 @@ platforms:
     libCmd: 'ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
 
+  android:
+    # It's here to whitelist this as a platform, currently used for general settings
+
   armv7-android:
     env:
         NDK_PATH:           "{{env.ANDROID_NDK_PATH}}"
@@ -269,6 +275,9 @@ platforms:
     jarCmd: 'jar cf {{outputJar}} -C {{classesDir}} .'
     dxCmd: 'dx -JXms2048m -JXmx2048m --dex --multi-dex --output {{classes_dex_dir}} {{#jars}}{{.}} {{/jars}} {{#engineJars}}{{.}} {{/engineJars}}'
 
+  web:
+    # It's here to whitelist this as a platform, currently used for general settings
+
   js-web:
     env:
         EM_CACHE:        "{{env.EMSCRIPTEN_CACHE_1_38_12}}"
@@ -333,6 +342,9 @@ platforms:
     compileCmd:     '{{env.EMSCRIPTEN_BIN}}/em++ -c -O3 -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o {{tgt}}'
     linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/wasm-web/js/library_{{{.}}}.js {{/engineJsLibs}}'
     libCmd:         '{{env.EMSCRIPTEN_BIN}}/emar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
+
+  win32:
+    # It's here to whitelist this as a platform, currently used for general settings
 
   x86_64-win32:
     env:
