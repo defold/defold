@@ -679,6 +679,20 @@ Task.task_type_from_func('app_bundle',
                          after  = 'cxx_link cc_link static_link')
 
 
+def _strip_executable(bld, platform, target_arch, path):
+    """ Strips the debug symbols from an executable """
+    if platform not in ['x86_64-linux','x86_64-darwin','armv7-darwin','arm64-darwin','armv7-android','arm64-android']:
+        return 0 # return ok, path is still unstripped
+
+    strip = "strip"
+    if 'android' in platform:
+        HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
+        ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
+        build_tool = getAndroidBuildtoolName(target_arch)
+        strip = "%s/android-ndk-r%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_ROOT, ANDROID_NDK_VERSION, build_tool, getAndroidGCCVersion(target_arch), ANDROID_HOST, build_tool)
+
+    return bld.exec_command("%s %s" % (strip, path))
+
 AUTHENTICODE_CERTIFICATE="Midasplayer Technology AB"
 
 def authenticode_certificate_installed(task):
@@ -772,7 +786,6 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
     <application
         android:label="%(app_name)s"
         android:hasCode="true"
-        android:debuggable="true"
         android:name="android.support.multidex.MultiDexApplication">
 
         <!-- For Local Notifications -->
@@ -945,7 +958,6 @@ def android_package(task):
     gen = os.path.join(dme_and, 'gen')
     ap_ = task.ap_.abspath(task.env)
     native_lib = task.native_lib.abspath(task.env)
-    gdbserver = task.gdbserver.abspath(task.env)
 
     bld.exec_command('mkdir -p %s' % (libs))
     bld.exec_command('mkdir -p %s' % (bin))
@@ -954,21 +966,15 @@ def android_package(task):
     bld.exec_command('mkdir -p %s' % (gen))
     bld.exec_command('mkdir -p %s' % (r_java_gen_dir))
     shutil.copy(task.native_lib_in.abspath(task.env), native_lib)
-    if 'arm64' == build_util.get_target_architecture():
-        shutil.copy('%s/android-ndk-r%s/prebuilt/android-arm64/gdbserver/gdbserver' % (ANDROID_ROOT, ANDROID_NDK_VERSION), gdbserver)
-    else:
-        shutil.copy('%s/android-ndk-r%s/prebuilt/android-arm/gdbserver/gdbserver' % (ANDROID_ROOT, ANDROID_NDK_VERSION), gdbserver)
 
     res_args = ""
     for d in res_dirs:
         res_args += ' -S %s' % d
 
-    clspath = ':'.join(task.jars)
-    dx_jars = []
-    for jar in task.jars:
-        dx_jar = os.path.join(dx_libs, os.path.basename(jar))
-        dx_jars.append(jar)
-    dx_jars.append(r_jar)
+    ret = bld.exec_command('%s package -f -m --output-text-symbols %s --auto-add-overlay -M %s -I %s -J %s --generate-dependencies -G %s %s' % (aapt, bin, manifest, android_jar, gen, os.path.join(bin, 'proguard.txt'), res_args))
+    if ret != 0:
+        error('Error running aapt')
+        return 1
 
     if task.extra_packages:
         extra_packages_cmd = '--extra-packages %s' % task.extra_packages[0]
@@ -1000,20 +1006,40 @@ def android_package(task):
         error('Error creating jar of compiled R.java files')
         return 1
 
-    if dx_jars:
-        ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dx_jars)))
-        if ret != 0:
-            error('Error running dx')
-            return 1
+    dx_jars = []
+    for jar in task.jars:
+        dx_jars.append(jar)
+    dx_jars.append(r_jar)
 
-        # We can't use with statement here due to http://bugs.python.org/issue5511
-        from zipfile import ZipFile
-        f = ZipFile(ap_, 'a')
-        f.write(task.classes_dex.abspath(task.env), 'classes.dex')
-        f.close()
+    if getattr(task, 'proguard', None):
+        proguardtxt = task.proguard[0]
+        proguardjar = '%s/android-sdk/tools/proguard/lib/proguard.jar' % ANDROID_ROOT
+        dex_input = ['%s/share/java/classes.jar' % dynamo_home]
+
+        ret = bld.exec_command('%s -jar %s -include %s -libraryjars %s -injars %s -outjar %s' % (task.env['JAVA'][0], proguardjar, proguardtxt, android_jar, ':'.join(dx_jars), dex_input[0]))
+        if ret != 0:
+            error('Error running proguard')
+            return 1
+    else:
+        dex_input = dx_jars
+
+    ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dex_input)))
+    if ret != 0:
+        error('Error running dx')
+        return 1
+
+    with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
+        zip.write(task.classes_dex.abspath(task.env), 'classes.dex')
 
     apk_unaligned = task.apk_unaligned.abspath(task.env)
     libs_dir = task.native_lib.parent.parent.abspath(task.env)
+
+    # strip the executable
+    path = task.native_lib.abspath(task.env)
+    ret = _strip_executable(bld, task.env.PLATFORM, build_util.get_target_architecture(), path)
+    if ret != 0:
+        error('Error stripping file %s' % path)
+        return 1
 
     # add library files
     with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
@@ -1048,7 +1074,7 @@ def android_package(task):
         return 1
 
     with open(task.android_mk.abspath(task.env), 'wb') as f:
-        print >>f, 'APP_ABI := %s' % getAndroidArch(build_util.get_target_architecture)
+        print >>f, 'APP_ABI := %s' % getAndroidArch(build_util.get_target_architecture())
 
     with open(task.application_mk.abspath(task.env), 'wb') as f:
         print >>f, ''
@@ -1103,11 +1129,6 @@ def create_android_package(self):
         native_lib = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/%s" % (exe_name, lib_name))
     android_package_task.native_lib = native_lib
     android_package_task.native_lib_in = self.link_task.outputs[0]
-    if 'arm64' == build_util.get_target_architecture():
-        gdbserver = self.path.exclusive_build_node("%s.android/libs/arm64-v8a/gdbserver" % (exe_name))
-    else:
-        gdbserver = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/gdbserver" % (exe_name))
-    android_package_task.gdbserver = gdbserver
 
     ap_ = self.path.exclusive_build_node("%s.android/%s.ap_" % (exe_name, exe_name))
     android_package_task.ap_ = ap_
@@ -1131,7 +1152,7 @@ def create_android_package(self):
     else:
         android_package_task.gdb_setup = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/gdb.setup" % (exe_name))
 
-    android_package_task.set_outputs([native_lib, manifest, ap_, apk_unaligned, apk, gdbserver,
+    android_package_task.set_outputs([native_lib, manifest, ap_, apk_unaligned, apk,
                                       android_package_task.android_mk, android_package_task.application_mk, android_package_task.gdb_setup])
 
     self.android_package_task = android_package_task
