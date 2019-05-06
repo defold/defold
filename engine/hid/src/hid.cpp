@@ -280,14 +280,14 @@ namespace dmHID
     }
 
 /*
-    bool GetGamepadHat(GamepadPacket* packet, uint32_t hat)
+*/
+    int GetGamepadHat(GamepadPacket* packet, uint32_t hat)
     {
         if (packet != 0x0)
-            return packet->m_Hat[button / 32] & (1 << (button % 32));
+            return packet->m_Hat[hat];
         else
             return false;
     }
-*/
     void SetGamepadAxis(HGamepad gamepad, uint32_t axis, float value)
     {
         if (gamepad != 0x0)

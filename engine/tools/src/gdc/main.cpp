@@ -25,11 +25,14 @@ struct Trigger
     dmInputDDF::GamepadType m_Type;
     uint32_t m_Index;
     bool m_Modifiers[dmInputDDF::MAX_GAMEPAD_MODIFIER_COUNT];
+    uint32_t m_HatMask;
 };
 
 struct Driver
 {
     const char* m_Device;
+    const char* m_DeviceVendor;
+    const char* m_DeviceGUID;
     const char* m_Platform;
     float m_DeadZone;
     Trigger m_Triggers[dmInputDDF::MAX_GAMEPAD_COUNT];
@@ -104,13 +107,20 @@ int main(int argc, char *argv[])
     }
 
     const char* device_name;
+    const char* device_vendor;
+    // const char* device_guid;
+    char device_guid[33];
     dmHID::GetGamepadDeviceName(gamepad, &device_name);
+    dmHID::GetGamepadDeviceVendor(gamepad, &device_vendor);
+    dmHID::GetGamepadDeviceGUID(gamepad, device_guid);
 
     printf("\n%s will be added to %s\n\n", device_name, filename);
 
     Driver driver;
     memset(&driver, 0, sizeof(Driver));
     driver.m_Device = device_name;
+    driver.m_DeviceVendor = device_vendor;
+    driver.m_DeviceGUID = device_guid;
     driver.m_Platform = DM_PLATFORM;
     driver.m_DeadZone = 0.2f;
 
@@ -146,6 +156,7 @@ int main(int argc, char *argv[])
             prev_packet = packet;
         }
     }
+    // for (uint8_t i = 7; i < 7+5; ++i)
     for (uint8_t i = 0; i < dmInputDDF::MAX_GAMEPAD_COUNT; ++i)
     {
         State state = STATE_WAITING;
@@ -180,6 +191,10 @@ int main(int argc, char *argv[])
                             driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_CLAMP] = true;
                         if (delta < 0.0f)
                             driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_NEGATE] = true;
+
+                        if (gamepad_type == dmInputDDF::GAMEPAD_TYPE_HAT) {
+                            driver.m_Triggers[i].m_HatMask = (uint32_t)value;
+                        }
 
                         static const char* gamepad_types[] = {"axis", "button", "hat"};
                         printf("\ttype: %s, index: %d, value: %.2f\n", gamepad_types[gamepad_type], index, value);
@@ -244,7 +259,7 @@ void GetDelta(dmHID::GamepadPacket* prev_packet, dmHID::GamepadPacket* packet, d
             if (index != 0x0)
                 *index = i;
             if (value != 0x0)
-                *value = 1.0f;
+                *value = packet->m_Hat[i];
             if (delta != 0x0)
                 *delta = 1.0f;
         }
@@ -271,17 +286,22 @@ void DumpDriver(FILE* out, Driver* driver)
     fprintf(out, "    device: \"%s\"\n", driver->m_Device);
     fprintf(out, "    platform: \"%s\"\n", driver->m_Platform);
     fprintf(out, "    dead_zone: %.3f\n", driver->m_DeadZone);
+    fprintf(out, "    sdl_guid: \"%s\"\n", driver->m_DeviceGUID);
     for (uint32_t i = 0; i < dmInputDDF::MAX_GAMEPAD_COUNT; ++i)
     {
         fprintf(out, "    map { input: %s type: %s index: %d ",
                 dmInputDDF_Gamepad_DESCRIPTOR.m_EnumValues[i].m_Name,
                 dmInputDDF_GamepadType_DESCRIPTOR.m_EnumValues[driver->m_Triggers[i].m_Type].m_Name,
                 driver->m_Triggers[i].m_Index);
+        if (driver->m_Triggers[i].m_Type == dmInputDDF::GAMEPAD_TYPE_HAT) {
+            fprintf(out, "hat_mask: %d ", driver->m_Triggers[i].m_HatMask);
+        }
         for (uint32_t j = 0; j < dmInputDDF::MAX_GAMEPAD_MODIFIER_COUNT; ++j)
         {
             if (driver->m_Triggers[i].m_Modifiers[j])
                 fprintf(out, "mod { mod: %s } ", dmInputDDF_GamepadModifier_DESCRIPTOR.m_EnumValues[j].m_Name);
         }
+
         fprintf(out, "}\n");
     }
     fprintf(out, "}\n");

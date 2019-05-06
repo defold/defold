@@ -206,13 +206,14 @@ typedef unsigned char   GLubyte;
 
 #define GLFW_HAT_CENTERED       0
 #define GLFW_HAT_UP             1
-#define GLFW_HAT_RIGHTUP        2
-#define GLFW_HAT_RIGHT          3
-#define GLFW_HAT_RIGHTDOWN      4
-#define GLFW_HAT_DOWN           5
-#define GLFW_HAT_LEFTDOWN       6
-#define GLFW_HAT_LEFT           7
-#define GLFW_HAT_LEFTUP         8
+#define GLFW_HAT_RIGHT          2
+#define GLFW_HAT_DOWN           4
+#define GLFW_HAT_LEFT           8
+
+#define GLFW_HAT_RIGHTUP        (GLFW_HAT_RIGHT | GLFW_HAT_UP)
+#define GLFW_HAT_RIGHTDOWN      (GLFW_HAT_RIGHT | GLFW_HAT_DOWN)
+#define GLFW_HAT_LEFTDOWN       (GLFW_HAT_LEFT | GLFW_HAT_DOWN)
+#define GLFW_HAT_LEFTUP         (GLFW_HAT_LEFT | GLFW_HAT_UP)
 
 /* Keyboard key definitions: 8-bit ISO-8859-1 (Latin 1) encoding is used
  * for printable keys (such as A-Z, 0-9 etc), and values above 256
@@ -524,6 +525,8 @@ GLFWAPI int GLFWAPIENTRY glfwGetJoystickPos( int joy, float *pos, int numaxes );
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickButtons( int joy, unsigned char *buttons, int numbuttons );
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickHats( int joy, unsigned char *hats, int numhats );
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickDeviceId( int joy, char** device_id );
+GLFWAPI int GLFWAPIENTRY glfwGetJoystickDeviceVendor( int joy, char** vendor_id );
+GLFWAPI int GLFWAPIENTRY glfwGetJoystickDeviceGUID( int joy, char guid[33] );
 
 /* Time */
 GLFWAPI double GLFWAPIENTRY glfwGetTime( void );

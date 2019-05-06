@@ -29,7 +29,7 @@ namespace dmHID
     /// Maximum number of gamepad axis supported
     const static uint32_t MAX_GAMEPAD_AXIS_COUNT = 32;
     /// Maximum number of gamepad buttons supported
-    const static uint32_t MAX_GAMEPAD_BUTTON_COUNT = 32;
+    const static uint32_t MAX_GAMEPAD_BUTTON_COUNT = 256;
     /// Maximum number of gamepad hats supported
     const static uint32_t MAX_GAMEPAD_HAT_COUNT = 8;
 
@@ -375,6 +375,9 @@ namespace dmHID
      * @param a pointer to the device name, or 0x0 if not specified
      */
     void GetGamepadDeviceName(HGamepad gamepad, const char** out_device_name);
+    void GetGamepadDeviceVendor(HGamepad gamepad, const char** out_device_vendor);
+    // void GetGamepadDeviceGUID(HGamepad gamepad, const char** out_guid);
+    void GetGamepadDeviceGUID(HGamepad gamepad, char guid[33]);
 
     /**
      * Check if a keyboard is connected.
@@ -574,6 +577,8 @@ namespace dmHID
      * @return If the button was pressed or not
      */
     bool GetGamepadButton(GamepadPacket* packet, uint32_t button);
+
+    int GetGamepadHat(GamepadPacket* packet, uint32_t hat);
 
     /**
      * Sets the state of a gamepad button.

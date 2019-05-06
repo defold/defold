@@ -210,14 +210,16 @@ message GamepadMapEntry
     required GamepadType type = 2;
     required uint32 index = 3;
     repeated GamepadModifier_t mod = 4;
+    optional uint32 hat_mask = 5;
 }
 
 message GamepadMap
 {
-    required string device = 1;
+    optional string device = 1;
     required string platform = 2;
     required float dead_zone = 3;
     repeated GamepadMapEntry map = 4;
+    optional string sdl_guid = 5;
 }
 
 message GamepadMaps

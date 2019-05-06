@@ -209,6 +209,16 @@ namespace dmHID
         glfwGetJoystickDeviceId(gamepad->m_Index, (char**)device_name);
     }
 
+    void GetGamepadDeviceVendor(HGamepad gamepad, const char** device_vendor)
+    {
+        glfwGetJoystickDeviceVendor(gamepad->m_Index, (char**)device_vendor);
+    }
+
+    void GetGamepadDeviceGUID(HGamepad gamepad, char guid[33])
+    {
+        glfwGetJoystickDeviceGUID(gamepad->m_Index, guid);
+    }
+
     void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)
     {
         int t = GLFW_KEYBOARD_DEFAULT;

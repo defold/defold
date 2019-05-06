@@ -1,8 +1,14 @@
 driver
 {
-    device: "Wireless Controller"
+    device: "PS4 Dualshock"
+    sdl_guid: "030000004c050000c405000000010000"
     platform: "osx"
     dead_zone: 0.200
+
+    map { input: GAMEPAD_LPAD_LEFT type: GAMEPAD_TYPE_HAT index: 0 hat_mask: 8 }
+    map { input: GAMEPAD_LPAD_RIGHT type: GAMEPAD_TYPE_HAT index: 0 hat_mask: 2 }
+    map { input: GAMEPAD_LPAD_DOWN type: GAMEPAD_TYPE_HAT index: 0 hat_mask: 4 }
+    map { input: GAMEPAD_LPAD_UP type: GAMEPAD_TYPE_HAT index: 0 hat_mask: 1 }
 
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
     map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }

@@ -67,6 +67,11 @@ namespace dmHID
         *device_name = "null_device";
     }
 
+    void GetGamepadDeviceGUID(HGamepad gamepad, char guid[33])
+    {
+        guid[0] = 0x0;
+    }
+
     void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)
     {
     }
