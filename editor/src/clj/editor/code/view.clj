@@ -1656,7 +1656,7 @@
 
 (handler/defhandler :toggle-comment :code-view
   (active? [view-node evaluation-context]
-           (contains? (get-property view-node :grammar) :line-comment))
+           (contains? (get-property view-node :grammar evaluation-context) :line-comment))
   (run [view-node] (toggle-comment! view-node)))
 
 (handler/defhandler :delete-backward :code-view
