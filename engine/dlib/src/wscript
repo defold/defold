@@ -18,6 +18,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/atomic.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/condition_variable.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/dns.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/easing.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
@@ -181,14 +182,24 @@ def build(bld):
         dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
         dlib_noasan.source.remove(os.path.join('dlib', 'socket_null.cpp'))
 
+    if 'web' in bld.env['PLATFORM']:
+        dlib.source.remove(os.path.join('dlib', 'dns.cpp'))
+        dlib_noasan.source.remove(os.path.join('dlib', 'dns.cpp'))
+    else:
+        dlib.source.remove(os.path.join('dlib', 'dns_null.cpp'))
+        dlib_noasan.source.remove(os.path.join('dlib', 'dns_null.cpp'))
+
     if bld.env['PLATFORM'] != 'as3-web':
+        uselib = ['UUID', 'PLATFORM_SOCKET', 'CARES']
+
         dlib = bld.new_task_gen(features = 'cc cxx cshlib skip_asan',
                                 includes = '.',
                                 add_objects = local_objs,
                                 uselib_local = 'axtls_noasan',
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
-                                uselib = 'UUID PLATFORM_SOCKET')
+                                uselib = uselib)
+
         dlib.find_sources_in_dirs(source_dirs)
         dlib.source.extend(webp_source_no_neon)
         if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or 'web' in bld.env.PLATFORM):
@@ -199,6 +210,11 @@ def build(bld):
             dlib.source.remove(os.path.join('dlib','socket.cpp'))
         else:
             dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
+
+        if 'web' in bld.env['PLATFORM']:
+            dlib.source.remove(os.path.join('dlib', 'dns.cpp'))
+        else:
+            dlib.source.remove(os.path.join('dlib', 'dns_null.cpp'))
 
     if 'win32' not in bld.env['PLATFORM'] and bld.env['PLATFORM'] != 'as3-web':
         dlib = bld.new_task_gen(features = 'cc cxx cshlib',

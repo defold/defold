@@ -13,6 +13,7 @@ if not 'DYNAMO_HOME' in os.environ:
     sys.exit(1)
 
 HOME=os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
+# Also defined in build.py _strip_engine
 ANDROID_ROOT=os.path.join(HOME, 'android')
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='10e'
@@ -970,7 +971,7 @@ def android_package(task):
     else:
         extra_packages_cmd = ''
 
-    ret = bld.exec_command('%s package --no-crunch -f %s -m --debug-mode --auto-add-overlay -M %s -I %s -J %s %s -F %s' % (aapt, extra_packages_cmd, manifest, android_jar, r_java_gen_dir, res_args, ap_))
+    ret = bld.exec_command('%s package -f %s -m --debug-mode --auto-add-overlay -M %s -I %s -J %s %s -F %s' % (aapt, extra_packages_cmd, manifest, android_jar, r_java_gen_dir, res_args, ap_))
     if ret != 0:
         error('Error running aapt')
         return 1
@@ -1703,6 +1704,12 @@ def detect(conf):
             conf.env['LUA_BYTECODE_ENABLE_64'] = 'yes'
         else:
             conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
+
+    conf.env['STATICLIB_CARES'] = []
+    if platform != 'web':
+        conf.env['STATICLIB_CARES'].append('cares')
+    if platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
+        conf.env['STATICLIB_CARES'].append('resolv')
 
 def configure(conf):
     detect(conf)
