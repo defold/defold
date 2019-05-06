@@ -1,7 +1,9 @@
 (ns editor.search-results-view
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.core :as core]
             [editor.defold-project-search :as project-search]
+            [editor.jfx :as jfx]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -9,32 +11,17 @@
   (:import [java.util Collection]
            [javafx.animation AnimationTimer]
            [javafx.event Event]
+           [javafx.geometry Pos]
            [javafx.scene Parent Scene]
-           [javafx.scene.control CheckBox ProgressIndicator SelectionMode TabPane TextField TreeItem TreeView]
+           [javafx.scene.control CheckBox Label ProgressIndicator SelectionMode TextField TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.scene.layout AnchorPane]
+           [javafx.scene.layout AnchorPane HBox Priority]
            [javafx.stage StageStyle]))
 
 (set! *warn-on-reflection* true)
 
-(defrecord MatchContextResource [parent-resource line caret-position match]
-  resource/Resource
-  (children [_this]      [])
-  (ext [_this]           (resource/ext parent-resource))
-  (resource-name [_this] (format "%d: %s" (inc line) match))
-  (resource-type [_this] (resource/resource-type parent-resource))
-  (source-type [_this]   (resource/source-type parent-resource))
-  (exists? [_this]       (resource/exists? parent-resource))
-  (read-only? [_this]    (resource/read-only? parent-resource))
-  (path [_this]          (resource/path parent-resource))
-  (abs-path [_this]      (resource/abs-path parent-resource))
-  (proj-path [_this]     (resource/proj-path parent-resource))
-  (workspace [_this]     (resource/workspace parent-resource))
-  (resource-hash [_this] (resource/resource-hash parent-resource))
-  (openable? [_this]     (resource/openable? parent-resource)))
-
-(defn- make-match-tree-item [resource {:keys [line caret-position match]}]
-  (TreeItem. (->MatchContextResource resource line caret-position match)))
+(defn- make-match-tree-item [resource match]
+  (TreeItem. (assoc match :resource resource)))
 
 (defn- make-result-tree-item [search-result]
   (let [{:keys [resource matches]} search-result
@@ -92,20 +79,55 @@
     (ui/timer-start! timer)
     timer))
 
+(defn- make-matched-item-row-indicator
+  ^Label [^long row]
+  (doto (Label. (str (inc row) ": "))
+    (ui/add-style! "row")
+    (.setMinWidth Label/USE_PREF_SIZE)))
+
+(defn- make-matched-item-before-text
+  ^Label [^String before]
+  (doto (Label. (string/triml before))
+    (HBox/setHgrow Priority/ALWAYS)
+    (.setPrefWidth Label/USE_COMPUTED_SIZE)))
+
+(defn- make-matched-item-match-text
+  ^Label [^String match]
+  (doto (Label. match)
+    (ui/add-style! "matched")
+    (.setMinWidth Label/USE_PREF_SIZE)))
+
+(defn- make-matched-item-after-text
+  ^Label [^String after]
+  (doto (Label. (string/trimr after))
+    (HBox/setHgrow Priority/ALWAYS)))
+
+(defn- make-matched-item-graphic [{:keys [resource ^long row before match after] :as _item}]
+  (let [icon (workspace/resource-icon resource)
+        children (ui/node-array
+                   (filter some?
+                           [(jfx/get-image-view icon 16)
+                            (make-matched-item-row-indicator row)
+                            (some-> before not-empty make-matched-item-before-text)
+                            (make-matched-item-match-text match)
+                            (some-> after not-empty make-matched-item-after-text)]))]
+    (doto (HBox. children)
+      (.setPrefWidth 0.0)
+      (.setAlignment Pos/CENTER_LEFT))))
+
 (defn- init-search-in-files-tree-view! [^TreeView tree-view]
   (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
   (.setShowRoot tree-view false)
   (.setRoot tree-view (doto (TreeItem.)
                         (.setExpanded true)))
   (ui/cell-factory! tree-view
-                    (fn [r]
-                      (if (instance? MatchContextResource r)
-                        {:text (resource/resource-name r)
-                         :icon (workspace/resource-icon r)
-                         :style (resource/style-classes r)}
-                        {:text (resource/proj-path r)
-                         :icon (workspace/resource-icon r)
-                         :style (resource/style-classes r)}))))
+                    (fn [item]
+                      (if (satisfies? resource/Resource item)
+                        {:text (resource/proj-path item)
+                         :icon (workspace/resource-icon item)
+                         :style (resource/style-classes item)}
+                        {:graphic (make-matched-item-graphic item)
+                         :style (resource/style-classes (:resource item))}))))
 
 (defn- make-search-in-files-tree-view
   ^TreeView []
@@ -121,15 +143,14 @@
 
 (defn- resolve-search-in-files-tree-view-selection [selection]
   (into []
-        (comp (filter resource/exists?)
-              (keep (fn [resource]
-                      (cond
-                        (instance? MatchContextResource resource)
-                        [(:parent-resource resource) {:caret-position (:caret-position resource)
-                                                      :line (inc (:line resource))}]
-
-                        :else
-                        [resource {}]))))
+        (keep (fn [item]
+                (if (satisfies? resource/Resource item)
+                  (when (resource/exists? item)
+                    [item {}])
+                  (let [{:keys [caret-position resource ^long row]} item]
+                    (when (resource/exists? resource)
+                      [resource {:caret-position caret-position
+                                 :line (inc row)}])))))
         selection))
 
 (def ^:private search-in-files-term-prefs-key "search-in-files-term")

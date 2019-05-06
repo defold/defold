@@ -54,11 +54,11 @@
           (keep (fn [{:keys [line row pos]}]
                   (let [matcher (re-matcher pattern line)]
                     (when (.matches matcher)
-                      {:line row
+                      {:row row
                        :caret-position pos
-                       :match (str (apply str (take-last 24 (string/triml (.group matcher 1))))
-                                   (.group matcher 2)
-                                   (apply str (take 24 (string/trimr (.group matcher 3)))))}))))
+                       :before (.group matcher 1)
+                       :match (.group matcher 2)
+                       :after (.group matcher 3)}))))
           lines)))
 
 (defn- save-data-sort-key [entry]
