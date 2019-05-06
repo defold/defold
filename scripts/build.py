@@ -184,6 +184,7 @@ class Configuration(object):
                  skip_docs = False,
                  skip_builtins = False,
                  skip_bob_light = False,
+                 upload_metrics = False,
                  disable_ccache = False,
                  no_colors = False,
                  archive_path = None,
@@ -221,6 +222,7 @@ class Configuration(object):
         self.skip_docs = skip_docs
         self.skip_builtins = skip_builtins
         self.skip_bob_light = skip_bob_light
+        self.upload_metrics = upload_metrics
         self.disable_ccache = disable_ccache
         self.no_colors = no_colors
         self.archive_path = archive_path
@@ -674,6 +676,37 @@ class Configuration(object):
     def build_builtins(self):
         with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'wb') as f:
             self._ziptree(join(self.dynamo_home, 'content', 'builtins'), outfile = f, directory = join(self.dynamo_home, 'content'))
+
+    def build_and_upload_metrics(self):
+        metrics = {}
+
+        def get_file_size_safe(from_path):
+            sz = -1
+            if os.path.isfile(from_path):
+                try:
+                    sz = os.path.getsize(from_path)
+                except:
+                    pass
+            return sz
+
+        dynamo_home = self.dynamo_home
+        bin_dir = self.build_utility.get_binary_path()
+        lib_dir = self.target_platform
+
+        for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
+            for engine_name in format_exes(n, self.target_platform):
+                metrics[engine_name] = get_file_size_safe(join(dynamo_home,bin_dir,engine_name))
+
+        metrics_f_name  = "metrics.json"
+        metrics_str     = json.dumps(metrics, indent=2)
+        metrics_tmp_out = join(bin_dir,metrics_f_name)
+
+        with open(metrics_tmp_out, 'wb') as f:
+            f.write(metrics_str)
+
+        full_archive_path = join(self.archive_path, self._git_sha1(), 'engine', self.target_platform).replace('\\', '/')
+        metrics_cdn_path  = join(full_archive_path, metrics_f_name)
+        self.upload_file(metrics_tmp_out, metrics_cdn_path)
 
     def _strip_engine(self, path):
         """ Strips the debug symbols from an executable """
@@ -2125,6 +2158,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'No color output. Default is color output')
 
+    parser.add_option('--upload-metrics', dest='upload_metrics',
+                      action = 'store_true',
+                      default = False,
+                      help = 'Generates build metrics and uploads to s3')
+
     default_archive_path = CDN_UPLOAD_URL
     parser.add_option('--archive-path', dest='archive_path',
                       default = default_archive_path,
@@ -2178,6 +2216,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       skip_docs = options.skip_docs,
                       skip_builtins = options.skip_builtins,
                       skip_bob_light = options.skip_bob_light,
+                      upload_metrics = options.upload_metrics,
                       disable_ccache = options.disable_ccache,
                       no_colors = options.no_colors,
                       archive_path = options.archive_path,
