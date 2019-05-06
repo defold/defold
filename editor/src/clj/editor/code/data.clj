@@ -1503,15 +1503,15 @@
                           (case (::sticky cursor)
                             :left
                             (let [^Cursor left-edge (.start splice-info)]
-                              (assoc cursor :col (.col left-edge) :row (.-row left-edge)))
+                              (assoc cursor :col (.col left-edge) :row (.row left-edge)))
 
                             :right
-                            (let [right-edge (offset-cursor-on-row
-                                               (.end splice-info)
-                                               (col-affected-row splice-info)
-                                               (row-offset splice-info)
-                                               (col-offset splice-info))]
-                              (assoc cursor :col (.col right-edge) :row (.-row right-edge)))
+                            (let [^Cursor right-edge (offset-cursor-on-row
+                                                       (.end splice-info)
+                                                       (col-affected-row splice-info)
+                                                       (row-offset splice-info)
+                                                       (col-offset splice-info))]
+                              (assoc cursor :col (.col right-edge) :row (.row right-edge)))
 
                             nil)))
 
