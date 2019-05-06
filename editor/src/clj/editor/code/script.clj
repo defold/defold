@@ -29,6 +29,7 @@
    ;; https://github.com/textmate/lua.tmbundle/blob/master/Preferences/Indent.tmPreferences
    :indent {:begin #"^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b)[^\"'])*)|(\{\s*))$"
             :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
+   :line-comment "--"
    :patterns [{:captures {1 {:name "keyword.control.lua"}
                           2 {:name "entity.name.function.scope.lua"}
                           3 {:name "entity.name.function.lua"}

@@ -66,9 +66,17 @@
       (compare col (.col ^Cursor other))
       (compare-extra-cursor-fields this other))))
 
-(defmethod print-method Cursor [^Cursor c, ^Writer w]
-  (.write w (pr-str (merge {:Cursor [(.row c) (.col c)]}
-                           (dissoc c :row :col)))))
+(defn- cursor-print-data [^Cursor c]
+  (into [(.-row c) (.-col c)]
+        (mapcat identity)
+        (dissoc c :row :col)))
+
+(defmethod print-method Cursor [c, ^Writer w]
+  (.write w "#code/cursor")
+  (print-method (cursor-print-data c) w))
+
+(defn read-cursor [[row col & {:as kvs}]]
+  (map->Cursor (assoc kvs :row row :col col)))
 
 (defn compare-cursor-position
   ^long [^Cursor a ^Cursor b]
@@ -98,11 +106,15 @@
       (compare-extra-cursor-range-fields this other))))
 
 (defmethod print-method CursorRange [^CursorRange cr, ^Writer w]
-  (let [^Cursor from (.from cr)
-        ^Cursor to (.to cr)]
-    (.write w (pr-str (merge {:CursorRange [[(.row from) (.col from)]
-                                            [(.row to) (.col to)]]}
-                             (dissoc cr :from :to))))))
+  (.write w "#code/range")
+  (print-method (into [(cursor-print-data (.-from cr))
+                       (cursor-print-data (.-to cr))]
+                      (mapcat identity)
+                      (dissoc cr :from :to))
+                w))
+
+(defn read-cursor-range [[from to & {:as kvs}]]
+  (map->CursorRange (assoc kvs :from (read-cursor from) :to (read-cursor to))))
 
 (def document-start-cursor (->Cursor 0 0))
 (def document-start-cursor-range (->CursorRange document-start-cursor document-start-cursor))
@@ -1464,7 +1476,9 @@
           (cond
             (let [start-comparison (compare-cursor-position cursor (.start splice-info))]
               (or (neg? start-comparison)
-                  (and (= :start (:order cursor)) (zero? start-comparison))))
+                  (and (zero? start-comparison)
+                       (= :start (:order cursor))
+                       (nil? (::sticky cursor)))))
             ;; The cursor is before the splice start.
             ;; Apply accumulated offset to the cursor and move on to the next cursor.
             (recur prev-splice-info
@@ -1479,12 +1493,27 @@
 
             (neg? (compare-cursor-position cursor (.end splice-info)))
             ;; The cursor is inside the splice.
-            ;; Append a nil cursor to flag the range for removal and move on to the next cursor.
+            ;; Append a nil cursor to flag the range for removal and move on to the next cursor,
+            ;; or push cursor outside of range if it asked so.
             (recur prev-splice-info
                    splice-info
                    rest-splices
                    (next cursors)
-                   (conj! spliced-cursors nil))
+                   (conj! spliced-cursors
+                          (case (::sticky cursor)
+                            :left
+                            (let [^Cursor left-edge (.start splice-info)]
+                              (assoc cursor :col (.col left-edge) :row (.-row left-edge)))
+
+                            :right
+                            (let [right-edge (offset-cursor-on-row
+                                               (.end splice-info)
+                                               (col-affected-row splice-info)
+                                               (row-offset splice-info)
+                                               (col-offset splice-info))]
+                              (assoc cursor :col (.col right-edge) :row (.-row right-edge)))
+
+                            nil)))
 
             :else
             ;; The cursor is after the splice end.
@@ -1520,7 +1549,7 @@
 
 (defn- splice [lines regions ascending-cursor-ranges-and-replacements]
   ;; Cursor ranges are assumed to be adjusted to lines, and in ascending order.
-  ;; The output cursor ranges will also confirm to these rules. Note that some
+  ;; The output cursor ranges will also conform to these rules. Note that some
   ;; cursor ranges might have been merged by the splice.
   (when-not (empty? ascending-cursor-ranges-and-replacements)
     (let [invalidated-row (.row (cursor-range-start (ffirst ascending-cursor-ranges-and-replacements)))
@@ -2672,3 +2701,65 @@
                                            :prev (find-brace-counterpart brace counterpart lines (.from brace-cursor-range) -1)
                                            :next (find-brace-counterpart brace counterpart lines (.to brace-cursor-range) 1))]
       (util/pair brace-cursor-range counterpart-cursor-range))))
+
+(defn- every-line-commented? [lines row+line-starts comment-string]
+  (every? (fn [[^long row line-start]]
+            (string/starts-with? (subs (lines row) line-start) comment-string))
+          row+line-starts))
+
+(defn- cursor-range-region? [x]
+  (-> x meta ::cursor))
+
+(defn- min-long-by [f coll]
+  (reduce #(min %1 (f %2)) Long/MAX_VALUE coll))
+
+(defn- add-comment-regions+replacements [comment-string row+line-starts]
+  (let [smallest-common-line-start (min-long-by second row+line-starts)]
+    (mapv (fn [[row]]
+            [(Cursor->CursorRange (->Cursor row smallest-common-line-start))
+             [(str comment-string \space)]])
+          row+line-starts)))
+
+(defn- remove-comment-regions+replacements [comment-string lines row+line-starts]
+  (let [smallest-common-whitespace-after-comment
+        (min-long-by
+          (fn [[row line-start]]
+            (let [line-after-comment (subs (lines row) (+ line-start (count comment-string)))]
+              (->> line-after-comment
+                   (take-while #(Character/isWhitespace ^char %))
+                   (count))))
+          row+line-starts)]
+    (mapv (fn [[row line-start]]
+            [(->CursorRange (->Cursor row line-start)
+                            (->Cursor row (+ line-start
+                                             (count comment-string)
+                                             smallest-common-whitespace-after-comment)))
+             [""]])
+          row+line-starts)))
+
+(defn toggle-comment [lines regions cursor-ranges comment-string]
+  (let [rows (cursor-ranges->rows lines cursor-ranges)
+        all-regions (vec (sort (into regions
+                                     (map #(-> %
+                                               (assoc-in [:from ::sticky] :right)
+                                               (assoc-in [:to ::sticky] :right)
+                                               (with-meta {::cursor true})))
+                                     cursor-ranges)))
+        row+line-starts (mapv (fn [row]
+                                [row (text-start lines row)])
+                              rows)
+        ret (splice lines
+                    all-regions
+                    (if (every-line-commented? lines row+line-starts comment-string)
+                      (remove-comment-regions+replacements comment-string lines row+line-starts)
+                      (add-comment-regions+replacements comment-string row+line-starts)))
+        new-regions (:regions ret all-regions)]
+    (-> ret
+        (assoc :regions (filterv (complement cursor-range-region?) new-regions)
+               :cursor-ranges (into []
+                                    (comp
+                                      (filter cursor-range-region?)
+                                      (map #(-> %
+                                                (update :from dissoc ::sticky)
+                                                (update :to dissoc ::sticky))))
+                                    new-regions)))))
