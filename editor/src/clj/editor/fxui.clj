@@ -49,7 +49,7 @@
 
 (defn mount-renderer-and-await-result!
   "Mounts `renderer` and blocks current thread until `state-atom`'s value
-  receives has a `:result` key"
+  receives has a `::result` key"
   [state-atom renderer]
   (let [event-loop-key (Object.)
         result-promise (promise)]
@@ -60,7 +60,7 @@
             (Platform/exitNestedEventLoop event-loop-key result)))))
     (add-watch state-atom event-loop-key
                (fn [k r _ n]
-                 (let [result (:result n ::no-result)]
+                 (let [result (::result n ::no-result)]
                    (when-not (= result ::no-result)
                      (deliver result-promise result)
                      (remove-watch r k)))))
@@ -68,7 +68,7 @@
     (Platform/enterNestedEventLoop event-loop-key)))
 
 (defn dialog-showing? [props]
-  (not (contains? props :result)))
+  (not (contains? props ::result)))
 
 (defn show-dialog-and-await-result!
   "Creates a dialog, shows it and block current thread until dialog has a result
