@@ -68,7 +68,7 @@
 
 (defn- cursor-print-data [^Cursor c]
   (into [(.-row c) (.-col c)]
-        (mapcat identity)
+        cat
         (dissoc c :row :col)))
 
 (defmethod print-method Cursor [c, ^Writer w]
@@ -109,7 +109,7 @@
   (.write w "#code/range")
   (print-method (into [(cursor-print-data (.-from cr))
                        (cursor-print-data (.-to cr))]
-                      (mapcat identity)
+                      cat
                       (dissoc cr :from :to))
                 w))
 
@@ -1494,7 +1494,9 @@
             (neg? (compare-cursor-position cursor (.end splice-info)))
             ;; The cursor is inside the splice.
             ;; Append a nil cursor to flag the range for removal and move on to the next cursor,
-            ;; or push cursor outside of range if it asked so.
+            ;; or push cursor outside of range if it is sticky, e.g. has ::sticky set to either:
+            ;; - :left (will move cursor to the left of splice)
+            ;; - :right (will move cursor to the right of splice)
             (recur prev-splice-info
                    splice-info
                    rest-splices
@@ -2702,16 +2704,27 @@
                                            :next (find-brace-counterpart brace counterpart lines (.to brace-cursor-range) 1))]
       (util/pair brace-cursor-range counterpart-cursor-range))))
 
-(defn- every-line-commented? [lines row+line-starts comment-string]
+(defn- line-empty? [line line-start]
+  (= line-start (count line)))
+
+(defn- line-commented? [line line-start comment-string]
+  (= line-start (string/index-of line comment-string line-start)))
+
+(defn- every-line-commented-or-empty? [lines row+line-starts comment-string]
   (every? (fn [[^long row line-start]]
-            (string/starts-with? (subs (lines row) line-start) comment-string))
+            (let [line (lines row)]
+              (or (line-empty? line line-start)
+                  (line-commented? line line-start comment-string))))
           row+line-starts))
 
-(defn- cursor-range-region? [x]
-  (-> x meta ::cursor))
+(defn- at-least-one-line-commented? [lines row+line-starts comment-string]
+  (some (fn [[^long row line-start]]
+          (line-commented? (lines row) line-start comment-string))
+        row+line-starts))
 
-(defn- min-long-by [f coll]
-  (reduce #(min %1 (f %2)) Long/MAX_VALUE coll))
+(defn- min-long-by
+  ^long [f coll]
+  (reduce #(min ^long %1 ^long (f %2)) Long/MAX_VALUE coll))
 
 (defn- add-comment-regions+replacements [comment-string row+line-starts]
   (let [smallest-common-line-start (min-long-by second row+line-starts)]
@@ -2721,20 +2734,27 @@
           row+line-starts)))
 
 (defn- remove-comment-regions+replacements [comment-string lines row+line-starts]
-  (let [smallest-common-whitespace-after-comment
+  (let [comment-length (count comment-string)
+        smallest-common-whitespace-after-comment
         (min-long-by
-          (fn [[row line-start]]
-            (let [line-after-comment (subs (lines row) (+ line-start (count comment-string)))]
-              (->> line-after-comment
-                   (take-while #(Character/isWhitespace ^char %))
-                   (count))))
+          (fn [[row ^long line-start]]
+            (let [line (lines row)]
+              (if (line-empty? line line-start)
+                Long/MAX_VALUE
+                (let [line-after-comment (subs line (+ line-start comment-length))]
+                  (->> line-after-comment
+                       (take-while #(Character/isWhitespace ^char %))
+                       (count))))))
           row+line-starts)]
-    (mapv (fn [[row line-start]]
-            [(->CursorRange (->Cursor row line-start)
-                            (->Cursor row (+ line-start
-                                             (count comment-string)
-                                             smallest-common-whitespace-after-comment)))
-             [""]])
+    (into []
+          (keep
+            (fn [[row ^long line-start]]
+              (when-not (line-empty? (lines row) line-start)
+                [(->CursorRange (->Cursor row line-start)
+                                (->Cursor row (+ line-start
+                                                 comment-length
+                                                 smallest-common-whitespace-after-comment)))
+                 [""]])))
           row+line-starts)))
 
 (defn toggle-comment [lines regions cursor-ranges comment-string]
@@ -2743,23 +2763,24 @@
                                      (map #(-> %
                                                (assoc-in [:from ::sticky] :right)
                                                (assoc-in [:to ::sticky] :right)
-                                               (with-meta {::cursor true})))
+                                               (assoc ::cursor true)))
                                      cursor-ranges)))
         row+line-starts (mapv (fn [row]
                                 [row (text-start lines row)])
                               rows)
         ret (splice lines
                     all-regions
-                    (if (every-line-commented? lines row+line-starts comment-string)
+                    (if (and (every-line-commented-or-empty? lines row+line-starts comment-string)
+                             (at-least-one-line-commented? lines row+line-starts comment-string))
                       (remove-comment-regions+replacements comment-string lines row+line-starts)
                       (add-comment-regions+replacements comment-string row+line-starts)))
         new-regions (:regions ret all-regions)]
-    (-> ret
-        (assoc :regions (filterv (complement cursor-range-region?) new-regions)
+    (assoc ret :regions (filterv (complement ::cursor) new-regions)
                :cursor-ranges (into []
                                     (comp
-                                      (filter cursor-range-region?)
+                                      (filter ::cursor)
                                       (map #(-> %
                                                 (update :from dissoc ::sticky)
-                                                (update :to dissoc ::sticky))))
-                                    new-regions)))))
+                                                (update :to dissoc ::sticky)
+                                                (dissoc ::cursor))))
+                                    new-regions))))

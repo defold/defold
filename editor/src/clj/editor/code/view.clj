@@ -2085,6 +2085,7 @@
                  {:command :replace-text               :label "Replace..."}
                  {:command :replace-next               :label "Replace Next"}
                  {:label :separator}
+                 {:command :toggle-comment             :label "Toggle Comment"}
                  {:command :reindent                   :label "Reindent Lines"}
 
                  {:label "Convert Indentation"
@@ -2098,7 +2099,6 @@
                               :command :convert-indentation
                               :user-data :four-spaces}]}
 
-                 {:command :toggle-comment             :label "Toggle Comment"}
                  {:label :separator}
                  {:command :sort-lines                 :label "Sort Lines"}
                  {:command :sort-lines-case-sensitive  :label "Sort Lines (Case Sensitive)"}
