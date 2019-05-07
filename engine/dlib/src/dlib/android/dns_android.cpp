@@ -25,7 +25,7 @@ namespace dmDNS
 
         if (jni_connectivity_manager)
         {
-            ares_library_init_android(jni_connectivity_manager);
+            result = ares_library_init_android(jni_connectivity_manager) == RESULT_OK;
         }
         else
         {

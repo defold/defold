@@ -170,17 +170,17 @@ namespace dmDNS
 
     Result Initialize()
     {
+        if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS)
+        {
+            return RESULT_INIT_ERROR;
+        }
+
     #if defined(ANDROID)
         if (!InitializeAndroid())
         {
             return RESULT_INIT_ERROR;
         }
     #endif
-
-        if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS)
-        {
-            return RESULT_INIT_ERROR;
-        }
 
         return RESULT_OK;
     }
