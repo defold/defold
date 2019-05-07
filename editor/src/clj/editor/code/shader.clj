@@ -18,6 +18,7 @@
    :scope-name "source.glsl"
    :indent {:begin #"^.*\{[^}\"\']*$|^.*\([^\)\"\']*$|^\s*\{\}$"
             :end #"^\s*(\s*/[*].*[*]/\s*)*\}|^\s*(\s*/[*].*[*]/\s*)*\)"}
+   :line-comment "//"
    :patterns [{:captures {1 {:name "storage.type.glsl"}
                           2 {:name "entity.name.function.glsl"}}
                :match #"^([a-zA-Z_][\w\s]*)\s+([a-zA-Z_]\w*)(?=\s*\()"
