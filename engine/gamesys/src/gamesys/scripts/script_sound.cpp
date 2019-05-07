@@ -497,4 +497,9 @@ namespace dmGameSystem
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
     }
+
+    void ScriptSoundOnWindowFocus(bool focus)
+    {
+        dmSound::OnWindowFocus(focus);
+    }
 }
