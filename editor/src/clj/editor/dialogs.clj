@@ -105,7 +105,7 @@
                :footer {:fx/type dialog-buttons
                         :children button-descs}
                :on-close-request {:result (:result (some #(when (:cancel-button %) %) buttons))})
-        (dissoc :buttons :icon :result)
+        (dissoc :buttons :icon ::fxui/result)
         (update :header (fn [header]
                           (let [header-desc (confirmation-dialog-header->fx-desc header)]
                             (if (= icon ::no-icon)
@@ -137,7 +137,7 @@
   [props]
   (fxui/show-dialog-and-await-result!
     :event-handler (fn [state event]
-                     (assoc state :result (:result event)))
+                     (assoc state ::fxui/result (:result event)))
     :description (assoc props :fx/type confirmation-dialog)))
 
 (defn- info-dialog-text-area [props]
@@ -187,7 +187,7 @@
   (let [width-valid (digit-string? width-text)
         height-valid (digit-string? height-text)]
     {:fx/type dialog-stage
-     :showing (not (contains? props :result))
+     :showing (fxui/dialog-showing? props)
      :on-close-request {:event-type :cancel}
      :title "Set Custom Resolution"
      :size :small
@@ -231,9 +231,9 @@
                      (case event-type
                        :set-width (assoc state :width-text event)
                        :set-height (assoc state :height-text event)
-                       :cancel (assoc state :result nil)
-                       :confirm (assoc state :result {:width (field-expression/to-int (:width-text state))
-                                                      :height (field-expression/to-int (:height-text state))})))
+                       :cancel (assoc state ::fxui/result nil)
+                       :confirm (assoc state ::fxui/result {:width (field-expression/to-int (:width-text state))
+                                                            :height (field-expression/to-int (:height-text state))})))
     :description {:fx/type fx-resolution-dialog}))
 
 (defn make-update-failed-dialog [^Stage owner]
@@ -351,7 +351,7 @@
 (defn make-unexpected-error-dialog [ex-map sentry-id-promise]
   (when (fxui/show-dialog-and-await-result!
           :event-handler (fn [state event]
-                           (assoc state :result (:result event)))
+                           (assoc state ::fxui/result (:result event)))
           :description {:fx/type unexpected-error-dialog-fx
                         :ex-map ex-map})
     (let [sentry-id (deref sentry-id-promise 100 nil)
@@ -675,8 +675,8 @@
     :event-handler (fn [state {:keys [fx/event event-type]}]
                      (case event-type
                        :set-ip (assoc state :ip event)
-                       :cancel (assoc state :result nil)
-                       :confirm (assoc state :result (:ip state))))
+                       :cancel (assoc state ::fxui/result nil)
+                       :confirm (assoc state ::fxui/result (:ip state))))
     :description {:fx/type target-ip-dialog-fx
                   :msg (or msg "Enter Target IP Address")}))
 
