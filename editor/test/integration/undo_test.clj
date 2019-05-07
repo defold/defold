@@ -106,7 +106,7 @@
 
        ;; delete the component
        (g/transact
-         [(g/operation-label "delete node")
+         [(g/operation-label "Delete Component")
           (g/delete-node component)])
 
        ;; force :outline to be cached
@@ -137,6 +137,46 @@
 
          ;; :outline should be re-produced yet again
          (is (= outline-without-component (remove-fns (g/node-value outline-id :outline)))))))))
+
+(deftest temp-explain-problem-test
+  (test-util/with-loaded-project
+    (test-util/open-tab! project app-view "/switcher/test.go")
+    (let [proj-graph (g/node-id->graph-id project)
+          view-graph (g/node-id->graph-id app-view)
+          go-node    (test-util/resource-node project "/switcher/test.go")
+          outline-id (g/make-node! view-graph OutlineViewSimulator :counter (atom 0))
+          component  (add-component! project go-node (fn [node-ids] (app-view/select app-view node-ids)))
+          print-selection! (fn []
+                             (println "selection:")
+                             (let [selection-node (g/node-value app-view :selection-node)
+                                   sources (g/sources-of selection-node :all-selected-node-ids)]
+                               (doseq [[node-id label] sources
+                                       :let [exists? (some? (g/node-by-id node-id))]]
+                                 (println "  " node-id label
+                                          (if exists?
+                                            (:k (g/node-type* node-id))
+                                            "DELETED")))))]
+
+      (g/transact (g/connect go-node :node-outline outline-id :outline))
+
+      (g/reset-undo! proj-graph "Open Project")
+      (println "before delete")
+      (print-selection!)
+
+      ;; delete the component
+      (g/transact
+        [(g/operation-label "Delete Component")
+         (g/delete-node component)])
+
+      (println "after delete")
+      (print-selection!)
+
+      (println "undo!")
+      (g/undo! proj-graph)
+      (println "redo!")
+      (g/redo! proj-graph)
+
+      (comment "A connection still exists for the deleted node because the node existed when hydrate-after-undo was called from rewind-history."))))
 
 (defn- child-count [outline-id]
   (count (:children (g/node-value outline-id :outline))))

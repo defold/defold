@@ -1007,25 +1007,42 @@
 
 (defn- valid-arc-from-graph? [basis graph-id ^Arc arc]
   (let [source-node-id (.source-id arc)]
+    (println "valid-arc" source-node-id (arc-source-label arc)
+             (= graph-id (gt/node-id->graph-id source-node-id))
+             (if-some [node (gt/node-by-id-at basis source-node-id)]
+               (pr-str node)
+               "DELETED"))
     (and (= graph-id (gt/node-id->graph-id source-node-id))
          (some? (gt/node-by-id-at basis source-node-id)))))
 
-(defn hydrate-after-undo [basis graph-state]
+(defn hydrate-after-undo [basis graph-id]
+  (println "hydrate-after-undo")
   ;; NOTE: This was originally written in a simpler way. This longer-form
   ;; implementation is optimized in order to solve performance issues in graphs
   ;; with a large number of connections.
   (assert (gt/basis? basis))
-  (assert (graph? graph-state))
-  (let [graph-id (:_graph-id graph-state)
-        graphs (:graphs basis)
+  (assert (gt/graph-id? graph-id))
+  (let [graphs (:graphs basis)
+        graph (graphs graph-id)
         other-graphs (dissoc graphs graph-id)
-        old-sarcs (get graph-state :sarcs)
+        old-sarcs (get graph :sarcs)
+        arc-from-graph? #(= graph-id (gt/node-id->graph-id (arc-source-id %)))
         arc-to-graph? #(= graph-id (gt/node-id->graph-id (.target-id ^Arc %)))
-        valid-arc-from-graph? (partial valid-arc-from-graph? basis graph-id)
+        arc-valid? (comp some? (partial gt/node-by-id-at basis) arc-source-id)
+
+        (comment only keep valid-external-arcs in new-sarcs, but still
+                 invalidate invalid external arcs. Also remove invalid arcs from other graphs)
 
         ;; Create a sarcs-like map structure containing just the Arcs that
         ;; connect nodes in our graph to nodes in other graphs. Use the tarcs
         ;; from the other graphs as the source of truth.
+        external-arcs (sequence
+                        (comp (mapcat :tarcs)
+                              (mapcat val)
+                              (mapcat val)
+                              (filter arc-from-graph?))
+                        (vals other-graphs))
+
         external-sarcs (into {}
                              (map (juxt key (comp (partial group-by arc-source-label) val)))
                              (group-by arc-source-id
@@ -1033,7 +1050,7 @@
                                              (comp (mapcat :tarcs)
                                                    (mapcat val)
                                                    (mapcat val)
-                                                   (filter valid-arc-from-graph?))
+                                                   (filter arc-from-graph?))
                                              (vals other-graphs))))
 
         ;; Remove any sarcs that previously connected nodes in our graph to
@@ -1065,7 +1082,7 @@
                                                       (transient (get new-sarcs source-id {}))
                                                       external-arcs-by-source-label))))
                                internal-sarcs
-                               external-sarcs))
+                               valid-external-sarcs))
 
         ;; We must refresh all outputs for which an Arc was introduced. In
         ;; addition to being invalidated, we will update successors for these
@@ -1085,7 +1102,7 @@
                                                   (keys external-arcs-by-source-label)))))
                                  external-sarcs)]
 
-    {:basis (update basis :graphs assoc graph-id (assoc graph-state :sarcs new-sarcs))
+    {:basis (assoc-in basis [:graphs graph-id :sarcs] new-sarcs)
      :outputs-to-refresh outputs-to-refresh}))
 
 (defn- input-deps [basis node-id]

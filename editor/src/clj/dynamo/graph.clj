@@ -1311,6 +1311,7 @@
         (and (some? pre-alteration-context)
              (gt/restore-history-context! history-context-controller pre-alteration-context))]
     (when-not drastic-view-change?
+      (println "altering system...")
       (swap! *the-system* is/alter-history graph-id
              (fn [system basis history]
                (let [alterations {history-entry-index undo-group}

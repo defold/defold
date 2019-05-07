@@ -70,6 +70,12 @@
          (vector? transaction-steps)]}
   (->HistoryEntry undo-group label sequence-label context-before context-after graph-after outputs-modified transaction-steps))
 
+(defn- history-graph-id
+  ^long [history]
+  (let [^HistoryEntry history-entry (peek history)
+        graph (.graph-after history-entry)]
+    (:_graph-id graph)))
+
 (defn- history-sequence-label [history]
   (let [^HistoryEntry history-entry (peek history)]
     (when (zero? (.undo-group history-entry))
@@ -112,18 +118,26 @@
                                                             history)]
             {history-entry-index 0}))))))
 
+(defn- finalize [{:keys [basis history outputs-to-refresh] :as altered-things}]
+  (let [graph-id (history-graph-id history)
+        {hydrated-basis :basis hydrated-outputs :outputs-to-refresh} (ig/hydrate-after-undo basis graph-id)
+        finalized-outputs (into outputs-to-refresh hydrated-outputs)
+        invalidated-labels-by-node-id (util/group-into {} #{} first second finalized-outputs)
+        finalized-basis (ig/update-successors hydrated-basis invalidated-labels-by-node-id)]
+    (assoc altered-things
+      :basis finalized-basis
+      :outputs-to-refresh finalized-outputs)))
+
 (defn- rewind-history [history basis history-entry-index]
   (let [rewound-history-end-index (inc history-entry-index)
         rewound-history (into [] (subvec history 0 rewound-history-end-index))
         rewound-graph (:graph-after (peek rewound-history))
-        rewound-outputs (transduce (map :outputs-modified) set/union (subvec history rewound-history-end-index))
-        {hydrated-basis :basis hydrated-outputs :outputs-to-refresh} (ig/hydrate-after-undo basis rewound-graph)
-        outputs-to-refresh (into rewound-outputs hydrated-outputs)
-        invalidated-labels-by-node-id (util/group-into {} #{} first second outputs-to-refresh)
-        rewound-basis (ig/update-successors hydrated-basis invalidated-labels-by-node-id)]
+        rewound-graph-id (:_graph-id rewound-graph)
+        rewound-basis (assoc-in basis [:graphs rewound-graph-id] rewound-graph)
+        rewound-outputs (transduce (map :outputs-modified) set/union (subvec history rewound-history-end-index))]
     {:basis rewound-basis
      :history rewound-history
-     :outputs-to-refresh outputs-to-refresh}))
+     :outputs-to-refresh rewound-outputs}))
 
 (defn- replay-history [rewound-history rewound-basis history undo-group-by-history-entry-index node-id-generators override-id-generator]
   (loop [altered-basis rewound-basis
@@ -244,17 +258,21 @@
           {altered-basis :basis
            altered-history :history
            altered-outputs :outputs-to-refresh} (replay-history rewound-history rewound-basis history undo-group-by-history-entry-index node-id-generators override-id-generator)]
-      {:basis altered-basis
-       :context-after (:context-after (history max-history-entry-index))
-       :context-before (:context-before (history min-history-entry-index))
-       :history altered-history
-       :outputs-to-refresh (set/union rewound-outputs altered-outputs)})))
+      (finalize
+        {:basis altered-basis
+         :context-after (:context-after (history max-history-entry-index))
+         :context-before (:context-before (history min-history-entry-index))
+         :history altered-history
+         :outputs-to-refresh (set/union rewound-outputs altered-outputs)}))))
 
 (defn reset [history basis history-entry-index]
   (let [{:keys [context-after context-before]} (history history-entry-index)]
-    (assoc (rewind-history history basis history-entry-index)
-      :context-after context-after
-      :context-before context-before)))
+    (-> history
+        (rewind-history basis history-entry-index)
+        (assoc
+          :context-after context-after
+          :context-before context-before)
+        finalize)))
 
 (defn cancel [history basis sequence-label]
   (assert (some? sequence-label))

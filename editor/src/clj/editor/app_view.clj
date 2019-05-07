@@ -208,6 +208,22 @@
 (defn- set-selection-from-history-context! [app-view resource-node history-context]
   (let [transaction-steps
         (g/with-auto-evaluation-context evaluation-context
+
+          (let [basis (:basis evaluation-context)
+                selection-node (g/node-value app-view :selection-node evaluation-context)
+                new-selection (:selection history-context)
+                sources (g/sources-of basis selection-node :all-selected-node-ids)]
+
+            (println "app-view/set-selection-from-history-context!")
+            (println "current")
+            (doseq [[node-id label] sources
+                    :let [exists? (some? (g/node-by-id basis node-id))]]
+              (println "  " node-id label
+                       (if exists?
+                         (:k (g/node-type* basis node-id))
+                         "DELETED")))
+            (println "desired" new-selection))
+
           (let [selection-node (g/node-value app-view :selection-node evaluation-context)
                 new-selection (:selection history-context)
                 old-sub-selection (selection/sub-selected evaluation-context selection-node resource-node)
