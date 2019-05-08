@@ -19,7 +19,7 @@
   {:private true}
   :type)
 
-(defn- ns-name
+(defn- name-with-ns
   [ns name]
   (str ns \. name))
 
@@ -29,7 +29,7 @@
 
 (defmethod convert "ENUM"
   [{:keys [ns name desc]}]
-  (let [name (ns-name ns name)]
+  (let [name (name-with-ns ns name)]
     {:type :variable
      :name name
      :doc desc
@@ -56,7 +56,7 @@
 
 (defmethod convert "FUNCTION"
   [{:keys [ns name desc parameters]}]
-  (let [name (ns-name ns name)]
+  (let [name (name-with-ns ns name)]
     {:type :function
      :name name
      :doc desc
@@ -64,30 +64,20 @@
      :insert-string (str name (build-param-string parameters true))
      :tab-triggers {:select (param-names parameters true) :exit (when parameters ")")}}))
 
-(defn invalid-yaml-error [node-id resource]
-  (g/->error node-id nil :fatal nil
-             (format "The file '%s' contains invalid YAML data." (resource/proj-path resource))
-             {:type :invalid-content :resource resource}))
-
-(g/defnode ScriptApi
-  (inherits r/CodeEditorResourceNode)
-  (property content-transform g/Any (dynamic visible (g/constantly false)))
-  (input consumer-passthrough g/Any)
-  (output consumer-passthrough g/Any (gu/passthrough consumer-passthrough))
-  (output content g/Any (g/fnk [_node-id content-transform lines resource]
-                          (try
-                            (content-transform (convert (yp/load (data/lines-reader lines) keyword)))
-                            (catch Exception _
-                              (invalid-yaml-error _node-id resource))))))
-
-(defn load-script-api
+(defn- load-script-api
   [project self resource]
   (let [content (slurp resource)
         lines (util/split-lines content)]
-    (concat
-      (g/set-property self :content-transform identity :editable? true :modified-indent-type (r/guess-indent-type lines))
-      (when (resource/file-resource? resource)
-        (g/connect self :save-data project :save-data)))))
+    (try
+      (let [completion-info (reduce merge (mapv convert (yp/load content keyword)))]
+        ;; TODO(mags): Put the completion info into the completion-brain-node here!
+        ;; Options:
+        ;; 1. Put the completion info in a property in this node and connect a cached output of that to the brain.
+        ;; 2. Store the completion info in the brain itself. Don't know what to do with updates of files in this case.
+        (println "COMPLETION INFO:" completion-info))
+      (catch Exception _))
+    (when (resource/file-resource? resource)
+      (g/connect self :save-data project :save-data))))
 
 (defn register-resource-types
   [workspace]
@@ -96,12 +86,13 @@
                                     :label "Script API"
                                     :icon "icons/32/Icons_29-AT-Unknown.png"
                                     :view-types [:code :default]
-                                    :view-opts nil ;; TODO
-                                    :node-type ScriptApi
+                                    :view-opts nil
+                                    :node-type r/CodeEditorResourceNode
                                     :load-fn load-script-api
                                     :read-fn r/read-fn
                                     :write-fn r/write-fn
                                     :textual? true
                                     :auto-connect-save-data? false))
+
 
 
