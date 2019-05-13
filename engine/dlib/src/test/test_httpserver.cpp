@@ -20,6 +20,7 @@ class dmHttpServerTest: public jc_test_base_class
 {
 public:
     dmHttpServer::HServer m_Server;
+    dmDNS::HChannel m_DNSChannel;
     std::map<std::string, std::string> m_Headers;
 
     int m_Major, m_Minor;
@@ -146,14 +147,17 @@ public:
         params.m_Userdata = this;
         params.m_HttpHeader = dmHttpServerTest::HttpHeader;
         params.m_HttpResponse = dmHttpServerTest::HttpResponse;
-        dmHttpServer::Result r = dmHttpServer::New(&params, 8500, &m_Server);
-        ASSERT_EQ(dmHttpServer::RESULT_OK, r);
+        dmHttpServer::Result result_server = dmHttpServer::New(&params, 8500, &m_Server);
+        dmDNS::Result result_dns = dmDNS::NewChannel(&m_DNSChannel);
+        ASSERT_EQ(dmHttpServer::RESULT_OK, result_server);
+        ASSERT_EQ(dmDNS::RESULT_OK, result_dns);
     }
 
     virtual void TearDown()
     {
         if (m_Server)
             dmHttpServer::Delete(m_Server);
+        dmDNS::DeleteChannel(m_DNSChannel);
     }
 };
 
@@ -292,6 +296,7 @@ TEST_F(dmHttpServerTest, TestServerClient)
     dmHttpClient::NewParams client_params;
     client_params.m_HttpContent = &ClientHttpContent;
     client_params.m_Userdata = this;
+    client_params.m_DNSChannel = m_DNSChannel;
     dmHttpClient::HClient client = dmHttpClient::New(&client_params, DM_LOOPBACK_ADDRESS_IPV4, 8500);
 
     dmHttpClient::Result r;
@@ -329,8 +334,10 @@ TEST_F(dmHttpServerTest, TestServerClient)
 int main(int argc, char **argv)
 {
     dmSocket::Initialize();
+    dmDNS::Initialize();
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
+    dmDNS::Finalize();
     dmSocket::Finalize();
     return ret;
 }

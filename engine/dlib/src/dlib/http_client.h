@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <dlib/socket.h>
 #include <dlib/http_cache.h>
+#include <dlib/dns.h>
 
 namespace dmHttpClient
 {
@@ -123,6 +124,9 @@ namespace dmHttpClient
         /// HTTP-cache. Default value 0. Set to a http-cache to enable http-caching
         dmHttpCache::HCache m_HttpCache;
 
+        /// DNS-Channel.
+        dmDNS::HChannel m_DNSChannel;
+
         NewParams()
         {
             SetDefaultParams(this);
@@ -236,6 +240,13 @@ namespace dmHttpClient
      * @return dmHttpCache::HCache handle
      */
     dmHttpCache::HCache GetHttpCache(HClient client);
+
+    /**
+     * Get the DNS channel associated with this client
+     * @param client client
+     * @return dmDNS::HChannel handle
+     */
+    dmDNS::HChannel GetDNSChannel(HClient client);
 
     /**
      * Delete HTTP client

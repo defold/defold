@@ -9,6 +9,7 @@ public enum Platform {
     Armv7Darwin("armv7", "darwin", "", "", "lib", ".so"),
     Arm64Darwin("arm64", "darwin", "", "", "lib", ".so"),
     Armv7Android("armv7", "android", ".so", "lib", "lib", ".so"),
+    Arm64Android("arm64", "android", ".so", "lib", "lib", ".so"),
     JsWeb("js", "web", ".js", "", "lib", "");
 
     String arch, os;

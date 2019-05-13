@@ -96,6 +96,8 @@
                                      :library-paths #{"ios" "arm64-ios"}}
    (.getPair Platform/Armv7Android) {:platform      "armv7-android"
                                      :library-paths #{"android" "armv7-android"}}
+   (.getPair Platform/Arm64Android) {:platform      "arm64-android"
+                                     :library-paths #{"android" "arm64-android"}}
    (.getPair Platform/JsWeb)        {:platform      "js-web"
                                      :library-paths #{"web" "js-web"}}
    (.getPair Platform/X86Win32)     {:platform      "x86-win32"
