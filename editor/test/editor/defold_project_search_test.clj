@@ -110,14 +110,14 @@
     (is (true? (consumer-stopped? consumer)))))
 
 (deftest compile-find-in-files-regex-test
-  (is (= "(?i)^(.*)(\\Qfoo\\E)(.*)$" (str (project-search/compile-find-in-files-regex "foo"))))
+  (is (= "(?i)\\Qfoo\\E" (str (project-search/compile-find-in-files-regex "foo"))))
   (testing "* is handled correctly"
-    (is (= "(?i)^(.*)(\\Qfoo\\E.*\\Qbar\\E)(.*)$" (str (project-search/compile-find-in-files-regex "foo*bar")))))
+    (is (= "(?i)\\Qfoo\\E.*\\Qbar\\E" (str (project-search/compile-find-in-files-regex "foo*bar")))))
   (testing "other wildcard chars are quoted"
-    (is (= "(?i)^(.*)(\\Qfoo\\E.*\\Qbar[]().$^\\E)(.*)$" (str (project-search/compile-find-in-files-regex "foo*bar[]().$^")))))
+    (is (= "(?i)\\Qfoo\\E.*\\Qbar[]().$^\\E" (str (project-search/compile-find-in-files-regex "foo*bar[]().$^")))))
   (testing "case insensitive search strings"
     (let [pattern (project-search/compile-find-in-files-regex "fOoO")]
-      (is (= "fooo" (first (re-matches pattern "fooo")))))))
+      (is (= "fooo" (re-matches pattern "fooo"))))))
 
 (deftest make-file-resource-save-data-future-test
   (test-util/with-loaded-project search-project-path
@@ -201,7 +201,7 @@
                               (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
                               (-> consumer consumer-consumed matched-text-by-proj-path))]
         (are [expected-count exts]
-            (= expected-count (count (perform-search! search-string exts)))
+          (= expected-count (count (perform-search! search-string exts)))
           1 "g"
           1 "go"
           1 ".go"
