@@ -3,6 +3,7 @@
             [editor.console :as console]))
 
 (def ^:private line-sub-regions-pattern (var-get #'console/line-sub-regions-pattern))
+(def ^:private line-sub-regions-pattern-partial (var-get #'console/line-sub-regions-pattern-partial))
 
 (deftest line-sub-regions-pattern-test
   (are [line matches]
@@ -42,6 +43,12 @@
     "\"/dir/main.lua\""    ["/dir/main.lua" nil]
     "\"/dir/main.lua:12\"" ["/dir/main.lua" "12"]))
 
+(deftest line-sub-regions-partial-pattern-test
+  (are [line matches]
+    (= matches (next (re-find line-sub-regions-pattern-partial line)))
+
+    "ERROR:SCRIPT: e_name_is_quite_long_how_will_you_deal_with_that_huh.script:2: attempt to call field 'balooba' (a nil value)" ["e_name_is_quite_long_how_will_you_deal_with_that_huh.script" "2"]))
+
 (defn- on-region-click! [_region]
   nil)
 
@@ -56,7 +63,8 @@
 
 (def ^:private resource-map {"/main.lua" 100
                              "/dir/main.lua" 200
-                             "/module.lua" 300})
+                             "/module.lua" 300
+                             "/main/yes_this_is_untitled_and_the_file_name_is_quite_long_how_will_you_deal_with_that_huh.script" 400})
 
 (defn- append-entries [props entries]
   (#'console/append-entries props entries resource-map on-region-click!))

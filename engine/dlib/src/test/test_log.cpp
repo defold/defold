@@ -38,6 +38,7 @@ static void LogThread(void* arg)
     delete[] s;
 }
 
+#if !defined(__EMSCRIPTEN__)
 TEST(dmLog, Client)
 {
     char buf[256];
@@ -75,6 +76,7 @@ TEST(dmLog, Client)
     dmThread::Join(log_thread);
     dmLogFinalize();
 }
+#endif
 
 TEST(dmLog, LogFile)
 {
