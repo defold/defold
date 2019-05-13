@@ -1,4 +1,5 @@
 #include "dns.h"
+#include "dns_private.h"
 #include "socket.h"
 
 #include "time.h"
@@ -169,12 +170,19 @@ namespace dmDNS
 
     Result Initialize()
     {
-        if (ares_library_init(ARES_LIB_INIT_ALL) == ARES_SUCCESS)
+        if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS)
         {
-            return RESULT_OK;
+            return RESULT_INIT_ERROR;
         }
 
-        return  RESULT_INIT_ERROR;
+    #if defined(ANDROID)
+        if (!InitializeAndroid())
+        {
+            return RESULT_INIT_ERROR;
+        }
+    #endif
+
+        return RESULT_OK;
     }
 
     Result Finalize()
@@ -266,10 +274,12 @@ namespace dmDNS
             else if (ipv6)
                 want_family = AF_INET6;
 
+            // Note: SOCK_STREAM TCP hint doesn't do anything. To force TCP transport, set the ARES_FLAG_USEVC
+            //       in the flags for ares when initializing the channel.
             ares_addrinfo hints;
             memset(&hints, 0x0, sizeof(hints));
             hints.ai_family   = want_family;
-            hints.ai_socktype = SOCK_STREAM; // Note: TCP hint not supported
+            hints.ai_socktype = SOCK_STREAM;
 
             ares_getaddrinfo(dns_channel->m_Handle, name, NULL, &hints, ares_addrinfo_callback, (void*)&req);
         }
