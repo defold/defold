@@ -838,11 +838,7 @@ class Configuration(object):
             host = self.host
         if host == 'darwin':
             host = 'x86_64-darwin'
-        # There is a dependency between 32-bit python and the ctypes lib produced in dlib (something goes wrong when compiling .proto files)
-        if host == 'x86_64-darwin' and self.target_platform != 'darwin':
-            self._build_engine_lib(args, 'dlib', 'darwin', skip_tests = True)
-        if host == 'x86_64-win32' and self.target_platform != 'win32':
-            self._build_engine_lib(args, 'dlib', 'win32', skip_tests = True)
+
         # Make sure we build these for the host platform
         for lib in ['dlib', 'texc']:
             skip_tests = host != self.target_platform
