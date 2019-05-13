@@ -46,19 +46,22 @@
   (let [clean-str (->> (string/split search-str #"\*")
                        (map #(Pattern/quote %))
                        (string/join ".*"))]
-    (re-pattern (str "(?i)^(.*)(" clean-str ")(.*)$"))))
+    (re-pattern (str "(?i)" clean-str))))
 
 (defn- find-matches [pattern save-data]
   (when-some [lines (line-coll save-data)]
     (into []
-          (keep (fn [{:keys [line row pos]}]
-                  (let [matcher (re-matcher pattern line)]
-                    (when (.matches matcher)
-                      {:line line
-                       :row row
-                       :start-col (.start matcher 2)
-                       :end-col (.end matcher 2)
-                       :caret-position pos}))))
+          (mapcat (fn [{:keys [line row pos]}]
+                    (let [matcher (re-matcher pattern line)]
+                      (loop [matches (transient [])]
+                        (if-not (.find matcher)
+                          (persistent! matches)
+                          (recur (conj! matches
+                                        {:line line
+                                         :row row
+                                         :start-col (.start matcher)
+                                         :end-col (.end matcher)
+                                         :caret-position pos})))))))
           lines)))
 
 (defn- save-data-sort-key [entry]
@@ -92,7 +95,8 @@
 (defn- resource-matches-file-ext? [resource file-ext-pats]
   (or (empty? file-ext-pats)
       (let [ext (resource/type-ext resource)]
-        (some #(re-matches % ext) file-ext-pats))))
+        (some #(.find (re-matcher % ext))
+              file-ext-pats))))
 
 (defn- start-search-thread [report-error! file-resource-save-data-future term exts include-libraries? produce-fn]
   (future
