@@ -83,6 +83,27 @@ public class ManifestMergeToolTest {
 
         createFile(contentRoot, "builtins/manifests/android/AndroidManifest.xml", androidManifest);
 
+        String html5Manifest = ""
+                + "<!DOCTYPE html>"
+                + "<html>"
+                + "<body>"
+                + " <script id='engine-loader' type='text/javascript' src=\"dmloader.js\"></script>"
+                + " <script id='engine-setup' type='text/javascript'>"
+                + " function load_engine() {"
+                + "     var engineJS = document.createElement('script');"
+                + "     engineJS.type = 'text/javascript';"
+                + "     engineJS.src = '{{exe-name}}_wasm.js';"
+                + "     document.head.appendChild(engineJS);"
+                + " }"
+                + " </script>"
+                + " <script id='engine-start' type='text/javascript'>"
+                + "     load_engine();"
+                + " </script>"
+                + "</body>"
+                + "</html>";
+
+        createFile(contentRoot, "builtins/manifests/web/engine_template.html", html5Manifest);
+
         if (platform == Platform.Armv7Android) {
             this.target = new File(contentRoot, "builtins/manifests/android/AndroidManifestMerged.xml");
             this.main = new File(contentRoot, "builtins/manifests/android/AndroidManifest.xml");
@@ -93,12 +114,17 @@ public class ManifestMergeToolTest {
             this.main = new File(contentRoot, "builtins/manifests/ios/Info.plist");
             this.libraries = new ArrayList<File>();
             this.libraries.add(new File(contentRoot, "builtins/manifests/ios/InfoLib.plist"));
+        } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
+            this.target = new File(contentRoot, "builtins/manifests/web/engine_template_merged.html");
+            this.main = new File(contentRoot, "builtins/manifests/web/engine_template.html");
+            this.libraries = new ArrayList<File>();
+            this.libraries.add(new File(contentRoot, "builtins/manifests/web/engine_template_lib.html"));
         }
     }
 
     @Parameters
     public static Collection<Platform[]> data() {
-        Platform[][] data = new Platform[][] { {Platform.Armv7Android}, {Platform.Armv7Darwin}};
+        Platform[][] data = new Platform[][] { {Platform.Armv7Android}, {Platform.Arm64Android}, {Platform.Armv7Darwin}, {Platform.Arm64Darwin}, {Platform.JsWeb}, {Platform.WasmWeb}};
         return Arrays.asList(data);
     }
 
@@ -182,7 +208,6 @@ public class ManifestMergeToolTest {
 
 
         createFile(contentRoot, "builtins/manifests/android/AndroidManifestExpected.xml", expected);
-
 
         ManifestMergeTool.merge(ManifestMergeTool.Platform.ANDROID, this.main, this.target, this.libraries);
 
@@ -289,7 +314,6 @@ public class ManifestMergeToolTest {
 
         createFile(contentRoot, "builtins/manifests/ios/InfoExpected.plist", expected);
 
-
         ManifestMergeTool.merge(ManifestMergeTool.Platform.IOS, this.main, this.target, this.libraries);
 
         String merged = readFile(target);
@@ -322,5 +346,45 @@ public class ManifestMergeToolTest {
         } catch (RuntimeException e) {
             assertTrue(true);
         }
+    }
+
+    @Test
+    public void testMergeHTML5() throws IOException {
+        if (platform != Platform.JsWeb) {
+            return;
+        }
+
+        createDefaultFiles();
+
+        String libManifest = ""
+                + "<html>"
+                + "<body>"
+                + " <script id='engine-loader' type='text/javascript' src=\"mydmloader.js\"></script>"
+                + " <script id='engine-start' type='text/javascript' merge='keep'>"
+                + "     my_load_engine();"
+                + " </script>"
+                + "</body>"
+                + "</html>";
+
+        createFile(contentRoot, "builtins/manifests/web/engine_template_lib.html", libManifest);
+
+        String expected = ""
+            + "<!doctype html>\n"
+            + "<html>\n"
+            + " <head></head>\n"
+            + " <body> \n"
+            + "  <script id=\"engine-loader\" type=\"text/javascript\" src=\"mydmloader.js\"></script> \n"
+            + "  <script id=\"engine-setup\" type=\"text/javascript\"> function load_engine() {     var engineJS = document.createElement('script');     engineJS.type = 'text/javascript';     engineJS.src = '{{exe-name}}_wasm.js';     document.head.appendChild(engineJS); } </script> \n"
+            + "  <script id=\"engine-start\" type=\"text/javascript\" merge=\"keep\">     my_load_engine(); </script>\n"
+            + " </body>\n"
+            + "</html>\n";
+
+        createFile(contentRoot, "builtins/manifests/web/engine_template_expected.html", expected);
+
+        ManifestMergeTool.merge(ManifestMergeTool.Platform.HTML5, this.main, this.target, this.libraries);
+
+        String merged = readFile(target);
+
+        assertEquals(expected, merged);
     }
 }
