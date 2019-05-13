@@ -11,6 +11,7 @@ function usage() {
     echo " * arm64-darwin"
     echo " * x86_64-ios"
     echo " * armv7-android"
+    echo " * arm64-android"
     echo " * i586-mingw32msvc"
     echo " * js-web"
     echo " * wasm-web"

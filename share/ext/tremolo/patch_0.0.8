@@ -2494,6 +2494,17 @@ diff -u -r a/mdctARM.s b/mdctARM.s
 diff -u -r a/misc.h b/misc.h
 --- a/misc.h	2007-07-05 18:35:10.000000000 +0200
 +++ b/misc.h	2017-07-28 11:44:13.000000000 +0200
+@@ -56,9 +56,7 @@
+   } halves;
+   ogg_int64_t whole;
+ };
+-#endif 
+-
+-#if BYTE_ORDER==BIG_ENDIAN
++#else
+ union magic {
+   struct {
+     ogg_int32_t hi;
 @@ -186,7 +186,3 @@
  #endif
  

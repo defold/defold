@@ -386,6 +386,7 @@ TEST_F(dmSSDPTest, JavaClient)
     DM_SNPRINTF(command, sizeof(command),
             "java -cp build/default/src/java:build/default/src/java_test:%s/ext/share/java/junit-4.6.jar -DUSN1=%s -DUSN2=%s org.junit.runner.JUnitCore com.dynamo.upnp.SSDPTest", dynamo_home, device1_usn, device2_usn);
 
+#if !defined(__EMSCRIPTEN__) // no support for popen
     const char* mode = "r";
     FILE* f = popen(command, mode);
     fd_set set;
@@ -410,6 +411,7 @@ TEST_F(dmSSDPTest, JavaClient)
     }
     int ret = pclose(f);
     ASSERT_EQ(0, ret);
+#endif
 
     r = dmSSDP::DeregisterDevice(server1, "my_root_device1");
     ASSERT_EQ(dmSSDP::RESULT_OK, r);

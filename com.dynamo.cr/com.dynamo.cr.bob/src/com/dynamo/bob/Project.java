@@ -564,9 +564,8 @@ public class Project {
         Platform p = getPlatform();
         PlatformArchitectures platformArchs = p.getArchitectures();
         String[] platformStrings;
-        if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin || p == Platform.JsWeb || p == Platform.WasmWeb)
+        if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin || p == Platform.JsWeb || p == Platform.WasmWeb || p == Platform.Armv7Android || p == Platform.Arm64Android)
         {
-            // iOS is currently the only OS we use that supports fat binaries
             // Here we'll get a list of all associated architectures (armv7, arm64) and build them at the same time
             platformStrings = platformArchs.getArchitectures();
         }
@@ -596,6 +595,7 @@ public class Project {
         m.beginTask("Building engine...", 0);
 
         // Build all skews of platform
+        boolean androidResourcesGenerated = false;
         String outputDir = options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
         for (int i = 0; i < architectures.length; ++i) {
             Platform platform = Platform.get(architectures[i]);
@@ -615,7 +615,9 @@ public class Project {
 
             File classesDexFile = null;
             File tmpDir = null;
-            if (platform.equals(Platform.Armv7Android)) {
+            if ((platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) && !androidResourcesGenerated) {
+                androidResourcesGenerated = true;
+
                 Bob.initAndroid(); // extract resources
 
                 // If we are building for Android, we expect a classes.dex file to be returned as well.
@@ -641,11 +643,11 @@ public class Project {
                 IResource sourceManifestFile = helper.getResource("android", "manifest");
 
                 Map<String, Object> properties = helper.createAndroidManifestProperties(this.getRootDirectory(), resDir, exeName);
-                helper.mergeManifests(this, platform, properties, sourceManifestFile, manifestFile);
+                helper.mergeManifests(properties, sourceManifestFile, manifestFile);
 
                 BundleHelper.throwIfCanceled(monitor);
 
-                List<ExtenderResource> extraSource = helper.generateAndroidResources(this, platform, resDir, manifestFile, null, tmpDir);
+                List<ExtenderResource> extraSource = helper.generateAndroidResources(this, resDir, manifestFile, null, tmpDir);
                 allSource.addAll(extraSource);
             }
 
@@ -685,7 +687,7 @@ public class Project {
             }
 
             // If we are building for Android, we expect a classes.dex file to be returned as well.
-            if (platform.equals(Platform.Armv7Android)) {
+            if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
                 int nameindex = 1;
                 while(true)
                 {

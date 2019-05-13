@@ -6,16 +6,16 @@ import os, sys, glob, re
 import waf_gamesys
 
 def build(bld):
-
     defines = ['_XBOX'] #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
     if bld.env.PLATFORM in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
         defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram test',
-        uselib = 'RECORD VPX PROFILEREXT GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING SOUND_NULL DLIB DMGLFW LIVEUPDATE',
+        uselib = 'RECORD VPX PROFILEREXT GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING SOUND_NULL DLIB DMGLFW LIVEUPDATE CARES',
         exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine engine_service',
+        web_libs = ['library_sys.js', 'library_script.js'],
         includes = '../../proto .',
         defines = defines,
         source = 'test_engine.cpp',
