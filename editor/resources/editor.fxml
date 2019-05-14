@@ -109,7 +109,7 @@
                                 </Tab>
                                 <Tab id="search-results-tab" text="Search Results">
                                   <content>
-                                    <AnchorPane id="search-results-container" prefHeight="180.0" prefWidth="200.0" />
+                                    <AnchorPane id="search-results-container" styleClass="search-results-view" prefHeight="180.0" prefWidth="200.0" />
                                   </content>
                                 </Tab>
                                 <Tab id="graph-tab" text="Graph">
