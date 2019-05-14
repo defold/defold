@@ -2,13 +2,18 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.code.resource :as r]
+            [editor.code.script-intelligence :as si]
             [editor.code.util :as util]
+            [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.lua :as lua]
             [editor.resource :as resource]
             [editor.yamlparser :as yp]
             [editor.workspace :as workspace]
-            [editor.code.data :as data]))
+            [editor.code.data :as data]
+            [editor.resource-node :as resource-node]
+            [internal.graph.error-values :as error-values]
+            [schema.core :as s]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -64,20 +69,26 @@
      :insert-string (str name (build-param-string parameters true))
      :tab-triggers {:select (param-names parameters true) :exit (when parameters ")")}}))
 
+(defn- lines->completion-info
+  [lines]
+  (reduce merge (mapv convert (yp/load (data/lines-reader lines) keyword))))
+
+(g/defnk produce-completions
+  [lines]
+  (try
+    (lines->completion-info lines)
+    (catch Exception e
+      (error-values/error-warning (.getMessage e)))))
+
+(g/defnode ScriptApiNode
+  (inherits r/CodeEditorResourceNode)
+  (output completions si/ScriptCompletions produce-completions))
+
 (defn- load-script-api
   [project self resource]
-  (let [content (slurp resource)
-        lines (util/split-lines content)]
-    (try
-      (let [completion-info (reduce merge (mapv convert (yp/load content keyword)))]
-        ;; TODO(mags): Put the completion info into the completion-brain-node here!
-        ;; Options:
-        ;; 1. Put the completion info in a property in this node and connect a cached output of that to the brain.
-        ;; 2. Store the completion info in the brain itself. Don't know what to do with updates of files in this case.
-        (println "COMPLETION INFO:" completion-info))
-      (catch Exception _))
-    (when (resource/file-resource? resource)
-      (g/connect self :save-data project :save-data))))
+  (concat (g/connect self :completions (project/script-intelligence project) :lua-completions)
+          (when (resource/file-resource? resource)
+            (g/connect self :save-data project :save-data))))
 
 (defn register-resource-types
   [workspace]
@@ -87,12 +98,10 @@
                                     :icon "icons/32/Icons_29-AT-Unknown.png"
                                     :view-types [:code :default]
                                     :view-opts nil
-                                    :node-type r/CodeEditorResourceNode
+                                    :node-type ScriptApiNode
                                     :load-fn load-script-api
                                     :read-fn r/read-fn
                                     :write-fn r/write-fn
                                     :textual? true
                                     :auto-connect-save-data? false))
-
-
 

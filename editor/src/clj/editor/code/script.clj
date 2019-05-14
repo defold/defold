@@ -192,8 +192,9 @@
       :user-data {:lines lines :user-properties (clean-user-properties user-properties) :modules modules :proj-path (resource/proj-path resource)}
       :deps dep-build-targets})])
 
-(g/defnk produce-completions [completion-info module-completion-infos]
-  (code-completion/combine-completions completion-info module-completion-infos))
+(g/defnk produce-completions [_node-id completion-info module-completion-infos]
+  (let [script-intelligence (project/script-intelligence (project/get-project _node-id))]
+    (code-completion/combine-completions script-intelligence completion-info module-completion-infos)))
 
 (g/defnk produce-user-properties [_node-id script-properties]
   (let [display-order (mapv prop->key script-properties)

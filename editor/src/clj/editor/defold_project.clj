@@ -4,6 +4,7 @@
   (:require [clojure.java.io :as io]
             [clojure.set :as set]
             [dynamo.graph :as g]
+            [editor.code.script-intelligence :as si]
             [editor.collision-groups :as collision-groups]
             [editor.core :as core]
             [editor.error-reporting :as error-reporting]
@@ -271,6 +272,13 @@
 
 (defn invalidate-save-data-source-values! [save-data]
   (g/invalidate-outputs! (mapv (fn [sd] [(:node-id sd) :source-value]) save-data)))
+
+(defn script-intelligence
+  ([project]
+   (g/with-auto-evaluation-context evaluation-context
+     (script-intelligence project evaluation-context)))
+  ([project evaluation-context]
+   (g/node-value project :script-intelligence evaluation-context)))
 
 (defn workspace
   ([project]
@@ -568,6 +576,8 @@
   (property all-selections g/Any)
   (property all-sub-selections g/Any)
 
+  (property script-intelligence g/Int)
+
   (input all-selected-node-ids g/Any :array)
   (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
@@ -719,16 +729,17 @@
 
 (defn make-project [graph workspace-id]
   (let [project-id
-        (first
+        (second
           (g/tx-nodes-added
             (g/transact
               (g/make-nodes graph
-                            [project [Project :workspace workspace-id]]
-                            (g/connect workspace-id :build-settings project :build-settings)
-                            (g/connect workspace-id :resource-list project :resources)
-                            (g/connect workspace-id :resource-map project :resource-map)
-                            (g/connect workspace-id :resource-types project :resource-types)
-                            (g/set-graph-value graph :project-id project)))))]
+                  [script-intel-id si/ScriptIntelligenceNode
+                   project [Project :workspace workspace-id :script-intelligence script-intel-id]]
+                (g/connect workspace-id :build-settings project :build-settings)
+                (g/connect workspace-id :resource-list project :resources)
+                (g/connect workspace-id :resource-map project :resource-map)
+                (g/connect workspace-id :resource-types project :resource-types)
+                (g/set-graph-value graph :project-id project)))))]
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
     project-id))
 
