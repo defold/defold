@@ -3,6 +3,7 @@
             [editor.build-target :as bt]
             [editor.code.data :as data]
             [editor.code.resource :as r]
+            [editor.code.script-intelligence :as si]
             [editor.code-completion :as code-completion]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
@@ -192,9 +193,8 @@
       :user-data {:lines lines :user-properties (clean-user-properties user-properties) :modules modules :proj-path (resource/proj-path resource)}
       :deps dep-build-targets})])
 
-(g/defnk produce-completions [_node-id completion-info module-completion-infos]
-  (let [script-intelligence (project/script-intelligence (project/get-project _node-id))]
-    (code-completion/combine-completions script-intelligence completion-info module-completion-infos)))
+(g/defnk produce-completions [completion-info module-completion-infos script-intelligence-completions]
+  (code-completion/combine-completions completion-info module-completion-infos script-intelligence-completions))
 
 (g/defnk produce-user-properties [_node-id script-properties]
   (let [display-order (mapv prop->key script-properties)
@@ -228,6 +228,8 @@
 
   (input dep-build-targets g/Any :array)
   (input module-completion-infos g/Any :array :substitute gu/array-subst-remove-errors)
+
+  (input script-intelligence-completions si/ScriptCompletions)
 
   (property completion-info g/Any (default {}) (dynamic visible (g/constantly false)))
 
@@ -276,7 +278,15 @@
   (output completions g/Any :cached produce-completions)
   (output user-properties g/Properties produce-user-properties))
 
+(defn- additional-load-fn
+  [project self resource]
+  (let [script-intelligence (project/script-intelligence project)]
+    (g/connect script-intelligence :lua-completions self :script-intelligence-completions)))
+
 (defn register-resource-types [workspace]
   (for [def script-defs
-        :let [args (assoc def :node-type ScriptNode :eager-loading? true)]]
+        :let [args (assoc def
+                          :node-type ScriptNode
+                          :eager-loading? true
+                          :additional-load-fn additional-load-fn)]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))
