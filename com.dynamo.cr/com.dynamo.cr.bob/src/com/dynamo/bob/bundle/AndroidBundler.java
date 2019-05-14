@@ -94,7 +94,6 @@ public class AndroidBundler implements IBundler {
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
         ArrayList<File> classesDex = new ArrayList<File>();
-        classesDex.add(new File(Bob.getPath("lib/classes.dex")));
 
         List<Platform> architectures = new ArrayList<Platform>();
         String[] architecturesStrings = project.option("architectures", "").split(",");
@@ -106,20 +105,23 @@ public class AndroidBundler implements IBundler {
             List<File> bundleExe = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
             if (bundleExe == null) {
                 bundleExe = Bob.getDefaultDmengineFiles(architecture, variant);
+                if (classesDex.isEmpty()) {
+                    classesDex.add(new File(Bob.getPath("lib/classes.dex")));
+                }
             }
             else {
                 logger.log(Level.INFO, "Using extender binary for architecture: " + architecture.toString());
-                classesDex = new ArrayList<File>();
-                int i = 1;
-                while(true)
-                {
-                    String name = i == 1 ? "classes.dex" : String.format("classes%d.dex", i);
-                    ++i;
+                if (classesDex.isEmpty()) {
+                    int i = 1;
+                    while(true) {
+                        String name = i == 1 ? "classes.dex" : String.format("classes%d.dex", i);
+                        ++i;
 
-                    File f = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architecture.getExtenderPair(), name)));
-                    if (!f.exists())
-                        break;
-                    classesDex.add(f);
+                        File f = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architecture.getExtenderPair(), name)));
+                        if (!f.exists())
+                            break;
+                        classesDex.add(f);
+                    }
                 }
             }
             File exe = bundleExe.get(0);
