@@ -86,7 +86,6 @@ public class AndroidBundler implements IBundler {
 
         String certificate = project.option("certificate", "");
         String key = project.option("private-key", "");
-        boolean debuggable = Integer.parseInt(projectProperties.getStringValue("android", "debuggable", "0")) != 0;
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -267,7 +266,7 @@ public class AndroidBundler implements IBundler {
             // Copy bundle resources into .apk zip (actually .ap2 in this case)
             ExtenderUtil.writeResourcesToZip(bundleResources, zipOut);
             BundleHelper.throwIfCanceled(canceled);
-            
+
             // Strip executables
             if( strip_executable )
             {
