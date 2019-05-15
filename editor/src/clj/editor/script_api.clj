@@ -1,19 +1,13 @@
 (ns editor.script-api
-  (:require [clojure.java.io :as io]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
+            [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.script-intelligence :as si]
-            [editor.code.util :as util]
             [editor.defold-project :as project]
-            [editor.graph-util :as gu]
-            [editor.lua :as lua]
             [editor.resource :as resource]
-            [editor.yamlparser :as yp]
             [editor.workspace :as workspace]
-            [editor.code.data :as data]
-            [editor.resource-node :as resource-node]
-            [internal.graph.error-values :as error-values]
-            [schema.core :as s]))
+            [editor.yamlparser :as yp]
+            [internal.graph.error-values :as error-values]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -22,15 +16,23 @@
   "Converts YAML documentation input to the internal auto-complete format defined
   in `editor.lua` namespace."
   {:private true}
-  #(.toUpperCase (:type %)))
+  #(.toUpperCase ^String (:type %)))
 
 (defn- name-with-ns
   [ns name]
-  (str ns \. name))
+  (if (nil? ns)
+    name
+    (str ns \. name)))
 
 (defmethod convert "TABLE"
-  [{:keys [name members]}]
-  {name (mapv (comp convert #(assoc % :ns name)) members)})
+  [{:keys [ns name members desc]}]
+  (let [name (name-with-ns ns name)]
+    (into [{:type :namespace
+            :name name
+            :doc desc
+            :display-string name
+            :insert-string name}]
+          (mapv (comp convert #(assoc % :ns name)) members))))
 
 (defmethod convert "ENUM"
   [{:keys [ns name desc]}]
@@ -69,9 +71,42 @@
      :insert-string (str name (build-param-string parameters true))
      :tab-triggers {:select (param-names parameters true) :exit (when parameters ")")}}))
 
+(defn- convert-lines
+  [lines]
+  (mapv convert (yp/load (data/lines-reader lines) keyword)))
+
+(defn- combine-conversions
+  "This function combines the individual hierarchical conversions into a map where
+  all the namespaces are keys at the top level mapping to a vector of their
+  respective contents. A global namespace is also added with the empty string as
+  a name, which contains a vector of namespace entries to enable auto completion
+  of namespace names."
+  [conversions]
+  (first (reduce
+           (fn [[m ns] x]
+             (cond
+               (vector? x)
+               ;; Recurse into sublevels and merge the current map with the
+               ;; result. Any key collisions will have vector values so we
+               ;; concatenate and turn back into a vector.
+               [(merge-with (comp (partial into []) concat) m (combine-conversions x)) ns]
+
+               :else
+               (if (= :namespace (:type x))
+                 [(let [m (assoc m (:name x) [])
+                        m (if-not (= "" ns)
+                            (update m ns conj x)
+                            m)]
+                    ;; Always add namespaces as members of the global namespace.
+                    (update m "" conj x))
+                  (:name x)]
+                 [(update m ns conj x) ns])))
+           [{"" []} ""]
+           conversions)))
+
 (defn- lines->completion-info
   [lines]
-  (reduce merge (mapv convert (yp/load (data/lines-reader lines) keyword))))
+  (combine-conversions (convert-lines lines)))
 
 (g/defnk produce-completions
   [lines]

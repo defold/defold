@@ -1,7 +1,6 @@
 (ns editor.code-completion
   (:require [clojure.set :as set]
             [clojure.string :as string]
-            [editor.code.script-intelligence :as si]
             [editor.lua :as lua]
             [internal.util :as util]))
 

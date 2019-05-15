@@ -1,10 +1,9 @@
 (ns editor.yamlparser
   (:refer-clojure :exclude [load])
-  (:import [java.io Reader]
+  (:require [clojure.walk :refer [walk]])
+  (:import java.io.Reader
            [java.util List Map]
-           [org.snakeyaml.engine.v1.api Load LoadSettingsBuilder])
-  (:require [clojure.java.io :as io]
-            [clojure.walk :refer [walk]]))
+           [org.snakeyaml.engine.v1.api Load LoadSettingsBuilder]))
 
 (defn- translate
   [x key-transform-fn]

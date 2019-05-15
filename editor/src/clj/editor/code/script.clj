@@ -1,22 +1,22 @@
 (ns editor.code.script
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.code-completion :as code-completion]
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.script-intelligence :as si]
-            [editor.code-completion :as code-completion]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.lua :as lua]
-            [editor.luajit :as luajit]
             [editor.lua-parser :as lua-parser]
+            [editor.luajit :as luajit]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.types :as t]
             [editor.workspace :as workspace])
-  (:import (com.dynamo.lua.proto Lua$LuaModule)
-           (com.google.protobuf ByteString)))
+  (:import com.dynamo.lua.proto.Lua$LuaModule
+           com.google.protobuf.ByteString))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
