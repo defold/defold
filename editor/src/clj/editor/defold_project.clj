@@ -206,7 +206,8 @@
   ([project resources]
    (load-project project resources progress/null-render-progress!))
   ([project resources render-progress!]
-   (assert (not (seq (g/node-value project :nodes))) "load-project should only be used when loading an empty project")
+   ;; Node count is one here because the script-intelligence node has already been added.
+   (assert (= 1 (count (seq (g/node-value project :nodes)))) "load-project should only be used when loading an empty project")
    (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
      (let [nodes (make-nodes! project resources)]
        (load-nodes! project nodes render-progress! {})
@@ -214,7 +215,7 @@
          (g/transact
            (concat
              (g/connect game-project :display-profiles-data project :display-profiles)
-             (g/connect game-project :texture-profiles-data project :texture-profiles)             
+             (g/connect game-project :texture-profiles-data project :texture-profiles)
              (g/connect game-project :settings-map project :settings))))
        project))))
 
@@ -733,8 +734,9 @@
           (g/tx-nodes-added
             (g/transact
               (g/make-nodes graph
-                  [script-intel-id si/ScriptIntelligenceNode
-                   project [Project :workspace workspace-id :script-intelligence script-intel-id]]
+                  [script-intelligence si/ScriptIntelligenceNode
+                   project [Project :workspace workspace-id :script-intelligence script-intelligence]]
+                (g/connect script-intelligence :_node-id project :nodes)
                 (g/connect workspace-id :build-settings project :build-settings)
                 (g/connect workspace-id :resource-list project :resources)
                 (g/connect workspace-id :resource-map project :resource-map)
