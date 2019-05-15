@@ -17,10 +17,10 @@ namespace dmDNS
 {
     struct RequestInfo
     {
-        dmSocket::Address* m_Address;
-        uint32_t           m_Status : 30;
-        uint32_t           m_Ipv4   : 1;
-        uint32_t           m_Ipv6   : 1;
+        dmSocket::Address m_Address;
+        uint32_t          m_Status : 30;
+        uint32_t          m_Ipv4   : 1;
+        uint32_t          m_Ipv6   : 1;
     };
 
     struct Channel
@@ -65,11 +65,17 @@ namespace dmDNS
         assert(arg);
         RequestInfo* req = (RequestInfo*) arg;
 
-        // If the request is cancelled, something went wrong with the channel so we cannot
-        // guarantee that the request data is still alive. In that case, we don't touch
-        // the request pointer.
-        if (status != ARES_ECANCELLED)
+        if (status == ARES_ENOTFOUND)
         {
+            // If we cannot find a IP host via DNS, we set the result to SUCCESS
+            // so that we can attempt to make a connection anyway.
+            req->m_Status = ARES_SUCCESS;
+        }
+        else if (status != ARES_ECANCELLED)
+        {
+            // If the request is cancelled, something went wrong with the channel so we cannot
+            // guarantee that the request data is still alive. In that case, we don't touch
+            // the request pointer.
             req->m_Status = (uint32_t) status;
         }
 
@@ -81,13 +87,13 @@ namespace dmDNS
         assert(host->h_addr_list[0]);
         if (req->m_Ipv4 && host->h_addrtype == AF_INET)
         {
-            req->m_Address->m_family     = dmSocket::DOMAIN_IPV4;
-            req->m_Address->m_address[3] = *(uint32_t*) host->h_addr_list[0];
+            req->m_Address.m_family     = dmSocket::DOMAIN_IPV4;
+            req->m_Address.m_address[3] = *(uint32_t*) host->h_addr_list[0];
         }
         else if (req->m_Ipv6 && host->h_addrtype == AF_INET6)
         {
-            req->m_Address->m_family = dmSocket::DOMAIN_IPV6;
-            memcpy(&req->m_Address->m_address[0], host->h_addr_list[0], sizeof(struct in6_addr));
+            req->m_Address.m_family = dmSocket::DOMAIN_IPV6;
+            memcpy(&req->m_Address.m_address[0], host->h_addr_list[0], sizeof(struct in6_addr));
         }
         else
         {
@@ -149,15 +155,15 @@ namespace dmDNS
         {
             if (selected->ai_family == AF_INET)
             {
-                sockaddr_in* saddr           = (struct sockaddr_in *) selected->ai_addr;
-                req->m_Address->m_family     = dmSocket::DOMAIN_IPV4;
-                req->m_Address->m_address[3] = saddr->sin_addr.s_addr;
+                sockaddr_in* saddr          = (struct sockaddr_in *) selected->ai_addr;
+                req->m_Address.m_family     = dmSocket::DOMAIN_IPV4;
+                req->m_Address.m_address[3] = saddr->sin_addr.s_addr;
             }
             else
             {
-                sockaddr_in6* saddr      = (struct sockaddr_in6 *) iterator->ai_addr;
-                req->m_Address->m_family = dmSocket::DOMAIN_IPV6;
-                memcpy(&req->m_Address->m_address[0], &saddr->sin6_addr, sizeof(struct in6_addr));
+                sockaddr_in6* saddr     = (struct sockaddr_in6 *) iterator->ai_addr;
+                req->m_Address.m_family = dmSocket::DOMAIN_IPV6;
+                memcpy(&req->m_Address.m_address[0], &saddr->sin6_addr, sizeof(struct in6_addr));
             }
         }
         else
@@ -244,7 +250,6 @@ namespace dmDNS
         Channel* dns_channel = (Channel*) channel;
 
         RequestInfo req;
-        req.m_Address = address;
         req.m_Status  = ARES_SUCCESS;
         req.m_Ipv4    = ipv4;
         req.m_Ipv6    = ipv6;
@@ -257,10 +262,16 @@ namespace dmDNS
         // mimick that behaviour here aswell.
         if (ares_inet_pton(AF_INET, name, &addr4) == 1)
         {
+            req.m_Address.m_family     = dmSocket::DOMAIN_IPV4;
+            req.m_Address.m_address[3] = addr4.s_addr;
+
             ares_gethostbyaddr(dns_channel->m_Handle, &addr4, sizeof(addr4), AF_INET, ares_gethost_callback, (void*)&req);
         }
         else if (ares_inet_pton(AF_INET6, name, &addr6) == 1)
         {
+            req.m_Address.m_family     = dmSocket::DOMAIN_IPV6;
+            memcpy(&req.m_Address.m_address[0], &addr6, sizeof(struct in6_addr));
+
             ares_gethostbyaddr(dns_channel->m_Handle, &addr6, sizeof(addr6), AF_INET6, ares_gethost_callback, (void*)&req);
         }
         else
@@ -329,6 +340,11 @@ namespace dmDNS
             ares_process(dns_channel->m_Handle,
                 &selector.m_FdSets[dmSocket::SELECTOR_KIND_READ],
                 &selector.m_FdSets[dmSocket::SELECTOR_KIND_WRITE]);
+        }
+
+        if (req.m_Status == ARES_SUCCESS)
+        {
+            memcpy(address, &req.m_Address, sizeof(req.m_Address));
         }
 
         return AresStatusToDNSResult(req.m_Status);
