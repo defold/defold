@@ -78,6 +78,9 @@
   (try
     (lines->completion-info lines)
     (catch Exception e
+      ;; NOTE: We might want to extract better error information from this
+      ;; exception so that it is easier to point to the cause of the error
+      ;; without parsing in the build error view?
       (error-values/error-warning (.getMessage e)))))
 
 (g/defnode ScriptApiNode

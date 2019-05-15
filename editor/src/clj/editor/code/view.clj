@@ -1040,6 +1040,12 @@
                   (contains? tab-trigger-word-types :arglist))
       (get-property view-node :completions))))
 
+(defn- hide-suggestions! [view-node]
+  (when-some [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
+    (g/set-property! view-node :suggested-completions nil)
+    (when (.isShowing suggestions-popup)
+      (.hide suggestions-popup))))
+
 (defn- show-suggestions! [view-node]
   (when-some [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
     ;; Snapshot completions when the popup is first opened to prevent
@@ -1058,8 +1064,7 @@
               context-completions (get completions context)
               filtered-completions (some->> context-completions (popup/fuzzy-option-filter-fn :name :display-string query-text))]
           (if (empty? filtered-completions)
-            (when (.isShowing suggestions-popup)
-              (.hide suggestions-popup))
+            (hide-suggestions! view-node)
             (let [^LayoutInfo layout (get-property view-node :layout)
                   ^Canvas canvas (g/node-value view-node :canvas)
                   ^ListView suggestions-list-view (g/node-value view-node :suggestions-list-view)
@@ -1078,12 +1083,6 @@
                     (.setStyle (eutil/format* "-fx-font-family: \"%s\"; -fx-font-size: %gpx;" font-name font-size)))
                   (.show suggestions-popup canvas (.getX anchor) (.getY anchor))))
               nil)))))))
-
-(defn- hide-suggestions! [view-node]
-  (when-some [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
-    (g/set-property! view-node :suggested-completions nil)
-    (when (.isShowing suggestions-popup)
-      (.hide suggestions-popup))))
 
 (defn- suggestions-shown? [view-node]
   (if-some [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
