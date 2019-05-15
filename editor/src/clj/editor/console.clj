@@ -497,7 +497,8 @@
                                (when (and (resource/openable-resource? resource)
                                           (resource/exists? resource))
                                  (let [opts (when-some [row (:row region)]
-                                              {:line (inc (long row))})]
+                                              {:line (inc (long row))
+                                               :row row})]
                                    (open-resource-fn resource opts))))))
         repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time]
                                                        (when (and (.isSelected console-tab) (not (ui/ui-disabled?)))
