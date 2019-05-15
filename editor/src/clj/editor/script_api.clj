@@ -22,7 +22,7 @@
   "Converts YAML documentation input to the internal auto-complete format defined
   in `editor.lua` namespace."
   {:private true}
-  :type)
+  #(.toUpperCase (:type %)))
 
 (defn- name-with-ns
   [ns name]
