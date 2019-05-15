@@ -2,6 +2,7 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as string]
+            [editor.connection-properties :refer [connection-properties]]
             [editor.system :as sys]
             [editor.url :as url]
             [service.log :as log])
@@ -140,9 +141,10 @@
   {:pre [(valid-event? event)
          (valid-cid? cid)
          (or (nil? uid) (valid-uid? uid))]}
-  (let [common-pairs (if (some? uid) ; NOTE: The uid is also supplied as Custom Dimension 1.
-                       ["v=1" "tid=UA-83690-7" (str "cid=" cid) (str "uid=" uid) (str "cd1=" uid)]
-                       ["v=1" "tid=UA-83690-7" (str "cid=" cid)])
+  (let [tid (str "tid=" (get-in connection-properties [:google-analytics :tid]))
+        common-pairs (if (some? uid) ; NOTE: The uid is also supplied as Custom Dimension 1.
+                       ["v=1" tid (str "cid=" cid) (str "uid=" uid) (str "cd1=" uid)]
+                       ["v=1" tid (str "cid=" cid)])
         pairs (into common-pairs
                     (map encode-key-value-pair)
                     event)]

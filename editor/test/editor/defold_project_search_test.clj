@@ -1,15 +1,14 @@
 (ns editor.defold-project-search-test
-  (:require
-   [clojure.set :as set]
-   [clojure.test :refer :all]
-   [dynamo.graph :as g]
-   [editor.defold-project-search :as project-search]
-   [editor.resource :as resource]
-   [integration.test-util :as test-util]
-   [support.test-support :refer [with-clean-system]]
-   [util.thread-util :as thread-util])
-  (:import
-   (java.util.concurrent LinkedBlockingQueue)))
+  (:require [clojure.set :as set]
+            [clojure.string :as string]
+            [clojure.test :refer :all]
+            [dynamo.graph :as g]
+            [editor.defold-project-search :as project-search]
+            [editor.resource :as resource]
+            [integration.test-util :as test-util]
+            [support.test-support :refer [with-clean-system]]
+            [util.thread-util :as thread-util])
+  (:import [java.util.concurrent LinkedBlockingQueue]))
 
 (def ^:const search-project-path "test/resources/search_project")
 (def ^:const timeout-ms 5000)
@@ -73,9 +72,12 @@
 (defn- consumer-consumed [consumer-atom]
   (-> consumer-atom deref :consumed))
 
-(defn- match-strings-by-proj-path [consumed]
+(defn- match->trimmed-text [{:keys [line] :as _match}]
+  (string/trim line))
+
+(defn- matched-text-by-proj-path [consumed]
   (mapv (fn [{:keys [resource matches]}]
-          [(resource/proj-path resource) (mapv :match matches)])
+          [(resource/proj-path resource) (mapv match->trimmed-text matches)])
         consumed))
 
 (defn- match-proj-paths [consumed]
@@ -108,14 +110,14 @@
     (is (true? (consumer-stopped? consumer)))))
 
 (deftest compile-find-in-files-regex-test
-  (is (= "(?i)^(.*)(\\Qfoo\\E)(.*)$" (str (project-search/compile-find-in-files-regex "foo"))))
+  (is (= "(?i)\\Qfoo\\E" (str (project-search/compile-find-in-files-regex "foo"))))
   (testing "* is handled correctly"
-    (is (= "(?i)^(.*)(\\Qfoo\\E.*\\Qbar\\E)(.*)$" (str (project-search/compile-find-in-files-regex "foo*bar")))))
+    (is (= "(?i)\\Qfoo\\E.*\\Qbar\\E" (str (project-search/compile-find-in-files-regex "foo*bar")))))
   (testing "other wildcard chars are quoted"
-    (is (= "(?i)^(.*)(\\Qfoo\\E.*\\Qbar[]().$^\\E)(.*)$" (str (project-search/compile-find-in-files-regex "foo*bar[]().$^")))))
+    (is (= "(?i)\\Qfoo\\E.*\\Qbar[]().$^\\E" (str (project-search/compile-find-in-files-regex "foo*bar[]().$^")))))
   (testing "case insensitive search strings"
     (let [pattern (project-search/compile-find-in-files-regex "fOoO")]
-      (is (= "fooo" (first (re-matches pattern "fooo")))))))
+      (is (= "fooo" (re-matches pattern "fooo"))))))
 
 (deftest make-file-resource-save-data-future-test
   (test-util/with-loaded-project search-project-path
@@ -143,7 +145,7 @@
             perform-search! (fn [term exts]
                               (start-search! term exts true)
                               (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
-                              (-> consumer consumer-consumed match-strings-by-proj-path))]
+                              (-> consumer consumer-consumed matched-text-by-proj-path))]
         (is (= [] (perform-search! nil nil)))
         (is (= [] (perform-search! "" nil)))
         (is (= [] (perform-search! nil "")))
@@ -151,7 +153,7 @@
                            ["/scripts/apples.script" ["\"Red Delicious\","]]}
                          (set (perform-search! "red" nil))))
         (is (set/subset? #{["/modules/colors.lua" ["red = {255, 0, 0},"
-                                                    "green = {0, 255, 0},"
+                                                   "green = {0, 255, 0},"
                                                    "blue = {0, 0, 255}"]]}
                          (set (perform-search! "255" nil))))
         (is (set/subset? #{["/scripts/actors.script" ["\"Will Smith\""]]
@@ -197,9 +199,9 @@
             perform-search! (fn [term exts]
                               (start-search! term exts true)
                               (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
-                              (-> consumer consumer-consumed match-strings-by-proj-path))]
+                              (-> consumer consumer-consumed matched-text-by-proj-path))]
         (are [expected-count exts]
-            (= expected-count (count (perform-search! search-string exts)))
+          (= expected-count (count (perform-search! search-string exts)))
           1 "g"
           1 "go"
           1 ".go"

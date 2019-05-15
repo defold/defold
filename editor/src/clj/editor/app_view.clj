@@ -51,16 +51,15 @@
             [util.http-server :as http-server]
             [util.profiler :as profiler]
             [service.smoke-log :as slog])
-  (:import [com.defold.editor Editor EditorApplication]
+  (:import [com.defold.editor Editor]
            [java.io BufferedReader File IOException]
            [java.net URL]
            [java.util Collection List]
-           [java.util.concurrent.atomic AtomicInteger]
            [javafx.beans.value ChangeListener]
            [javafx.collections ListChangeListener ObservableList]
            [javafx.event Event]
            [javafx.geometry Orientation]
-           [javafx.scene Node Parent Scene]
+           [javafx.scene Parent Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy Tooltip]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ClipboardContent]
@@ -116,10 +115,21 @@
             divider-position (get (.getDividerPositions split) divider-index)
             size (if (zero? index)
                    (Math/floor (* divider-position (split-pane-length split)))
-                   (Math/ceil (* (- 1.0 divider-position) (split-pane-length split))))]
+                   (Math/ceil (* (- 1.0 divider-position) (split-pane-length split))))
+            removing-focus-owner? (some? (when-some [focus-owner (.getFocusOwner main-scene)]
+                                           (ui/closest-node-where
+                                             (partial identical? pane)
+                                             focus-owner)))]
+
         (ui/user-data! split user-data-key {:pane pane :size size})
         (.remove (.getItems split) pane)
-        (.layout split)))
+        (.layout split)
+
+        ;; If this action causes the focus owner to be removed from the scene,
+        ;; move focus to the SplitPane. This ensures we have a valid UI context
+        ;; when refreshing the menus.
+        (when removing-focus-owner?
+          (.requestFocus split))))
     nil))
 
 (defn- select-tool-tab! [tab-id ^Scene main-scene ^TabPane tool-tab-pane]
@@ -716,6 +726,15 @@
         (workspace/save-build-cache! workspace)
         build-results))))
 
+(defn- cached-build-target-output? [node-id label evaluation-context]
+  (and (= :build-targets label)
+       (project/project-resource-node? node-id evaluation-context)))
+
+(defn- update-system-cache-build-targets! [evaluation-context]
+  ;; To avoid cache churn, we only transfer the most important entries to the system cache.
+  (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cached-build-target-output?)]
+    (g/update-cache-from-evaluation-context! pruned-evaluation-context)))
+
 (defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane]
   (let [project-directory (io/file (workspace/project-path workspace))
         evaluation-context (g/make-evaluation-context)
@@ -725,7 +744,7 @@
     (async-build! project evaluation-context prefs {:debug? false} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
                   (fn [build-results engine-descriptor build-engine-exception]
-                    (g/update-cache-from-evaluation-context! evaluation-context)
+                    (update-system-cache-build-targets! evaluation-context)
                     (when (handle-build-results! workspace render-build-error! build-results)
                       (when engine-descriptor
                         (show-console! main-scene tool-tab-pane)
@@ -755,7 +774,7 @@ If you do not specifically require different script states, consider changing th
     (async-build! project evaluation-context prefs {:debug? true} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
                   (fn [build-results engine-descriptor build-engine-exception]
-                    (g/update-cache-from-evaluation-context! evaluation-context)
+                    (update-system-cache-build-targets! evaluation-context)
                     (when (handle-build-results! workspace render-build-error! build-results)
                       (when engine-descriptor
                         (when-let [target (launch-built-project! engine-descriptor project-directory prefs web-server true)]
@@ -770,7 +789,7 @@ If you do not specifically require different script states, consider changing th
     (async-build! project evaluation-context prefs {:debug? true :engine? false} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
                   (fn [build-results _ _]
-                    (g/update-cache-from-evaluation-context! evaluation-context)
+                    (update-system-cache-build-targets! evaluation-context)
                     (when (handle-build-results! workspace render-build-error! build-results)
                       (let [target (targets/selected-target prefs)]
                         (when (targets/controllable-target? target)
@@ -862,7 +881,7 @@ If you do not specifically require different script states, consider changing th
     (build-errors-view/clear-build-errors build-errors-view)
     (async-build! project evaluation-context prefs opts old-artifact-map render-build-progress!
                   (fn [{:keys [error artifact-map etags]} _ _]
-                    (g/update-cache-from-evaluation-context! evaluation-context)
+                    (update-system-cache-build-targets! evaluation-context)
                     (if (some? error)
                       (render-build-error! error)
                       (do
@@ -984,6 +1003,11 @@ If you do not specifically require different script states, consider changing th
              other-tabs (.getTabs other-tab-pane)
              active-tab (.get active-tabs active-tab-index)
              other-tab (.get other-tabs other-tab-index)]
+         ;; Fix for DEFEDIT-1673:
+         ;; We need to swap in a dummy tab here so that a tab is never in both
+         ;; TabPanes at once, since the tab lists are observed internally. If we
+         ;; do not, the tabs will lose track of their parent TabPane.
+         (.set other-tabs other-tab-index (Tab.))
          (.set active-tabs active-tab-index other-tab)
          (.set other-tabs other-tab-index active-tab)
          (.select active-tab-pane-selection other-tab)

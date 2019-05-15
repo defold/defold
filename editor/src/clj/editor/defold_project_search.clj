@@ -3,6 +3,7 @@
    [clojure.java.io :as io]
    [clojure.string :as string]
    [dynamo.graph :as g]
+   [editor.defold-project :as project]
    [editor.resource :as resource]
    [editor.ui :as ui]
    [util.text-util :as text-util]
@@ -45,19 +46,22 @@
   (let [clean-str (->> (string/split search-str #"\*")
                        (map #(Pattern/quote %))
                        (string/join ".*"))]
-    (re-pattern (str "(?i)^(.*)(" clean-str ")(.*)$"))))
+    (re-pattern (str "(?i)" clean-str))))
 
 (defn- find-matches [pattern save-data]
   (when-some [lines (line-coll save-data)]
     (into []
-          (keep (fn [{:keys [line row pos]}]
-                  (let [matcher (re-matcher pattern line)]
-                    (when (.matches matcher)
-                      {:line row
-                       :caret-position pos
-                       :match (str (apply str (take-last 24 (string/triml (.group matcher 1))))
-                                   (.group matcher 2)
-                                   (apply str (take 24 (string/trimr (.group matcher 3)))))}))))
+          (mapcat (fn [{:keys [line row pos]}]
+                    (let [matcher (re-matcher pattern line)]
+                      (loop [matches (transient [])]
+                        (if-not (.find matcher)
+                          (persistent! matches)
+                          (recur (conj! matches
+                                        {:line line
+                                         :row row
+                                         :start-col (.start matcher)
+                                         :end-col (.end matcher)
+                                         :caret-position pos})))))))
           lines)))
 
 (defn- save-data-sort-key [entry]
@@ -77,7 +81,8 @@
                                                  save-data))))
                                      (g/node-value project :nodes evaluation-context))
                                (sort-by save-data-sort-key))]
-          (ui/run-later (g/update-cache-from-evaluation-context! evaluation-context))
+          (ui/run-later
+            (project/update-system-cache-save-data! evaluation-context))
           save-data)
         (catch Throwable error
           (report-error! error)
@@ -90,7 +95,8 @@
 (defn- resource-matches-file-ext? [resource file-ext-pats]
   (or (empty? file-ext-pats)
       (let [ext (resource/type-ext resource)]
-        (some #(re-matches % ext) file-ext-pats))))
+        (some #(.find (re-matcher % ext))
+              file-ext-pats))))
 
 (defn- start-search-thread [report-error! file-resource-save-data-future term exts include-libraries? produce-fn]
   (future
@@ -136,7 +142,7 @@
   It will either return nil if there is no result currently available, the
   namespaced keyword :defold-project-search/done if the search has completed
   and there will be no more results, or a single match consisting of
-  [Resource, [{:line long, :caret-position long, :match String}, ...]].
+  [Resource, [{:line String :row long, :start-col long, :end-col long}, ...]].
   When abort-search! is called, any spawned background threads will terminate,
   and if there was a previous consumer, stop-consumer! will be called with it.
   Since many operations happen on a background thread, report-error! will be
