@@ -86,7 +86,6 @@ public class AndroidBundler implements IBundler {
 
         String certificate = project.option("certificate", "");
         String key = project.option("private-key", "");
-        boolean debuggable = Integer.parseInt(projectProperties.getStringValue("android", "debuggable", "0")) != 0;
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -94,7 +93,6 @@ public class AndroidBundler implements IBundler {
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
         ArrayList<File> classesDex = new ArrayList<File>();
-        classesDex.add(new File(Bob.getPath("lib/classes.dex")));
 
         List<Platform> architectures = new ArrayList<Platform>();
         String[] architecturesStrings = project.option("architectures", "").split(",");
@@ -106,20 +104,23 @@ public class AndroidBundler implements IBundler {
             List<File> bundleExe = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
             if (bundleExe == null) {
                 bundleExe = Bob.getDefaultDmengineFiles(architecture, variant);
+                if (classesDex.isEmpty()) {
+                    classesDex.add(new File(Bob.getPath("lib/classes.dex")));
+                }
             }
             else {
                 logger.log(Level.INFO, "Using extender binary for architecture: " + architecture.toString());
-                classesDex = new ArrayList<File>();
-                int i = 1;
-                while(true)
-                {
-                    String name = i == 1 ? "classes.dex" : String.format("classes%d.dex", i);
-                    ++i;
+                if (classesDex.isEmpty()) {
+                    int i = 1;
+                    while(true) {
+                        String name = i == 1 ? "classes.dex" : String.format("classes%d.dex", i);
+                        ++i;
 
-                    File f = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architecture.getExtenderPair(), name)));
-                    if (!f.exists())
-                        break;
-                    classesDex.add(f);
+                        File f = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architecture.getExtenderPair(), name)));
+                        if (!f.exists())
+                            break;
+                        classesDex.add(f);
+                    }
                 }
             }
             File exe = bundleExe.get(0);
@@ -265,7 +266,7 @@ public class AndroidBundler implements IBundler {
             // Copy bundle resources into .apk zip (actually .ap2 in this case)
             ExtenderUtil.writeResourcesToZip(bundleResources, zipOut);
             BundleHelper.throwIfCanceled(canceled);
-            
+
             // Strip executables
             if( strip_executable )
             {
