@@ -548,8 +548,8 @@ public class Bob {
             project.setOption("use-vanilla-lua", "true");
         }
 
-        if (cmd.hasOption("settings)) {
-            for (String filepath : cmd.getOptionValues("settings)) {
+        if (cmd.hasOption("settings")) {
+            for (String filepath : cmd.getOptionValues("settings")) {
                 project.addPropertyFile(filepath);
             }
         }
