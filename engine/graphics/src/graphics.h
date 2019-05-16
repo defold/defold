@@ -9,9 +9,10 @@
 #include <graphics/graphics_ddf.h>
 
 #if defined(__AVM2__)
-#include "flash/graphics_flash_defines.h"
+    #include "flash/graphics_flash_defines.h"
 #else
-#include "opengl/graphics_opengl_defines.h"
+    #include "vulkan/graphics_vulkan_defines.h"
+    // #include "opengl/graphics_opengl_defines.h"
 #endif
 
 namespace dmGraphics
