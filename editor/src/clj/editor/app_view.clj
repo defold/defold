@@ -52,16 +52,15 @@
             [util.http-server :as http-server]
             [util.profiler :as profiler]
             [service.smoke-log :as slog])
-  (:import [com.defold.editor Editor EditorApplication]
+  (:import [com.defold.editor Editor]
            [java.io BufferedReader File IOException]
            [java.net URL]
            [java.util Collection List]
-           [java.util.concurrent.atomic AtomicInteger]
            [javafx.beans.value ChangeListener]
            [javafx.collections ListChangeListener ObservableList]
            [javafx.event Event]
            [javafx.geometry Orientation]
-           [javafx.scene Node Parent Scene]
+           [javafx.scene Parent Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy Tooltip]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ClipboardContent]
@@ -117,10 +116,21 @@
             divider-position (get (.getDividerPositions split) divider-index)
             size (if (zero? index)
                    (Math/floor (* divider-position (split-pane-length split)))
-                   (Math/ceil (* (- 1.0 divider-position) (split-pane-length split))))]
+                   (Math/ceil (* (- 1.0 divider-position) (split-pane-length split))))
+            removing-focus-owner? (some? (when-some [focus-owner (.getFocusOwner main-scene)]
+                                           (ui/closest-node-where
+                                             (partial identical? pane)
+                                             focus-owner)))]
+
         (ui/user-data! split user-data-key {:pane pane :size size})
         (.remove (.getItems split) pane)
-        (.layout split)))
+        (.layout split)
+
+        ;; If this action causes the focus owner to be removed from the scene,
+        ;; move focus to the SplitPane. This ensures we have a valid UI context
+        ;; when refreshing the menus.
+        (when removing-focus-owner?
+          (.requestFocus split))))
     nil))
 
 (defn- select-tool-tab! [tab-id ^Scene main-scene ^TabPane tool-tab-pane]
