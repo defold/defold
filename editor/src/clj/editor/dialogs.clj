@@ -2,20 +2,22 @@
   (:require [cljfx.api :as fx]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.core :as core]
+            [editor.defold-project :as project]
+            [editor.field-expression :as field-expression]
+            [editor.fxui :as fxui]
+            [editor.fuzzy-text :as fuzzy-text]
+            [editor.github :as github]
+            [editor.handler :as handler]
+            [editor.jfx :as jfx]
+            [editor.progress :as progress]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.ui :as ui]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.util :as util]
-            [editor.handler :as handler]
-            [editor.core :as core]
-            [editor.fuzzy-text :as fuzzy-text]
-            [editor.fxui :as fxui]
-            [editor.jfx :as jfx]
             [editor.workspace :as workspace]
-            [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
-            [editor.defold-project :as project]
-            [editor.github :as github]
-            [editor.field-expression :as field-expression])
+            [service.log :as log])
   (:import [clojure.lang Named]
            [java.io File]
            [java.util List Collection]
@@ -322,7 +324,7 @@
    :showing (fxui/dialog-showing? props)
    :on-close-request {:result false}
    :title "Error"
-   :header {:fx/type :h-box ;; TODO vlaaad DRY?
+   :header {:fx/type :h-box
             :style-class "spacing-smaller"
             :alignment :center-left
             :children [{:fx/type fxui/icon
@@ -360,6 +362,46 @@
                                     sentry-id sentry-id)}
                    {})]
       (ui/open-url (github/new-issue-link fields)))))
+
+(defn make-load-project-dialog [worker-fn]
+  (ui/run-now
+    (let [state-atom (atom {:progress (progress/make "" 1 0)})
+          renderer (fx/create-renderer
+                     :middleware (fx/wrap-map-desc
+                                   (fn [{:keys [progress] :as props}]
+                                     {:fx/type dialog-stage
+                                      :showing (fxui/dialog-showing? props)
+                                      :header {:fx/type :h-box
+                                               :style-class "spacing-default"
+                                               :alignment :center-left
+                                               :children [{:fx/type :image-view
+                                                           :image "logo_small.png"}
+                                                          {:fx/type fxui/label
+                                                           :variant :header
+                                                           :text "Loading project"}]}
+                                      :content {:fx/type :v-box
+                                                :style-class ["dialog-content-padding" "spacing-smaller"]
+                                                :children [{:fx/type fxui/label
+                                                            :wrap-text false
+                                                            :text (:message progress)}
+                                                           {:fx/type :progress-bar
+                                                            :pref-width ##Inf
+                                                            :progress (progress/fraction progress)}]}
+                                      :footer {:fx/type dialog-buttons
+                                               :children [{:fx/type fxui/button
+                                                           :disable true
+                                                           :text "Cancel"}]}})))
+          _ (future
+              (future
+                (try
+                  (swap! state-atom assoc ::fxui/result (worker-fn #(swap! state-atom assoc :progress %)))
+                  (catch Throwable e
+                    (log/error :exception e)
+                    (swap! state-atom assoc ::fxui/result e)))))
+          ret (fxui/mount-renderer-and-await-result! state-atom renderer)]
+      (if (instance? Throwable ret)
+        (throw ret)
+        ret))))
 
 (defn make-gl-support-error-dialog [support-error]
   (let [root ^VBox (ui/load-fxml "gl-error.fxml")

@@ -34,6 +34,7 @@ $spacing-largest: 40px;
 @mixin font-light { -fx-font-family: "Source Sans Pro Light"; }
 @mixin text-fill-text-color { -fx-text-fill: $light-grey; }
 @mixin spacing-smaller { -fx-spacing: $spacing-smaller;}
+@mixin spacing-default { -fx-spacing: $spacing-default;}
 
 // util
 
@@ -54,6 +55,9 @@ $spacing-largest: 40px;
 
 .spacing-smaller {
   @include spacing-smaller();
+}
+.spacing-default {
+  @include spacing-default();
 }
 
 // label
@@ -308,4 +312,20 @@ Text {
   @include font-size-default();
   @include font-default();
   -fx-fill: $light-grey;
+}
+
+.progress-bar {
+  -fx-background-radius: 0;
+  -fx-min-width: 140px;
+
+  .bar {
+    -fx-background-color: $blue;
+    -fx-background-insets: 0;
+    -fx-background-radius: 4;
+    -fx-pref-height: 5px;
+  }
+
+  .track {
+    -fx-background-color: $grey;
+  }
 }
