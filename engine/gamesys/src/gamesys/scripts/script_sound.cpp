@@ -344,7 +344,7 @@ namespace dmGameSystem
     }
 
     /*# plays a sound
-     * Make the sound component play its sound. Multiple voices is supported. The limit is set to 32 voices per sound component.
+     * Make the sound component play its sound. Multiple voices are supported. The limit is set to 32 voices per sound component.
      *
      * [icon:attention] Note that gain is in linear scale, between 0 and 1.
      * To get the dB value from the gain, use the formula `20 * log(gain)`.
