@@ -9,9 +9,9 @@
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.view :as view]
+            [editor.workspace :as workspace]
             [service.log :as log]
-            [util.http-server :as http-server]
-            [editor.workspace :as workspace])
+            [util.http-server :as http-server])
   (:import [java.net URI URLDecoder]
            [javafx.scene Parent]
            [javafx.scene.control Tab]
