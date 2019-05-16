@@ -31,11 +31,19 @@
 
 using namespace Vectormath::Aos;
 
-uint64_t g_Flipped = 0;
+#ifdef NDEBUG
+    #define VK_CHECK(stmt) stmt
+#else
+    #define VK_CHECK(stmt) \
+        if (stmt != VK_SUCCESS) \
+        { \
+            dmLogError("Vulkan Error (%s:%d): \n%s", __FILE__, __LINE__, #stmt); \
+        }
+#endif
 
-// Used only for tests
-bool g_ForceFragmentReloadFail = false;
-bool g_ForceVertexReloadFail = false;
+// This is not an enum. Queue families are index values
+#define QUEUE_FAMILY_INVALID -1
+#define VK_ZERO_MEMORY(ptr,size) memset((void*)ptr,0,size)
 
 namespace dmGraphics
 {
@@ -43,20 +51,6 @@ namespace dmGraphics
 
     namespace Vulkan
     {
-        // This is not an enum. Queue families are index values
-        #define QUEUE_FAMILY_INVALID -1
-        #define VK_ZERO_MEMORY(ptr,size) memset((void*)ptr,0,size)
-
-        #ifdef NDEBUG
-            #define VK_CHECK(stmt) stmt
-        #else
-            #define VK_CHECK(stmt) \
-                if (stmt != VK_SUCCESS) \
-                { \
-                    dmLogError("Vulkan Error (%s:%d): \n%s", __FILE__, __LINE__, #stmt); \
-                }
-        #endif
-
         const int g_enable_validation_layers = 1;
         const char* g_validation_layers[]    = {
         #ifdef __MACH__
@@ -136,7 +130,7 @@ namespace dmGraphics
             , m_Handle(0)
             {
                 m_GPUBuffer.m_DeviceMemory = 0;
-                m_GPUBuffer.m_DataSize   = 0;
+                m_GPUBuffer.m_DataSize     = 0;
             }
 
             const VkBufferUsageFlags m_Usage;
