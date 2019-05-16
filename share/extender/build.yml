@@ -72,7 +72,7 @@ platforms:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
     context:
         frameworks: ["Foundation", "AppKit", "Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo"]
-        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "vpx", "liveupdate", "unwind"]
+        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "vpx", "liveupdate", "unwind", "cares"]
         libPaths:   ["{{dynamo_home}}/lib/x86_64-darwin", "{{dynamo_home}}/ext/lib/x86_64-darwin"]
         defines:    ["DM_PLATFORM_OSX", "LUA_BYTECODE_ENABLE_64"]
         flags:      ["-fno-exceptions", "-fvisibility=hidden"]
@@ -109,7 +109,7 @@ platforms:
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "CoreTelephony", "StoreKit", "Security"]
         weakFrameworks: ["Foundation"]
-        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate"]
+        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate", "cares", "resolv"]
         libPaths:   ["{{dynamo_home}}/lib/arm64-darwin", "{{dynamo_home}}/ext/lib/arm64-darwin"]
         defines:    ["DM_PLATFORM_IOS", "LUA_BYTECODE_ENABLE_64"]
         flags:      ["-fno-exceptions", "-fvisibility=hidden"]
@@ -140,7 +140,7 @@ platforms:
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "CoreTelephony", "StoreKit", "Security"]
         weakFrameworks: ["Foundation"]
-        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate"]
+        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate", "cares", "resolv"]
         libPaths:   ["{{dynamo_home}}/lib/armv7-darwin", "{{dynamo_home}}/ext/lib/armv7-darwin"]
         defines:    ["DM_PLATFORM_IOS", "LUA_BYTECODE_ENABLE_32"]
         flags:      ["-fno-exceptions", "-fvisibility=hidden"]
@@ -171,7 +171,7 @@ platforms:
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "CoreTelephony", "StoreKit", "Security"]
         weakFrameworks: ["Foundation", "Accounts", "Social", "AdSupport"]
-        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate"]
+        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate", "cares", "resolv"]
         libPaths:   ["{{dynamo_home}}/lib/x86_64-ios", "{{dynamo_home}}/ext/lib/x86_64-ios"]
         defines:    ["IOS_SIMULATOR", "DM_PLATFORM_IOS", "LUA_BYTECODE_ENABLE_32"]
         flags:      ["-fno-exceptions", "-fvisibility=hidden"]
@@ -209,7 +209,7 @@ platforms:
         SYSROOT:            "{{env.ANDROID_SYSROOT}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-v4.jar", "{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/in-app-purchasing-2.0.61.jar", "{{dynamo_home}}/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/iap_android.jar", "{{dynamo_home}}/share/java/push_android.jar", "{{dynamo_home}}/share/java/sound_android.jar", "{{dynamo_home}}/share/java/iac_android.jar"]
-        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "openal_soft", "tremolo", "liveupdate", "unwind"]
+        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "openal_soft", "tremolo", "liveupdate", "unwind", "cares"]
         libPaths:   ["{{dynamo_home}}/lib/armv7-android", "{{dynamo_home}}/ext/lib/armv7-android", "{{env.STL_LIB}}"]
         defines:    ["DM_PLATFORM_ANDROID", "LUA_BYTECODE_ENABLE_32", "__ARM_ARCH_5__", "__ARM_ARCH_5T__", "__ARM_ARCH_5E__", "__ARM_ARCH_5TE__"]
         platformIncludes:   ["{{env.NDK_PATH}}/sources/android/native_app_glue", "{{env.NDK_PATH}}/sources/android/cpufeatures", "{{env.NDK_INCLUDE}}", "{{env.STL_INCLUDE}}", "{{env.STL_ARCH_INCLUDE}}"]
@@ -247,7 +247,7 @@ platforms:
         SYSROOT:            "{{env.ANDROID_64_SYSROOT}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-v4.jar", "{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/in-app-purchasing-2.0.61.jar", "{{dynamo_home}}/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/iap_android.jar", "{{dynamo_home}}/share/java/push_android.jar", "{{dynamo_home}}/share/java/sound_android.jar", "{{dynamo_home}}/share/java/iac_android.jar"]
-        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "openal_soft", "tremolo", "liveupdate", "unwind"]
+        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "openal_soft", "tremolo", "liveupdate", "unwind", "cares"]
         libPaths:   ["{{dynamo_home}}/lib/arm64-android", "{{dynamo_home}}/ext/lib/arm64-android", "{{env.STL_LIB}}"]
         defines:    ["DM_PLATFORM_ANDROID", "__aarch64__", "LUA_BYTECODE_ENABLE_64"]
         platformIncludes:   ["{{env.NDK_PATH}}/sources/android/native_app_glue", "{{env.NDK_PATH}}/sources/android/cpufeatures", "{{env.NDK_INCLUDE}}", "{{env.STL_INCLUDE}}", "{{env.STL_ARCH_INCLUDE}}"]
@@ -352,7 +352,7 @@ platforms:
         TEMP:               "{{build_folder}}"
         PLATFORMSDK_DIR:    "{{env.PLATFORMSDK_DIR}}"
     context:
-        engineLibs: ["libengine","libengine_service","libaxtls","libwebviewext","libprofilerext","libfacebookext","libgameroomext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libtracking","libcrashext","libliveupdate","libsound","vpx","libFBGPlatform"]
+        engineLibs: ["libengine","libengine_service","libaxtls","libwebviewext","libprofilerext","libfacebookext","libgameroomext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libtracking","libcrashext","libliveupdate","libsound","vpx","libFBGPlatform","libcares"]
         libPaths:   ["{{dynamo_home}}/lib/x86_64-win32", "{{dynamo_home}}/ext/lib/x86_64-win32", "{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/lib/amd64", "{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/lib/amd64", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/10/Lib/10.0.10240.0/ucrt/x64", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Lib/winv6.3/um/x64"]
         platformIncludes:   ["{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/include", "{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/include", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/10/Include/10.0.10240.0/ucrt", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Include/winrt", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Include/um", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Include/shared"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE_64", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
@@ -383,7 +383,7 @@ platforms:
         TEMP:               "{{build_folder}}"
         PLATFORMSDK_DIR:    "{{env.PLATFORMSDK_DIR}}"
     context:
-        engineLibs: ["libengine","libengine_service","libaxtls","libwebviewext","libprofilerext","libfacebookext","libgameroomext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libtracking","libcrashext","libliveupdate","libsound","vpx","libFBGPlatform"]
+        engineLibs: ["libengine","libengine_service","libaxtls","libwebviewext","libprofilerext","libfacebookext","libgameroomext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libtracking","libcrashext","libliveupdate","libsound","vpx","libFBGPlatform","libcares"]
         libPaths:   ["{{dynamo_home}}/lib/win32","{{dynamo_home}}/ext/lib/win32","{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/lib/", "{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/lib", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/10/Lib/10.0.10240.0/ucrt/x86", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Lib/winv6.3/um/x86"]
         platformIncludes:   ["{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/include", "{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/include", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/10/Include/10.0.10240.0/ucrt", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Include/winrt", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Include/um", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Include/shared"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE_32", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
@@ -416,7 +416,7 @@ platforms:
 
   x86_64-linux:
     context:
-        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "gameroomext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "liveupdate", "sound", "tremolo", "vpx"]
+        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "gameroomext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "liveupdate", "sound", "tremolo", "vpx", "cares"]
         libPaths:   ["{{dynamo_home}}/lib/x86_64-linux","{{dynamo_home}}/ext/lib/x86_64-linux"]
         includes:   ["{{dynamo_home}}/include/x86_64-linux"]
         defines:    ["DM_PLATFORM_LINUX", "__STDC_LIMIT_MACROS", "LUA_BYTECODE_ENABLE_64"]

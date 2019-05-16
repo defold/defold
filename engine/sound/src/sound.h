@@ -112,6 +112,7 @@ namespace dmSound
     bool IsMusicPlaying();
     bool IsPhoneCallActive();
 
+    void OnWindowFocus(bool focus);
 }
 
 namespace dmSound

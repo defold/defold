@@ -271,6 +271,11 @@ public class BundleHelper {
                 args.add("-F"); args.add(apk.getAbsolutePath());
             }
 
+            boolean debuggable = Integer.parseInt(projectProperties.getStringValue("android", "debuggable", "0")) != 0;
+            if (debuggable) {
+                args.add("--debug-mode");
+            }
+
             for( String s : resourceDirectories )
             {
                 args.add("-S"); args.add(s);

@@ -1157,14 +1157,6 @@ instructions.configure=\
             for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
                 self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
-        # TODO: Remove this block after one release with both json files.
-        # TODO: ---- CUT HERE ----
-        full_archive_path = join('s3://d.defold.com/editor2', sha1, 'editor2')
-        for ext in ['zip', 'dmg']:
-            for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
-                self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
-        # TODO: ---- CUT TO HERE ----
-
         self.wait_uploads()
 
     def release_editor2(self):
@@ -1179,14 +1171,6 @@ instructions.configure=\
         # Rather than accessing S3 from its web end-point, we always go through the CDN
         archive_url = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(archive_url.hostname)
-
-        # TODO: Remove this block after one release with both json files.
-        # TODO: ---- CUT HERE ----
-        key_v2 = bucket.new_key('editor2/channels/%(channel)s/update-v2.json' % {'channel': self.channel})
-        key_v2.content_type = 'application/json'
-        self._log("Updating channel '%s' for update-v2.json: %s" % (self.channel, key_v2))
-        key_v2.set_contents_from_string(json.dumps({'sha1': sha1}))
-        # TODO: ---- CUT TO HERE ----
 
         key_v3 = bucket.new_key('editor2/channels/%(channel)s/update-v3.json' % {'channel': self.channel})
         key_v3.content_type = 'application/json'
@@ -1658,7 +1642,7 @@ instructions.configure=\
         for f in futures:
             f()
 
-    def _download_editor2(self, sha1):
+    def _download_editor2(self, channel, sha1):
         bundles = {
             'x86_64-darwin': 'Defold-x86_64-darwin.dmg',
             'x86_64-linux' : 'Defold-x86_64-linux.zip',
@@ -1667,12 +1651,8 @@ instructions.configure=\
         host2 = get_host_platform2()
         bundle = bundles.get(host2)
         if bundle:
-            url = 'https://d.defold.com/archive/%s/editor2/%s' % (sha1, bundle)
+            url = 'https://d.defold.com/archive/%s/%s/editor2/%s' % (sha1, channel, bundle)
             path = self._download(url)
-            # the dev build currently publishes the editor to <host>/editor2 rather than <host>/archive
-            if not path:
-                url = 'https://d.defold.com/editor2/%s/editor2/%s' % (sha1, bundle)
-                path = self._download(url)
             return path
         else:
             print("No editor2 bundle found for %s" % host2)
@@ -1733,7 +1713,7 @@ instructions.configure=\
         cwd = join('tmp', 'smoke_test')
         if os.path.exists(cwd):
             shutil.rmtree(cwd)
-        path = self._download_editor2(sha1)
+        path = self._download_editor2(self.channel, sha1)
         info = self._install_editor2(path)
         config = ConfigParser()
         config.read(info['config'])
