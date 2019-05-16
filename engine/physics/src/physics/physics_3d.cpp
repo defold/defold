@@ -976,6 +976,21 @@ namespace dmPhysics
         out_response = response;
     }
 
+    void SetGravity3D(HWorld3D world, const Vectormath::Aos::Vector3& gravity)
+    {
+        HContext3D context = world->m_Context;
+        ToBt(gravity, context->m_Gravity, context->m_Scale);
+        world->m_DynamicsWorld->setGravity(btVector3(context->m_Gravity.getX(), context->m_Gravity.getY(), context->m_Gravity.getZ()));
+    }
+
+    Vectormath::Aos::Vector3 GetGravity3D(HWorld3D world)
+    {
+        HContext3D context = world->m_Context;
+        Vectormath::Aos::Vector3 gravity;
+        FromBt(context->m_Gravity, gravity, context->m_InvScale);
+        return gravity;
+    }
+
     void SetDebugCallbacks3D(HContext3D context, const DebugCallbacks& callbacks)
     {
         context->m_DebugCallbacks = callbacks;

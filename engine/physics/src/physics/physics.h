@@ -1028,6 +1028,37 @@ namespace dmPhysics
     void RayCast2D(HWorld2D world, const RayCastRequest& request, RayCastResponse& response);
 
     /**
+     * Set the gravity for a 2D physics world.
+     *
+     * @param world Physics world for which to set the gravity
+     * @param gravity Gravity vector (z component will be ignored).
+     */
+    void SetGravity2D(HWorld2D world, const Vectormath::Aos::Vector3& gravity);
+
+    /**
+     * Set the gravity for a 3D physics world.
+     *
+     * @param world Physics world for which to set the gravity
+     * @param gravity Gravity vector.
+     */
+    void SetGravity3D(HWorld3D world, const Vectormath::Aos::Vector3& gravity);
+
+    /**
+     * Get the gravity for 2D physics world.
+     *
+     * @param world Physics world for which to get the gravity
+     */
+    Vectormath::Aos::Vector3 GetGravity2D(HWorld2D world);
+
+    /**
+     * Get the gravity for 3D physics world.
+     *
+     * @param world Physics world for which to get the gravity
+     */
+    Vectormath::Aos::Vector3 GetGravity3D(HWorld3D world);
+
+
+    /**
      * Callbacks used to draw the world for debugging purposes.
      */
     struct DebugCallbacks
