@@ -146,6 +146,10 @@ namespace dmRender
                 return height - ascent;
         }
     }
+
+    // Used in unit tests
+    bool VerifyFontMapMinFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter);
+    bool VerifyFontMapMagFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter);
 }
 
 #endif // #ifndef DM_FONT_RENDERER_PRIVATE
