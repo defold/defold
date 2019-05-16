@@ -22,6 +22,7 @@
            [java.io File]
            [java.util List Collection]
            [java.nio.file Path Paths]
+           [javafx.application Platform]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
            [javafx.scene.control Button ListView TextField]
@@ -319,7 +320,7 @@
                 (format "%s: %s" type-name (or message "Unknown")))))
        (string/join "\n")))
 
-(defn unexpected-error-dialog-fx [{:keys [ex-map] :as props}]
+(defn- unexpected-error-dialog [{:keys [ex-map] :as props}]
   {:fx/type dialog-stage
    :showing (fxui/dialog-showing? props)
    :on-close-request {:result false}
@@ -354,7 +355,7 @@
   (when (fxui/show-dialog-and-await-result!
           :event-handler (fn [state event]
                            (assoc state ::fxui/result (:result event)))
-          :description {:fx/type unexpected-error-dialog-fx
+          :description {:fx/type unexpected-error-dialog
                         :ex-map ex-map})
     (let [sentry-id (deref sentry-id-promise 100 nil)
           fields (if sentry-id
@@ -363,9 +364,10 @@
                    {})]
       (ui/open-url (github/new-issue-link fields)))))
 
-(defn- load-project-dialog-fx [{:keys [progress] :as props}]
+(defn- load-project-dialog [{:keys [progress] :as props}]
   {:fx/type dialog-stage
    :showing (fxui/dialog-showing? props)
+   :on-close-request (fn [_] (Platform/exit))
    :header {:fx/type :h-box
             :style-class "spacing-default"
             :alignment :center-left
@@ -394,7 +396,7 @@
   (ui/run-now
     (let [state-atom (atom {:progress (progress/make "Loading" 1 0)})
           renderer (fx/create-renderer
-                     :middleware (fx/wrap-map-desc assoc :fx/type load-project-dialog-fx))
+                     :middleware (fx/wrap-map-desc assoc :fx/type load-project-dialog))
           render-progress! #(swap! state-atom assoc :progress %)
           _ (future
               (try
