@@ -243,11 +243,21 @@ def _parse_comment(str):
 
 def extract_type_from_docstr(str):
     # try to extract the type information
-    m = re.search('\[type:(.*)\] (.*)', str)
-    if m:
-        return m.group(1), m.group(2)
+    m = re.search('^\[type:(.*)\] (.*)', str)
+    if m and m.group(1) and m.group(2):
+        type_list = m.group(1).split("|")
+        if len(type_list) == 1:
+            type_list = type_list[0]
+        return type_list, m.group(2)
 
     return "", str
+
+def is_optional(str):
+    m = re.search('^\[(.*)\]', str)
+    if m and m.group(1):
+        return True, m.group(1)
+
+    return False, str
 
 def _parse_comment_yaml(str):
     str = _strip_comment_stars(str)
@@ -319,7 +329,8 @@ def _parse_comment_yaml(str):
             if len(tmp) < 2:
                 tmp = [tmp[0], '']
             param = {}
-            param["name"] = tmp[0]
+            param["optional"], param["name"] = is_optional(tmp[0])
+            # param["name"] = tmp[0]
             param["type"], param["doc"] = extract_type_from_docstr(tmp[1])
             element["params"].append(param)
 
@@ -451,11 +462,15 @@ def doc_to_ydict(info, elements):
             # parameters for functions
             elem_params = []
             for param in element["params"]:
-                elem_params.append({
+                func_param = {
                         'name': param["name"],
                         'desc': param["doc"],
                         'type': param["type"]
-                    })
+                    }
+                if param["optional"]:
+                    func_param["optional"] = True
+
+                elem_params.append(func_param)
 
             entry["parameters"] = elem_params
 
@@ -466,7 +481,8 @@ def doc_to_ydict(info, elements):
                         'desc': ret["doc"],
                         'type': ret["type"]
                     })
-            entry["returns"] = elem_returns
+            if len(elem_returns) > 0:
+                entry["returns"] = elem_returns
 
         if elem_type == "message":
             api.append(entry)
