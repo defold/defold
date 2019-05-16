@@ -6,6 +6,9 @@
 .tree-cell {
     -fx-background-color: $dark-grey-light;
     -fx-font-weight: normal;
+    .label {
+        -fx-padding: 0;
+    }
     &:filled {
         -fx-padding: 5;
         -fx-border-width: 0 0 0 2;
@@ -18,6 +21,9 @@
             .image-view {
                 @include effect-bright-grey();
             }
+            .label {
+                -fx-text-fill: $defold-white;
+            }
         }
         &:selected {
             -fx-border-width: 0 0 0 2;
@@ -26,6 +32,9 @@
             -fx-background-color: $dark-grey-selected;
             .image-view {
                 @include effect-bright-grey();
+            }
+            .label {
+                -fx-text-fill: $defold-white;
             }
         }
 
