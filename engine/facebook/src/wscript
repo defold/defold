@@ -1,80 +1,26 @@
 #! /usr/bin/env python
 import os, re
 
-import waf_dynamo
 from waf_dynamo import apidoc_extract_task
 
 def init():
     pass
 
-def set_options(opt):
-    opt.tool_options('waf_dynamo')
-
 def configure(conf):
-    conf.check_tool('waf_dynamo')
-    dynamo_home = conf.env.DYNAMO_HOME
-    if not dynamo_home:
-        conf.fatal("DYNAMO_HOME not set")
-    if not conf.env.PREFIX:
-        conf.fatal("PREFIX is not set")
+    pass
 
 def build(bld):
-    embed_source = ''
-    source = 'facebook_dummy.cpp facebook_util.cpp facebook_private.cpp'
-    testsource = ''
+    source = 'facebook_null.cpp'
 
-    if re.match('arm.*?darwin', bld.env.PLATFORM):
-        source += ' facebook_ios.mm'
-        source += ' facebook_analytics.cpp'
-        embed_source += ' ../resources/ios/close.png ../resources/ios/close@2x.png'
+    platforms = ['arm.*?darwin', 'arm.*?android', '.*?web']
+    for p in platforms:
+        if re.match(p, bld.env.PLATFORM):
+            source = 'facebook_stub.cpp'
+            break
 
-    elif 'android' in bld.env['PLATFORM']:
-        source += ' facebook_android.cpp'
-        source += ' facebook_analytics.cpp'
+    bld.new_task_gen(features = 'cxx cstaticlib',
+                    includes = '.',
+                    source = source,
+                    target = 'facebookext')
 
-        classpath = ['%s/ext/share/java/facebooksdk.jar' % bld.env.DYNAMO_HOME,
-                     '%s/ext/share/java/bolts-android-1.2.0.jar' % bld.env.DYNAMO_HOME,
-                     '%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME,
-                     '%s/ext/share/java/android-support-v4.jar' % bld.env.DYNAMO_HOME,
-                     '%s/share/java/gamesys_android.jar' % bld.env.DYNAMO_HOME]
-        classpath = os.pathsep.join(classpath)
-
-        bld.new_task_gen(features='javac seq',
-                         classpath=classpath,
-                         source_root='java')
-
-        bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6'
-
-        bld.new_task_gen(features='jar seq',
-                         basedir='java',
-                         destfile='facebook_android.jar')
-
-        bld.install_files('${PREFIX}/share/java', 'facebook_android.jar')
-    elif 'web' in bld.env['PLATFORM']:
-        bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], '../src/js/library_facebook.js', postpone = False)
-        source += ' facebook_emscripten.cpp'
-        source += ' facebook_analytics.cpp'
-    elif 'win32' in bld.env['PLATFORM']:
-        source += ' facebook_gameroom.cpp'
-        source += ' facebook_analytics.cpp'
-        testsource = 'facebook_dummy.cpp facebook_util.cpp facebook_private.cpp'
-    else:
-        source = 'facebook_null.cpp'
-        testsource = 'facebook_dummy.cpp facebook_util.cpp facebook_private.cpp'
-
-    facebook = bld.new_task_gen(features = 'cxx cstaticlib embed',
-                                includes = '.',
-                                source = source,
-                                embed_source = embed_source,
-                                target = 'facebookext')
-
-    if testsource:
-        facebookext_test = bld.new_task_gen(features = 'cxx cstaticlib',
-                                    includes = '.',
-                                    source = testsource,
-                                    target = 'facebookext_test')
-        facebookext_test.install_path = None
-
-    apidoc_extract_task(bld, ['facebook_ios.mm'])
-
-    bld.add_subdirs('test')
+    apidoc_extract_task(bld, ['facebook_doc.h'])

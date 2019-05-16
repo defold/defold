@@ -66,8 +66,6 @@ namespace dmEngineVersion
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
     elif operating_sys == 'ios':
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'AudioToolbox'])
-        # For Facebook SDK...
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Security', '-weak_framework', 'Accounts', '-weak_framework', 'Social', '-weak_framework', 'AdSupport'])
         # For IAP
         conf.env.append_value('LINKFLAGS', ['-framework', 'StoreKit'])
     elif operating_sys == 'android':
@@ -104,11 +102,6 @@ namespace dmEngineVersion
     conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
 
     conf.env['STATICLIB_UNWIND'] = 'unwind'
-    conf.env['STATICLIB_BOLTS'] = 'Bolts'
-    conf.env['STATICLIB_FBSDKCORE'] = 'FBSDKCore'
-    conf.env['STATICLIB_FBSDKLOGIN'] = 'FBSDKLogin'
-    conf.env['STATICLIB_FBSDKSHARE'] = 'FBSDKShare'
-    conf.env['LIB_SQLLITE'] = 'sqlite3'
     conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
     conf.env['STATICLIB_GAMEROOMEXT'] = 'gameroomext'
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
