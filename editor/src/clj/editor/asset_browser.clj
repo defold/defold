@@ -397,14 +397,14 @@
 (handler/defhandler :delete :asset-browser
   (enabled? [selection] (delete? selection))
   (run [selection asset-browser selection-provider]
-    (let [names (apply str (interpose ", " (map resource/resource-name selection)))
-          next (-> (handler/succeeding-selection selection-provider)
+    (let [next (-> (handler/succeeding-selection selection-provider)
                    (handler/adapt-single resource/Resource))]
       (when (if (= 1 (count selection))
               (dialogs/make-confirmation-dialog
                 {:title "Delete File"
                  :icon :icon/circle-question
-                 :header (format "Are you sure you want to delete %s?" names)
+                 :header (format "Are you sure you want to delete %s?"
+                                 (resource/resource-name (first selection)))
                  :buttons [{:text "Cancel"
                             :cancel-button true
                             :result false}
@@ -418,7 +418,11 @@
                  :header "Are you sure you want to delete these files?"
                  :content {:fx/type fxui/label
                            :style-class "dialog-content-padding"
-                           :text (format "You are about to delete %s" names)}
+                           :text (format "You are about to delete: \n%s"
+                                         (->> selection
+                                              (map #(str "\u00A0\u00A0\u2022\u00A0"
+                                                         (resource/resource-name %)))
+                                              (string/join "\n")))}
                  :buttons [{:text "Cancel"
                             :cancel-button true
                             :result false}
