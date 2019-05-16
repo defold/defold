@@ -200,6 +200,13 @@
      (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)]
        (get nodes-by-resource-path (resource/proj-path resource))))))
 
+(defn script-intelligence
+  ([project]
+   (g/with-auto-evaluation-context evaluation-context
+     (script-intelligence project evaluation-context)))
+  ([project evaluation-context]
+   (g/node-value project :script-intelligence evaluation-context)))
+
 (defn load-project
   ([project]
    (load-project project (g/node-value project :resources)))
@@ -208,11 +215,13 @@
   ([project resources render-progress!]
    (assert (not (seq (g/node-value project :nodes))) "load-project should only be used when loading an empty project")
    (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
-     (let [nodes (make-nodes! project resources)]
+     (let [nodes (make-nodes! project resources)
+           script-intel (script-intelligence project)]
        (load-nodes! project nodes render-progress! {})
        (when-let [game-project (get-resource-node project "/game.project")]
          (g/transact
            (concat
+             (g/connect script-intel :build-errors game-project :build-errors)
              (g/connect game-project :display-profiles-data project :display-profiles)
              (g/connect game-project :texture-profiles-data project :texture-profiles)
              (g/connect game-project :settings-map project :settings))))
@@ -272,13 +281,6 @@
 
 (defn invalidate-save-data-source-values! [save-data]
   (g/invalidate-outputs! (mapv (fn [sd] [(:node-id sd) :source-value]) save-data)))
-
-(defn script-intelligence
-  ([project]
-   (g/with-auto-evaluation-context evaluation-context
-     (script-intelligence project evaluation-context)))
-  ([project evaluation-context]
-   (g/node-value project :script-intelligence evaluation-context)))
 
 (defn workspace
   ([project]

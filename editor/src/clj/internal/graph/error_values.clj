@@ -79,6 +79,10 @@
       (error-severity packaged-errors)
       :info)))
 
+(defn error-package?
+  [value]
+  (instance? ErrorPackage value))
+
 (defn- unpack-if-package [error-or-package]
   (if (instance? ErrorPackage error-or-package)
     (:packaged-errors error-or-package)

@@ -124,27 +124,28 @@
    ["input" "gamepads"] [[:build-targets :dep-build-targets]]
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]})
 
-(g/defnk produce-build-targets [_node-id resource settings-map meta-info custom-build-targets resource-settings dep-build-targets]
-  (let [clean-meta-info (settings-core/remove-to-from-string meta-info)
-        dep-build-targets (vec (into (flatten dep-build-targets) custom-build-targets))
-        deps-by-source (into {} (map
-                                  (fn [build-target]
-                                    (let [build-resource (:resource build-target)
-                                          source-resource (:resource build-resource)]
-                                      [source-resource build-resource]))
-                                  dep-build-targets))
-        path->built-resource-settings (into {} (keep (fn [resource-setting]
-                                                       (when (resource-setting-connections-template (:path resource-setting))
-                                                         [(:path resource-setting) (deps-by-source (:value resource-setting))]))
-                                                     resource-settings))]
-    [(bt/with-content-hash
-       {:node-id _node-id
-        :resource (workspace/make-build-resource resource)
-        :build-fn build-game-project
-        :user-data {:settings-map settings-map
-                    :meta-settings (:settings clean-meta-info)
-                    :path->built-resource-settings path->built-resource-settings}
-        :deps dep-build-targets})]))
+(g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets resource-settings dep-build-targets]
+  (g/precluding-errors build-errors
+     (let [clean-meta-info (settings-core/remove-to-from-string meta-info)
+           dep-build-targets (vec (into (flatten dep-build-targets) custom-build-targets))
+           deps-by-source (into {} (map
+                                     (fn [build-target]
+                                       (let [build-resource (:resource build-target)
+                                             source-resource (:resource build-resource)]
+                                         [source-resource build-resource]))
+                                     dep-build-targets))
+           path->built-resource-settings (into {} (keep (fn [resource-setting]
+                                                          (when (resource-setting-connections-template (:path resource-setting))
+                                                            [(:path resource-setting) (deps-by-source (:value resource-setting))]))
+                                                        resource-settings))]
+       [(bt/with-content-hash
+          {:node-id _node-id
+           :resource (workspace/make-build-resource resource)
+           :build-fn build-game-project
+           :user-data {:settings-map settings-map
+                       :meta-settings (:settings clean-meta-info)
+                       :path->built-resource-settings path->built-resource-settings}
+           :deps dep-build-targets})])))
 
 (g/defnode GameProjectNode
   (inherits resource-node/ResourceNode)
@@ -169,6 +170,8 @@
   (input resource-map g/Any)
   (input dep-build-targets g/Any :array)
   (input meta-info g/Any)
+
+  (input build-errors g/Any :array)
 
   (output custom-build-targets g/Any :cached
           (g/fnk [_node-id resource-map settings-map]

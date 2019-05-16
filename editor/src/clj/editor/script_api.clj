@@ -109,24 +109,37 @@
   (combine-conversions (convert-lines lines)))
 
 (g/defnk produce-completions
-  [lines]
+  [parse-result]
+  (g/precluding-errors parse-result parse-result))
+
+(g/defnk produce-parse-result
+  [_node-id lines]
   (try
     (lines->completion-info lines)
     (catch Exception e
       ;; NOTE: We might want to extract better error information from this
       ;; exception so that it is easier to point to the cause of the error
       ;; without parsing in the build error view?
-      (error-values/error-warning (.getMessage e)))))
+      (g/package-errors _node-id (error-values/error-fatal (.getMessage e))))))
+
+(g/defnk produce-build-errors
+  [parse-result]
+  (when (g/error-package? parse-result)
+    (g/unpack-errors parse-result)))
 
 (g/defnode ScriptApiNode
   (inherits r/CodeEditorResourceNode)
+  (output parse-result g/Any :cached produce-parse-result)
+  (output build-errors g/Any produce-build-errors)
   (output completions si/ScriptCompletions produce-completions))
 
 (defn- load-script-api
   [project self resource]
-  (concat (g/connect self :completions (project/script-intelligence project) :lua-completions)
-          (when (resource/file-resource? resource)
-            (g/connect self :save-data project :save-data))))
+  (let [si (project/script-intelligence project)]
+    (concat (g/connect self :completions si :lua-completions)
+            (g/connect self :build-errors si :build-errors)
+            (when (resource/file-resource? resource)
+              (g/connect self :save-data project :save-data)))))
 
 (defn register-resource-types
   [workspace]
