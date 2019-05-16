@@ -4,7 +4,6 @@ import re
 def build(bld):
     if 'web' in bld.env.PLATFORM:
         return
-
     if bld.env.PLATFORM.find('arm') == -1 and bld.env.PLATFORM != "x86_64-ios":
         vpx = 'VPX'
         record = 'record'
