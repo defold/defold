@@ -1286,6 +1286,13 @@
                (suggestions-shown? view-node))
       (show-suggestions! view-node))))
 
+(defn toggle-comment! [view-node]
+  (set-properties! view-node nil
+                   (data/toggle-comment (get-property view-node :lines)
+                                        (get-property view-node :regions)
+                                        (get-property view-node :cursor-ranges)
+                                        (:line-comment (get-property view-node :grammar)))))
+
 (defn select-all! [view-node]
   (hide-suggestions! view-node)
   (set-properties! view-node :selection
@@ -1646,6 +1653,11 @@
 
 (handler/defhandler :delete :code-view
   (run [view-node] (delete! view-node :delete-after)))
+
+(handler/defhandler :toggle-comment :code-view
+  (active? [view-node evaluation-context]
+           (contains? (get-property view-node :grammar evaluation-context) :line-comment))
+  (run [view-node] (toggle-comment! view-node)))
 
 (handler/defhandler :delete-backward :code-view
   (run [view-node] (delete! view-node :delete-before)))
@@ -2073,6 +2085,7 @@
                  {:command :replace-text               :label "Replace..."}
                  {:command :replace-next               :label "Replace Next"}
                  {:label :separator}
+                 {:command :toggle-comment             :label "Toggle Comment"}
                  {:command :reindent                   :label "Reindent Lines"}
 
                  {:label "Convert Indentation"
@@ -2086,7 +2099,6 @@
                               :command :convert-indentation
                               :user-data :four-spaces}]}
 
-                 {:command :toggle-comment             :label "Toggle Comment"}
                  {:label :separator}
                  {:command :sort-lines                 :label "Sort Lines"}
                  {:command :sort-lines-case-sensitive  :label "Sort Lines (Case Sensitive)"}
