@@ -363,41 +363,45 @@
                    {})]
       (ui/open-url (github/new-issue-link fields)))))
 
+(defn- load-project-dialog-fx [{:keys [progress] :as props}]
+  {:fx/type dialog-stage
+   :showing (fxui/dialog-showing? props)
+   :header {:fx/type :h-box
+            :style-class "spacing-default"
+            :alignment :center-left
+            :children [{:fx/type :group
+                        :children [{:fx/type :image-view
+                                    :scale-x 0.25
+                                    :scale-y 0.25
+                                    :image "logo.png"}]}
+                       {:fx/type fxui/label
+                        :variant :header
+                        :text "Loading project"}]}
+   :content {:fx/type :v-box
+             :style-class ["dialog-content-padding" "spacing-smaller"]
+             :children [{:fx/type fxui/label
+                         :wrap-text false
+                         :text (:message progress)}
+                        {:fx/type :progress-bar
+                         :pref-width ##Inf
+                         :progress (progress/fraction progress)}]}
+   :footer {:fx/type dialog-buttons
+            :children [{:fx/type fxui/button
+                        :disable true
+                        :text "Cancel"}]}})
+
 (defn make-load-project-dialog [worker-fn]
   (ui/run-now
-    (let [state-atom (atom {:progress (progress/make "" 1 0)})
+    (let [state-atom (atom {:progress (progress/make "Loading" 1 0)})
           renderer (fx/create-renderer
-                     :middleware (fx/wrap-map-desc
-                                   (fn [{:keys [progress] :as props}]
-                                     {:fx/type dialog-stage
-                                      :showing (fxui/dialog-showing? props)
-                                      :header {:fx/type :h-box
-                                               :style-class "spacing-default"
-                                               :alignment :center-left
-                                               :children [{:fx/type :image-view
-                                                           :image "logo_small.png"}
-                                                          {:fx/type fxui/label
-                                                           :variant :header
-                                                           :text "Loading project"}]}
-                                      :content {:fx/type :v-box
-                                                :style-class ["dialog-content-padding" "spacing-smaller"]
-                                                :children [{:fx/type fxui/label
-                                                            :wrap-text false
-                                                            :text (:message progress)}
-                                                           {:fx/type :progress-bar
-                                                            :pref-width ##Inf
-                                                            :progress (progress/fraction progress)}]}
-                                      :footer {:fx/type dialog-buttons
-                                               :children [{:fx/type fxui/button
-                                                           :disable true
-                                                           :text "Cancel"}]}})))
+                     :middleware (fx/wrap-map-desc assoc :fx/type load-project-dialog-fx))
+          render-progress! #(swap! state-atom assoc :progress %)
           _ (future
-              (future
-                (try
-                  (swap! state-atom assoc ::fxui/result (worker-fn #(swap! state-atom assoc :progress %)))
-                  (catch Throwable e
-                    (log/error :exception e)
-                    (swap! state-atom assoc ::fxui/result e)))))
+              (try
+                (swap! state-atom assoc ::fxui/result (worker-fn render-progress!))
+                (catch Throwable e
+                  (log/error :exception e)
+                  (swap! state-atom assoc ::fxui/result e))))
           ret (fxui/mount-renderer-and-await-result! state-atom renderer)]
       (if (instance? Throwable ret)
         (throw ret)
