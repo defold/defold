@@ -86,7 +86,7 @@
   (-> props
       (assoc :fx/type :h-box)
       (fxui/provide-defaults :alignment :center-right)
-      (update :style-class fxui/add-style-classes "spacing-smaller")))
+      (fxui/add-style-classes "spacing-smaller")))
 
 (defn- confirmation-dialog [{:keys [buttons icon]
                              :or {icon ::no-icon}
@@ -145,7 +145,7 @@
 (defn- info-dialog-text-area [props]
   (-> props
       (assoc :fx/type fxui/text-area)
-      (update :style-class fxui/add-style-classes "text-area-with-dialog-content-padding")
+      (fxui/add-style-classes "text-area-with-dialog-content-padding")
       (fxui/provide-defaults
         :pref-row-count (max 3 (count (string/split (:text props "") #"\n" 10)))
         :variant :borderless
@@ -185,7 +185,7 @@
   (and (pos? (.length x))
        (every? #(Character/isDigit ^char %) x)))
 
-(defn fx-resolution-dialog [{:keys [width-text height-text] :as props}]
+(defn resolution-dialog [{:keys [width-text height-text] :as props}]
   (let [width-valid (digit-string? width-text)
         height-valid (digit-string? height-text)]
     {:fx/type dialog-stage
@@ -236,7 +236,7 @@
                        :cancel (assoc state ::fxui/result nil)
                        :confirm (assoc state ::fxui/result {:width (field-expression/to-int (:width-text state))
                                                             :height (field-expression/to-int (:height-text state))})))
-    :description {:fx/type fx-resolution-dialog}))
+    :description {:fx/type resolution-dialog}))
 
 (defn make-update-failed-dialog [^Stage owner]
   (let [result (make-confirmation-dialog
@@ -685,7 +685,7 @@
 
     @return))
 
-(defn target-ip-dialog-fx [{:keys [msg ^String ip] :as props}]
+(defn- target-ip-dialog [{:keys [msg ^String ip] :as props}]
   (let [ip-valid (pos? (.length ip))]
     {:fx/type dialog-stage
      :showing (fxui/dialog-showing? props)
@@ -723,7 +723,7 @@
                        :set-ip (assoc state :ip event)
                        :cancel (assoc state ::fxui/result nil)
                        :confirm (assoc state ::fxui/result (:ip state))))
-    :description {:fx/type target-ip-dialog-fx
+    :description {:fx/type target-ip-dialog
                   :msg (or msg "Enter Target IP Address")}))
 
 (defn- sanitize-common [name]

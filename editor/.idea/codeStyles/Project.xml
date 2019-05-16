@@ -13,7 +13,6 @@
   :editor.file-test/with-temp-dir :only-indent
   :editor.file-test/with-temp-dir! :only-indent
   :editor.fs/maybe-silently :only-indent
-  :editor.fxui/wrap-state-handler :only-indent
   :editor.git-test/with-git :only-indent
   :editor.gl/gl-push-matrix :only-indent
   :editor.gl/with-gl-bindings :only-indent

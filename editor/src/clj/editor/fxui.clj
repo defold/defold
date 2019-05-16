@@ -49,7 +49,7 @@
 
 (defn mount-renderer-and-await-result!
   "Mounts `renderer` and blocks current thread until `state-atom`'s value
-  receives has a `::result` key"
+  receives a `::result` key"
   [state-atom renderer]
   (let [event-loop-key (Object.)
         result-promise (promise)]
@@ -76,14 +76,14 @@
 
   Options:
   - `:initial-state` (optional, default `{}`) - map containing initial state of
-    a dialog, should not contain `:result` key
+    a dialog, should not contain `::result` key to be shown
   - `:event-handler` (required) - 2-argument event handler, receives current
     state as first argument and event map as second, returns new state. Once
-    state of a dialog has `:result` key in it, dialog interaction is considered
-    complete and dialog should close
+    state of a dialog has `::result` key in it, dialog interaction is considered
+    complete and dialog will close
   - `:description` (required) - fx description used for this dialog, gets merged
     into current state map, meaning that state map contents, including
-    eventually a `:result` key, will also be present in description props. You
+    eventually a `::result` key, will also be present in description props. You
     can use `editor.fxui/dialog-showing?` and pass it resulting props to check
     if dialog stage's `:showing` property should be set to true"
   [& {:keys [initial-state event-handler description]
@@ -124,9 +124,13 @@
           :style :decorated
           :modality (if (nil? owner) :application-modal :window-modal)))))
 
-(defn add-style-classes [style-class & classes]
-  (let [existing-classes (if (string? style-class) [style-class] style-class)]
-    (into existing-classes classes)))
+(defn add-style-classes [props & classes]
+  (update props :style-class (fn [style-class]
+                               (let [existing-classes (cond
+                                                        (nil? style-class) []
+                                                        (string? style-class) [style-class]
+                                                        :else style-class)]
+                                 (into existing-classes classes)))))
 
 (defn label
   "Generic `:label` with sensible defaults (`:wrap-text` is true)
@@ -141,26 +145,26 @@
       (assoc :fx/type :label)
       (dissoc :variant)
       (provide-defaults :wrap-text true)
-      (update :style-class add-style-classes (case variant
-                                               :label "label"
-                                               :header "header"))))
+      (add-style-classes (case variant
+                           :label "label"
+                           :header "header"))))
 
 (defn button
   "Generic button
 
   Additional keys:
   - `:variant` (optional, default `:secondary`) - a styling variant, either
-    `:secondary` or `:primary`"
+    `:secondary`, `:primary` or `:danger`"
   [{:keys [variant]
     :or {variant :secondary}
     :as props}]
   (-> props
       (assoc :fx/type :button)
       (dissoc :variant)
-      (update :style-class add-style-classes "button" (case variant
-                                                        :primary "button-primary"
-                                                        :secondary "button-secondary"
-                                                        :danger "button-danger"))))
+      (add-style-classes "button" (case variant
+                                    :primary "button-primary"
+                                    :secondary "button-secondary"
+                                    :danger "button-danger"))))
 
 (defn two-col-input-grid-pane
   "Grid pane whose children are partitioned into pairs and displayed in 2
@@ -171,7 +175,7 @@
              :column-constraints [{:fx/type :column-constraints}
                                   {:fx/type :column-constraints
                                    :hgrow :always}])
-      (update :style-class add-style-classes "input-grid")
+      (add-style-classes "input-grid-pane")
       (update :children (fn [children]
                           (into []
                                 (comp
@@ -183,7 +187,7 @@
                                                     :grid-pane/halignment :right)
                                        (assoc input :grid-pane/column 1
                                                     :grid-pane/row row)]))
-                                  (mapcat identity))
+                                  cat)
                                 children)))))
 
 (defn text-field
@@ -198,9 +202,9 @@
   (-> props
       (assoc :fx/type :text-field)
       (dissoc :variant)
-      (update :style-class add-style-classes "text-field" (case variant
-                                                            :default "text-field-default"
-                                                            :error "text-field-error"))))
+      (add-style-classes "text-field" (case variant
+                                        :default "text-field-default"
+                                        :error "text-field-error"))))
 
 (defn text-area
   "Generic `:text-area`
@@ -214,10 +218,10 @@
   (-> props
       (assoc :fx/type :text-area)
       (dissoc :variant)
-      (update :style-class add-style-classes "text-area" (case variant
-                                                           :default "text-area-default"
-                                                           :error "text-area-error"
-                                                           :borderless "text-area-borderless"))))
+      (add-style-classes "text-area" (case variant
+                                       :default "text-area-default"
+                                       :error "text-area-error"
+                                       :borderless "text-area-borderless"))))
 
 (defn icon
   "An `:svg-path` with content being managed by `:type` key, has default `:fill`
