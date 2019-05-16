@@ -808,7 +808,7 @@ namespace dmRender
      * ```lua
      * function update(self, dt)
      *     -- set render target so all drawing is done to it
-     *     render.set_render_target(self.my_render_target, { transient = {render.BUFFER_DEPTH_BIT, render.BUFFER_STENCIL_BIT} } )
+     *     render.set_render_target(self.my_render_target, { transient = { render.BUFFER_DEPTH_BIT, render.BUFFER_STENCIL_BIT } } )
      *
      *     -- draw a predicate to the render target
      *     render.draw(self.my_pred)
