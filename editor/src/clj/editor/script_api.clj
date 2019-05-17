@@ -32,7 +32,8 @@
             :doc desc
             :display-string name
             :insert-string name}]
-          (mapv (comp convert #(assoc % :ns name)) members))))
+          (map (comp convert #(assoc % :ns name))
+               (filter map? members)))))
 
 (defn- param-names
   [params remove-optional?]
@@ -104,7 +105,9 @@
                     ;; Always add namespaces as members of the global namespace.
                     (update m "" conj x))
                   (:name x)]
-                 [(update m ns conj x) ns])))
+                 (if x
+                   [(update m ns conj x) ns]
+                   [m ns]))))
            [{"" []} ""]
            conversions)))
 

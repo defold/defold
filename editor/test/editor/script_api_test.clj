@@ -65,6 +65,21 @@
 (def empty-top-level-definition
   "- ")
 
+(def empty-top-level-definition-expected-result
+  {"" []})
+
+(def broken-table-member-list
+  "
+- name: other
+  type: table
+  desc: 'Another table'
+  members:
+    - nam")
+
+(def broken-table-member-list-expected-result
+  {"" [(std "other" :namespace "Another table")]
+   "other" []})
+
 (defn do-convert
   [source]
   (sapi/combine-conversions (sapi/convert-lines (string/split-lines source))))
@@ -74,5 +89,7 @@
     just-a-variable-expected-result just-a-variable
     empty-table-expected-result empty-table
     table-with-members-expected-result table-with-members
-    function-with-one-parameter-expected-result function-with-one-parameter))
+    function-with-one-parameter-expected-result function-with-one-parameter
+    empty-top-level-definition-expected-result empty-top-level-definition
+    broken-table-member-list-expected-result broken-table-member-list))
 
