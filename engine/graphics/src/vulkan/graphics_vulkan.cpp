@@ -2022,6 +2022,23 @@ namespace dmGraphics
             g_vk_context.m_MainViewport.minDepth  = 0.0f;
             g_vk_context.m_MainViewport.maxDepth  = 1.0f;
 
+            PipelineState vk_default_pipeline;
+            vk_default_pipeline.m_WriteColorMask   = DMGRAPHICS_STATE_WRITE_R | DMGRAPHICS_STATE_WRITE_G | DMGRAPHICS_STATE_WRITE_B | DMGRAPHICS_STATE_WRITE_A;
+            vk_default_pipeline.m_WriteDepth       = 1;
+            vk_default_pipeline.m_PrimtiveType     = DMGRAPHICS_PRIMITIVE_TRIANGLES;
+            vk_default_pipeline.m_DepthTestEnabled = 1;
+            vk_default_pipeline.m_DepthTestFunc    = DMGRAPHICS_COMPARE_FUNC_LEQUAL;
+            vk_default_pipeline.m_BlendEnabled     = 0;
+            vk_default_pipeline.m_BlendSrcFactor   = DMGRAPHICS_BLEND_FACTOR_ZERO;
+            vk_default_pipeline.m_BlendDstFactor   = DMGRAPHICS_BLEND_FACTOR_ZERO;
+            vk_default_pipeline.m_StencilEnabled   = 0;
+            vk_default_pipeline.m_StencilOp        = DMGRAPHICS_STENCIL_OP_KEEP;
+            vk_default_pipeline.m_CullFaceEnabled  = 0;
+            vk_default_pipeline.m_CullFaceType     = DMGRAPHICS_FACE_TYPE_BACK;
+            vk_default_pipeline.m_ScissorEnabled   = 0;
+
+            g_vk_context.m_PipelineState = vk_default_pipeline;
+
             return true;
         }
 
