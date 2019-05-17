@@ -3,6 +3,7 @@
    [clojure.string :as s]
    [dynamo.graph :as g]
    [editor.app-view :as app-view]
+   [editor.build-target :as bt]
    [editor.collision-groups :as collision-groups]
    [editor.defold-project :as project]
    [editor.geom :as geom]
@@ -18,11 +19,12 @@
    [editor.protobuf :as protobuf]
    [editor.resource :as resource]
    [editor.resource-node :as resource-node]
+   [editor.scene :as scene]
+   [editor.scene-picking :as scene-picking]
+   [editor.scene-tools :as scene-tools]
    [editor.types :as types]
    [editor.validation :as validation]
-   [editor.workspace :as workspace]
-   [editor.scene :as scene]
-   [editor.scene-tools :as scene-tools])
+   [editor.workspace :as workspace])
   (:import
    [com.dynamo.physics.proto Physics$CollisionObjectDesc
     Physics$CollisionObjectType
@@ -114,6 +116,19 @@
 
 (def shader (shader/make-shader ::shader vertex-shader fragment-shader))
 
+(shader/defshader shape-id-vertex-shader
+  (uniform mat4 view_proj)
+  (attribute vec4 position)
+  (defn void main []
+    (setq gl_Position (* view_proj (vec4 position.xyz 1.0)))))
+
+(shader/defshader shape-id-fragment-shader
+  (uniform vec4 id)
+  (defn void main []
+    (setq gl_FragColor id)))
+
+(def id-shader (shader/make-shader ::shape-id-shader shape-id-vertex-shader shape-id-fragment-shader {"view_proj" :view-proj "id" :id}))
+
 (def outline-alpha 1.0)
 (def shape-alpha 0.1)
 (def selected-outline-alpha 1.0)
@@ -194,8 +209,8 @@
 
       pass/selection
       (let [vbuf (gen-vertex-buffer renderables n gen-disc-vertex-buffer)
-            vbuf-binding (vtx/use-with ::box vbuf shader)]
-        (gl/with-gl-bindings gl render-args [shader vbuf-binding]
+            vbuf-binding (vtx/use-with ::box vbuf id-shader)]
+        (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vbuf-binding]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLE_FAN 0 (count vbuf)))))))
 
 
@@ -248,8 +263,8 @@
 
       pass/selection
       (let [vbuf (gen-vertex-buffer renderables n gen-box-vertex-buffer)
-            vbuf-binding (vtx/use-with ::box vbuf shader)]
-        (gl/with-gl-bindings gl render-args [shader vbuf-binding]
+            vbuf-binding (vtx/use-with ::box vbuf id-shader)]
+        (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vbuf-binding]
           (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))))
 
 
@@ -326,21 +341,35 @@
 
       pass/selection
       (let [vbuf (gen-vertex-buffer renderables n gen-capsule-vbuf)
-            vertex-binding (vtx/use-with ::capsule vbuf shader)]
-        (gl/with-gl-bindings gl render-args [shader vertex-binding]
+            vertex-binding (vtx/use-with ::capsule vbuf id-shader)]
+        (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLE_FAN 0 (count vbuf)))))))
+
+(defn unify-scale [renderable]
+  (let [{:keys [^Quat4d world-rotation
+                ^Vector3d world-scale
+                ^Vector3d world-translation]} renderable
+        min-scale (min (.-x world-scale) (.-y world-scale) (.-z world-scale))
+        physics-world-transform (doto (Matrix4d.)
+                                  (.setIdentity)
+                                  (.setScale min-scale)
+                                  (.setTranslation world-translation)
+                                  (.setRotation world-rotation))]
+    (assoc renderable :world-transform physics-world-transform)))
+
+(defn wrap-uniform-scale [render-fn]
+  (fn [gl render-args renderables n]
+    (render-fn gl render-args (map unify-scale renderables) n)))
 
 (g/defnk produce-sphere-shape-scene
   [_node-id transform diameter color node-outline-key]
   {:node-id _node-id
    :node-outline-key node-outline-key
    :transform transform
-   :aabb (let [d (* 0.5 diameter)]
-           (-> (geom/null-aabb)
-               (geom/aabb-incorporate d d d)
-               (geom/aabb-incorporate (- d) (- d) (- d))
-               (geom/aabb-transform transform)))
-   :renderable {:render-fn render-sphere
+   :aabb (let [radius (* 0.5 diameter)]
+           (geom/coords->aabb [radius radius radius]
+                              [(- radius) (- radius) (- radius)]))
+   :renderable {:render-fn (wrap-uniform-scale render-sphere)
                 :tags #{:collision-shape}
                 :user-data {:sphere-diameter diameter
                             :color color}
@@ -355,11 +384,9 @@
      :aabb (let [ext-x (* 0.5 w)
                  ext-y (* 0.5 h)
                  ext-z (* 0.5 d)]
-             (-> (geom/null-aabb)
-                 (geom/aabb-incorporate ext-x ext-y ext-z)
-                 (geom/aabb-incorporate (- ext-x) (- ext-y) (- ext-z))
-                 (geom/aabb-transform transform)))
-     :renderable {:render-fn render-box
+             (geom/coords->aabb [ext-x ext-y ext-z]
+                                [(- ext-x) (- ext-y) (- ext-z)]))
+     :renderable {:render-fn (wrap-uniform-scale render-box)
                   :tags #{:collision-shape}
                   :user-data {:box-width w
                               :box-height h
@@ -371,13 +398,11 @@
   {:node-id _node-id
    :node-outline-key node-outline-key
    :transform transform
-   :aabb (let [r (* 0.5 diameter)
-               ext-y (+ (* 0.5 height) r)]
-           (-> (geom/null-aabb)
-               (geom/aabb-incorporate r ext-y r)
-               (geom/aabb-incorporate (- r) (- ext-y) (- r))
-               (geom/aabb-transform transform)))
-   :renderable {:render-fn render-capsule
+   :aabb (let [radius (* 0.5 diameter)
+               ext-y (+ (* 0.5 height) radius)]
+           (geom/coords->aabb [radius ext-y radius]
+                              [(- radius) (- ext-y) (- radius)]))
+   :renderable {:render-fn (wrap-uniform-scale render-capsule)
                 :tags #{:collision-shape}
                 :user-data {:capsule-diameter diameter
                             :capsule-height height
@@ -539,7 +564,7 @@
 (g/defnk produce-scene
   [_node-id child-scenes]
   {:node-id _node-id
-   :aabb (reduce geom/aabb-union (geom/null-aabb) (keep :aabb child-scenes))
+   :aabb geom/null-aabb
    :renderable {:passes [pass/selection]}
    :children child-scenes})
 
@@ -629,12 +654,13 @@
                          (map #(format "%s shapes are not supported in %s physics" (shape-type-label %) supported-physics-type))
                          (map #(g/->error _node-id :shapes :fatal shapes %)))
                    shapes))]
-      [{:node-id _node-id
-        :resource (workspace/make-build-resource resource)
-        :build-fn build-collision-object
-        :user-data {:pb-msg pb-msg
-                    :dep-resources dep-resources}
-        :deps dep-build-targets}])))
+      [(bt/with-content-hash
+         {:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-collision-object
+          :user-data {:pb-msg pb-msg
+                      :dep-resources dep-resources}
+          :deps dep-build-targets})])))
 
 (g/defnk produce-collision-group-color
   [collision-groups-data group]

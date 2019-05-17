@@ -382,6 +382,8 @@
                                                                    :command :bundle
                                                                    :user-data {:platform platform}})
                                                                 bundle-targets)}
+                                               {:label "Rebundle"
+                                                :command :rebundle}
                                                {:label "Fetch Libraries"
                                                 :command :fetch-libraries}
                                                {:label "Live Update Settings"
@@ -401,17 +403,19 @@
                        vals
                        (reduce into [])
                        distinct
-                       vec)]
-    (concat
-      (g/set-property project :all-selections all-selections)
-      (for [[node-id label] (g/sources-of project :all-selected-node-ids)]
-        (g/disconnect node-id label project :all-selected-node-ids))
-      (for [[node-id label] (g/sources-of project :all-selected-node-properties)]
-        (g/disconnect node-id label project :all-selected-node-properties))
-      (for [node-id all-node-ids]
-        (concat
-          (g/connect node-id :_node-id    project :all-selected-node-ids)
-          (g/connect node-id :_properties project :all-selected-node-properties))))))
+                       vec)
+        old-all-selections (g/node-value project :all-selections)]
+    (when-not (= old-all-selections all-selections)
+      (concat
+        (g/set-property project :all-selections all-selections)
+        (for [[node-id label] (g/sources-of project :all-selected-node-ids)]
+          (g/disconnect node-id label project :all-selected-node-ids))
+        (for [[node-id label] (g/sources-of project :all-selected-node-properties)]
+          (g/disconnect node-id label project :all-selected-node-properties))
+        (for [node-id all-node-ids]
+          (concat
+            (g/connect node-id :_node-id    project :all-selected-node-ids)
+            (g/connect node-id :_properties project :all-selected-node-properties)))))))
 
 (defn select
   ([project resource-node node-ids open-resource-nodes]
@@ -512,13 +516,16 @@
                                 (:invalidate-outputs plan))]
         (g/invalidate-outputs! all-outputs))
 
-      (let [old->new (into {} (map (fn [[p n]] [(old-nodes-by-path p) n]) resource-path->new-node))]
+      (let [old->new (into {} (map (fn [[p n]] [(old-nodes-by-path p) n]) resource-path->new-node))
+            dissoc-deleted (fn [x] (apply dissoc x (:mark-deleted plan)))]
         (g/transact
           (concat
             (let [all-selections (-> (g/node-value project :all-selections)
+                                     (dissoc-deleted)
                                      (remap-selection old->new (comp vector first)))]
               (perform-selection project all-selections))
             (let [all-sub-selections (-> (g/node-value project :all-sub-selections)
+                                         (dissoc-deleted)
                                          (remap-selection old->new (constantly [])))]
               (perform-sub-selection project all-sub-selections)))))
 
@@ -555,7 +562,7 @@
 (g/defnode Project
   (inherits core/Scope)
 
-  (extern workspace g/Any)
+  (property workspace g/Any)
 
   (property all-selections g/Any)
   (property all-sub-selections g/Any)
@@ -730,14 +737,33 @@
         (settings-core/get-setting ["project" "dependencies"])
         (library/parse-library-uris))))
 
+(def ^:private embedded-resource? (comp nil? resource/proj-path))
+
+(defn project-resource-node? [node-id evaluation-context]
+  (let [basis (:basis evaluation-context)]
+    (and (g/node-instance? basis resource-node/ResourceNode node-id)
+         (not (embedded-resource? (g/node-value node-id :resource evaluation-context))))))
+
+(defn- cached-save-data-output? [node-id label evaluation-context]
+  (case label
+    (:save-data :source-value) (project-resource-node? node-id evaluation-context)
+    false))
+
+(defn update-system-cache-save-data! [evaluation-context]
+  ;; To avoid cache churn, we only transfer the most important entries to the system cache.
+  (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cached-save-data-output?)]
+    (g/update-cache-from-evaluation-context! pruned-evaluation-context)))
+
 (defn- cache-save-data! [project]
   ;; Save data is required for the Search in Files feature so we pull
   ;; it in the background here to cache it.
   (let [evaluation-context (g/make-evaluation-context)]
     (future
-      ;; TODO progress reporting
-      (g/node-value project :save-data evaluation-context)
-      (ui/run-later (g/update-cache-from-evaluation-context! evaluation-context)))))
+      (error-reporting/catch-all!
+        ;; TODO: Progress reporting.
+        (g/node-value project :save-data evaluation-context)
+        (ui/run-later
+          (update-system-cache-save-data! evaluation-context))))))
 
 (defn open-project! [graph workspace-id game-project-resource render-progress! login-fn]
   (let [dependencies (read-dependencies game-project-resource)

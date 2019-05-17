@@ -7,7 +7,7 @@
 #include "sys_private.h"
 #include "dstrings.h"
 
-#if defined(__arm__) || defined(__arm64__)
+#if defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)
 #import <UIKit/UIApplication.h>
 #import <UIKit/UIKit.h>
 #import <AdSupport/AdSupport.h>
@@ -29,7 +29,7 @@ namespace dmSys
         }
     }
 
-#if defined(__arm__) || defined(__arm64__)
+#if defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)
 
     static NetworkConnectivity g_NetworkConnectivity = NETWORK_DISCONNECTED;
     static SCNetworkReachabilityRef reachability_ref = 0;

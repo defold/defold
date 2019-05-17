@@ -254,14 +254,16 @@ def transform_gui(task, msg):
         f.font = f.font.replace('.font', '.fontc')
     for t in msg.textures:
         texture_names.add(t.name)
-        t.texture = transform_texture_name(task, t.texture)
+        t.texture = transform_tilesource_name(transform_texture_name(task, t.texture))
     for s in msg.spine_scenes:
         spine_scenes.add(s.name)
         s.spine_scene = transform_spine_scene_name(task, s.spine_scene)
     for n in msg.nodes:
         if n.texture:
             if not n.texture in texture_names:
-                raise Exception('Texture "%s" not declared in gui-file' % (n.texture))
+                atlas_part = n.texture[:n.texture.index("/")]
+                if not atlas_part in texture_names:
+                    raise Exception('Texture "%s" not declared in gui-file' % (n.texture))
         if n.font:
             if not n.font in font_names:
                 raise Exception('Font "%s" not declared in gui-file' % (n.font))

@@ -111,10 +111,16 @@ namespace dmSound
         return (::CheckException(environment) && ::Detach(environment)) ? RESULT_OK : RESULT_FINI_ERROR;
     }
 
-    bool PlatformIsMusicPlaying(bool is_device_started)
+    bool PlatformIsMusicPlaying(bool is_device_started, bool has_window_focus)
     {
-        if (is_device_started)
+        // DEF-3138 If you queue silent audio to the device it will still be registered by Android
+        // as music is playing.
+        // We therefore only ask the platform if music is playing if we have either not recevied our
+        // window focus or if we have not started the device playback
+        if (has_window_focus && is_device_started)
+        {
             return false;
+        }
         return ::CallZ(g_SoundManager.m_IsMusicPlaying, false);
     }
 

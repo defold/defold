@@ -1,0 +1,6 @@
+name: TestExt2
+
+platforms:
+    android:
+        bundle:
+            aaptExtraPackages: ['com.other.package']

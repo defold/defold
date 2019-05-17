@@ -11,6 +11,7 @@
             [editor.system :as system])
   (:import [com.defold.editor Platform]
            [com.dynamo.resource.proto Resource$Reload]
+           [com.dynamo.render.proto Render$Resize]
            [java.io BufferedReader File InputStream IOException]
            [java.net HttpURLConnection InetSocketAddress Socket URI]
            [java.util.zip ZipFile]))
@@ -51,6 +52,24 @@
       (finally
         (.disconnect conn)))))
 
+(defn change-resolution! [target width height rotate]
+  (let [uri (URI. (str (:url target) "/post/@render/resize"))
+        conn ^HttpURLConnection (get-connection uri)]
+    (try
+      (with-open [os (.getOutputStream conn)]
+        (.write os ^bytes (protobuf/map->bytes
+                            Render$Resize
+                            {:width (if rotate
+                                      height
+                                      width)
+                             :height (if rotate
+                                       width
+                                       height)})))
+      (with-open [is (.getInputStream conn)]
+        (ignore-all-output is))
+      (finally
+        (.disconnect conn)))))
+
 (defn reboot! [target local-url debug?]
   (let [uri  (URI. (format "%s/post/@system/reboot" (:url target)))
         conn ^HttpURLConnection (get-connection uri)
@@ -63,7 +82,7 @@
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
-                            com.dynamo.engine.proto.Engine$Reboot
+                            com.dynamo.system.proto.System$Reboot
                             (zipmap (map #(keyword (str "arg" (inc %))) (range)) args))))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))
@@ -123,6 +142,7 @@
                                   (map (fn [^Platform platform]
                                          [(.getPair platform) (.getExeSuffix platform)]))
                                   [Platform/Arm64Darwin
+                                   Platform/Arm64Android
                                    Platform/Armv7Android
                                    Platform/Armv7Darwin
                                    Platform/JsWeb

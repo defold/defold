@@ -67,7 +67,7 @@
         <key>DTPlatformName</key>
         <string>iphoneos</string>
         <key>DTPlatformVersion</key>
-        <string>12.1</string>
+        <string>8.0</string>
         <key>DTSDKBuild</key>
         <string>16B91</string>
         <key>DTSDKName</key>
@@ -119,34 +119,6 @@
         <array>
                 {{#application-queries-schemes}}<string>{{.}}</string>{{/application-queries-schemes}}
         </array>
-
-        <key>NSAppTransportSecurity</key>
-        <dict>
-            <key>NSExceptionDomains</key>
-            <dict>
-                <key>facebook.com</key>
-                <dict>
-                    <key>NSIncludesSubdomains</key>
-                    <true/>
-                    <key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
-                    <false/>
-                </dict>
-                <key>fbcdn.net</key>
-                <dict>
-                    <key>NSIncludesSubdomains</key>
-                    <true/>
-                    <key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
-                    <false/>
-                </dict>
-                <key>akamaihd.net</key>
-                <dict>
-                    <key>NSIncludesSubdomains</key>
-                    <true/>
-                    <key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
-                    <false/>
-                </dict>
-            </dict>
-        </dict>
 
         <key>UILaunchImages</key>
         <array>

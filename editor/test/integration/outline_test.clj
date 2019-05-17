@@ -475,8 +475,8 @@
                 [1 :node-outline 0 :source-outline]
                 [1 :proto-msg 0 :proto-msg]
                 [1 :resource 0 :source-resource]
-                [1 :save-data 0 :source-save-data]
-                [1 :scene 0 :scene]]
+                [1 :scene 0 :scene]
+                [1 :undecorated-save-data 0 :source-save-data]]
                (sort arcs)))))))
 
 (deftest drag-drop-between-referenced-collections

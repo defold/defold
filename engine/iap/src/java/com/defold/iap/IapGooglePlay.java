@@ -114,16 +114,24 @@ public class IapGooglePlay implements Handler.Callback {
                         continue;
                     }
 
+                    String packageName = activity.getPackageName();
+                    if (packageName == null)
+                    {
+                        Log.wtf(TAG,  "activity packageName is null");
+                        sr.listener.onProducts(IapJNI.BILLING_RESPONSE_RESULT_ERROR, null);
+                        continue;
+                    }
+
                     try {
                         Bundle querySkus = new Bundle();
                         querySkus.putStringArrayList("ITEM_ID_LIST", sr.skuList);
 
                         JSONObject products = new JSONObject();
 
-                        Bundle inappSkuDetails = service.getSkuDetails(3, activity.getPackageName(), "inapp", querySkus);
+                        Bundle inappSkuDetails = service.getSkuDetails(3, packageName, "inapp", querySkus);
                         addProductsFromBundle(inappSkuDetails, products);
 
-                        Bundle subscriptionSkuDetails = service.getSkuDetails(3, activity.getPackageName(), "subs", querySkus);
+                        Bundle subscriptionSkuDetails = service.getSkuDetails(3, packageName, "subs", querySkus);
                         addProductsFromBundle(subscriptionSkuDetails, products);
 
                         sr.listener.onProducts(IapJNI.BILLING_RESPONSE_RESULT_OK, products);

@@ -266,6 +266,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
         		case Armv7Darwin:
         		case Arm64Darwin:
+                case X86_64Ios:
         		{
         			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
@@ -278,6 +279,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
      			break;
 
         		case Armv7Android:
+        		case Arm64Android:
         			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
                     ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "", isDebug, soft_fail);
@@ -292,13 +294,13 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
         		break;
         		default:
-                    System.err.println("Unsupported platform: " + platformKey);
+                    System.err.println("Unsupported platform for shader program builder: " + platformKey);
                 break;
          	}
         }
         else
         {
-            System.err.println("Unknown platform: " + platform);
+            System.err.println("Unknown platform for shader program builder: " + platform);
         }
 
         return shaderDescBuilder.build();

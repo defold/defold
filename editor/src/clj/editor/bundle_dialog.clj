@@ -7,8 +7,7 @@
             [editor.handler :as handler]
             [editor.prefs :as prefs]
             [editor.system :as system]
-            [editor.ui :as ui]
-            [editor.workspace :as workspace])
+            [editor.ui :as ui])
   (:import [java.io File]
            [javafx.scene Scene]
            [javafx.scene.control Button CheckBox ChoiceBox Label TextField]
@@ -180,7 +179,7 @@
   (assert (map? issues-by-key))
   (assert (sequential? key-order))
   (or (:general issues-by-key)
-      (first (keep issues-by-key key-order))
+      (some issues-by-key key-order)
       [:info no-issues-header-info-text]))
 
 (defn- set-generic-headers! [view issues-by-key key-order]
@@ -259,6 +258,17 @@
   (set-options! [_this options]
     (set-generic-options! view options workspace)))
 
+(defn- make-labeled-check-box 
+  ^CheckBox [^String label ^String id ^Boolean default-value refresh!]
+  (doto (if (some? label)
+          (CheckBox. label)
+          (CheckBox.))
+    (ui/add-style! "labeled-check-box")
+    (.setId id)
+    (.setFocusTraversable false)
+    (ui/on-action! refresh!)
+    (ui/value! default-value)))
+
 ;; -----------------------------------------------------------------------------
 ;; Selectable platform
 ;; -----------------------------------------------------------------------------
@@ -325,42 +335,59 @@
   (assert (fn? refresh!))
   (let [make-file-field (partial make-file-field refresh! owner-window)
         certificate-file-field (make-file-field "certificate-text-field" "Choose Certificate" [["Certificates (*.pem)" "*.pem"]])
-        private-key-file-field (make-file-field "private-key-text-field" "Choose Private Key" [["Private Keys (*.pk8)" "*.pk8"]])]
+        private-key-file-field (make-file-field "private-key-text-field" "Choose Private Key" [["Private Keys (*.pk8)" "*.pk8"]])
+        architecture-controls (doto (VBox.)
+                                    (ui/children! [(make-labeled-check-box "32-bit" "architecture-32bit-check-box" true refresh!)
+                                                   (make-labeled-check-box "64-bit" "architecture-64bit-check-box" true refresh!)]))]
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "android")
       (ui/children! [(labeled! "Certificate" certificate-file-field)
-                     (labeled! "Private key" private-key-file-field)]))))
+                     (labeled! "Private key" private-key-file-field)
+                     (labeled! "Architectures" architecture-controls)]))))
 
 (defn- load-android-prefs! [prefs view]
-  (ui/with-controls view [certificate-text-field private-key-text-field]
+  (ui/with-controls view [certificate-text-field private-key-text-field architecture-32bit-check-box architecture-64bit-check-box]
     (ui/value! certificate-text-field (get-string-pref prefs "bundle-android-certificate"))
-    (ui/value! private-key-text-field (get-string-pref prefs "bundle-android-private-key"))))
+    (ui/value! private-key-text-field (get-string-pref prefs "bundle-android-private-key"))
+    (ui/value! architecture-32bit-check-box (prefs/get-prefs prefs "bundle-android-architecture-32bit?" true))
+    (ui/value! architecture-64bit-check-box (prefs/get-prefs prefs "bundle-android-architecture-64bit?" false))))
 
 (defn- save-android-prefs! [prefs view]
-  (ui/with-controls view [certificate-text-field private-key-text-field]
+  (ui/with-controls view [certificate-text-field private-key-text-field architecture-32bit-check-box architecture-64bit-check-box]
     (set-string-pref! prefs "bundle-android-certificate" (ui/value certificate-text-field))
-    (set-string-pref! prefs "bundle-android-private-key" (ui/value private-key-text-field))))
+    (set-string-pref! prefs "bundle-android-private-key" (ui/value private-key-text-field))
+    (prefs/set-prefs prefs "bundle-android-architecture-32bit?" (ui/value architecture-32bit-check-box))
+    (prefs/set-prefs prefs "bundle-android-architecture-64bit?" (ui/value architecture-64bit-check-box))))
 
 (defn- get-android-options [view]
-  (ui/with-controls view [certificate-text-field private-key-text-field]
-    {:certificate (get-file certificate-text-field)
+  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box certificate-text-field private-key-text-field]
+    {:architecture-32bit? (ui/value architecture-32bit-check-box)
+     :architecture-64bit? (ui/value architecture-64bit-check-box)
+     :certificate (get-file certificate-text-field)
      :private-key (get-file private-key-text-field)}))
 
-(defn- set-android-options! [view {:keys [certificate private-key] :as _options} issues]
-  (ui/with-controls view [certificate-text-field private-key-text-field ok-button]
+(defn- set-android-options! [view {:keys [architecture-32bit? architecture-64bit? certificate private-key] :as _options} issues]
+  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box certificate-text-field private-key-text-field ok-button]
     (doto certificate-text-field
       (set-file! certificate)
       (set-field-status! (:certificate issues)))
     (doto private-key-text-field
       (set-file! private-key)
       (set-field-status! (:private-key issues)))
-    (ui/enable! ok-button (or (and (nil? certificate)
-                                   (nil? private-key))
-                              (and (existing-file-of-type? "pem" certificate)
-                                   (existing-file-of-type? "pk8" private-key))))))
+    (doto architecture-32bit-check-box
+      (ui/value! architecture-32bit?)
+      (set-field-status! (:architecture issues)))
+    (doto architecture-64bit-check-box
+      (ui/value! architecture-64bit?)
+      (set-field-status! (:architecture issues)))
+    (ui/enable! ok-button (and (nil? (:architecture issues))
+                               (or (and (nil? certificate)
+                                        (nil? private-key))
+                                   (and (existing-file-of-type? "pem" certificate)
+                                        (existing-file-of-type? "pk8" private-key)))))))
 
-(defn- get-android-issues [{:keys [certificate private-key] :as _options}]
+(defn- get-android-issues [{:keys [certificate private-key architecture-32bit? architecture-64bit?] :as _options}]
   {:general (when (and (nil? certificate) (nil? private-key))
               [:info "Set certificate and private key, or leave blank to sign APK with an auto-generated debug certificate."])
    :certificate (cond
@@ -380,7 +407,9 @@
                   [:fatal "Invalid private key."]
 
                   (and (some? certificate) (nil? private-key))
-                  [:fatal "Private key must be set if certificate is specified."])})
+                  [:fatal "Private key must be set if certificate is specified."])
+   :architecture (when-not (or architecture-32bit? architecture-64bit?)
+                   [:fatal "At least one architecture must be selected."])})
 
 (deftype AndroidBundleOptionsPresenter [workspace view variant-choices]
   BundleOptionsPresenter
@@ -403,7 +432,7 @@
     (let [issues (get-android-issues options)]
       (set-generic-options! view options workspace)
       (set-android-options! view options issues)
-      (set-generic-headers! view issues [:certificate :private-key]))))
+      (set-generic-headers! view issues [:architecture :certificate :private-key]))))
 
 ;; -----------------------------------------------------------------------------
 ;; iOS
@@ -414,7 +443,8 @@
 
 (defn- make-ios-controls [refresh! owner-window]
   (assert (fn? refresh!))
-  (let [provisioning-profile-file-field (make-file-field refresh! owner-window "provisioning-profile-text-field" "Choose Provisioning Profile" [["Provisioning Profiles (*.mobileprovision)" "*.mobileprovision"]])
+  (let [sign-app-check-box (make-labeled-check-box nil "sign-app-check-box" true refresh!)
+        provisioning-profile-file-field (make-file-field refresh! owner-window "provisioning-profile-text-field" "Choose Provisioning Profile" [["Provisioning Profiles (*.mobileprovision)" "*.mobileprovision"]])
         no-identity-label "None"
         code-signing-identity-choice-box (doto (ChoiceBox.)
                                            (.setId "code-signing-identity-choice-box")
@@ -424,62 +454,96 @@
                                                             (toString [value]
                                                               (if (some? value) value no-identity-label))
                                                             (fromString [label]
-                                                              (if (= no-identity-label label) nil label)))))]
+                                                              (if (= no-identity-label label) nil label)))))
+        architecture-controls (doto (VBox.)
+                                (ui/children! [(make-labeled-check-box "32-bit" "architecture-32bit-check-box" true refresh!)
+                                               (make-labeled-check-box "64-bit" "architecture-64bit-check-box" true refresh!)
+                                               (make-labeled-check-box "Simulator" "architecture-simulator-check-box" false refresh!)]))]
     (ui/on-action! code-signing-identity-choice-box refresh!)
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "ios")
-      (ui/children! [(labeled! "Code signing identity" code-signing-identity-choice-box)
-                     (labeled! "Provisioning profile" provisioning-profile-file-field)]))))
+      (ui/children! [(labeled! "Sign application" sign-app-check-box)
+                     (labeled! "Code signing identity" code-signing-identity-choice-box)
+                     (labeled! "Provisioning profile" provisioning-profile-file-field)
+                     (labeled! "Architectures" architecture-controls)]))))
 
 
 (defn- load-ios-prefs! [prefs view code-signing-identity-names]
   ;; This falls back on settings from the Sign iOS Application dialog if available,
   ;; but we will write to our own keys in the preference for these.
-  (ui/with-controls view [code-signing-identity-choice-box provisioning-profile-text-field]
+  (ui/with-controls view [sign-app-check-box code-signing-identity-choice-box provisioning-profile-text-field architecture-32bit-check-box architecture-64bit-check-box architecture-simulator-check-box]
+    (ui/value! sign-app-check-box (prefs/get-prefs prefs "bundle-ios-sign-app?" true))
     (ui/value! code-signing-identity-choice-box (or (some (set code-signing-identity-names)
                                                           (or (get-string-pref prefs "bundle-ios-code-signing-identity")
                                                               (second (prefs/get-prefs prefs "last-identity" [nil nil]))))
                                                     (first code-signing-identity-names)))
     (ui/value! provisioning-profile-text-field (or (get-string-pref prefs "bundle-ios-provisioning-profile")
-                                                   (get-string-pref prefs "last-provisioning-profile")))))
+                                                   (get-string-pref prefs "last-provisioning-profile")))
+    (ui/value! architecture-32bit-check-box (prefs/get-prefs prefs "bundle-ios-architecture-32bit?" true))
+    (ui/value! architecture-64bit-check-box (prefs/get-prefs prefs "bundle-ios-architecture-64bit?" true))
+    (ui/value! architecture-simulator-check-box (prefs/get-prefs prefs "bundle-ios-architecture-simulator?" false))))
 
 (defn- save-ios-prefs! [prefs view]
-  (ui/with-controls view [code-signing-identity-choice-box provisioning-profile-text-field]
+  (ui/with-controls view [sign-app-check-box code-signing-identity-choice-box provisioning-profile-text-field architecture-32bit-check-box architecture-64bit-check-box architecture-simulator-check-box]
+    (prefs/set-prefs prefs "bundle-ios-sign-app?" (ui/value sign-app-check-box))
     (set-string-pref! prefs "bundle-ios-code-signing-identity" (ui/value code-signing-identity-choice-box))
-    (set-string-pref! prefs "bundle-ios-provisioning-profile" (ui/value provisioning-profile-text-field))))
+    (set-string-pref! prefs "bundle-ios-provisioning-profile" (ui/value provisioning-profile-text-field))
+    (prefs/set-prefs prefs "bundle-ios-architecture-32bit?" (ui/value architecture-32bit-check-box))
+    (prefs/set-prefs prefs "bundle-ios-architecture-64bit?" (ui/value architecture-64bit-check-box))
+    (prefs/set-prefs prefs "bundle-ios-architecture-simulator?" (ui/value architecture-simulator-check-box))))
 
 (defn- get-ios-options [view]
-  (ui/with-controls view [code-signing-identity-choice-box provisioning-profile-text-field]
-    {:code-signing-identity (ui/value code-signing-identity-choice-box)
-     :provisioning-profile (get-file provisioning-profile-text-field)}))
+  (ui/with-controls view [sign-app-check-box code-signing-identity-choice-box provisioning-profile-text-field architecture-32bit-check-box architecture-64bit-check-box architecture-simulator-check-box]
+    {:architecture-32bit? (ui/value architecture-32bit-check-box)
+     :architecture-64bit? (ui/value architecture-64bit-check-box)
+     :architecture-simulator? (ui/value architecture-simulator-check-box)
+     :code-signing-identity (ui/value code-signing-identity-choice-box)
+     :provisioning-profile (get-file provisioning-profile-text-field)
+     :sign-app? (ui/value sign-app-check-box)}))
 
-(defn- set-ios-options! [view {:keys [code-signing-identity provisioning-profile] :as _options} issues code-signing-identity-names]
-  (ui/with-controls view [^ChoiceBox code-signing-identity-choice-box provisioning-profile-text-field ok-button]
+(defn- set-ios-options! [view {:keys [architecture-32bit? architecture-64bit? architecture-simulator? code-signing-identity provisioning-profile sign-app?] :as _options} issues code-signing-identity-names]
+  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box architecture-simulator-check-box code-signing-identity-choice-box ok-button provisioning-profile-text-field sign-app-check-box]
+    (ui/value! sign-app-check-box sign-app?)
     (doto code-signing-identity-choice-box
       (set-choice! (into [nil] code-signing-identity-names) code-signing-identity)
       (set-field-status! (:code-signing-identity issues))
-      (ui/disable! (empty? code-signing-identity-names)))
+      (ui/disable! (or (not sign-app?) (empty? code-signing-identity-names))))
     (doto provisioning-profile-text-field
       (set-file! provisioning-profile)
-      (set-field-status! (:provisioning-profile issues)))
-    (ui/enable! ok-button (and (some? code-signing-identity)
-                               (fs/existing-file? provisioning-profile)))))
+      (set-field-status! (:provisioning-profile issues))
+      (ui/disable! (not sign-app?)))
+    (doto architecture-32bit-check-box
+      (ui/value! architecture-32bit?)
+      (set-field-status! (:architecture issues)))
+    (doto architecture-64bit-check-box
+      (ui/value! architecture-64bit?)
+      (set-field-status! (:architecture issues)))
+    (doto architecture-simulator-check-box
+      (ui/value! architecture-simulator?)
+      (set-field-status! (:architecture issues)))
+    (ui/enable! ok-button (and (nil? (:architecture issues))
+                               (or (not sign-app?)
+                                   (and (some? code-signing-identity)
+                                        (fs/existing-file? provisioning-profile)))))))
 
-(defn- get-ios-issues [{:keys [code-signing-identity provisioning-profile] :as _options} code-signing-identity-names]
-  {:general (when (empty? code-signing-identity-names)
+(defn- get-ios-issues [{:keys [architecture-32bit? architecture-64bit? architecture-simulator? code-signing-identity provisioning-profile sign-app?] :as _options} code-signing-identity-names]
+  {:general (when (and sign-app? (empty? code-signing-identity-names))
               [:fatal "No code signing identities found on this computer."])
-   :code-signing-identity (when (nil? code-signing-identity)
-                            [:fatal "Code signing identity must be set."])
-   :provisioning-profile (cond
-                           (nil? provisioning-profile)
-                           [:fatal "Provisioning profile must be set."]
+   :code-signing-identity (when (and sign-app? (nil? code-signing-identity))
+                            [:fatal "Code signing identity must be set to sign the application."])
+   :provisioning-profile (when sign-app?
+                           (cond
+                             (nil? provisioning-profile)
+                             [:fatal "Provisioning profile must be set to sign the application."]
 
-                           (not (fs/existing-file? provisioning-profile))
-                           [:fatal "Provisioning profile file not found."]
+                             (not (fs/existing-file? provisioning-profile))
+                             [:fatal "Provisioning profile file not found."]
 
-                           (not (existing-file-of-type? "mobileprovision" provisioning-profile))
-                           [:fatal "Invalid provisioning profile."])})
+                             (not (existing-file-of-type? "mobileprovision" provisioning-profile))
+                             [:fatal "Invalid provisioning profile."]))
+   :architecture (when-not (or architecture-32bit? architecture-64bit? architecture-simulator?)
+                   [:fatal "At least one architecture must be selected."])})
 
 (deftype IOSBundleOptionsPresenter [workspace view variant-choices]
   BundleOptionsPresenter
@@ -503,7 +567,7 @@
           issues (get-ios-issues options code-signing-identity-names)]
       (set-generic-options! view options workspace)
       (set-ios-options! view options issues code-signing-identity-names)
-      (set-generic-headers! view issues [:code-signing-identity :provisioning-profile]))))
+      (set-generic-headers! view issues [:architecture :code-signing-identity :provisioning-profile]))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -537,8 +601,6 @@
               platform-bundle-output-directory-exists? (.exists platform-bundle-output-directory)]
           (when (or (not platform-bundle-output-directory-exists?)
                     (query-overwrite! platform-bundle-output-directory stage))
-            (when (not platform-bundle-output-directory-exists?)
-              (fs/create-directories! platform-bundle-output-directory))
             (let [bundle-options (assoc bundle-options :output-directory platform-bundle-output-directory)]
               (ui/close! stage)
               (bundle! bundle-options))))))))
@@ -570,7 +632,8 @@
           buttons (doto (HBox.) (ui/add-style! "buttons"))]
       (ui/add-child! buttons ok-button)
       (ui/add-child! root buttons)
-      (ui/bind-action! ok-button ::query-output-directory))
+      (ui/bind-action! ok-button ::query-output-directory)
+      (.setDefaultButton ok-button true))
 
     ;; Load preferences and refresh the view.
     ;; We also refresh whenever our application becomes active.

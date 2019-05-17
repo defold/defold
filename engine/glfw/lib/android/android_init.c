@@ -46,6 +46,7 @@
 struct android_app* g_AndroidApp;
 
 extern int main(int argc, char** argv);
+extern void ares_library_init_jvm(JavaVM *jvm);
 
 extern int g_KeyboardActive;
 extern int g_autoCloseKeyboard;
@@ -627,7 +628,6 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
     return 0;
 }
 
-
 void _glfwPreMain(struct android_app* state)
 {
     LOGV("_glfwPreMain");
@@ -665,6 +665,12 @@ void _glfwPreMain(struct android_app* state)
             jclass def_activity_class = (*env)->GetObjectClass(env, g_AndroidApp->activity->clazz);
             jmethodID is_startup_complete = (*env)->GetMethodID(env, def_activity_class, "isStartupDone", "()Z");
             java_startup_complete = (*env)->CallBooleanMethod(env, g_AndroidApp->activity->clazz, is_startup_complete);
+
+            if (java_startup_complete)
+            {
+                ares_library_init_jvm(vm);
+            }
+
             (*vm)->DetachCurrentThread(vm);
         }
     }

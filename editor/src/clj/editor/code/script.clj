@@ -1,5 +1,6 @@
 (ns editor.code.script
   (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code-completion :as code-completion]
@@ -134,9 +135,9 @@
               (update :properties into (:properties user-properties))
               (update :display-order into (:display-order user-properties)))))
 
-(defn- script->bytecode [lines proj-path]
+(defn- script->bytecode [lines proj-path arch]
   (try
-    (luajit/bytecode (data/lines-reader lines) proj-path)
+    (luajit/bytecode (data/lines-reader lines) proj-path arch)
     (catch Exception e
       (let [{:keys [filename line message]} (ex-data e)]
         (g/->error nil :lines :fatal e (.getMessage e)
@@ -152,14 +153,16 @@
                                              :type  type}))
                               (:properties user-properties))
         modules         (:modules user-data)
-        bytecode        (script->bytecode (:lines user-data) (:proj-path user-data))]
+        bytecode        (script->bytecode (:lines user-data) (:proj-path user-data) :32-bit)
+        bytecode-64     (script->bytecode (:lines user-data) (:proj-path user-data) :64-bit)]
     (g/precluding-errors
       [bytecode]
       {:resource resource
        :content  (protobuf/map->bytes Lua$LuaModule
                                       {:source     {:script   (ByteString/copyFromUtf8 (slurp (data/lines-reader (:lines user-data))))
                                                     :filename (resource/proj-path (:resource resource))
-                                                    :bytecode (ByteString/copyFrom ^bytes bytecode)}
+                                                    :bytecode (ByteString/copyFrom ^bytes bytecode)
+                                                    :bytecode-64 (ByteString/copyFrom ^bytes bytecode-64)}
                                        :modules    modules
                                        :resources  (mapv lua/lua-module->build-path modules)
                                        :properties (properties/properties->decls properties true)})})))
@@ -174,12 +177,13 @@
                            properties))))))
 
 (g/defnk produce-build-targets [_node-id resource lines user-properties modules dep-build-targets]
-  [{:node-id _node-id
-    :resource (workspace/make-build-resource resource)
-    :build-fn build-script
-    ;; Remove node-id etc from user-properties to avoid creating one build-target per use (override) of the script
-    :user-data {:lines lines :user-properties (clean-user-properties user-properties) :modules modules :proj-path (resource/proj-path resource)}
-    :deps dep-build-targets}])
+  [(bt/with-content-hash
+     {:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-script
+      ;; Remove node-id etc from user-properties to avoid creating one build-target per use (override) of the script
+      :user-data {:lines lines :user-properties (clean-user-properties user-properties) :modules modules :proj-path (resource/proj-path resource)}
+      :deps dep-build-targets})])
 
 (g/defnk produce-completions [completion-info module-completion-infos]
   (code-completion/combine-completions completion-info module-completion-infos))

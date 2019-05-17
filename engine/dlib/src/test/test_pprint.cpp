@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include "../dlib/pprint.h"
 
 TEST(dmPPrint, Init)
@@ -40,7 +41,7 @@ TEST(dmPPrint, Indent)
 
 TEST(dmPPrint, Truncate1)
 {
-    char buf[2] = { 0xff, 0xff };
+    char buf[2] = { (char)0xff, (char)0xff };
     dmPPrint::Printer p(buf, sizeof(buf) - 1);
     p.Printf("%d", 1234);
     ASSERT_STREQ("", buf);
@@ -49,7 +50,7 @@ TEST(dmPPrint, Truncate1)
 
 TEST(dmPPrint, Truncate2)
 {
-    char buf[3] = { 0xff, 0xff, 0xff };
+    char buf[3] = { (char)0xff, (char)0xff, (char)0xff };
     dmPPrint::Printer p(buf, sizeof(buf) - 1);
     p.Printf("%d", 1234);
     ASSERT_STREQ("1", buf);
@@ -58,7 +59,7 @@ TEST(dmPPrint, Truncate2)
 
 TEST(dmPPrint, Truncate3)
 {
-    char buf[3] = { 0xff, 0xff, 0xff };
+    char buf[3] = { (char)0xff, (char)0xff, (char)0xff };
     dmPPrint::Printer p(buf, sizeof(buf) - 1);
     p.SetIndent(1);
     p.Printf("%d", 1234);
@@ -68,6 +69,6 @@ TEST(dmPPrint, Truncate3)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

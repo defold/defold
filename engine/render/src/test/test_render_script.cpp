@@ -1,6 +1,7 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include "render/render.h"
 #include "render/font_renderer.h"
@@ -13,18 +14,24 @@ using namespace Vectormath::Aos;
 
 namespace
 {
+    // NOTE: we don't generate actual bytecode for this test-data, so
+    // just pass in regular lua source instead.
     dmLuaDDF::LuaSource *LuaSourceFromString(const char *source)
     {
         static dmLuaDDF::LuaSource tmp;
         memset(&tmp, 0x00, sizeof(tmp));
         tmp.m_Script.m_Data = (uint8_t*)source;
         tmp.m_Script.m_Count = strlen(source);
+        tmp.m_Bytecode.m_Data = (uint8_t*)source;
+        tmp.m_Bytecode.m_Count = strlen(source);
+        tmp.m_Bytecode64.m_Data = (uint8_t*)source;
+        tmp.m_Bytecode64.m_Count = strlen(source);
         tmp.m_Filename = "render-dummy";
         return &tmp;
     }
 }
 
-class dmRenderScriptTest : public ::testing::Test
+class dmRenderScriptTest : public jc_test_base_class
 {
 protected:
     dmScript::HContext m_ScriptContext;
@@ -343,6 +350,29 @@ TEST_F(dmRenderScriptTest, TestLuaState)
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaRenderTargetTooLarge)
+{
+    const char* script =
+    "function init(self)\n"
+    "    local params_color = {\n"
+    "        format = render.FORMAT_RGBA,\n"
+    "        width = 1000000000,\n"
+    "        height = 2,\n"
+    "        min_filter = render.FILTER_NEAREST,\n"
+    "        mag_filter = render.FILTER_LINEAR,\n"
+    "        u_wrap = render.WRAP_REPEAT,\n"
+    "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
+    "    }\n"
+    "    self.rt = render.render_target(\"rt\", {[render.BUFFER_COLOR_BIT] = params_color})\n"
+    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
@@ -974,9 +1004,24 @@ TEST_F(dmRenderScriptTest, TestInstanceContext)
     ASSERT_FALSE(dmScript::IsInstanceValid(L));
 }
 
+TEST_F(dmRenderScriptTest, DeltaTime)
+{
+    const char* script = "function update(self, dt)\n"
+                    "assert (dt == 1122)\n"
+                    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 1122));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

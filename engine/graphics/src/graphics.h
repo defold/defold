@@ -2,7 +2,7 @@
 #define DM_GRAPHICS_H
 
 #include <stdint.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dmsdk/graphics/graphics.h>
 #include <ddf/ddf.h>
@@ -511,6 +511,15 @@ namespace dmGraphics
     void SetWindowSize(HContext context, uint32_t width, uint32_t height);
 
     /**
+     * Resizes a previously opened window. Only the window width and height will be changed with its framebuffer size
+     * changed accordingly. The game width and height will be kept as specified from initial boot.
+     * @param context Graphics context handle
+     * @param width New width of the window
+     * @param height New height of the window
+     */
+    void ResizeWindow(HContext context, uint32_t width, uint32_t height);
+
+    /**
      * Return the default texture filtering modes.
      * @param context Graphics context handle
      * @param out_min_filter Out parameter to write the default min filtering mode to
@@ -623,6 +632,7 @@ namespace dmGraphics
     void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
     inline uint32_t GetBufferTypeIndex(BufferType buffer_type);
+    inline const char* GetBufferTypeLiteral(BufferType buffer_type);
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format);
     HTexture NewTexture(HContext context, const TextureCreationParams& params);
@@ -671,6 +681,17 @@ namespace dmGraphics
      * @param buffer_size buffer size
      */
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
+
+    const char* GetBufferTypeLiteral(BufferType buffer_type)
+    {
+        switch (buffer_type)
+        {
+            case BUFFER_TYPE_COLOR_BIT: return "BUFFER_TYPE_COLOR_BIT";
+            case BUFFER_TYPE_DEPTH_BIT: return "BUFFER_TYPE_DEPTH_BIT";
+            case BUFFER_TYPE_STENCIL_BIT: return "BUFFER_TYPE_STENCIL_BIT";
+            default: return "<unknown buffer type>";
+        }
+    }
 
     uint32_t GetBufferTypeIndex(BufferType buffer_type)
     {

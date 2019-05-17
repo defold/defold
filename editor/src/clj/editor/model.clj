@@ -1,8 +1,10 @@
 (ns editor.model
   (:require [clojure.string :as str]
             [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.defold-project :as project]
-            [editor.gl.texture :as texture]
+            [editor.geom :as geom]
+            [editor.gl.pass :as pass]
             [editor.graph-util :as gu]
             [editor.image :as image]
             [editor.material :as material]
@@ -16,8 +18,7 @@
             [util.digest :as digest])
   (:import [com.dynamo.model.proto ModelProto$Model ModelProto$ModelDesc]
            [editor.gl.shader ShaderLifecycle]
-           [editor.types AABB]
-           [java.awt.image BufferedImage]))
+           [editor.types AABB]))
 
 (set! *warn-on-reflection* true)
 
@@ -82,12 +83,13 @@
             deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
             dep-resources (into (res-fields->resources pb-msg deps-by-source [:rig-scene :material])
                             (filter second (res-fields->resources pb-msg deps-by-source [[:textures]])))]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-pb
-          :user-data {:pb pb-msg
-                      :dep-resources dep-resources}
-          :deps dep-build-targets}])))
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-pb
+            :user-data {:pb pb-msg
+                        :dep-resources dep-resources}
+            :deps dep-build-targets})])))
 
 (g/defnk produce-gpu-textures [_node-id samplers gpu-texture-generators]
   (into {} (map (fn [unit-index sampler {tex-fn :f tex-args :args}]
@@ -100,16 +102,21 @@
                 gpu-texture-generators)))
 
 (g/defnk produce-scene [_node-id scene shader gpu-textures vertex-space]
-  (update scene :renderable (fn [r]
-                              (cond-> r
-                                shader (assoc-in [:user-data :shader] shader)
-                                true (assoc-in [:user-data :textures] gpu-textures)
-                                true (assoc-in [:user-data :vertex-space] vertex-space)
-                                true (update :batch-key (fn [old-key]
-                                                          [old-key shader gpu-textures (case vertex-space
-                                                                                         nil _node-id
-                                                                                         :vertex-space-local _node-id
-                                                                                         :vertex-space-world :vertex-space-world)]))))))
+  (if (some? scene)
+    (update scene :renderable
+            (fn [r]
+              (cond-> r
+                      shader (assoc-in [:user-data :shader] shader)
+                      true (assoc-in [:user-data :textures] gpu-textures)
+                      true (assoc-in [:user-data :vertex-space] vertex-space)
+                      true (update :batch-key
+                                   (fn [old-key]
+                                     [old-key shader gpu-textures (case vertex-space
+                                                                    nil _node-id
+                                                                    :vertex-space-local _node-id
+                                                                    :vertex-space-world :vertex-space-world)])))))
+    {:aabb geom/empty-bounding-box
+     :renderable {:passes [pass/selection]}}))
 
 (defn- vset [v i value]
   (let [c (count v)

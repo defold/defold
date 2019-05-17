@@ -2,6 +2,7 @@
   (:require [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.graph-util :as gu]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -9,7 +10,6 @@
             [editor.gl.vertex :as vtx]
             [editor.gl.texture :as texture]
             [editor.defold-project :as project]
-            [editor.scene :as scene]
             [editor.workspace :as workspace]
             [editor.math :as math]
             [editor.resource :as resource]
@@ -51,12 +51,13 @@
             dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)])
                                [[:vertex-program vertex-program]
                                 [:fragment-program fragment-program]])]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-material
-          :user-data {:pb-msg pb-msg
-                      :dep-resources dep-resources}
-          :deps dep-build-targets}])))
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-material
+            :user-data {:pb-msg pb-msg
+                        :dep-resources dep-resources}
+            :deps dep-build-targets})])))
 
 (def ^:private form-data
   (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)]
@@ -225,7 +226,6 @@
 
   (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
-  (output scene g/Any (g/constantly {}))
   (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source vertex-program fragment-source fragment-program vertex-constants fragment-constants]
                                                 (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
                                                     (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")

@@ -32,6 +32,7 @@
 
 #include <limits.h>
 #include <assert.h>
+#include <libgen.h> // Defold Extension for WM_CLASS property
 
 
 /* Define GLX 1.4 FSAA tokens if not already defined */
@@ -925,7 +926,31 @@ static GLboolean createWindow( int width, int height,
         XFree( hints );
     }
 
-    _glfwPlatformSetWindowTitle( "GLFW Window" );
+    //========================================================================
+    // Defold extension: Set WM_CLASS property
+    //========================================================================
+    {
+        char exe_path_buffer[1024];
+        memset(exe_path_buffer, 0, sizeof(exe_path_buffer));
+        XClassHint* hints = XAllocClassHint();
+
+        if (readlink("/proc/self/exe", exe_path_buffer, sizeof(exe_path_buffer)-1) >= 0)
+        {
+            char* exe_name   = basename(exe_path_buffer);
+            hints->res_name  = exe_name;
+            hints->res_class = exe_name;
+        }
+        else
+        {
+            hints->res_name  = (char*) "dmengine";
+            hints->res_class = (char*) "dmengine";
+        }
+
+        XSetClassHint(_glfwLibrary.display, _glfwWin.window, hints);
+        XFree(hints);
+    }
+
+    _glfwPlatformSetWindowTitle( "" );
 
     // Make sure the window is mapped before proceeding
     XMapWindow( _glfwLibrary.display, _glfwWin.window );
@@ -1988,5 +2013,5 @@ void _glfwPlatformUnacquireAuxContext(void* context)
 
 GLFWAPI void glfwAccelerometerEnable()
 {
-    
+
 }

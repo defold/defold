@@ -14,6 +14,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -145,15 +146,16 @@ public class HTML5Bundler implements IBundler {
     }
 
     @Override
-    public void bundleApplication(Project project, File bundleDirectory)
+    public void bundleApplication(Project project, File bundleDirectory, ICanceled canceled)
             throws IOException, CompileExceptionError {
 
+        BundleHelper.throwIfCanceled(canceled);
         // Collect bundle/package resources to be included in bundle directory
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.JsWeb);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        BobProjectProperties metaProperties = getPropertiesMeta();
 
+        BundleHelper.throwIfCanceled(canceled);
         Boolean localLaunch = project.option("local-launch", "false").equals("true");
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
@@ -163,6 +165,7 @@ public class HTML5Bundler implements IBundler {
         List<File> binsAsmjs = null;
         List<File> binsWasm = null;
 
+        BundleHelper.throwIfCanceled(canceled);
         // asmjs binaries
         {
             Platform targetPlatform = Platform.JsWeb;
@@ -176,6 +179,7 @@ public class HTML5Bundler implements IBundler {
             ;
         }
 
+        BundleHelper.throwIfCanceled(canceled);
         // wasm binaries
         {
             Platform targetPlatform = Platform.WasmWeb;
@@ -188,9 +192,9 @@ public class HTML5Bundler implements IBundler {
             }
         }
 
+        BundleHelper.throwIfCanceled(canceled);
         File projectRoot = new File(project.getRootDirectory());
         URL splashImage = getResource(projectProperties, projectRoot, "html5", "splash_image", "splash_image.png");
-        String version = projectProperties.getStringValue("project", "version", "0.0");
         File appDir = new File(bundleDirectory, title);
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
 
@@ -205,32 +209,32 @@ public class HTML5Bundler implements IBundler {
             customHeapSize = 256*1024*1024; // Same value as engine is compiled with; 268435456
         }
 
+        BundleHelper.throwIfCanceled(canceled);
         Map<String, Object> infoData = new HashMap<String, Object>();
-        infoData.put("DEFOLD_ENGINE", enginePrefix + ".js");
-        infoData.put("DEFOLD_BINARY_PREFIX", enginePrefix);
-        infoData.put("DEFOLD_DISPLAY_WIDTH", projectProperties.getIntValue("display", "width", metaProperties.getIntValue("display", "width.default")));
-        infoData.put("DEFOLD_DISPLAY_HEIGHT", projectProperties.getIntValue("display", "height", metaProperties.getIntValue("display", "height.default")));
+        infoData.put("exe-name", enginePrefix);
         infoData.put("DEFOLD_SPLASH_IMAGE", getName(splashImage));
-        infoData.put("DEFOLD_SPLIT", String.format("%s/%s", SplitFileDir, SplitFileJson));
         infoData.put("DEFOLD_HEAP_SIZE", customHeapSize);
-
-        infoData.put("DEFOLD_APP_TITLE", String.format("%s %s", title, version));
 
         // Check if game has configured a Facebook App ID
         String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
         infoData.put("DEFOLD_HAS_FACEBOOK_APP_ID", facebookAppId != null ? "true" : "false");
 
+        String engineArgumentsString = projectProperties.getStringValue("html5", "engine_arguments", null);
+        List<String> engineArguments = engineArgumentsString != null ? new ArrayList<String>(Arrays.asList(engineArgumentsString.split(","))) : new ArrayList<String>();
+
         // When running "Build HTML and Launch" we need to ignore the archive location prefix/suffix.
         if (localLaunch) {
             infoData.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", "archive");
             infoData.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", "");
-            infoData.put("DEFOLD_ENGINE_ARGUMENTS", "--verify-graphics-calls=false");
             infoData.put("HAS_DEFOLD_ENGINE_ARGUMENTS", "true");
+            engineArguments.add("--verify-graphics-calls=false");
         } else {
             infoData.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", projectProperties.getStringValue("html5", "archive_location_prefix", "archive"));
             infoData.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", projectProperties.getStringValue("html5", "archive_location_suffix", ""));
         }
+        infoData.put("DEFOLD_ENGINE_ARGUMENTS", engineArguments);
 
+        BundleHelper.throwIfCanceled(canceled);
         String devInit = "";
         String devHead = "";
         String inlineHtml = "";
@@ -244,16 +248,30 @@ public class HTML5Bundler implements IBundler {
         infoData.put("DEFOLD_DEV_HEAD", devHead);
         infoData.put("DEFOLD_DEV_INLINE", inlineHtml);
 
+        /// Legacy properties for backwards compatibility
+        {
+            infoData.put("DEFOLD_DISPLAY_WIDTH", projectProperties.getIntValue("display", "width"));
+            infoData.put("DEFOLD_DISPLAY_HEIGHT", projectProperties.getIntValue("display", "height"));
+
+            String version = projectProperties.getStringValue("project", "version", "0.0");
+            infoData.put("DEFOLD_APP_TITLE", String.format("%s %s", title, version));
+
+            infoData.put("DEFOLD_BINARY_PREFIX", enginePrefix); // replaced by "exe-name"
+        }
+
+        BundleHelper.throwIfCanceled(canceled);
         FileUtils.deleteDirectory(appDir);
         File splitDir = new File(appDir, SplitFileDir);
         splitDir.mkdirs();
         createSplitFiles(buildDir, splitDir);
 
+        BundleHelper.throwIfCanceled(canceled);
         // Copy bundle resources into bundle directory
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
         // Copy engine binaries
         for (File bin : binsAsmjs) {
+            BundleHelper.throwIfCanceled(canceled);
             String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
             if (binExtension.equals("js")) {
                 FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_asmjs.js"));
@@ -263,6 +281,7 @@ public class HTML5Bundler implements IBundler {
         }
 
         for (File bin : binsWasm) {
+            BundleHelper.throwIfCanceled(canceled);
             String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
             if (binExtension.equals("js")) {
                 FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_wasm.js"));
@@ -273,11 +292,15 @@ public class HTML5Bundler implements IBundler {
             }
         }
 
+        BundleHelper.throwIfCanceled(canceled);
         // Flash audio swf
         FileUtils.copyFile(new File(Bob.getLibExecPath("js-web/defold_sound.swf")), new File(appDir, "defold_sound.swf"));
 
         BundleHelper helper = new BundleHelper(project, Platform.JsWeb, appDir, "");
-        helper.format(infoData, "html5", "htmlfile", new File(appDir, "index.html"));
+        File manifestFile = new File(appDir, "index.html");
+        IResource sourceManifestFile = helper.getResource("html5", "htmlfile");
+        helper.mergeManifests(infoData, sourceManifestFile, manifestFile);
+
 
         FileUtils.copyURLToFile(getResource("dmloader.js"), new File(appDir, "dmloader.js"));
         FileUtils.copyURLToFile(splashImage, new File(appDir, getName(splashImage)));
@@ -322,19 +345,6 @@ public class HTML5Bundler implements IBundler {
                 generator.close();
             }
             IOUtils.closeQuietly(writer);
-        }
-    }
-
-    private static BobProjectProperties getPropertiesMeta() throws IOException {
-        BobProjectProperties meta = new BobProjectProperties();
-        InputStream is = Bob.class.getResourceAsStream("meta.properties");
-        try {
-            meta.load(is);
-            return meta;
-        } catch (ParseException e) {
-            throw new RuntimeException("Failed to parse meta.properties", e);
-        } finally {
-            IOUtils.closeQuietly(is);
         }
     }
 }

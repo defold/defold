@@ -159,7 +159,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    static uint64_t GetLSBGroupHash(CollisionWorld* world, uint16_t mask)
+    uint64_t GetLSBGroupHash(void* _world, uint16_t mask)
     {
         if (mask > 0)
         {
@@ -169,6 +169,7 @@ namespace dmGameSystem
                 mask >>= 1;
                 ++index;
             }
+            CollisionWorld* world = (CollisionWorld*)_world;
             return world->m_Groups[index];
         }
         return 0;
@@ -1075,5 +1076,24 @@ namespace dmGameSystem
     uint16_t CompCollisionGetGroupBitIndex(void* world, uint64_t group_hash)
     {
         return GetGroupBitIndex((CollisionWorld*)world, group_hash);
+    }
+
+    void RayCast(void* _world, const dmPhysics::RayCastRequest& request, dmPhysics::RayCastResponse& response)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        if (world->m_3D)
+        {
+            dmPhysics::RayCast3D(world->m_World3D, request, response);
+        }
+        else
+        {
+            dmPhysics::RayCast2D(world->m_World2D, request, response);
+        }
+    }
+
+    dmhash_t CompCollisionObjectGetIdentifier(void* _component)
+    {
+        CollisionComponent* component = (CollisionComponent*)_component;
+        return dmGameObject::GetIdentifier(component->m_Instance);
     }
 }

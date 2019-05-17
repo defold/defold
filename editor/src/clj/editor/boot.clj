@@ -5,6 +5,7 @@
    [clojure.tools.cli :as cli]
    [editor.analytics :as analytics]
    [editor.code.view :as code-view]
+   [editor.connection-properties :refer [connection-properties]]
    [editor.dialogs :as dialogs]
    [editor.error-reporting :as error-reporting]
    [editor.login :as login]
@@ -40,21 +41,14 @@
                                                                      (str lib))))))
                     (apply f prefix lib options))))
 
-(defn- load-namespaces-in-background
-  []
-  ;; load the namespaces of the project with all the defnode
-  ;; creation in the background
-  (future
-    (require 'editor.boot-open-project)))
-
 (defn- open-project-with-progress-dialog
   [namespace-loader prefs project dashboard-client updater newly-created?]
   (ui/modal-progress
    "Loading project"
    (fn [render-progress!]
-     (let [namespace-progress (progress/make "Loading editor" 1256) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
-           render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 0) 2)
-           render-project-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 2) 3)
+     (let [namespace-progress (progress/make "Loading editor" 1471) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
+           render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 0) 1)
+           render-project-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 1) 4)
            project-file (io/file project)]
        (reset! namespace-progress-reporter #(render-namespace-progress! (% namespace-progress)))
        ;; ensure that namespace loading has completed
@@ -101,13 +95,12 @@
   ;; Path to preference file, mainly used for testing
   [["-prefs" "--preferences PATH" "Path to preferences file"]])
 
-(defn main [args]
+;; Entry point from java EditorApplication is in editor.bootloader/main, which calls this function.
+(defn main [args namespace-loader]
   (when (system/defold-dev?)
     (set-sha1-revisions-from-repo!))
   (error-reporting/setup-error-reporting! {:notifier {:notify-fn notify-user}
-                                           :sentry   {:project-id "97739"
-                                                      :key        "9e25fea9bc334227b588829dd60265c1"
-                                                      :secret     "f694ef98d47d42cf8bb67ef18a4e9cdb"}})
+                                           :sentry (get connection-properties :sentry)})
   (disable-imageio-cache!)
 
   (when-let [support-error (gl/gl-support-error)]
@@ -116,7 +109,6 @@
 
   (let [args (Arrays/asList args)
         opts (cli/parse-opts args cli-options)
-        namespace-loader (load-namespaces-in-background)
         prefs (if-let [prefs-path (get-in opts [:options :preferences])]
                 (prefs/load-prefs prefs-path)
                 (prefs/make-prefs "defold"))

@@ -79,9 +79,9 @@
 (shader/defshader tex-fragment-shader
   (varying vec4 var_color)
   (varying vec2 var_texcoord0)
-  (uniform sampler2D texture)
+  (uniform sampler2D texture_sampler)
   (defn void main []
-    (setq gl_FragColor (* (texture2D texture var_texcoord0.xy) var_color))))
+    (setq gl_FragColor (* (texture2D texture_sampler var_texcoord0.xy) var_color))))
 
 (def tex-shader (shader/make-shader ::tex-shader tex-vertex-shader tex-fragment-shader))
 

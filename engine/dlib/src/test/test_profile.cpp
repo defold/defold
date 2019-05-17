@@ -2,7 +2,8 @@
 #include <vector>
 #include <map>
 #include <string>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include "dlib/dstrings.h"
 #include "dlib/hash.h"
 #include "dlib/profile.h"
@@ -368,7 +369,7 @@ TEST(dmProfile, ThreadProfile)
     dmProfile::Release(profile);
 
     ASSERT_EQ(20000U * 2U, samples.size());
-    ASSERT_EQ(20000 * 2, scopes["X"]->m_Count);
+    ASSERT_EQ(20000 * 2U, scopes["X"]->m_Count);
 
     dmProfile::Finalize();
 }
@@ -388,31 +389,29 @@ TEST(dmProfile, DynamicScope)
 
     dmProfile::Initialize(128, 1024 * 1024, 16);
 
-    dmProfile::Scope* scope0 = dmProfile::AllocateScope(SCOPE_NAMES[0]);
-    dmProfile::Scope* scope1 = dmProfile::AllocateScope(SCOPE_NAMES[1]);
-
     dmProfile::HProfile profile = dmProfile::Begin();
     dmProfile::Release(profile);
 
-    char name0[128];
-    DM_SNPRINTF(name0, sizeof(name0), "%s@%s", "test.script", FUNCTION_NAMES[0]);
+    char names[3][128];
+    DM_SNPRINTF(names[0], sizeof(names[0]), "%s@%s", "test.script", FUNCTION_NAMES[0]);
+    DM_SNPRINTF(names[1], sizeof(names[1]), "%s@%s", "test.script", FUNCTION_NAMES[1]);
+    DM_SNPRINTF(names[2], sizeof(names[2]), "%s@%s", "test.script", FUNCTION_NAMES[2]);
+    uint32_t names_hash[3] = {
+        dmProfile::GetNameHash(names[0], strlen(names[0])),
+        dmProfile::GetNameHash(names[1], strlen(names[1])),
+        dmProfile::GetNameHash(names[2], strlen(names[2]))
+    };
 
-    char name1[128];
-    DM_SNPRINTF(name1, sizeof(name1), "%s@%s", "test.script", FUNCTION_NAMES[1]);
-
-    char name2[128];
-    DM_SNPRINTF(name2, sizeof(name2), "%s@%s", "test.script", FUNCTION_NAMES[2]);
-
-    for (uint i = 0; i < 10 ; ++i)
+    for (uint32_t i = 0; i < 10 ; ++i)
     {
         {
-            DM_PROFILE_SCOPE(scope0, name0);
-            DM_PROFILE_SCOPE(scope1, name1);
+            DM_PROFILE_DYN(Scope1, names[0], names_hash[0]);
+            DM_PROFILE_DYN(Scope2, names[1], names_hash[1]);
         }
         {
-            DM_PROFILE_SCOPE(scope1, name2);
+            DM_PROFILE_DYN(Scope2, names[2], names_hash[2]);
         }
-        DM_PROFILE_SCOPE(scope0, name0);
+        DM_PROFILE_DYN(Scope1, names[0], names_hash[0]);
     }
 
     std::vector<dmProfile::Sample> samples;
@@ -426,16 +425,36 @@ TEST(dmProfile, DynamicScope)
     ASSERT_EQ(10U * 2, scopes[SCOPE_NAMES[0]]->m_Count);
     ASSERT_EQ(10U * 2, scopes[SCOPE_NAMES[1]]->m_Count);
 
+    char name0[128];
+    DM_SNPRINTF(name0, sizeof(name0), "%s@%s", "test.script", FUNCTION_NAMES[0]);
+
+    char name1[128];
+    DM_SNPRINTF(name1, sizeof(name1), "%s@%s", "test.script", FUNCTION_NAMES[1]);
+
+    char name2[128];
+    DM_SNPRINTF(name2, sizeof(name2), "%s@%s", "test.script", FUNCTION_NAMES[2]);
+
     for (size_t i = 0; i < samples.size(); i++)
     {
         dmProfile::Sample* sample = &samples[i];
-        if (sample->m_Scope == scope0)
+        if (sample->m_Scope->m_NameHash == dmProfile::GetNameHash("Scope1", (uint32_t)strlen("Scope1")))
         {
             ASSERT_STREQ(sample->m_Name, name0);
         }
-        else if (sample->m_Scope == scope1)
+        else if (sample->m_Scope->m_NameHash == dmProfile::GetNameHash("Scope2", (uint32_t)strlen("Scope2")))
         {
-            ASSERT_TRUE(sample->m_Name == name1 || sample->m_Name == name2);
+            if (sample->m_NameHash == dmProfile::GetNameHash(name1, (uint32_t)strlen(name1)))
+            {
+                ASSERT_STREQ(sample->m_Name, name1);
+            }
+            else if (sample->m_NameHash == dmProfile::GetNameHash(name2, (uint32_t)strlen(name2)))
+            {
+                ASSERT_STREQ(sample->m_Name, name2);
+            }
+            else
+            {
+                ASSERT_TRUE(false);
+            }
         }
         else
         {
@@ -453,6 +472,6 @@ TEST(dmProfile, DynamicScope)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

@@ -132,6 +132,23 @@ public class Splash {
         errorButton.visibleProperty().bind(errorShowing);
         errorButton.setOnAction((event) -> System.exit(1));
 
+        // Footer data; version and copyright
+        String versionString = System.getProperty("defold.version");
+        String channelName = System.getProperty("defold.channel");
+        String sha1 = System.getProperty("defold.editor.sha1");
+
+        versionString = (versionString == null || versionString.isEmpty()) ? "No version" : versionString;
+        channelName = (channelName == null || channelName.isEmpty()) ? "No channel" : channelName;
+        channelName = channelName.equals("editor-alpha") ? "" : "   •   " + channelName;
+        sha1 = (sha1 == null || sha1.isEmpty()) ? "no sha1" : sha1;
+        if (sha1.length() > 7) {
+            sha1 = sha1.substring(0, 7);
+        }
+
+        Label channelLabel = (Label) scene.lookup("#version");
+        channelLabel.setText(versionString + " (" + sha1 + ")" + channelName);
+        channelLabel.setVisible(true);
+
         stage.setOnShown(event -> shown.set(true));
         stage.show();
     }

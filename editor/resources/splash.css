@@ -14,6 +14,22 @@
   -fx-padding: 0 0 33px 0;
 }
 
+#footer * {
+  -fx-text-fill: #848587;
+  -fx-font-size: 12px;
+}
+
+#version {
+  -fx-padding: 0 0 16px 0;
+}
+
+#copyright {
+}
+
+#rights-reserved {
+  -fx-padding: 0 0 33px 0;
+}
+
 #startup-tip > .text {
   -fx-fill: #8f9296;
   -fx-padding: 0;
@@ -46,7 +62,7 @@
     -fx-background-insets: 0;
     -fx-background-radius: 0;
     -fx-border-radius: 0;
-    -fx-min-height: 3;
+    -fx-pref-height: 3;
     -fx-padding: 0; }
 
 .button {

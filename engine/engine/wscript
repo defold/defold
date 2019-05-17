@@ -66,8 +66,6 @@ namespace dmEngineVersion
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
     elif operating_sys == 'ios':
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'AudioToolbox'])
-        # For Facebook SDK...
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Security', '-weak_framework', 'Accounts', '-weak_framework', 'Social', '-weak_framework', 'AdSupport'])
         # For IAP
         conf.env.append_value('LINKFLAGS', ['-framework', 'StoreKit'])
     elif operating_sys == 'android':
@@ -78,8 +76,6 @@ namespace dmEngineVersion
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib'])
     elif 'web' in operating_sys:
         pass
-
-    conf.env['LIB_GTEST'] = 'gtest'
 
     conf.env['STATICLIB_CRASH'] = 'crashext'
     conf.env['STATICLIB_DDF'] = 'ddf'
@@ -106,11 +102,6 @@ namespace dmEngineVersion
     conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
 
     conf.env['STATICLIB_UNWIND'] = 'unwind'
-    conf.env['STATICLIB_BOLTS'] = 'Bolts'
-    conf.env['STATICLIB_FBSDKCORE'] = 'FBSDKCore'
-    conf.env['STATICLIB_FBSDKLOGIN'] = 'FBSDKLogin'
-    conf.env['STATICLIB_FBSDKSHARE'] = 'FBSDKShare'
-    conf.env['LIB_SQLLITE'] = 'sqlite3'
     conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
     conf.env['STATICLIB_GAMEROOMEXT'] = 'gameroomext'
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
@@ -118,6 +109,7 @@ namespace dmEngineVersion
     conf.env['STATICLIB_WEBVIEWEXT'] = 'webviewext'
     conf.env['STATICLIB_IACEXT'] = 'iacext'
     conf.env['STATICLIB_PROFILEREXT'] = 'profilerext'
+    conf.env['STATICLIB_PROFILEREXT_NULL'] = 'profilerext_null'
 
     conf.env['STATICLIB_TREMOLO'] = 'tremolo'
     conf.env['STATICLIB_TRACKING'] = 'tracking'
@@ -177,4 +169,4 @@ def build(bld):
 def shutdown():
     # unit tests disabled on win32 for now
     if sys.platform != "win32":
-        waf_dynamo.run_gtests(valgrind = True)
+        waf_dynamo.run_tests(valgrind = True)

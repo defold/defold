@@ -238,7 +238,7 @@ namespace dmGameSystem
      *     if message.animation_id == hash("jump") then
      *       -- open animation done, chain with "run"
      *       local properties = { blend_duration = 0.2 }
-     *       spine.play_anim(url, "run", go.PLAYBACK_LOOP_FORWARD, properties, anim_done)
+     *       spine.play_anim(sender, "run", go.PLAYBACK_LOOP_FORWARD, properties, anim_done)
      *     end
      *   end
      * end

@@ -91,6 +91,39 @@
     @android.webkit.JavascriptInterface <methods>;
 }
 
+-keepclassmembers class android.support.v4.app.NotificationCompatJellybean {
+    ** icon;
+    ** title;
+    ** actionIntent;
+}
+
+-keepclassmembers class com.google.common.cache.Striped64 {
+    ** base;
+    ** busy;
+}
+
+-keepclassmembers class com.google.common.cache.Striped64$Cell {
+    ** value;
+}
+
+-keepclassmembers class android.support.v4.media.session.** {
+  ** mCallback;
+}
+
+-keepclassmembers class android.support.v4.app.NotificationManagerCompat {
+  ** OP_POST_NOTIFICATION;
+}
+
+-keepclassmembers class com.google.android.gms.dynamite.DynamiteModule {
+  ** sClassLoader;
+  ** MODULE_VERSION;
+  ** MODULE_ID;
+}
+
+-keepclassmembers class ** {
+  ** SDK_INT;
+}
+
 # Preserve the required interface from the License Verification Library
 # (but don't nag the developer if the library is not used at all).
 
@@ -110,7 +143,6 @@
 
 -keep public class com.defold.**
 -keep public class com.dynamo.**
--keep public class com.dynamo.android.DefoldActivity
 
 -dontwarn sun.misc.Unsafe
 -dontwarn java.nio.**
@@ -118,7 +150,11 @@
 -dontwarn android.arch.lifecycle.LifecycleProcessor
 -dontwarn com.google.auto.common.BasicAnnotationProcessor
 -dontwarn android.support.v4.**
+-dontwarn android.app.NotificationChannel
+-dontwarn android.app.NotificationManager
 -dontwarn com.google.android.gms.auth.GoogleAuthUtil
+-dontwarn com.google.android.gms.**
+-dontwarn com.google.protobuf.**
 
 -dontwarn javax.lang.**
 -dontwarn javax.annotation.**
@@ -128,19 +164,13 @@
 -dontwarn com.amazon.device.iap.**
 -dontwarn com.amazon.venezia.**
 
--dontwarn android.app.NotificationChannel
--dontwarn android.app.NotificationManager
 
 # Switch off some optimizations that trip older versions of the Dalvik VM.
 
 -optimizations !code/simplification/arithmetic
 
-#-optimizations !code/allocation/variable
-
-
 # Android support (we've assembled it ourselves)
 -dontwarn android.support.coreui.**
-
 
 -keepattributes Signature
 -keep class com.facebook.** {
@@ -152,6 +182,22 @@
 # $ cd <defold>/engine
 # $ find . -iname "*.java" ! -ipath "*build/*.java" ! -ipath "*test*.java" -exec rg -N "import" {} \; | sort -u | sed s/import/-keep\ public\ class/ | sed s/\;//
 
+-keep public class android.support.v4.app.Fragment
+-keep public class android.support.v4.app.FragmentActivity
+-keep public class android.support.v4.app.FragmentManager
+-keep public class android.support.v4.app.NotificationCompat
+-keep        class android.support.v4.app.Fragment$SavedState
+-keep        class android.support.v4.app.Fragment$OnStartEnterTransitionListener
+-keep public class android.support.v4.app.FragmentTransaction
+-keep public class android.support.v4.app.SharedElementCallback
+-keep public class android.support.v4.app.SupportActivity$ExtraData
+-keep public class android.support.v4.content.LocalBroadcastManager
+-keep public class android.arch.lifecycle.Lifecycle$State
+
+# -keep public class com.amazon.device.iap.**
+-keep public class com.google.firebase.**
+-keep public class com.facebook.**
+
 -keep public class android.Manifest
 -keep public class android.R
 -keep public class android.app.Activity
@@ -160,6 +206,7 @@
 -keep public class android.app.Notification
 -keep public class android.app.NotificationManager
 -keep public class android.app.PendingIntent
+-keep public class android.app.Service
 -keep public class android.content.BroadcastReceiver
 -keep public class android.content.ComponentName
 -keep public class android.content.Context
@@ -251,14 +298,25 @@
 -keep public class com.facebook.share.widget.AppInviteDialog
 -keep public class com.facebook.share.widget.GameRequestDialog
 -keep public class com.facebook.share.widget.ShareDialog
+-keep public class bolts.**
 -keep public class com.google.android.gms.ads.identifier.AdvertisingIdClient
 -keep public class com.google.android.gms.common.*
 -keep public class com.google.android.gms.common.ConnectionResult
 -keep public class com.google.android.gms.common.GooglePlayServicesUtil
+-keep public class com.google.android.gms.common.GoogleApiAvailability
+-keep public class com.google.android.gms.tasks.OnCompleteListener
+-keep public class com.google.android.gms.tasks.Task
+-keep public class com.google.firebase.FirebaseApp
+-keep public class com.google.firebase.FirebaseOptions
+-keep public class com.google.firebase.iid.FirebaseInstanceId
+-keep public class com.google.firebase.iid.InstanceIdResult
+-keep public class com.google.firebase.messaging.RemoteMessage
 -keep public class com.google.android.gms.gcm.GoogleCloudMessaging
 -keep class com.google.android.gms.** { *; }
 -dontwarn com.google.android.gms.**
-
+-dontwarn com.google.protobuf.**
+-dontwarn com.google.firebase.messaging.R
+-dontwarn com.google.firebase.messaging.R$*
 -keep public class java.io.BufferedReader
 -keep public class java.io.File
 -keep public class java.io.FileNotFoundException
@@ -304,6 +362,7 @@
 -keep public class org.json.JSONException
 -keep public class org.json.JSONObject
 
+-dontwarn android.graphics.drawable.AdaptiveIconDrawable
 
 -keep class com.dynamo.** {
     public <methods>;

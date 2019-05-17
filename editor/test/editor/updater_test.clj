@@ -26,25 +26,23 @@
 
 (defn- test-urls-fixture [f]
   (with-redefs [updater/download-url
-                (fn [sha1 ^Platform platform]
-                  (format "http://localhost:%s/editor2/%s/editor2/Defold-%s.zip"
-                          test-port sha1 (.getPair platform)))
+                (fn [sha1 channel ^Platform platform]
+                  (format "http://localhost:%s/archive/%s/%s/editor2/Defold-%s.zip"
+                          test-port sha1 channel (.getPair platform)))
 
                 updater/update-url
                 (fn [channel]
-                  (format "http://localhost:%s/editor2/channels/%s/update-v2.json"
+                  (format "http://localhost:%s/editor2/channels/%s/update-v3.json"
                           test-port channel))]
     (f)))
 
-(use-fixtures :once error-log-level-fixture)
-
-(use-fixtures :once test-urls-fixture)
+(use-fixtures :once error-log-level-fixture test-urls-fixture)
 
 (defn make-handler-resources [channel sha1]
-  {(format "/editor2/channels/%s/update-v2.json" channel)
+  {(format "/editor2/channels/%s/update-v3.json" channel)
    (response/response (json/write-str {:sha1 sha1}))
 
-   (format "/editor2/%s/editor2/Defold-%s.zip" sha1 (.getPair (Platform/getHostPlatform)))
+   (format "/archive/%s/%s/editor2/Defold-%s.zip" sha1 channel (.getPair (Platform/getHostPlatform)))
    (response/resource-response "test-update.zip")})
 
 (defn- make-resource-handler [channel sha1]
@@ -73,7 +71,8 @@
     sha1
     (Platform/getHostPlatform)
     (io/file ".")
-    (io/file "no-launcher")))
+    (io/file "no-launcher")
+    []))
 
 (deftest no-update-on-client-when-no-update-on-server
   (with-server "test" "1"
@@ -118,7 +117,8 @@
                     "1"
                     Platform/JsWeb
                     (io/file ".")
-                    (io/file "no-launcher"))]
+                    (io/file "no-launcher")
+                    [])]
       (#'updater/check! updater)
       (is (true? (updater/can-download-update? updater)))
       (is (false? @(updater/download-and-extract! updater))))))

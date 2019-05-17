@@ -3,6 +3,7 @@
    [clojure.java.io :as io]
    [clojure.data.json :as json]
    [dynamo.graph :as g]
+   [editor.connection-properties :refer [connection-properties]]
    [editor.prefs :as prefs]
    [editor.defold-project :as project]
    [editor.engine.build-errors :as engine-build-errors]
@@ -30,7 +31,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:const defold-build-server-url "https://build.defold.com")
+(def ^:const defold-build-server-url (get-in connection-properties [:native-extensions :build-server-url]))
 (def ^:const connect-timeout-ms (* 30 1000))
 (def ^:const read-timeout-ms (* 10 60 1000))
 
@@ -95,6 +96,8 @@
                                      :library-paths #{"ios" "arm64-ios"}}
    (.getPair Platform/Armv7Android) {:platform      "armv7-android"
                                      :library-paths #{"android" "armv7-android"}}
+   (.getPair Platform/Arm64Android) {:platform      "arm64-android"
+                                     :library-paths #{"android" "arm64-android"}}
    (.getPair Platform/JsWeb)        {:platform      "js-web"
                                      :library-paths #{"web" "js-web"}}
    (.getPair Platform/X86Win32)     {:platform      "x86-win32"

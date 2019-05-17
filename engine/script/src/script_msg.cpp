@@ -23,6 +23,9 @@ namespace dmScript
 #define SCRIPT_LIB_NAME "msg"
 #define SCRIPT_TYPE_NAME_URL "url"
 
+    static uint32_t SCRIPT_URL_TYPE_HASH = 0;
+
+
     /*# Messaging API documentation
      *
      * Functions for passing messages and constructing URL objects.
@@ -36,28 +39,7 @@ namespace dmScript
 
     bool IsURL(lua_State *L, int index)
     {
-        void *p = lua_touserdata(L, index);
-        bool result = false;
-        if (p != 0x0)
-        {  /* value is a userdata? */
-            if (lua_getmetatable(L, index))
-            {  /* does it have a metatable? */
-                lua_getfield(L, LUA_REGISTRYINDEX, SCRIPT_TYPE_NAME_URL);  /* get correct metatable */
-                if (lua_rawequal(L, -1, -2))
-                {  /* does it have the correct mt? */
-                    result = true;
-                }
-                lua_pop(L, 2);  /* remove both metatables */
-            }
-        }
-        return result;
-    }
-
-    static int URL_gc(lua_State *L)
-    {
-        dmMessage::URL* url = CheckURL(L, 1);
-        memset(url, 0, sizeof(*url));
-        return 0;
+        return (dmMessage::URL*)dmScript::ToUserType(L, index, SCRIPT_URL_TYPE_HASH);
     }
 
     void url_tostring(const dmMessage::URL* url, char* buffer, uint32_t buffer_size)
@@ -97,7 +79,7 @@ namespace dmScript
 
     static int URL_tostring(lua_State *L)
     {
-        dmMessage::URL* url = CheckURL(L, 1);
+        dmMessage::URL* url = (dmMessage::URL*)lua_touserdata(L, 1);
         char buffer[64];
         url_tostring(url, buffer, 64);
         lua_pushfstring(L, "%s: [%s]", SCRIPT_TYPE_NAME_URL, buffer);
@@ -116,7 +98,7 @@ namespace dmScript
 
     static int URL_index(lua_State *L)
     {
-        dmMessage::URL* url = CheckURL(L, 1);
+        dmMessage::URL* url = (dmMessage::URL*)lua_touserdata(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (strcmp("socket", key) == 0)
@@ -163,14 +145,14 @@ namespace dmScript
 
     static int URL_newindex(lua_State *L)
     {
-        dmMessage::URL* url = CheckURL(L, 1);
+        dmMessage::URL* url = (dmMessage::URL*)lua_touserdata(L, 1);
 
         const char* key = luaL_checkstring(L, 2);
         if (strcmp("socket", key) == 0)
         {
             if (IsHash(L, 3))
             {
-                url->m_Socket = CheckHash(L, 3);
+                url->m_Socket = *(dmhash_t*)lua_touserdata(L, 3);
             }
             else if (lua_isstring(L, 3))
             {
@@ -228,7 +210,7 @@ namespace dmScript
             }
             else if (IsHash(L, 3))
             {
-                url->m_Fragment = CheckHash(L, 3);
+                url->m_Fragment = *(dmhash_t*)lua_touserdata(L, 3);
             }
             else
             {
@@ -244,9 +226,9 @@ namespace dmScript
 
     static int URL_eq(lua_State *L)
     {
-        dmMessage::URL* url1 = CheckURL(L, 1);
-        dmMessage::URL* url2 = CheckURL(L, 2);
-        lua_pushboolean(L, url1->m_Socket == url2->m_Socket && url1->m_Path == url2->m_Path && url1->m_Fragment == url2->m_Fragment);
+        dmMessage::URL* url1 = (dmMessage::URL*)ToUserType(L, 1, SCRIPT_URL_TYPE_HASH);
+        dmMessage::URL* url2 = (dmMessage::URL*)ToUserType(L, 2, SCRIPT_URL_TYPE_HASH);
+        lua_pushboolean(L, url1 && url2 && url1->m_Socket == url2->m_Socket && url1->m_Path == url2->m_Path && url1->m_Fragment == url2->m_Fragment);
         return 1;
     }
 
@@ -257,7 +239,6 @@ namespace dmScript
 
     static const luaL_reg URL_meta[] =
     {
-        {"__gc",        URL_gc},
         {"__tostring",  URL_tostring},
         {"__concat",    URL_concat},
         {"__index",     URL_index},
@@ -355,7 +336,7 @@ namespace dmScript
             {
                 if (IsHash(L, 1))
                 {
-                    url.m_Socket = CheckHash(L, 1);
+                    url.m_Socket = *(dmhash_t*)lua_touserdata(L, 1);
                 }
                 else
                 {
@@ -504,9 +485,8 @@ namespace dmScript
         uint32_t data_size = 0;
 
         const dmDDF::Descriptor* desc = 0x0;
-        lua_getglobal(L, SCRIPT_CONTEXT);
-        HContext context = (HContext)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        HContext context = dmScript::GetScriptContext(L);
+
         if (context != 0)
         {
             desc = dmDDF::GetDescriptorFromHash(message_id);
@@ -570,33 +550,8 @@ namespace dmScript
     {
         int top = lua_gettop(L);
 
-        const uint32_t type_count = 1;
-        struct
-        {
-            const char* m_Name;
-            const luaL_reg* m_Methods;
-            const luaL_reg* m_Metatable;
-        } types[type_count] =
-        {
-            {SCRIPT_TYPE_NAME_URL, URL_methods, URL_meta}
-        };
-        for (uint32_t i = 0; i < type_count; ++i)
-        {
-            // create methods table, add it to the globals
-            luaL_register(L, types[i].m_Name, types[i].m_Methods);
-            int methods_index = lua_gettop(L);
-            // create metatable for the type, add it to the Lua registry
-            luaL_newmetatable(L, types[i].m_Name);
-            int metatable = lua_gettop(L);
-            // fill metatable
-            luaL_register(L, 0, types[i].m_Metatable);
+        SCRIPT_URL_TYPE_HASH = dmScript::RegisterUserType(L, SCRIPT_TYPE_NAME_URL, URL_methods, URL_meta);
 
-            lua_pushliteral(L, "__metatable");
-            lua_pushvalue(L, methods_index);// dup methods table
-            lua_settable(L, metatable);
-
-            lua_pop(L, 2);
-        }
         luaL_register(L, SCRIPT_LIB_NAME, ScriptMsg_methods);
         lua_pop(L, 1);
 
@@ -613,22 +568,12 @@ namespace dmScript
 
     dmMessage::URL* CheckURL(lua_State* L, int index)
     {
-        if (lua_type(L, index) == LUA_TUSERDATA)
-        {
-            return (dmMessage::URL*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_URL);
-        }
-        luaL_typerror(L, index, SCRIPT_TYPE_NAME_URL);
-        return 0x0;
+        return (dmMessage::URL*)dmScript::CheckUserType(L, index, SCRIPT_URL_TYPE_HASH, 0);
     }
 
     bool GetURL(lua_State* L, dmMessage::URL* out_url)
     {
         return GetURL(L, *out_url);
-    }
-
-    bool GetUserData(lua_State* L, uintptr_t* out_user_data, const char* user_type)
-    {
-        return GetUserData(L, *out_user_data, user_type);
     }
 
     dmMessage::Result ResolveURL(lua_State* L, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url)
@@ -705,7 +650,7 @@ namespace dmScript
     {
         if (dmScript::IsURL(L, index))
         {
-            *out_url = *CheckURL(L, index);
+            *out_url = *(dmMessage::URL*)lua_touserdata(L, index);
             if (out_default_url != 0x0)
             {
                 dmMessage::ResetURL(*out_default_url);
@@ -802,7 +747,7 @@ namespace dmScript
             else if (IsHash(L, index))
             {
                 out_url->m_Socket = default_url.m_Socket;
-                out_url->m_Path = CheckHash(L, index);
+                out_url->m_Path = *(dmhash_t*)lua_touserdata(L, index);
                 out_url->m_Fragment = 0;
             }
             else

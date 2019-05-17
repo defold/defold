@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 #include "script.h"
 
@@ -17,7 +18,7 @@ extern "C"
 
 #define PATH_FORMAT "build/default/src/test/%s"
 
-class ScriptTest : public ::testing::Test
+class ScriptTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -300,7 +301,7 @@ static const luaL_reg Test_meta[] =
 
 TEST_F(ScriptTest, TestUserType) {
     const char* type_name = "TestType";
-    dmScript::RegisterUserType(L, type_name, Test_methods, Test_meta);
+    uint32_t type_hash = dmScript::RegisterUserType(L, type_name, Test_methods, Test_meta);
 
     // Create an instance
     TestDummy* dummy = (TestDummy*)lua_newuserdata(L, sizeof(TestDummy));
@@ -332,8 +333,8 @@ TEST_F(ScriptTest, TestUserType) {
 
     // GetUserData
     uintptr_t user_data;
-    ASSERT_FALSE(dmScript::GetUserData(L, &user_data, "incorrect_type"));
-    ASSERT_TRUE(dmScript::GetUserData(L, &user_data, type_name));
+    ASSERT_FALSE(dmScript::GetUserData(L, &user_data, dmHashString32("incorrect_type")));
+    ASSERT_TRUE(dmScript::GetUserData(L, &user_data, type_hash));
     ASSERT_EQ(dummy->m_Dummy, user_data);
 
     // ResolvePath
@@ -670,7 +671,7 @@ static TestScriptExtension* GetTestScriptExtension(dmScript::HContext context)
     lua_State* L = dmScript::GetLuaState(context);
     DM_LUA_STACK_CHECK(L, 0);
 
-    lua_pushstring(L, "__TestScriptExtension__");
+    lua_pushinteger(L, (lua_Integer)dmHashBuffer32("__TestScriptExtension__", strlen("__TestScriptExtension__")));
     dmScript::GetContextValue(context);
     int ref = lua_tonumber(L, 1);
     lua_pop(L, 1);
@@ -689,7 +690,7 @@ void TestScriptExtensionInitialize(dmScript::HContext context)
     memset(extension, 0, sizeof(TestScriptExtension));
     extension->m_SelfRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
     extension->m_InitializeCalled = 1;
-    lua_pushstring(L, "__TestScriptExtension__");
+    lua_pushinteger(L, (lua_Integer)dmHashBuffer32("__TestScriptExtension__", strlen("__TestScriptExtension__")));
     lua_pushnumber(L, extension->m_SelfRef);
     dmScript::SetContextValue(context);
 }
@@ -710,7 +711,7 @@ static void TestScriptExtensionFinalize(dmScript::HContext context)
 
     TestScriptExtension* extension = GetTestScriptExtension(context);
     ++extension->m_FinalizedCalled = 1;
-    lua_pushstring(L, "__TestScriptExtension__");
+    lua_pushinteger(L, (lua_Integer)dmHashBuffer32("__TestScriptExtension__", strlen("__TestScriptExtension__")));
     lua_pushnil(L);
     dmScript::SetContextValue(context);
     dmScript::Unref(L, LUA_REGISTRYINDEX, extension->m_SelfRef);
@@ -938,8 +939,8 @@ TEST_F(ScriptTest, InstanceId)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = jc_test_run_all();
     return ret;
 }

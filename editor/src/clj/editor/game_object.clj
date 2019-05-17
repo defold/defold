@@ -1,24 +1,26 @@
 (ns editor.game-object
   (:require [clojure.set :as set]
             [clojure.string :as str]
-            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
-            [editor.graph-util :as gu]
+            [editor.build-target :as bt]
+            [editor.code.script :as script]
+            [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.geom :as geom]
+            [editor.gl.pass :as pass]
+            [editor.graph-util :as gu]
             [editor.handler :as handler]
-            [editor.defold-project :as project]
+            [editor.outline :as outline]
+            [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
             [editor.sound :as sound]
-            [editor.code.script :as script]
-            [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
-            [editor.workspace :as workspace]
-            [editor.properties :as properties]
             [editor.validation :as validation]
-            [editor.outline :as outline]
+            [editor.workspace :as workspace]
             [service.log :as log])
   (:import [clojure.lang MapEntry]
            [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
@@ -50,6 +52,11 @@
    :rotation rotation
    :data (or (:content save-data) "")})
 
+(defn- build-raw-sound [resource dep-resources user-data]
+  (let [pb (:pb user-data)
+        pb (assoc pb :sound (resource/proj-path (second (first dep-resources))))]
+    {:resource resource :content (protobuf/map->bytes Sound$SoundDesc pb)}))
+
 (defn- wrap-if-raw-sound [_node-id target]
   (let [resource (:resource (:resource target))
         source-path (resource/proj-path resource)
@@ -58,13 +65,11 @@
       (let [workspace (project/workspace (project/get-project _node-id))
             res-type  (workspace/get-resource-type workspace "sound")
             pb        {:sound source-path}
-            target    {:node-id  _node-id
-                       :resource (workspace/make-build-resource (resource/make-memory-resource workspace res-type (protobuf/map->str Sound$SoundDesc pb)))
-                       :build-fn (fn [resource dep-resources user-data]
-                                   (let [pb (:pb user-data)
-                                         pb (assoc pb :sound (resource/proj-path (second (first dep-resources))))]
-                                     {:resource resource :content (protobuf/map->bytes Sound$SoundDesc pb)}))
-                       :deps     [target]}]
+            target    (bt/with-content-hash
+                        {:node-id _node-id
+                         :resource (workspace/make-build-resource (resource/make-memory-resource workspace res-type (protobuf/map->str Sound$SoundDesc pb)))
+                         :build-fn build-raw-sound
+                         :deps [target]})]
         target)
       target)))
 
@@ -179,26 +184,37 @@
   (output ddf-message g/Any (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
   (output rt-ddf-message g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id id transform scene]
-                                (let [transform (if-let [local-transform (:transform scene)]
-                                                  (doto (Matrix4d. ^Matrix4d transform)
-                                                    (.mul ^Matrix4d local-transform))
-                                                  transform)
-                                      updatable (some-> (:updatable scene)
-                                                  (assoc :node-id _node-id))]
-                                  (cond-> scene
-                                    true (scene/claim-scene _node-id id)
-                                    true (assoc :transform transform
-                                           :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))
-                                    updatable ((partial scene/map-scene #(assoc % :updatable updatable)))))))
+                                (if (some? scene)
+                                  (let [transform (if-let [local-transform (:transform scene)]
+                                                    (doto (Matrix4d. ^Matrix4d transform)
+                                                      (.mul ^Matrix4d local-transform))
+                                                    transform)
+                                        updatable (some-> (:updatable scene)
+                                                          (assoc :node-id _node-id))]
+                                    ;; label has scale and thus transform, others have identity transform
+                                    (cond-> (assoc (scene/claim-scene scene _node-id id)
+                                                   :transform transform)
+                                            updatable ((partial scene/map-scene #(assoc % :updatable updatable)))))
+                                  ;; This handles the case of no scene
+                                  ;; from actual component - typically
+                                  ;; bad data. Covered by for instance
+                                  ;; unknown_components.go in the test
+                                  ;; project.
+                                  {:node-id _node-id
+                                   :transform transform
+                                   :aabb geom/empty-bounding-box
+                                   :renderable {:passes [pass/selection]}})))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
-  (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
-                                             (if-let [target (first source-build-targets)]
-                                               (let [target (->> (assoc target :resource build-resource)
-                                                              (wrap-if-raw-sound _node-id))]
-                                                 [(assoc target :instance-data {:resource (:resource target)
-                                                                                :instance-msg rt-ddf-message
-                                                                                :transform transform})])
-                                               [])))
+  (output build-targets g/Any (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
+                                (when-some [target (first source-build-targets)]
+                                  (let [target (->> (assoc target :resource build-resource)
+                                                    (wrap-if-raw-sound _node-id))]
+                                    [(bt/with-content-hash
+                                       (assoc target
+                                         :instance-data
+                                         {:resource (:resource target)
+                                          :instance-msg rt-ddf-message
+                                          :transform transform}))]))))
   (output _properties g/Properties :cached produce-component-properties))
 
 (g/defnode EmbeddedComponent
@@ -340,15 +356,16 @@
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
         (when (not-empty dup-ids)
           (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
-      [{:node-id _node-id
-        :resource (workspace/make-build-resource resource)
-        :build-fn build-game-object
-        :user-data {:proto-msg proto-msg :instance-data (map :instance-data (flatten dep-build-targets))}
-        :deps (flatten dep-build-targets)}]))
+      [(bt/with-content-hash
+         {:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-game-object
+          :user-data {:proto-msg proto-msg :instance-data (map :instance-data (flatten dep-build-targets))}
+          :deps (flatten dep-build-targets)})]))
 
 (g/defnk produce-scene [_node-id child-scenes]
   {:node-id _node-id
-   :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
+   :aabb geom/null-aabb
    :children child-scenes})
 
 (defn- attach-component [self-id comp-id ddf-input resolve-id?]
@@ -475,7 +492,7 @@
                                               [:resource :source-resource]
                                               [:_properties :source-properties]
                                               [:node-outline :source-outline]
-                                              [:save-data :save-data]
+                                              [:undecorated-save-data :save-data]
                                               [:scene :scene]
                                               [:build-targets :source-build-targets]])
                   (attach-embedded-component self comp-node)

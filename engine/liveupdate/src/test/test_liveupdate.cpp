@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include "../liveupdate.h"
 #include "../liveupdate_private.h"
 
@@ -9,16 +10,16 @@ TEST(dmLiveUpdate, HexDigestLength)
     uint32_t actual = 0;
 
     actual = dmLiveUpdate::HexDigestLength(dmLiveUpdateDDF::HASH_MD5);
-    ASSERT_EQ(128 / 8 * 2, actual);
+    ASSERT_EQ((uint32_t)(128 / 8 * 2), actual);
 
     actual = dmLiveUpdate::HexDigestLength(dmLiveUpdateDDF::HASH_SHA1);
-    ASSERT_EQ(160 / 8 * 2, actual);
+    ASSERT_EQ((uint32_t)(160 / 8 * 2), actual);
 
     actual = dmLiveUpdate::HexDigestLength(dmLiveUpdateDDF::HASH_SHA256);
-    ASSERT_EQ(256 / 8 * 2, actual);
+    ASSERT_EQ((uint32_t)(256 / 8 * 2), actual);
 
     actual = dmLiveUpdate::HexDigestLength(dmLiveUpdateDDF::HASH_SHA512);
-    ASSERT_EQ(512 / 8 * 2, actual);
+    ASSERT_EQ((uint32_t)(512 / 8 * 2), actual);
 }
 
 TEST(dmLiveUpdate, BytesToHexString)
@@ -40,7 +41,7 @@ TEST(dmLiveUpdate, BytesToHexString)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = jc_test_run_all();
     return ret;
 }
