@@ -63,6 +63,7 @@ namespace dmGraphics
 
         static const char* g_device_extensions[] = {
             VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+            "VK_KHR_maintenance1",
             NULL
         };
 
@@ -2604,9 +2605,9 @@ namespace dmGraphics
         static inline void SetViewport(int32_t x, int32_t y, int32_t width, int32_t height)
         {
             g_vk_context.m_MainViewport.x      = x;
-            g_vk_context.m_MainViewport.y      = y;
+            g_vk_context.m_MainViewport.y      = (height+y);
             g_vk_context.m_MainViewport.width  = width;
-            g_vk_context.m_MainViewport.height = height;
+            g_vk_context.m_MainViewport.height = -height;
         }
 
         static bool OpenWindow(WindowParams* params)
