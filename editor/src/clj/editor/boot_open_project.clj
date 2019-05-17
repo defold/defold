@@ -231,7 +231,7 @@
       (ui/on-closing! stage (fn [_]
                               (let [result (or (empty? (project/dirty-save-data project))
                                                (dialogs/make-confirmation-dialog
-                                                 {:title "Close Defold"
+                                                 {:title "Quit Defold?"
                                                   :icon :icon/circle-question
                                                   :size :large
                                                   :header "Unsaved changes exist, are you sure you want to quit?"
@@ -310,7 +310,7 @@
           (ui/run-later
             (loop []
               (if-not (dialogs/make-confirmation-dialog
-                        {:title "Resume Sync"
+                        {:title "Resume Sync?"
                          :size :large
                          :header {:fx/type :v-box
                                   :children [{:fx/type fxui/label
