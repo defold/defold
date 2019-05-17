@@ -329,3 +329,37 @@ Text {
     -fx-background-color: $grey;
   }
 }
+
+.context-menu {
+  -fx-background-color: $grey;
+  -fx-background-radius: 2px;
+  -fx-padding: 5px;
+  .menu-item {
+    &:focused {
+      > .label {
+        -fx-text-fill: $light-grey-lightest;
+      }
+      -fx-background-color: $dark-grey-lightest;
+      -fx-background-radius: 1px;
+    }
+    &:disabled {
+      > .label {
+        @include text-fill-text-color();
+      }
+      -fx-background-color: transparent;
+    }
+  }
+  .separator {
+    -fx-padding: 3 0;
+    > .line {
+      -fx-background-color: $dark-grey-lightest;
+      -fx-border-color: transparent;
+    }
+    &:horizontal > .line {
+      -fx-pref-height: 1;
+    }
+    &:vertical > .line {
+      -fx-pref-width: 1;
+    }
+  }
+}
