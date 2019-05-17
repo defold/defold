@@ -401,7 +401,7 @@
                    (handler/adapt-single resource/Resource))]
       (when (if (= 1 (count selection))
               (dialogs/make-confirmation-dialog
-                {:title "Delete File"
+                {:title "Delete File?"
                  :icon :icon/circle-question
                  :header (format "Are you sure you want to delete %s?"
                                  (resource/resource-name (first selection)))
@@ -413,7 +413,7 @@
                             :variant :danger
                             :result true}]})
               (dialogs/make-confirmation-dialog
-                {:title "Delete Files"
+                {:title "Delete Files?"
                  :icon :icon/circle-question
                  :header "Are you sure you want to delete these files?"
                  :content {:fx/type fxui/label
@@ -425,9 +425,9 @@
                                               (string/join "\n")))}
                  :buttons [{:text "Cancel"
                             :cancel-button true
+                            :default-button true
                             :result false}
                            {:text "Delete"
-                            :default-button true
                             :variant :danger
                             :result true}]}))
         (when (and (delete selection) next)

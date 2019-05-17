@@ -224,8 +224,7 @@
                                        :borderless "text-area-borderless"))))
 
 (defn icon
-  "An `:svg-path` with content being managed by `:type` key, has default `:fill`
-  for `:icon/check-circle` and `:icon/error-triangle`
+  "An `:svg-path` with content being managed by `:type` key
 
   Additional keys:
   - `:type` (required) - icon type, see :icon/* keywords"
@@ -299,5 +298,5 @@
       (dissoc :type)
       (provide-defaults :fill (case type
                                 :icon/check-circle "#65c647"
-                                :icon/error-triangle "#e32f44"
+                                (:icon/error-triangle :icon/sad-triangle) "#e32f44"
                                 "#9fb0be"))))

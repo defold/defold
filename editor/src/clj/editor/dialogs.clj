@@ -134,7 +134,7 @@
     * if you specify `:default-button`, it will be styled as primary and receive
       focus by default
     * if you specify `:cancel-button`, closing window using `x` button will
-      return `:result` from such button (and `nil` otherwise)
+      return `:result` from that button (and `nil` otherwise)
   - `:icon` (optional) - a keyword valid as `:type` for `editor.fxui/icon`, if
     present, will add an icon to the left of a header"
   [props]
@@ -156,7 +156,7 @@
   "Shows a dialog with selectable text content and blocks current thread until
   user closes it.
 
-  `props` is a map to configure such dialog, supports all options from
+  `props` is a map to configure the dialog, supports all options from
   `editor.dialogs/make-confirmation-dialog` with these changes:
   - `:buttons` have a close button by default
   - `:content` can be:
@@ -183,7 +183,8 @@
                                           :default-button true}]))))
 
 (defn- digit-string? [^String x]
-  (and (pos? (.length x))
+  (and (string? x)
+       (pos? (.length x))
        (every? #(Character/isDigit ^char %) x)))
 
 (defn resolution-dialog [{:keys [width-text height-text] :as props}]
@@ -257,12 +258,11 @@
                              :default-button true
                              :result true}]})]
     (when result
-      (ui/open-url "https://www.defold.com/"))
-    result))
+      (ui/open-url "https://www.defold.com/"))))
 
 (defn make-download-update-or-restart-dialog [^Stage owner]
   (make-confirmation-dialog
-    {:title "Update Available"
+    {:title "Install Update?"
      :icon :icon/info-circle
      :size :large
      :owner owner
@@ -299,7 +299,7 @@
   (make-confirmation-dialog
     {:title "Update Available"
      :header "A newer version of Defold is available!"
-     :icon :icon/info-circle
+     :icon :icon/circle-happy
      :owner owner
      :buttons [{:text "Not Now"
                 :cancel-button true
@@ -329,7 +329,7 @@
             :style-class "spacing-smaller"
             :alignment :center-left
             :children [{:fx/type fxui/icon
-                        :type :icon/error-triangle}
+                        :type :icon/sad-triangle}
                        {:fx/type fxui/label
                         :variant :header
                         :text "An error occurred"}]}
@@ -385,7 +385,7 @@
                          :wrap-text false
                          :text (:message progress)}
                         {:fx/type :progress-bar
-                         :pref-width ##Inf
+                         :max-width Double/MAX_VALUE
                          :progress (progress/fraction progress)}]}
    :footer {:fx/type dialog-buttons
             :children [{:fx/type fxui/button

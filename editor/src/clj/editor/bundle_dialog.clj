@@ -45,7 +45,7 @@
                        :wrap-text true}})
           false)
       (dialogs/make-confirmation-dialog
-        {:title "Overwrite Existing Directory"
+        {:title "Overwrite Existing Directory?"
          :owner owner-window
          :icon :icon/circle-question
          :header {:fx/type :v-box
