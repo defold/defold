@@ -7,7 +7,8 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.yamlparser :as yp]
-            [internal.graph.error-values :as error-values]))
+            [internal.graph.error-values :as error-values])
+  (:import [org.snakeyaml.engine.v1.exceptions Mark ScannerException]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -116,11 +117,14 @@
   [_node-id lines]
   (try
     (lines->completion-info lines)
-    (catch Exception e
-      ;; NOTE: We might want to extract better error information from this
-      ;; exception so that it is easier to point to the cause of the error
-      ;; without parsing in the build error view?
-      (g/package-errors _node-id (error-values/error-fatal (.getMessage e))))))
+    (catch ScannerException se
+      (let [mark ^Mark (.get (.getProblemMark se))
+            line (inc (.getLine mark))
+            row (.getLine mark)
+            col (.getColumn mark)
+            ev (-> (error-values/error-fatal (.getMessage se))
+                   (assoc :row row :line line :col col))]
+        (g/package-errors _node-id ev)))))
 
 (g/defnk produce-build-errors
   [parse-result]
