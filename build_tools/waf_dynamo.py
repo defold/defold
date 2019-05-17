@@ -696,10 +696,14 @@ def _strip_executable(bld, platform, target_arch, path):
 AUTHENTICODE_CERTIFICATE="Midasplayer Technology AB"
 
 def authenticode_certificate_installed(task):
+    if Options.options.skip_codesign:
+        return 0
     ret = task.exec_command('powershell "Get-ChildItem cert: -Recurse | Where-Object {$_.FriendlyName -Like """%s*"""} | Measure | Foreach-Object { exit $_.Count }"' % AUTHENTICODE_CERTIFICATE, log=True)
     return ret > 0
 
 def authenticode_sign(task):
+    if Options.options.skip_codesign:
+        return
     exe_file = task.inputs[0].abspath(task.env)
     exe_file_to_sign = task.inputs[0].change_ext('_to_sign.exe').abspath(task.env)
     exe_file_signed = task.outputs[0].abspath(task.env)
@@ -799,9 +803,6 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
 
         <!-- Disable Firebase Analytics -->
         <meta-data android:name="firebase_analytics_collection_deactivated" android:value="true" />
-        <!-- For Facebook -->
-        <meta-data android:name="com.facebook.sdk.ApplicationName"
-            android:value="%(app_name)s" />
 
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="%(app_name)s"
@@ -817,10 +818,6 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
             </intent-filter>
         </activity>
         <activity android:name="com.dynamo.android.DispatcherActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-        <activity android:name="com.facebook.FacebookActivity"
-          android:theme="@android:style/Theme.Translucent.NoTitleBar"
-          android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
-          android:label="%(app_name)s" />
         <activity android:name="com.defold.iap.IapGooglePlayActivity"
           android:theme="@android:style/Theme.Translucent.NoTitleBar"
           android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
@@ -938,8 +935,7 @@ def android_package(task):
     # After the release of 1.2.149 Facebook dialogs stopped working, unless the engine was built
     # on NE server. It was narrowed down to what order the res dirs were listed in the aapt
     # argument list and now we use the same order on all places.
-    res_dirs = ["%s/ext/share/java/res/facebook" % dynamo_home,
-                "%s/ext/share/java/res/com.android.support.support-compat-27.1.1" % dynamo_home,
+    res_dirs = ["%s/ext/share/java/res/com.android.support.support-compat-27.1.1" % dynamo_home,
                 "%s/ext/share/java/res/com.android.support.support-core-ui-27.1.1" % dynamo_home,
                 "%s/ext/share/java/res/com.android.support.support-media-compat-27.1.1" % dynamo_home,
                 "%s/ext/share/java/res/com.google.android.gms.play-services-base-16.0.1" % dynamo_home,
@@ -1565,8 +1561,6 @@ def detect(conf):
                         search_path = paths[0]
         if search_path == None:
             conf.fatal("Unable to determine search path for platform: %s" % platform)
-
-        conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = search_path)
 
     if  build_util.get_target_os() in ('osx', 'ios'):
         conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True) # or possibly llvm-dsymutil

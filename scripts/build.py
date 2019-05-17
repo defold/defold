@@ -16,19 +16,19 @@ from ConfigParser import ConfigParser
     Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-gameroom-2017-08-14 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
 PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
-PACKAGES_IOS_X86_64="protobuf-2.3.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
-PACKAGES_IOS="protobuf-2.3.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
-PACKAGES_IOS_64="protobuf-2.3.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_IOS="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
 PACKAGES_DARWIN="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 vpx-1.7.0 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
 PACKAGES_WIN32="facebook-gameroom-2017-08-14 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
 PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
 PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
-PACKAGES_ANDROID="protobuf-2.3.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
-PACKAGES_ANDROID_64="protobuf-2.3.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_ANDROID="protobuf-2.3.0 android-support-v4 android-support-multidex android-27 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-v4 android-support-multidex android-27 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
 PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
@@ -624,9 +624,7 @@ class Configuration(object):
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # Android Jars (external)
-            external_jars = ("facebooksdk.jar",
-                             "bolts-android-1.2.0.jar",
-                             "android-support-v4.jar",
+            external_jars = ("android-support-v4.jar",
                              "android-support-multidex.jar",
                              "android.jar",
                              "in-app-purchasing-2.0.61.jar")
@@ -1159,14 +1157,6 @@ instructions.configure=\
             for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
                 self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
-        # TODO: Remove this block after one release with both json files.
-        # TODO: ---- CUT HERE ----
-        full_archive_path = join('s3://d.defold.com/editor2', sha1, 'editor2')
-        for ext in ['zip', 'dmg']:
-            for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
-                self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
-        # TODO: ---- CUT TO HERE ----
-
         self.wait_uploads()
 
     def release_editor2(self):
@@ -1181,14 +1171,6 @@ instructions.configure=\
         # Rather than accessing S3 from its web end-point, we always go through the CDN
         archive_url = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(archive_url.hostname)
-
-        # TODO: Remove this block after one release with both json files.
-        # TODO: ---- CUT HERE ----
-        key_v2 = bucket.new_key('editor2/channels/%(channel)s/update-v2.json' % {'channel': self.channel})
-        key_v2.content_type = 'application/json'
-        self._log("Updating channel '%s' for update-v2.json: %s" % (self.channel, key_v2))
-        key_v2.set_contents_from_string(json.dumps({'sha1': sha1}))
-        # TODO: ---- CUT TO HERE ----
 
         key_v3 = bucket.new_key('editor2/channels/%(channel)s/update-v3.json' % {'channel': self.channel})
         key_v3.content_type = 'application/json'
@@ -1660,7 +1642,7 @@ instructions.configure=\
         for f in futures:
             f()
 
-    def _download_editor2(self, sha1):
+    def _download_editor2(self, channel, sha1):
         bundles = {
             'x86_64-darwin': 'Defold-x86_64-darwin.dmg',
             'x86_64-linux' : 'Defold-x86_64-linux.zip',
@@ -1669,12 +1651,8 @@ instructions.configure=\
         host2 = get_host_platform2()
         bundle = bundles.get(host2)
         if bundle:
-            url = 'https://d.defold.com/archive/%s/editor2/%s' % (sha1, bundle)
+            url = 'https://d.defold.com/archive/%s/%s/editor2/%s' % (sha1, channel, bundle)
             path = self._download(url)
-            # the dev build currently publishes the editor to <host>/editor2 rather than <host>/archive
-            if not path:
-                url = 'https://d.defold.com/editor2/%s/editor2/%s' % (sha1, bundle)
-                path = self._download(url)
             return path
         else:
             print("No editor2 bundle found for %s" % host2)
@@ -1735,7 +1713,7 @@ instructions.configure=\
         cwd = join('tmp', 'smoke_test')
         if os.path.exists(cwd):
             shutil.rmtree(cwd)
-        path = self._download_editor2(sha1)
+        path = self._download_editor2(self.channel, sha1)
         info = self._install_editor2(path)
         config = ConfigParser()
         config.read(info['config'])

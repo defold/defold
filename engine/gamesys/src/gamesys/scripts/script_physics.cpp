@@ -258,13 +258,12 @@ namespace dmGameSystem
      * do not intersect with ray casts.
      * Which collision objects to hit is filtered by their collision groups and can be configured
      * through `groups`.
-     * The actual ray cast will be performed during the physics-update.
      *
      * @name physics.raycast
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
      * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
-     * @return [type:table] It returns a table. If asynchronous it returns nil. See `ray_cast_response` for details on the returned values.
+     * @return result [type:table] It returns a table. If missed it returns nil. See `ray_cast_response` for details on the returned values.
      * @examples
      *
      * How to perform a ray cast synchronously:
