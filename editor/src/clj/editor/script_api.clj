@@ -8,7 +8,7 @@
             [editor.workspace :as workspace]
             [editor.yamlparser :as yp]
             [internal.graph.error-values :as error-values])
-  (:import [org.snakeyaml.engine.v1.exceptions Mark ScannerException]))
+  (:import [org.snakeyaml.engine.v1.exceptions Mark MarkedYamlEngineException]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -123,12 +123,12 @@
   [_node-id lines]
   (try
     (lines->completion-info lines)
-    (catch ScannerException se
-      (let [mark ^Mark (.get (.getProblemMark se))
+    (catch MarkedYamlEngineException myee
+      (let [mark ^Mark (.get (.getProblemMark myee))
             line (inc (.getLine mark))
             row (.getLine mark)
             col (.getColumn mark)
-            ev (-> (error-values/error-fatal (.getMessage se))
+            ev (-> (error-values/error-fatal (.getMessage myee))
                    (assoc :row row :line line :col col))]
         (g/package-errors _node-id ev)))))
 
