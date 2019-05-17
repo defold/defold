@@ -313,8 +313,7 @@
 
 (defn- clj-quat->euler-v4 [clj-quat]
   (-> (doto (Quat4d.)
-        (math/clj->vecmath (or clj-quat
-                               [0.0 0.0 0.0 1.0])))
+        (math/clj->vecmath clj-quat))
       math/quat->euler
       properties/round-vec
       (conj 1.0)))
