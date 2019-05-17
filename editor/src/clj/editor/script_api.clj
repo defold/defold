@@ -35,15 +35,6 @@
             :insert-string name}]
           (mapv (comp convert #(assoc % :ns name)) members))))
 
-(defmethod convert "ENUM"
-  [{:keys [ns name desc]}]
-  (let [name (name-with-ns ns name)]
-    {:type :variable
-     :name name
-     :doc desc
-     :display-string name
-     :insert-string name}))
-
 (defn- param-names
   [params remove-optional?]
   (letfn [(bracketname? [x] (= \[ (first (:name x))))
@@ -71,6 +62,15 @@
      :display-string (str name (build-param-string parameters))
      :insert-string (str name (build-param-string parameters true))
      :tab-triggers {:select (param-names parameters true) :exit (when parameters ")")}}))
+
+(defmethod convert :default
+  [{:keys [ns name desc]}]
+  (let [name (name-with-ns ns name)]
+    {:type :variable
+     :name name
+     :doc desc
+     :display-string name
+     :insert-string name}))
 
 (defn- convert-lines
   [lines]
