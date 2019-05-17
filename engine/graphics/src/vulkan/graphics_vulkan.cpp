@@ -51,8 +51,8 @@ namespace dmGraphics
 
     namespace Vulkan
     {
-        const int g_enable_validation_layers = 1;
-        const char* g_validation_layers[]    = {
+        static const int g_enable_validation_layers = 1;
+        static const char* g_validation_layers[]    = {
         #ifdef __MACH__
             "MoltenVK",
         #else
@@ -61,9 +61,50 @@ namespace dmGraphics
             NULL
         };
 
-        const char* g_device_extensions[] = {
+        static const char* g_device_extensions[] = {
             VK_KHR_SWAPCHAIN_EXTENSION_NAME,
             NULL
+        };
+
+        static const VkBlendFactor g_blend_factors[] = {
+            VK_BLEND_FACTOR_ZERO,
+            VK_BLEND_FACTOR_ONE,
+            VK_BLEND_FACTOR_SRC_COLOR,
+            VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR,
+            VK_BLEND_FACTOR_DST_COLOR,
+            VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR,
+            VK_BLEND_FACTOR_SRC_ALPHA,
+            VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            VK_BLEND_FACTOR_DST_ALPHA,
+            VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
+            VK_BLEND_FACTOR_SRC_ALPHA_SATURATE
+        };
+
+        static const VkCullModeFlagBits g_cull_modes[] = {
+            VK_CULL_MODE_FRONT_BIT,
+            VK_CULL_MODE_BACK_BIT,
+            VK_CULL_MODE_FRONT_AND_BACK
+        };
+
+        static const VkPrimitiveTopology g_primitive_types[] = {
+            VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
+            VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN,
+            VK_PRIMITIVE_TOPOLOGY_MAX_ENUM
+        };
+
+        static const VkCompareOp g_compare_funcs[] = {
+            VK_COMPARE_OP_NEVER,
+            VK_COMPARE_OP_LESS,
+            VK_COMPARE_OP_LESS_OR_EQUAL,
+            VK_COMPARE_OP_GREATER,
+            VK_COMPARE_OP_GREATER_OR_EQUAL,
+            VK_COMPARE_OP_EQUAL,
+            VK_COMPARE_OP_NOT_EQUAL,
+            VK_COMPARE_OP_ALWAYS
         };
 
         // TODO: Need to figure out proper frames-in-flight management..
@@ -209,6 +250,34 @@ namespace dmGraphics
             VkPipelineLayout m_Layout;
         };
 
+        union PipelineState
+        {
+            struct
+            {
+                uint64_t m_WriteColorMask   : 4;
+                uint64_t m_WriteDepth       : 1;
+
+                uint64_t m_PrimtiveType     : 3;
+
+                uint64_t m_DepthTestEnabled : 1;
+                uint64_t m_DepthTestFunc    : 3;
+
+                uint64_t m_BlendEnabled     : 1;
+                uint64_t m_BlendSrcFactor   : 4;
+                uint64_t m_BlendDstFactor   : 4;
+
+                uint64_t m_StencilEnabled   : 1;
+                uint64_t m_StencilOp        : 3;
+
+                uint64_t m_CullFaceEnabled  : 1;
+                uint64_t m_CullFaceType     : 2;
+
+                uint64_t m_ScissorEnabled   : 1;
+            };
+
+            uint64_t m_State;
+        };
+
         typedef GeometryBuffer VertexBuffer;
         typedef GeometryBuffer IndexBuffer;
 
@@ -250,6 +319,7 @@ namespace dmGraphics
             dmArray<TextureSampler>                    m_TextureSamplers;
 
             dmHashTable64<Pipeline>      m_PipelineCache;
+            PipelineState                m_PipelineState;
         } g_vk_context;
 
         // This functions is invoked by the vulkan layer whenever
@@ -1151,7 +1221,8 @@ namespace dmGraphics
 
         static Pipeline CreatePipeline(Program* program, VertexBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration)
         {
-            Pipeline new_pipeline;
+            Pipeline      new_pipeline;
+            PipelineState new_pipeline_state = g_vk_context.m_PipelineState;
 
             VkVertexInputAttributeDescription* vk_vertex_input_descs = new VkVertexInputAttributeDescription[vertexDeclaration->m_StreamCount];
             FillVertexInputAttributeDesc(vertexDeclaration, vk_vertex_input_descs);
@@ -1175,10 +1246,13 @@ namespace dmGraphics
             VkPipelineInputAssemblyStateCreateInfo vk_input_assembly;
             VK_ZERO_MEMORY(&vk_input_assembly,sizeof(vk_input_assembly));
 
+            VkPrimitiveTopology vk_primitive_type = g_primitive_types[new_pipeline_state.m_PrimtiveType];
+
             vk_input_assembly.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-            vk_input_assembly.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            vk_input_assembly.topology               = vk_primitive_type;
             vk_input_assembly.primitiveRestartEnable = VK_FALSE;
 
+            // TODO: Scissor
             VkRect2D vk_scissor;
             VK_ZERO_MEMORY(&vk_scissor, sizeof(vk_scissor));
 
@@ -1198,12 +1272,18 @@ namespace dmGraphics
             VkPipelineRasterizationStateCreateInfo vk_rasterizer;
             VK_ZERO_MEMORY(&vk_rasterizer,sizeof(vk_rasterizer));
 
+            VkCullModeFlagBits vk_cull_mode = VK_CULL_MODE_NONE;
+            if (new_pipeline_state.m_CullFaceEnabled)
+            {
+                vk_cull_mode = g_cull_modes[new_pipeline_state.m_CullFaceType];
+            }
+
             vk_rasterizer.sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
             vk_rasterizer.depthClampEnable        = VK_FALSE;
             vk_rasterizer.rasterizerDiscardEnable = VK_FALSE;
             vk_rasterizer.polygonMode             = VK_POLYGON_MODE_FILL;
             vk_rasterizer.lineWidth               = 1.0f;
-            vk_rasterizer.cullMode                = VK_CULL_MODE_NONE;
+            vk_rasterizer.cullMode                = vk_cull_mode;
             vk_rasterizer.frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE;
             vk_rasterizer.depthBiasEnable         = VK_FALSE;
             vk_rasterizer.depthBiasConstantFactor = 0.0f;
@@ -1224,20 +1304,20 @@ namespace dmGraphics
             VkPipelineColorBlendAttachmentState vk_color_blend_attachment;
             VK_ZERO_MEMORY(&vk_color_blend_attachment,sizeof(vk_color_blend_attachment));
 
-            vk_color_blend_attachment.colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-            vk_color_blend_attachment.blendEnable         = VK_FALSE;
-            vk_color_blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-            vk_color_blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+            uint8_t state_write_mask    = new_pipeline_state.m_WriteColorMask;
+            uint8_t vk_color_write_mask = 0;
+            vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_R) ? VK_COLOR_COMPONENT_R_BIT : 0;
+            vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_G) ? VK_COLOR_COMPONENT_G_BIT : 0;
+            vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_B) ? VK_COLOR_COMPONENT_B_BIT : 0;
+            vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_A) ? VK_COLOR_COMPONENT_A_BIT : 0;
+
+            vk_color_blend_attachment.colorWriteMask      = vk_color_write_mask;
+            vk_color_blend_attachment.blendEnable         = new_pipeline_state.m_BlendEnabled;
+            vk_color_blend_attachment.srcColorBlendFactor = g_blend_factors[new_pipeline_state.m_BlendSrcFactor];
+            vk_color_blend_attachment.dstColorBlendFactor = g_blend_factors[new_pipeline_state.m_BlendDstFactor];
             vk_color_blend_attachment.colorBlendOp        = VK_BLEND_OP_ADD;
-            vk_color_blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-            vk_color_blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-            vk_color_blend_attachment.alphaBlendOp        = VK_BLEND_OP_ADD;
-            vk_color_blend_attachment.blendEnable         = VK_TRUE;
-            vk_color_blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-            vk_color_blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-            vk_color_blend_attachment.colorBlendOp        = VK_BLEND_OP_ADD;
-            vk_color_blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-            vk_color_blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+            vk_color_blend_attachment.srcAlphaBlendFactor = g_blend_factors[new_pipeline_state.m_BlendSrcFactor];
+            vk_color_blend_attachment.dstAlphaBlendFactor = g_blend_factors[new_pipeline_state.m_BlendDstFactor];
             vk_color_blend_attachment.alphaBlendOp        = VK_BLEND_OP_ADD;
 
             VkPipelineColorBlendStateCreateInfo vk_color_blending;
@@ -1284,9 +1364,9 @@ namespace dmGraphics
             VK_ZERO_MEMORY(&vk_depth_stencil_create_info, sizeof(vk_depth_stencil_create_info));
 
             vk_depth_stencil_create_info.sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-            vk_depth_stencil_create_info.depthTestEnable       = VK_FALSE; // VK_TRUE;
-            vk_depth_stencil_create_info.depthWriteEnable      = VK_FALSE; // VK_TRUE;
-            vk_depth_stencil_create_info.depthCompareOp        = VK_COMPARE_OP_LESS;
+            vk_depth_stencil_create_info.depthTestEnable       = new_pipeline_state.m_DepthTestEnabled ? VK_TRUE : VK_FALSE;
+            vk_depth_stencil_create_info.depthWriteEnable      = new_pipeline_state.m_WriteDepth       ? VK_TRUE : VK_FALSE;
+            vk_depth_stencil_create_info.depthCompareOp        = g_compare_funcs[new_pipeline_state.m_DepthTestFunc];
             vk_depth_stencil_create_info.depthBoundsTestEnable = VK_FALSE;
             vk_depth_stencil_create_info.minDepthBounds        = 0.0f;
             vk_depth_stencil_create_info.maxDepthBounds        = 1.0f;
@@ -1327,6 +1407,7 @@ namespace dmGraphics
             dmHashInit64(&pipeline_hash_state, false);
             dmHashUpdateBuffer64(&pipeline_hash_state, &program->m_VertexProgram->m_Hash, sizeof(program->m_VertexProgram->m_Hash));
             dmHashUpdateBuffer64(&pipeline_hash_state, &program->m_FragmentProgram->m_Hash, sizeof(program->m_FragmentProgram->m_Hash));
+            dmHashUpdateBuffer64(&pipeline_hash_state, &g_vk_context.m_PipelineState, sizeof(g_vk_context.m_PipelineState));
             uint64_t pipeline_hash = dmHashFinal64(&pipeline_hash_state);
 
             Pipeline* cached_pipeline = g_vk_context.m_PipelineCache.Get(pipeline_hash);
@@ -1336,7 +1417,7 @@ namespace dmGraphics
                 g_vk_context.m_PipelineCache.Put(pipeline_hash, CreatePipeline(program, vertexBuffer, vertexDeclaration));
                 cached_pipeline = g_vk_context.m_PipelineCache.Get(pipeline_hash);
 
-                dmLogInfo("Create new VK Pipeline with hash %llu", (unsigned long long) pipeline_hash);
+                dmLogInfo("Created new VK Pipeline with hash %llu", (unsigned long long) pipeline_hash);
             }
 
             return cached_pipeline;
@@ -3289,6 +3370,8 @@ namespace dmGraphics
     {
         context->m_CurrentIndexBufferType = type;
         context->m_CurrentIndexBuffer = (void*) index_buffer;
+        Vulkan::g_vk_context.m_PipelineState.m_PrimtiveType = prim_type;
+
         DrawSetup(context);
         Vulkan::DrawIndexed(first,count);
     }
@@ -3296,6 +3379,7 @@ namespace dmGraphics
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {
         context->m_CurrentIndexBuffer = 0;
+        Vulkan::g_vk_context.m_PipelineState.m_PrimtiveType = prim_type;
         DrawSetup(context);
         Vulkan::Draw(first,count);
     }
@@ -3344,6 +3428,8 @@ namespace dmGraphics
         return 0;
     }
 
+    // Note: Should we remove this? There's no matrix data types in vulkan
+    //       so we need to store num components in that case
     static inline Type GetGraphicsTypeFromUniformType(ShaderDesc::UniformType type)
     {
         switch(type)
@@ -3824,37 +3910,84 @@ namespace dmGraphics
     void EnableState(HContext context, State state)
     {
         assert(context);
+        switch(state)
+        {
+            case STATE_DEPTH_TEST:
+                Vulkan::g_vk_context.m_PipelineState.m_DepthTestEnabled = 1;
+                break;
+            case STATE_SCISSOR_TEST:
+                Vulkan::g_vk_context.m_PipelineState.m_ScissorEnabled = 1;
+                break;
+            case STATE_STENCIL_TEST:
+                Vulkan::g_vk_context.m_PipelineState.m_StencilEnabled = 1;
+                break;
+            case STATE_BLEND:
+                Vulkan::g_vk_context.m_PipelineState.m_BlendEnabled = 1;
+                break;
+            case STATE_CULL_FACE:
+                Vulkan::g_vk_context.m_PipelineState.m_CullFaceEnabled = 1;
+                break;
+            default:
+                assert(0 && "EnableState: State not supported");
+                break;
+        }
     }
 
     void DisableState(HContext context, State state)
     {
         assert(context);
+        switch(state)
+        {
+            case STATE_DEPTH_TEST:
+                Vulkan::g_vk_context.m_PipelineState.m_DepthTestEnabled = 0;
+                break;
+            case STATE_SCISSOR_TEST:
+                Vulkan::g_vk_context.m_PipelineState.m_ScissorEnabled = 0;
+                break;
+            case STATE_STENCIL_TEST:
+                Vulkan::g_vk_context.m_PipelineState.m_StencilEnabled = 0;
+                break;
+            case STATE_BLEND:
+                Vulkan::g_vk_context.m_PipelineState.m_BlendEnabled = 0;
+                break;
+            case STATE_CULL_FACE:
+                Vulkan::g_vk_context.m_PipelineState.m_CullFaceEnabled = 0;
+                break;
+            default:
+                assert(0 && "EnableState: State not supported");
+                break;
+        }
     }
 
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
         assert(context);
+        Vulkan::g_vk_context.m_PipelineState.m_BlendSrcFactor = source_factor;
+        Vulkan::g_vk_context.m_PipelineState.m_BlendDstFactor = destinaton_factor;
     }
 
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
         assert(context);
-        context->m_RedMask = red;
-        context->m_GreenMask = green;
-        context->m_BlueMask = blue;
-        context->m_AlphaMask = alpha;
+        uint8_t write_mask = 0;
+        write_mask        |= red   ? DMGRAPHICS_STATE_WRITE_R : 0;
+        write_mask        |= green ? DMGRAPHICS_STATE_WRITE_G : 0;
+        write_mask        |= blue  ? DMGRAPHICS_STATE_WRITE_B : 0;
+        write_mask        |= alpha ? DMGRAPHICS_STATE_WRITE_A : 0;
+
+        Vulkan::g_vk_context.m_PipelineState.m_WriteColorMask = write_mask;
     }
 
     void SetDepthMask(HContext context, bool mask)
     {
         assert(context);
-        context->m_DepthMask = mask;
+        Vulkan::g_vk_context.m_PipelineState.m_WriteDepth = mask;
     }
 
     void SetDepthFunc(HContext context, CompareFunc func)
     {
         assert(context);
-        context->m_DepthFunc = func;
+        Vulkan::g_vk_context.m_PipelineState.m_DepthTestFunc = func;
     }
 
     void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
@@ -3869,28 +4002,22 @@ namespace dmGraphics
     void SetStencilMask(HContext context, uint32_t mask)
     {
         assert(context);
-        context->m_StencilMask = mask;
     }
 
     void SetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(context);
-        context->m_StencilFunc = func;
-        context->m_StencilFuncRef = ref;
-        context->m_StencilFuncMask = mask;
     }
 
     void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(context);
-        context->m_StencilOpSFail = sfail;
-        context->m_StencilOpDPFail = dpfail;
-        context->m_StencilOpDPPass = dppass;
     }
 
     void SetCullFace(HContext context, FaceType face_type)
     {
         assert(context);
+        Vulkan::g_vk_context.m_PipelineState.m_CullFaceType = face_type;
     }
 
     void SetPolygonOffset(HContext context, float factor, float units)
