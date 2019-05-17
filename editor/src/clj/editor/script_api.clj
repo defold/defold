@@ -17,7 +17,9 @@
   "Converts YAML documentation input to the internal auto-complete format defined
   in `editor.lua` namespace."
   {:private true}
-  #(.toUpperCase ^String (:type %)))
+  (fn [x]
+    (let [^String type (or (:type x) "__NO_TYPE")]
+      (.toUpperCase type))))
 
 (defn- name-with-ns
   [ns name]
@@ -72,6 +74,10 @@
      :display-string name
      :insert-string name}))
 
+(defmethod convert "__NO_TYPE"
+  [x]
+  nil)
+
 (defn- convert-lines
   [lines]
   (mapv convert (yp/load (data/lines-reader lines) keyword)))
@@ -107,7 +113,7 @@
 
 (defn- lines->completion-info
   [lines]
-  (combine-conversions (convert-lines lines)))
+  (combine-conversions (remove nil? (convert-lines lines))))
 
 (g/defnk produce-completions
   [parse-result]
