@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string>
 #include <map>
-#include <gtest/gtest.h>
+#include "../dlib/array.h"
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
 #include "../dlib/dstrings.h"
@@ -11,6 +11,8 @@
 #include "../dlib/time.h"
 #include "../dlib/path.h"
 #include "../dlib/sys.h"
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 TEST(dmLog, Init)
 {
@@ -36,6 +38,7 @@ static void LogThread(void* arg)
     delete[] s;
 }
 
+#if !defined(__EMSCRIPTEN__)
 TEST(dmLog, Client)
 {
     char buf[256];
@@ -73,6 +76,7 @@ TEST(dmLog, Client)
     dmThread::Join(log_thread);
     dmLogFinalize();
 }
+#endif
 
 TEST(dmLog, LogFile)
 {
@@ -95,11 +99,42 @@ TEST(dmLog, LogFile)
     fclose(f);
 }
 
+static void TestLogCaptureCallback(void* user_data, const char* log)
+{
+    dmArray<char>* log_output = (dmArray<char>*)user_data;
+    uint32_t len = (uint32_t)strlen(log);
+    log_output->SetCapacity(log_output->Size() + len + 1);
+    log_output->PushArray(log, len);
+}
+
+TEST(dmLog, TestCapture)
+{
+    dmArray<char> log_output;
+    dmSetCustomLogCallback(TestLogCaptureCallback, &log_output);
+    dmLogDebug("This is a debug message");
+    dmLogInfo("This is a info message");
+    dmLogWarning("This is a warning message");
+    dmLogError("This is a error message");
+    dmLogFatal("This is a fata message");
+
+    log_output.Push(0);
+
+    const char* ExpectedOutput =
+                "INFO:DLIB: This is a info message\n"
+                "WARNING:DLIB: This is a warning message\n"
+                "ERROR:DLIB: This is a error message\n"
+                "FATAL:DLIB: This is a fata message\n";
+
+    ASSERT_STREQ(ExpectedOutput,
+                log_output.Begin());
+    dmSetCustomLogCallback(0x0, 0x0);
+}
+
 int main(int argc, char **argv)
 {
     dmSocket::Initialize();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = jc_test_run_all();
     dmSocket::Finalize();
     return ret;
 }

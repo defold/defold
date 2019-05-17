@@ -1,11 +1,13 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/hash.h>
 #include <dlib/math.h>
 
 #include <script/script.h>
+#include <algorithm> // std::stable_sort
 
 #include "render/render.h"
 #include "render/render_private.h"
@@ -16,7 +18,7 @@ const static uint32_t HEIGHT = 400;
 
 using namespace Vectormath::Aos;
 
-class dmRenderTest : public ::testing::Test
+class dmRenderTest : public jc_test_base_class
 {
 protected:
     dmRender::HRenderContext m_Context;
@@ -65,6 +67,36 @@ protected:
         dmScript::DeleteContext(m_ScriptContext);
     }
 };
+
+TEST_F(dmRenderTest, TestFontMapTextureFiltering)
+{
+    dmRender::HFontMap bitmap_font_map;
+    dmRender::FontMapParams bitmap_font_map_params;
+    bitmap_font_map_params.m_CacheWidth = 1;
+    bitmap_font_map_params.m_CacheHeight = 1;
+    bitmap_font_map_params.m_CacheCellWidth = 8;
+    bitmap_font_map_params.m_CacheCellHeight = 8;
+    bitmap_font_map_params.m_MaxAscent = 2;
+    bitmap_font_map_params.m_MaxDescent = 1;
+    bitmap_font_map_params.m_Glyphs.SetCapacity(1);
+    bitmap_font_map_params.m_Glyphs.SetSize(1);
+    memset((void*)&bitmap_font_map_params.m_Glyphs[0], 0, sizeof(dmRender::Glyph)*1);
+    for (uint32_t i = 0; i < 1; ++i)
+    {
+        bitmap_font_map_params.m_Glyphs[i].m_Character = i;
+        bitmap_font_map_params.m_Glyphs[i].m_Width = 1;
+        bitmap_font_map_params.m_Glyphs[i].m_LeftBearing = 1;
+        bitmap_font_map_params.m_Glyphs[i].m_Advance = 2;
+        bitmap_font_map_params.m_Glyphs[i].m_Ascent = 2;
+        bitmap_font_map_params.m_Glyphs[i].m_Descent = 1;
+    }
+    bitmap_font_map_params.m_ImageFormat = dmRenderDDF::TYPE_BITMAP;
+
+    bitmap_font_map = dmRender::NewFontMap(m_GraphicsContext, bitmap_font_map_params);
+    ASSERT_TRUE(VerifyFontMapMinFilter(bitmap_font_map, dmGraphics::TEXTURE_FILTER_LINEAR));
+    ASSERT_TRUE(VerifyFontMapMagFilter(bitmap_font_map, dmGraphics::TEXTURE_FILTER_LINEAR));
+    dmRender::DeleteFontMap(bitmap_font_map);
+}
 
 TEST_F(dmRenderTest, TestContextNewDelete)
 {
@@ -592,7 +624,7 @@ TEST_F(dmRenderTest, TextAlignment)
     int numlines;
 
     float leadings[] = { 1.0f, 2.0f, 0.5f };
-    for( int i = 0; i < sizeof(leadings)/sizeof(leadings[0]); ++i )
+    for( size_t i = 0; i < sizeof(leadings)/sizeof(leadings[0]); ++i )
     {
         float leading = leadings[i];
         tracking = 0.0f;
@@ -722,6 +754,6 @@ TEST_F(dmRenderTest, FindRanges)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

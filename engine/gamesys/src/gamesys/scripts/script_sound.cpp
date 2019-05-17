@@ -37,6 +37,19 @@ namespace dmGameSystem
      *
      * [icon:macOS][icon:windows][icon:linux][icon:html5] On non mobile platforms,
      * this function always return `false`.
+     * 
+     * [icon:attention][icon:android] On Android you can only get a correct reading
+     * of this state if your game is not playing any sounds itself. This is a limitation
+     * in the Android SDK. If your game is playing any sounds, *even with a gain of zero*, this
+     * function will return `false`.
+     * 
+     * The best time to call this function is:
+     * 
+     * - In the `init` function of your main collection script before any sounds are triggered
+     * - In a window listener callback when the window.WINDOW_EVENT_FOCUS_GAINED event is received
+     * 
+     * Both those times will give you a correct reading of the state even when your application is
+     * swapped out and in while playing sounds and it works equally well on Android and iOS.
      *
      * @name sound.is_music_playing
      * @return playing [type:boolean] `true` if music is playing, otherwise `false`.
@@ -331,7 +344,7 @@ namespace dmGameSystem
     }
 
     /*# plays a sound
-     * Make the sound component play its sound. Multiple voices is supported. The limit is set to 32 voices per sound component.
+     * Make the sound component play its sound. Multiple voices are supported. The limit is set to 32 voices per sound component.
      *
      * [icon:attention] Note that gain is in linear scale, between 0 and 1.
      * To get the dB value from the gain, use the formula `20 * log(gain)`.
@@ -483,5 +496,10 @@ namespace dmGameSystem
         luaL_register(L, "sound", SOUND_FUNCTIONS);
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
+    }
+
+    void ScriptSoundOnWindowFocus(bool focus)
+    {
+        dmSound::OnWindowFocus(focus);
     }
 }

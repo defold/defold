@@ -10,7 +10,7 @@
 
 ## Configuring Cursive preferences
 
-Once the IntelliJ restarts, we should make some changes to the Cursive preferences to make it easier to work with. On the Welcome Screen, click the **Configure** button and choose **Plugins** from the dropdown menu and select the **Languages & Frameworks > Clojure** page.
+Once the IntelliJ restarts, we should make some changes to the Cursive preferences to make it easier to work with. On the Welcome Screen, click the **Configure** button and choose **Preferences** from the dropdown menu and select the **Languages & Frameworks > Clojure** page.
 
 1. Enable **Rainbow parentheses**. This colors parentheses and brackets in the editor so it will be easier to distinguish between nested scopes.
 

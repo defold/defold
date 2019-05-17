@@ -4,6 +4,7 @@
             [schema.core :as s]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.build-target :as bt]
             [editor.protobuf :as protobuf]
             [editor.graph-util :as gu]
             [editor.dialogs :as dialogs]
@@ -129,6 +130,7 @@
 
 (g/defnk produce-go-outline [_node-id id source-outline source-resource child-outlines node-outline-extras]
   (-> {:node-id _node-id
+       :node-outline-key id
        :label id
        :icon (or (not-empty (:icon source-outline)) game-object/game-object-icon)
        :children (into (outline/natural-sort child-outlines) (:children source-outline))
@@ -154,6 +156,7 @@
   ;; TODO: embed error so can warn in outline
   ;; outline content not really used, only children if any.
   {:node-id 0
+   :node-outline-key ""
    :icon ""
    :label ""})
 
@@ -180,19 +183,20 @@
   (output build-targets g/Any (g/fnk [build-resource source-build-targets build-error ddf-message transform]
                                      (let [target (assoc (first source-build-targets)
                                                          :resource build-resource)]
-                                       [(assoc target :instance-data {:resource (:resource target)
-                                                                      :instance-msg ddf-message
-                                                                      :transform transform})])))
+                                       [(bt/with-content-hash
+                                          (assoc target
+                                            :instance-data
+                                            {:resource (:resource target)
+                                             :instance-msg ddf-message
+                                             :transform transform}))])))
   (output build-error g/Err (g/constantly nil))
 
-  (output scene g/Any :cached (g/fnk [_node-id transform scene child-scenes]
-                                     (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (or (:aabb scene) (geom/null-aabb)) child-scenes)
-                                           aabb (geom/aabb-transform (geom/aabb-incorporate aabb 0 0 0) transform)]
-                                       (-> (scene/claim-scene scene _node-id)
+  (output scene g/Any :cached (g/fnk [_node-id id transform scene child-scenes]
+                                     (-> (scene/claim-scene scene _node-id id)
                                          (assoc :transform transform
-                                                :aabb aabb
+                                                :aabb geom/empty-bounding-box
                                                 :renderable {:passes [pass/selection]})
-                                         (update :children (fn [s] (reduce conj (or s []) child-scenes)))))))
+                                         (update :children (fn [s] (reduce conj (or s []) child-scenes))))))
   (output go-inst-ids g/Any :cached (g/fnk [_node-id id]
                                            {id _node-id}))
   (output ddf-properties g/Any :cached (g/fnk [id ddf-component-properties] {:id id :properties ddf-component-properties})))
@@ -238,6 +242,11 @@
   (or (validation/prop-error :fatal node-id :path validation/prop-nil? resource "Path")
       (validation/prop-error :fatal node-id :path validation/prop-resource-not-exists? resource "Path")))
 
+(defn- substitute-error [val-or-error substitute]
+  (if-not (g/error? val-or-error)
+    val-or-error
+    substitute))
+
 (g/defnode ReferencedGOInstanceNode
   (inherits GameObjectInstanceNode)
 
@@ -255,47 +264,49 @@
                      (if-let [old-source (g/node-value self :source-id evaluation-context)]
                        (g/delete-node old-source)
                        [])
-                     (let [new-resource (:resource new-value)]
-                       (let [basis (:basis evaluation-context)
-                             project (project/get-project basis self)]
-                         (project/connect-resource-node evaluation-context project new-resource self []
-                                                        (fn [go-node]
-                                                          (let [component-overrides (into {} (map (fn [m]
-                                                                                                    [(:id m) (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]])
-                                                                                                                           (:properties m)))])
-                                                                                                  (:overrides new-value)))
-                                                                override (g/override basis go-node {:traverse? or-go-traverse?})
-                                                                id-mapping (:id-mapping override)
-                                                                or-node (get id-mapping go-node)
-                                                                component-ids (g/node-value go-node :component-ids evaluation-context)
-                                                                id-mapping (fn [id]
-                                                                             (-> id
-                                                                                 component-ids
-                                                                                 (g/node-value :source-id evaluation-context)
-                                                                                 id-mapping))]
-                                                            (concat
-                                                              (:tx-data override)
-                                                              (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
-                                                                (for [[from to] [[:_node-id                 :source-id]
-                                                                                 [:resource                 :source-resource]
-                                                                                 [:node-outline             :source-outline]
-                                                                                 [:scene                    :scene]
-                                                                                 [:ddf-component-properties :ddf-component-properties]]
-                                                                      :when (contains? outputs from)]
-                                                                  (g/connect or-node from self to)))
-                                                              (for [[from to] [[:build-targets :source-build-targets]]]
-                                                                (g/connect go-node from self to))
-                                                              (for [[from to] [[:url :base-url]]]
-                                                                (g/connect self from or-node to))
-                                                              (for [[id p] component-overrides
-                                                                    [key [type value]] p
-                                                                    :let [comp-id (id-mapping id)]]
-                                                                (let [refd-component (component-ids id)
-                                                                      refd-component-props (:properties (g/node-value refd-component :_properties evaluation-context))
-                                                                      original-type (get-in refd-component-props [key :type])
-                                                                      override-type (script/go-prop-type->property-types type)]
-                                                                  (when (= original-type override-type)
-                                                                    (g/set-property comp-id key value)))))))))))))
+                     (let [new-resource (:resource new-value)
+                           basis (:basis evaluation-context)
+                           project (project/get-project basis self)]
+                       (when-some [{connect-tx-data :tx-data go-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
+                         (let [component-overrides (into {}
+                                                         (map (fn [m]
+                                                                [(:id m) (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]])
+                                                                                       (:properties m)))])
+                                                              (:overrides new-value)))]
+                           (concat
+                             connect-tx-data
+                             (g/override go-node {:traverse? or-go-traverse?}
+                                         (fn [evaluation-context id-mapping]
+                                           (let [or-node (get id-mapping go-node)
+                                                 component-ids (substitute-error (g/node-value go-node :component-ids evaluation-context) {})
+                                                 id-mapping (fn [id]
+                                                              (some-> id
+                                                                component-ids
+                                                                (g/node-value :source-id evaluation-context)
+                                                                id-mapping))]
+                                             (concat
+                                               (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
+                                                 (for [[from to] [[:_node-id                 :source-id]
+                                                                  [:resource                 :source-resource]
+                                                                  [:node-outline             :source-outline]
+                                                                  [:scene                    :scene]
+                                                                  [:ddf-component-properties :ddf-component-properties]]
+                                                       :when (contains? outputs from)]
+                                                   (g/connect or-node from self to)))
+                                               (for [[from to] [[:build-targets :source-build-targets]]]
+                                                 (g/connect go-node from self to))
+                                               (for [[from to] [[:url :base-url]]]
+                                                 (g/connect self from or-node to))
+                                               (for [[id p] component-overrides
+                                                     [key [type value]] p
+                                                     :let [comp-id (id-mapping id)]
+                                                     :when (some? comp-id)]
+                                                 (let [refd-component (component-ids id)
+                                                       refd-component-props (:properties (g/node-value refd-component :_properties evaluation-context))
+                                                       original-type (get-in refd-component-props [key :type])
+                                                       override-type (script/go-prop-type->property-types type)]
+                                                   (when (= original-type override-type)
+                                                     (g/set-property comp-id key value)))))))))))))))
             (dynamic error (g/fnk [_node-id source-resource]
                                   (path-error _node-id source-resource))))
 
@@ -360,15 +371,16 @@
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
         (when (not-empty dup-ids)
           (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
-    (let [sub-build-targets (flatten sub-build-targets)
-         dep-build-targets (flatten dep-build-targets)
-         instance-data (map :instance-data dep-build-targets)
-         instance-data (reduce concat instance-data (map #(get-in % [:user-data :instance-data]) sub-build-targets))]
-     [{:node-id _node-id
-       :resource (workspace/make-build-resource resource)
-       :build-fn build-collection
-       :user-data {:name name :instance-data instance-data :scale-along-z scale-along-z}
-       :deps (vec (reduce into dep-build-targets (map :deps sub-build-targets)))}])))
+      (let [sub-build-targets (flatten sub-build-targets)
+            dep-build-targets (flatten dep-build-targets)
+            instance-data (map :instance-data dep-build-targets)
+            instance-data (reduce concat instance-data (map #(get-in % [:user-data :instance-data]) sub-build-targets))]
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-collection
+            :user-data {:name name :instance-data instance-data :scale-along-z scale-along-z}
+            :deps (vec (reduce into dep-build-targets (map :deps sub-build-targets)))})])))
 
 (declare CollectionInstanceNode)
 
@@ -376,6 +388,7 @@
   (let [[go-outlines coll-outlines] (let [outlines (group-by #(g/node-instance? CollectionInstanceNode (:node-id %)) child-outlines)]
                                       [(get outlines false) (get outlines true)])]
     {:node-id _node-id
+     :node-outline-key "Collection"
      :label "Collection"
      :icon collection-icon
      :children (into (outline/natural-sort coll-outlines) (outline/natural-sort go-outlines))
@@ -426,7 +439,7 @@
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
                                      {:node-id _node-id
                                       :children child-scenes
-                                      :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))}))
+                                      :aabb geom/null-aabb}))
   (output go-inst-ids g/Any :cached (g/fnk [go-inst-ids] (reduce merge {} go-inst-ids)))
   (output ddf-properties g/Any (g/fnk [ddf-properties] (reduce (fn [props m]
                                                                  (if (empty? (:properties m))
@@ -463,10 +476,16 @@
             base-id (str id path-sep)
             instance-data (get-in build-targets [0 :user-data :instance-data])
             child-ids (reduce (fn [child-ids data] (into child-ids (:children (:instance-msg data)))) #{} instance-data)]
-        (assoc-in build-targets [0 :user-data :instance-data] (map #(flatten-instance-data % base-id transform child-ids ddf-properties) instance-data)))))
+        (update build-targets 0
+                (fn [build-target]
+                  (bt/with-content-hash
+                    (assoc-in build-target [:user-data :instance-data]
+                              (map #(flatten-instance-data % base-id transform child-ids ddf-properties)
+                                   instance-data))))))))
 
 (g/defnk produce-coll-inst-outline [_node-id id source-resource source-outline source-id source-resource]
   (-> {:node-id _node-id
+       :node-outline-key id
        :label id
        :icon (or (not-empty (:icon source-outline)) collection-icon)
        :children (:children source-outline)}
@@ -495,44 +514,44 @@
              (if-let [old-source (g/node-value self :source-id evaluation-context)]
                (g/delete-node old-source)
                [])
-             (let [new-resource (:resource new-value)]
-               (let [basis (:basis evaluation-context)
-                     project (project/get-project basis self)]
-                 (project/connect-resource-node evaluation-context project new-resource self []
-                                                (fn [coll-node]
-                                                  (let [override (g/override basis coll-node {:traverse? or-coll-traverse?})
-                                                        id-mapping (:id-mapping override)
-                                                        go-inst-ids (g/node-value coll-node :go-inst-ids evaluation-context)
-                                                        component-overrides (for [{:keys [id properties]} (:overrides new-value)
-                                                                                  :let [comp-ids (-> id
-                                                                                                   go-inst-ids
-                                                                                                   (g/node-value :source-id evaluation-context)
-                                                                                                   (g/node-value :component-ids evaluation-context))]
-                                                                                  :when comp-ids
-                                                                                  {:keys [id properties]} properties
-                                                                                  :let [comp-id (-> id
-                                                                                                  comp-ids
-                                                                                                  (g/node-value :source-id evaluation-context))]
-                                                                                  p properties]
-                                                                              [(id-mapping comp-id) (properties/user-name->key (:id p)) (properties/str->go-prop (:value p) (:type p))])
-                                                        or-node (get id-mapping coll-node)]
-                                                    (concat
-                                                      (:tx-data override)
-                                                      (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
-                                                        (for [[from to] [[:_node-id       :source-id]
-                                                                         [:resource       :source-resource]
-                                                                         [:node-outline   :source-outline]
-                                                                         [:scene          :scene]
-                                                                         [:ddf-properties :ddf-properties]
-                                                                         [:go-inst-ids    :go-inst-ids]]
-                                                              :when (contains? outputs from)]
-                                                          (g/connect or-node from self to)))
-                                                      (for [[from to] [[:build-targets :build-targets]]]
-                                                        (g/connect coll-node from self to))
-                                                      (for [[from to] [[:url :base-url]]]
-                                                        (g/connect self from or-node to))
-                                                      (for [[comp-id label value] component-overrides]
-                                                        (g/set-property comp-id label value)))))))))))
+             (let [new-resource (:resource new-value)
+                   basis (:basis evaluation-context)
+                   project (project/get-project basis self)]
+               (when-some [{connect-tx-data :tx-data coll-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
+                 (concat
+                   connect-tx-data
+                   (g/override coll-node {:traverse? or-coll-traverse?}
+                               (fn [evaluation-context id-mapping]
+                                 (let [go-inst-ids (substitute-error (g/node-value coll-node :go-inst-ids evaluation-context) {})
+                                       component-overrides (for [{:keys [id properties]} (:overrides new-value)
+                                                                 :let [comp-ids (some-> id
+                                                                                  go-inst-ids
+                                                                                  (g/node-value :source-id evaluation-context)
+                                                                                  (g/node-value :component-ids evaluation-context))]
+                                                                 :when comp-ids
+                                                                 {:keys [id properties]} properties
+                                                                 :let [comp-id (-> id
+                                                                                 comp-ids
+                                                                                 (g/node-value :source-id evaluation-context))]
+                                                                 p properties]
+                                                             [(id-mapping comp-id) (properties/user-name->key (:id p)) (properties/str->go-prop (:value p) (:type p))])
+                                       or-node (get id-mapping coll-node)]
+                                   (concat
+                                     (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
+                                       (for [[from to] [[:_node-id       :source-id]
+                                                        [:resource       :source-resource]
+                                                        [:node-outline   :source-outline]
+                                                        [:scene          :scene]
+                                                        [:ddf-properties :ddf-properties]
+                                                        [:go-inst-ids    :go-inst-ids]]
+                                             :when (contains? outputs from)]
+                                         (g/connect or-node from self to)))
+                                     (for [[from to] [[:build-targets :build-targets]]]
+                                       (g/connect coll-node from self to))
+                                     (for [[from to] [[:url :base-url]]]
+                                       (g/connect self from or-node to))
+                                     (for [[comp-id label value] component-overrides]
+                                       (g/set-property comp-id label value))))))))))))
     (dynamic error (g/fnk [_node-id source-resource]
                           (path-error _node-id source-resource)))
     (dynamic edit-type (g/fnk [source-resource]
@@ -561,12 +580,12 @@
                                             :rotation rotation
                                             :scale3 scale
                                             :instance-properties ddf-properties}))
-  (output scene g/Any :cached (g/fnk [_node-id transform scene]
-                                     (assoc (scene/claim-scene scene _node-id)
+  (output scene g/Any :cached (g/fnk [_node-id id transform scene]
+                                     (assoc (scene/claim-scene scene _node-id id)
                                             :transform transform
-                                            :aabb (geom/aabb-transform (or (:aabb scene) (geom/null-aabb)) transform)
+                                            :aabb geom/empty-bounding-box
                                             :renderable {:passes [pass/selection]})))
-  (output build-targets g/Any :cached produce-coll-inst-build-targets)
+  (output build-targets g/Any produce-coll-inst-build-targets)
   (output sub-ddf-properties g/Any :cached (g/fnk [id ddf-properties]
                                                   (map (fn [m] (update m :id (fn [s] (format "%s/%s" id s)))) ddf-properties)))
   (output go-inst-ids g/Any :cached (g/fnk [id go-inst-ids] (into {} (map (fn [[k v]] [(format "%s/%s" id k) v]) go-inst-ids)))))
@@ -643,7 +662,7 @@
                                               [:resource :source-resource]
                                               [:node-outline :source-outline]
                                               [:proto-msg :proto-msg]
-                                              [:save-data :source-save-data]
+                                              [:undecorated-save-data :source-save-data]
                                               [:build-targets :source-build-targets]
                                               [:scene :scene]
                                               [:ddf-component-properties :ddf-component-properties]])
@@ -697,8 +716,10 @@
   (run [selection workspace project app-view]
        (if-let [coll-node (selection->collection selection)]
          (let [ext           "collection"
-               resource-type (workspace/get-resource-type workspace ext)]
-           (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext ext :title "Select Collection File"}))]
+               resource-type (workspace/get-resource-type workspace ext)
+               coll-node-path (resource/proj-path (g/node-value coll-node :resource))
+               accept (fn [x] (not= (resource/proj-path x) coll-node-path))]
+           (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext ext :title "Select Collection File" :accept-fn accept}))]
              (let [base (resource/base-name resource)
                    id (gen-instance-id coll-node base)
                    op-seq (gensym)

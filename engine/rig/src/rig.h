@@ -279,6 +279,8 @@ namespace dmRig
         RigEventCallback              m_EventCallback;
         void*                         m_EventCBUserData1;
         void*                         m_EventCBUserData2;
+
+        bool                          m_ForceAnimatePose;
     };
 
     struct InstanceDestroyParams

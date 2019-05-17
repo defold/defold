@@ -3,6 +3,7 @@
    [clojure.string :as s]
    [plumbing.core :as pc]
    [dynamo.graph :as g]
+   [editor.build-target :as bt]
    [editor.defold-project :as project]
    [editor.graph-util :as gu]
    [editor.outline :as outline]
@@ -57,12 +58,13 @@
       (let [dep-build-targets (flatten dep-build-targets)
             deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
             dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:collection collection]])]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-collection-proxy
-          :user-data {:pb-msg pb-msg
-                      :dep-resources dep-resources}
-          :deps dep-build-targets}])))
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-collection-proxy
+            :user-data {:pb-msg pb-msg
+                        :dep-resources dep-resources}
+            :deps dep-build-targets})])))
 
 (defn load-collection-proxy [project self resource collection-proxy]
   (concat
@@ -93,6 +95,7 @@
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id collection]
                                                      (cond-> {:node-id _node-id
+                                                              :node-outline-key "Collection Proxy"
                                                               :label "Collection Proxy"
                                                               :icon collection-proxy-icon}
 

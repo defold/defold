@@ -697,6 +697,11 @@ namespace dmEngineService
 
     // Profile strings handling
 
+    static inline uint64_t PointerToStringId(const void* ptr)
+    {
+        return (uint64_t)((uintptr_t)ptr);
+    }
+
     static void SendProfileString(dmWebServer::Request* request, uint64_t id, const char* str)
     {
         dmWebServer::Send(request, &id, sizeof(id));
@@ -705,17 +710,17 @@ namespace dmEngineService
 
     static void ProfileSendScopes(void* context, const dmProfile::Scope* scope)
     {
-        SendProfileString((dmWebServer::Request*)context, (uint64_t)scope, scope->m_Name);
+        SendProfileString((dmWebServer::Request*)context, PointerToStringId(scope), scope->m_Name);
     }
 
     static void ProfileSendCounters(void* context, const dmProfile::Counter* counter)
     {
-        SendProfileString((dmWebServer::Request*)context, (uint64_t)counter, counter->m_Name);
+        SendProfileString((dmWebServer::Request*)context, PointerToStringId(counter), counter->m_Name);
     }
 
     static void ProfileSendStringCallback(void* context, const uintptr_t* key, const char** value)
     {
-        SendProfileString((dmWebServer::Request*)context, (uint64_t)*key, *value);
+        SendProfileString((dmWebServer::Request*)context, PointerToStringId(*value), *value);
     }
 
 
@@ -725,9 +730,9 @@ namespace dmEngineService
         dmWebServer::Request* request = (dmWebServer::Request*)context;
         dmWebServer::Result r;
 
-        uint64_t name = (uint64_t)sample->m_Name;
+        uint64_t name = PointerToStringId(sample->m_Name);
         r = dmWebServer::Send(request, &name, 8); CHECK_RESULT(r);
-        uint64_t scope = (uint64_t)sample->m_Scope;
+        uint64_t scope = PointerToStringId(sample->m_Scope);
         r = dmWebServer::Send(request, &scope, 8); CHECK_RESULT(r);
 
         r = dmWebServer::Send(request, &sample->m_Start, 4); CHECK_RESULT(r);
@@ -740,7 +745,7 @@ namespace dmEngineService
         dmWebServer::Request* request = (dmWebServer::Request*)context;
         dmWebServer::Result r;
 
-        uint64_t ptr = (uint64_t)scope_data->m_Scope;
+        uint64_t ptr = PointerToStringId(scope_data->m_Scope);
         r = dmWebServer::Send(request, &ptr, 8); CHECK_RESULT(r);
         r = dmWebServer::Send(request, &scope_data->m_Elapsed, 4); CHECK_RESULT(r);
         r = dmWebServer::Send(request, &scope_data->m_Count, 4); CHECK_RESULT(r);
@@ -751,7 +756,7 @@ namespace dmEngineService
         dmWebServer::Request* request = (dmWebServer::Request*)context;
         dmWebServer::Result r;
 
-        uint64_t ptr = (uint64_t)counter_data->m_Counter;
+        uint64_t ptr = PointerToStringId(counter_data->m_Counter);
         r = dmWebServer::Send(request, &ptr, 8); CHECK_RESULT(r);
         r = dmWebServer::Send(request, (void*)&counter_data->m_Value, 4); CHECK_RESULT(r);
     }
@@ -799,13 +804,13 @@ namespace dmEngineService
         dmWebServer::Result r;
         r = SendString(request, "PROF"); CHECK_RESULT(r);
 
-        const uint32_t tps = 1000000;//g_TicksPerSecond;
+        const uint32_t tps = dmProfile::GetTicksPerSecond();
         r = dmWebServer::Send(request, &tps, 4); CHECK_RESULT(r);
 
-        dmProfile::IterateSamples(engine_service->m_Profile, request, ProfileSendSamples);
+        dmProfile::IterateSamples(engine_service->m_Profile, request, true, ProfileSendSamples);
         r = SendString(request, "ENDD"); CHECK_RESULT(r);
 
-        dmProfile::IterateScopeData(engine_service->m_Profile, request, ProfileSendScopesData);
+        dmProfile::IterateScopeData(engine_service->m_Profile, request, true, ProfileSendScopesData);
         r = SendString(request, "ENDD"); CHECK_RESULT(r);
 
         dmProfile::IterateCounterData(engine_service->m_Profile, request, ProfileSendCountersData);

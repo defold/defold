@@ -55,8 +55,8 @@
 (deftest load-spine-model
   (test-util/with-loaded-project
     (let [node-id   (test-util/resource-node project "/spine/player/spineboy.spinemodel")]
-      (is (< 0.0 (.distanceSquared (geom/aabb-extent (g/node-value node-id :aabb)) (Point3d.))))
-      (is (= "hip" (outline-label node-id [0]))))))
+      (is (< 0.0 (.distanceSquared (geom/aabb-extent (:aabb (g/node-value node-id :scene))) (Point3d.))))
+      (is (empty? (:children (test-util/outline node-id nil)))))))
 
 (deftest spine-scene-validation
   (test-util/with-loaded-project

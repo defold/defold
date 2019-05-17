@@ -30,7 +30,7 @@
 
 #include "internal.h"
 
-
+#include <X11/Xlib.h>
 
 //************************************************************************
 //****                  GLFW internal functions                       ****
@@ -221,6 +221,8 @@ static void terminateDisplay( void )
 
 int _glfwPlatformInit( void )
 {
+    XInitThreads();
+
     // Initialize display
     if( !initDisplay() )
     {

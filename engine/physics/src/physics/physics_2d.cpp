@@ -457,6 +457,19 @@ namespace dmPhysics
         return new b2GridShape((b2HullSet*) hull_set, p, cell_width * scale, cell_height * scale, row_count, column_count);
     }
 
+    void ClearGridShapeHulls(HCollisionObject2D collision_object)
+    {
+        b2Body* body = (b2Body*) collision_object;
+        b2Fixture* fixture = body->GetFixtureList();
+        while (fixture != 0x0)
+        {
+            assert(fixture->GetShape()->GetType() == b2Shape::e_grid);
+            b2GridShape* grid_shape = (b2GridShape*) fixture->GetShape();
+            grid_shape->ClearCellData();
+            fixture = fixture->GetNext();
+        }
+    }
+
     void SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
     {
         b2Body* body = (b2Body*) collision_object;
@@ -935,6 +948,32 @@ namespace dmPhysics
         {
             dmLogWarning("Ray cast query buffer is full (%d), ignoring request.", world->m_RayCastRequests.Capacity());
         }
+    }
+
+    void RayCast2D(HWorld2D world, const RayCastRequest& request, RayCastResponse& response)
+    {
+        DM_PROFILE(Physics, "RayCasts");
+
+        const Vectormath::Aos::Point3 from2d = Vectormath::Aos::Point3(request.m_From.getX(), request.m_From.getY(), 0.0);
+        const Vectormath::Aos::Point3 to2d = Vectormath::Aos::Point3(request.m_To.getX(), request.m_To.getY(), 0.0);
+        if (Vectormath::Aos::lengthSqr(to2d - from2d) <= 0.0f)
+        {
+            dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
+            return;
+        }
+
+        float scale = world->m_Context->m_Scale;
+        ProcessRayCastResultCallback2D callback;
+        callback.m_Context = world->m_Context;
+        b2Vec2 from;
+        ToB2(request.m_From, from, scale);
+        b2Vec2 to;
+        ToB2(request.m_To, to, scale);
+        callback.m_IgnoredUserData = request.m_IgnoredUserData;
+        callback.m_CollisionMask = request.m_Mask;
+        callback.m_Response.m_Hit = 0;
+        world->m_World.RayCast(&callback, from, to);
+        response = callback.m_Response;
     }
 
     void SetDebugCallbacks2D(HContext2D context, const DebugCallbacks& callbacks)

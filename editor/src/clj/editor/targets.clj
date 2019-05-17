@@ -312,7 +312,7 @@
                (first (filter #(= (:id %) target-address) (all-targets))))))))
 
 (defn controllable-target? [target]
-  (when (:url target) target))
+  (some? (:url target)))
 
 (defn select-target! [prefs target]
   (reset! selected-target-atom target)

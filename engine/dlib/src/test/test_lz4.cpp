@@ -1,7 +1,9 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
-#include <string>
-#include <gtest/gtest.h>
+#include <string.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include "../dlib/lz4.h"
 #include "../dlib/time.h"
 
@@ -14,7 +16,7 @@
  *
  * testfile.py:
  *
- * #!/usr/bin/python
+ * #!/usr/bin/env python
  * import lz4
  * s = "foo"
  * compressed_data = lz4.LZ4_compress(s)
@@ -100,7 +102,7 @@ TEST(dmLZ4, Stress)
 
         r = dmLZ4::DecompressBufferFast(compressed, compressed_size, decompressed, ref_len);
         ASSERT_EQ(dmLZ4::RESULT_OK, r);
-        ASSERT_EQ(memcmp(ref, decompressed, ref_len), 0);
+        ASSERT_EQ(0, memcmp(ref, decompressed, ref_len));
 
         // NOTE: If an assert fails above, we will get a mem leak report as well as
         //       the assert error. But it doesn't really matter for testing.
@@ -112,6 +114,6 @@ TEST(dmLZ4, Stress)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

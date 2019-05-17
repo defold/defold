@@ -6,7 +6,7 @@
 
 (defn- sha-from-version-file
   []
-  (let [stable-version (slurp "../VERSION")
+  (let [stable-version (first (string/split-lines (slurp "../VERSION")))
         {:keys [exit out err]} (sh/sh "git" "rev-list" "-n" "1" stable-version)]
     (if (zero? exit)
       (string/trim out)
@@ -47,6 +47,7 @@
   [["clean"]
    ["local-jars"]
    ["builtins"]
+   ["ref-doc"]
    ["protobuf"]
    ["sass" "once"]
    ["pack"]])

@@ -32,6 +32,7 @@
 
 #include <limits.h>
 #include <assert.h>
+#include <libgen.h> // Defold Extension for WM_CLASS property
 
 
 /* Define GLX 1.4 FSAA tokens if not already defined */
@@ -725,25 +726,28 @@ static void initGLXExtensions( void )
         }
     }
 
-    if( _glfwPlatformExtensionSupported( "GLX_SGIX_fbconfig" ) )
-    {
-        _glfwWin.GetFBConfigAttribSGIX = (PFNGLXGETFBCONFIGATTRIBSGIXPROC)
-            _glfwPlatformGetProcAddress( "glXGetFBConfigAttribSGIX" );
-        _glfwWin.ChooseFBConfigSGIX = (PFNGLXCHOOSEFBCONFIGSGIXPROC)
-            _glfwPlatformGetProcAddress( "glXChooseFBConfigSGIX" );
-        _glfwWin.CreateContextWithConfigSGIX = (PFNGLXCREATECONTEXTWITHCONFIGSGIXPROC)
-            _glfwPlatformGetProcAddress( "glXCreateContextWithConfigSGIX" );
-        _glfwWin.GetVisualFromFBConfigSGIX = (PFNGLXGETVISUALFROMFBCONFIGSGIXPROC)
-            _glfwPlatformGetProcAddress( "glXGetVisualFromFBConfigSGIX" );
-
-        if( _glfwWin.GetFBConfigAttribSGIX &&
-            _glfwWin.ChooseFBConfigSGIX &&
-            _glfwWin.CreateContextWithConfigSGIX &&
-            _glfwWin.GetVisualFromFBConfigSGIX )
-        {
-            _glfwWin.has_GLX_SGIX_fbconfig = GL_TRUE;
-        }
-    }
+    // DEF-3489 When comparing the behavior to GLFW 3, that version doesn't use SGIX
+    // and it seems our version returned different fbconfigs, which eventually won't work
+    // when calling glXMakeCurrent
+    // if( _glfwPlatformExtensionSupported( "GLX_SGIX_fbconfig" ) )
+    // {
+    //     _glfwWin.GetFBConfigAttribSGIX = (PFNGLXGETFBCONFIGATTRIBSGIXPROC)
+    //         _glfwPlatformGetProcAddress( "glXGetFBConfigAttribSGIX" );
+    //     _glfwWin.ChooseFBConfigSGIX = (PFNGLXCHOOSEFBCONFIGSGIXPROC)
+    //         _glfwPlatformGetProcAddress( "glXChooseFBConfigSGIX" );
+    //     _glfwWin.CreateContextWithConfigSGIX = (PFNGLXCREATECONTEXTWITHCONFIGSGIXPROC)
+    //         _glfwPlatformGetProcAddress( "glXCreateContextWithConfigSGIX" );
+    //     _glfwWin.GetVisualFromFBConfigSGIX = (PFNGLXGETVISUALFROMFBCONFIGSGIXPROC)
+    //         _glfwPlatformGetProcAddress( "glXGetVisualFromFBConfigSGIX" );
+    //
+    //     if( _glfwWin.GetFBConfigAttribSGIX &&
+    //         _glfwWin.ChooseFBConfigSGIX &&
+    //         _glfwWin.CreateContextWithConfigSGIX &&
+    //         _glfwWin.GetVisualFromFBConfigSGIX )
+    //     {
+    //         _glfwWin.has_GLX_SGIX_fbconfig = GL_TRUE;
+    //     }
+    // }
 
     if( _glfwPlatformExtensionSupported( "GLX_ARB_multisample" ) )
     {
@@ -922,7 +926,31 @@ static GLboolean createWindow( int width, int height,
         XFree( hints );
     }
 
-    _glfwPlatformSetWindowTitle( "GLFW Window" );
+    //========================================================================
+    // Defold extension: Set WM_CLASS property
+    //========================================================================
+    {
+        char exe_path_buffer[1024];
+        memset(exe_path_buffer, 0, sizeof(exe_path_buffer));
+        XClassHint* hints = XAllocClassHint();
+
+        if (readlink("/proc/self/exe", exe_path_buffer, sizeof(exe_path_buffer)-1) >= 0)
+        {
+            char* exe_name   = basename(exe_path_buffer);
+            hints->res_name  = exe_name;
+            hints->res_class = exe_name;
+        }
+        else
+        {
+            hints->res_name  = (char*) "dmengine";
+            hints->res_class = (char*) "dmengine";
+        }
+
+        XSetClassHint(_glfwLibrary.display, _glfwWin.window, hints);
+        XFree(hints);
+    }
+
+    _glfwPlatformSetWindowTitle( "" );
 
     // Make sure the window is mapped before proceeding
     XMapWindow( _glfwLibrary.display, _glfwWin.window );
@@ -1382,7 +1410,10 @@ static GLboolean processSingleEvent( void )
     return GL_FALSE;
 }
 
-
+int _glfwPlatformGetWindowRefreshRate()
+{
+    return _glfwWin.refreshRate;
+}
 
 //************************************************************************
 //****               Platform implementation functions                ****
@@ -1982,5 +2013,5 @@ void _glfwPlatformUnacquireAuxContext(void* context)
 
 GLFWAPI void glfwAccelerometerEnable()
 {
-    
+
 }

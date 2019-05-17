@@ -13,10 +13,10 @@ def build(bld):
 
     platform = bld.env['PLATFORM']
 
-    texc_shared = bld.new_task_gen(features = 'cxx cshlib',
+    texc_shared = bld.new_task_gen(features = 'cxx cshlib skip_asan',
                                    includes = ['.'],
                                    target = 'texc_shared',
-                                   uselib = 'PVRTEXLIB WEBP DLIB',
+                                   uselib = 'PVRTEXLIB WEBP DLIB_NOASAN',
                                    source = ['texc.cpp', 'texc_webp.cpp', 'texc_webp_pvrtc.cpp', 'texc_webp_etc.cpp', 'texc_webp_convert_cs.cpp'])
 
     platform = bld.env['PLATFORM']

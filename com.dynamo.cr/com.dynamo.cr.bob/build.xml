@@ -8,6 +8,9 @@
         <fileset dir="../com.dynamo.cr.common/ext" includes="commons*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="vecmath.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="extender-client-*.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext" includes="snakeyaml-1.24.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext" includes="jsoup-1.11.3.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext/android" includes="*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext/aws" includes="*.jar"/>
         <fileset dir="lib" includes="*.jar"/>
     </path>
@@ -45,7 +48,7 @@
             <arg value="-n1" />
         </exec>
     </target>
-    <target name="compile" depends="git.revision">
+    <target name="compile-bob-light" depends="git.revision">
         <mkdir dir="${classes.dir}"/>
         <!-- NOTE: We force thread-count 10 here in order to reduce latency
              Running external processes in Java is slow -->
@@ -69,7 +72,7 @@
             <proto dir="../../engine/gamesys/proto/" file="tile_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="spine_ddf.proto"/>
             <proto dir="../../engine/rig/proto/rig" file="rig_ddf.proto"/>
-            <proto dir="../../engine/graphics/proto" file="graphics_ddf.proto"/>
+            <proto dir="../../engine/graphics/proto/graphics" file="graphics_ddf.proto"/>
             <proto dir="../../engine/input/proto" file="input_ddf.proto"/>
             <proto dir="../../engine/particle/proto/particle" file="particle_ddf.proto"/>
             <proto dir="../../engine/render/proto/render" file="font_ddf.proto"/>
@@ -80,11 +83,11 @@
             <proto dir="../../engine/script/src" file="script/lua_source_ddf.proto"/>
             <proto dir="../../engine/script/src/script" file="script_doc_ddf.proto"/>
             <proto dir="../../engine/script/src" file="script/ddf_script.proto"/>
-            <proto dir="../../engine/vscript/proto" file="vscript_ddf.proto"/>
+            <proto dir="../../engine/script/src" file="script/sys_ddf.proto"/>
         </parallel>
 
         <exec dir="." executable="python">
-                <arg line="engine_version_generator.py" />
+            <arg line="engine_version_generator.py" />
         </exec>
 
         <copy todir="lib" overwrite="true" flatten="true" failonerror="false">
@@ -103,6 +106,31 @@
             </condition>
         </fail>
 
+        <copy todir="libexec/x86_64-darwin" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-darwin">
+                <include name="glslc"/>
+                <include name="spirv-cross"/>
+            </fileset>
+        </copy>
+        <copy todir="libexec/x86_64-linux" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-linux">
+                <include name="glslc"/>
+                <include name="spirv-cross"/>
+            </fileset>
+        </copy>
+        <copy todir="libexec/x86_64-win32" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-win32">
+                <include name="glslc.exe"/>
+                <include name="spirv-cross.exe"/>
+            </fileset>
+        </copy>
+        <copy todir="libexec/x86-win32" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/ext/bin/win32">
+                <include name="glslc.exe"/>
+                <include name="spirv-cross.exe"/>
+            </fileset>
+        </copy>
+
         <copy todir="libexec" overwrite="true">
             <chainedmapper>
                 <cutdirsmapper dirs="1"/>
@@ -110,42 +138,27 @@
                     <!-- Symlinks do not seem to make it through this process, so we map from versioned name
                          to the final name. Only files that are matched by either glob below are included in
                          the copy -->
-                    <globmapper from="darwin/luajit-2.0.5" to="x86-darwin/luajit"/>
-                    <globmapper from="x86_64-darwin/luajit-2.0.5" to="x86_64-darwin/luajit"/>
-                    <globmapper from="linux/luajit-2.0.5" to="x86-linux/luajit"/>
-                    <globmapper from="x86_64-linux/luajit-2.0.5" to="x86_64-linux/luajit"/>
-                    <globmapper from="win32/luajit.exe" to="x86-win32/luajit.exe"/>
-		            <globmapper from="x86_64-win32/luajit.exe" to="x86_64-win32/luajit.exe"/>
+                    <globmapper from="x86_64-darwin/luajit-2.1.0-beta3-32" to="x86_64-darwin/luajit-32"/>
+                    <globmapper from="x86_64-darwin/luajit-2.1.0-beta3-64" to="x86_64-darwin/luajit-64"/>
+                    <globmapper from="x86_64-linux/luajit-2.1.0-beta3-32" to="x86_64-linux/luajit-32"/>
+                    <globmapper from="x86_64-linux/luajit-2.1.0-beta3-64" to="x86_64-linux/luajit-64"/>
+                    <globmapper from="x86_64-win32/luajit-32.exe" to="x86_64-win32/luajit-32.exe"/>
+                    <globmapper from="x86_64-win32/luajit-64.exe" to="x86_64-win32/luajit-64.exe"/>
                 </compositemapper>
             </chainedmapper>
-            <tarfileset includes="bin/linux/**">
-                <gzipresource>
-                    <file file="../../packages/luajit-2.0.5-linux.tar.gz" />
-                </gzipresource>
-            </tarfileset>
             <tarfileset includes="bin/x86_64-linux/**">
                 <gzipresource>
-                    <file file="../../packages/luajit-2.0.5-x86_64-linux.tar.gz" />
+                    <file file="../../packages/luajit-2.1.0-beta3-x86_64-linux.tar.gz" />
                 </gzipresource>
             </tarfileset>
-            <tarfileset includes="bin/win32/**">
+            <tarfileset includes="bin/x86_64-win32/**">
                 <gzipresource>
-                    <file file="../../packages/luajit-2.0.5-win32.tar.gz" />
-                </gzipresource>
-            </tarfileset>
-	    <tarfileset includes="bin/x86_64-win32/**">
-                <gzipresource>
-                    <file file="../../packages/luajit-2.0.5-x86_64-win32.tar.gz" />
-                </gzipresource>
-	    </tarfileset>
-            <tarfileset includes="bin/darwin/**">
-                <gzipresource>
-                    <file file="../../packages/luajit-2.0.5-darwin.tar.gz" />
+                    <file file="../../packages/luajit-2.1.0-beta3-x86_64-win32.tar.gz" />
                 </gzipresource>
             </tarfileset>
             <tarfileset includes="bin/x86_64-darwin/**">
                 <gzipresource>
-                    <file file="../../packages/luajit-2.0.5-x86_64-darwin.tar.gz" />
+                    <file file="../../packages/luajit-2.1.0-beta3-x86_64-darwin.tar.gz" />
                 </gzipresource>
             </tarfileset>
         </copy>
@@ -187,29 +200,12 @@
         <!-- NOTE: Given that we don't (yet) use qualifed platforms
              for "installed" libraries we can't do a general glob-copy here,
              e.g. **/*texc_shared* -->
-        <copy todir="lib/darwin" overwrite="true" flatten="true">
-            <fileset dir="${env.DYNAMO_HOME}/lib">
-                <include name="darwin/*texc_shared*"/>
-            </fileset>
-            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="darwin/*PVRTexLib*"/>
-            </fileset>
-        </copy>
-        
         <copy todir="lib/x86_64-darwin" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-darwin/*texc_shared*"/>
             </fileset>
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="x86_64-darwin/*PVRTexLib*"/>
-            </fileset>
-        </copy>
-        <copy todir="lib/x86-linux" overwrite="true" flatten="true">
-            <fileset dir="${env.DYNAMO_HOME}/lib">
-                <include name="linux/*texc_shared*"/>
-            </fileset>
-            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="linux/*PVRTexLib*"/>
+                <include name="x86_64-darwin/*PVRTexLib.dylib"/>
             </fileset>
         </copy>
         <copy todir="lib/x86_64-linux" overwrite="true" flatten="true">
@@ -217,20 +213,12 @@
                 <include name="x86_64-linux/*texc_shared*"/>
             </fileset>
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="x86_64-linux/*PVRTexLib*"/>
+                <include name="x86_64-linux/*PVRTexLib.so"/>
             </fileset>
         </copy>
         <copy todir="lib/x86-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
               <include name="win32/*texc_shared*"/>
-            </fileset>
-        </copy>
-        <copy todir="lib/x86-win32" overwrite="true" flatten="true">
-            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="win32/OpenAL32.dll"/>
-                <include name="win32/wrap_oal.dll"/>
-                <include name="win32/PVRTexLib.dll"/>
-                <include name="win32/msvcr120.dll"/>
             </fileset>
         </copy>
         <copy todir="lib/x86_64-win32" overwrite="true" flatten="true">
@@ -243,8 +231,6 @@
         </copy>
         <copy todir="lib/x86_64-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-                <include name="x86_64-win32/OpenAL32.dll"/>
-                <include name="x86_64-win32/wrap_oal.dll"/>
                 <include name="x86_64-win32/PVRTexLib.dll"/>
                 <include name="x86_64-win32/msvcr120.dll"/>
             </fileset>
@@ -253,31 +239,53 @@
              <fileset dir="${env.DYNAMO_HOME}/ext/share">
                  <include name="luajit/**"/>
              </fileset>
-         </jar>
+        </jar>
 
+    </target>
+
+    <target name="compile" depends="compile-bob-light">
         <jar destfile="lib/android-res.zip">
              <fileset dir="${env.DYNAMO_HOME}/ext/share/java">
                  <include name="res/**"/>
              </fileset>
-         </jar>
+        </jar>
+        <copy todir="lib/x86-win32" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
+                <include name="win32/OpenAL32.dll"/>
+                <include name="win32/wrap_oal.dll"/>
+            </fileset>
+        </copy>
+        <copy todir="lib/x86_64-win32" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
+                <include name="x86_64-win32/OpenAL32.dll"/>
+                <include name="x86_64-win32/wrap_oal.dll"/>
+            </fileset>
+        </copy>
     </target>
 
-    <target name="dist" depends="compile">
+    <target name="dist-bob-light" depends="compile-bob-light">
         <mkdir dir="dist"/>
         <mkdir dir="tmp"/>
 
-        <jar jarfile="tmp/external-libs.jar">
+        <jar jarfile="tmp/external-libs-light.jar">
             <zipgroupfileset dir="../com.dynamo.cr.common/ext">
               <include name="protobuf-java*.jar"/>
               <include name="commons*.jar"/>
               <include name="vecmath.jar"/>
               <include name="extender-client-*.jar"/>
-            </zipgroupfileset>
-            <zipgroupfileset dir="../com.dynamo.cr.common/ext/aws">
-                <include name="*.jar" />
+              <include name="snakeyaml-1.24.jar"/>
+              <include name="jsoup-1.11.3.jar"/>
             </zipgroupfileset>
             <zipgroupfileset dir="lib">
-              <include name="*.jar"/>
+              <include name="dlib.jar"/>
+              <include name="lz4-1.3.0.jar"/>
+              <include name="commons-cli-1.2.jar"/>
+              <include name="jna.jar"/>
+              <include name="jackson-core-asl-1.9.2.jar"/>
+              <include name="jackson-mapper-asl-1.9.2.jar"/>
+              <include name="openmali.jar"/>
+              <include name="snakeyaml-1.24.jar"/>
+              <include name="jsoup-1.11.3.jar"/>
             </zipgroupfileset>
          </jar>
 
@@ -288,22 +296,26 @@
                 <include name="lib/**/*PVRTexLib*"/>
                 <include name="lib/**/*msvcr120.dll*"/>
             </fileset>
+
             <fileset dir=".">
-                <include name="libexec/**/*"/>
+                <include name="libexec/**/glslc*"/>
+                <include name="libexec/**/spirv-cross*"/>
+                <include name="libexec/**/luajit*"/>
             </fileset>
-            <zipfileset src="tmp/external-libs.jar">
+            <zipfileset src="tmp/external-libs-light.jar">
               <exclude name="**/META-INF/**"/>
             </zipfileset>
             <fileset dir=".">
-                <include name="lib/*.zip"/>
+                <include name="lib/luajit-share.zip"/>
             </fileset>
             <manifest>
                 <attribute name="Main-Class" value="com.dynamo.bob.Bob"/>
+                <attribute name="is-bob-light" value="true"/>
             </manifest>
         </jar>
     </target>
 
-    <target name="dist-builtins" depends="compile">
+    <target name="dist" depends="compile">
         <mkdir dir="dist"/>
         <mkdir dir="tmp"/>
 
@@ -313,6 +325,11 @@
               <include name="commons*.jar"/>
               <include name="vecmath.jar"/>
               <include name="extender-client-*.jar"/>
+              <include name="snakeyaml-1.24.jar"/>
+              <include name="jsoup-1.11.3.jar"/>
+            </zipgroupfileset>
+            <zipgroupfileset dir="../com.dynamo.cr.common/ext/android">
+                <include name="*.jar" />
             </zipgroupfileset>
             <zipgroupfileset dir="../com.dynamo.cr.common/ext/aws">
                 <include name="*.jar" />
@@ -354,14 +371,12 @@
         </jar>
     </target>
 
-    <target name="install" depends="dist">
+    <target name="install-bob-light" depends="dist-bob-light">
         <copy file="dist/bob-light.jar" todir="${env.DYNAMO_HOME}/share/java"/>
     </target>
 
-    <target name="install-builtins" depends="dist-builtins">
+    <target name="install" depends="dist">
         <copy file="dist/bob.jar" todir="${env.DYNAMO_HOME}/share/java"/>
     </target>
-
-    <target name="install-full" depends="install,install-builtins" />
 
 </project>

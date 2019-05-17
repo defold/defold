@@ -363,6 +363,7 @@ namespace dmConfigFile
             context->m_Buffer.SetCapacity(new_capacity);
         }
 
+        assert(content_data);
         buffer.PushArray((const char*) content_data, content_data_size);
     }
 
@@ -497,19 +498,22 @@ namespace dmConfigFile
         params.m_Userdata = &context;
         params.m_HttpContent = &HttpContent;
         params.m_HttpHeader = &HttpHeader;
+        dmDNS::NewChannel(&params.m_DNSChannel);
         dmHttpClient::HClient client = dmHttpClient::New(&params, uri_parts.m_Hostname, uri_parts.m_Port, strcmp(uri_parts.m_Scheme, "https") == 0);
         if (client == 0x0)
         {
+            dmDNS::DeleteChannel(params.m_DNSChannel);
             return RESULT_FILE_NOT_FOUND;
         }
 
         dmHttpClient::Result http_result = dmHttpClient::Get(client, uri_parts.m_Path);
+        dmHttpClient::Delete(client);
+        dmDNS::DeleteChannel(params.m_DNSChannel);
+
         if (http_result != dmHttpClient::RESULT_OK)
         {
-            dmHttpClient::Delete(client);
             return RESULT_FILE_NOT_FOUND;
         }
-        dmHttpClient::Delete(client);
 
         Result r = LoadFromBufferInternal(url, (const char*) &context.m_Buffer.Front(), context.m_Buffer.Size(), argc, argv, config);
         return r;

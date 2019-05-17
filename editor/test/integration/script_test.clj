@@ -104,3 +104,19 @@
             completions      (g/node-value script-node :completions)]
         (is (= #{"a.f"}
                (set (map :name (get completions "a")))))))))
+
+(deftest inexact-require-casing-produces-build-error
+  (test-util/with-loaded-project "test/resources/empty_project"
+    (let [script-resource  (make-script-resource world workspace "test.script"
+                                                 (lines "local a = require(\"MODULE\")"))
+          module-resource  (make-script-resource world workspace "module.lua"
+                                                 (lines "local M = {}"
+                                                        "function M.f1() end"
+                                                        "function M.f2() end"
+                                                        "return M"))
+          project          (test-util/setup-project! workspace [module-resource script-resource])
+          script-node      (project/get-resource-node project script-resource)
+          build-targets    (g/node-value script-node :build-targets)
+          error-message    (some :message (tree-seq :causes :causes build-targets))]
+      (is (g/error? build-targets))
+      (is (= (str "The file '/MODULE.lua' could not be found.") error-message)))))

@@ -1,5 +1,3 @@
-#include <gtest/gtest.h>
-
 #include <resource/resource.h>
 
 #include <hid/hid.h>
@@ -10,6 +8,9 @@
 
 #include "gamesys/gamesys.h"
 
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+
 struct Params
 {
     const char* m_ValidResource;
@@ -18,7 +19,7 @@ struct Params
 };
 
 template<typename T>
-class GamesysTest : public ::testing::TestWithParam<T>
+class GamesysTest : public jc_test_params_class<T>
 {
 protected:
     virtual void SetUp();
@@ -77,6 +78,12 @@ class ResourceFailTest : public GamesysTest<ResourceFailParams>
 {
 public:
     virtual ~ResourceFailTest() {}
+};
+
+class InvalidVertexSpaceTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~InvalidVertexSpaceTest() {}
 };
 
 class ComponentTest : public GamesysTest<const char*>
@@ -163,6 +170,27 @@ public:
     dmhash_t hash_property_id;
     dmhash_t hash_property_id_invalid;
     virtual ~TexturePropTest() {}
+};
+
+class FlipbookTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~FlipbookTest() {}
+};
+
+struct CursorTestParams
+{
+    const char* m_AnimationId;
+    float m_CursorStart;
+    float m_PlaybackRate;
+    float m_Expected[16];
+    uint8_t m_ExpectedCount;
+};
+
+class CursorTest : public GamesysTest<CursorTestParams>
+{
+public:
+    virtual ~CursorTest() {}
 };
 
 bool CopyResource(const char* src, const char* dst);

@@ -6,8 +6,7 @@ def configure(conf):
     pass
 
 def build(bld):
-
-    gameobject = bld.new_task_gen(features = 'cxx cstaticlib ddf rig',
+    gameobject = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                                   includes = '. .. ../../proto',
                                   proto_gen_py = True,
                                   protoc_includes = ['../../proto', bld.env['PREFIX'] + '/share'],

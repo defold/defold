@@ -10,7 +10,8 @@
                        (setq gl_FragColor (vec4 1.0 0.5 0.5 1.0))))
                  test-str (str test-shader)
                  gold-str
-"void main(void) {
+"#version 120
+void main(void) {
 gl_FragColor = vec4(1.0,0.5,0.5,1.0);
 }
 "
@@ -26,7 +27,8 @@ gl_FragColor = vec4(1.0,0.5,0.5,1.0);
                 (setq gl_FragColor (vec4 uv.x uv.y 0.0 1.0))))
           test-str (str test-shader)
           gold-str
-"uniform vec3 iResolution;
+"#version 120
+uniform vec3 iResolution;
 void main(void) {
 vec2 uv = (gl_FragCoord.xy / iResolution.xy);
 gl_FragColor = vec4(uv.x,uv.y,0.0,1.0);
@@ -43,7 +45,8 @@ gl_FragColor = vec4(uv.x,uv.y,0.0,1.0);
                 (setq gl_Position (nth world 0))))
           test-str (str test-shader)
           gold-str
-"uniform mat4 world;
+"#version 120
+uniform mat4 world;
 void main(void) {
 gl_Position = world[0];
 }
@@ -75,7 +78,8 @@ gl_Position = world[0];
                 (setq gl_FragColor (vec4 freqc wavec 0.25 1.0))))
           test-str (str test-shader)
           gold-str
-"uniform vec3 iResolution;
+"#version 120
+uniform vec3 iResolution;
 uniform sampler2D iChannel0;
 float smoothbump(float center,float width,float x) {
 float w2 = (width / 2.0);
@@ -108,7 +112,8 @@ gl_FragColor = vec4(freqc,wavec,0.25,1.0);
                 (setq gl_FragColor (vec4 c 1.0))))
           test-str (str test-shader)
           gold-str ;; FIXME this is a bit ugly text...
-"void main(void) {
+"#version 120
+void main(void) {
 vec3 c = vec3(0.0);
 for( int i = 0;
  (i <= 10); i = (i + 1);
@@ -133,7 +138,8 @@ gl_FragColor = vec4(c,1.0);
                 (setq gl_FragColor (vec4 c 1.0))))
           test-str (str test-shader)
           gold-str ;; FIXME this is a bit ugly text...
-"void main(void) {
+"#version 120
+void main(void) {
 vec3 c = vec3(0.0);
 int i = 0;
 while(i <= 10) {
@@ -167,7 +173,7 @@ gl_FragColor = vec4(c,1.0);
                     (setq j 4)))))
           test-str (str test-shader)
           gold-str ;; FIXME
-          "void main(void) {\nif(i < 0)\ni = 0;\nif(j < 10)\n{\ni = 5;\nj = 10;\n}\nif(k < 10)\ni = 5;\nelse\nj = 10;\nif(k < 10)\n{\ni = 1;\nj = 2;\n}\nelse\n{\ni = 3;\nj = 4;\n}\n}\n"
+          "#version 120\nvoid main(void) {\nif(i < 0)\ni = 0;\nif(j < 10)\n{\ni = 5;\nj = 10;\n}\nif(k < 10)\ni = 5;\nelse\nj = 10;\nif(k < 10)\n{\ni = 1;\nj = 2;\n}\nelse\n{\ni = 3;\nj = 4;\n}\n}\n"
           ]
       (is (= test-str gold-str)))))
 
@@ -189,6 +195,6 @@ gl_FragColor = vec4(c,1.0);
                  :default (break))))
           test-str (str test-shader)
           gold-str ;; FIXME
-          "void main(void) {\nswitch(j) {\ncase 0:\n{\ni = 0;\nbreak;\n}\ncase 1:\n{\ni = 1;\nbreak;\n}\ndefault:\nbreak;\n}\nswitch(j + k) {\ncase 0:\n{\nl = 0;\nbreak;\n}\ndefault:\nbreak;\n}\n}\n"
+          "#version 120\nvoid main(void) {\nswitch(j) {\ncase 0:\n{\ni = 0;\nbreak;\n}\ncase 1:\n{\ni = 1;\nbreak;\n}\ndefault:\nbreak;\n}\nswitch(j + k) {\ncase 0:\n{\nl = 0;\nbreak;\n}\ndefault:\nbreak;\n}\n}\n"
           ]
       (is (= test-str gold-str)))))

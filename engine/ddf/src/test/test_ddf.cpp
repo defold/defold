@@ -4,7 +4,8 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 #ifdef _WIN32
 #include <io.h>
@@ -57,17 +58,17 @@ TEST(Simple, Descriptor)
 {
     // Test descriptor
     const dmDDF::Descriptor& d = DUMMY::TestDDF_Simple_DESCRIPTOR;
-    EXPECT_STREQ("simple", d.m_Name);
-    EXPECT_EQ((uint32_t) 4, d.m_Size);
-    EXPECT_EQ((uint32_t) 1, d.m_FieldCount);
+    ASSERT_STREQ("simple", d.m_Name);
+    ASSERT_EQ((uint32_t) 4, d.m_Size);
+    ASSERT_EQ((uint32_t) 1, d.m_FieldCount);
 
     // Test field(s)
     const dmDDF::FieldDescriptor& f1 = d.m_Fields[0];
-    EXPECT_STREQ("a", f1.m_Name);
-    EXPECT_EQ((uint32_t)1, f1.m_Number);
-    EXPECT_EQ((uint32_t) dmDDF::TYPE_INT32, f1.m_Type);
-    EXPECT_EQ(0, f1.m_MessageDescriptor);
-    EXPECT_EQ((uint32_t)0, f1.m_Offset);
+    ASSERT_STREQ("a", f1.m_Name);
+    ASSERT_EQ((uint32_t)1, f1.m_Number);
+    ASSERT_EQ((uint32_t) dmDDF::TYPE_INT32, f1.m_Type);
+    ASSERT_EQ(0, f1.m_MessageDescriptor);
+    ASSERT_EQ((uint32_t)0, f1.m_Offset);
 }
 
 TEST(Simple, LoadSave)
@@ -93,7 +94,7 @@ TEST(Simple, LoadSave)
         std::string msg_str2;
         e = DDFSaveToString(message, &DUMMY::TestDDF_Simple_DESCRIPTOR, msg_str2);
         ASSERT_EQ(dmDDF::RESULT_OK, e);
-        EXPECT_EQ(msg_str, msg_str2);
+        ASSERT_EQ(msg_str, msg_str2);
 
         dmDDF::FreeMessage(message);
     }
@@ -161,15 +162,15 @@ TEST(Simple, LoadFromFile2)
 {
     void *message;
     dmDDF::Result e = dmDDF::LoadMessageFromFile("DOES_NOT_EXISTS", &DUMMY::TestDDF_Simple_DESCRIPTOR, &message);
-    EXPECT_EQ(dmDDF::RESULT_IO_ERROR, e);
+    ASSERT_EQ(dmDDF::RESULT_IO_ERROR, e);
 }
 
 TEST(ScalarTypes, Types)
 {
     // Test descriptor
     const dmDDF::Descriptor& d = DUMMY::TestDDF_ScalarTypes_DESCRIPTOR;
-    EXPECT_STREQ("scalar_types", d.m_Name);
-    EXPECT_EQ(8, d.m_FieldCount);
+    ASSERT_STREQ("scalar_types", d.m_Name);
+    ASSERT_EQ(8, d.m_FieldCount);
 
     // Test field(s)
     const char* names[] =
@@ -199,9 +200,9 @@ TEST(ScalarTypes, Types)
     for (uint32_t i = 0; i < d.m_FieldCount; ++i)
     {
         const dmDDF::FieldDescriptor* f = &d.m_Fields[i];
-        EXPECT_STREQ(names[i], f->m_Name);
-        EXPECT_EQ(i+1, f->m_Number);
-        EXPECT_EQ((uint32_t) types[i], f->m_Type);
+        ASSERT_STREQ(names[i], f->m_Name);
+        ASSERT_EQ(i+1, f->m_Number);
+        ASSERT_EQ((uint32_t) types[i], f->m_Type);
     }
 }
 
@@ -226,19 +227,19 @@ TEST(ScalarTypes, Load)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     DUMMY::TestDDF::ScalarTypes* msg = (DUMMY::TestDDF::ScalarTypes*) message;
-    EXPECT_EQ(scalar_types.float_val(), msg->m_FloatVal);
-    EXPECT_EQ(scalar_types.double_val(), msg->m_DoubleVal);
-    EXPECT_EQ(scalar_types.int32_val(), msg->m_Int32Val);
-    EXPECT_EQ(scalar_types.uint32_val(), msg->m_Uint32Val);
-    EXPECT_EQ(scalar_types.int64_val(), msg->m_Int64Val);
-    EXPECT_EQ(scalar_types.uint64_val(), msg->m_Uint64Val);
-    EXPECT_STREQ(scalar_types.string_val().c_str(), msg->m_StringVal);
-    EXPECT_EQ(scalar_types.bool_val(), msg->m_BoolVal);
+    ASSERT_EQ(scalar_types.float_val(), msg->m_FloatVal);
+    ASSERT_EQ(scalar_types.double_val(), msg->m_DoubleVal);
+    ASSERT_EQ(scalar_types.int32_val(), msg->m_Int32Val);
+    ASSERT_EQ(scalar_types.uint32_val(), msg->m_Uint32Val);
+    ASSERT_EQ(scalar_types.int64_val(), msg->m_Int64Val);
+    ASSERT_EQ(scalar_types.uint64_val(), msg->m_Uint64Val);
+    ASSERT_STREQ(scalar_types.string_val().c_str(), msg->m_StringVal);
+    ASSERT_EQ(scalar_types.bool_val(), msg->m_BoolVal);
 
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_ScalarTypes_DESCRIPTOR, msg_str2);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
-    EXPECT_EQ(msg_str, msg_str2);
+    ASSERT_EQ(msg_str, msg_str2);
 
     dmDDF::FreeMessage(message);
 }
@@ -285,18 +286,18 @@ TEST(Simple01Repeated, Load)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     DUMMY::TestDDF::Simple01Repeated* msg = (DUMMY::TestDDF::Simple01Repeated*) message;
-    EXPECT_EQ((uint32_t) count, msg->m_Array.m_Count);
+    ASSERT_EQ((uint32_t) count, msg->m_Array.m_Count);
 
     for (int i = 0; i < count; ++i)
     {
-        EXPECT_EQ(repated.array(i).x(), msg->m_Array.m_Data[i].m_X);
-        EXPECT_EQ(repated.array(i).y(), msg->m_Array.m_Data[i].m_Y);
+        ASSERT_EQ(repated.array(i).x(), msg->m_Array.m_Data[i].m_X);
+        ASSERT_EQ(repated.array(i).y(), msg->m_Array.m_Data[i].m_Y);
     }
 
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_Simple01Repeated_DESCRIPTOR, msg_str2);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
-    EXPECT_EQ(msg_str, msg_str2);
+    ASSERT_EQ(msg_str, msg_str2);
 
     dmDDF::FreeMessage(message);
 }
@@ -320,17 +321,17 @@ TEST(Simple02Repeated, Load)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     DUMMY::TestDDF::Simple02Repeated* msg = (DUMMY::TestDDF::Simple02Repeated*) message;
-    EXPECT_EQ((uint32_t)count, msg->m_Array.m_Count);
+    ASSERT_EQ((uint32_t)count, msg->m_Array.m_Count);
 
     for (int i = 0; i < count; ++i)
     {
-        EXPECT_EQ(repated.array(i), msg->m_Array.m_Data[i]);
+        ASSERT_EQ(repated.array(i), msg->m_Array.m_Data[i]);
     }
 
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_Simple02Repeated_DESCRIPTOR, msg_str2);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
-    EXPECT_EQ(msg_str, msg_str2);
+    ASSERT_EQ(msg_str, msg_str2);
 
 
     dmDDF::FreeMessage(message);
@@ -357,17 +358,17 @@ TEST(StringRepeated, Load)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     DUMMY::TestDDF::StringRepeated* msg = (DUMMY::TestDDF::StringRepeated*) message;
-    EXPECT_EQ((uint32_t) count, msg->m_Array.m_Count);
+    ASSERT_EQ((uint32_t) count, msg->m_Array.m_Count);
 
     for (int i = 0; i < count; ++i)
     {
-        EXPECT_STREQ(repated.array(i).c_str(), msg->m_Array.m_Data[i]);
+        ASSERT_STREQ(repated.array(i).c_str(), msg->m_Array.m_Data[i]);
     }
 
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_StringRepeated_DESCRIPTOR, msg_str2);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
-    EXPECT_EQ(msg_str, msg_str2);
+    ASSERT_EQ(msg_str, msg_str2);
 
     dmDDF::FreeMessage(message);
 }
@@ -393,13 +394,13 @@ TEST(NestedMessage, Load)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
     DUMMY::TestDDF::NestedMessage* msg = (DUMMY::TestDDF::NestedMessage*) message;
 
-    EXPECT_EQ(n1.x(), msg->m_N1.m_X);
-    EXPECT_EQ(n2.x(), msg->m_N2.m_X);
+    ASSERT_EQ(n1.x(), msg->m_N1.m_X);
+    ASSERT_EQ(n2.x(), msg->m_N2.m_X);
 
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_NestedMessage_DESCRIPTOR, msg_str2);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
-    EXPECT_EQ(msg_str, msg_str2);
+    ASSERT_EQ(msg_str, msg_str2);
 
     dmDDF::FreeMessage(message);
 }
@@ -432,20 +433,20 @@ TEST(Mesh, Load)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     DUMMY::TestDDF::Mesh* msg = (DUMMY::TestDDF::Mesh*) message;
-    EXPECT_EQ((uint32_t) count, msg->m_PrimitiveCount);
-    EXPECT_STREQ(mesh.name().c_str(), msg->m_Name);
-    EXPECT_EQ((uint32_t) mesh.primitive_type(), (uint32_t) msg->m_PrimitiveType);
+    ASSERT_EQ((uint32_t) count, msg->m_PrimitiveCount);
+    ASSERT_STREQ(mesh.name().c_str(), msg->m_Name);
+    ASSERT_EQ((uint32_t) mesh.primitive_type(), (uint32_t) msg->m_PrimitiveType);
 
     for (int i = 0; i < count * 3; ++i)
     {
-        EXPECT_EQ(mesh.vertices(i), msg->m_Vertices.m_Data[i]);
-        EXPECT_EQ(mesh.indices(i), msg->m_Indices.m_Data[i]);
+        ASSERT_EQ(mesh.vertices(i), msg->m_Vertices.m_Data[i]);
+        ASSERT_EQ(mesh.indices(i), msg->m_Indices.m_Data[i]);
     }
 
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_Mesh_DESCRIPTOR, msg_str2);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
-    EXPECT_EQ(msg_str, msg_str2);
+    ASSERT_EQ(msg_str, msg_str2);
 
     dmDDF::FreeMessage(message);
 }
@@ -480,13 +481,13 @@ TEST(NestedArray, Load)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
     DUMMY::TestDDF::NestedArray* nested = (DUMMY::TestDDF::NestedArray*) message;
 
-    EXPECT_EQ((uint32_t) count1, nested->m_Array1.m_Count);
+    ASSERT_EQ((uint32_t) count1, nested->m_Array1.m_Count);
     ASSERT_EQ(pb_nested.d(), nested->m_D);
     ASSERT_EQ(pb_nested.e(), nested->m_E);
 
     for (int i = 0; i < count1; ++i)
     {
-        EXPECT_EQ((uint32_t) count2, nested->m_Array1.m_Data[i].m_Array2.m_Count);
+        ASSERT_EQ((uint32_t) count2, nested->m_Array1.m_Data[i].m_Array2.m_Count);
         ASSERT_EQ(pb_nested.array1(i).b(), nested->m_Array1.m_Data[i].m_B);
         ASSERT_EQ(pb_nested.array1(i).c(), nested->m_Array1.m_Data[i].m_C);
         for (int j = 0; j < count2; ++j)
@@ -498,7 +499,7 @@ TEST(NestedArray, Load)
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_NestedArray_DESCRIPTOR, msg_str2);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
-    EXPECT_EQ(pb_msg_str, msg_str2);
+    ASSERT_EQ(pb_msg_str, msg_str2);
 
     dmDDF::FreeMessage(message);
 }
@@ -528,7 +529,7 @@ TEST(Bytes, Load)
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_Bytes_DESCRIPTOR, msg_str2);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
-    EXPECT_EQ(msg_str, msg_str2);
+    ASSERT_EQ(msg_str, msg_str2);
 
     dmDDF::FreeMessage(message);
 }
@@ -607,7 +608,7 @@ TEST(TestStructAlias, LoadSave)
     std::string msg_str2;
     e = DDFSaveToString(message, DUMMY::TestDDF::TestStructAlias::m_DDFDescriptor, msg_str2);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
-    EXPECT_EQ(msg_str, msg_str2);
+    ASSERT_EQ(msg_str, msg_str2);
 
     dmDDF::FreeMessage(message);
 }
@@ -674,7 +675,7 @@ TEST(TestDefault, LoadSave)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
     //NOTE: We can't compare here. We store every value, ie also optional values that have value identical to the default
     //This might change in the future
-    //EXPECT_EQ(msg_str, msg_str2);
+    //ASSERT_EQ(msg_str, msg_str2);
 
     dmDDF::FreeMessage(message);
 }
@@ -695,7 +696,7 @@ TEST(PointerOffset, ResolvePointers)
     TestDDF::ResolvePointers srcmsg;
     srcmsg.set_data((uint8_t*)values, strlen(values)+1);
     srcmsg.set_name(name);
-    for( int i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
+    for( size_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
         srcmsg.add_names(names[i]);
     }
 
@@ -718,7 +719,7 @@ TEST(PointerOffset, ResolvePointers)
     ASSERT_TRUE( uintptr_t(msg->m_Data.m_Data) <= (msg_size - (strlen(values)+1)) ); // the offset should be between [0, sizeof message - value length]
     ASSERT_STREQ( values, (const char*)((uintptr_t)msg + (uintptr_t)msg->m_Data.m_Data));
     ASSERT_STREQ( name, (const char*)((uintptr_t)msg + (uintptr_t)msg->m_Name));
-    for( int i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
+    for( size_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
         uintptr_t* nameoffsets = (uintptr_t*)((uintptr_t)msg + (uintptr_t)msg->m_Names.m_Data);
         ASSERT_STREQ( names[i], (const char*) ((uintptr_t)msg + nameoffsets[i]));
     }
@@ -728,7 +729,7 @@ TEST(PointerOffset, ResolvePointers)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
     ASSERT_STREQ( values, (const char*)msg->m_Data.m_Data);
     ASSERT_STREQ( name, (const char*)msg->m_Name);
-    for( int i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
+    for( size_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
         ASSERT_STREQ( names[i], (const char*)msg->m_Names[i]);
     }
 
@@ -757,8 +758,8 @@ TEST(AlignmentTests, AlignField)
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = jc_test_run_all();
     google::protobuf::ShutdownProtobufLibrary();
     return ret;
 }

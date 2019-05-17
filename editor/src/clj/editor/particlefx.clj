@@ -1,47 +1,45 @@
 (ns editor.particlefx
   (:require [clojure.java.io :as io]
-            [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
-            [editor.graph-util :as gu]
+            [editor.build-target :as bt]
+            [editor.camera :as camera]
             [editor.colors :as colors]
-            [editor.math :as math]
-            [editor.protobuf :as protobuf]
-            [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
-            [editor.workspace :as workspace]
+            [editor.core :as core]
             [editor.defold-project :as project]
+            [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
+            [editor.graph-util :as gu]
+            [editor.handler :as handler]
             [editor.material :as material]
-            [editor.scene :as scene]
-            [editor.scene-layout :as layout]
-            [editor.scene-cache :as scene-cache]
-            [editor.scene-tools :as scene-tools]
+            [editor.math :as math]
             [editor.outline :as outline]
-            [editor.geom :as geom]
-            [editor.gl.pass :as pass]
             [editor.particle-lib :as plib]
             [editor.properties :as props]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.scene :as scene]
+            [editor.scene-cache :as scene-cache]
+            [editor.scene-picking :as scene-picking]
+            [editor.scene-tools :as scene-tools]
+            [editor.types :as types]
             [editor.validation :as validation]
-            [editor.camera :as camera]
-            [editor.handler :as handler]
-            [editor.core :as core]
-            [editor.types :as types])
-  (:import [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Vector4f Vector3d Vector4d]
-           [com.dynamo.particle.proto Particle$ParticleFX Particle$Emitter Particle$PlayMode Particle$EmitterType
+            [editor.workspace :as workspace])
+  (:import [com.dynamo.particle.proto Particle$ParticleFX Particle$Emitter Particle$PlayMode Particle$EmitterType
             Particle$EmitterKey Particle$ParticleKey Particle$ModifierKey
             Particle$EmissionSpace Particle$BlendMode Particle$ParticleOrientation Particle$ModifierType Particle$SizeMode]
-           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [editor.gl.shader ShaderLifecycle]
-           [com.defold.libs ParticleLibrary]
-           [com.sun.jna Pointer]
-           [java.nio ByteBuffer]
            [com.google.protobuf ByteString]
-           [editor.properties CurveSpread Curve]))
+           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
+           [editor.gl.shader ShaderLifecycle]
+           [editor.properties CurveSpread Curve]
+           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+           [java.nio ByteBuffer]
+           [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Vector4f Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -112,8 +110,20 @@
 
 (def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
 
-(def color (scene/select-color pass/outline false [1.0 1.0 1.0 1.0]))
-(def selected-color (scene/select-color pass/outline true [1.0 1.0 1.0 1.0]))
+(shader/defshader line-id-vertex-shader
+  (attribute vec4 position)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
+
+(shader/defshader line-id-fragment-shader
+  (uniform vec4 id)
+  (defn void main []
+    (setq gl_FragColor id)))
+
+(def line-id-shader (shader/make-shader ::line-id-shader line-id-vertex-shader line-id-fragment-shader {"id" :id}))
+
+(def color colors/outline-color)
+(def selected-color colors/selected-outline-color)
 
 (def mod-type->properties {:modifier-type-acceleration [:modifier-key-magnitude]
                            :modifier-type-drag [:modifier-key-magnitude]
@@ -165,7 +175,10 @@
 (defn render-lines [^GL2 gl render-args renderables rcount]
   (let [camera (:camera render-args)
         viewport (:viewport render-args)
-        scale-f (camera/scale-factor camera viewport)]
+        scale-f (camera/scale-factor camera viewport)
+        shader (if (= pass/selection (:pass render-args))
+                 line-id-shader
+                 line-shader)]
     (doseq [renderable renderables
             :let [vs-screen (get-in renderable [:user-data :geom-data-screen] [])
                   vs-world (get-in renderable [:user-data :geom-data-world] [])
@@ -175,9 +188,12 @@
             world-transform-no-scale (orthonormalize world-transform)
             color (if (:selected renderable) selected-color color)
             vs (into (vec (geom/transf-p world-transform-no-scale (geom/scale scale-f vs-screen)))
-                 (geom/transf-p world-transform vs-world))
-            vertex-binding (vtx/use-with ::lines (->vb vs vcount color) line-shader)]
-        (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
+                     (geom/transf-p world-transform vs-world))
+            render-args (if (= pass/selection (:pass render-args))
+                          (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable))
+                          render-args)
+            vertex-binding (vtx/use-with ::lines (->vb vs vcount color) shader)]
+        (gl/with-gl-bindings gl render-args [shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
 
 ; Modifier geometry
@@ -272,14 +288,18 @@
                                                  :geom-data-world (fn [_ max-distance]
                                                                     (geom/scale [max-distance max-distance 1] dash-circle))}})
 
+(defn- modifier-type-label [modifier-type]
+  (:label (mod-types modifier-type)))
+
 (g/defnk produce-modifier-scene
-  [_node-id transform aabb type magnitude max-distance]
+  [_node-id transform type magnitude max-distance node-outline-key]
   (let [mod-type (mod-types type)
         magnitude (props/sample magnitude)
         max-distance (props/sample max-distance)]
     {:node-id _node-id
+     :node-outline-key node-outline-key
      :transform transform
-     :aabb aabb
+     :aabb geom/empty-bounding-box
      :renderable {:render-fn render-lines
                   :tags #{:particlefx :outline}
                   :batch-key nil
@@ -297,14 +317,17 @@
             (dynamic visible (g/constantly false)))
   (property magnitude CurveSpread)
   (property max-distance Curve (dynamic visible (g/fnk [type] (contains? #{:modifier-type-radial :modifier-type-vortex} type))))
+  (property node-outline-key g/Str (dynamic visible (g/constantly false)))
 
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output pb-msg g/Any produce-modifier-pb)
   (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id type]
+    (g/fnk [_node-id type node-outline-key]
       (let [mod-type (mod-types type)]
-        {:node-id _node-id :label (:label mod-type) :icon modifier-icon})))
-  (output aabb AABB (g/constantly (geom/aabb-incorporate (geom/null-aabb) 0 0 0)))
+        {:node-id _node-id
+         :node-outline-key node-outline-key
+         :label (:label mod-type)
+         :icon modifier-icon})))
   (output scene g/Any :cached produce-modifier-scene))
 
 (def ^:private circle-steps 32)
@@ -367,7 +390,7 @@
       pass/transparent (render-emitters-sim gl render-args renderables count))))
 
 (g/defnk produce-emitter-scene
-  [_node-id transform aabb type emitter-sim-data emitter-index emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes]
+  [_node-id id transform aabb type emitter-sim-data emitter-index emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes]
   (let [emitter-type (emitter-types type)
         user-data {:type type
                    :emitter-sim-data emitter-sim-data
@@ -376,6 +399,7 @@
                    :geom-data-world (apply (:geom-data-world emitter-type)
                                            (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z]))}]
     {:node-id _node-id
+     :node-outline-key id
      :transform transform
      :aabb aabb
      :renderable {:render-fn render-emitters
@@ -385,6 +409,7 @@
                   :user-data user-data
                   :passes [pass/selection pass/transparent]}
      :children (into [{:node-id _node-id
+                       :node-outline-key id
                        :aabb aabb
                        :renderable {:render-fn render-lines
                                     :batch-key nil
@@ -408,7 +433,8 @@
   (property emitter-key-particle-alpha CurveSpread (dynamic label (g/constantly "Initial Alpha")))
   (property emitter-key-particle-rotation CurveSpread (dynamic label (g/constantly "Initial Rotation")))
   (property emitter-key-particle-stretch-factor-x CurveSpread (dynamic label (g/constantly "Initial Stretch X")))
-  (property emitter-key-particle-stretch-factor-y CurveSpread (dynamic label (g/constantly "Initial Stretch Y"))))
+  (property emitter-key-particle-stretch-factor-y CurveSpread (dynamic label (g/constantly "Initial Stretch Y")))
+  (property emitter-key-particle-angular-velocity CurveSpread (dynamic label (g/constantly "Initial Angular Velocity"))))
 
 (g/defnode ParticleProperties
   (property particle-key-scale Curve (dynamic label (g/constantly "Life Scale")))
@@ -418,7 +444,8 @@
   (property particle-key-alpha Curve (dynamic label (g/constantly "Life Alpha")))
   (property particle-key-rotation Curve (dynamic label (g/constantly "Life Rotation")))
   (property particle-key-stretch-factor-x Curve (dynamic label (g/constantly "Life Stretch X")))
-  (property particle-key-stretch-factor-y Curve (dynamic label (g/constantly "Life Stretch Y"))))
+  (property particle-key-stretch-factor-y Curve (dynamic label (g/constantly "Life Stretch Y")))
+  (property particle-key-angular-velocity Curve (dynamic label (g/constantly "Life Angular Velocity"))))
 
 (def ^:private value-spread-keys #{:duration :start-delay})
 
@@ -459,7 +486,7 @@
                                                           :points points}))))
                                          (butlast (protobuf/enum-values Particle$ParticleKey)))]]))))
 
-(defn- attach-modifier [self-id parent-id modifier-id]
+(defn- attach-modifier [self-id parent-id modifier-id resolve-node-outline-key?]
   (concat
     (for [[from to] [[:_node-id :nodes]]]
       (g/connect modifier-id from self-id to))
@@ -467,15 +494,13 @@
                  [:scene :child-scenes]
                  [:pb-msg :modifier-msgs]]]
       (for [[from to] conns]
-        (g/connect modifier-id from parent-id to)))))
+        (g/connect modifier-id from parent-id to)))
+    (when resolve-node-outline-key?
+      (g/update-property modifier-id :node-outline-key outline/next-node-outline-key (outline/taken-node-outline-keys parent-id)))))
 
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
-
-(defn- sort-anim-ids
-  [anim-ids]
-  (sort-by str/lower-case anim-ids))
 
 (declare ParticleFXNode)
 
@@ -587,24 +612,28 @@
   (output pb-msg g/Any produce-emitter-pb)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id id child-outlines]
                                                      {:node-id _node-id
+                                                      :node-outline-key id
                                                       :label id
                                                       :icon emitter-icon
                                                       :children (outline/natural-sort child-outlines)
                                                       :child-reqs [{:node-type ModifierNode
                                                                     :tx-attach-fn (fn [self-id child-id]
                                                                                     (let [pfx-id (core/scope-of-type self-id ParticleFXNode)]
-                                                                                      (attach-modifier pfx-id self-id child-id)))}]}))
+                                                                                      (attach-modifier pfx-id self-id child-id true)))}]}))
   (output aabb AABB (g/fnk [type emitter-key-size-x emitter-key-size-y emitter-key-size-z]
-                           (let [[x y z] (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z])
-                                 [w h d] (case type
-                                           :emitter-type-circle [x x x]
-                                           :emitter-type-box [x y z]
-                                           :emitter-type-sphere [x x x]
-                                           :emitter-type-cone [x y x]
-                                           :emitter-type-2dcone [x y x])]
-                             (-> (geom/null-aabb)
-                               (geom/aabb-incorporate (- w) (- h) (- d))
-                               (geom/aabb-incorporate w h d)))))
+                           (let [[x y z] (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z])]
+                             (case type
+                               (:emitter-type-circle :emitter-type-sphere)
+                               (geom/coords->aabb [(- (/ x 2.0)) (- (/ x 2.0)) 0.0]
+                                                  [   (/ x 2.0)     (/ x 2.0)  0.0])
+
+                               :emitter-type-box
+                               (geom/coords->aabb [(- (/ x 2.0)) (- (/ y 2.0)) 0.0]
+                                                  [   (/ x 2.0)     (/ y 2.0)  0.0])
+
+                               (:emitter-type-2dcone :emitter-type-cone)
+                               (geom/coords->aabb [(- (/ x 2.0)) 0.0 0.0]
+                                                  [   (/ x 2.0)    y 0.0])))))
   (output emitter-sim-data g/Any :cached
           (g/fnk [animation texture-set gpu-texture material-shader]
             (when (and animation texture-set gpu-texture)
@@ -641,12 +670,13 @@
                                     [field]))
                                 resource-fields)
         dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-data label) (get rt-pb-data label)))]) resource-fields)]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-pb
-      :user-data {:pb rt-pb-data
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
+    [(bt/with-content-hash
+       {:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-pb
+        :user-data {:pb rt-pb-data
+                    :dep-resources dep-resources}
+        :deps dep-build-targets})]))
 
 (defn- render-pfx [^GL2 gl render-args renderables count])
 
@@ -655,7 +685,7 @@
                :renderable {:render-fn render-pfx
                             :batch-key nil
                             :passes [pass/transparent pass/selection]}
-               :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
+               :aabb geom/empty-bounding-box
                :children child-scenes}]
     (scene/map-scene #(assoc % :updatable scene-updatable) scene)))
 
@@ -719,6 +749,7 @@
                                                      (let [[mod-outlines emitter-outlines] (let [outlines (group-by #(g/node-instance? ModifierNode (:node-id %)) child-outlines)]
                                                                                              [(get outlines true) (get outlines false)])]
                                                        {:node-id _node-id
+                                                        :node-outline-key "ParticleFX"
                                                         :label "ParticleFX"
                                                         :icon particle-fx-icon
                                                         :children (into (outline/natural-sort emitter-outlines) (outline/natural-sort mod-outlines))
@@ -727,41 +758,43 @@
                                                                                       (attach-emitter self-id child-id true))}
                                                                      {:node-type ModifierNode
                                                                       :tx-attach-fn (fn [self-id child-id]
-                                                                                      (attach-modifier self-id self-id child-id))}]})))
+                                                                                      (attach-modifier self-id self-id child-id true))}]})))
   (output fetch-anim-fn Runnable :cached (g/fnk [emitter-sim-data] (fn [index] (get emitter-sim-data index)))))
 
-(defn- v4->euler [v]
-  (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
-
 (defn- make-modifier
-  ([self parent-id modifier]
-    (make-modifier self parent-id modifier nil))
-  ([self parent-id modifier select-fn]
-    (let [graph-id (g/node-id->graph-id self)]
-      (g/make-nodes graph-id
-                    [mod-node [ModifierNode :position (:position modifier) :rotation (:rotation modifier)
-                               :type (:type modifier)]]
-                    (let [mod-properties (into {} (map #(do [(:key %) (dissoc % :key)])
-                                                       (:properties modifier)))]
-                      (concat
-                        (g/set-property mod-node :use-direction (= 1 (:use-direction mod-properties)))
-                        (g/set-property mod-node :magnitude (if-let [prop (:modifier-key-magnitude mod-properties)]
-                                                              (props/->curve-spread (map #(let [{:keys [x y t-x t-y]} %] [x y t-x t-y]) (:points prop)) (:spread prop))
-                                                              props/default-curve-spread))
-                        (g/set-property mod-node :max-distance (if-let [prop (:modifier-key-max-distance mod-properties)]
-                                                                 (props/->curve (map #(let [{:keys [x y t-x t-y]} %] [x y t-x t-y]) (:points prop)))
-                                                                 props/default-curve))))
-                    (attach-modifier self parent-id mod-node)
-                    (if select-fn
-                      (select-fn [mod-node])
-                      [])))))
+  [self parent-id modifier node-outline-key]
+  (let [graph-id (g/node-id->graph-id self)]
+    (g/make-nodes graph-id
+                  [mod-node [ModifierNode :position (:position modifier) :rotation (:rotation modifier)
+                             :type (:type modifier) :node-outline-key node-outline-key]]
+                  (let [mod-properties (into {} (map #(do [(:key %) (dissoc % :key)])
+                                                     (:properties modifier)))]
+                    (concat
+                      (g/set-property mod-node :use-direction (= 1 (:use-direction mod-properties)))
+                      (g/set-property mod-node :magnitude (if-let [prop (:modifier-key-magnitude mod-properties)]
+                                                            (props/->curve-spread (map #(let [{:keys [x y t-x t-y]} %] [x y t-x t-y]) (:points prop)) (:spread prop))
+                                                            props/default-curve-spread))
+                      (g/set-property mod-node :max-distance (if-let [prop (:modifier-key-max-distance mod-properties)]
+                                                               (props/->curve (map #(let [{:keys [x y t-x t-y]} %] [x y t-x t-y]) (:points prop)))
+                                                               props/default-curve))))
+                  (attach-modifier self parent-id mod-node false))))
 
 (defn- add-modifier-handler [self parent-id type select-fn]
-  (when-let [modifier (get-in mod-types [type :template])]
-    (g/transact
-      (concat
-        (g/operation-label "Add Modifier")
-        (make-modifier self parent-id modifier select-fn)))))
+  (when-some [modifier (get-in mod-types [type :template])]
+    (let [node-outline-key (outline/next-node-outline-key (modifier-type-label type)
+                                                          (outline/taken-node-outline-keys parent-id))
+          op-seq (gensym)
+          mod-node (first (g/tx-nodes-added
+                            (g/transact
+                              (concat
+                                (g/operation-label "Add Modifier")
+                                (g/operation-sequence op-seq)
+                                (make-modifier self parent-id modifier node-outline-key)))))]
+      (when (some? select-fn)
+        (g/transact
+          (concat
+            (g/operation-sequence op-seq)
+            (select-fn [mod-node])))))))
 
 (defn- selection->emitter [selection]
   (handler/adapt-single selection EmitterNode))
@@ -820,8 +853,10 @@
                                                                [x y t-x t-y]) (:points p)))]]
                         (g/set-property emitter-node key curve)))
                     (attach-emitter self emitter-node resolve-id?)
-                    (for [modifier (:modifiers emitter)]
-                      (make-modifier self emitter-node modifier))
+                    (map (partial make-modifier self emitter-node)
+                         (:modifiers emitter)
+                         (outline/gen-node-outline-keys (map (comp modifier-type-label :type)
+                                                             (:modifiers emitter))))
                     (if select-fn
                       (select-fn [emitter-node])
                       [])))))
@@ -887,15 +922,16 @@
                       (update-curve-spread-start-value z #(props/round-scalar (Math/abs (* % (.getZ delta)))))))))
 
 
-(defn load-particle-fx [project self resource pb]
-  (let [graph-id (g/node-id->graph-id self)]
-    (concat
-      (g/connect project :settings self :project-settings)
-      (g/connect project :default-tex-params self :default-tex-params)
-      (for [emitter (:emitters pb)]
-        (make-emitter self emitter))
-      (for [modifier (:modifiers pb)]
-        (make-modifier self self modifier)))))
+(defn load-particle-fx [project self _resource pb]
+  (concat
+    (g/connect project :settings self :project-settings)
+    (g/connect project :default-tex-params self :default-tex-params)
+    (map (partial make-emitter self)
+         (:emitters pb))
+    (map (partial make-modifier self self)
+         (:modifiers pb)
+         (outline/gen-node-outline-keys (map (comp modifier-type-label :type)
+                                             (:modifiers pb))))))
 
 (defn- add-default-properties-to-modifier [mod-pb]
   (update mod-pb :properties #(or (not-empty %) (get-in mod-types [(:type mod-pb) :template :properties]))))

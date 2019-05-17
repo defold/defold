@@ -173,6 +173,24 @@ embedded_components {
   }
 }
 embedded_components {
+  id: "collectionfactoryprops_proxy"
+  type: "collectionproxy"
+  data: "collection: \"/collectionfactoryprops/test_collectionfactoryprops.collection\"\n"
+  "exclude: false\n"
+  ""
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+embedded_components {
   id: "script_props_proxy"
   type: "collectionproxy"
   data: "collection: \"/script_props/test_script_props.collection\"\n"

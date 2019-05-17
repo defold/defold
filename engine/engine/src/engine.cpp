@@ -2,7 +2,7 @@
 
 #include "engine_private.h"
 
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <sys/stat.h>
 
 #include <stdio.h>
@@ -27,7 +27,9 @@
 #include <sound/sound.h>
 #include <render/render.h>
 #include <render/render_ddf.h>
+#include <profiler/profiler.h>
 #include <particle/particle.h>
+#include <script/sys_ddf.h>
 #include <tracking/tracking.h>
 #include <tracking/tracking_ddf.h>
 #include <liveupdate/liveupdate.h>
@@ -35,7 +37,6 @@
 #include "engine_service.h"
 #include "engine_version.h"
 #include "physics_debug_render.h"
-#include "profile_render.h"
 
 // Embedded resources
 // Unfortunately, the draw_line et. al are used in production code
@@ -177,7 +178,6 @@ namespace dmEngine
     , m_MainCollection(0)
     , m_LastReloadMTime(0)
     , m_MouseSensitivity(1.0f)
-    , m_ShowProfile(false)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
     , m_SharedScriptContext(0x0)
@@ -397,20 +397,22 @@ namespace dmEngine
 
     static void SetSwapInterval(HEngine engine, int swap_interval)
     {
-        swap_interval = dmMath::Max(0, swap_interval);
-#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
-        engine->m_UseSwVsync = (!engine->m_UseVariableDt && swap_interval == 0);
-#endif
-        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+        if (!engine->m_UseVariableDt)
+        {
+            swap_interval = dmMath::Max(0, swap_interval);
+            // For backward-compatability, hardware vsync with swap_interval 0 on desktop should result in sw vsync
+            engine->m_UseSwVsync = (engine->m_VsyncMode == VSYNC_SOFTWARE || (engine->m_VsyncMode == VSYNC_HARDWARE && swap_interval == 0));
+            if (engine->m_VsyncMode == VSYNC_HARDWARE && swap_interval > 0) // need to update engine update freq to get correct dt when swap interval changes
+                engine->m_UpdateFrequency /= swap_interval;
+            dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+        }
     }
 
     static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
     {
         engine->m_UpdateFrequency = frequency;
         engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
-        engine->m_UpdateFrequency = dmMath::Min(60U, engine->m_UpdateFrequency);
-        int swap_interval = 60 / engine->m_UpdateFrequency;
-        SetSwapInterval(engine, swap_interval);
+        dmProfiler::SetUpdateFrequency(engine->m_UpdateFrequency);
     }
 
     /*
@@ -584,12 +586,45 @@ namespace dmEngine
         engine->m_InvPhysicalWidth = 1.0f / physical_width;
         engine->m_InvPhysicalHeight = 1.0f / physical_height;
 
-        engine->m_UseVariableDt = dmConfigFile::GetInt(engine->m_Config, "display.variable_dt", 0) != 0;
         engine->m_PreviousFrameTime = dmTime::GetTime();
         engine->m_FlipTime = dmTime::GetTime();
         engine->m_PreviousRenderTime = 0;
         engine->m_UseSwVsync = false;
-        SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 60));
+
+        bool setting_vsync = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true);
+        uint32_t setting_update_frequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
+        uint32_t update_frequency = setting_update_frequency;
+        uint32_t swap_interval = 1;
+
+        if (!setting_vsync)
+        {
+            engine->m_UseVariableDt = setting_update_frequency == 0; // if no setting_vsync and update_frequency 0, use variable_dt
+            engine->m_VsyncMode = VSYNC_SOFTWARE;
+            swap_interval = 0;
+        }
+        else
+        {
+            engine->m_UseVariableDt = 0;
+            uint32_t refresh_rate = dmGraphics::GetWindowRefreshRate(engine->m_GraphicsContext);
+            if (refresh_rate == 0) // default to 60 if read failed
+            {
+                refresh_rate = 60;
+            }
+            else // Only bother setting a custom swap interval if we succeeded in getting a window refresh rate
+            {
+                if (setting_update_frequency > 0)
+                {
+                    // Calculate closest integer swap-interval from refresh rate and setting_update_frequency
+                    float fswap_interval = refresh_rate / setting_update_frequency;
+                    swap_interval = dmMath::Max(1U, (uint32_t) fswap_interval);
+                }
+            }
+            update_frequency = refresh_rate;
+            engine->m_VsyncMode = VSYNC_HARDWARE;
+        }
+
+        SetUpdateFrequency(engine, update_frequency);
+        SetSwapInterval(engine, swap_interval);
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
@@ -706,10 +741,10 @@ namespace dmEngine
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
         render_params.m_MaxRenderTargets = 32;
-        render_params.m_VertexProgramData = ::DEBUG_VPC;
-        render_params.m_VertexProgramDataSize = ::DEBUG_VPC_SIZE;
-        render_params.m_FragmentProgramData = ::DEBUG_FPC;
-        render_params.m_FragmentProgramDataSize = ::DEBUG_FPC_SIZE;
+        render_params.m_VertexShaderDesc = ::DEBUG_VPC;
+        render_params.m_VertexShaderDescSize = ::DEBUG_VPC_SIZE;
+        render_params.m_FragmentShaderDesc = ::DEBUG_FPC;
+        render_params.m_FragmentShaderDescSize = ::DEBUG_FPC_SIZE;
         render_params.m_MaxCharacters = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_characters", 2048 * 4);;
         render_params.m_CommandBufferSize = 1024;
         render_params.m_ScriptContext = engine->m_RenderScriptContext;
@@ -1122,10 +1157,9 @@ bail:
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
 
-        // uint64_t target_frametime = (uint64_t)((1.f / engine->m_UpdateFrequency) * 1000000.0);
         uint64_t target_frametime = 1000000 / engine->m_UpdateFrequency;
-        uint64_t time = dmTime::GetTime();
         uint64_t prev_flip_time = engine->m_FlipTime;
+        uint64_t time = dmTime::GetTime();
 
         float fps = engine->m_UpdateFrequency;
         float fixed_dt = 1.0f / fps;
@@ -1286,7 +1320,7 @@ bail:
                 }
 
                 DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
-                DM_COUNTER("Lua.Mem", GetLuaMemCount(engine));
+                DM_COUNTER("Lua.Mem (Kb)", GetLuaMemCount(engine));
 
                 if (dLib::IsDebugMode())
                 {
@@ -1301,24 +1335,8 @@ bail:
                     dmEngineService::Update(engine->m_EngineService, profile);
                 }
 
-#if !defined(DM_RELEASE)
-                if(engine->m_ShowProfile)
-                {
-                    DM_PROFILE(Profile, "Draw");
-                    dmProfile::Pause(true);
+                dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, engine->m_SystemFontMap);
 
-                    dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
-                    dmRender::RenderListEnd(engine->m_RenderContext);
-                    dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
-                    dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
-                    dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
-                    dmRender::ClearRenderObjects(engine->m_RenderContext);
-                    dmProfile::Pause(false);
-                }
-#endif
-
-#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
                 if (engine->m_UseSwVsync)
                 {
                     uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
@@ -1335,10 +1353,10 @@ bail:
                         }
                     }
                 }
-#endif
-
                 uint64_t flip_time_start = dmTime::GetTime();
+
                 dmGraphics::Flip(engine->m_GraphicsContext);
+
                 engine->m_FlipTime = dmTime::GetTime();
                 engine->m_PreviousRenderTime = engine->m_FlipTime - flip_time_start;
 
@@ -1387,12 +1405,12 @@ bail:
         engine->m_RunResult.m_ExitCode = code;
     }
 
-    static void Reboot(HEngine engine, dmEngineDDF::Reboot* reboot)
+    static void Reboot(HEngine engine, dmSystemDDF::Reboot* reboot)
     {
         int argc = 0;
         engine->m_RunResult.m_Argv[argc++] = strdup("dmengine");
 
-        // This value should match the count in dmEngineDDF::Reboot
+        // This value should match the count in dmSystemDDF::Reboot
         const int ARG_COUNT = 6;
         char* args[ARG_COUNT] =
         {
@@ -1490,30 +1508,30 @@ bail:
 
             dmDDF::ResolvePointers(descriptor, message->m_Data);
 
-            if (descriptor == dmEngineDDF::Exit::m_DDFDescriptor)
+            if (descriptor == dmSystemDDF::Exit::m_DDFDescriptor)
             {
-                dmEngineDDF::Exit* ddf = (dmEngineDDF::Exit*) message->m_Data;
+                dmSystemDDF::Exit* ddf = (dmSystemDDF::Exit*) message->m_Data;
                 dmEngine::Exit(self, ddf->m_Code);
             }
-            else if (descriptor == dmEngineDDF::Reboot::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::Reboot::m_DDFDescriptor)
             {
-                dmEngineDDF::Reboot* reboot = (dmEngineDDF::Reboot*) message->m_Data;
+                dmSystemDDF::Reboot* reboot = (dmSystemDDF::Reboot*) message->m_Data;
                 dmEngine::Reboot(self, reboot);
             }
-            else if (descriptor == dmEngineDDF::ToggleProfile::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::ToggleProfile::m_DDFDescriptor)
             {
-                self->m_ShowProfile = !self->m_ShowProfile;
+                dmProfiler::ToggleProfiler();
             }
-            else if (descriptor == dmEngineDDF::TogglePhysicsDebug::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::TogglePhysicsDebug::m_DDFDescriptor)
             {
                 if(dLib::IsDebugMode())
                 {
                     self->m_PhysicsContext.m_Debug = !self->m_PhysicsContext.m_Debug;
                 }
             }
-            else if (descriptor == dmEngineDDF::StartRecord::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::StartRecord::m_DDFDescriptor)
             {
-                dmEngineDDF::StartRecord* start_record = (dmEngineDDF::StartRecord*) message->m_Data;
+                dmSystemDDF::StartRecord* start_record = (dmSystemDDF::StartRecord*) message->m_Data;
                 RecordData* record_data = &self->m_RecordData;
 
                 record_data->m_FramePeriod = start_record->m_FramePeriod;
@@ -1538,7 +1556,7 @@ bail:
                     record_data->m_Recorder = 0;
                 }
             }
-            else if (descriptor == dmEngineDDF::StopRecord::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::StopRecord::m_DDFDescriptor)
             {
                 RecordData* record_data = &self->m_RecordData;
                 if (record_data->m_Recorder)
@@ -1553,18 +1571,18 @@ bail:
                     dmLogError("No recording in progress");
                 }
             }
-            else if (descriptor == dmEngineDDF::SetUpdateFrequency::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor)
             {
-                dmEngineDDF::SetUpdateFrequency* m = (dmEngineDDF::SetUpdateFrequency*) message->m_Data;
+                dmSystemDDF::SetUpdateFrequency* m = (dmSystemDDF::SetUpdateFrequency*) message->m_Data;
                 SetUpdateFrequency(self, (uint32_t) m->m_Frequency);
             }
             else if (descriptor == dmEngineDDF::HideApp::m_DDFDescriptor)
             {
                 dmGraphics::IconifyWindow(self->m_GraphicsContext);
             }
-            else if (descriptor == dmEngineDDF::SetVsync::m_DDFDescriptor)
+            else if (descriptor == dmSystemDDF::SetVsync::m_DDFDescriptor)
             {
-                dmEngineDDF::SetVsync* m = (dmEngineDDF::SetVsync*) message->m_Data;
+                dmSystemDDF::SetVsync* m = (dmSystemDDF::SetVsync*) message->m_Data;
                 SetSwapInterval(self, m->m_SwapInterval);
             }
             else if (descriptor == dmEngineDDF::RunScript::m_DDFDescriptor)

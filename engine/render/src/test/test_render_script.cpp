@@ -1,6 +1,7 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include "render/render.h"
 #include "render/font_renderer.h"
@@ -13,18 +14,24 @@ using namespace Vectormath::Aos;
 
 namespace
 {
+    // NOTE: we don't generate actual bytecode for this test-data, so
+    // just pass in regular lua source instead.
     dmLuaDDF::LuaSource *LuaSourceFromString(const char *source)
     {
         static dmLuaDDF::LuaSource tmp;
         memset(&tmp, 0x00, sizeof(tmp));
         tmp.m_Script.m_Data = (uint8_t*)source;
         tmp.m_Script.m_Count = strlen(source);
+        tmp.m_Bytecode.m_Data = (uint8_t*)source;
+        tmp.m_Bytecode.m_Count = strlen(source);
+        tmp.m_Bytecode64.m_Data = (uint8_t*)source;
+        tmp.m_Bytecode64.m_Count = strlen(source);
         tmp.m_Filename = "render-dummy";
         return &tmp;
     }
 }
 
-class dmRenderScriptTest : public ::testing::Test
+class dmRenderScriptTest : public jc_test_base_class
 {
 protected:
     dmScript::HContext m_ScriptContext;
@@ -347,8 +354,123 @@ TEST_F(dmRenderScriptTest, TestLuaState)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+TEST_F(dmRenderScriptTest, TestLuaRenderTargetTooLarge)
+{
+    const char* script =
+    "function init(self)\n"
+    "    local params_color = {\n"
+    "        format = render.FORMAT_RGBA,\n"
+    "        width = 1000000000,\n"
+    "        height = 2,\n"
+    "        min_filter = render.FILTER_NEAREST,\n"
+    "        mag_filter = render.FILTER_LINEAR,\n"
+    "        u_wrap = render.WRAP_REPEAT,\n"
+    "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
+    "    }\n"
+    "    self.rt = render.render_target(\"rt\", {[render.BUFFER_COLOR_BIT] = params_color})\n"
+    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
 {
+    const char* script =
+    "function update(self)\n"
+    "    local params_color = {\n"
+    "        format = render.FORMAT_RGBA,\n"
+    "        width = 1,\n"
+    "        height = 2,\n"
+    "        min_filter = render.FILTER_NEAREST,\n"
+    "        mag_filter = render.FILTER_LINEAR,\n"
+    "        u_wrap = render.WRAP_REPEAT,\n"
+    "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
+    "    }\n"
+    "    local params_depth = {\n"
+    "        format = render.FORMAT_DEPTH,\n"
+    "        width = 1,\n"
+    "        height = 2,\n"
+    "        min_filter = render.FILTER_NEAREST,\n"
+    "        mag_filter = render.FILTER_LINEAR,\n"
+    "        u_wrap = render.WRAP_REPEAT,\n"
+    "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
+    "    }\n"
+    "    local params_stencil = {\n"
+    "        format = render.FORMAT_STENCIL,\n"
+    "        width = 1,\n"
+    "        height = 2,\n"
+    "        min_filter = render.FILTER_NEAREST,\n"
+    "        mag_filter = render.FILTER_LINEAR,\n"
+    "        u_wrap = render.WRAP_REPEAT,\n"
+    "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
+    "    }\n"
+    "    self.rt = render.render_target(\"rt\", {[render.BUFFER_COLOR_BIT] = params_color, [render.BUFFER_DEPTH_BIT] = params_depth, [render.BUFFER_STENCIL_BIT] = params_stencil})\n"
+    "    render.set_render_target(self.rt, {transient = {render.BUFFER_DEPTH_BIT, render.BUFFER_STENCIL_BIT}})\n"
+    "    render.set_render_target(self.rt)\n"
+    "    render.set_render_target_size(self.rt, 3, 4)\n"
+            " local rt_w = render.get_render_target_width(self.rt, render.BUFFER_COLOR_BIT)\n"
+            " assert(rt_w == 3)\n"
+            " local rt_h = render.get_render_target_height(self.rt, render.BUFFER_COLOR_BIT)\n"
+            " assert(rt_h == 4)\n"
+            " local rt_w = render.get_render_target_width(self.rt, render.BUFFER_DEPTH_BIT)\n"
+            " assert(rt_w == 3)\n"
+            " local rt_h = render.get_render_target_height(self.rt, render.BUFFER_DEPTH_BIT)\n"
+            " assert(rt_h == 4)\n"
+            " local rt_w = render.get_render_target_width(self.rt, render.BUFFER_DEPTH_BIT)\n"
+            " assert(rt_w == 3)\n"
+            " local rt_h = render.get_render_target_height(self.rt, render.BUFFER_DEPTH_BIT)\n"
+            " assert(rt_h == 4)\n"
+    "    render.set_render_target(nil, {transient = {render.BUFFER_COLOR_BIT}})\n"
+    "    render.delete_render_target(self.rt)\n"
+    "    render.set_render_target(nil, {transient = {}})\n"
+    "    render.set_render_target(nil, {})\n"
+    "    render.set_render_target()\n"
+    "    render.set_render_target(render.RENDER_TARGET_DEFAULT)\n"
+    "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::DispatchRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(7u, commands.Size());
+
+    dmRender::Command* command = &commands[0];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_TARGET, command->m_Type);
+    ASSERT_NE((void*)0, (void*)command->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT, (uint32_t)command->m_Operands[1]);
+
+    command = &commands[1];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_TARGET, command->m_Type);
+    ASSERT_NE((void*)0, (void*)command->m_Operands[0]);
+    ASSERT_EQ(0, (uint32_t)command->m_Operands[1]);
+
+    command = &commands[2];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_TARGET, command->m_Type);
+    ASSERT_EQ((void*)0, (void*)command->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::BUFFER_TYPE_COLOR_BIT, (uint32_t)command->m_Operands[1]);
+
+    for(uint32_t i = 3; i < 7; ++i)
+    {
+        command = &commands[i];
+        ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_TARGET, command->m_Type);
+        ASSERT_EQ((void*)0, (void*)command->m_Operands[0]);
+        ASSERT_EQ(0, (uint32_t)command->m_Operands[1]);
+    }
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaRenderTargetDeprecated)
+{
+    // DEPRECATED functions tested, remove this test when render.enable/disable_render_target script functions are removed!
     const char* script =
     "function update(self)\n"
     "    local params_color = {\n"
@@ -406,11 +528,13 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
     ASSERT_EQ(2u, commands.Size());
     dmRender::Command* command = &commands[0];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_RENDER_TARGET, command->m_Type);
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_TARGET, command->m_Type);
     ASSERT_NE((void*)0, (void*)command->m_Operands[0]);
+    ASSERT_EQ(0, (uint32_t)command->m_Operands[1]);
     command = &commands[1];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_DISABLE_RENDER_TARGET, command->m_Type);
-    ASSERT_NE((void*)0, (void*)command->m_Operands[0]);
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_TARGET, command->m_Type);
+    ASSERT_EQ((void*)0, (void*)command->m_Operands[0]);
+    ASSERT_EQ(0, (uint32_t)command->m_Operands[1]);
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
     dmRender::DeleteRenderScriptInstance(render_script_instance);
@@ -605,7 +729,7 @@ TEST_F(dmRenderScriptTest, TestLuaDraw_StringPredicate)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
-    ASSERT_EQ(3u, commands.Size());
+    ASSERT_EQ(2u, commands.Size());
 
     dmRender::Command* command = &commands[0];
     ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW, command->m_Type);
@@ -613,9 +737,6 @@ TEST_F(dmRenderScriptTest, TestLuaDraw_StringPredicate)
 
     command = &commands[1];
     ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW_DEBUG3D, command->m_Type);
-
-    command = &commands[2];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW_DEBUG2D, command->m_Type);
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
@@ -638,7 +759,7 @@ TEST_F(dmRenderScriptTest, TestLuaDraw_HashPredicate)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
-    ASSERT_EQ(3u, commands.Size());
+    ASSERT_EQ(2u, commands.Size());
 
     dmRender::Command* command = &commands[0];
     ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW, command->m_Type);
@@ -646,9 +767,6 @@ TEST_F(dmRenderScriptTest, TestLuaDraw_HashPredicate)
 
     command = &commands[1];
     ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW_DEBUG3D, command->m_Type);
-
-    command = &commands[2];
-    ASSERT_EQ(dmRender::COMMAND_TYPE_DRAW_DEBUG2D, command->m_Type);
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
@@ -886,9 +1004,24 @@ TEST_F(dmRenderScriptTest, TestInstanceContext)
     ASSERT_FALSE(dmScript::IsInstanceValid(L));
 }
 
+TEST_F(dmRenderScriptTest, DeltaTime)
+{
+    const char* script = "function update(self, dt)\n"
+                    "assert (dt == 1122)\n"
+                    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 1122));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

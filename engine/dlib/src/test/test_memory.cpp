@@ -1,23 +1,24 @@
 #include <stdint.h>
 #include <stdio.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include "../dlib/memory.h"
 
 TEST(dmMemory, AlignedMalloc)
 {
     void* dummy = 0;
     ASSERT_EQ(dmMemory::RESULT_OK, dmMemory::AlignedMalloc(&dummy, 8, 1024));
-    ASSERT_EQ(0, ((unsigned long)dummy % 8));
+    ASSERT_EQ(0u, ((unsigned long)dummy % 8));
     dmMemory::AlignedFree(dummy);
     dummy = 0;
 
     ASSERT_EQ(dmMemory::RESULT_OK, dmMemory::AlignedMalloc(&dummy, 16, 1024));
-    ASSERT_EQ(0, ((unsigned long)dummy % 16));
+    ASSERT_EQ(0u, ((unsigned long)dummy % 16));
     dmMemory::AlignedFree(dummy);
     dummy = 0;
 
     ASSERT_EQ(dmMemory::RESULT_OK, dmMemory::AlignedMalloc(&dummy, 1024*16, 1024));
-    ASSERT_EQ(0, ((unsigned long)dummy % 1024*16));
+    ASSERT_EQ(0u, ((unsigned long)dummy % 1024*16));
     dmMemory::AlignedFree(dummy);
     dummy = 0;
 
@@ -29,6 +30,6 @@ TEST(dmMemory, AlignedMalloc)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

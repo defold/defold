@@ -1,0 +1,41 @@
+clang++ -c -arch arm64 -target arm-apple-darwin12 -isysroot /opt/iPhoneOS11.2.sdk/ -m64 -O2 -g -miphoneos-version-min=6.0 -DDM_PLATFORM_IOS  -fno-exceptions -fvisibility=hidden  -Iupload/defappsflyer/include  -F/tmp/job356058241218600605/upload/defappsflyer/lib/ios  -I/var/extender/sdk/851fbeb469987908d2b785fa3964003acc919394/defoldsdk//include -I/var/extender/sdk/851fbeb469987908d2b785fa3964003acc919394/defoldsdk//sdk/include  upload/defappsflyer/src/DefAppsFlyer.cpp -obuild/DefAppsFlyer.cpp_0.o
+upload/defappsflyer/src/DefAppsFlyer.cpp:62:23: warning: format string is not a string literal (potentially insecure) [-Wformat-security]
+        luaL_error(L, msg);
+                      ^~~
+upload/defappsflyer/src/DefAppsFlyer.cpp:62:23: note: treat the string as an argument to avoid this
+        luaL_error(L, msg);
+                      ^
+                      "%s", 
+1 warning generated.
+
+clang++ -c -arch arm64 -target arm-apple-darwin12 -isysroot /opt/iPhoneOS11.2.sdk/ -m64 -O2 -g -miphoneos-version-min=6.0 -DDM_PLATFORM_IOS  -fno-exceptions -fvisibility=hidden  -Iupload/defappsflyer/include  -F/tmp/job356058241218600605/upload/defappsflyer/lib/ios  -I/var/extender/sdk/851fbeb469987908d2b785fa3964003acc919394/defoldsdk//include -I/var/extender/sdk/851fbeb469987908d2b785fa3964003acc919394/defoldsdk//sdk/include  upload/defappsflyer/src/DefAppsFlyerIOS.mm -obuild/DefAppsFlyerIOS.mm_1.o
+In file included from upload/defappsflyer/src/DefAppsFlyerIOS.mm:2:
+In file included from upload/defappsflyer/src/DefAppsFlyer.h:2:
+In file included from /var/extender/sdk/851fbeb469987908d2b785fa3964003acc919394/defoldsdk//include/dmsdk/sdk.h:12:
+/var/extender/sdk/851fbeb469987908d2b785fa3964003acc919394/defoldsdk//include/dmsdk/dlib/log.h:130:2: warning: "DLIB_LOG_DOMAIN is not defined" [-W#warnings]
+#warning "DLIB_LOG_DOMAIN is not defined"
+ ^
+In file included from upload/defappsflyer/src/DefAppsFlyerIOS.mm:5:
+/tmp/job356058241218600605/upload/defappsflyer/lib/ios/AppsFlyerTracker.framework/Headers/AppsFlyerTracker.h:196:1: warning: no 'assign', 'retain', or 'copy' attribute is specified - 'assign' is assumed [-Wobjc-property-no-attribute]
+@property (nonatomic, setter = setAppInviteOneLink:) NSString* appInviteOneLinkID;
+^
+/tmp/job356058241218600605/upload/defappsflyer/lib/ios/AppsFlyerTracker.framework/Headers/AppsFlyerTracker.h:196:1: warning: default property attribute 'assign' not appropriate for non-GC object [-Wobjc-property-no-attribute]
+3 warnings generated.
+
+clang++ -c -arch arm64 -target arm-apple-darwin12 -isysroot /opt/iPhoneOS11.2.sdk/ -m64 -O2 -g -miphoneos-version-min=6.0 -DDM_PLATFORM_IOS  -fno-exceptions -fvisibility=hidden  -Iupload/defappsflyer/include  -F/tmp/job356058241218600605/upload/defappsflyer/lib/ios  -I/var/extender/sdk/851fbeb469987908d2b785fa3964003acc919394/defoldsdk//include -I/var/extender/sdk/851fbeb469987908d2b785fa3964003acc919394/defoldsdk//sdk/include  upload/defappsflyer/src/utils/LuaUtils.cpp -obuild/LuaUtils.cpp_2.o
+In file included from upload/defappsflyer/src/utils/LuaUtils.cpp:1:
+In file included from upload/defappsflyer/src/utils/LuaUtils.h:3:
+In file included from /var/extender/sdk/851fbeb469987908d2b785fa3964003acc919394/defoldsdk//include/dmsdk/sdk.h:12:
+/var/extender/sdk/851fbeb469987908d2b785fa3964003acc919394/defoldsdk//include/dmsdk/dlib/log.h:130:2: warning: "DLIB_LOG_DOMAIN is not defined" [-W#warnings]
+#warning "DLIB_LOG_DOMAIN is not defined"
+ ^
+1 warning generated.
+
+llvm-ar rcs /tmp/job356058241218600605/build/libf2f56a81-518f-4968-ac44-cb29542c00e9.a build/DefAppsFlyer.cpp_0.o build/DefAppsFlyerIOS.mm_1.o build/LuaUtils.cpp_2.o 
+
+clang++ -c -arch arm64 -target arm-apple-darwin12 -isysroot /opt/iPhoneOS11.2.sdk/ -m64 -O2 -g -miphoneos-version-min=6.0 -DDM_PLATFORM_IOS  -fno-exceptions -fvisibility=hidden    -I/var/extender/sdk/851fbeb469987908d2b785fa3964003acc919394/defoldsdk//include -I/var/extender/sdk/851fbeb469987908d2b785fa3964003acc919394/defoldsdk//sdk/include  build/main.cpp -obuild/main_tmpeae4fe8e-fc9b-4bf2-a338-7034476b4fa4.o
+
+clang++ -arch arm64 -target arm-apple-darwin12 -isysroot /opt/iPhoneOS11.2.sdk/ -m64 -O2 -g -miphoneos-version-min=6.0 -o build/dmengine -fobjc-link-runtime -dead_strip  -L/tmp/job356058241218600605/build -L/tmp/job356058241218600605/upload/defappsflyer/lib/ios   -lf2f56a81-518f-4968-ac44-cb29542c00e9  -F/tmp/job356058241218600605/build -F/tmp/job356058241218600605/upload/defappsflyer/lib/ios -F/tmp/job356058241218600605/upload/defappsflyer/lib/ios  -framework AppsFlyerTracker  -framework OpenGLES -framework OpenAL -framework QuartzCore -framework CoreGraphics -framework AudioToolbox -framework SystemConfiguration -framework CoreVideo -framework UIKit -framework CoreTelephony -framework StoreKit -framework Security -framework iAd  -weak_framework Foundation -weak_framework Accounts -weak_framework Social -weak_framework AdSupport  -L/var/extender/sdk/851fbeb469987908d2b785fa3964003acc919394/defoldsdk//lib/arm64-darwin -L/var/extender/sdk/851fbeb469987908d2b785fa3964003acc919394/defoldsdk//ext/lib/arm64-darwin  -lengine -lengine_service -laxtls -lwebviewext -lprofilerext -lfacebookext -liapext -lpushext -liacext -lrecord_null -lgameobject -lddf -lresource -lgamesys -lgraphics -lphysics -lBulletDynamics -lBulletCollision -lLinearMath -lBox2D -lrender -lscript -llua -lextension -lhid -linput -lparticle -lrig -ldlib -ldmglfw -lgui -ltracking -lcrashext -lsound -ltremolo -lliveupdate -lBolts -lFBSDKCore -lFBSDKLogin -lFBSDKShare  build/main_tmpeae4fe8e-fc9b-4bf2-a338-7034476b4fa4.o 
+ld: embedded dylibs/frameworks are only supported on iOS 8.0 and later (@rpath/AppsFlyerTracker.framework/AppsFlyerTracker) for architecture arm64
+clang-6.0: error: linker command failed with exit code 1 (use -v to see invocation)
+

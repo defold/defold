@@ -1,0 +1,5 @@
+name:"input_consume_collection"
+instances {
+  id: "go_consume_proxy"
+  prototype: "/collection_proxy/input_consume_yes_proxy.go"
+}

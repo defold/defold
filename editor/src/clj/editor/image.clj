@@ -1,13 +1,14 @@
 (ns editor.image
   (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.gl :as gl]
             [editor.gl.texture :as texture]
             [editor.image-util :as image-util]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
-            [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.defold.editor.pipeline TextureSetGenerator$UVTransform]
            [java.awt.image BufferedImage]))
@@ -28,28 +29,31 @@
 (defn make-texture-build-target
   [workspace node-id image-generator texture-profile compress?]
   (assert (contains? image-generator :sha1))
-  (let [texture-type     (workspace/get-resource-type workspace "texture")
+  (let [texture-type (workspace/get-resource-type workspace "texture")
         texture-resource (resource/make-memory-resource workspace texture-type (:sha1 image-generator))]
-    {:node-id   node-id
-     :resource  (workspace/make-build-resource texture-resource)
-     :build-fn  build-texture
-     :user-data {:content-generator image-generator
-                 :compress?         compress?
-                 :texture-profile   texture-profile}}))
+    (bt/with-content-hash
+      {:node-id node-id
+       :resource (workspace/make-build-resource texture-resource)
+       :build-fn build-texture
+       :user-data {:content-generator image-generator
+                   :compress? compress?
+                   :texture-profile texture-profile}})))
 
 (g/defnk produce-build-targets [_node-id resource content-generator texture-profile build-settings]
-  [{:node-id   _node-id
-    :resource  (workspace/make-build-resource resource)
-    :build-fn  build-texture
-    :user-data {:content-generator content-generator
-                :compress?         (:compress? build-settings false)
-                :texture-profile   texture-profile}}])
+  [(bt/with-content-hash
+     {:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-texture
+      :user-data {:content-generator content-generator
+                  :compress? (:compress? build-settings false)
+                  :texture-profile texture-profile}})])
 
 (defn- generate-gpu-texture [{:keys [texture-image]} request-id params unit]
   (texture/texture-image->gpu-texture request-id texture-image params unit))
 
 (defn- generate-content [{:keys [_node-id resource]}]
-  (validation/resource-io-with-errors image-util/read-image resource _node-id :resource))
+  (resource-io/with-error-translation resource _node-id :resource
+    (image-util/read-image resource)))
 
 (g/defnode ImageNode
   (inherits resource-node/ResourceNode)
@@ -65,7 +69,8 @@
                                   (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))
 
   (output size g/Any :cached (g/fnk [_node-id resource]
-                               (validation/resource-io-with-errors image-util/read-size resource _node-id :size)))
+                               (resource-io/with-error-translation resource _node-id :size
+                                 (image-util/read-size resource))))
 
   (output content BufferedImage (g/fnk [content-generator]
                                   ((:f content-generator) (:args content-generator))))

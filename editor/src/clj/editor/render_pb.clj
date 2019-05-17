@@ -1,6 +1,7 @@
 (ns editor.render-pb
   (:require
    [dynamo.graph :as g]
+   [editor.build-target :as bt]
    [editor.core :as core]
    [editor.graph-util :as gu]
    [editor.resource :as resource]
@@ -26,7 +27,7 @@
                          (project/disconnect-resource-node evaluation-context project old-value self connections)
                          (g/disconnect project :nil-resource self :material-resource))
                        (if new-value
-                         (project/connect-resource-node evaluation-context project new-value self connections)
+                         (:tx-data (project/connect-resource-node evaluation-context project new-value self connections))
                          (g/connect project :nil-resource self :material-resource))))))
            (dynamic visible (g/constantly false)))
 
@@ -128,12 +129,13 @@
                                                  [[:materials i :material]
                                                   (when material (deps-by-source material))])
                                                named-materials))]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-render
-          :user-data {:pb-msg pb-msg
-                      :built-resources built-resources}
-          :deps dep-build-targets}])))
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-render
+            :user-data {:pb-msg pb-msg
+                        :built-resources built-resources}
+            :deps dep-build-targets})])))
 
 (g/defnode RenderNode
   (inherits core/Scope)

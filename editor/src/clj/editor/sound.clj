@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [util.digest :as digest]
+            [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.outline :as outline]
@@ -38,10 +39,11 @@
 
 (g/defnk produce-source-build-targets [_node-id resource]
   (try
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-sound-source
-      :user-data {:content-hash (resource/resource->sha1-hex resource)}}]
+    [(bt/with-content-hash
+       {:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-sound-source
+        :user-data {:content-hash (resource/resource->sha1-hex resource)}})]
     (catch IOException e
       (g/->error _node-id :resource :fatal resource (format "Couldn't read audio file %s" (resource/resource->proj-path resource))))))
 
@@ -55,6 +57,7 @@
 (g/defnk produce-outline-data
   [_node-id]
   {:node-id _node-id
+   :node-outline-key "Sound"
    :label "Sound"
    :icon sound-icon})
 
@@ -79,7 +82,7 @@
                          :type :boolean}
                         {:path [:group]
                          :label "Group"
-                         :type :number}
+                         :type :string}
                         {:path [:gain]
                          :label "Gain"
                          :type :number}]}]
@@ -112,12 +115,13 @@
             dep-resources (map (fn [[label resource]]
                                  [label (get deps-by-resource resource)])
                                [[:sound sound]])]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-sound
-          :user-data {:pb-msg pb-msg
-                      :dep-resources dep-resources}
-          :deps dep-build-targets}])))
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-sound
+            :user-data {:pb-msg pb-msg
+                        :dep-resources dep-resources}
+            :deps dep-build-targets})])))
 
 (defn load-sound [project self resource sound]
   (g/set-property self

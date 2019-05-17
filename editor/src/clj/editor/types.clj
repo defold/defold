@@ -218,3 +218,12 @@
   (geom-delete [this ids])
   (geom-update [this ids f])
   (geom-transform [this ids ^Matrix4d transform]))
+
+(defn node-outline-key-path? [value]
+  (and (vector? value)
+       (let [[resource-node & outline-node-names] value]
+         (and (integer? resource-node)
+              (every? string? outline-node-names)))))
+
+(g/deftype NodeOutlineKeyPaths #{(s/pred node-outline-key-path?)})
+(g/deftype RenderableTags #{s/Keyword})

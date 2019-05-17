@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <map>
 #include <string>
-#include <gtest/gtest.h>
 #include "dlib/configfile.h"
 #include "dlib/dstrings.h"
 #include "dlib/time.h"
@@ -14,6 +13,9 @@
 #include "dlib/http_cache_verify.h"
 #include "testutil.h"
 
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+
 int g_HttpPort = -1;
 int g_HttpPortSSL = -1;
 int g_HttpPortSSLTest = -1;
@@ -22,10 +24,11 @@ int g_HttpPortSSLTest = -1;
 #define NAME_SOCKET_SSL "{server_socket_ssl}"
 #define NAME_SOCKET_SSL_TEST "{server_socket_ssl_test}"
 
-class dmHttpClientTest: public ::testing::TestWithParam<const char*>
+class dmHttpClientTest: public jc_test_params_class<const char*>
 {
 public:
     dmHttpClient::HClient m_Client;
+    dmDNS::HChannel m_DNSChannel;
     std::map<std::string, std::string> m_Headers;
     std::string m_Content;
     std::string m_ToPost;
@@ -106,6 +109,7 @@ public:
 #endif
         ASSERT_EQ(0, ret);
 
+        dmDNS::NewChannel(&m_DNSChannel);
         dmHttpClient::NewParams params;
         params.m_Userdata = this;
         params.m_HttpContent = dmHttpClientTest::HttpContent;
@@ -113,6 +117,7 @@ public:
         params.m_HttpSendContentLength = dmHttpClientTest::HttpSendContentLength;
         params.m_HttpWrite = dmHttpClientTest::HttpWrite;
         params.m_HttpWriteHeaders = dmHttpClientTest::HttpWriteHeaders;
+        params.m_DNSChannel = m_DNSChannel;
         bool secure = strcmp(m_URI.m_Scheme, "https") == 0;
         m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, secure);
         ASSERT_NE((void*) 0, m_Client);
@@ -125,6 +130,7 @@ public:
     {
         if (m_Client)
             dmHttpClient::Delete(m_Client);
+        dmDNS::DeleteChannel(m_DNSChannel);
     }
 };
 
@@ -133,7 +139,7 @@ class dmHttpClientTestSSL : public dmHttpClientTest
     // for gtest
 };
 
-class dmHttpClientParserTest: public ::testing::Test
+class dmHttpClientParserTest: public jc_test_base_class
 {
 public:
     std::map<std::string, std::string> m_Headers;
@@ -260,6 +266,29 @@ TEST_F(dmHttpClientParserTest, TestWhitespaceHeaders)
     ASSERT_EQ((size_t) 3, m_Headers.size());
 }
 
+TEST_F(dmHttpClientParserTest, TestNoWhitespaceHeaders)
+{
+    const char* headers = "HTTP/1.1 200 OK\r\n"
+"Content-Type:text/html;charset=UTF-8\r\n"
+"Content-Length:21\r\n"
+"Server:Jetty(7.0.2.v20100331)\r\n"
+"\r\n";
+
+    dmHttpClientPrivate::ParseResult r;
+    r = Parse(headers, false);
+    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
+
+    ASSERT_EQ(1, m_Major);
+    ASSERT_EQ(1, m_Minor);
+    ASSERT_EQ(200, m_Status);
+    ASSERT_EQ("OK", m_StatusString);
+
+    ASSERT_EQ("text/html;charset=UTF-8", m_Headers["Content-Type"]);
+    ASSERT_EQ("21", m_Headers["Content-Length"]);
+    ASSERT_EQ("Jetty(7.0.2.v20100331)", m_Headers["Server"]);
+    ASSERT_EQ((size_t) 3, m_Headers.size());
+}
+
 TEST_F(dmHttpClientParserTest, TestContent)
 {
     const char* headers = "HTTP/1.1 200 OK\r\n"
@@ -335,20 +364,24 @@ struct HttpStressHelper
     int m_StatusCode;
     std::string m_Content;
     dmHttpClient::HClient m_Client;
+    dmDNS::HChannel m_DNSChannel;
 
     HttpStressHelper(const dmURI::Parts& uri)
     {
         bool secure = strcmp(uri.m_Scheme, "https") == 0;
         m_StatusCode = 0;
+        dmDNS::NewChannel(&m_DNSChannel);
         dmHttpClient::NewParams params;
         params.m_Userdata = this;
         params.m_HttpContent = HttpStressHelper::HttpContent;
+        params.m_DNSChannel = m_DNSChannel;
         m_Client = dmHttpClient::New(&params, uri.m_Hostname, uri.m_Port, secure);
     }
 
     ~HttpStressHelper()
     {
         dmHttpClient::Delete(m_Client);
+        dmDNS::DeleteChannel(m_DNSChannel);
     }
 
     static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
@@ -376,7 +409,12 @@ static void HttpStressThread(void* param)
 
 TEST_P(dmHttpClientTest, ThreadStress)
 {
-    const int thread_count = 16;
+    // Shut down and reopen the connection pool so we can use it to it's full extent
+    // on each pass
+    ASSERT_EQ(0, dmHttpClient::ShutdownConnectionPool());
+    dmHttpClient::ReopenConnectionPool();
+
+    const int thread_count = 16;    // 32 is the maximum number of items in the connection pool, stay below that
     dmThread::Thread threads[thread_count];
     HttpStressHelper* helpers[thread_count];
 
@@ -425,7 +463,7 @@ TEST_P(dmHttpClientTest, CustomRequestHeaders)
 
 TEST_P(dmHttpClientTest, ServerTimeout)
 {
-    for (int i = 0; i < 10; ++i)
+    for (int i = 0; i < 3; ++i)
     {
         dmHttpClient::Result r;
         m_Content = "";
@@ -433,8 +471,8 @@ TEST_P(dmHttpClientTest, ServerTimeout)
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(30, strtol(m_Content.c_str(), 0, 10));
 
-        // NOTE: MaxIdleTime is set to 300ms
-        dmTime::Sleep(1000 * 350);
+        // NOTE: MaxIdleTime is set to 500ms, see TestHttpServer.cpp line 300
+        dmTime::Sleep(1000 * 550);
 
         m_Content = "";
         r = dmHttpClient::Get(m_Client, "/add/100/20");
@@ -451,7 +489,7 @@ TEST_P(dmHttpClientTest, ClientTimeout)
     dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 130 * 1000); // microseconds
 
     char buf[128];
-    for (int i = 0; i < 7; ++i)
+    for (int i = 0; i < 3; ++i)
     {
         dmHttpClient::Result r;
         m_StatusCode = -1;
@@ -474,7 +512,7 @@ TEST_P(dmHttpClientTest, ClientTimeout)
 
 TEST_P(dmHttpClientTestSSL, FailedSSLHandshake)
 {
-    for( int i = 0; i < 5; ++i )
+    for( int i = 0; i < 3; ++i )
     {
         uint64_t timeout = 130 * 1000;
         dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, timeout); // microseconds
@@ -539,7 +577,7 @@ void ShutdownThread(void *args)
 TEST_P(dmHttpClientTest, ClientThreadedShutdown)
 {
     bool gotit = false;
-    for (int i=0;i<10;i++) {
+    for (int i=0;i<5;i++) {
         // Create a request that proceeds for a long time and cancel it in-flight with the
         // shutdown thread. If it managed to get the conneciton it will set gotit to true.
         dmThread::Thread thr = dmThread::New(&ShutdownThread, 65536, &gotit, "cst");
@@ -668,6 +706,7 @@ TEST_P(dmHttpClientTest, Cache)
     params.m_Userdata = this;
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+    params.m_DNSChannel = m_DNSChannel;
     dmHttpCache::NewParams cache_params;
     cache_params.m_Path = "tmp/cache";
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
@@ -710,6 +749,7 @@ TEST_P(dmHttpClientTest, MaxAgeCache)
     params.m_Userdata = this;
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+    params.m_DNSChannel = m_DNSChannel;
     dmHttpCache::NewParams cache_params;
     cache_params.m_Path = "tmp/cache";
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
@@ -760,14 +800,11 @@ TEST_P(dmHttpClientTest, PathWithSpaces)
     ASSERT_STREQ(message, m_Content.c_str());
 }
 
+const char* params_http_client_test[] = {"http://localhost:" NAME_SOCKET, "https://localhost:" NAME_SOCKET_SSL};
+INSTANTIATE_TEST_CASE_P(dmHttpClientTest, dmHttpClientTest, jc_test_values_in(params_http_client_test));
 
-INSTANTIATE_TEST_CASE_P(dmHttpClientTest,
-                        dmHttpClientTest,
-                        ::testing::Values("http://localhost:" NAME_SOCKET, "https://localhost:" NAME_SOCKET_SSL));
-
-INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL,
-                        dmHttpClientTestSSL,
-                        ::testing::Values("https://localhost:" NAME_SOCKET_SSL_TEST));
+const char* params_http_client_test_ssl[] = {"https://localhost:" NAME_SOCKET_SSL_TEST};
+INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL, dmHttpClientTestSSL, jc_test_values_in(params_http_client_test_ssl));
 
 
 class dmHttpClientTestCache : public dmHttpClientTest
@@ -818,6 +855,7 @@ TEST_P(dmHttpClientTestCache, DirectFromCache)
     params.m_Userdata = this;
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+    params.m_DNSChannel = m_DNSChannel;
     dmHttpCache::NewParams cache_params;
     cache_params.m_Path = "tmp/cache";
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
@@ -858,6 +896,7 @@ TEST_P(dmHttpClientTestCache, TrustCacheNoValidate)
     params.m_Userdata = this;
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+    params.m_DNSChannel = m_DNSChannel;
     dmHttpCache::NewParams cache_params;
     cache_params.m_Path = "tmp/cache";
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
@@ -894,6 +933,7 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     params.m_Userdata = this;
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
+    params.m_DNSChannel = m_DNSChannel;
     dmHttpCache::NewParams cache_params;
     cache_params.m_Path = "tmp/cache";
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
@@ -914,7 +954,7 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     ASSERT_NE((void*) 0, m_Client);
 
 
-    dmHttpCacheVerify::Result verify_r = dmHttpCacheVerify::VerifyCache(params.m_HttpCache, &m_URI, 60 * 60 * 24 * 5);
+    dmHttpCacheVerify::Result verify_r = dmHttpCacheVerify::VerifyCache(params.m_HttpCache, &m_URI, m_DNSChannel, 60 * 60 * 24 * 5);
     ASSERT_EQ(dmHttpCacheVerify::RESULT_OK, verify_r);
 
     // Change consistency police to "trust-cache". After the first four files are files should be directly retrieved from the cache.
@@ -967,28 +1007,31 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
-INSTANTIATE_TEST_CASE_P(dmHttpClientTestCache,
-                        dmHttpClientTestCache,
-                        ::testing::Values("http://localhost:" NAME_SOCKET));
+const char* params_http_client_cache[] = {"http://localhost:" NAME_SOCKET};
+INSTANTIATE_TEST_CASE_P(dmHttpClientTestCache, dmHttpClientTestCache, jc_test_values_in(params_http_client_cache));
 
 #endif // #ifndef _WIN32
 
 TEST(dmHttpClient, HostNotFound)
 {
     dmHttpClient::NewParams params;
+    dmDNS::NewChannel(&params.m_DNSChannel);
     dmHttpClient::HClient client = dmHttpClient::New(&params, "host_not_found", g_HttpPort);
     ASSERT_EQ((void*) 0, client);
+    dmDNS::DeleteChannel(params.m_DNSChannel);
 }
 
 TEST(dmHttpClient, ConnectionRefused)
 {
     dmHttpClient::NewParams params;
+    dmDNS::NewChannel(&params.m_DNSChannel);
     dmHttpClient::HClient client = dmHttpClient::New(&params, "localhost", 9999);
     ASSERT_NE((void*) 0, client);
     dmHttpClient::Result r = dmHttpClient::Get(client, "");
     ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, dmHttpClient::GetLastSocketResult(client));
     dmHttpClient::Delete(client);
+    dmDNS::DeleteChannel(params.m_DNSChannel);
 }
 
 static void Usage()
@@ -1020,8 +1063,10 @@ int main(int argc, char **argv)
 
     dmLogSetlevel(DM_LOG_SEVERITY_INFO);
     dmSocket::Initialize();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    dmDNS::Initialize();
+    jc_test_init(&argc, argv);
+    int ret = jc_test_run_all();
+    dmDNS::Finalize();
     dmSocket::Finalize();
     return ret;
 }

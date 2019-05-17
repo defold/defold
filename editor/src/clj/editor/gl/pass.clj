@@ -24,41 +24,31 @@
        (def render-passes    ~(mapv first (remove second ps))))))
 
 (make-passes
+  ; name selection model-transform
   background     false false
   opaque         false true
   transparent    false true
-  icon-outline   false false
   outline        false true
   manipulator    false true
   overlay        false false
-  selection      true  true
-  manipulator-selection      true true
-  icon           false false
-  icon-selection true false
-  overlay-selection false false)
+  opaque-selection true true
+  selection      true  true ; transparent selection if you will...
+  manipulator-selection      true true)
 
 (g/deftype RenderData {(s/optional-key background)            s/Any
                        (s/optional-key opaque)                s/Any
                        (s/optional-key transparent)           s/Any
-                       (s/optional-key icon-outline)          s/Any
                        (s/optional-key outline)               s/Any
                        (s/optional-key manipulator)           s/Any
                        (s/optional-key overlay)               s/Any
-                       (s/optional-key overlay-selection)     s/Any
+                       (s/optional-key opaque-selection)      s/Any
                        (s/optional-key selection)             s/Any
-                       (s/optional-key manipulator-selection) s/Any
-                       (s/optional-key icon)                  s/Any
-                       (s/optional-key icon-selection)        s/Any})
+                       (s/optional-key manipulator-selection) s/Any})
 
 (defmulti prepare-gl (fn [pass gl glu] pass))
 
 (defmethod prepare-gl background
   [_ ^GL2 gl ^GLU glu]
-  (.glMatrixMode gl GL2/GL_PROJECTION)
-  (.glLoadIdentity gl)
-  (.gluOrtho2D glu -1.0 1.0 -1.0 1.0)
-  (.glMatrixMode gl GL2/GL_MODELVIEW)
-  (.glLoadIdentity gl)
   (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL2/GL_FILL)
   (.glDisable gl GL/GL_BLEND)
   (.glDisable gl GL/GL_DEPTH_TEST)
@@ -109,13 +99,26 @@
     (.glColorMask true true true true)
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
+(defmethod prepare-gl opaque-selection
+  [_ ^GL2 gl glu]
+  (doto gl
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glDisable GL/GL_BLEND)
+    (.glEnable GL/GL_DEPTH_TEST)
+    (.glDepthMask true)
+    (.glDisable GL/GL_SCISSOR_TEST)
+    (.glDisable GL/GL_STENCIL_TEST)
+    (.glStencilMask 0x0)
+    (.glColorMask true true true true)
+    (.glDisable GL2/GL_LINE_STIPPLE)))
+
 (defmethod prepare-gl selection
   [_ ^GL2 gl glu]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
     (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
-    (.glDisable GL/GL_DEPTH_TEST)
+    (.glEnable GL/GL_DEPTH_TEST)
     (.glDepthMask false)
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
@@ -157,61 +160,6 @@
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
     (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
-    (.glDisable GL/GL_DEPTH_TEST)
-    (.glDepthMask false)
-    (.glDisable GL/GL_SCISSOR_TEST)
-    (.glDisable GL/GL_STENCIL_TEST)
-    (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
-
-(defmethod prepare-gl overlay-selection
-  [_ ^GL2 gl glu]
-  (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
-    (.glEnable GL/GL_BLEND)
-    (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
-    (.glDisable GL/GL_DEPTH_TEST)
-    (.glDepthMask false)
-    (.glDisable GL/GL_SCISSOR_TEST)
-    (.glDisable GL/GL_STENCIL_TEST)
-    (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
-
-(defmethod prepare-gl icon
-  [_ ^GL2 gl glu]
-  (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
-    (.glEnable GL/GL_BLEND)
-    (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
-    (.glDisable GL/GL_DEPTH_TEST)
-    (.glDepthMask false)
-    (.glDisable GL/GL_SCISSOR_TEST)
-    (.glDisable GL/GL_STENCIL_TEST)
-    (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
-
-(defmethod prepare-gl icon-selection
-  [_ ^GL2 gl glu]
-  (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
-    (.glEnable GL/GL_BLEND)
-    (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
-    (.glDisable GL/GL_DEPTH_TEST)
-    (.glDepthMask false)
-    (.glDisable GL/GL_SCISSOR_TEST)
-    (.glDisable GL/GL_STENCIL_TEST)
-    (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
-
-(defmethod prepare-gl icon-outline
-  [_ ^GL2 gl glu]
-  (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_LINE)
-    (.glDisable GL/GL_BLEND)
     (.glDisable GL/GL_DEPTH_TEST)
     (.glDepthMask false)
     (.glDisable GL/GL_SCISSOR_TEST)

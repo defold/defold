@@ -41,8 +41,6 @@ namespace dmGameSystem
         uint32_t                    m_MixedHash;
         dmMessage::URL              m_Listener;
         uint32_t                    m_AnimationID;
-        dmGameObject::HInstance     m_ListenerInstance;
-        dmhash_t                    m_ListenerComponent;
         SpriteResource*             m_Resource;
         CompRenderConstants         m_RenderConstants;
         /// Currently playing animation
@@ -52,13 +50,17 @@ namespace dmGameSystem
         float                       m_AnimInvDuration;
         /// Timer in local space: [0,1]
         float                       m_AnimTimer;
+        float                       m_PlaybackRate;
         uint16_t                    m_ComponentIndex;
+        uint16_t                    m_AnimPingPong : 1;
+        uint16_t                    m_AnimBackwards : 1;
         uint16_t                    m_Enabled : 1;
         uint16_t                    m_Playing : 1;
+        uint16_t                    m_DoTick : 1;
         uint16_t                    m_FlipHorizontal : 1;
         uint16_t                    m_FlipVertical : 1;
         uint16_t                    m_AddedToUpdate : 1;
-        uint16_t                    m_Padding : 3;
+        uint16_t                    m_Padding : 8;
     };
 
     struct SpriteVertex
@@ -85,6 +87,13 @@ namespace dmGameSystem
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SCALE, scale, false);
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SIZE, size, true);
     static const dmhash_t SPRITE_PROP_TEXTURE0 = dmHashString64("texture0");
+    static const dmhash_t SPRITE_PROP_CURSOR = dmHashString64("cursor");
+    static const dmhash_t SPRITE_PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
+
+    static float GetCursor(SpriteComponent* component);
+    static void SetCursor(SpriteComponent* component, float cursor);
+    static float GetPlaybackRate(SpriteComponent* component);
+    static void SetPlaybackRate(SpriteComponent* component, float playback_rate);
 
     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -116,7 +125,7 @@ namespace dmGameSystem
             void* indices = (void*)malloc(indices_count * size_type);
             if (sprite_world->m_Is16BitIndex) {
                 uint16_t* index = (uint16_t*)indices;
-                for(int32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
+                for(uint32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
                 {
                     *index++ = v;
                     *index++ = v+1;
@@ -127,7 +136,7 @@ namespace dmGameSystem
                 }
             } else {
                 uint32_t* index = (uint32_t*)indices;
-                for(int32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
+                for(uint32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
                 {
                     *index++ = v;
                     *index++ = v+1;
@@ -178,7 +187,7 @@ namespace dmGameSystem
         return result;
     }
 
-    static bool PlayAnimation(SpriteComponent* component, dmhash_t animation)
+    static bool PlayAnimation(SpriteComponent* component, dmhash_t animation, float offset, float playback_rate)
     {
         TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
         uint32_t* anim_id = texture_set->m_AnimationIds.Get(animation);
@@ -193,9 +202,18 @@ namespace dmGameSystem
                     || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
                 frame_count = dmMath::Max(1u, frame_count * 2 - 2);
             component->m_AnimInvDuration = (float)animation->m_Fps / frame_count;
-            component->m_AnimTimer = 0.0f;
+            component->m_AnimPingPong = animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG;
+            component->m_AnimBackwards = animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD;
             component->m_Playing = animation->m_Playback != dmGameSystemDDF::PLAYBACK_NONE;
             component->m_Size = GetSize(component, texture_set->m_TextureSet, component->m_AnimationID);
+
+            offset = dmMath::Clamp(offset, 0.0f, 1.0f);
+            if (animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD) {
+                offset = 1.0f - offset;
+            }
+
+            component->m_PlaybackRate = dmMath::Max(playback_rate, 0.0f);
+            SetCursor(component, offset);
         }
         else
         {
@@ -240,8 +258,6 @@ namespace dmGameSystem
         component->m_Rotation = params.m_Rotation;
         component->m_Resource = (SpriteResource*)params.m_Resource;
         dmMessage::ResetURL(component->m_Listener);
-        component->m_ListenerInstance = 0x0;
-        component->m_ListenerComponent = 0xff;
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_Scale = Vector3(1.0f);
@@ -250,7 +266,7 @@ namespace dmGameSystem
 
         component->m_Size = Vector3(0.0f, 0.0f, 0.0f);
         component->m_AnimationID = 0;
-        PlayAnimation(component, component->m_Resource->m_DefaultAnimation);
+        PlayAnimation(component, component->m_Resource->m_DefaultAnimation, 0.0f, 1.0f);
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -492,10 +508,9 @@ namespace dmGameSystem
             if (once && component->m_AnimTimer >= 1.0f)
             {
                 component->m_Playing = 0;
-                if (component->m_ListenerInstance != 0x0)
+                if (component->m_Listener.m_Fragment != 0x0)
                 {
                     dmMessage::URL sender;
-                    dmMessage::URL receiver = component->m_Listener;
                     if (!GetSender(component, &sender))
                     {
                         dmLogError("Could not send animation_done to listener.");
@@ -507,21 +522,25 @@ namespace dmGameSystem
                     // Engine has 0-based indices, scripts use 1-based
                     message.m_CurrentTile = component->m_CurrentAnimationFrame + 1;
                     message.m_Id = component->m_CurrentAnimation;
-                    receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_ListenerInstance));
+
+                    dmGameObject::HInstance listener_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), component->m_Listener.m_Path);
+                    if (!listener_instance)
+                    {
+                        dmLogError("Could not send animation_done to instance: %s#%s", dmHashReverseSafe64(component->m_Listener.m_Path), dmHashReverseSafe64(component->m_Listener.m_Fragment));
+                        return;
+                    }
+
+                    dmMessage::URL receiver = component->m_Listener;
                     sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_Instance));
                     if (dmMessage::IsSocketValid(receiver.m_Socket) && dmMessage::IsSocketValid(sender.m_Socket))
                     {
                         dmGameObject::Result go_result = dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &sender.m_Fragment);
                         if (go_result == dmGameObject::RESULT_OK)
                         {
-                            receiver.m_Path = dmGameObject::GetIdentifier(component->m_ListenerInstance);
-                            receiver.m_Fragment = component->m_ListenerComponent;
                             sender.m_Path = dmGameObject::GetIdentifier(component->m_Instance);
                             uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::AnimationDone::m_DDFDescriptor;
                             uint32_t data_size = sizeof(dmGameSystemDDF::AnimationDone);
                             dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0);
-                            component->m_ListenerInstance = 0x0;
-                            component->m_ListenerComponent = 0xff;
                             dmMessage::ResetURL(component->m_Listener);
                             if (result != dmMessage::RESULT_OK)
                             {
@@ -535,8 +554,7 @@ namespace dmGameSystem
                     }
                     else
                     {
-                        component->m_ListenerInstance = 0x0;
-                        component->m_ListenerComponent = 0xff;
+                        dmMessage::ResetURL(component->m_Listener);
                     }
                 }
             }
@@ -553,57 +571,70 @@ namespace dmGameSystem
         {
             SpriteComponent* component = &components[i];
             // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
-            if (!component->m_Enabled || !component->m_Playing || !component->m_AddedToUpdate)
+            if (!component->m_Enabled)
                 continue;
 
-            TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
-            dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
-            dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
-
-            // Animate
-            component->m_AnimTimer += dt * component->m_AnimInvDuration;
-            if (component->m_AnimTimer >= 1.0f)
+            if (component->m_Playing && component->m_AddedToUpdate)
             {
-                switch (animation_ddf->m_Playback)
+                TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
+                dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
+                dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
+
+                // Animate
+                component->m_AnimTimer += dt * component->m_AnimInvDuration * component->m_PlaybackRate;
+                if (component->m_AnimTimer >= 1.0f)
                 {
-                    case dmGameSystemDDF::PLAYBACK_ONCE_FORWARD:
-                    case dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD:
-                    case dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG:
-                        component->m_AnimTimer = 1.0f;
-                        break;
-                    default:
-                        component->m_AnimTimer -= floorf(component->m_AnimTimer);
-                        break;
+                    switch (animation_ddf->m_Playback)
+                    {
+                        case dmGameSystemDDF::PLAYBACK_ONCE_FORWARD:
+                        case dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD:
+                        case dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG:
+                            component->m_AnimTimer = 1.0f;
+                            break;
+                        default:
+                            component->m_AnimTimer -= floorf(component->m_AnimTimer);
+                            break;
+                    }
+                }
+                component->m_DoTick = 1;
+            }
+
+            if (component->m_DoTick) {
+                component->m_DoTick = 0;
+
+                TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
+                dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
+                dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
+
+                // Set frame from cursor (tileindex or animframe)
+                float t = component->m_AnimTimer;
+                float backwards = (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD
+                                || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD) ? 1.0f : 0;
+
+                // Original: t = backwards ? (1.0f - t) : t;
+                // which translates to:
+                t = backwards - 2 * t * backwards + t;
+
+                uint32_t interval = animation_ddf->m_End - animation_ddf->m_Start;
+                uint32_t frame_count = interval;
+                if (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG
+                        || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
+                {
+                    frame_count = dmMath::Max(1u, frame_count * 2 - 2);
+                }
+                uint32_t frame = dmMath::Min(frame_count - 1, (uint32_t)(t * frame_count));
+                uint32_t frame_current = component->m_CurrentAnimationFrame;
+                if (frame >= interval) {
+                    frame = 2 * (interval - 1) - frame;
+                }
+
+                component->m_CurrentAnimationFrame = frame;
+
+                if (frame != frame_current)
+                {
+                    component->m_Size = GetSize(component, texture_set_ddf, component->m_AnimationID);
                 }
             }
-
-            // Set frame from cursor (tileindex or animframe)
-            float t = component->m_AnimTimer;
-            float backwards = (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD
-                            || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD) ? 1.0f : 0;
-
-            // Original: t = backwards ? (1.0f - t) : t;
-            // which translates to:
-            t = backwards - 2 * t * backwards + t;
-
-            uint32_t interval = animation_ddf->m_End - animation_ddf->m_Start;
-            uint32_t frame_count = interval;
-            if (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG
-                    || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
-            {
-                frame_count = dmMath::Max(1u, frame_count * 2 - 2);
-            }
-            uint32_t frame = dmMath::Min(frame_count - 1, (uint32_t)(t * frame_count));
-            if (frame >= interval) {
-                frame = 2 * (interval - 1) - frame;
-            }
-
-            if (frame != component->m_CurrentAnimationFrame)
-            {
-                component->m_Size = GetSize(component, texture_set_ddf, component->m_AnimationID);
-            }
-
-            component->m_CurrentAnimationFrame = frame;
         }
     }
 
@@ -678,14 +709,9 @@ namespace dmGameSystem
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
 
-            uint32_t const_count = component.m_RenderConstants.m_ConstantCount;
-            for (uint32_t const_i = 0; const_i < const_count; ++const_i)
+            if (dmGameSystem::AreRenderConstantsUpdated(&component.m_RenderConstants))
             {
-                if (lengthSqr(component.m_RenderConstants.m_RenderConstants[const_i].m_Value - component.m_RenderConstants.m_PrevRenderConstants[const_i]) > 0)
-                {
-                    ReHash(&component);
-                    break;
-                }
+                ReHash(&component);
             }
 
             const Vector4 trans = component.m_World.getCol(3);
@@ -716,6 +742,47 @@ namespace dmGameSystem
         ReHash(component);
     }
 
+    static void SetCursor(SpriteComponent* component, float cursor)
+    {
+        cursor = dmMath::Clamp(cursor, 0.0f, 1.0f);
+        if (component->m_AnimPingPong) {
+            cursor /= 2.0f;
+        }
+
+        if (component->m_AnimBackwards) {
+            cursor = 1.0f - cursor;
+        }
+
+        component->m_AnimTimer = cursor;
+        component->m_DoTick = 1;
+    }
+
+    static float GetCursor(SpriteComponent* component)
+    {
+        float cursor = component->m_AnimTimer;
+
+        if (component->m_AnimBackwards)
+            cursor = 1.0f - cursor;
+
+        if (component->m_AnimPingPong) {
+            cursor *= 2.0f;
+            if (cursor > 1.0f) {
+                cursor = 2.0f - cursor;
+            }
+        }
+        return cursor;
+    }
+
+    static void SetPlaybackRate(SpriteComponent* component, float playback_rate)
+    {
+        component->m_PlaybackRate = playback_rate;
+    }
+
+    static float GetPlaybackRate(SpriteComponent* component)
+    {
+        return component->m_PlaybackRate;
+    }
+
     dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
@@ -733,10 +800,8 @@ namespace dmGameSystem
             if (params.m_Message->m_Id == dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::PlayAnimation* ddf = (dmGameSystemDDF::PlayAnimation*)params.m_Message->m_Data;
-                if (PlayAnimation(component, ddf->m_Id))
+                if (PlayAnimation(component, ddf->m_Id, ddf->m_Offset, ddf->m_PlaybackRate))
                 {
-                    component->m_ListenerInstance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), params.m_Message->m_Sender.m_Path);
-                    component->m_ListenerComponent = params.m_Message->m_Sender.m_Fragment;
                     component->m_Listener = params.m_Message->m_Sender;
                 }
             }
@@ -768,18 +833,9 @@ namespace dmGameSystem
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
-                dmRender::Constant* constants = component->m_RenderConstants.m_RenderConstants;
-                uint32_t size = component->m_RenderConstants.m_ConstantCount;
-                for (uint32_t i = 0; i < size; ++i)
+                if (dmGameSystem::ClearRenderConstant(&component->m_RenderConstants, ddf->m_NameHash))
                 {
-                    if (constants[i].m_NameHash == ddf->m_NameHash)
-                    {
-                        constants[i] = constants[size - 1];
-                        component->m_RenderConstants.m_PrevRenderConstants[i] = component->m_RenderConstants.m_PrevRenderConstants[size - 1];
-                        component->m_RenderConstants.m_ConstantCount--;
-                        ReHash(component);
-                        break;
-                    }
+                    ReHash(component);
                 }
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::SetScale::m_DDFDescriptor->m_NameHash)
@@ -797,7 +853,7 @@ namespace dmGameSystem
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
         SpriteComponent* component = &sprite_world->m_Components.Get(*params.m_UserData);
         if (component->m_Playing)
-            PlayAnimation(component, component->m_CurrentAnimation);
+            PlayAnimation(component, component->m_CurrentAnimation, component->m_AnimTimer, component->m_PlaybackRate);
     }
 
     dmGameObject::PropertyResult CompSpriteGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
@@ -818,6 +874,16 @@ namespace dmGameSystem
         else if (get_property == SPRITE_PROP_TEXTURE0)
         {
             out_value.m_Variant = dmGameObject::PropertyVar(component->m_Resource->m_TextureSet->m_TexturePath);
+            result = dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (get_property == SPRITE_PROP_CURSOR)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(GetCursor(component));
+            result = dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (get_property == SPRITE_PROP_PLAYBACK_RATE)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(GetPlaybackRate(component));
             result = dmGameObject::PROPERTY_RESULT_OK;
         }
 
@@ -843,6 +909,22 @@ namespace dmGameSystem
         else if (IsReferencingProperty(SPRITE_PROP_SIZE, set_property))
         {
             result = SetProperty(set_property, params.m_Value, component->m_Size, SPRITE_PROP_SIZE);
+        }
+        else if (params.m_PropertyId == SPRITE_PROP_CURSOR)
+        {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+
+            SetCursor(component, params.m_Value.m_Number);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (params.m_PropertyId == SPRITE_PROP_PLAYBACK_RATE)
+        {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+
+            SetPlaybackRate(component, params.m_Value.m_Number);
+            return dmGameObject::PROPERTY_RESULT_OK;
         }
 
         if (dmGameObject::PROPERTY_RESULT_NOT_FOUND == result)

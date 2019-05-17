@@ -1,6 +1,9 @@
-#include "test_physics.h"
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
+#include "test_physics.h"
 #include <dlib/math.h>
+
 
 using namespace Vectormath::Aos;
 
@@ -107,6 +110,7 @@ Test3D::Test3D()
 , m_SetAngularDampingFunc(dmPhysics::SetAngularDamping3D)
 , m_GetMassFunc(dmPhysics::GetMass3D)
 , m_RequestRayCastFunc(dmPhysics::RequestRayCast3D)
+, m_RayCastFunc(dmPhysics::RayCast3D)
 , m_SetDebugCallbacksFunc(dmPhysics::SetDebugCallbacks3D)
 , m_ReplaceShapeFunc(dmPhysics::ReplaceShape3D)
 , m_Vertices(new float[4*3])
@@ -159,6 +163,7 @@ Test2D::Test2D()
 , m_SetAngularDampingFunc(dmPhysics::SetAngularDamping2D)
 , m_GetMassFunc(dmPhysics::GetMass2D)
 , m_RequestRayCastFunc(dmPhysics::RequestRayCast2D)
+, m_RayCastFunc(dmPhysics::RayCast2D)
 , m_SetDebugCallbacksFunc(dmPhysics::SetDebugCallbacks2D)
 , m_ReplaceShapeFunc(dmPhysics::ReplaceShape2D)
 , m_Vertices(new float[3*2])
@@ -176,7 +181,7 @@ Test2D::~Test2D()
     delete [] m_Vertices;
 }
 
-typedef ::testing::Types<Test3D, Test2D> TestTypes;
+typedef jc_test_type2<Test3D, Test2D> TestTypes;
 TYPED_TEST_CASE(PhysicsTest, TestTypes);
 
 TYPED_TEST(PhysicsTest, BoxShape)
@@ -1798,9 +1803,10 @@ TYPED_TEST(PhysicsTest, TriggerEnterExitOverflow)
     typename TypeParam::CollisionObjectType bodies[it_count];
     typename TypeParam::CollisionShapeType shapes[it_count];
 
+    VisualObject vo[it_count];
     for (uint32_t i = 0; i < it_count; ++i)
     {
-        VisualObject vo_a;
+        VisualObject& vo_a = vo[i];
         vo_a.m_Position.setX(1.0f);
         dmPhysics::CollisionObjectData data_a;
         typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
@@ -1979,6 +1985,6 @@ TYPED_TEST(PhysicsTest, DisabledFromStart)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

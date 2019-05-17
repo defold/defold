@@ -88,7 +88,7 @@ namespace dmGameSystem
         LabelWorld* world = (LabelWorld*)params.m_World;
 
         LabelComponent* components = world->m_Components.m_Objects.Begin();
-        for (int i = 0; i < world->m_Components.m_Objects.Size(); ++i )
+        for (uint32_t i = 0; i < world->m_Components.m_Objects.Size(); ++i )
         {
             LabelComponent& component = components[i];
             if (component.m_UserAllocatedText)
@@ -382,14 +382,9 @@ namespace dmGameSystem
             if (!component->m_Enabled || !component->m_AddedToUpdate)
                 continue;
 
-            uint32_t const_count = component->m_RenderConstants.m_ConstantCount;
-            for (uint32_t const_i = 0; const_i < const_count; ++const_i)
+            if (dmGameSystem::AreRenderConstantsUpdated(&component->m_RenderConstants))
             {
-                if (lengthSqr(component->m_RenderConstants.m_RenderConstants[const_i].m_Value - component->m_RenderConstants.m_PrevRenderConstants[const_i]) > 0)
-                {
-                    ReHash(component);
-                    break;
-                }
+                ReHash(component);
             }
 
             dmRender::DrawTextParams params;

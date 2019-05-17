@@ -2,7 +2,7 @@
 #define PHYSICS_H
 
 #include <stdint.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/hash.h>
 #include <dlib/message.h>
@@ -459,6 +459,8 @@ namespace dmPhysics
                                      const Vectormath::Aos::Point3& position,
                                      uint32_t cell_width, uint32_t cell_height,
                                      uint32_t row_count, uint32_t column_count);
+
+    void ClearGridShapeHulls(HCollisionObject2D collision_object);
 
     /**
      * Set hull for cell in grid-shape
@@ -1008,6 +1010,24 @@ namespace dmPhysics
      * @param request Struct containing data for the query
      */
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request);
+
+    /**
+     * Request a synchronous ray cast
+     *
+     * @param world Physics world in which to perform the ray cast
+     * @param request Struct containing data for the query
+     * @param response Struct receiving the output data from the query
+     */
+    void RayCast3D(HWorld3D world, const RayCastRequest& request, RayCastResponse& response);
+
+    /**
+     * Request a synchronous ray cast
+     *
+     * @param world Physics world in which to perform the ray cast
+     * @param request Struct containing data for the query
+     * @param response Struct receiving the output data from the query
+     */
+    void RayCast2D(HWorld2D world, const RayCastRequest& request, RayCastResponse& response);
 
     /**
      * Callbacks used to draw the world for debugging purposes.

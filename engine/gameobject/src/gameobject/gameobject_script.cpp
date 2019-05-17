@@ -133,6 +133,9 @@ namespace dmGameObject
 #define SCRIPTINSTANCE "GOScriptInstance"
 #define SCRIPT "GOScript"
 
+    static uint32_t SCRIPT_TYPE_HASH = 0;
+    static uint32_t SCRIPTINSTANCE_TYPE_HASH = 0;
+
     using namespace dmPropertiesDDF;
 
     const char* SCRIPT_INSTANCE_TYPE_NAME = SCRIPTINSTANCE;
@@ -149,24 +152,19 @@ namespace dmGameObject
 
     HRegister g_Register = 0;
 
-    CompScriptWorld::CompScriptWorld()
+    CompScriptWorld::CompScriptWorld(uint32_t max_instance_count)
     : m_Instances()
     , m_ScriptWorld(0x0)
     {
-        // TODO: How to configure? It should correspond to collection instance count
-        m_Instances.SetCapacity(1024);
+        m_Instances.SetCapacity(max_instance_count);
     }
 
     static Script* GetScript(lua_State *L)
     {
         int top = lua_gettop(L);
         (void)top;
-        Script* script = 0x0;
         dmScript::GetInstance(L);
-        if (dmScript::IsUserType(L, -1, SCRIPT))
-        {
-            script = (Script*)lua_touserdata(L, -1);
-        }
+        Script* script = (Script*)dmScript::ToUserType(L, -1, SCRIPT_TYPE_HASH);
         // Clear stack and return
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
@@ -210,7 +208,7 @@ namespace dmGameObject
 
     static ScriptInstance* ScriptInstance_Check(lua_State *L, int index)
     {
-        return (ScriptInstance*)dmScript::CheckUserType(L, index, SCRIPTINSTANCE, "You can only access go.* functions and values from a script instance (.script file)");
+        return (ScriptInstance*)dmScript::CheckUserType(L, index, SCRIPTINSTANCE_TYPE_HASH, "You can only access go.* functions and values from a script instance (.script file)");
     }
 
     static ScriptInstance* ScriptInstance_Check(lua_State *L)
@@ -221,15 +219,6 @@ namespace dmGameObject
         return i;
     }
 
-    static int ScriptInstance_gc (lua_State *L)
-    {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
-        memset(i, 0, sizeof(*i));
-        (void) i;
-        assert(i);
-        return 0;
-    }
-
     static int ScriptInstance_tostring (lua_State *L)
     {
         lua_pushfstring(L, "Script: %p", lua_touserdata(L, 1));
@@ -238,7 +227,7 @@ namespace dmGameObject
 
     static int ScriptInstance_index(lua_State *L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
         (void) i;
         assert(i);
 
@@ -253,7 +242,7 @@ namespace dmGameObject
     {
         int top = lua_gettop(L);
 
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
         (void) i;
         assert(i);
 
@@ -354,7 +343,6 @@ namespace dmGameObject
 
     static const luaL_reg ScriptInstance_meta[] =
     {
-        {"__gc",                                        ScriptInstance_gc},
         {"__tostring",                                  ScriptInstance_tostring},
         {"__index",                                     ScriptInstance_index},
         {"__newindex",                                  ScriptInstance_newindex},
@@ -403,8 +391,8 @@ namespace dmGameObject
         // TODO: We should probably not store user-data sparse.
         // A lot of loops just to find user-data such as the code below
         assert(instance != 0x0);
-        const dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
-        uint32_t n = components.Size();
+        const Prototype::Component* components = instance->m_Prototype->m_Components;
+        uint32_t n = instance->m_Prototype->m_ComponentCount;
         uint32_t component_instance_data = 0;
         for (uint32_t i = 0; i < n; ++i)
         {
@@ -547,7 +535,7 @@ namespace dmGameObject
 
     HInstance GetInstanceFromLua(lua_State* L) {
         uintptr_t user_data;
-        if (dmScript::GetUserData(L, &user_data, SCRIPTINSTANCE)) {
+        if (dmScript::GetUserData(L, &user_data, SCRIPTINSTANCE_TYPE_HASH)) {
             return (HInstance)user_data;
         } else {
             return 0;
@@ -960,9 +948,10 @@ namespace dmGameObject
         Instance* instance = ResolveInstance(L, 2);
 
         // Supports both vector and number
-        if (dmScript::IsVector3(L, 1))
+        Vector3* v = dmScript::ToVector3(L, 1);
+        if (v != 0)
         {
-            Vector3 scale = *dmScript::CheckVector3(L, 1);
+            Vector3 scale = *v;
             if (scale.getX() <= 0.0f || scale.getY() <= 0.0f || scale.getZ() <= 0.0f)
             {
                 return luaL_error(L, "Vector passed to go.set_scale contains components that are below or equal to zero");
@@ -971,12 +960,109 @@ namespace dmGameObject
             return 0;
         }
 
-        lua_Number v = luaL_checknumber(L, 1);
-        if (v <= 0.0)
+        lua_Number n = luaL_checknumber(L, 1);
+        if (n <= 0.0)
         {
             return luaL_error(L, "The scale supplied to go.set_scale must be greater than 0.");
         }
-        dmGameObject::SetScale(instance, (float)v);
+        dmGameObject::SetScale(instance, (float)n);
+        return 0;
+    }
+
+    /*# sets the parent for a specific game object instance
+     * Sets the parent for a game object instance. This means that the instance will exist in the geometrical space of its parent,
+     * like a basic transformation hierarchy or scene graph. If no parent is specified, the instance will be detached from any parent and exist in world space.
+     *
+     * @name go.set_parent
+     * @param [id] [type:string|hash|url] optional id of the game object instance to set parent for, defaults to the instance containing the calling script
+     * @param [parent_id] [type:string|hash|url] optional id of the new parent game object, defaults to detaching game object from its parent
+     * @param [keep_world_transform] [type:boolean] optional boolean, set to true to maintain the world transform when changing spaces. Defaults to false.
+     * @examples
+     *
+     * Attach myself to another instance "my_parent":
+     *
+     * ```lua
+     * go.set_parent(go.get_id(),go.get_id("my_parent"))
+     * ```
+     *
+     * Attach an instance "my_instance" to another instance "my_parent":
+     *
+     * ```lua
+     * go.set_parent(go.get_id("my_instance"),go.get_id("my_parent"))
+     * ```
+     *
+     * Detach an instance "my_instance" from its parent (if any):
+     *
+     * ```lua
+     * go.set_parent(go.get_id("my_instance"))
+     * ```
+     */
+    int Script_SetParent(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L,0);
+
+        ScriptInstance* i  = ScriptInstance_Check(L);
+        Instance* instance = i->m_Instance;
+
+        dmMessage::URL sender, target;
+        dmScript::GetURL(L, &sender);
+        dmScript::ResolveURL(L, 1, &target, &sender);
+
+        if (target.m_Socket != dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
+        {
+            return DM_LUA_ERROR("go.set_parent can only access instances within the same collection.");
+        }
+
+        HCollection collection    = dmGameObject::GetCollection(instance);
+        Instance* child_instance  = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
+        Instance* parent_instance = 0x0;
+
+        if (!child_instance)
+        {
+            return DM_LUA_ERROR("Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
+        }
+
+        if (lua_gettop(L) > 1 && !lua_isnil(L, 2))
+        {
+            dmScript::ResolveURL(L, 2, &target, &sender);
+            parent_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
+
+            if (!parent_instance)
+            {
+                return DM_LUA_ERROR("Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
+            }
+
+            if (target.m_Socket != dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
+            {
+                return DM_LUA_ERROR("go.set_parent can only access instances within the same collection.");
+            }
+        }
+
+        dmGameObjectDDF::SetParent ddf;
+
+        if (parent_instance)
+        {
+            ddf.m_ParentId           = dmGameObject::GetIdentifier(parent_instance);
+            ddf.m_KeepWorldTransform = lua_toboolean(L, 3);
+        }
+        else
+        {
+            ddf.m_ParentId           = 0;
+            ddf.m_KeepWorldTransform = 0;
+        }
+
+        dmMessage::URL receiver;
+        receiver.m_Socket   = dmGameObject::GetMessageSocket(child_instance->m_Collection->m_HCollection);
+        receiver.m_Path     = dmGameObject::GetIdentifier(child_instance);
+        receiver.m_Fragment = 0;
+
+        if (dmMessage::RESULT_OK != dmMessage::Post(0x0, &receiver, dmGameObjectDDF::SetParent::m_DDFDescriptor->m_NameHash,
+            (uintptr_t) child_instance, (uintptr_t) dmGameObjectDDF::SetParent::m_DDFDescriptor,
+            &ddf, sizeof(dmGameObjectDDF::SetParent), 0))
+        {
+            return DM_LUA_ERROR("Could not send parenting message!");
+        }
+
         return 0;
     }
 
@@ -1211,7 +1297,7 @@ namespace dmGameObject
      * - `go.PLAYBACK_LOOP_PINGPONG`
      *
      * @param to [type:number|vector3|vector4|quaternion] target property value
-     * @param easing [type:constant|vector] easing to use during animation. Either specify a constant, see the <a href="/manuals/animation">animation guide</a> for a complete list, or a vmath.vector with a curve
+     * @param easing [type:constant|vector] easing to use during animation. Either specify a constant, see the <a href="/manuals/animation#_easing">animation guide</a> for a complete list, or a vmath.vector with a curve
      * @param duration [type:number] duration of the animation in seconds
      * @param [delay] [type:number] delay before the animation starts in seconds
      * @param [complete_function] [type:function(self, url, property)] optional function to call when the animation has completed
@@ -1727,15 +1813,15 @@ namespace dmGameObject
         {
             valid_type = true;
         }
-        else if (dmScript::IsVector3(L, 2))
+        else if (dmScript::ToVector3(L, 2) != 0)
         {
             valid_type = true;
         }
-        else if (dmScript::IsVector4(L, 2))
+        else if (dmScript::ToVector4(L, 2) != 0)
         {
             valid_type = true;
         }
-        else if (dmScript::IsQuat(L, 2))
+        else if (dmScript::ToQuat(L, 2) != 0)
         {
             valid_type = true;
         }
@@ -1763,6 +1849,7 @@ namespace dmGameObject
         {"set_position",            Script_SetPosition},
         {"set_rotation",            Script_SetRotation},
         {"set_scale",               Script_SetScale},
+        {"set_parent",              Script_SetParent},
         {"get_world_position",      Script_GetWorldPosition},
         {"get_world_rotation",      Script_GetWorldRotation},
         {"get_world_scale",         Script_GetWorldScale},
@@ -1786,9 +1873,9 @@ namespace dmGameObject
         int top = lua_gettop(L);
         (void)top;
 
-        dmScript::RegisterUserType(L, SCRIPT, Script_methods, Script_meta);
+        SCRIPT_TYPE_HASH = dmScript::RegisterUserType(L, SCRIPT, Script_methods, Script_meta);
 
-        dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
+        SCRIPTINSTANCE_TYPE_HASH = dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
 
         luaL_register(L, "go", GO_methods);
 
@@ -2395,9 +2482,9 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      * Field       | Description
      * ----------- | ----------------------------------------------------------
      * `value`     | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.
-     * `pressed`   | If the input was pressed this frame, 0 for false and 1 for true. This is not present for mouse movement.
-     * `released`  | If the input was released this frame, 0 for false and 1 for true. This is not present for mouse movement.
-     * `repeated`  | If the input was repeated this frame, 0 for false and 1 for true. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.
+     * `pressed`   | If the input was pressed this frame. This is not present for mouse movement.
+     * `released`  | If the input was released this frame. This is not present for mouse movement.
+     * `repeated`  | If the input was repeated this frame. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.
      * `x`         | The x value of a pointer device, if present.
      * `y`         | The y value of a pointer device, if present.
      * `screen_x`  | The screen space x value of a pointer device, if present.

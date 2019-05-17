@@ -22,6 +22,7 @@
 #include <dlib/path.h>
 #include <resource/resource.h>
 #include "script.h"
+#include "script/sys_ddf.h"
 
 #include <string.h>
 extern "C"
@@ -198,6 +199,8 @@ union SaveLoadBuffer
     /*# gets the save-file path
      * The save-file path is operating system specific and is typically located under the user's home directory.
      *
+     * @note Setting the environment variable `DM_SAVE_HOME` overrides the default application support path.
+     *
      * @name sys.get_save_file
      * @param application_id [type:string] user defined id of the application, which helps define the location of the save-file
      * @param file_name [type:string] file-name to get path for
@@ -219,7 +222,7 @@ union SaveLoadBuffer
         dmSys::Result r = dmSys::GetApplicationSupportPath(application_id, app_support_path, sizeof(app_support_path));
         if (r != dmSys::RESULT_OK)
         {
-            luaL_error(L, "Unable to locate application support path (%d)", r);
+            luaL_error(L, "Unable to locate application support path for \"%s\": (%d)", application_id, r);
         }
 
         const char* filename = luaL_checkstring(L, 2);
@@ -294,15 +297,13 @@ union SaveLoadBuffer
             default_value = lua_tostring(L, 2);
         }
 
-        lua_getglobal(L, SCRIPT_CONTEXT);
-        Context* context = (Context*) (dmConfigFile::HConfig)lua_touserdata(L, -1);
+        HContext context = dmScript::GetScriptContext(L);
+
         dmConfigFile::HConfig config_file = 0;
         if (context)
         {
             config_file = context->m_ConfigFile;
         }
-
-        lua_pop(L, 1);
 
         const char* value;
         if (config_file)
@@ -358,7 +359,7 @@ union SaveLoadBuffer
      *
      * In order for the engine to include custom resources in the build process, you need
      * to specify them in the "custom_resources" key in your "game.project" settings file.
-     * You can specify single resource files or directories. If a directory is is included
+     * You can specify single resource files or directories. If a directory is included
      * in the resource list, all files and directories in that directory is recursively
      * included:
      *
@@ -382,9 +383,7 @@ union SaveLoadBuffer
         int top = lua_gettop(L);
         const char* filename = luaL_checkstring(L, 1);
 
-        lua_getglobal(L, SCRIPT_CONTEXT);
-        Context* context = (Context*) (dmConfigFile::HConfig)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        HContext context = dmScript::GetScriptContext(L);
 
         void* resource;
         uint32_t resource_size;
@@ -862,6 +861,171 @@ union SaveLoadBuffer
         return 1;
     }
 
+    #define SYSTEM_SOCKET_NAME "@system"
+
+    static void GetSystemURL(dmMessage::URL* out_url)
+    {
+        dmMessage::HSocket socket;
+        dmMessage::Result result = dmMessage::GetSocket(SYSTEM_SOCKET_NAME, &socket);
+        assert(result == dmMessage::RESULT_OK);
+        assert(socket);
+
+        dmMessage::URL url;
+        out_url->m_Socket = socket;
+        out_url->m_Path = 0;
+        out_url->m_Fragment = 0;
+    }
+
+    /*# exits application
+    * Terminates the game application and reports the specified <code>code</code> to the OS.
+    *
+    * @name sys.exit
+    * @param code [type:number] exit code to report to the OS, 0 means clean exit
+    * @examples
+    *
+    * This examples demonstrates how to exit the application when some kind of quit messages is received (maybe from gui or similar):
+    *
+    * ```lua
+    * function on_message(self, message_id, message, sender)
+    *     if message_id == hash("quit") then
+    *         sys.exit(0)
+    *     end
+    * end
+    * ```
+    */
+    static int Sys_Exit(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmSystemDDF::Exit msg;
+        msg.m_Code = luaL_checkinteger(L, 1);
+
+        dmMessage::URL url;
+        GetSystemURL(&url);
+ 
+        dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::Exit::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::Exit::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        assert(result == dmMessage::RESULT_OK);
+
+        return 0;
+    }
+
+    /*# reboot engine with arguments
+    * Reboots the game engine with a specified set of arguments.
+    * Arguments will be translated into command line arguments. Calling reboot
+    * function is equivalent to starting the engine with the same arguments.
+    *
+    * On startup the engine reads configuration from "game.project" in the
+    * project root.
+    *
+    * @name sys.reboot
+    * @param arg1 [type:string] argument 1
+    * @param arg2 [type:string] argument 2
+    * @param arg3 [type:string] argument 3
+    * @param arg4 [type:string] argument 4
+    * @param arg5 [type:string] argument 5
+    * @param arg6 [type:string] argument 6
+    * @examples
+    *
+    * How to reboot engine with a specific bootstrap collection.
+    *
+    * ```lua
+    * local arg1 = '--config=bootstrap.main_collection=/my.collectionc'
+    * local arg2 = 'build/default/game.projectc'
+    * sys.reboot(arg1, arg2)
+    * ```
+    */
+    static int Sys_Reboot(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmSystemDDF::Reboot msg;
+        msg.m_Arg1 = lua_gettop(L) > 0 ? luaL_checkstring(L, 1) : 0;
+        msg.m_Arg2 = lua_gettop(L) > 1 ? luaL_checkstring(L, 2) : 0;
+        msg.m_Arg3 = lua_gettop(L) > 2 ? luaL_checkstring(L, 3) : 0;
+        msg.m_Arg4 = lua_gettop(L) > 3 ? luaL_checkstring(L, 4) : 0;
+        msg.m_Arg5 = lua_gettop(L) > 4 ? luaL_checkstring(L, 5) : 0;
+        msg.m_Arg6 = lua_gettop(L) > 5 ? luaL_checkstring(L, 6) : 0;
+
+        dmMessage::URL url;
+        GetSystemURL(&url);
+ 
+        dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::Reboot::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::Reboot::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        assert(result == dmMessage::RESULT_OK);
+
+        return 0;
+    }
+
+    /*# set vsync swap interval
+    * Set the vsync swap interval. The interval with which to swap the front and back buffers
+    * in sync with vertical blanks (v-blank), the hardware event where the screen image is updated
+    * with data from the front buffer. A value of 1 swaps the buffers at every v-blank, a value of
+    * 2 swaps the buffers every other v-blank and so on. A value of 0 disables waiting for v-blank
+    * before swapping the buffers. Default value is 1.
+    *
+    * When setting the swap interval to 0 and having `vsync` disabled in
+    * "game.project", the engine will try to respect the set frame cap value from
+    * "game.project" in software instead.
+    *
+    * This setting may be overridden by driver settings.
+    *
+    * @name sys.set_vsync_swap_interval
+    * @param swap_interval target swap interval.
+    * @examples
+    *
+    * Setting the swap intervall to swap every v-blank
+    *  
+    * ```lua
+    * sys.set_vsync_swap_interval(1)
+    * ```
+    */
+    static int Sys_SetVsyncSwapInterval(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmSystemDDF::SetVsync msg;
+        msg.m_SwapInterval = luaL_checkinteger(L, 1);
+
+        dmMessage::URL url;
+        GetSystemURL(&url);
+ 
+        dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::SetVsync::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::SetVsync::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        assert(result == dmMessage::RESULT_OK);
+
+        return 0;
+    }
+
+    /*# set update frequency
+    * Set game update-frequency (frame cap). This option is equivalent to `display.update_frequency` in
+    * the "game.project" settings but set in run-time. If `Vsync` checked in "game.project", the rate will
+    * be clamped to a swap interval that matches any detected main monitor refresh rate. If `Vsync` is
+    * unchecked the engine will try to respect the rate in software using timers. There is no
+    * guarantee that the frame cap will be achieved depending on platform specifics and hardware settings.
+    *
+    * @name sys.set_update_frequency
+    * @param frequency target frequency. 60 for 60 fps
+    * @examples
+    * 
+    * Setting the update frequency to 60 frames per second
+    *  
+    * ```lua
+    * sys.set_update_frequency(60)
+    * ```
+    */
+    static int Sys_SetUpdateFrequency(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmSystemDDF::SetUpdateFrequency msg;
+        msg.m_Frequency = luaL_checkinteger(L, 1);
+
+        dmMessage::URL url;
+        GetSystemURL(&url);
+ 
+        dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        assert(result == dmMessage::RESULT_OK);
+
+        return 0;
+    }
 
     static const luaL_reg ScriptSys_methods[] =
     {
@@ -878,6 +1042,10 @@ union SaveLoadBuffer
         {"set_error_handler", Sys_SetErrorHandler},
         {"set_connectivity_host", Sys_SetConnectivityHost},
         {"get_connectivity", Sys_GetConnectivity},
+        {"exit", Sys_Exit},
+        {"reboot", Sys_Reboot},
+        {"set_update_frequency", Sys_SetUpdateFrequency},
+        {"set_vsync_swap_interval", Sys_SetVsyncSwapInterval},
         {0, 0}
     };
 

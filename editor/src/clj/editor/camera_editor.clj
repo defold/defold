@@ -2,6 +2,7 @@
   (:require [clojure.string :as s]
             [plumbing.core :as pc]
             [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.outline :as outline]
@@ -66,10 +67,11 @@
 
 (g/defnk produce-build-targets
   [_node-id resource pb-msg]
-  [{:node-id _node-id
-    :resource (workspace/make-build-resource resource)
-    :build-fn build-camera
-    :user-data {:pb-msg pb-msg}}])
+  [(bt/with-content-hash
+     {:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-camera
+      :user-data {:pb-msg pb-msg}})])
 
 (defn load-camera [project self resource camera]
   (g/set-property self
@@ -92,6 +94,7 @@
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id]
                                                      {:node-id _node-id
+                                                      :node-outline-key "Camera"
                                                       :label "Camera"
                                                       :icon camera-icon}))
 

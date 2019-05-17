@@ -27,25 +27,11 @@ namespace dmScript
      */
 
     #define SCRIPT_TYPE_NAME_HASH "hash"
-    #define SCRIPT_HASH_TABLE "__script_hash_table"
+    static uint32_t SCRIPT_HASH_TYPE_HASH = 0;
 
     bool IsHash(lua_State *L, int index)
     {
-        void *p = lua_touserdata(L, index);
-        bool result = false;
-        if (p != 0x0)
-        {  /* value is a userdata? */
-            if (lua_getmetatable(L, index))
-            {  /* does it have a metatable? */
-                lua_getfield(L, LUA_REGISTRYINDEX, SCRIPT_TYPE_NAME_HASH);  /* get correct metatable */
-                if (lua_rawequal(L, -1, -2))
-                {  /* does it have the correct mt? */
-                    result = true;
-                }
-                lua_pop(L, 2);  /* remove both metatables */
-            }
-        }
-        return result;
+        return (dmhash_t*)dmScript::ToUserType(L, index, SCRIPT_HASH_TYPE_HASH);
     }
 
     /*# hashes a string
@@ -142,24 +128,41 @@ namespace dmScript
     {
         int top = lua_gettop(L);
 
-        lua_getglobal(L, SCRIPT_CONTEXT);
-        Context* context = (Context*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        HContext context = dmScript::GetScriptContext(L);
 
         dmHashTable64<int>* instances = &context->m_HashInstances;
         int* refp = instances->Get(hash);
         if (refp)
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, *refp);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+            // [-1] Context table
+            lua_rawgeti(L, -1, *refp);
+            // [-2] Context table
+            // [-1] hash
+            lua_remove(L, -2);
+            // [-1] hash
         }
         else
         {
             dmhash_t* lua_hash = (dmhash_t*)lua_newuserdata(L, sizeof(dmhash_t));
             *lua_hash = hash;
             luaL_getmetatable(L, SCRIPT_TYPE_NAME_HASH);
+            // [-2] hash
+            // [-1] meta table
             lua_setmetatable(L, -2);
-            lua_pushvalue(L, -1);
-            int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+            // [-1] hash
+            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+            // [-2] hash
+            // [-1] Context table
+            lua_pushvalue(L, -2);
+            // [-3] hash
+            // [-2] Context table
+            // [-1] hash
+            int ref = luaL_ref(L, -2);
+            // [-2] hash
+            // [-1] Context table
+            lua_pop(L, 1);
+            // [-1] hash
 
             if (instances->Full())
             {
@@ -174,14 +177,15 @@ namespace dmScript
     void ReleaseHash(lua_State* L, dmhash_t hash)
     {
         int top = lua_gettop(L);
-        lua_getglobal(L, SCRIPT_CONTEXT);
-        Context* context = (Context*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        HContext context = dmScript::GetScriptContext(L);
         dmHashTable64<int>* instances = &context->m_HashInstances;
         int* refp = instances->Get(hash);
         if (refp != 0x0)
         {
-            dmScript::Unref(L, LUA_REGISTRYINDEX, *refp);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+            // [-1] context table
+            luaL_unref(L, -1, *refp);
+            lua_pop(L, 1);
             instances->Erase(hash);
         }
 
@@ -190,15 +194,7 @@ namespace dmScript
 
     dmhash_t CheckHash(lua_State* L, int index)
     {
-        dmhash_t* lua_hash = 0x0;
-        if (IsHash(L, index))
-        {
-            lua_hash = (dmhash_t*)lua_touserdata(L, index);
-            return *lua_hash;
-        }
-
-        luaL_typerror(L, index, SCRIPT_TYPE_NAME_HASH);
-        return 0;
+        return *(dmhash_t*)dmScript::CheckUserType(L, index, SCRIPT_HASH_TYPE_HASH, 0);
     }
 
     dmhash_t CheckHashOrString(lua_State* L, int index)
@@ -251,19 +247,13 @@ namespace dmScript
 
     int Script_eq(lua_State* L)
     {
-        dmhash_t hash1 = CheckHash(L, 1);
-        dmhash_t hash2 = CheckHash(L, 2);
-
-        lua_pushboolean(L, hash1 == hash2);
-
+        void* userdata_1 = lua_touserdata(L, 1);
+        void* userdata_2 = lua_touserdata(L, 2);
+        // At least one of the values must be a hash according to
+        // Lua spec and we always de-duplicate hashes when created
+        // so we can simply do equality check on pointers.
+        lua_pushboolean(L, userdata_1 == userdata_2);
         return 1;
-    }
-
-    static int Script_gc (lua_State *L)
-    {
-        dmhash_t hash = CheckHash(L, 1);
-        (void)hash;
-        return 0;
     }
 
     static int Script_tostring(lua_State* L)
@@ -287,7 +277,7 @@ namespace dmScript
     {
         if (dmScript::IsHash(L, index))
         {
-            dmhash_t hash = CheckHash(L, index);
+            dmhash_t hash = *(dmhash_t*)lua_touserdata(L, index);
             const char* reverse = (const char*) dmHashReverse64(hash, 0);
 
             allocated = true;
@@ -351,10 +341,9 @@ namespace dmScript
         int top = lua_gettop(L);
         luaL_newmetatable(L, SCRIPT_TYPE_NAME_HASH);
 
+        SCRIPT_HASH_TYPE_HASH = dmScript::SetUserType(L, -1, SCRIPT_TYPE_NAME_HASH);
+
         luaL_openlib(L, 0x0, ScriptHash_methods, 0);
-        lua_pushstring(L, "__gc");
-        lua_pushcfunction(L, Script_gc);
-        lua_settable(L, -3);
 
         lua_pushstring(L, "__eq");
         lua_pushcfunction(L, Script_eq);
@@ -376,9 +365,6 @@ namespace dmScript
 
         lua_pushcfunction(L, Script_HashMD5);
         lua_setglobal(L, "hashmd5");
-
-        lua_newtable(L);
-        lua_setglobal(L, SCRIPT_HASH_TABLE);
 
         lua_pop(L, 1);
 

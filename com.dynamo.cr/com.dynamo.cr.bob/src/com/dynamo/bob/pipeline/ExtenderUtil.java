@@ -6,19 +6,28 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.error.YAMLException;
 
 import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderResource;
@@ -30,6 +39,8 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
 
 public class ExtenderUtil {
+
+    public static final String appManifestPath = "_app/" + ExtenderClient.appManifestFilename;
 
     private static class FSExtenderResource implements ExtenderResource {
 
@@ -135,18 +146,109 @@ public class ExtenderUtil {
         }
     }
 
-    // Used to take a file and rename it in the multipart request
-    public static class FSAliasResource extends FSExtenderResource {
+    private static class EmptyResource implements IResource {
+    	private String rootDir;
+    	private String path;
+
+    	public EmptyResource(String rootDir, String path) {
+            this.rootDir = rootDir;
+            this.path = path;
+        }
+
+    	@Override
+		public IResource changeExt(String ext) {
+			return null;
+		}
+
+		@Override
+		public byte[] getContent() throws IOException {
+			return new byte[0];
+		}
+
+		@Override
+		public void setContent(byte[] content) throws IOException {
+		}
+
+		@Override
+		public byte[] sha1() throws IOException {
+            byte[] content = getContent();
+            if (content == null) {
+                throw new IllegalArgumentException(String.format("Resource '%s' is not created", getPath()));
+            }
+            MessageDigest sha1;
+            try {
+                sha1 = MessageDigest.getInstance("SHA1");
+            } catch (NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
+            }
+            sha1.update(content);
+            return sha1.digest();
+		}
+
+		@Override
+		public boolean exists() {
+			return true;
+		}
+
+		@Override
+		public boolean isFile() {
+			return false;
+		}
+
+		@Override
+		public String getAbsPath() {
+            return rootDir + "/" + path;
+		}
+
+		@Override
+		public String getPath() {
+			return path;
+		}
+
+		@Override
+		public void remove() {
+		}
+
+		@Override
+		public IResource getResource(String name) {
+			return null;
+		}
+
+		@Override
+		public IResource output() {
+			return null;
+		}
+
+		@Override
+		public boolean isOutput() {
+			return false;
+		}
+
+		@Override
+		public void setContent(InputStream stream) throws IOException {
+		}
+
+		@Override
+		public long getLastModified() {
+	        return new File(rootDir).lastModified();
+		}
+
+    }
+
+    // Used to rename a resource in the multipart request and prefix the content with a base variant
+    public static class FSAppManifestResource extends FSExtenderResource {
 
         private IResource resource;
         private String alias;
         private String rootDir;
+        private Map<String, String> options;
 
-        FSAliasResource(IResource resource, String rootDir, String alias) {
+        FSAppManifestResource(IResource resource, String rootDir, String alias, Map<String, String> options) {
             super(resource);
             this.resource = resource;
             this.rootDir = rootDir;
             this.alias = alias;
+            this.options = options;
         }
 
         public IResource getResource() {
@@ -155,7 +257,18 @@ public class ExtenderUtil {
 
         @Override
         public byte[] sha1() throws IOException {
-            return resource.sha1();
+            byte[] content = getContent();
+            if (content == null) {
+                throw new IllegalArgumentException(String.format("Resource '%s' is not created", getPath()));
+            }
+            MessageDigest sha1;
+            try {
+                sha1 = MessageDigest.getInstance("SHA1");
+            } catch (NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
+            }
+            sha1.update(content);
+            return sha1.digest();
         }
 
         @Override
@@ -170,7 +283,21 @@ public class ExtenderUtil {
 
         @Override
         public byte[] getContent() throws IOException {
-            return resource.getContent();
+            String prefix = "";
+            if (options != null) {
+                prefix += "context:" + System.getProperty("line.separator");
+                for (String key : options.keySet()) {
+                    String value = options.get(key);
+                    prefix += String.format("    %s: %s", key, value) + System.getProperty("line.separator");
+                }
+            }
+
+            byte[] prefixBytes = prefix.getBytes();
+            byte[] content = resource.getContent();
+            byte[] c = new byte[prefixBytes.length + content.length];
+            System.arraycopy(prefixBytes, 0, c, 0, prefixBytes.length);
+            System.arraycopy(content, 0, c, prefixBytes.length, content.length);
+            return c;
         }
 
         @Override
@@ -245,7 +372,7 @@ public class ExtenderUtil {
         }
         return folders;
     }
-    
+
     /**
      * Returns true if the project should build remotely
      * @param project
@@ -260,7 +387,7 @@ public class ExtenderUtil {
                 return true;
             }
         }
-        
+
         ArrayList<String> paths = new ArrayList<>();
         project.findResourcePaths("", paths);
         for (String p : paths) {
@@ -277,7 +404,7 @@ public class ExtenderUtil {
      * @param project
      * @return A list of IExtenderResources that can be supplied to ExtenderClient
      */
-    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform) throws CompileExceptionError {
+    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform, Map<String, String> appmanifestOptions) throws CompileExceptionError {
         List<ExtenderResource> sources = new ArrayList<>();
 
         List<String> platformFolderAlternatives = new ArrayList<String>();
@@ -290,18 +417,29 @@ public class ExtenderUtil {
         if (!appManifest.isEmpty()) {
             IResource resource = project.getResource(appManifest);
             if (resource.exists()) {
-                sources.add( new FSAliasResource( resource, project.getRootDirectory(), "_app/" + ExtenderClient.appManifestFilename ) );
+                // We use an alias so the the app manifest has a predefined name
+                sources.add( new FSAppManifestResource( resource, project.getRootDirectory(), appManifestPath, appmanifestOptions ) );
             } else {
                 IResource projectResource = project.getResource("game.project");
                 throw new CompileExceptionError(projectResource, 0, String.format("No such resource: %s", resource.getAbsPath()));
             }
         }
+        else if (appmanifestOptions != null)
+        {
+            // Make up appmanifest
+        	IResource resource = new EmptyResource(project.getRootDirectory(), appManifestPath);
+        	sources.add( new FSAppManifestResource( resource, project.getRootDirectory(), appManifestPath, appmanifestOptions ) );
+        }
 
         // Find extension folders
         List<String> extensionFolders = getExtensionFolders(project);
         for (String extension : extensionFolders) {
+            IResource resource = project.getResource(extension + "/" + ExtenderClient.extensionFilename);
+            if (!resource.exists()) {
+                throw new CompileExceptionError(resource, 1, "Resource doesn't exist!");
+            }
 
-            sources.add( new FSExtenderResource( project.getResource(extension + "/" + ExtenderClient.extensionFilename)) );
+            sources.add( new FSExtenderResource( resource ) );
             sources.addAll( listFilesRecursive( project, extension + "/include/" ) );
             sources.addAll( listFilesRecursive( project, extension + "/src/") );
 
@@ -312,6 +450,54 @@ public class ExtenderUtil {
         }
 
         return sources;
+    }
+
+    /** Makes sure the project doesn't have duplicates wrt relative paths.
+     * This is important since we use both files on disc and in memory. (DEF-3868, )
+     * @return Doesn't return anything. It throws CompileExceptionError if the check fails.
+     */
+    public static void checkProjectForDuplicates(Project project) throws CompileExceptionError {
+        Map<String, IResource> files = new HashMap<String, IResource>();
+
+        ArrayList<String> paths = new ArrayList<>();
+        project.findResourcePaths("", paths);
+        for (String p : paths) {
+            IResource r = project.getResource(p);
+            if (!r.isFile()) // Skip directories
+                continue;
+
+            if (files.containsKey(r.getPath())) {
+                IResource previous = files.get(r.getPath());
+                throw new CompileExceptionError(r, 0, String.format("The files' relative path conflict:\n'%s' and\n'%s", r.getAbsPath(), r.getAbsPath()));
+            }
+            files.put(r.getPath(), r);
+        }
+    }
+
+    /** Get the platform manifests from the extensions
+     */
+    public static List<IResource> getExtensionPlatformManifests(Project project, Platform platform, String name) throws CompileExceptionError {
+        List<IResource> out = new ArrayList<>();
+
+        List<String> platformFolderAlternatives = new ArrayList<String>();
+        platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths())); // we skip "common" here since it makes little sense
+
+        // Find extension folders
+        List<String> extensionFolders = getExtensionFolders(project);
+        for (String extension : extensionFolders) {
+            for (String platformAlt : platformFolderAlternatives) {
+                List<ExtenderResource> files = listFilesRecursive( project, extension + "/manifests/" + platformAlt + "/");
+                for (ExtenderResource r : files) {
+                    if (!(r instanceof FSExtenderResource))
+                        continue;
+                    File f = new File(r.getAbsPath());
+                    if (f.getName().equals(name)) {
+                        out.add( ((FSExtenderResource)r).getResource() );
+                    }
+                }
+            }
+        }
+        return out;
     }
 
     /**
@@ -387,7 +573,6 @@ public class ExtenderUtil {
      */
     public static List<String> getAndroidResourcePaths(Project project, Platform platform) throws CompileExceptionError {
 
-        Map<String, IResource> bundleResources = new HashMap<String, IResource>();
         List<String> platformFolderAlternatives = new ArrayList<String>();
         platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths()));
 
@@ -421,12 +606,32 @@ public class ExtenderUtil {
         return out;
     }
 
-    public static Map<String, IResource> getAndroidResource(Project project) throws CompileExceptionError {
+    // Collects all resources (even those inside the zip packages) and stores them into one single folder
+    public static void storeAndroidResources(File targetDirectory, Map<String, IResource> resources) throws IOException, CompileExceptionError {
+        for (String relativePath : resources.keySet()) {
+            IResource r = resources.get(relativePath);
+            File outputFile = new File(targetDirectory, relativePath);
+            if (!outputFile.getParentFile().exists()) {
+                outputFile.getParentFile().mkdirs();
+            } else if (outputFile.exists()) {
+                throw new CompileExceptionError(r, 0, "The resource already exists in another extension: " + relativePath);
+            }
+            byte[] data = r.getContent();
+            FileUtils.writeByteArrayToFile(outputFile, data);
+        }
+    }
+
+    public static Map<String, IResource> getAndroidResources(Project project) throws CompileExceptionError {
 
         Map<String, IResource> androidResources = new HashMap<String, IResource>();
         List<String> bundleExcludeList = trimExcludePaths(Arrays.asList(project.getProjectProperties().getStringValue("project", "bundle_exclude_resources", "").split(",")));
         List<String> platformFolderAlternatives = new ArrayList<String>();
-        platformFolderAlternatives.addAll(Arrays.asList(Platform.Armv7Android.getExtenderPaths()));
+
+        List<String> armv7ExtenderPaths = new ArrayList<String>(Arrays.asList(Platform.Armv7Android.getExtenderPaths()));
+        List<String> arm64ExtenderPaths = new ArrayList<String>(Arrays.asList(Platform.Arm64Android.getExtenderPaths()));
+        Set<String> set = new LinkedHashSet<>(armv7ExtenderPaths);
+        set.addAll(arm64ExtenderPaths);
+        platformFolderAlternatives = new ArrayList<>(set);
 
         // Project specific bundle resources
         String bundleResourcesPath = project.getProjectProperties().getStringValue("project", "bundle_resources", "").trim();
@@ -511,4 +716,113 @@ public class ExtenderUtil {
         return null;
     }
 
+    private static int countLines(String str){
+       String[] lines = str.split("\r\n|\r|\n");
+       return lines.length;
+    }
+
+    public static Map<String, Object> readYaml(IResource resource) throws IOException {
+        String yaml = new String(resource.getContent(), StandardCharsets.UTF_8);
+        if (yaml.contains("\t")) {
+            int numLines = 1 + countLines(yaml.substring(0, yaml.indexOf("\t")));
+            throw new IOException(String.format("%s:%d: error: Manifest files are YAML files and cannot contain tabs. Indentation should be done with spaces.", resource.getAbsPath(), numLines));
+        }
+
+        try {
+            return new Yaml().load(yaml);
+        } catch(YAMLException e) {
+            throw new IOException(String.format("%s:1: error: %s", resource.getAbsPath(), e.toString()));
+        }
+    }
+
+    static boolean isListOfStrings(List<Object> list) {
+        for (Object o : list) {
+            if (!(o instanceof String)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /* Merges a and b
+    Lists are merged: a + b = [*a, *b]
+    Strings are not allowed, they will throw an error
+    */
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> mergeManifestContext(Map<String, Object> a, Map<String, Object> b) throws RuntimeException {
+        Map<String, Object> merged = new HashMap<String, Object>();
+        Set<String> allKeys = new HashSet<String>();
+        allKeys.addAll(a.keySet());
+        allKeys.addAll(b.keySet());
+        for (String key : allKeys) {
+            Object objA = a.getOrDefault(key, null);
+            Object objB = b.getOrDefault(key, null);
+            if (objA == null || objB == null) {
+                merged.put(key, objA == null ? objB : objA);
+                continue;
+            }
+
+            if (!objA.getClass().equals(objB.getClass())) {
+                throw new RuntimeException(String.format("Class types differ: '%s' != '%s' for values '%s' and '%s'", objA.getClass(), objB.getClass(), objA, objB));
+            }
+
+            if (objA instanceof List && isListOfStrings((List<Object>)objA)) {
+                List<String> listA = (List<String>)objA;
+                List<String> listB = (List<String>)objB;
+                List<String> list = new ArrayList<String>();
+                list.addAll(listA);
+                list.addAll(listB);
+                merged.put(key, list);
+            } else if (objA instanceof Map<?, ?>) {
+                Map<String, Object> mergedChildren = ExtenderUtil.mergeManifestContext((Map<String, Object>)objA, (Map<String, Object>)objB);
+                merged.put(key, mergedChildren);
+            } else {
+                throw new RuntimeException(String.format("Unsupported value types: '%s' != '%s' for values '%s' and '%s'", objA.getClass(), objB.getClass(), objA, objB));
+            }
+        }
+        return merged;
+    }
+
+    /*
+    Reads all extension manifests and merges the platform context + children.
+    An example of a manifest:
+
+    name: foo
+    platforms:
+        armv7-android:
+            context:
+                ...
+            bundle:
+                ...
+            ...
+
+
+    In this case the values _under_ 'armv7-android' will be returned.
+    */
+
+    public static Map<String, Object> getPlatformSettingsFromExtensions(Project project, String platform) throws IOException, CompileExceptionError {
+        List<String> folders = ExtenderUtil.getExtensionFolders(project);
+        Map<String, Object> ctx = new HashMap<String, Object>();
+        for (String folder : folders) {
+            IResource resource = project.getResource(folder + "/" + ExtenderClient.extensionFilename);
+            Map<String, Object> manifest = ExtenderUtil.readYaml(resource);
+
+            Map<String, Object> platforms = (Map<String, Object>)manifest.getOrDefault("platforms", null);
+            if (platforms == null) {
+                continue;
+            }
+
+            Map<String, Object> platform_ctx = (Map<String, Object>)platforms.getOrDefault(platform, null);
+            if (platform_ctx == null) {
+                continue;
+            }
+
+            try {
+                ctx = mergeManifestContext(ctx, platform_ctx);
+            } catch (RuntimeException e) {
+                throw new CompileExceptionError(resource, -1, String.format("Extension manifest '%s' contains invalid values: %s", e.toString()));
+            }
+        }
+        return ctx;
+    }
 }

@@ -47,24 +47,37 @@
 (defn build-handler [workspace project request]
   (handler workspace project request))
 
+(defn- string->url
+  ^URI [^String str]
+  (when (some? str)
+    (try
+      (URI. str)
+      (catch java.net.URISyntaxException _
+        nil))))
+
+(defn- body->valid-entries [workspace ^bytes body]
+  (into []
+        (comp
+          (keep (fn [line]
+                  (let [[url-string etag] (string/split line #" ")]
+                    (when-some [url (some-> url-string string->url)]
+                      [url etag]))))
+          (keep (fn [[^URI url etag]]
+                  (let [path (.. url normalize getPath)]
+                    (when (string/starts-with? path url-prefix)
+                      (let [proj-path (subs path (count url-prefix))]
+                        (when (= etag (workspace/etag workspace proj-path))
+                          path)))))))
+        (string/split-lines (String. body))))
+
 (defn- v-e-handler [workspace project {:keys [url method headers ^bytes body]}]
   (if (not= method "POST")
     bad-request
-    (let [entries (->> (String. body)
-                    string/split-lines
-                    (keep (fn [line]
-                            (when (seq line)
-                              (let [[url etag] (string/split line #" ")
-                                    path (-> (URI. url)
-                                           (.normalize)
-                                           (.getPath))
-                                    local-path (subs path (count url-prefix))]
-                                (when (= etag (workspace/etag workspace local-path))
-                                  path))))))
-          out-body (string/join "\n" entries)]
+    (let [body-str (string/join "\n" (body->valid-entries workspace body))
+          body (.getBytes body-str "UTF-8")]
       {:code 200
-       :headers {"Content-Length" (str (count out-body))}
-       :body out-body})))
+       :headers {"Content-Length" (str (count body))}
+       :body body})))
 
 (defn verify-etags-handler [workspace project request]
   (v-e-handler workspace project request))

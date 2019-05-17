@@ -1,5 +1,7 @@
 (ns editor.label
   (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
+            [editor.colors :as colors]
             [editor.defold-project :as project]
             [editor.font :as font]
             [editor.geom :as geom]
@@ -15,8 +17,8 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
+            [editor.scene-picking :as scene-picking]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
@@ -65,10 +67,20 @@
 
 (def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
 
-; Vertex generation
+(shader/defshader label-id-vertex-shader
+  (uniform mat4 view_proj)
+  (attribute vec4 position)
+  (defn void main []
+    (setq gl_Position (* view_proj (vec4 position.xyz 1.0)))))
 
-(def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0]))
-(def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
+(shader/defshader label-id-fragment-shader
+  (uniform vec4 id)
+  (defn void main []
+    (setq gl_FragColor id)))
+
+(def id-shader (shader/make-shader ::label-id-shader label-id-vertex-shader label-id-fragment-shader {"view_proj" :view-proj "id" :id}))
+
+; Vertex generation
 
 (defn- gen-lines-vb
   [renderables]
@@ -76,7 +88,7 @@
     (when (pos? vcount)
       (vtx/flip! (reduce (fn [vb {:keys [world-transform user-data selected] :as renderable}]
                            (let [line-data (:line-data user-data)
-                                 [r g b a] (get user-data :line-color (if (:selected renderable) selected-outline-color outline-color))]
+                                 [r g b a] (get user-data :line-color (if (:selected renderable) colors/selected-outline-color colors/outline-color))]
                              (reduce (fn [vb [x y z]]
                                        (color-vtx-put! vb x y z r g b a))
                                      vb
@@ -104,19 +116,27 @@
     (font/request-vertex-buffer gl node-ids font-data text-entries)))
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
-  (let [user-data (get-in renderables [0 :user-data])
+  (let [renderable (first renderables)
+        user-data (:user-data renderable)
         gpu-texture (or (get user-data :gpu-texture) texture/white-pixel)
-        material-shader (get user-data :material-shader)
-        blend-mode (get user-data :blend-mode)
         vb (gen-vb gl renderables)
         vcount (count vb)]
     (when (> vcount 0)
-      (let [shader (or material-shader shader)
-            vertex-binding (vtx/use-with ::tris vb shader)]
+      (condp = (:pass render-args)
+        pass/transparent
+        (let [material-shader (get user-data :material-shader)
+              blend-mode (get user-data :blend-mode)
+              shader (or material-shader shader)
+              vertex-binding (vtx/use-with ::tris vb shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
           (gl/set-blend-mode gl blend-mode)
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
-          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))))
+          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
+
+        pass/selection
+        (let [vertex-binding (vtx/use-with ::tris-selection vb id-shader)]
+          (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable)) [id-shader vertex-binding gpu-texture]
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)))))))
 
 ; Node defs
 
@@ -170,7 +190,10 @@
   [_node-id aabb gpu-texture material-shader blend-mode pivot text-data scale]
   (let [scene {:node-id _node-id
                :aabb aabb
-               :transform (math/->mat4-scale scale)}]
+               :transform (math/->mat4-scale scale)}
+        font-map (get-in text-data [:font-data :font-map])
+        texture-recip-uniform (font/get-texture-recip-uniform font-map)
+        material-shader (assoc-in material-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
     (if text-data
       (let [min (types/min-p aabb)
             max (types/max-p aabb)
@@ -179,7 +202,7 @@
             offset (pivot-offset pivot size)
             lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))]
         (assoc scene :renderable {:render-fn render-tris
-                                  :tags #{:label}
+                                  :tags #{:text}
                                   :batch-key {:blend-mode blend-mode :gpu-texture gpu-texture :material-shader material-shader}
                                   :select-batch-key _node-id
                                   :user-data {:material-shader material-shader
@@ -189,8 +212,9 @@
                                               :text-data text-data}
                                   :passes [pass/transparent pass/selection]}
                :children [{:node-id _node-id
+                           :aabb aabb
                            :renderable {:render-fn render-lines
-                                        :tags #{:label :outline}
+                                        :tags #{:text :outline}
                                         :batch-key ::outline
                                         :user-data {:line-data lines}
                                         :passes [pass/outline]}}]))
@@ -211,12 +235,13 @@
       (let [dep-build-targets (flatten dep-build-targets)
             deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
             dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:font font] [:material material]])]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-label
-          :user-data {:proto-msg pb-msg
-                      :dep-resources dep-resources}
-          :deps dep-build-targets}])))
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-label
+            :user-data {:proto-msg pb-msg
+                        :dep-resources dep-resources}
+            :deps dep-build-targets})])))
 
 (g/defnode LabelNode
   (inherits resource-node/ResourceNode)
@@ -295,9 +320,8 @@
                                     (let [offset-fn (partial mapv + (pivot-offset pivot aabb-size))
                                           [min-x min-y _] (offset-fn [0 0 0])
                                           [max-x max-y _] (offset-fn aabb-size)]
-                                      (-> (geom/null-aabb)
-                                        (geom/aabb-incorporate min-x min-y 0)
-                                        (geom/aabb-incorporate max-x max-y 0)))))
+                                      (geom/coords->aabb [min-x min-y 0]
+                                                         [max-x max-y 0]))))
   (output save-value g/Any (gu/passthrough pb-msg))
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets)

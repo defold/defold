@@ -33,7 +33,7 @@ def configure(conf):
 
     if platform == 'darwin' or platform == 'x86_64-darwin':
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'CoreVideo'])
-    elif re.match('arm.*?darwin', platform):
+    elif platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics'])
     elif re.match('arm.*?android', platform):
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
@@ -48,12 +48,12 @@ def configure(conf):
 
 def build(bld):
     bld.add_subdirs('lib')
-    bld.add_subdirs('examples')
     bld.install_files('${PREFIX}/include/graphics/glfw', 'include/GL/glfw.h')
     bld.install_files('${PREFIX}/include/graphics/glfw', 'include/GL/glfw_native.h')
 
     if 'android' in bld.env['PLATFORM']:
-        classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME, '%s/ext/share/java/google-play-services.jar' % bld.env.DYNAMO_HOME];
+        classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME,
+                     '%s/ext/share/java/android-support-v4.jar' % bld.env.DYNAMO_HOME];
         classpath = os.pathsep.join(classpath)
 
         bld.new_task_gen(features='javac seq',
@@ -67,8 +67,8 @@ def build(bld):
                          destfile='glfw_android.jar')
 
         bld.install_files('${PREFIX}/share/java', 'glfw_android.jar')
-    if 'js-web' in bld.env['PLATFORM']:
-        bld.install_files('${PREFIX}/lib/js-web/js', 'js/library_glfw.js')
+    if 'web' in bld.env['PLATFORM']:
+        bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'js/library_glfw.js')
 
 def shutdown():
-    waf_dynamo.run_gtests(valgrind = True)
+    waf_dynamo.run_tests(valgrind = True)

@@ -1,12 +1,13 @@
-#include <gtest/gtest.h>
-
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+#include <stddef.h> // offsetof
 #include "../dlib/log.h"
 #include "../dlib/hash.h"
 #include "../dlib/buffer.h"
 
 #define RIG_EPSILON 0.0001f
 
-class BufferTest : public ::testing::Test
+class BufferTest : public jc_test_base_class
 {
     virtual void SetUp() {
         dmBuffer::NewContext();
@@ -17,7 +18,7 @@ class BufferTest : public ::testing::Test
     }
 };
 
-class GetDataTest : public ::testing::Test
+class GetDataTest : public jc_test_base_class
 {
 public:
     dmBuffer::HBuffer buffer;
@@ -57,7 +58,7 @@ struct AlignmentTestParams
     uintptr_t expected_offsets[dmBuffer::MAX_VALUE_TYPE_COUNT];
 };
 
-class AlignmentTest : public ::testing::TestWithParam<AlignmentTestParams>
+class AlignmentTest : public jc_test_params_class<AlignmentTestParams>
 {
 public:
     dmBuffer::HBuffer buffer;
@@ -96,32 +97,32 @@ TEST_F(BufferTest, InvalidAllocation)
     // Empty declaration, zero elements
     dmBuffer::Result r = dmBuffer::Create(0, streams_decl, 0, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_BUFFER_SIZE_ERROR, r);
-    ASSERT_EQ(0, buffer);
+    ASSERT_EQ(0U, buffer);
 
     // Empty declaration, 1 element
     r = dmBuffer::Create(1, streams_decl, 0, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_STREAM_SIZE_ERROR, r);
-    ASSERT_EQ(0, buffer);
+    ASSERT_EQ(0U, buffer);
 
     // Valid declaration, zero elements
     r = dmBuffer::Create(0, streams_decl, 2, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_BUFFER_SIZE_ERROR, r);
-    ASSERT_EQ(0, buffer);
+    ASSERT_EQ(0U, buffer);
 
     // Valid sizes, but invalid valuetype count (see "dummy3" above)
     r = dmBuffer::Create(1, streams_decl, 3, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_STREAM_SIZE_ERROR, r);
-    ASSERT_EQ(0, buffer);
+    ASSERT_EQ(0U, buffer);
 
     // Valid sizes, but buffer is NULL-pointer
     r = dmBuffer::Create(1, streams_decl, 1, 0x0);
     ASSERT_EQ(dmBuffer::RESULT_ALLOCATION_ERROR, r);
-    ASSERT_EQ(0, buffer);
+    ASSERT_EQ(0U, buffer);
 
     // Valid sizes, but declaration is NULL-pointer
     r = dmBuffer::Create(1, 0x0, 1, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_ALLOCATION_ERROR, r);
-    ASSERT_EQ(0, buffer);
+    ASSERT_EQ(0U, buffer);
 }
 
 TEST_F(BufferTest, ValidAllocation)
@@ -573,13 +574,13 @@ const AlignmentTestParams valid_stream_setups[] = {
     },
 };
 
-INSTANTIATE_TEST_CASE_P(AlignmentSequence, AlignmentTest, ::testing::ValuesIn(valid_stream_setups));
+INSTANTIATE_TEST_CASE_P(AlignmentSequence, AlignmentTest, jc_test_values_in(valid_stream_setups));
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = jc_test_run_all();
     return ret;
 }
 

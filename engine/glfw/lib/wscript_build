@@ -9,7 +9,7 @@ platform = bld.env.PLATFORM
 if platform == 'darwin' or platform == 'x86_64-darwin':
     dmglfw.find_sources_in_dirs('. cocoa')
     dmglfw.includes = '. cocoa'
-elif re.match('arm.*?darwin', platform):
+elif platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
     dmglfw.find_sources_in_dirs('. ios')
     dmglfw.includes = '. ios'
 elif re.match('arm.*?android', platform):
@@ -21,7 +21,7 @@ elif platform == 'linux' or platform == 'x86_64-linux':
 elif 'win32' in platform:
     dmglfw.find_sources_in_dirs('. win32')
     dmglfw.includes = '. win32'
-elif platform == 'js-web':
+elif 'web' in platform:
     dmglfw.find_sources_in_dirs('js-web')
     dmglfw.includes = 'js-web .'
 elif platform == 'as3-web':

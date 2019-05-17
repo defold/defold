@@ -24,9 +24,12 @@
             [util.thread-util :as thread-util])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
            [java.util UUID]
+           [java.util.concurrent LinkedBlockingQueue]
+           [java.util.zip ZipEntry ZipOutputStream]
+           [javafx.scene Scene]
+           [javafx.scene.layout VBox]
            [javax.imageio ImageIO]
-           [org.apache.commons.io FilenameUtils IOUtils]
-           [java.util.zip ZipOutputStream ZipEntry]))
+           [org.apache.commons.io FilenameUtils IOUtils]))
 
 (def project-path "test/resources/test_project")
 
@@ -186,7 +189,10 @@
 
 (defn setup-app-view! [project]
   (let [view-graph (make-view-graph!)]
-    (-> (g/make-nodes view-graph [app-view [MockAppView :active-tool :move :manip-space :world]]
+    (-> (g/make-nodes view-graph [app-view [MockAppView
+                                            :active-tool :move
+                                            :manip-space :world
+                                            :scene (Scene. (VBox.))]]
           (g/connect project :_node-id app-view :project-id)
           (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
             (g/connect project label app-view label)))
@@ -235,12 +241,12 @@
 
 (defn setup!
   ([graph]
-    (setup! graph project-path))
+   (setup! graph project-path))
   ([graph project-path]
-    (let [workspace (setup-workspace! graph project-path)
-          project   (setup-project! workspace)
-          app-view  (setup-app-view! project)]
-      [workspace project app-view])))
+   (let [workspace (setup-workspace! graph project-path)
+         project (setup-project! workspace)
+         app-view (setup-app-view! project)]
+     [workspace project app-view])))
 
 (defn- load-system-and-project-raw [path]
   (test-support/with-clean-system
@@ -256,10 +262,10 @@
         project-path  (if custom-path? (first forms) project-path)
         forms         (if custom-path? (next forms) forms)]
     `(let [[system# ~'workspace ~'project] (load-system-and-project ~project-path)
-           ~'system (is/clone-system system#)
-           ~'cache  (:cache ~'system)
+           system-clone# (is/clone-system system#)
+           ~'cache  (:cache system-clone#)
            ~'world  (g/node-id->graph-id ~'workspace)]
-       (binding [g/*the-system* (atom ~'system)]
+       (binding [g/*the-system* (atom system-clone#)]
          (let [~'app-view (setup-app-view! ~'project)]
            ~@forms)))))
 
@@ -271,32 +277,56 @@
          (doseq [f# @laters#] (f#))
          result#))))
 
+(defn run-event-loop!
+  "Starts a simulated event loop and enqueues the supplied function on it.
+  The function is invoked with a single argument, which is a function that must
+  be called to exit the event loop. Blocks until the event loop is terminated,
+  or an exception is thrown from an enqueued action. While the event loop is
+  running, ui/run-now and ui/run-later are rebound to enqueue actions on the
+  simulated event loop, and ui/on-ui-thread? will return true only if called
+  from inside the event loop."
+  [f]
+  (let [ui-thread (Thread/currentThread)
+        action-queue (LinkedBlockingQueue.)
+        enqueue-action! (fn [action!]
+                          (.add action-queue action!)
+                          nil)
+        exit-event-loop! #(enqueue-action! ::exit-event-loop)]
+    (with-redefs [ui/on-ui-thread? #(= ui-thread (Thread/currentThread))
+                  ui/do-run-later enqueue-action!]
+      (enqueue-action! (fn [] (f exit-event-loop!)))
+      (loop []
+        (let [action! (.take action-queue)]
+          (when (not= ::exit-event-loop action!)
+            (action!)
+            (recur)))))))
+
 (defn set-active-tool! [app-view tool]
   (g/transact (g/set-property app-view :active-tool tool)))
 
 (defn- fake-input!
   ([view type x y]
-    (fake-input! view type x y []))
+   (fake-input! view type x y []))
   ([view type x y modifiers]
-    (fake-input! view type x y modifiers 0))
+   (fake-input! view type x y modifiers 0))
   ([view type x y modifiers click-count]
-    (let [pos [x y 0.0]]
-      (g/transact (g/set-property view :tool-picking-rect (scene-selection/calc-picking-rect pos pos))))
-    (let [handlers  (g/sources-of view :input-handlers)
-          user-data (g/node-value view :selected-tool-renderables)
-          action    (reduce #(assoc %1 %2 true)
-                            {:type type :x x :y y :click-count click-count}
-                            modifiers)
-          action    (scene/augment-action view action)]
-      (scene/dispatch-input handlers action user-data))))
+   (let [pos [x y 0.0]]
+     (g/transact (g/set-property view :tool-picking-rect (scene-selection/calc-picking-rect pos pos))))
+   (let [handlers (g/sources-of view :input-handlers)
+         user-data (g/node-value view :selected-tool-renderables)
+         action (reduce #(assoc %1 %2 true)
+                        {:type type :x x :y y :click-count click-count}
+                        modifiers)
+         action (scene/augment-action view action)]
+     (scene/dispatch-input handlers action user-data))))
 
 (defn mouse-press!
   ([view x y]
-    (fake-input! view :mouse-pressed x y))
+   (fake-input! view :mouse-pressed x y))
   ([view x y modifiers]
-    (fake-input! view :mouse-pressed x y modifiers 0))
+   (fake-input! view :mouse-pressed x y modifiers 0))
   ([view x y modifiers click-count]
-    (fake-input! view :mouse-pressed x y modifiers click-count)))
+   (fake-input! view :mouse-pressed x y modifiers click-count)))
 
 (defn mouse-move! [view x y]
   (fake-input! view :mouse-moved x y))
@@ -306,19 +336,19 @@
 
 (defn mouse-click!
   ([view x y]
-    (mouse-click! view x y []))
+   (mouse-click! view x y []))
   ([view x y modifiers]
-    (mouse-click! view x y modifiers 0))
+   (mouse-click! view x y modifiers 0))
   ([view x y modifiers click-count]
-    (mouse-press! view x y modifiers (inc click-count))
-    (mouse-release! view x y)))
+   (mouse-press! view x y modifiers (inc click-count))
+   (mouse-release! view x y)))
 
 (defn mouse-dbl-click!
   ([view x y]
-    (mouse-dbl-click! view x y []))
+   (mouse-dbl-click! view x y []))
   ([view x y modifiers]
-    (mouse-click! view x y modifiers)
-    (mouse-click! view x y modifiers 1)))
+   (mouse-click! view x y modifiers)
+   (mouse-click! view x y modifiers 1)))
 
 (defn mouse-drag! [view x0 y0 x1 y1]
   (mouse-press! view x0 y0)
@@ -335,21 +365,21 @@
 
 (defn- outline->str
   ([outline]
-    (outline->str outline "" true))
+   (outline->str outline "" true))
   ([outline prefix recurse?]
-    (if outline
-      (format "%s%s [%d] [%s]%s%s"
-              (if recurse? (str prefix "* ") "")
-              (:label outline "<no-label>")
-              (:node-id outline -1)
-              (some-> (g/node-type* (:node-id outline -1))
-                deref
-                :name)
-              (if (:alt-outline outline) (format " (ALT: %s)" (outline->str (:alt-outline outline) prefix false)) "")
-              (if recurse?
-                (string/join (map #(str "\n" (outline->str % (str prefix "  ") true)) (:children outline)))
-                ""))
-      "")))
+   (if outline
+     (format "%s%s [%d] [%s]%s%s"
+             (if recurse? (str prefix "* ") "")
+             (:label outline "<no-label>")
+             (:node-id outline -1)
+             (some-> (g/node-type* (:node-id outline -1))
+                     deref
+                     :name)
+             (if (:alt-outline outline) (format " (ALT: %s)" (outline->str (:alt-outline outline) prefix false)) "")
+             (if recurse?
+               (string/join (map #(str "\n" (outline->str % (str prefix "  ") true)) (:children outline)))
+               ""))
+     "")))
 
 (defn dump-outline [root path]
   (-> (outline root path)
@@ -526,8 +556,9 @@
     (testing "uses shader and texture params from assigned material "
       (with-prop [node-id material-prop (workspace/resolve-workspace-resource workspace "/materials/test_samplers.material")]
         (let [scene-data (g/node-value node-id :scene)]
-          (is (= (get-in scene-data shader-path)
-                 (g/node-value material-node :shader)))
+          ;; Additional uniforms might be introduced during rendering.
+          (is (= (dissoc (get-in scene-data shader-path) :uniforms)
+                 (dissoc (g/node-value material-node :shader) :uniforms)))
           (is (= (get-in scene-data (conj gpu-texture-path :params))
-                   (material/sampler->tex-params  (first (g/node-value material-node :samplers))))))))))
+                 (material/sampler->tex-params (first (g/node-value material-node :samplers))))))))))
 

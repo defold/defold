@@ -169,7 +169,7 @@ namespace dmSocket
         // Implements the Hamming Distance algorithm.
         // https://en.wikipedia.org/wiki/Hamming_distance
         uint32_t difference = 0;
-        for (int i = 0; i < (sizeof(a.m_address) / sizeof(uint32_t)); ++i)
+        for (uint32_t i = 0; i < (sizeof(a.m_address) / sizeof(uint32_t)); ++i)
         {
             uint32_t current = a.m_address[i] ^ b.m_address[i];
             while (current != 0)
@@ -664,7 +664,7 @@ namespace dmSocket
         return r == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
     }
 
-#if !(defined(__MACH__) && (defined(__arm__) || defined(__arm64__)))
+#if !(defined(__MACH__) && (defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)))
     Result GetLocalAddress(Address* address)
     {
 #ifdef __ANDROID__

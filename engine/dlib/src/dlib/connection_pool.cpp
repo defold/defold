@@ -53,7 +53,7 @@ namespace dmConnectionPool
         dmArray<Connection> m_Connections;
         uint16_t            m_NextVersion;
         dmAxTls::SSL_CTX*   m_SSLContext;
-        dmMutex::Mutex      m_Mutex;
+        dmMutex::HMutex     m_Mutex;
 
         uint16_t            m_AllowNewConnections:1;
 
@@ -311,9 +311,8 @@ namespace dmConnectionPool
         }
 
         uint64_t handshakestart = dmTime::GetTime();
-        if( timeout > 0 && (handshakestart - connectstart) > timeout )
+        if( timeout > 0 && (handshakestart - connectstart) > (uint64_t)timeout )
         {
-            r = RESULT_SOCKET_ERROR;
             dmSocket::Delete(c->m_Socket);
             c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
             return RESULT_SOCKET_ERROR;
@@ -376,21 +375,30 @@ namespace dmConnectionPool
         return r;
     }
 
-    Result Dial(HPool pool, const char* host, uint16_t port, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res)
+    Result Dial(HPool pool, const char* host, uint16_t port, dmDNS::HChannel dns_channel, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res)
     {
         if (!pool->m_AllowNewConnections) {
             return RESULT_SHUT_DOWN;
         }
 
-        // TODO: Make this async, making it able to timeout (it can take up to 30 seconds). Look into getaddrinfo_a
         dmSocket::Address address;
-        dmSocket::Result sr = dmSocket::GetHostByName(host, &address);
+        bool gethost_did_succeed;
+
+        if (dns_channel)
+        {
+            gethost_did_succeed = dmDNS::GetHostByName(host, &address, dns_channel) == dmDNS::RESULT_OK;
+        }
+        else
+        {
+            gethost_did_succeed = dmSocket::GetHostByName(host, &address) == dmSocket::RESULT_OK;
+        }
+
         dmhash_t conn_id = CalculateConnectionID(address, port, ssl);
 
         Connection* c = 0;
         uint32_t index;
 
-        if (sr == dmSocket::RESULT_OK) {
+        if (gethost_did_succeed) {
             DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
 
             PurgeExpired(pool);
@@ -405,7 +413,7 @@ namespace dmConnectionPool
             c->m_State = STATE_INUSE;
 
         } else {
-            *sock_res = sr;
+            *sock_res = dmSocket::RESULT_HOST_NOT_FOUND; // Only error that dmSocket::getHostByName returns
             return RESULT_SOCKET_ERROR;
         }
 
@@ -484,7 +492,8 @@ namespace dmConnectionPool
         // in-use connections.
         DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
         uint32_t count = 0;
-        for (uint32_t i=0;i!=pool->m_Connections.Size();i++) {
+        uint32_t n = pool->m_Connections.Size();
+        for (uint32_t i=0; i != n; i++) {
             Connection* c = &pool->m_Connections[i];
             if (c->m_State == STATE_INUSE) {
                 count++;
@@ -501,7 +510,22 @@ namespace dmConnectionPool
 
     void Reopen(HPool pool)
     {
+        // This function is used by tests to restore usage of a pool
+        // We purge any live connections so the test does not run out
+        // of connection pool items
         DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
+        uint32_t n = pool->m_Connections.Size();
+        for (uint32_t i=0; i != n; i++) {
+            Connection* c = &pool->m_Connections[i];
+            if (c->m_State == STATE_CONNECTED)
+            {
+                dmSocket::Delete(c->m_Socket);
+                if (c->m_SSLConnection) {
+                    ssl_free(c->m_SSLConnection);
+                }
+                c->Clear();
+            }
+        }
         pool->m_AllowNewConnections = 1;
     }
 }

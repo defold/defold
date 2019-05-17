@@ -4,6 +4,7 @@ go.property("url", msg.url())
 go.property("vec3", vmath.vector3())
 go.property("vec4", vmath.vector4())
 go.property("quat", vmath.quat())
+go.property("bool", false)
 
 function init(self)
     assert(self.number == 3)
@@ -12,4 +13,5 @@ function init(self)
     assert(self.vec3 == vmath.vector3(11, 12, 13))
     assert(self.vec4 == vmath.vector4(14, 15, 16, 17))
     assert(self.quat == vmath.quat(18, 19, 20, 21))
+    assert(self.bool == true)
 end

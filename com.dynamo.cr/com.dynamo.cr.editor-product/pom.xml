@@ -58,17 +58,6 @@
                         <version>1.1.0</version>
                         <executions>
                             <execution>
-                                <id>download-jre-linux</id>
-                                <phase>initialize</phase>
-                                <goals><goal>wget</goal></goals>
-                                <configuration>
-                                    <url>https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u5-linux-i586.zip</url>
-                                    <md5>1043ca561da68614fd28c67894bc3208</md5>
-                                    <unpack>false</unpack>
-                                    <outputDirectory>${project.build.directory}</outputDirectory>
-                                </configuration>
-                            </execution>
-                            <execution>
                                 <id>download-jre-linux-x64</id>
                                 <phase>initialize</phase>
                                 <goals><goal>wget</goal></goals>

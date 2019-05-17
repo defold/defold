@@ -1,6 +1,7 @@
 (ns editor.animation-set
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.protobuf :as protobuf]
@@ -70,10 +71,11 @@
      :content (protobuf/map->bytes Rig$AnimationSet animation-set-with-hash-ids)}))
 
 (g/defnk produce-animation-set-build-target [_node-id resource animation-set]
-  {:node-id _node-id
-   :resource (workspace/make-build-resource resource)
-   :build-fn build-animation-set
-   :user-data {:animation-set animation-set}})
+  (bt/with-content-hash
+    {:node-id _node-id
+     :resource (workspace/make-build-resource resource)
+     :build-fn build-animation-set
+     :user-data {:animation-set animation-set}}))
 
 (def ^:private form-sections
   {
@@ -124,7 +126,7 @@
                            (g/disconnect project :nil-resource self :animation-resources)))
                        (for [new-resource new-value]
                          (if new-resource
-                           (project/connect-resource-node evaluation-context project new-resource self connections)
+                           (:tx-data (project/connect-resource-node evaluation-context project new-resource self connections))
                            (g/connect project :nil-resource self :animation-resources)))))))
             (dynamic visible (g/constantly false)))
 

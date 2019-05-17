@@ -18,22 +18,28 @@
 
 
 (defn- luajit-exec-path
-  []
-  (str (system/defold-unpack-path) "/" (.getPair (Platform/getJavaPlatform)) "/bin/luajit"))
+  [arch]
+  (str (system/defold-unpack-path) "/" (.getPair (Platform/getJavaPlatform)) (str (case arch
+                                                                                        :32-bit "/bin/luajit-32"
+                                                                                        :64-bit "/bin/luajit-64"))))
 
 (defn- luajit-lua-path
   []
   (str (system/defold-unpack-path) "/shared/luajit"))
 
+(defn luajit-path-to-chunk
+  [^String s]
+  (subs s (max 0 (- (count s) 59))))
+
 (defn- compile-file
-  [proj-path ^File input ^File output]
-  (let [{:keys [exit out err]} (shell/sh (luajit-exec-path)
+  [proj-path ^File input ^File output arch]
+  (let [{:keys [exit out err]} (shell/sh (luajit-exec-path arch)
                                          "-bgf"
                                          ; Take the last 59 chars from the path as Lua chunkname.
                                          ; Prefix "=" which tells Lua this is a literal file path,
                                          ; the total length is now at maximum 60 chars (which is the
                                          ; maximum length of chunknames in Lua).
-                                         (str "=" (subs proj-path (max 0 (- (count proj-path) 59) )))
+                                         (str "=" (luajit-path-to-chunk proj-path))
                                          (.getAbsolutePath input)
                                          (.getAbsolutePath output)
                                          :env {"LUA_PATH" (str (luajit-lua-path) "/?.lua")})]
@@ -48,12 +54,12 @@
                          :message message}))))))
 
 (defn bytecode
-  [source proj-path]
+  [source proj-path arch]
   (let [input (fs/create-temp-file! "script" ".lua")
         output (fs/create-temp-file! "script" ".luajitbc")]
     (try
       (io/copy source input)
-      (compile-file proj-path input output)
+      (compile-file proj-path input output arch)
       (with-open [buf (ByteArrayOutputStream.)]
         (io/copy output buf)
         (.toByteArray buf))

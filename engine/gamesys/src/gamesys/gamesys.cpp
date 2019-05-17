@@ -40,6 +40,7 @@
 #include "resources/res_display_profiles.h"
 #include "resources/res_label.h"
 
+#include "components/comp_private.h"
 #include "components/comp_collection_proxy.h"
 #include "components/comp_collision_object.h"
 #include "components/comp_emitter.h"
@@ -77,6 +78,8 @@ namespace dmGameSystem
     {
         dmResource::Result e;
 
+        DM_STATIC_ASSERT( dmGameSystem::MAX_COMP_RENDER_CONSTANTS == dmRender::RenderObject::MAX_CONSTANT_COUNT, Constant_Count_Must_Be_Equal );
+
 #define REGISTER_RESOURCE_TYPE(extension, context, preload_func, create_func, post_create_func, destroy_func, recreate_func, duplicate_func)\
     e = dmResource::RegisterType(factory, extension, context, preload_func, create_func, post_create_func, destroy_func, recreate_func, duplicate_func);\
     if( e != dmResource::RESULT_OK )\
@@ -93,11 +96,11 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("emitterc", 0, 0, ResEmitterCreate, 0,ResEmitterDestroy, ResEmitterRecreate, 0);
         REGISTER_RESOURCE_TYPE("particlefxc", 0, ResParticleFXPreload, ResParticleFXCreate, 0, ResParticleFXDestroy, ResParticleFXRecreate, 0);
         REGISTER_RESOURCE_TYPE("texturec", graphics_context, ResTexturePreload, ResTextureCreate, ResTexturePostCreate, ResTextureDestroy, ResTextureRecreate, 0);
-        REGISTER_RESOURCE_TYPE("vpc", graphics_context, 0, ResVertexProgramCreate, 0, ResVertexProgramDestroy, ResVertexProgramRecreate, 0);
-        REGISTER_RESOURCE_TYPE("fpc", graphics_context, 0, ResFragmentProgramCreate, 0, ResFragmentProgramDestroy, ResFragmentProgramRecreate, 0);
+        REGISTER_RESOURCE_TYPE("vpc", graphics_context, ResVertexProgramPreload, ResVertexProgramCreate, 0, ResVertexProgramDestroy, ResVertexProgramRecreate, 0);
+        REGISTER_RESOURCE_TYPE("fpc", graphics_context, ResFragmentProgramPreload, ResFragmentProgramCreate, 0, ResFragmentProgramDestroy, ResFragmentProgramRecreate, 0);
         REGISTER_RESOURCE_TYPE("fontc", render_context, ResFontMapPreload, ResFontMapCreate, 0, ResFontMapDestroy, ResFontMapRecreate, 0);
-        REGISTER_RESOURCE_TYPE("modelc", 0, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate, 0);
-        REGISTER_RESOURCE_TYPE("materialc", render_context, 0, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate, 0);
+        REGISTER_RESOURCE_TYPE("modelc", graphics_context, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate, 0);
+        REGISTER_RESOURCE_TYPE("materialc", render_context, ResMaterialPreload, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate, 0);
         REGISTER_RESOURCE_TYPE("guic", gui_context, ResPreloadSceneDesc, ResCreateSceneDesc, 0, ResDestroySceneDesc, ResRecreateSceneDesc, 0);
         REGISTER_RESOURCE_TYPE("gui_scriptc", gui_context, ResPreloadGuiScript, ResCreateGuiScript, 0, ResDestroyGuiScript, ResRecreateGuiScript, 0);
         REGISTER_RESOURCE_TYPE("wavc", 0, 0, ResSoundDataCreate, 0, ResSoundDataDestroy, ResSoundDataRecreate, 0);

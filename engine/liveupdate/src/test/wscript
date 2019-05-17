@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 def init():
     pass
@@ -10,10 +10,13 @@ def configure(conf):
     pass
 
 def build(bld):
+    uselib = ['RESOURCE', 'DLIB', 'DDF', 'THREAD', 'LUA', 'CARES']
+
     test_liveupdate = bld.new_task_gen(features = 'cxx cprogram test',
                                        includes = '../../../src',
-                                       uselib = 'GTEST RESOURCE DLIB DDF THREAD LUA',
+                                       uselib = uselib,
                                        uselib_local = 'liveupdate',
+                                       web_libs = ['library_sys.js'],
                                        target = 'test_liveupdate',
                                        source = 'test_liveupdate.cpp')
 
@@ -21,7 +24,8 @@ def build(bld):
 
     test_liveupdate_async = bld.new_task_gen(features = 'cxx cprogram test',
                                        includes = '../../../src',
-                                       uselib = 'GTEST RESOURCE DLIB DDF THREAD LUA',
+                                       uselib = uselib,
+                                       web_libs = ['library_sys.js'],
                                        target = 'test_liveupdate_async',
                                        source = '../liveupdate_async.cpp test_liveupdate_async.cpp')
 

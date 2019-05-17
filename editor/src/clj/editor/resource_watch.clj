@@ -7,8 +7,7 @@
             [editor.system :as system]
             [dynamo.graph :as g])
   (:import [java.io File]
-           [java.net URI]
-           [editor.resource Resource FileResource ZipResource]))
+           [java.net URI]))
 
 (set! *warn-on-reflection* true)
 
@@ -100,11 +99,22 @@
      (resource/make-file-resource workspace (.getPath root) file children))))
 
 (defn- file-resource-status [r]
+  (assert (resource/file-resource? r))
   {:version (str (.lastModified ^File (io/file r))) :source :directory})
 
-(defn- file-resource-status-map-entry [r]
+(defn file-resource-status-map-entry [r]
   [(resource/proj-path r)
    (file-resource-status r)])
+
+(defn file-resource-status-map-entry? [[proj-path {:keys [version source]}]]
+  (and (string? proj-path)
+       (str/starts-with? proj-path "/")
+       (= :directory source)
+       (try
+         (Long/parseUnsignedLong version)
+         true
+         (catch NumberFormatException _
+           false))))
 
 (defn- make-directory-snapshot [workspace ^File root]
   (assert (and root (.isDirectory root)))
@@ -146,14 +156,9 @@
     {:resources resources
      :status-map (into {} (map file-resource-status-map-entry) flat-resources)}))
 
-(defn update-snapshot-status [snapshot resources]
-  (assert (every? resource/file-resource? resources))
-  (update snapshot :status-map
-          (fn [status-map]
-            (reduce (fn [status-map resource]
-                      (assoc status-map (resource/proj-path resource) (file-resource-status resource)))
-                    status-map
-                    resources))))
+(defn update-snapshot-status [snapshot file-resource-status-map-entries]
+  (assert (every? file-resource-status-map-entry? file-resource-status-map-entries))
+  (update snapshot :status-map into file-resource-status-map-entries))
 
 (defn make-snapshot-info [workspace project-directory library-uris snapshot-cache]
   (let [lib-states (library/current-library-state project-directory library-uris)

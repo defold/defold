@@ -1,6 +1,8 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <vector>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include "../../src/dlib/hash.h"
 #include "../../src/dlib/message.h"
 #include "../../src/dlib/dstrings.h"
@@ -355,10 +357,22 @@ TEST(dmMessage, Integrity)
     r = dmMessage::NewSocket("my_socket", &receiver.m_Socket);
     ASSERT_EQ(dmMessage::RESULT_OK, r);
 
-    char msg[1024];
-    for (uint32_t size = 1; size <= 1024; ++size)
+    const uint32_t MESSAGE_SIZES[] = {
+        1, 2, 4, 7, 9, 31, 32, 33, 511, 512, 513,
+        dmMessage::DM_MESSAGE_MAX_DATA_SIZE / 3 - 1,
+        dmMessage::DM_MESSAGE_MAX_DATA_SIZE / 3,
+        dmMessage::DM_MESSAGE_MAX_DATA_SIZE / 3 + 1,
+        dmMessage::DM_MESSAGE_MAX_DATA_SIZE / 2 - 1,
+        dmMessage::DM_MESSAGE_MAX_DATA_SIZE / 2,
+        dmMessage::DM_MESSAGE_MAX_DATA_SIZE / 2 + 1,
+        dmMessage::DM_MESSAGE_MAX_DATA_SIZE - 1,
+        dmMessage::DM_MESSAGE_MAX_DATA_SIZE};
+
+    char msg[dmMessage::DM_MESSAGE_MAX_DATA_SIZE];
+    for (uint32_t n = 0; n < (sizeof(MESSAGE_SIZES) / sizeof(uint32_t)); ++n)
     {
-        for (uint32_t iter = 0; iter < 70; ++iter)
+        uint32_t size = MESSAGE_SIZES[n];
+        for (uint32_t iter = 0; iter < 15; ++iter)
         {
             for (uint32_t i = 0; i < size; ++i)
             {
@@ -438,8 +452,8 @@ TEST(dmMessage, MessagePostDispatch)
 int main(int argc, char **argv)
 {
     dmProfile::Initialize(1024, 1024 * 1024, 64);
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = jc_test_run_all();
     dmProfile::Finalize();
     return ret;
 }

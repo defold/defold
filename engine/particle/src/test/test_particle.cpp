@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include <stdio.h>
 #include <algorithm>
 #include <map>
@@ -6,6 +7,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/vmath.h>
 
 #include <ddf/ddf.h>
 
@@ -14,7 +16,7 @@
 
 using namespace Vectormath::Aos;
 
-class ParticleTest : public ::testing::Test
+class ParticleTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -861,6 +863,113 @@ TEST_F(ParticleTest, ParticleApplyLifeRotationToMovementDirection)
 }
 
 /**
+* Verify particle keeps rotation along movement direction.
+*
+* DEF-1593 made some refactoring to the dmParticle::Simulate function
+* that broke the "movement direction" orientation mode.
+* With these changes the rotation was never reset to source rotation
+* before movement direction was calculated which made the rotation
+* accumulate the movement direction instead.
+*
+*  This test verifies the subsequent change fixes this.
+*/
+TEST_F(ParticleTest, ParticleMovementDirection)
+{
+    float dt = 0.16f;
+
+    ASSERT_TRUE(LoadPrototype("movement_orientation.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, 0x0);
+    Quat q = e->m_Particles[0].GetRotation();
+
+    ASSERT_EQ(0.0f, q.getX());
+    ASSERT_EQ(0.0f, q.getY());
+    ASSERT_NEAR(0.70710677, q.getZ(), EPSILON);
+    ASSERT_NEAR(0.70710677, q.getW(), EPSILON);
+
+    dmParticle::Update(m_Context, dt, 0x0);
+    q = e->m_Particles[0].GetRotation();
+
+    ASSERT_EQ(0.0f, q.getX());
+    ASSERT_EQ(0.0f, q.getY());
+    ASSERT_NEAR(0.70710677, q.getZ(), EPSILON);
+    ASSERT_NEAR(0.70710677, q.getW(), EPSILON);
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
+* Verify particle rotation using static angular velocity.
+*/
+TEST_F(ParticleTest, ParticleAngularVelocity)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("angular_velocity.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, 0x0);
+
+    Quat q = e->m_Particles[0].GetRotation();
+
+    Vector3 r = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
+    ASSERT_EQ(0.0f, r.getX());
+    ASSERT_EQ(0.0f, r.getY());
+    ASSERT_EQ(90.0f, r.getZ());
+
+    dmParticle::Update(m_Context, dt, 0x0);
+    q = e->m_Particles[0].GetRotation();
+
+    r = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
+    ASSERT_EQ(0.0f, r.getX());
+    ASSERT_EQ(0.0f, r.getY());
+    ASSERT_EQ(180.0f, r.getZ());
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
+* Verify initial particle rotation in combination with angular velocity.
+*/
+TEST_F(ParticleTest, ParticleAngularVelocityInitialRotation)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("angular_velocity_initial_rot.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, 0x0);
+
+    Quat q = e->m_Particles[0].GetRotation();
+
+    Vector3 r = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
+    ASSERT_EQ(0.0f, r.getX());
+    ASSERT_EQ(0.0f, r.getY());
+    ASSERT_EQ(0.0f, r.getZ());
+
+    dmParticle::Update(m_Context, dt, 0x0);
+    q = e->m_Particles[0].GetRotation();
+
+    r = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
+    ASSERT_EQ(0.0f, r.getX());
+    ASSERT_EQ(0.0f, r.getY());
+    ASSERT_EQ(90.0f, r.getZ());
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+
+/**
  * Verify rate of > 1/dt
  */
 TEST_F(ParticleTest, RateMulti)
@@ -1030,7 +1139,7 @@ TEST_F(ParticleTest, EvaluateEmitterProperty)
 
     // t = 0.25, size = 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+    ASSERT_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.375, size > 0
     dmParticle::Update(m_Context, dt, 0x0);
@@ -1038,7 +1147,7 @@ TEST_F(ParticleTest, EvaluateEmitterProperty)
 
     // t = 0.5, size = 1
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(1.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+    ASSERT_EQ(1.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.625, size > 0
     dmParticle::Update(m_Context, dt, 0x0);
@@ -1046,7 +1155,7 @@ TEST_F(ParticleTest, EvaluateEmitterProperty)
 
     // t = 0.75, size = 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+    ASSERT_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.875, size < 0
     dmParticle::Update(m_Context, dt, 0x0);
@@ -1113,7 +1222,7 @@ TEST_F(ParticleTest, EvaluateParticleProperty)
 
     // t = 0.25, size = 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+    ASSERT_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.375, size > 0
     dmParticle::Update(m_Context, dt, 0x0);
@@ -1121,7 +1230,7 @@ TEST_F(ParticleTest, EvaluateParticleProperty)
 
     // t = 0.5, size = 1
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(1.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+    ASSERT_EQ(1.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.625, size > 0
     dmParticle::Update(m_Context, dt, 0x0);
@@ -1129,7 +1238,7 @@ TEST_F(ParticleTest, EvaluateParticleProperty)
 
     // t = 0.75, size = 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+    ASSERT_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.875, size < 0
     // Updating with a full dt here will make the emitter reach its duration
@@ -1550,7 +1659,37 @@ TEST_F(ParticleTest, AccelerationWorld)
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
-TEST_F(ParticleTest, AccelerationScaled)
+// DEF-3355 Parent scale should only affect simulation in EMISSION_SPACE_WORLD
+TEST_F(ParticleTest, AccelerationScaledEmitter)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("mod_acc_em.particlefxc", &m_Prototype));
+    Vector3 delta[2];
+
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+        if (i == 1)
+            dmParticle::SetScale(m_Context, instance, 2.0f);
+
+        uint16_t index = instance & 0xffff;
+        dmParticle::Instance* inst = m_Context->m_Instances[index];
+
+        dmParticle::StartInstance(m_Context, instance);
+        dmParticle::Update(m_Context, dt, 0x0);
+        dmParticle::Particle* particle = &inst->m_Emitters[0].m_Particles[0];
+        delta[i] = Vector3(particle->GetPosition());
+
+        dmParticle::DestroyInstance(m_Context, instance);
+    }
+    // Set scale should not affect position in emitter space
+    ASSERT_EQ(delta[0].getX(), delta[1].getX());
+    ASSERT_EQ(delta[0].getY(), delta[1].getY());
+    ASSERT_EQ(delta[0].getZ(), delta[1].getZ());
+}
+
+TEST_F(ParticleTest, AccelerationScaledWorld)
 {
     float dt = 1.0f;
 
@@ -1935,8 +2074,8 @@ TEST_F(ParticleTest, Stats)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = jc_test_run_all();
     return ret;
 }

@@ -112,17 +112,7 @@ namespace dmGameSystem
      *
      * @examples
      *
-     * How to overwrite a model's original texture
-     *
-     * ```lua
-     * function init(self)
-     *   -- get texture resource from one model and set it on another
-     *   local resource_path1 = go.get("#model1", "texture0")
-     *   local buffer = resource.load(resource_path1)
-     *   local resource_path2 = go.get("#model2", "texture0")
-     *   resource.set(resource_path2, buffer)
-     * end
-     * ```
+     * See [ref:resource.set_texture] for an example on how to set the texture of an atlas.
      */
 
     int LuaModelComp_Play(lua_State* L)
@@ -361,15 +351,20 @@ namespace dmGameSystem
         dmMessage::URL receiver;
         ModelWorld* world = 0;
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, MODEL_EXT, &user_data, &receiver, (void**) &world);
-        ModelComponent* component = world->m_Components.Get(user_data);
-        if (!component || !component->m_Resource->m_RigScene->m_SkeletonRes)
+        ModelComponent* component = CompModelGetComponent(world, user_data);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
+        ModelResource* resource = CompModelGetModelResource(component);
+        if (!resource || !resource->m_RigScene->m_SkeletonRes)
         {
             return luaL_error(L, "the bone '%s' could not be found", lua_tostring(L, 2));
         }
 
         dmhash_t bone_id = dmScript::CheckHashOrString(L, 2);
 
-        dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
+        dmRigDDF::Skeleton* skeleton = resource->m_RigScene->m_SkeletonRes->m_Skeleton;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
         uint32_t bone_index = ~0u;
         for (uint32_t i = 0; i < bone_count; ++i)
@@ -384,7 +379,7 @@ namespace dmGameSystem
         {
             return luaL_error(L, "the bone '%s' could not be found", lua_tostring(L, 2));
         }
-        dmGameObject::HInstance instance = component->m_NodeInstances[bone_index];
+        dmGameObject::HInstance instance = CompModelGetNodeInstance(component, bone_index);
         if (instance == 0x0)
         {
             return luaL_error(L, "no game object found for the bone '%s'", lua_tostring(L, 2));
