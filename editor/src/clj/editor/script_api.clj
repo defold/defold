@@ -16,10 +16,7 @@
 (defmulti convert
   "Converts YAML documentation input to the internal auto-complete format defined
   in `editor.lua` namespace."
-  {:private true}
-  (fn [x]
-    (let [^String type (or (:type x) "__NO_TYPE")]
-      (.toUpperCase type))))
+  #(or (:type %) :no-type))
 
 (defn- name-with-ns
   [ns name]
@@ -27,7 +24,7 @@
     name
     (str ns \. name)))
 
-(defmethod convert "TABLE"
+(defmethod convert "table"
   [{:keys [ns name members desc]}]
   (let [name (name-with-ns ns name)]
     (into [{:type :namespace
@@ -55,7 +52,7 @@
   ([params remove-optional?]
    (str "(" (apply str (interpose ", " (param-names params remove-optional?))) ")")))
 
-(defmethod convert "FUNCTION"
+(defmethod convert "function"
   [{:keys [ns name desc parameters]}]
   (let [name (name-with-ns ns name)]
     {:type :function
@@ -74,15 +71,15 @@
      :display-string name
      :insert-string name}))
 
-(defmethod convert "__NO_TYPE"
+(defmethod convert :no-type
   [x]
   nil)
 
-(defn- convert-lines
+(defn convert-lines
   [lines]
   (mapv convert (yp/load (data/lines-reader lines) keyword)))
 
-(defn- combine-conversions
+(defn combine-conversions
   "This function combines the individual hierarchical conversions into a map where
   all the namespaces are keys at the top level mapping to a vector of their
   respective contents. A global namespace is also added with the empty string as
@@ -111,7 +108,7 @@
            [{"" []} ""]
            conversions)))
 
-(defn- lines->completion-info
+(defn lines->completion-info
   [lines]
   (combine-conversions (remove nil? (convert-lines lines))))
 
