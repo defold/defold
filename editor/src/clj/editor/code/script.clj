@@ -140,11 +140,17 @@
   (try
     (luajit/bytecode (data/lines-reader lines) proj-path arch)
     (catch Exception e
-      (let [{:keys [filename line message]} (ex-data e)]
-        (g/->error nil :lines :fatal e (.getMessage e)
-                   {:filename filename
-                    :line     line
-                    :message  message})))))
+      (let [{:keys [filename line message]} (ex-data e)
+            cursor-range (some-> line data/line-number->CursorRange)]
+        (g/map->error
+          {:_label :lines
+           :message (.getMessage e)
+           :severity :fatal
+           :user-data (cond-> {:filename filename
+                               :message message}
+
+                              (some? cursor-range)
+                              (assoc :cursor-range cursor-range))})))))
 
 (defn- build-script [resource _dep-resources user-data]
   (let [user-properties (:user-properties user-data)
@@ -213,7 +219,7 @@
         (comp (filter data/breakpoint-region?)
               (map (fn [region]
                      {:resource resource
-                      :line (data/breakpoint-row region)})))
+                      :row (data/breakpoint-row region)})))
         regions))
 
 (g/defnode ScriptNode

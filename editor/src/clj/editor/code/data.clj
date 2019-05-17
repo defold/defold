@@ -221,6 +221,33 @@
           :else
           false)))
 
+(defn- one-based->zero-based [index]
+  (when (and (integer? index)
+             (pos? ^long index))
+    (dec ^long index)))
+
+(defn line-number->CursorRange
+  "Converts a one-based line number to a CursorRange. This is typically how
+  external tools communicate line and column numbers to users. Will return nil
+  unless given a positive integer. A one-based column or column range can
+  optionally be specified in the same fashion. If not, column zero is used."
+  (^CursorRange [line-number]
+   (line-number->CursorRange line-number nil nil))
+  (^CursorRange [line-number column]
+   (line-number->CursorRange line-number column nil))
+  (^CursorRange [line-number start-column end-column]
+   (when-some [row (one-based->zero-based line-number)]
+     (let [start-col (or (one-based->zero-based start-column) 0)
+           end-col (or (one-based->zero-based end-column) start-col)]
+       (->CursorRange (->Cursor row start-col)
+                      (->Cursor row end-col))))))
+
+(defn CursorRange->line-number
+  "Returns the one-based line number from a CursorRange. This is typically how
+  external tools communicate line numbers to users."
+  ^long [^CursorRange cursor-range]
+  (inc (.row (cursor-range-start cursor-range))))
+
 (defn lines-reader
   ^Reader [lines]
   (let [*read-cursor (atom document-start-cursor)]
@@ -1061,9 +1088,9 @@
           (persistent! syntax-info'))))))
 
 (defn highlight-visible-syntax [lines syntax-info ^LayoutInfo layout grammar]
-  (let [start-line (.dropped-line-count layout)
-        end-line (min (count lines) (+ start-line (.drawn-line-count layout)))]
-    (ensure-syntax-info syntax-info end-line lines grammar)))
+  (let [start-row (.dropped-line-count layout)
+        end-row (min (count lines) (+ start-row (.drawn-line-count layout)))]
+    (ensure-syntax-info syntax-info end-row lines grammar)))
 
 (defn invalidate-syntax-info [syntax-info ^long invalidated-row ^long line-count]
   (into [] (subvec syntax-info 0 (min invalidated-row line-count (count syntax-info)))))

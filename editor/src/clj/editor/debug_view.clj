@@ -3,6 +3,7 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.code.data :refer [line-number->CursorRange]]
             [editor.console :as console]
             [editor.core :as core]
             [editor.debugging.mobdebug :as mobdebug]
@@ -292,11 +293,11 @@
     (fn [file-or-module line]
       (let [resource (file-or-module->resource workspace file-or-module)]
         (when resource
-          (open-resource-fn resource {:line line})))
+          (open-resource-fn resource {:cursor-range (line-number->CursorRange line)})))
       nil)))
 
 (defn- set-breakpoint!
-  [debug-session {:keys [resource line] :as breakpoint}]
+  [debug-session {:keys [resource row] :as _breakpoint}]
   (when-some [path (resource/proj-path resource)]
     ;; NOTE: The filenames returned by debug.getinfo("S").source
     ;; differs between lua/luajit:
@@ -310,16 +311,16 @@
     ;; So, when the breakpoint is being added to a .lua module, we set
     ;; an additional breakpoint on the module name, ensuring we break
     ;; correctly in both cases.
-    (mobdebug/set-breakpoint! debug-session path (inc line))
+    (mobdebug/set-breakpoint! debug-session path (inc row))
     (when (= "lua" (FilenameUtils/getExtension path))
-      (mobdebug/set-breakpoint! debug-session (lua/path->lua-module path) (inc line)))))
+      (mobdebug/set-breakpoint! debug-session (lua/path->lua-module path) (inc row)))))
 
 (defn- remove-breakpoint!
-  [debug-session {:keys [resource line] :as breakpoint}]
+  [debug-session {:keys [resource row] :as _breakpoint}]
   (when-some [path (resource/proj-path resource)]
-    (mobdebug/remove-breakpoint! debug-session path (inc line))
+    (mobdebug/remove-breakpoint! debug-session path (inc row))
     (when (= "lua" (FilenameUtils/getExtension path))
-      (mobdebug/remove-breakpoint! debug-session (lua/path->lua-module path) (inc line)))))
+      (mobdebug/remove-breakpoint! debug-session (lua/path->lua-module path) (inc row)))))
 
 (defn- update-breakpoints!
   ([debug-session breakpoints]

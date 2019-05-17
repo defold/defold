@@ -2522,17 +2522,13 @@
                   (ui/run-later (slog/smoke-log "code-view-visible")))
     view-node))
 
-(defn- focus-view! [view-node {:keys [row col start-col end-col]}]
+(defn- focus-view! [view-node opts]
   (.requestFocus ^Node (g/node-value view-node :canvas))
-  (when (some? row)
-    (let [start-col (or start-col col 0)
-          end-col (or end-col start-col)
-          start-cursor (data/->Cursor row start-col)
-          end-cursor (data/->Cursor row end-col)]
-      (set-properties! view-node :navigation
-                       (data/select-and-frame (get-property view-node :lines)
-                                              (get-property view-node :layout)
-                                              (data/->CursorRange start-cursor end-cursor))))))
+  (when-some [cursor-range (:cursor-range opts)]
+    (set-properties! view-node :navigation
+                     (data/select-and-frame (get-property view-node :lines)
+                                            (get-property view-node :layout)
+                                            cursor-range))))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
