@@ -484,10 +484,10 @@ def doc_to_ydict(info, elements):
             if len(elem_returns) > 0:
                 entry["returns"] = elem_returns
 
-        if elem_type == "message":
-            api.append(entry)
-        else:
+        if part_of_ns:
             module["members"].append(entry)
+        else:
+            api.append(entry)
 
     api.append(module)
 
