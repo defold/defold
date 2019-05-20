@@ -4,6 +4,7 @@
             [editor.bundle :as bundle]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
+            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.prefs :as prefs]
             [editor.system :as system]
@@ -36,12 +37,29 @@
                     (catch SecurityException _
                       false))]
     (if-not writable?
-      (do (dialogs/make-alert-dialog (str "Cannot create directory at \"" (.getAbsolutePath existing-entry) "\". You might not have permission to write to that directory, or there might be a file with the same name as the directory we're trying to create."))
+      (do (dialogs/make-info-dialog
+            {:title "Cannot Overwrite"
+             :icon :icon/triangle-error
+             :header "Cannot create a directory"
+             :content {:text (str "Cannot create directory at \"" (.getAbsolutePath existing-entry) "\". You might not have permission to write to that directory, or there might be a file with the same name as the directory we're trying to create.")
+                       :wrap-text true}})
           false)
-      (dialogs/make-confirm-dialog (str "A directory already exists at \"" (.getAbsolutePath existing-entry) "\".")
-                                   {:title "Overwrite Existing Directory?"
-                                    :ok-label "Overwrite"
-                                    :owner-window owner-window}))))
+      (dialogs/make-confirmation-dialog
+        {:title "Overwrite Existing Directory?"
+         :owner owner-window
+         :icon :icon/circle-question
+         :header {:fx/type :v-box
+                  :children [{:fx/type fxui/label
+                              :variant :header
+                              :text "A directory already exists"}
+                             {:fx/type fxui/label
+                              :text (format "Overwrite \"%s\"?" (.getAbsolutePath existing-entry))}]}
+         :buttons [{:text "Cancel"
+                    :cancel-button true
+                    :result false}
+                   {:text "Overwrite"
+                    :default-button true
+                    :result true}]}))))
 
 (defn- get-file
   ^File [^TextField text-field]

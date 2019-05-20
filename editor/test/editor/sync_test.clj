@@ -322,27 +322,27 @@
 
   (testing "Error"
     (let [cancel-fn (test-util/make-call-logger (constantly {:type :error :can-retry? false}))]
-      (with-redefs [dialogs/make-alert-dialog (test-util/make-call-logger)]
+      (with-redefs [dialogs/make-info-dialog (test-util/make-call-logger)]
         (is (nil? (sync/interactive-cancel! cancel-fn)))
         (is (= 1 (count (test-util/call-logger-calls cancel-fn))))
-        (is (= 1 (count (test-util/call-logger-calls dialogs/make-alert-dialog)))))))
+        (is (= 1 (count (test-util/call-logger-calls dialogs/make-info-dialog)))))))
 
   (testing "Retryable error"
     (testing "Don't retry"
       (let [cancel-fn (test-util/make-call-logger (constantly {:type :error :can-retry? true}))]
-        (with-redefs [dialogs/make-confirm-dialog (test-util/make-call-logger (constantly false))]
+        (with-redefs [dialogs/make-confirmation-dialog (test-util/make-call-logger (constantly false))]
           (is (nil? (sync/interactive-cancel! cancel-fn)))
           (is (= 1 (count (test-util/call-logger-calls cancel-fn))))
-          (is (= 1 (count (test-util/call-logger-calls dialogs/make-confirm-dialog)))))))
+          (is (= 1 (count (test-util/call-logger-calls dialogs/make-confirmation-dialog)))))))
 
     (testing "Retry"
       (let [cancel-fn (test-util/make-call-logger (constantly {:type :error :can-retry? true}))
             retry-responses (atom (list :unused true true false))
-            answer-retry-query! (fn [_ _] (first (swap! retry-responses next)))]
-        (with-redefs [dialogs/make-confirm-dialog (test-util/make-call-logger answer-retry-query!)]
+            answer-retry-query! (fn [_] (first (swap! retry-responses next)))]
+        (with-redefs [dialogs/make-confirmation-dialog (test-util/make-call-logger answer-retry-query!)]
           (is (nil? (sync/interactive-cancel! cancel-fn)))
           (is (= 3 (count (test-util/call-logger-calls cancel-fn))))
-          (is (= 3 (count (test-util/call-logger-calls dialogs/make-confirm-dialog)))))))))
+          (is (= 3 (count (test-util/call-logger-calls dialogs/make-confirmation-dialog)))))))))
 
 (defn- valid-error-message? [message]
   (and (string? message)

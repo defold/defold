@@ -459,7 +459,11 @@
                                  (let [msg (str "Failed to attach debugger to " target-address ":" mobdebug-port ".\n"
                                                 "Check that the game is running and is reachable over the network.\n")]
                                    (log/error :msg msg :exception exception)
-                                   (dialogs/make-error-dialog "Attach Debugger Failed" msg (.getMessage exception))
+                                   (dialogs/make-info-dialog
+                                     {:title "Attach Debugger Failed"
+                                      :icon :icon/triangle-error
+                                      :header msg
+                                      :content (.getMessage exception)})
                                    false)))]
       (when attach-successful?
         (start-debugger! debug-view project target-address)))))
@@ -530,9 +534,8 @@
   (enabled? [debug-view prefs evaluation-context]
             (can-change-resolution? debug-view prefs evaluation-context))
   (run [project app-view prefs build-errors-view selection user-data]
-       (let [[ok width height] (dialogs/make-resolution-dialog)]
-         (when ok
-           (engine/change-resolution! (targets/selected-target prefs) width height @should-rotate-device?)))))
+       (when-let [{:keys [width height]} (dialogs/make-resolution-dialog)]
+         (engine/change-resolution! (targets/selected-target prefs) width height @should-rotate-device?))))
 
 (handler/defhandler :set-rotate-device :global
   (enabled? [] true)

@@ -63,6 +63,8 @@
                      [com.sun.xml.bind/jaxb-core "2.3.0"]
                      [com.sun.xml.bind/jaxb-impl "2.3.0"]
 
+                     [cljfx "1.2.10"]
+
                      [org.openjfx/javafx-base "12"]
                      [org.openjfx/javafx-base "12" :classifier "linux"]
                      [org.openjfx/javafx-base "12" :classifier "mac"]
@@ -133,8 +135,8 @@
 
   :protobuf-exclude  ["../engine/ddf/src/test"]
 
-  :sass              {:src "styling/stylesheets/main.sass"
-                      :output-directory "resources/editor.css"
+  :sass              {:src "styling/stylesheets/"
+                      :output-directory "resources/"
                       :source-maps false}
 
   :aliases           {"benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
