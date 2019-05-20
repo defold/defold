@@ -354,24 +354,23 @@
 (defn- multi-re-match-result-seq
   "Takes a sequence of regular expressions and a string to match them against.
   Will match each regular expression in turn by calling `re-match-result-seq`
-  and return the first non-empty sequence, short circuiting. Or nil if none of
-  the regular expressions match."
+  and return a lazy sequence of all results. There may be duplicate results if
+  more than one regexp matches the same substring."
   [regular-expressions string]
-  (assert (sequential? regular-expressions))
-  (first (filter not-empty (for [re regular-expressions] (re-match-result-seq re string)))))
+  (filter not-empty (for [re regular-expressions] (re-match-result-seq re string))))
 
 (defn- make-line-sub-regions [resource-map on-region-click! row line]
-  (keep (fn [^MatchResult result]
-          (when-let [resource-proj-path (find-project-resource-from-potential-match resource-map (.group result 1))]
-            (let [resource-row (some-> (.group result 2) Long/parseUnsignedLong)
-                  start-col (.start result)
-                  end-col (if (string/ends-with? (.group result) ":")
-                            (dec (.end result))
-                            (.end result))]
-              (if (nil? resource-row)
-                (make-resource-reference-region row start-col end-col resource-proj-path on-region-click!)
-                (make-resource-reference-region row start-col end-col resource-proj-path (dec (long resource-row)) on-region-click!)))))
-        (multi-re-match-result-seq [line-sub-regions-pattern line-sub-regions-pattern-partial] line)))
+  (distinct (keep (fn [^MatchResult result]
+                    (when-let [resource-proj-path (find-project-resource-from-potential-match resource-map (.group result 1))]
+                      (let [resource-row (some-> (.group result 2) Long/parseUnsignedLong)
+                            start-col (.start result)
+                            end-col (if (string/ends-with? (.group result) ":")
+                                      (dec (.end result))
+                                      (.end result))]
+                        (if (nil? resource-row)
+                          (make-resource-reference-region row start-col end-col resource-proj-path on-region-click!)
+                          (make-resource-reference-region row start-col end-col resource-proj-path (dec (long resource-row)) on-region-click!)))))
+                  (flatten (multi-re-match-result-seq [line-sub-regions-pattern line-sub-regions-pattern-partial] line)))))
 
 (defn- make-whole-line-region [type ^long row line]
   (assert (keyword? type))

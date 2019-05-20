@@ -4,6 +4,8 @@
 
 (def ^:private line-sub-regions-pattern (var-get #'console/line-sub-regions-pattern))
 (def ^:private line-sub-regions-pattern-partial (var-get #'console/line-sub-regions-pattern-partial))
+(def ^:private multi-re-match-result-seq (var-get #'console/multi-re-match-result-seq))
+(def ^:private make-line-sub-regions (var-get #'console/make-line-sub-regions))
 
 (deftest line-sub-regions-pattern-test
   (are [line matches]
@@ -118,3 +120,10 @@
                                 "  from </dir/main.lua:33>"]
                         :regions [(resource-reference-region 1 (count "  from <") "/dir/main.lua:33" "/dir/main.lua" 32)]}
                        ["   via '/main.lua:8', '/main.lua:13'"]))))
+
+(deftest three-matches-on-same-line-where-two-are-partial
+  (is (= 3 (count
+             (make-line-sub-regions {"/dksdk/analytics/crash_reporter.lua" :WIN
+                                     "/some/really/long/path/components/components/click_hint/click_hint_tap_text.script" :WIN}
+                                    identity 10
+                                    "components/components/click_hint/click_hint_tap_text.script:25: in function <components/components/click_hint/click_hint_tap_text.script:24> </dksdk/analytics/crash_reporter.lua:65>")))))
