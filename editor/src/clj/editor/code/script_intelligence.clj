@@ -7,7 +7,7 @@
 
 (g/defnk produce-lua-completions
   [lua-completions]
-  (reduce merge {} lua-completions))
+  (apply (partial merge-with into) lua-completions))
 
 (g/defnode ScriptIntelligenceNode
   (input lua-completions ScriptCompletions :array :substitute gu/array-subst-remove-errors)
