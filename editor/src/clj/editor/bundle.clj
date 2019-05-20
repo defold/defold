@@ -291,7 +291,7 @@
                             (g/fnk []
                               (dialogs/make-info-dialog
                                 {:title "Upload Successful"
-                                 :icon :icon/check-circle
+                                 :icon :icon/circle-check
                                  :header "Upload successful"
                                  :content {:fx/type fxui/label
                                            :style-class "dialog-content-padding"
