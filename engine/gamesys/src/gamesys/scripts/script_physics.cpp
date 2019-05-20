@@ -344,12 +344,12 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        int type = luaL_checkinteger(L, 1);
+        //int type = luaL_checkinteger(L, 1);
 
-        dmhash_t joint_id = dmScript::CheckHashOrString(L, 3);
+        dmhash_t joint_id = dmScript::CheckHashOrString(L, 2);
 
         dmMessage::URL urla;
-        dmScript::ResolveURL(L, 2, &urla, 0);
+        dmScript::ResolveURL(L, 1, &urla, 0);
         // dmMessage::URL urlb;
         // dmScript::ResolveURL(L, 5, &urlb, 0);
         // Vectormath::Aos::Point3 apos = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 4));
@@ -383,12 +383,12 @@ namespace dmGameSystem
             return DM_LUA_ERROR("physics.create_joint() is currently only supported with 2D physics");
         }
 
-        dmPhysics::HWorld2D world = CompCollisionGetPhysicsWorld2D(comp_world);
+        // dmPhysics::HWorld2D world = CompCollisionGetPhysicsWorld2D(comp_world);
         // dmPhysics::HCollisionObject2D obja = CompCollisionGetObject2D(comp_world, comp_a);
         // dmPhysics::HCollisionObject2D objb = CompCollisionGetObject2D(comp_world, comp_b);
 
         // dmPhysics::HJoint2D joint = 0;
-        if (type == dmPhysics::JOINT_TYPE_DISTANCE) {
+        //if (type == dmPhysics::JOINT_TYPE_DISTANCE) {
 
             // float frequency = luaL_checknumber(L, 6);
             // float damping = luaL_checknumber(L, 7);
@@ -402,7 +402,7 @@ namespace dmGameSystem
             if (!r) {
                 return DM_LUA_ERROR("could not create joint");
             }
-        }
+        //}
 
         return 0;
     }
@@ -412,14 +412,16 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        dmhash_t joint_id = dmScript::CheckHashOrString(L, 2);
+        int type = luaL_checkinteger(L, 1);
+
+        dmhash_t joint_id = dmScript::CheckHashOrString(L, 3);
 
         dmMessage::URL urla;
-        dmScript::ResolveURL(L, 1, &urla, 0);
+        dmScript::ResolveURL(L, 2, &urla, 0);
         dmMessage::URL urlb;
-        dmScript::ResolveURL(L, 4, &urlb, 0);
-        Vectormath::Aos::Point3 apos = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 3));
-        Vectormath::Aos::Point3 bpos = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 5));
+        dmScript::ResolveURL(L, 5, &urlb, 0);
+        Vectormath::Aos::Point3 apos = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 4));
+        Vectormath::Aos::Point3 bpos = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 6));
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
@@ -449,9 +451,20 @@ namespace dmGameSystem
             return DM_LUA_ERROR("physics.connect_joint() is currently only supported with 2D physics");
         }
 
-        bool r = dmGameSystem::ConnectJoint(comp_world, comp_a, joint_id, apos, comp_b, bpos);
-        if (!r) {
-            return DM_LUA_ERROR("could not connect joint");
+        if (type == dmPhysics::JOINT_TYPE_DISTANCE) {
+
+            bool r = dmGameSystem::ConnectDistanceJoint(comp_world, comp_a, joint_id, apos, comp_b, bpos);
+            if (!r) {
+                return DM_LUA_ERROR("could not connect joint");
+            }
+
+        } else if (type == dmPhysics::JOINT_TYPE_ROPE) {
+
+            bool r = dmGameSystem::ConnectRopeJoint(comp_world, comp_a, joint_id, apos, comp_b, bpos);
+            if (!r) {
+                return DM_LUA_ERROR("could not connect joint");
+            }
+
         }
 
         return 0;
@@ -474,8 +487,8 @@ namespace dmGameSystem
         luaL_register(L, "physics", PHYSICS_FUNCTIONS);
 
 #define SETCONSTANT(name) \
-    lua_pushnumber(L, (lua_Number) name); \
-    lua_setfield(L, -2, JointType::#name);\
+    lua_pushnumber(L, (lua_Number) dmPhysics::name); \
+    lua_setfield(L, -2, #name);\
 
         SETCONSTANT(JOINT_TYPE_DISTANCE)
         SETCONSTANT(JOINT_TYPE_ROPE)

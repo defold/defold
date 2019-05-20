@@ -1111,11 +1111,12 @@ namespace dmPhysics
      */
     void ReplaceShape2D(HContext2D context, HCollisionShape2D old_shape, HCollisionShape2D new_shape);
 
-    HJoint CreateJoint2D(HWorld2D world, dmhash_t id);
-    HJoint CreateJoint3D(HWorld3D world, dmhash_t id);
-    dmhash_t GetJointId2D(HJoint joint);
-    dmhash_t GetJointId3D(HJoint joint);
-    bool ConnectDistanceJoint2D(HWorld2D world, HJoint joint, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b);
+    // HJoint CreateJoint2D(HWorld2D world, dmhash_t id);
+    // HJoint CreateJoint3D(HWorld3D world, dmhash_t id);
+    // dmhash_t GetJointId2D(HJoint joint);
+    // dmhash_t GetJointId3D(HJoint joint);
+    HJoint CreateDistanceJoint2D(HWorld2D world, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b);
+    HJoint CreateRopeJoint2D(HWorld2D world, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b);
     // bool ConnectDistanceJoint2D(HWorld2D world, HJoint joint, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b);
     void DeleteJoint2D(HWorld2D world, HJoint joint);
 }

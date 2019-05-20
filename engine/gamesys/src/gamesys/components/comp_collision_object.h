@@ -51,10 +51,8 @@ namespace dmGameSystem
     dmPhysics::HCollisionObject2D   CompCollisionGetObject2D(void* comp_world, void* comp);
 
     bool CreateJoint(void* world, void* component, dmhash_t id);
-    bool ConnectJoint(void* _world, void* _component_a, dmhash_t id,
-        const Vectormath::Aos::Point3& apos,
-        void* _component_b,
-        const Vectormath::Aos::Point3& bpos);
+    bool ConnectDistanceJoint(void* _world, void* _component_a, dmhash_t id, const Vectormath::Aos::Point3& apos, void* _component_b, const Vectormath::Aos::Point3& bpos);
+    bool ConnectRopeJoint(void* _world, void* _component_a, dmhash_t id, const Vectormath::Aos::Point3& apos, void* _component_b, const Vectormath::Aos::Point3& bpos);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H
