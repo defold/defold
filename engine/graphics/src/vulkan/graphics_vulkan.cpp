@@ -108,6 +108,17 @@ namespace dmGraphics
             VK_COMPARE_OP_ALWAYS
         };
 
+        static const VkStencilOp g_stencil_ops[] = {
+            VK_STENCIL_OP_KEEP,
+            VK_STENCIL_OP_ZERO,
+            VK_STENCIL_OP_REPLACE,
+            VK_STENCIL_OP_INCREMENT_AND_CLAMP,
+            VK_STENCIL_OP_INCREMENT_AND_WRAP,
+            VK_STENCIL_OP_DECREMENT_AND_CLAMP,
+            VK_STENCIL_OP_DECREMENT_AND_WRAP,
+            VK_STENCIL_OP_INVERT
+        };
+
         // TODO: Need to figure out proper frames-in-flight management..
         static const uint8_t g_vk_max_frames_in_flight = 1;
 
@@ -267,13 +278,21 @@ namespace dmGraphics
                 uint64_t m_BlendSrcFactor   : 4;
                 uint64_t m_BlendDstFactor   : 4;
 
-                uint64_t m_StencilEnabled   : 1;
-                uint64_t m_StencilOp        : 3;
+                uint64_t m_StencilEnabled     : 1;
+                uint64_t m_StencilOpFail      : 3;
+                uint64_t m_StencilOpPass      : 3;
+                uint64_t m_StencilOpDepthFail : 3;
+                uint64_t m_StencilTestFunc    : 3;
+                uint64_t m_StencilWriteMask   : 8;
+                uint64_t m_StencilCompareMask : 8;
+                uint64_t m_StencilReference   : 8;
 
                 uint64_t m_CullFaceEnabled  : 1;
                 uint64_t m_CullFaceType     : 2;
 
                 uint64_t m_ScissorEnabled   : 1;
+
+                // total: 62
             };
 
             uint64_t m_State;
@@ -303,6 +322,7 @@ namespace dmGraphics
             VkApplicationInfo              m_ApplicationInfo;
             VkDebugUtilsMessengerEXT       m_DebugCallback;
             VkViewport                     m_MainViewport;
+            VkRect2D                       m_MainScissor;
 
             RenderPass                     m_MainRenderPass;
             Texture                        m_MainDepthBuffer;
@@ -1253,13 +1273,9 @@ namespace dmGraphics
             vk_input_assembly.topology               = vk_primitive_type;
             vk_input_assembly.primitiveRestartEnable = VK_FALSE;
 
-            // TODO: Scissor
-            VkRect2D vk_scissor;
-            VK_ZERO_MEMORY(&vk_scissor, sizeof(vk_scissor));
-
-            vk_scissor.offset.x = 0;
-            vk_scissor.offset.y = 0;
-            vk_scissor.extent   = g_vk_context.m_SwapChainImageExtent;
+            // Note: Do we need to support scissors? If so, we need to add
+            // it to the dynamic state list
+            g_vk_context.m_MainScissor.extent = g_vk_context.m_SwapChainImageExtent;
 
             VkPipelineViewportStateCreateInfo vk_viewport_state;
             VK_ZERO_MEMORY(&vk_viewport_state,sizeof(vk_viewport_state));
@@ -1268,7 +1284,7 @@ namespace dmGraphics
             vk_viewport_state.viewportCount = 1;
             vk_viewport_state.pViewports    = &g_vk_context.m_MainViewport;
             vk_viewport_state.scissorCount  = 1;
-            vk_viewport_state.pScissors     = &vk_scissor;
+            vk_viewport_state.pScissors     = &g_vk_context.m_MainScissor;
 
             VkPipelineRasterizationStateCreateInfo vk_rasterizer;
             VK_ZERO_MEMORY(&vk_rasterizer,sizeof(vk_rasterizer));
@@ -1361,6 +1377,17 @@ namespace dmGraphics
 
             VK_CHECK(vkCreatePipelineLayout(g_vk_context.m_LogicalDevice, &vk_pipeline_create_info, 0, &new_pipeline.m_Layout));
 
+            VkStencilOpState vk_stencil_op_state;
+            VK_ZERO_MEMORY(&vk_stencil_op_state, sizeof(vk_stencil_op_state));
+
+            vk_stencil_op_state.failOp      = g_stencil_ops[new_pipeline_state.m_StencilOpFail];
+            vk_stencil_op_state.depthFailOp = g_stencil_ops[new_pipeline_state.m_StencilOpDepthFail];
+            vk_stencil_op_state.passOp      = g_stencil_ops[new_pipeline_state.m_StencilOpPass];
+            vk_stencil_op_state.compareOp   = g_compare_funcs[new_pipeline_state.m_StencilTestFunc];
+            vk_stencil_op_state.compareMask = new_pipeline_state.m_StencilCompareMask;
+            vk_stencil_op_state.writeMask   = new_pipeline_state.m_StencilWriteMask;
+            vk_stencil_op_state.reference   = new_pipeline_state.m_StencilReference;
+
             VkPipelineDepthStencilStateCreateInfo vk_depth_stencil_create_info;
             VK_ZERO_MEMORY(&vk_depth_stencil_create_info, sizeof(vk_depth_stencil_create_info));
 
@@ -1371,15 +1398,29 @@ namespace dmGraphics
             vk_depth_stencil_create_info.depthBoundsTestEnable = VK_FALSE;
             vk_depth_stencil_create_info.minDepthBounds        = 0.0f;
             vk_depth_stencil_create_info.maxDepthBounds        = 1.0f;
-            vk_depth_stencil_create_info.stencilTestEnable     = VK_FALSE;
+            vk_depth_stencil_create_info.stencilTestEnable     = new_pipeline_state.m_StencilEnabled ? VK_TRUE : VK_FALSE;
+            vk_depth_stencil_create_info.front                 = vk_stencil_op_state;
+            vk_depth_stencil_create_info.back                  = vk_stencil_op_state;
+
+            const VkDynamicState vk_dynamic_states[] =
+            {
+                VK_DYNAMIC_STATE_VIEWPORT,
+                VK_DYNAMIC_STATE_STENCIL_REFERENCE
+            };
+
+            VkPipelineDynamicStateCreateInfo vk_dynamic_state_create_info;
+            vk_dynamic_state_create_info.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+            vk_dynamic_state_create_info.pNext             = NULL;
+            vk_dynamic_state_create_info.flags             = 0;
+            vk_dynamic_state_create_info.dynamicStateCount = sizeof(vk_dynamic_states) / sizeof(VkDynamicState);
+            vk_dynamic_state_create_info.pDynamicStates    = vk_dynamic_states;
 
             VkGraphicsPipelineCreateInfo vk_pipeline_info;
             VK_ZERO_MEMORY(&vk_pipeline_info,sizeof(vk_pipeline_info));
 
-            vk_pipeline_info.sType      = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-            vk_pipeline_info.stageCount = sizeof(program->m_ShaderStages) / sizeof(VkPipelineShaderStageCreateInfo);
-            vk_pipeline_info.pStages    = program->m_ShaderStages;
-
+            vk_pipeline_info.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+            vk_pipeline_info.stageCount          = sizeof(program->m_ShaderStages) / sizeof(VkPipelineShaderStageCreateInfo);
+            vk_pipeline_info.pStages             = program->m_ShaderStages;
             vk_pipeline_info.pVertexInputState   = &vk_vertex_input_info;
             vk_pipeline_info.pInputAssemblyState = &vk_input_assembly;
             vk_pipeline_info.pViewportState      = &vk_viewport_state;
@@ -1387,7 +1428,7 @@ namespace dmGraphics
             vk_pipeline_info.pMultisampleState   = &vk_multisampling;
             vk_pipeline_info.pDepthStencilState  = &vk_depth_stencil_create_info;
             vk_pipeline_info.pColorBlendState    = &vk_color_blending;
-            vk_pipeline_info.pDynamicState       = 0;
+            vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
             vk_pipeline_info.layout              = new_pipeline.m_Layout;
             vk_pipeline_info.renderPass          = g_vk_context.m_MainRenderPass.m_Handle; // TODO: this should be based on active renderpass!
             vk_pipeline_info.subpass             = 0;
@@ -2023,20 +2064,28 @@ namespace dmGraphics
             g_vk_context.m_MainViewport.minDepth  = 0.0f;
             g_vk_context.m_MainViewport.maxDepth  = 1.0f;
 
+            VK_ZERO_MEMORY(&g_vk_context.m_MainScissor, sizeof(g_vk_context.m_MainScissor));
+
             PipelineState vk_default_pipeline;
-            vk_default_pipeline.m_WriteColorMask   = DMGRAPHICS_STATE_WRITE_R | DMGRAPHICS_STATE_WRITE_G | DMGRAPHICS_STATE_WRITE_B | DMGRAPHICS_STATE_WRITE_A;
-            vk_default_pipeline.m_WriteDepth       = 1;
-            vk_default_pipeline.m_PrimtiveType     = DMGRAPHICS_PRIMITIVE_TRIANGLES;
-            vk_default_pipeline.m_DepthTestEnabled = 1;
-            vk_default_pipeline.m_DepthTestFunc    = DMGRAPHICS_COMPARE_FUNC_LEQUAL;
-            vk_default_pipeline.m_BlendEnabled     = 0;
-            vk_default_pipeline.m_BlendSrcFactor   = DMGRAPHICS_BLEND_FACTOR_ZERO;
-            vk_default_pipeline.m_BlendDstFactor   = DMGRAPHICS_BLEND_FACTOR_ZERO;
-            vk_default_pipeline.m_StencilEnabled   = 0;
-            vk_default_pipeline.m_StencilOp        = DMGRAPHICS_STENCIL_OP_KEEP;
-            vk_default_pipeline.m_CullFaceEnabled  = 0;
-            vk_default_pipeline.m_CullFaceType     = DMGRAPHICS_FACE_TYPE_BACK;
-            vk_default_pipeline.m_ScissorEnabled   = 0;
+            vk_default_pipeline.m_WriteColorMask     = DMGRAPHICS_STATE_WRITE_R | DMGRAPHICS_STATE_WRITE_G | DMGRAPHICS_STATE_WRITE_B | DMGRAPHICS_STATE_WRITE_A;
+            vk_default_pipeline.m_WriteDepth         = 1;
+            vk_default_pipeline.m_PrimtiveType       = DMGRAPHICS_PRIMITIVE_TRIANGLES;
+            vk_default_pipeline.m_DepthTestEnabled   = 1;
+            vk_default_pipeline.m_DepthTestFunc      = DMGRAPHICS_COMPARE_FUNC_LEQUAL;
+            vk_default_pipeline.m_BlendEnabled       = 0;
+            vk_default_pipeline.m_BlendSrcFactor     = DMGRAPHICS_BLEND_FACTOR_ZERO;
+            vk_default_pipeline.m_BlendDstFactor     = DMGRAPHICS_BLEND_FACTOR_ZERO;
+            vk_default_pipeline.m_StencilEnabled     = 0;
+            vk_default_pipeline.m_StencilOpFail      = DMGRAPHICS_STENCIL_OP_KEEP;
+            vk_default_pipeline.m_StencilOpDepthFail = DMGRAPHICS_STENCIL_OP_KEEP;
+            vk_default_pipeline.m_StencilOpPass      = DMGRAPHICS_STENCIL_OP_KEEP;
+            vk_default_pipeline.m_StencilTestFunc    = DMGRAPHICS_COMPARE_FUNC_ALWAYS;
+            vk_default_pipeline.m_StencilWriteMask   = 0xff;
+            vk_default_pipeline.m_StencilCompareMask = 0xff;
+            vk_default_pipeline.m_StencilReference   = 0x0;
+            vk_default_pipeline.m_CullFaceEnabled    = 0;
+            vk_default_pipeline.m_CullFaceType       = DMGRAPHICS_FACE_TYPE_BACK;
+            vk_default_pipeline.m_ScissorEnabled     = 0;
 
             g_vk_context.m_PipelineState = vk_default_pipeline;
 
@@ -2608,6 +2657,18 @@ namespace dmGraphics
             g_vk_context.m_MainViewport.y      = (height+y);
             g_vk_context.m_MainViewport.width  = width;
             g_vk_context.m_MainViewport.height = -height;
+
+            vkCmdSetViewport(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx], 0, 1, &g_vk_context.m_MainViewport);
+        }
+
+        static inline void SetScissor(uint32_t x, uint32_t y, uint32_t w, uint32_t h)
+        {
+            g_vk_context.m_MainScissor.offset.x      = x;
+            g_vk_context.m_MainScissor.offset.y      = y;
+            g_vk_context.m_MainScissor.extent.width  = x + w;
+            g_vk_context.m_MainScissor.extent.height = y + h;
+
+            vkCmdSetScissor(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx], 0, 1, &g_vk_context.m_MainScissor);
         }
 
         static bool OpenWindow(WindowParams* params)
@@ -4011,25 +4072,29 @@ namespace dmGraphics
     void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         assert(context);
-        context->m_ScissorRect[0] = (int32_t) x;
-        context->m_ScissorRect[1] = (int32_t) y;
-        context->m_ScissorRect[2] = (int32_t) x+width;
-        context->m_ScissorRect[3] = (int32_t) y+height;
+        Vulkan::SetScissor(x,y,width,height);
     }
 
     void SetStencilMask(HContext context, uint32_t mask)
     {
         assert(context);
+        Vulkan::g_vk_context.m_PipelineState.m_StencilWriteMask = mask;
     }
 
     void SetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(context);
+        Vulkan::g_vk_context.m_PipelineState.m_StencilTestFunc    = (uint8_t) func;
+        Vulkan::g_vk_context.m_PipelineState.m_StencilReference   = (uint8_t) ref;
+        Vulkan::g_vk_context.m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
     }
 
     void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(context);
+        Vulkan::g_vk_context.m_PipelineState.m_StencilOpFail      = sfail;
+        Vulkan::g_vk_context.m_PipelineState.m_StencilOpDepthFail = dpfail;
+        Vulkan::g_vk_context.m_PipelineState.m_StencilOpPass      = dppass;
     }
 
     void SetCullFace(HContext context, FaceType face_type)
