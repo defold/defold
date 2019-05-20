@@ -244,7 +244,7 @@
   (let [result (make-confirmation-dialog
                  {:title "Update Failed"
                   :owner owner
-                  :icon :icon/error-triangle
+                  :icon :icon/triangle-error
                   :header {:fx/type :v-box
                            :children [{:fx/type fxui/label
                                        :variant :header
@@ -263,7 +263,7 @@
 (defn make-download-update-or-restart-dialog [^Stage owner]
   (make-confirmation-dialog
     {:title "Install Update?"
-     :icon :icon/info-circle
+     :icon :icon/circle-info
      :size :large
      :owner owner
      :header {:fx/type :v-box
@@ -329,7 +329,7 @@
             :style-class "spacing-smaller"
             :alignment :center-left
             :children [{:fx/type fxui/icon
-                        :type :icon/sad-triangle}
+                        :type :icon/triangle-sad}
                        {:fx/type fxui/label
                         :variant :header
                         :text "An error occurred"}]}

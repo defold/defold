@@ -39,7 +39,7 @@
     (if-not writable?
       (do (dialogs/make-info-dialog
             {:title "Cannot Overwrite"
-             :icon :icon/error-triangle
+             :icon :icon/triangle-error
              :header "Cannot create a directory"
              :content {:text (str "Cannot create directory at \"" (.getAbsolutePath existing-entry) "\". You might not have permission to write to that directory, or there might be a file with the same name as the directory we're trying to create.")
                        :wrap-text true}})

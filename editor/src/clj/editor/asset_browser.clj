@@ -313,7 +313,7 @@
     (if-let [illegal (illegal-copy-move-pairs project-path prospect-pairs)]
       (dialogs/make-info-dialog
         {:title "Cannot Paste"
-         :icon :icon/error-triangle
+         :icon :icon/triangle-error
          :header "There are reserved target directories"
          :content (str "Following target directories are reserved:\n"
                        (string/join "\n" (map (comp (partial resource/file->proj-path project-path) second) illegal)))})

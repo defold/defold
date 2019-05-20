@@ -457,13 +457,13 @@
                            (string/blank? project-title)
                            (dialogs/make-info-dialog
                              {:title "No Project Title"
-                              :icon :icon/error-triangle
+                              :icon :icon/triangle-error
                               :header "You must specify a title for the project"})
 
                            (not= project-title (string/trim project-title))
                            (dialogs/make-info-dialog
                              {:title "Invalid project title"
-                              :icon :icon/error-triangle
+                              :icon :icon/triangle-error
                               :size :large
                               :header "Whitespace is not allowed around the project title"})
 
@@ -471,7 +471,7 @@
                                 (not (fs/empty-directory? project-location)))
                            (dialogs/make-info-dialog
                              {:title "Conflicting Project Location"
-                              :icon :icon/error-triangle
+                              :icon :icon/triangle-error
                               :size :large
                               :header "A non-empty folder already exists at the chosen location"})
 
@@ -542,14 +542,14 @@
                                (string/blank? project-folder)
                                (dialogs/make-info-dialog
                                  {:title "No Destination Folder"
-                                  :icon :icon/error-triangle
+                                  :icon :icon/triangle-error
                                   :size :large
                                   :header "You must specify a destination folder for the project"})
 
                                (not= project-folder (string/trim project-folder))
                                (dialogs/make-info-dialog
                                  {:title "Invalid Destination Folder"
-                                  :icon :icon/error-triangle
+                                  :icon :icon/triangle-error
                                   :size :large
                                   :header "Whitespace is not allowed around the folder name"})
 
@@ -557,7 +557,7 @@
                                     (not (fs/empty-directory? clone-directory)))
                                (dialogs/make-info-dialog
                                  {:title "Conflicting Import Location"
-                                  :icon :icon/error-triangle
+                                  :icon :icon/triangle-error
                                   :size :large
                                   :header "A non-empty folder already exists at the chosen location"})
 
@@ -722,27 +722,27 @@
                                           (instance? UnknownHostException error)
                                           (dialogs/make-info-dialog
                                             {:title "No Internet Connection"
-                                             :icon :icon/error-triangle
+                                             :icon :icon/triangle-error
                                              :header "You must be connected to the internet to download project content"})
 
                                           (instance? SocketException error)
                                           (dialogs/make-info-dialog
                                             {:title "Host Unreachable"
-                                             :icon :icon/error-triangle
+                                             :icon :icon/triangle-error
                                              :header "A firewall might be blocking network connections"
                                              :content (.getMessage error)})
 
                                           (instance? SocketTimeoutException error)
                                           (dialogs/make-info-dialog
                                             {:title "Host Not Responding"
-                                             :icon :icon/error-triangle
+                                             :icon :icon/triangle-error
                                              :header "The connection timed out"
                                              :content (.getMessage error)})
 
                                           (instance? SSLException error)
                                           (dialogs/make-info-dialog
                                             {:title "SSL Connection Error"
-                                             :icon :icon/error-triangle
+                                             :icon :icon/triangle-error
                                              :header "Could not establish an SSL connection"
                                              :content {:fx/type :text-flow
                                                        :style-class "dialog-content-padding"

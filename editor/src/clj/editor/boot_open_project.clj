@@ -123,7 +123,7 @@
   (dialogs/make-info-dialog
     {:title "Internal Files Under Source Control"
      :size :large
-     :icon :icon/error-triangle
+     :icon :icon/triangle-error
      :header "Internal files were placed under source control"
      :content {:pref-row-count 6
                :wrap-text true
@@ -352,7 +352,7 @@
                     (ui/run-later
                       (dialogs/make-info-dialog
                         {:title "Updated .gitignore File"
-                         :icon :icon/info-circle
+                         :icon :icon/circle-info
                          :header "Updated .gitignore file"
                          :content {:fx/type fxui/label
                                    :style-class "dialog-content-padding"
@@ -372,7 +372,7 @@
   (dialogs/make-info-dialog
     {:title "Missing Dependencies"
      :size :large
-     :icon :icon/error-triangle
+     :icon :icon/triangle-error
      :header "There are missing dependencies"
      :content (string/join "\n" (concat ["The following dependencies are missing:"]
                                         (map #(str "\u00A0\u00A0\u2022\u00A0" %) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)

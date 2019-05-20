@@ -176,13 +176,13 @@
       (= old new)
       (dialogs/make-info-dialog
         {:title "The File Is Unchanged"
-         :icon :icon/error-triangle
+         :icon :icon/triangle-error
          :header "The file is unchanged"})
 
       binary?
       (dialogs/make-info-dialog
         {:title "Unable to Diff Binary Files"
-         :icon :icon/error-triangle
+         :icon :icon/triangle-error
          :header "Unable to diff binary files"})
 
       :else
