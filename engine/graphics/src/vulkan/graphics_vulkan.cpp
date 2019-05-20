@@ -90,11 +90,11 @@ namespace dmGraphics
         static const VkPrimitiveTopology g_primitive_types[] = {
             VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
             VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
-            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
+            VK_PRIMITIVE_TOPOLOGY_LINE_STRIP,
+            VK_PRIMITIVE_TOPOLOGY_MAX_ENUM,
             VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
             VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
             VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN,
-            VK_PRIMITIVE_TOPOLOGY_MAX_ENUM
         };
 
         static const VkCompareOp g_compare_funcs[] = {
@@ -2370,8 +2370,7 @@ namespace dmGraphics
             uint16_t block_binding_offset   = program->m_VertexProgram->m_UniformBlocks.Size();
             uint16_t uniform_binding_offset = program->m_VertexProgram->m_Uniforms.Size();
             uint16_t sampler_binding_offset = program->m_ImageSamplers.Size();
-
-            uint16_t stage_binding_offset = next_binding;
+            uint16_t stage_binding_offset   = next_binding;
 
             for (uint16_t i=0; i < program->m_FragmentProgram->m_UniformBlocks.Size(); i++)
             {
