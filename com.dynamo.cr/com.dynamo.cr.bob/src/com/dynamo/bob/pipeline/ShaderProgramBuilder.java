@@ -192,7 +192,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         File file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
         file_out_spv.deleteOnExit();
 
-        File file_out_refl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".relf");
+        File file_out_refl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".refl");
         file_out_refl.deleteOnExit();
 
         String spirvShaderStage = (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER ? "vert" : "frag");
