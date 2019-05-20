@@ -93,8 +93,8 @@
                (vector? x)
                ;; Recurse into sublevels and merge the current map with the
                ;; result. Any key collisions will have vector values so we
-               ;; concatenate and turn back into a vector.
-               [(merge-with (comp (partial into []) concat) m (combine-conversions x)) ns]
+               ;; can merge them with into.
+               [(merge-with into m (combine-conversions x)) ns]
 
                :else
                (if (= :namespace (:type x))
@@ -107,6 +107,9 @@
                   (:name x)]
                  (if x
                    [(update m ns conj x) ns]
+                   ;; Don't add empty parse results. They are probably
+                   ;; from syntactically valid but incomplete yaml
+                   ;; records.
                    [m ns]))))
            [{"" []} ""]
            conversions)))
