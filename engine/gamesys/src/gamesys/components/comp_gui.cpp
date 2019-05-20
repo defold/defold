@@ -1111,7 +1111,7 @@ namespace dmGameSystem
 
             // Pre-multiplied alpha
             Vector4 pm_color(color.getXYZ(), node_opacities[i]);
-            uint32_t bcolor = dmGraphics::PackRGBA(pm_color);
+            //uint32_t bcolor = dmGraphics::PackRGBA(pm_color);
 
             Vector4 slice9 = dmGui::GetNodeSlice9(scene, node);
             Point3 size = dmGui::GetNodeSize(scene, node);
@@ -1205,10 +1205,10 @@ namespace dmGameSystem
             }
 
             BoxVertex v00, v10, v01, v11;
-            v00.SetColor(bcolor);
-            v10.SetColor(bcolor);
-            v01.SetColor(bcolor);
-            v11.SetColor(bcolor);
+            v00.SetColor(pm_color);
+            v10.SetColor(pm_color);
+            v01.SetColor(pm_color);
+            v11.SetColor(pm_color);
             for (int y=0;y<3;y++)
             {
                 for (int x=0;x<3;x++)
@@ -1330,7 +1330,7 @@ namespace dmGameSystem
 
             // Pre-multiplied alpha
             Vector4 pm_color(color.getXYZ(), node_opacities[i]);
-            uint32_t bcolor = dmGraphics::PackRGBA(pm_color);
+            // uint32_t bcolor = dmGraphics::PackRGBA(pm_color);
 
             const uint32_t perimeterVertices = dmMath::Max<uint32_t>(4, dmGui::GetNodePerimeterVertices(scene, node));
             const float innerMultiplier = dmGui::GetNodeInnerRadius(scene, node) / size.getX();
@@ -1428,7 +1428,7 @@ namespace dmGameSystem
                 // make inner vertex
                 float u = 0.5f + innerMultiplier * c;
                 float v = 0.5f + innerMultiplier * s;
-                BoxVertex vInner(node_transforms[i] * Vectormath::Aos::Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), bcolor);
+                BoxVertex vInner(node_transforms[i] * Vectormath::Aos::Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), pm_color);
 
                 // make outer vertex
                 float d;
@@ -1439,7 +1439,7 @@ namespace dmGameSystem
 
                 u = 0.5f + d * c;
                 v = 0.5f + d * s;
-                BoxVertex vOuter(node_transforms[i] * Vectormath::Aos::Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), bcolor);
+                BoxVertex vOuter(node_transforms[i] * Vectormath::Aos::Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), pm_color);
 
                 // both inner & outer are doubled at first / last entry to generate degenerate triangles
                 // for the triangle strip, allowing more than one pie to be chained together in the same
