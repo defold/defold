@@ -1064,7 +1064,7 @@
               context-completions (get completions context)
               filtered-completions (some->> context-completions (popup/fuzzy-option-filter-fn :name :display-string query-text))]
           (if (empty? filtered-completions)
-            (hide-suggestions! view-node)
+            (.hide suggestions-popup)
             (let [^LayoutInfo layout (get-property view-node :layout)
                   ^Canvas canvas (g/node-value view-node :canvas)
                   ^ListView suggestions-list-view (g/node-value view-node :suggestions-list-view)
