@@ -416,9 +416,9 @@ namespace dmRender
 
     DrawTextParams::DrawTextParams()
     : m_WorldTransform(Matrix4::identity())
-    , m_FaceColor(0.0f, 0.0f, 0.0f, -1.0f)
-    , m_OutlineColor(0.0f, 0.0f, 0.0f, -1.0f)
-    , m_ShadowColor(0.0f, 0.0f, 0.0f, -1.0f)
+    , m_FaceColor(0.0f, 0.0f, 0.0f, 1.0f)
+    , m_OutlineColor(0.0f, 0.0f, 0.0f, 1.0f)
+    , m_ShadowColor(0.0f, 0.0f, 0.0f, 1.0f)
     , m_Text(0x0)
     , m_SourceBlendFactor(dmGraphics::BLEND_FACTOR_ONE)
     , m_DestinationBlendFactor(dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
@@ -598,9 +598,17 @@ namespace dmRender
         float x_offset = OffsetX(te.m_Align, te.m_Width);
         float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
 
-        uint32_t face_color = te.m_FaceColor;
-        uint32_t outline_color = te.m_OutlineColor;
-        uint32_t shadow_color = te.m_ShadowColor;
+        #define COLOR_TO_FLOAT(v) \
+            Vector4((float) (v & 0xff000000 >> 24) / 255.0, \
+                    (float) (v & 0x00ff0000 >> 16) / 255.0, \
+                    (float) (v & 0x0000ff00 >> 8 ) / 255.0, \
+                    (float) (v & 0x000000ff      ) / 255.0)
+
+        const Vectormath::Aos::Vector4& face_color    = COLOR_TO_FLOAT(te.m_FaceColor);
+        const Vectormath::Aos::Vector4& outline_color = COLOR_TO_FLOAT(te.m_OutlineColor);
+        const Vectormath::Aos::Vector4& shadow_color  = COLOR_TO_FLOAT(te.m_ShadowColor);
+
+        #undef COLOR_TO_FLOAT
 
         // No support for non-uniform scale with SDF so just peek at the first
         // row to extract scale factor. The purpose of this scaling is to have
@@ -756,24 +764,18 @@ namespace dmRender
                         v6_layer_face.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + px_cell_offset_y) * recip_h;
 
                         #define SET_VERTEX_PARAMS(v) \
-                            v.m_FaceColor[0] = 1.0f; \
-                            v.m_FaceColor[1] = 1.0f; \
-                            v.m_FaceColor[2] = 1.0f; \
-                            v.m_FaceColor[3] = 1.0f; \
-                            v.m_OutlineColor[0] = 1.0f; \
-                            v.m_OutlineColor[1] = 1.0f; \
-                            v.m_OutlineColor[2] = 1.0f; \
-                            v.m_OutlineColor[3] = 1.0f; \
-                            v.m_ShadowColor[0] = 1.0f; \
-                            v.m_ShadowColor[1] = 1.0f; \
-                            v.m_ShadowColor[2] = 1.0f; \
-                            v.m_ShadowColor[3] = 1.0f; \
-                            v.m_LayerMasks[0] = 1.0f; \
-                            v.m_LayerMasks[1] = 1.0f; \
-                            v.m_LayerMasks[2] = 1.0f; \
-                            //v.m_FaceColor = face_color; \
-                            //v.m_OutlineColor = outline_color; \
-                            //v.m_ShadowColor = shadow_color; \
+                            v.m_ShadowColor[0] = shadow_color[0]; \
+                            v.m_ShadowColor[1] = shadow_color[1]; \
+                            v.m_ShadowColor[2] = shadow_color[2]; \
+                            v.m_ShadowColor[3] = shadow_color[3]; \
+                            v.m_OutlineColor[0] = outline_color[0]; \
+                            v.m_OutlineColor[1] = outline_color[1]; \
+                            v.m_OutlineColor[2] = outline_color[2]; \
+                            v.m_OutlineColor[3] = outline_color[3]; \
+                            v.m_FaceColor[0] = face_color[0]; \
+                            v.m_FaceColor[1] = face_color[1]; \
+                            v.m_FaceColor[2] = face_color[2]; \
+                            v.m_FaceColor[3] = face_color[3]; \
                             v.m_SdfParams[0] = sdf_edge_value; \
                             v.m_SdfParams[1] = sdf_outline; \
                             v.m_SdfParams[2] = sdf_smoothing; \
@@ -789,14 +791,10 @@ namespace dmRender
                         v4_layer_face = v3_layer_face;
                         v5_layer_face = v2_layer_face;
 
-                        /*
                         #define SET_VERTEX_LAYER_MASK(v,f,o,s) \
-                            v.m_LayerMasks[0] = f; \
-                            v.m_LayerMasks[1] = o; \
-                            v.m_LayerMasks[2] = s;
-                            */
-
-                        #define SET_VERTEX_LAYER_MASK(v,f,o,s)
+                            v.m_LayerMasks[0] = (float) f; \
+                            v.m_LayerMasks[1] = (float) o; \
+                            v.m_LayerMasks[2] = (float) s;
 
                         // Set outline vertices
                         if (HAS_LAYER(layer_mask,OUTLINE))
