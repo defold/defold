@@ -258,12 +258,13 @@
   (set-options! [_this options]
     (set-generic-options! view options workspace)))
 
-(defn- make-labeled-check-box 
+(defn- make-labeled-check-box
   ^CheckBox [^String label ^String id ^Boolean default-value refresh!]
   (doto (if (some? label)
           (CheckBox. label)
           (CheckBox.))
     (ui/add-style! "labeled-check-box")
+    (.setMnemonicParsing false)
     (.setId id)
     (.setFocusTraversable false)
     (ui/on-action! refresh!)
@@ -337,8 +338,8 @@
         certificate-file-field (make-file-field "certificate-text-field" "Choose Certificate" [["Certificates (*.pem)" "*.pem"]])
         private-key-file-field (make-file-field "private-key-text-field" "Choose Private Key" [["Private Keys (*.pk8)" "*.pk8"]])
         architecture-controls (doto (VBox.)
-                                    (ui/children! [(make-labeled-check-box "32-bit" "architecture-32bit-check-box" true refresh!)
-                                                   (make-labeled-check-box "64-bit" "architecture-64bit-check-box" true refresh!)]))]
+                                    (ui/children! [(make-labeled-check-box "32-bit (armv7)" "architecture-32bit-check-box" true refresh!)
+                                                   (make-labeled-check-box "64-bit (arm64)" "architecture-64bit-check-box" true refresh!)]))]
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "android")
@@ -456,9 +457,9 @@
                                                             (fromString [label]
                                                               (if (= no-identity-label label) nil label)))))
         architecture-controls (doto (VBox.)
-                                (ui/children! [(make-labeled-check-box "32-bit" "architecture-32bit-check-box" true refresh!)
-                                               (make-labeled-check-box "64-bit" "architecture-64bit-check-box" true refresh!)
-                                               (make-labeled-check-box "Simulator" "architecture-simulator-check-box" false refresh!)]))]
+                                (ui/children! [(make-labeled-check-box "32-bit (armv7)" "architecture-32bit-check-box" true refresh!)
+                                               (make-labeled-check-box "64-bit (arm64)" "architecture-64bit-check-box" true refresh!)
+                                               (make-labeled-check-box "Simulator (x86_64)" "architecture-simulator-check-box" false refresh!)]))]
     (ui/on-action! code-signing-identity-choice-box refresh!)
     (doto (VBox.)
       (ui/add-style! "settings")
