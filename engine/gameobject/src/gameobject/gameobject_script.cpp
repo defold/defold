@@ -514,6 +514,25 @@ namespace dmGameObject
         return type->m_GetFunction(params);
     }
 
+    void* GetComponentFromInstance(HInstance instance, dmhash_t fragment, uint32_t* type_index)
+    {
+        if (!instance) {
+            return 0;
+        }
+        uintptr_t user_data;
+        // For loop over all components in the instance
+        dmGameObject::GetComponentUserData(instance, fragment, type_index, &user_data);
+
+         Collection* collection = instance->m_Collection;
+        void* world = collection->m_ComponentWorlds[*type_index];
+        ComponentType* type = &g_Register->m_ComponentTypes[*type_index];
+        if (!type->m_GetFunction) {
+            return 0;
+        }
+        ComponentGetParams params = {world, &user_data};
+        return type->m_GetFunction(params);
+    }
+
     HInstance GetInstanceFromLua(lua_State* L) {
         uintptr_t user_data;
         if (dmScript::GetUserData(L, &user_data, SCRIPTINSTANCE_TYPE_HASH)) {

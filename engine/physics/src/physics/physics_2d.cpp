@@ -11,6 +11,19 @@
 
 namespace dmPhysics
 {
+
+    struct Joint2D
+    {
+        dmhash_t m_Id;
+        b2Joint* m_B2Joint;
+        Vectormath::Aos::Point3 m_PositionA;
+        Vectormath::Aos::Point3 m_PositionB;
+        Joint2D(dmhash_t id) {
+            m_Id = id;
+            m_B2Joint = 0x0;
+        }
+    };
+
     Context2D::Context2D()
     : m_Worlds()
     , m_DebugCallbacks()
@@ -1015,6 +1028,50 @@ namespace dmPhysics
                     fixture = next_fixture;
                 }
             }
+        }
+    }
+
+    HJoint CreateJoint2D(HWorld2D world, dmhash_t id)
+    {
+        return new Joint2D(id);
+    }
+
+    dmhash_t GetJointId2D(HJoint _joint)
+    {
+        assert(_joint);
+        Joint2D* joint = (Joint2D*)_joint;
+        return joint->m_Id;
+    }
+
+    bool ConnectDistanceJoint2D(HWorld2D world, HJoint _joint, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b)
+    {
+        // disconnect first if already connected
+        DeleteJoint2D(world, _joint);
+
+        Joint2D* joint = (Joint2D*)_joint;
+
+        float scale = world->m_Context->m_Scale;
+        b2Vec2 pa;
+        ToB2(pos_a, pa, scale);
+        b2Vec2 pb;
+        ToB2(pos_b, pb, scale);
+        b2DistanceJointDef jointDef;
+        jointDef.Initialize((b2Body*)obj_a, (b2Body*)obj_b, pa, pb);
+        jointDef.collideConnected = true; // TODO
+        joint->m_B2Joint = world->m_World.CreateJoint(&jointDef);
+
+        return true;
+    }
+
+    void DeleteJoint2D(HWorld2D world, HJoint _joint)
+    {
+        assert(_joint);
+        Joint2D* joint = (Joint2D*)_joint;
+
+        if (joint->m_B2Joint)
+        {
+            world->m_World.DestroyJoint(joint->m_B2Joint);
+            joint->m_B2Joint = 0x0;
         }
     }
 }

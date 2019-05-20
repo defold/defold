@@ -210,4 +210,14 @@ namespace dmPhysics
     {
     }
 
+    HJoint CreateJoint2D(HWorld2D world, dmhash_t id)
+    {
+        return 0x0;
+    }
+
+    dmhash_t GetJointId2D(HJoint joint)
+    {
+        return 0x0;
+    }
+
 }

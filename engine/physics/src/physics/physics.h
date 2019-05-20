@@ -22,6 +22,13 @@ namespace dmPhysics
         COLLISION_OBJECT_TYPE_COUNT
     };
 
+    enum JointType
+    {
+        JOINT_TYPE_DISTANCE,
+        JOINT_TYPE_ROPE,
+        JOINT_TYPE_COUNT
+    };
+
     /// 3D context handle.
     typedef struct Context3D* HContext3D;
     /// 3D world handle.
@@ -30,6 +37,8 @@ namespace dmPhysics
     typedef void* HCollisionShape3D;
     /// 3D collision object handle.
     typedef void* HCollisionObject3D;
+    /// 3D joint handle
+    // typedef void* HJoint3D;
 
     /// 2D context handle.
     typedef struct Context2D* HContext2D;
@@ -41,6 +50,10 @@ namespace dmPhysics
     typedef void* HCollisionObject2D;
     /// 2D cull-set handle
     typedef void* HHullSet2D;
+    /// 2D joint handle
+    // typedef void* HJoint2D;
+
+    typedef void* HJoint;
 
     /// Empty cell value, see SetGridShapeHull
     const uint32_t GRIDSHAPE_EMPTY_CELL = 0xffffffff;
@@ -1097,6 +1110,14 @@ namespace dmPhysics
      * @param new_shape The shape to connect
      */
     void ReplaceShape2D(HContext2D context, HCollisionShape2D old_shape, HCollisionShape2D new_shape);
+
+    HJoint CreateJoint2D(HWorld2D world, dmhash_t id);
+    HJoint CreateJoint3D(HWorld3D world, dmhash_t id);
+    dmhash_t GetJointId2D(HJoint joint);
+    dmhash_t GetJointId3D(HJoint joint);
+    bool ConnectDistanceJoint2D(HWorld2D world, HJoint joint, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b);
+    // bool ConnectDistanceJoint2D(HWorld2D world, HJoint joint, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b);
+    void DeleteJoint2D(HWorld2D world, HJoint joint);
 }
 
 #endif // PHYSICS_H

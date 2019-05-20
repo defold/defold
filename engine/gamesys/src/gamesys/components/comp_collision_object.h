@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include <gameobject/gameobject.h>
+#include <physics/physics.h>
 
 namespace dmPhysics {
     struct RayCastRequest;
@@ -24,6 +25,8 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCollisionObjectAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
 
+    void*                      CompCollisionObjectGetComponent(const dmGameObject::ComponentGetParams& params);
+
     dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
 
     dmGameObject::UpdateResult CompCollisionObjectPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params);
@@ -42,6 +45,16 @@ namespace dmGameSystem
     void RayCast(void* world, const dmPhysics::RayCastRequest& request, dmPhysics::RayCastResponse& response);
     uint64_t GetLSBGroupHash(void* world, uint16_t mask);
     dmhash_t CompCollisionObjectGetIdentifier(void* component);
+
+    bool                            CompCollisionIs2D(void* comp_world);
+    dmPhysics::HWorld2D             CompCollisionGetPhysicsWorld2D(void* comp_world);
+    dmPhysics::HCollisionObject2D   CompCollisionGetObject2D(void* comp_world, void* comp);
+
+    bool CreateJoint(void* world, void* component, dmhash_t id);
+    bool ConnectJoint(void* _world, void* _component_a, dmhash_t id,
+        const Vectormath::Aos::Point3& apos,
+        void* _component_b,
+        const Vectormath::Aos::Point3& bpos);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H

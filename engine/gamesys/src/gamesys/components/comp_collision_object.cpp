@@ -31,15 +31,26 @@ namespace dmGameSystem
     static const dmhash_t PROP_ANGULAR_VELOCITY = dmHashString64("angular_velocity");
     static const dmhash_t PROP_MASS = dmHashString64("mass");
 
+    // struct JointEntry
+    // {
+    //     dmhash_t m_Id;
+    //     dmPhysics::HJoint m_Joint;
+    //     JointEntry* m_Next;
+    // };
+
     struct CollisionComponent
     {
         CollisionObjectResource* m_Resource;
         dmGameObject::HInstance m_Instance;
+
         union
         {
             dmPhysics::HCollisionObject3D m_Object3D;
             dmPhysics::HCollisionObject2D m_Object2D;
         };
+
+        dmArray<dmPhysics::HJoint> m_Joints;
+
         uint16_t m_Mask;
         uint16_t m_ComponentIndex;
         // True if the physics is 3D
@@ -67,6 +78,9 @@ namespace dmGameSystem
         uint8_t m_3D : 1;
         dmArray<CollisionComponent*> m_Components;
     };
+
+    static void DeleteJoint(CollisionWorld* world, CollisionComponent* component, dmhash_t id);
+    static void DeleteJoint(CollisionWorld* world, CollisionComponent* component, dmPhysics::HJoint joint);
 
     void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
     {
@@ -331,6 +345,9 @@ namespace dmGameSystem
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_AddedToUpdate = false;
         component->m_StartAsEnabled = true;
+        component->m_Joints.SetCapacity(8);
+        // component->m_Joints2D = new dmArray<dmPhysics::HJoint2D>();
+
         CollisionWorld* world = (CollisionWorld*)params.m_World;
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, false))
         {
@@ -365,6 +382,12 @@ namespace dmGameSystem
         }
         else
         {
+            // Destory joints
+            for (int i = 0; i < component->m_Joints.Size(); i++)
+            {
+                DeleteJoint(world, component, component->m_Joints[i]);
+            }
+
             if (component->m_Object2D != 0)
             {
                 dmPhysics::HWorld2D physics_world = world->m_World2D;
@@ -1091,9 +1114,140 @@ namespace dmGameSystem
         }
     }
 
+    bool CompCollisionIs2D(void* comp_world)
+    {
+        return !((CollisionWorld*)comp_world)->m_3D;
+    }
+
+    dmPhysics::HWorld2D CompCollisionGetPhysicsWorld2D(void* comp_world)
+    {
+        return ((CollisionWorld*)comp_world)->m_World2D;
+    }
+
+    dmPhysics::HCollisionObject2D CompCollisionGetObject2D(void* comp_world, void* comp)
+    {
+        return ((CollisionComponent*)comp)->m_Object2D;
+    }
+
     dmhash_t CompCollisionObjectGetIdentifier(void* _component)
     {
         CollisionComponent* component = (CollisionComponent*)_component;
         return dmGameObject::GetIdentifier(component->m_Instance);
     }
+
+    void* CompCollisionObjectGetComponent(const dmGameObject::ComponentGetParams& params)
+    {
+        //CollisionWorld* world = (CollisionWorld*)params.m_World;
+        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
+        return component;
+        // uint32_t index = (uint32_t)*params.m_UserData;
+        // return &world->m_Components.Get(index);
+    }
+
+    bool CreateJoint(void* _world, void* _component, dmhash_t id)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        CollisionComponent* component = (CollisionComponent*)_component;
+
+        dmPhysics::HJoint j = 0x0;
+        if (world->m_3D)
+        {
+            // FIXME
+            // j = dmPhysics::CreateJoint3D(world->m_World3D, id);
+        }
+        else
+        {
+            j = dmPhysics::CreateJoint2D(world->m_World2D, id);
+        }
+
+        if (!j)
+        {
+            dmLogError("Could not create joint!");
+            return false;
+        }
+
+        component->m_Joints.Push(j);
+
+        return true;
+    }
+
+    // HWorld2D world,
+    // HCollisionObject2D a, const Vectormath::Aos::Point3& apos,
+    // HCollisionObject2D b, const Vectormath::Aos::Point3& bpos,
+
+    static dmPhysics::HJoint FindJoint(CollisionWorld* world, CollisionComponent* component, dmhash_t id)
+    {
+        dmPhysics::HJoint j = 0x0;
+
+        if (world->m_3D)
+        {
+            // FIXME
+        }
+        else
+        {
+            for (int i = 0; i < component->m_Joints.Size(); i++)
+            {
+                dmPhysics::HJoint t_j = component->m_Joints[i];
+                if (id == dmPhysics::GetJointId2D(t_j))
+                {
+                    j = t_j;
+                    break;
+                }
+            }
+        }
+
+        return j;
+    }
+
+    bool ConnectJoint(void* _world, void* _component_a, dmhash_t id,
+        const Vectormath::Aos::Point3& apos,
+        void* _component_b,
+        const Vectormath::Aos::Point3& bpos)
+    {
+        // TODO find better solution for this..
+        // Find correct joint
+        CollisionWorld* world = (CollisionWorld*)_world;
+        CollisionComponent* component_a = (CollisionComponent*)_component_a;
+        CollisionComponent* component_b = (CollisionComponent*)_component_b;
+
+        dmPhysics::HJoint j = FindJoint(world, component_a, id);
+
+        if (!j)
+        {
+            dmLogError("Could not find joint!");
+            return false;
+        }
+
+        bool r = false;
+        if (world->m_3D)
+        {
+            // FIXME
+        }
+        else
+        {
+            r = dmPhysics::ConnectJoint2D(world->m_World2D, j, component_a->m_Object2D, apos, component_b->m_Object2D, bpos);
+        }
+
+        return r;
+    }
+
+    static void DeleteJoint(CollisionWorld* world, CollisionComponent* component, dmhash_t id)
+    {
+        dmPhysics::HJoint j = FindJoint(world, component, id);
+        DeleteJoint(world, component, j);
+    }
+
+    static void DeleteJoint(CollisionWorld* world, CollisionComponent* component, dmPhysics::HJoint joint)
+    {
+        if (world->m_3D)
+        {
+            // FIXME
+        }
+        else
+        {
+            dmPhysics::DeleteJoint2D(world->m_World2D, joint);
+        }
+    }
+
+
 }
