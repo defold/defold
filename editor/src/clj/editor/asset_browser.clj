@@ -407,9 +407,9 @@
                                  (resource/resource-name (first selection)))
                  :buttons [{:text "Cancel"
                             :cancel-button true
+                            :default-button true
                             :result false}
                            {:text "Delete"
-                            :default-button true
                             :variant :danger
                             :result true}]})
               (dialogs/make-confirmation-dialog

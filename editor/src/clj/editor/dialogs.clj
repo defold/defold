@@ -297,7 +297,7 @@
 
 (defn make-download-update-dialog [^Stage owner]
   (make-confirmation-dialog
-    {:title "Update Available"
+    {:title "Download Update?"
      :header "A newer version of Defold is available!"
      :icon :icon/circle-happy
      :owner owner
