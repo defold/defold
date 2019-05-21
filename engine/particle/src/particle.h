@@ -200,10 +200,10 @@ namespace dmParticle
         // Offset 0
         float m_X, m_Y, m_Z;
         // Offset 12
-        uint8_t m_Red, m_Green, m_Blue, m_Alpha;
-        // Offset 16
-        uint16_t m_U, m_V;
+        float m_U, m_V;
         // Offset 20
+        float m_Red, m_Green, m_Blue, m_Alpha;
+        // Offset 36
     };
 
     /**
@@ -216,8 +216,8 @@ namespace dmParticle
         // Offset 12
         float    m_UV[2];
         // Offset 20
-        uint32_t m_Color;
-        // Offset 24
+        Vector4 m_Color;
+        // Offset 36
     };
 
     // For tests
