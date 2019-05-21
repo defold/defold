@@ -24,8 +24,10 @@ namespace dmPhysics
 
     enum JointType
     {
-        JOINT_TYPE_DISTANCE,
-        JOINT_TYPE_ROPE,
+        JOINT_TYPE_SPRING,
+        JOINT_TYPE_FIXED,
+        JOINT_TYPE_HINGE,
+        JOINT_TYPE_SLIDER,
         JOINT_TYPE_COUNT
     };
 
@@ -1115,9 +1117,86 @@ namespace dmPhysics
     // HJoint CreateJoint3D(HWorld3D world, dmhash_t id);
     // dmhash_t GetJointId2D(HJoint joint);
     // dmhash_t GetJointId3D(HJoint joint);
-    HJoint CreateDistanceJoint2D(HWorld2D world, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b);
-    HJoint CreateRopeJoint2D(HWorld2D world, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b);
-    // bool ConnectDistanceJoint2D(HWorld2D world, HJoint joint, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b);
+
+    struct ConnectJointParams
+    {
+        bool m_CollideConnected;
+        union {
+            struct
+            {
+                float m_Length;
+                float m_FrequencyHz;
+                float m_DampingRatio;
+            } m_SpringJointParams;
+
+            struct
+            {
+                float m_MaxLength;
+            } m_FixedJointParams;
+
+            struct
+            {
+                float m_ReferenceAngle;
+                float m_LowerAngle;
+                float m_UpperAngle;
+                float m_MaxMotorTorque;
+                float m_MotorSpeed;
+                bool m_EnableLimit;
+                bool m_EnableMotor;
+            } m_HingeJointParams;
+
+            struct
+            {
+                float m_LocalAxisA[3];
+                float m_ReferenceAngle;
+                bool m_EnableLimit;
+                float m_LowerTranslation;
+                float m_UpperTranslation;
+                bool m_EnableMotor;
+                float m_MaxMotorForce;
+                float m_MotorSpeed;
+            } m_SliderJointParams;
+        };
+
+        ConnectJointParams(JointType type)
+        {
+            m_CollideConnected = false;
+            switch (type)
+            {
+                case JOINT_TYPE_SPRING:
+                    m_SpringJointParams.m_Length = 1.0f;
+                    m_SpringJointParams.m_FrequencyHz = 0.0f;
+                    m_SpringJointParams.m_DampingRatio = 0.0f;
+                    break;
+
+                case JOINT_TYPE_FIXED:
+                    m_FixedJointParams.m_MaxLength = 0.0f;
+                    break;
+                case JOINT_TYPE_HINGE:
+                    m_HingeJointParams.m_ReferenceAngle = 0.0f;
+                    m_HingeJointParams.m_LowerAngle = 0.0f;
+                    m_HingeJointParams.m_UpperAngle = 0.0f;
+                    m_HingeJointParams.m_MaxMotorTorque = 0.0f;
+                    m_HingeJointParams.m_MotorSpeed = 0.0f;
+                    m_HingeJointParams.m_EnableLimit = false;
+                    m_HingeJointParams.m_EnableMotor = false;
+                    break;
+                case JOINT_TYPE_SLIDER:
+                    m_HingeJointParams.m_ReferenceAngle = 0.0f;
+                    m_HingeJointParams.m_LowerAngle = 0.0f;
+                    m_HingeJointParams.m_UpperAngle = 0.0f;
+                    m_HingeJointParams.m_MaxMotorTorque = 0.0f;
+                    m_HingeJointParams.m_MotorSpeed = 0.0f;
+                    m_HingeJointParams.m_EnableLimit = false;
+                    m_HingeJointParams.m_EnableMotor = false;
+                    break;
+                default:
+                    break;
+            }
+        }
+    };
+
+    HJoint CreateJoint2D(HWorld2D world, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b, dmPhysics::JointType type, const ConnectJointParams& params);
     void DeleteJoint2D(HWorld2D world, HJoint joint);
 }
 

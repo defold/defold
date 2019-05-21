@@ -338,6 +338,7 @@ namespace dmScript
      * @return v [type:Vectormath::Aos::Vector3*] The pointer to the value, or 0 if not correct type
      */
     Vectormath::Aos::Vector3* ToVector3(lua_State* L, int index);
+    bool IsVector3(lua_State* L, int index);
 
     /*# push a Vectormath::Aos::Vector3 onto the Lua stack
      *
@@ -367,6 +368,7 @@ namespace dmScript
      * @return v [type:Vectormath::Aos::Vector4*] The pointer to the value, or 0 if not correct type
      */
     Vectormath::Aos::Vector4* ToVector4(lua_State* L, int index);
+    bool IsVector4(lua_State* L, int index);
 
     /*# push a Vectormath::Aos::Vector4 on the stack
      * Push a Vectormath::Aos::Vector4 value onto the supplied lua state, will increase the stack by 1.

@@ -1031,41 +1031,87 @@ namespace dmPhysics
         }
     }
 
-    HJoint CreateDistanceJoint2D(HWorld2D world, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b)
-    {
-        // b2Joint** joint = (b2Joint**)_joint_out;
-
-        float scale = world->m_Context->m_Scale;
-        b2Vec2 pa;
-        ToB2(pos_a, pa, scale);
-        b2Vec2 pb;
-        ToB2(pos_b, pb, scale);
-        b2DistanceJointDef jointDef;
-        jointDef.Initialize((b2Body*)obj_a, (b2Body*)obj_b, pa, pb);
-        jointDef.collideConnected = true; // TODO
-        b2Joint* joint = world->m_World.CreateJoint(&jointDef);
-
-        return joint;
-    }
-
-    HJoint CreateRopeJoint2D(HWorld2D world, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b)
+    HJoint CreateJoint2D(HWorld2D world, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b, dmPhysics::JointType type, const ConnectJointParams& params)
     {
         float scale = world->m_Context->m_Scale;
         b2Vec2 pa;
         ToB2(pos_a, pa, scale);
         b2Vec2 pb;
         ToB2(pos_b, pb, scale);
-        b2RopeJointDef jointDef;
-        // jointDef.Initialize((b2Body*)obj_a, (b2Body*)obj_b, pa, pb);
-        jointDef.bodyA = (b2Body*)obj_a;
-        jointDef.bodyB = (b2Body*)obj_b;
-        // jointDef.localAnchorA = pa;
-        jointDef.localAnchorA = ((b2Body*)obj_a)->GetLocalPoint(pa);
-        // jointDef.localAnchorB = pb;
-        jointDef.localAnchorB = ((b2Body*)obj_b)->GetLocalPoint(pb);
-        jointDef.maxLength = 30.0f * scale;
-        jointDef.collideConnected = false; // TODO
-        b2Joint* joint = world->m_World.CreateJoint(&jointDef);
+
+        b2Joint* joint = 0x0;
+        b2Body* b2_obj_a = (b2Body*)obj_a;
+        b2Body* b2_obj_b = (b2Body*)obj_b;
+
+        switch (type)
+        {
+            case dmPhysics::JOINT_TYPE_SPRING:
+                {
+                    b2DistanceJointDef jointDef;
+                    jointDef.bodyA            = b2_obj_a;
+                    jointDef.bodyB            = b2_obj_b;
+                    jointDef.localAnchorA     = pa;
+                    jointDef.localAnchorB     = pb;
+                    jointDef.length           = params.m_SpringJointParams.m_Length * scale;
+                    jointDef.frequencyHz      = params.m_SpringJointParams.m_FrequencyHz;
+                    jointDef.dampingRatio     = params.m_SpringJointParams.m_DampingRatio;
+                    jointDef.collideConnected = params.m_CollideConnected;
+                    joint = world->m_World.CreateJoint(&jointDef);
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_FIXED:
+                {
+                    b2RopeJointDef jointDef;
+                    jointDef.bodyA            = b2_obj_a;
+                    jointDef.bodyB            = b2_obj_b;
+                    jointDef.localAnchorA     = pa;
+                    jointDef.localAnchorB     = pb;
+                    jointDef.maxLength        = params.m_FixedJointParams.m_MaxLength * scale;
+                    jointDef.collideConnected = params.m_CollideConnected;
+                    joint = world->m_World.CreateJoint(&jointDef);
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_HINGE:
+                {
+                    b2RevoluteJointDef jointDef;
+                    jointDef.bodyA            = b2_obj_a;
+                    jointDef.bodyB            = b2_obj_b;
+                    jointDef.localAnchorA     = pa;
+                    jointDef.localAnchorB     = pb;
+                    jointDef.referenceAngle   = params.m_HingeJointParams.m_ReferenceAngle;
+                    jointDef.lowerAngle       = params.m_HingeJointParams.m_LowerAngle;
+                    jointDef.upperAngle       = params.m_HingeJointParams.m_UpperAngle;
+                    jointDef.maxMotorTorque   = params.m_HingeJointParams.m_MaxMotorTorque;
+                    jointDef.motorSpeed       = params.m_HingeJointParams.m_MotorSpeed;
+                    jointDef.enableLimit      = params.m_HingeJointParams.m_EnableLimit;
+                    jointDef.enableMotor      = params.m_HingeJointParams.m_EnableMotor;
+                    jointDef.collideConnected = params.m_CollideConnected;
+                    joint = world->m_World.CreateJoint(&jointDef);
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_SLIDER:
+                {
+                    b2PrismaticJointDef jointDef;
+                    jointDef.bodyA            = b2_obj_a;
+                    jointDef.bodyB            = b2_obj_b;
+                    jointDef.localAnchorA     = pa;
+                    jointDef.localAnchorB     = pb;
+                    b2Vec2 axis;
+                    Vectormath::Aos::Vector3 apa(params.m_SliderJointParams.m_LocalAxisA[0], params.m_SliderJointParams.m_LocalAxisA[1], params.m_SliderJointParams.m_LocalAxisA[2]);
+                    ToB2(apa, axis, 1.0f);
+                    jointDef.localAxisA       = axis;
+                    jointDef.referenceAngle   = params.m_SliderJointParams.m_ReferenceAngle;
+                    jointDef.enableLimit      = params.m_SliderJointParams.m_EnableLimit;
+                    jointDef.lowerTranslation = params.m_SliderJointParams.m_LowerTranslation * scale;
+                    jointDef.upperTranslation = params.m_SliderJointParams.m_UpperTranslation * scale;
+                    jointDef.enableMotor      = params.m_SliderJointParams.m_EnableMotor;
+                    jointDef.maxMotorForce    = params.m_SliderJointParams.m_MaxMotorForce * scale;
+                    jointDef.motorSpeed       = params.m_SliderJointParams.m_MotorSpeed;
+                    jointDef.collideConnected = params.m_CollideConnected;
+                    joint = world->m_World.CreateJoint(&jointDef);
+                }
+                break;
+        }
 
         return joint;
     }

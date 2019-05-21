@@ -1199,7 +1199,7 @@ namespace dmGameSystem
         return true;
     }
 
-    bool ConnectDistanceJoint(void* _world, void* _component_a, dmhash_t id, const Vectormath::Aos::Point3& apos, void* _component_b, const Vectormath::Aos::Point3& bpos)
+    bool ConnectJoint(void* _world, void* _component_a, dmhash_t id, const Vectormath::Aos::Point3& apos, void* _component_b, const Vectormath::Aos::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         CollisionComponent* component_a = (CollisionComponent*)_component_a;
@@ -1209,7 +1209,7 @@ namespace dmGameSystem
 
         if (!joint_entry)
         {
-            dmLogError("unable to connect distance joint, couldn't find joint with id %s", dmHashReverseSafe64(id));
+            dmLogError("unable to connect joint, couldn't find joint with id %s", dmHashReverseSafe64(id));
             return false;
         }
 
@@ -1222,36 +1222,7 @@ namespace dmGameSystem
 
         if (!world->m_3D)
         {
-            joint_entry->m_Joint = dmPhysics::CreateDistanceJoint2D(world->m_World2D, component_a->m_Object2D, apos, component_b->m_Object2D, bpos);
-        }
-
-        return joint_entry->m_Joint;
-    }
-
-    bool ConnectRopeJoint(void* _world, void* _component_a, dmhash_t id, const Vectormath::Aos::Point3& apos, void* _component_b, const Vectormath::Aos::Point3& bpos)
-    {
-        CollisionWorld* world = (CollisionWorld*)_world;
-        CollisionComponent* component_a = (CollisionComponent*)_component_a;
-        CollisionComponent* component_b = (CollisionComponent*)_component_b;
-
-        JointEntry* joint_entry = FindJointEntry(world, component_a, id);
-
-        if (!joint_entry)
-        {
-            dmLogError("unable to connect rope joint, couldn't find joint with id %s", dmHashReverseSafe64(id));
-            return false;
-        }
-
-        // Delete previous joint connection, if available
-        if (joint_entry->m_Joint)
-        {
-            DeleteJoint(world, joint_entry->m_Joint);
-            joint_entry->m_Joint = 0x0;
-        }
-
-        if (!world->m_3D)
-        {
-            joint_entry->m_Joint = dmPhysics::CreateRopeJoint2D(world->m_World2D, component_a->m_Object2D, apos, component_b->m_Object2D, bpos);
+            joint_entry->m_Joint = dmPhysics::CreateJoint2D(world->m_World2D, component_a->m_Object2D, apos, component_b->m_Object2D, bpos, type, joint_params);
         }
 
         return joint_entry->m_Joint;

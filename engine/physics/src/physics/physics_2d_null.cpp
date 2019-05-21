@@ -210,14 +210,13 @@ namespace dmPhysics
     {
     }
 
-    HJoint CreateJoint2D(HWorld2D world, dmhash_t id)
+    HJoint CreateJoint2D(HWorld2D world, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b, dmPhysics::JointType type, const ConnectJointParams& params)
     {
-        return 0x0;
+        return (dmPhysics::HJoint)0x1;
     }
 
-    dmhash_t GetJointId2D(HJoint joint)
+    void DeleteJoint2D(HWorld2D world, HJoint joint)
     {
-        return 0x0;
     }
 
 }

@@ -407,12 +407,140 @@ namespace dmGameSystem
         return 0;
     }
 
-    // physics.connect_joint("obj_a#coll", "apa", posa - diff * 25, "obj_b#coll", posb + diff * 25)
+    static int UnpackFloatParam(lua_State* L, int table_index, const char* table_field, float& float_out)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        lua_getfield(L, table_index, table_field);
+        int type = lua_type(L, -1);
+
+        // return if the field was not found
+        if (type == LUA_TNIL || type == LUA_TNONE) {
+            lua_pop(L, 1);
+            return 0;
+        } else if (type != LUA_TNUMBER) {
+            return DM_LUA_ERROR("physics.connect_joint property table field %s must be of number type.", table_field);
+        }
+
+        float_out = lua_tonumber(L, -1);
+        lua_pop(L, 1);
+
+        return 0;
+    }
+
+    static int UnpackVec3Param(lua_State* L, int table_index, const char* table_field, float float_out[3])
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        lua_getfield(L, table_index, table_field);
+        int type = lua_type(L, -1);
+        bool vec3_type = dmScript::IsVector3(L, -1);
+
+        // return if the field was not found
+        if (type == LUA_TNIL || type == LUA_TNONE) {
+            lua_pop(L, 1);
+            return 0;
+        } else if (!vec3_type) {
+            return DM_LUA_ERROR("physics.connect_joint property table field %s must be of vmath.vector3 type.", table_field);
+        }
+
+        Vectormath::Aos::Vector3* v3 = dmScript::ToVector3(L, -1);
+        float_out[0] = v3->getX();
+        float_out[1] = v3->getY();
+        float_out[2] = v3->getZ();
+        lua_pop(L, 1);
+
+        return 0;
+    }
+
+    static int UnpackBoolParam(lua_State* L, int table_index, const char* table_field, bool& bool_out)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        lua_getfield(L, table_index, table_field);
+        int type = lua_type(L, -1);
+
+        // return if the field was not found
+        if (type == LUA_TNIL || type == LUA_TNONE) {
+            lua_pop(L, 1);
+            return 0;
+        } else if (type != LUA_TBOOLEAN) {
+            return DM_LUA_ERROR("physics.connect_joint property table field %s must be of bool type.", table_field);
+        }
+
+        bool_out = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+
+        return 0;
+    }
+
+    static int UnpackConnectJointParams(lua_State* L, dmPhysics::JointType type, int table_index, dmPhysics::ConnectJointParams& params)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        // Fill with default values
+        params = dmPhysics::ConnectJointParams(type);
+
+        int table_index_type = lua_type(L, table_index);
+        if (table_index_type == LUA_TNIL || table_index_type == LUA_TNONE) {
+            // Early exit if table was nil (just returns default values from above).
+            return 0;
+        } else if (table_index_type != LUA_TTABLE) {
+            return DM_LUA_ERROR("argument %d to physics.connect_joint must be either nil or table.", table_index);
+        }
+
+        // Common fields for all joints:
+        UnpackBoolParam(L, table_index, "collide_connected", params.m_CollideConnected);
+
+        switch (type)
+        {
+            case dmPhysics::JOINT_TYPE_SPRING:
+                UnpackFloatParam(L, table_index, "length", params.m_SpringJointParams.m_Length);
+                UnpackFloatParam(L, table_index, "frequency", params.m_SpringJointParams.m_FrequencyHz);
+                UnpackFloatParam(L, table_index, "damping", params.m_SpringJointParams.m_DampingRatio);
+                break;
+
+            case dmPhysics::JOINT_TYPE_FIXED:
+                UnpackFloatParam(L, table_index, "max_length", params.m_FixedJointParams.m_MaxLength);
+                break;
+
+            case dmPhysics::JOINT_TYPE_HINGE:
+                UnpackFloatParam(L, table_index, "reference_angle", params.m_HingeJointParams.m_ReferenceAngle);
+                UnpackFloatParam(L, table_index, "lower_angle", params.m_HingeJointParams.m_LowerAngle);
+                UnpackFloatParam(L, table_index, "upper_angle", params.m_HingeJointParams.m_UpperAngle);
+                UnpackFloatParam(L, table_index, "max_motor_torque", params.m_HingeJointParams.m_MaxMotorTorque);
+                UnpackFloatParam(L, table_index, "motor_speed", params.m_HingeJointParams.m_MotorSpeed);
+                UnpackBoolParam(L, table_index, "enable_limit", params.m_HingeJointParams.m_EnableLimit);
+                UnpackBoolParam(L, table_index, "enable_motor", params.m_HingeJointParams.m_EnableMotor);
+                break;
+
+            case dmPhysics::JOINT_TYPE_SLIDER:
+                UnpackVec3Param(L, table_index, "local_axis_a", params.m_SliderJointParams.m_LocalAxisA);
+                UnpackFloatParam(L, table_index, "reference_angle", params.m_SliderJointParams.m_ReferenceAngle);
+                UnpackBoolParam(L, table_index, "enable_limit", params.m_SliderJointParams.m_EnableLimit);
+                UnpackFloatParam(L, table_index, "lower_translation", params.m_SliderJointParams.m_LowerTranslation);
+                UnpackFloatParam(L, table_index, "upper_translation", params.m_SliderJointParams.m_UpperTranslation);
+                UnpackBoolParam(L, table_index, "enable_motor", params.m_SliderJointParams.m_EnableMotor);
+                UnpackFloatParam(L, table_index, "max_motor_force", params.m_SliderJointParams.m_MaxMotorForce);
+                UnpackFloatParam(L, table_index, "motor_speed", params.m_SliderJointParams.m_MotorSpeed);
+                break;
+
+            default:
+                return DM_LUA_ERROR("property table not implemented for joint type %d", type);
+        }
+
+        return 0;
+    }
+
+    // physics.connect_joint(type, "obj_a#coll", "apa", posa, "obj_b#coll", posb [, params])
     static int Physics_ConnectJoint(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        int type = luaL_checkinteger(L, 1);
+        int top = lua_gettop(L);
+
+        dmPhysics::JointType type = (dmPhysics::JointType)luaL_checkinteger(L, 1);
+        if (type >= dmPhysics::JOINT_TYPE_COUNT)
+        {
+            return DM_LUA_ERROR("unknown joint type: %d", type);
+        }
 
         dmhash_t joint_id = dmScript::CheckHashOrString(L, 3);
 
@@ -451,20 +579,11 @@ namespace dmGameSystem
             return DM_LUA_ERROR("physics.connect_joint() is currently only supported with 2D physics");
         }
 
-        if (type == dmPhysics::JOINT_TYPE_DISTANCE) {
-
-            bool r = dmGameSystem::ConnectDistanceJoint(comp_world, comp_a, joint_id, apos, comp_b, bpos);
-            if (!r) {
-                return DM_LUA_ERROR("could not connect joint");
-            }
-
-        } else if (type == dmPhysics::JOINT_TYPE_ROPE) {
-
-            bool r = dmGameSystem::ConnectRopeJoint(comp_world, comp_a, joint_id, apos, comp_b, bpos);
-            if (!r) {
-                return DM_LUA_ERROR("could not connect joint");
-            }
-
+        // Unpack type specific joint connection paramaters
+        dmPhysics::ConnectJointParams params(type);
+        UnpackConnectJointParams(L, type, 7, params);
+        if (!dmGameSystem::ConnectJoint(comp_world, comp_a, joint_id, apos, comp_b, bpos, type, params)) {
+            return DM_LUA_ERROR("could not connect joint");
         }
 
         return 0;
@@ -490,8 +609,10 @@ namespace dmGameSystem
     lua_pushnumber(L, (lua_Number) dmPhysics::name); \
     lua_setfield(L, -2, #name);\
 
-        SETCONSTANT(JOINT_TYPE_DISTANCE)
-        SETCONSTANT(JOINT_TYPE_ROPE)
+        SETCONSTANT(JOINT_TYPE_SPRING)
+        SETCONSTANT(JOINT_TYPE_FIXED)
+        SETCONSTANT(JOINT_TYPE_HINGE)
+        SETCONSTANT(JOINT_TYPE_SLIDER)
 
  #undef SETCONSTANT
 
