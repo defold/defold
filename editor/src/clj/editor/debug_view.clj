@@ -1,5 +1,7 @@
 (ns editor.debug-view
-  (:require [clojure.java.io :as io]
+  (:require [cljfx.api :as fx]
+            [cljfx.fx.text-field :as fx.text-field]
+            [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -9,6 +11,8 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
+            [editor.error-reporting :as error-reporting]
+            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.lua :as lua]
             [editor.protobuf :as protobuf]
@@ -21,9 +25,10 @@
            [editor.debugging.mobdebug LuaStructure]
            [java.nio.file Files]
            [java.util Collection]
-           [javafx.event ActionEvent]
+           [javafx.event Event]
            [javafx.scene Parent]
-           [javafx.scene.control Button Label ListView TextField TreeItem TreeView]
+           [javafx.scene.control Button Label ListView TreeItem TreeView]
+           [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout HBox Pane Priority]
            [org.apache.commons.io FilenameUtils]))
 
@@ -142,12 +147,9 @@
        string/split-lines))
 
 (defn- on-eval-input
-  [debug-view ^ActionEvent event]
+  [debug-view code]
   (when-some [debug-session (g/node-value debug-view :debug-session)]
-    (let [input ^TextField (.getSource event)
-          code  (.getText input)
-          frame (current-stack-frame debug-view)]
-      (.clear input)
+    (let [frame (current-stack-frame debug-view)]
       (assert (= :suspended (mobdebug/state debug-session)))
       (console/append-console-entry! :eval-expression code)
       (future
@@ -241,6 +243,118 @@
     (.setAll children ^Collection (map make-variable-tree-item (concat locals upvalues)))
     ret))
 
+(defn- switch-entry-text [state text]
+  (let [length (count text)]
+    (assoc state :new-entry-text text
+                 :selection [length length])))
+
+(defn- reset-history-index [state index]
+  (-> state
+      (assoc :history-index index)
+      (switch-entry-text ((:history state) index))))
+
+(defn- swap-history-index [state f]
+  (reset-history-index state (f (:history-index state))))
+
+(defn- handle-prompt-field-event [{:keys [event-type fx/event state]}]
+  (case event-type
+    ::text-changed
+    {:state (assoc state :new-entry-text event)}
+
+    ::selection-changed
+    {:state (assoc state :selection event)}
+
+    ::key-pressed
+    (let [^KeyEvent event event
+          {:keys [new-entry-text history history-index]} state]
+      (condp = (.getCode event)
+        KeyCode/ENTER
+        {:eval new-entry-text
+         :state (-> state
+                    (dissoc :history-index :stashed-entry-text)
+                    (switch-entry-text "")
+                    (assoc :history (cond-> history
+                                            (not= (peek history) new-entry-text)
+                                            (conj new-entry-text))))}
+
+        KeyCode/UP
+        (cond
+          (empty? history)
+          nil
+
+          (nil? history-index)
+          (let [index (dec (count history))]
+            {:state (-> state
+                        (assoc :stashed-entry-text new-entry-text)
+                        (reset-history-index index))
+             :consume event})
+
+          (zero? history-index)
+          nil
+
+          :else
+          {:state (swap-history-index state dec)
+           :consume event})
+
+        KeyCode/DOWN
+        (cond
+          (empty? history)
+          nil
+
+          (nil? history-index)
+          nil
+
+          (= history-index (dec (count history)))
+          {:state (-> state
+                      (dissoc :history-index :stashed-entry-text)
+                      (switch-entry-text (:stashed-entry-text state)))
+           :consume event}
+
+          :else
+          {:state (swap-history-index state inc)
+           :consume event})
+
+        nil))))
+
+(def ^:private ext-selection-props
+  (fxui/make-ext-with-extra-props
+    {:selection fxui/text-input-selection-prop
+     :on-selection-changed fxui/on-text-input-selection-changed-prop}))
+
+(def ^:private ext-text-field-props
+  (fxui/make-ext-with-extra-props
+    (assoc fx.text-field/props
+      :filter-on-key-pressed (fxui/make-event-filter-prop KeyEvent/KEY_PRESSED))))
+
+(defn setup-prompt-field! [debug-view debugger-prompt-field]
+  (let [state-atom (atom {:history []
+                          :selection [0 0]
+                          :new-entry-text ""})
+        text-field-view (fn [{:keys [selection new-entry-text]}]
+                          {:fx/type ext-selection-props
+                           :desc {:fx/type ext-text-field-props
+                                  :selection selection
+                                  :on-selection-changed {:event-type ::selection-changed}
+                                  :desc {:fx/type fxui/ext-value
+                                         :value debugger-prompt-field
+                                         :filter-on-key-pressed {:event-type ::key-pressed}
+                                         :text new-entry-text
+                                         :on-text-changed {:event-type ::text-changed}}}})
+        renderer (fx/create-renderer
+                   :error-handler error-reporting/report-exception!
+                   :opts {:fx.opt/map-event-handler
+                          (-> handle-prompt-field-event
+                              (fx/wrap-co-effects
+                                {:state (fx/make-deref-co-effect state-atom)})
+                              (fx/wrap-effects
+                                {:state (fx/make-reset-effect state-atom)
+                                 :eval (fn [str _]
+                                         (on-eval-input debug-view str))
+                                 :consume (fn [^Event e _]
+                                            (.consume e))}))}
+                   :middleware (fx/wrap-map-desc assoc :fx/type text-field-view))]
+    (fx/mount-renderer state-atom renderer)))
+
 (defn- setup-controls!
   [debug-view ^Parent console-grid-pane ^Parent right-pane]
   (ui/with-controls console-grid-pane [console-tool-bar
@@ -251,7 +365,7 @@
 
     ;; debugger prompt
     (.bind (.managedProperty debugger-prompt) (.visibleProperty debugger-prompt))
-    (ui/on-action! debugger-prompt-field #(on-eval-input debug-view %)))
+    (setup-prompt-field! debug-view debugger-prompt-field))
 
   (ui/with-controls right-pane [debugger-call-stack
                                 ^Parent debugger-data-split

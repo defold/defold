@@ -4,6 +4,7 @@
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.defold-project :as project]
+            [editor.error-reporting :as error-reporting]
             [editor.field-expression :as field-expression]
             [editor.fxui :as fxui]
             [editor.fuzzy-text :as fuzzy-text]
@@ -396,6 +397,7 @@
   (ui/run-now
     (let [state-atom (atom {:progress (progress/make "Loading" 1 0)})
           renderer (fx/create-renderer
+                     :error-handler error-reporting/report-exception!
                      :middleware (fx/wrap-map-desc assoc :fx/type load-project-dialog))
           render-progress! #(swap! state-atom assoc :progress %)
           _ (future
