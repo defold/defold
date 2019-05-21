@@ -3,12 +3,8 @@ vertex_program: "/builtins/materials/tile_map.vp"
 fragment_program: "/builtins/materials/tile_map.fp"
 tags: "tile"
 vertex_constants {
-  name: "view_proj"
-  type: CONSTANT_TYPE_VIEWPROJ
-}
-vertex_constants {
-  name: "world"
-  type: CONSTANT_TYPE_WORLD
+  name: "world_view_proj"
+  type: CONSTANT_TYPE_WORLDVIEWPROJ
 }
 fragment_constants {
   name: "tint"
