@@ -2485,7 +2485,7 @@ namespace dmGraphics
             VK_ZERO_MEMORY(&vk_descriptor_set_layout, sizeof(vk_descriptor_set_layout));
 
             VkDescriptorSetLayoutCreateInfo vk_descriptor_layout_create_info;
-            VK_ZERO_MEMORY(&vk_descriptor_layout_create_info,sizeof(VkDescriptorSetLayoutCreateInfo));
+            VK_ZERO_MEMORY(&vk_descriptor_layout_create_info, sizeof(VkDescriptorSetLayoutCreateInfo));
 
             vk_descriptor_layout_create_info.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
             vk_descriptor_layout_create_info.bindingCount = program->m_LayoutBindingsIndices.Size();
@@ -3369,11 +3369,12 @@ namespace dmGraphics
 
         for (uint32_t i = 0; i < count; ++i)
         {
-            vd->m_Streams[i].m_Name         = element[i].m_Name;
-            vd->m_Streams[i].m_Size         = element[i].m_Size;
-            vd->m_Streams[i].m_Type         = element[i].m_Type;
+            VertexElement& el               = element[i];
+            vd->m_Streams[i].m_Name         = el.m_Name;
+            vd->m_Streams[i].m_Size         = el.m_Size;
+            vd->m_Streams[i].m_Type         = el.m_Type;
             vd->m_Streams[i].m_Offset       = vd->m_Stride;
-            vd->m_Stride += element[i].m_Size * GetTypeSize(element[i].m_Type); //TYPE_SIZE[element[i].m_Type];
+            vd->m_Stride                   += el.m_Size * GetTypeSize(el.m_Type); //TYPE_SIZE[element[i].m_Type];
 
             VkFormat vk_format = GetVulkanFormatFromTypeAndSize(vd->m_Streams[i].m_Type,vd->m_Streams[i].m_Size);
 
@@ -3382,6 +3383,7 @@ namespace dmGraphics
 
             dmHashUpdateBuffer64(hash, &vd->m_Streams[i].m_Size, sizeof(vd->m_Streams[i].m_Size));
             dmHashUpdateBuffer64(hash, &vd->m_Streams[i].m_Type, sizeof(vd->m_Streams[i].m_Type));
+            dmHashUpdateBuffer64(hash, &vd->m_Streams[i].m_DescriptorIndex, sizeof(vd->m_Streams[i].m_DescriptorIndex));
         }
 
         return vd;

@@ -34,7 +34,6 @@ namespace dmGraphics
         struct Stream
         {
             const char* m_Name;
-            uint16_t    m_LogicalIndex;
             uint16_t    m_DescriptorIndex;
             uint16_t    m_Size;
             uint16_t    m_Offset;
