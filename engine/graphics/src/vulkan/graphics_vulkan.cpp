@@ -774,8 +774,13 @@ namespace dmGraphics
         }
 
         // Present modes: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPresentModeKHR.html
-        static VkPresentModeKHR GetSuitablePresentMode(dmArray<VkPresentModeKHR>& presentModes)
+        static VkPresentModeKHR GetSuitablePresentMode(dmArray<VkPresentModeKHR>& presentModes, bool wantVSync)
         {
+            if (wantVSync)
+            {
+                return VK_PRESENT_MODE_FIFO_KHR;
+            }
+
             VkPresentModeKHR mode_most_suitable = VK_PRESENT_MODE_FIFO_KHR;
 
             for (uint32_t i=0; i < presentModes.Size(); i++)
@@ -825,8 +830,9 @@ namespace dmGraphics
             SwapChainSupport swap_chain_support;
             GetSwapChainSupport(g_vk_context.m_PhysicalDevice, swap_chain_support);
 
+            // Note: For now, we will always get VK_PRESENT_MODE_FIFO_KHR due to vsync, but that should probably change at some point
             VkSurfaceFormatKHR swap_chain_format       = GetSuitableSwapChainFormat(swap_chain_support.m_Formats);
-            VkPresentModeKHR   swap_chain_present_mode = GetSuitablePresentMode(swap_chain_support.m_PresentModes);
+            VkPresentModeKHR   swap_chain_present_mode = GetSuitablePresentMode(swap_chain_support.m_PresentModes, true);
             VkExtent2D         swap_chain_extent       = GetSwapChainExtent(swap_chain_support.m_SurfaceCapabilities, wantedWidth, wantedHeight);
 
             // From the docs:
