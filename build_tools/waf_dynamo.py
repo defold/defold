@@ -1490,11 +1490,40 @@ def _find_msvc_installs():
                 continue
     return list(set(installs))
 
-def find_installed_msvc_versions(conf):
-    versions = []
-    for version, product_dir in _find_msvc_installs():
-        versions.append(('msvc '+ version, _get_msvc_target_support(conf, product_dir, version)))
-    return versions
+def get_msvc_version(conf, platform):
+    dynamo_home = conf.env['DYNAMO_HOME']
+    msvcdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'MicrosoftVisualStudio14.0')
+    windowskitsdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'WindowsKits')
+
+    if not os.path.exists(msvcdir):
+        msvcdir = os.path.normpath(os.path.join(os.environ['VS140COMNTOOLS'], '..', '..'))
+        windowskitsdir = os.path.join(os.environ['ProgramFiles(x86)'], 'Windows Kits')
+
+    target_map = {'win32': 'x86',
+                   'x86_64-win32': 'x64'}
+    platform_map = {'win32': '',
+                    'x86_64-win32': 'amd64'}
+
+    msvc_path = (os.path.join(msvcdir,'VC','bin', platform_map[platform]),
+                os.path.join(windowskitsdir,'8.1','bin',target_map[platform]))
+
+    includes = [os.path.join(msvcdir,'VC','include'),
+                os.path.join(msvcdir,'VC','atlmfc','include'),
+                os.path.join(windowskitsdir,'10','Include','10.0.10240.0','ucrt'),
+                os.path.join(windowskitsdir,'8.1','Include','winrt'),
+                os.path.join(windowskitsdir,'8.1','Include','um'),
+                os.path.join(windowskitsdir,'8.1','Include','shared')]
+    libdirs = [ os.path.join(msvcdir,'VC','lib','amd64'),
+                os.path.join(msvcdir,'VC','atlmfc','lib','amd64'),
+                os.path.join(windowskitsdir,'10','Lib','10.0.10240.0','ucrt','x64'),
+                os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um','x64')]
+    if platform == 'win32':
+        libdirs = [os.path.join(msvcdir,'VC','lib'),
+                    os.path.join(msvcdir,'VC','atlmfc','lib'),
+                    os.path.join(windowskitsdir,'10','Lib','10.0.10240.0','ucrt','x86'),
+                    os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um','x86')]
+
+    return msvc_path, includes, libdirs
 
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
@@ -1541,26 +1570,16 @@ def detect(conf):
     conf.env['DYNAMO_HOME'] = dynamo_home
 
     if 'win32' in platform:
-        target_map = {'win32': 'x86',
-                      'x86_64-win32': 'x64'}
-        platform_map = {'win32': 'x86',
-                        'x86_64-win32': 'amd64'}
+        if platform == 'x86_64-win32':
+            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', get_msvc_version(conf, 'x86_64-win32')))])]
+        else:
+            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', get_msvc_version(conf, 'win32')))])]
 
-        desired_version = 'msvc 14.0'
-
-        versions = find_installed_msvc_versions(conf)
-        conf.env['MSVC_INSTALLED_VERSIONS'] = versions
-        conf.env['MSVC_TARGETS'] = target_map[platform]
-        conf.env['MSVC_VERSIONS'] = [desired_version]
-
-        search_path = None
-        for (msvc_version, targets) in conf.env['MSVC_INSTALLED_VERSIONS']:
-            if msvc_version == desired_version:
-                for (target, (target_platform, paths)) in targets:
-                    if target == target_map[platform] and target_platform == platform_map[platform]:
-                        search_path = paths[0]
-        if search_path == None:
-            conf.fatal("Unable to determine search path for platform: %s" % platform)
+        target_map = {'win32': 'x86', 'x86_64-win32': 'x64'}
+        windowskitsdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'WindowsKits')
+        if not os.path.exists(windowskitsdir):
+            windowskitsdir = os.path.join(os.environ['ProgramFiles(x86)'], 'Windows Kits')
+        conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = [os.path.join(windowskitsdir, '8.1','bin', target_map[platform] )])
 
     if  build_util.get_target_os() in ('osx', 'ios'):
         conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True) # or possibly llvm-dsymutil
