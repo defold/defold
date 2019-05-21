@@ -1456,6 +1456,7 @@ namespace dmGraphics
             dmHashUpdateBuffer64(&pipeline_hash_state, &program->m_VertexProgram->m_Hash, sizeof(program->m_VertexProgram->m_Hash));
             dmHashUpdateBuffer64(&pipeline_hash_state, &program->m_FragmentProgram->m_Hash, sizeof(program->m_FragmentProgram->m_Hash));
             dmHashUpdateBuffer64(&pipeline_hash_state, &g_vk_context.m_PipelineState, sizeof(g_vk_context.m_PipelineState));
+            dmHashUpdateBuffer64(&pipeline_hash_state, &vertexDeclaration->m_Hash, sizeof(vertexDeclaration->m_Hash));
             uint64_t pipeline_hash = dmHashFinal64(&pipeline_hash_state);
 
             Pipeline* cached_pipeline = g_vk_context.m_PipelineCache.Get(pipeline_hash);
@@ -3356,27 +3357,19 @@ namespace dmGraphics
         return vk_format;
     }
 
-    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
+    static VertexDeclaration* CreateAndFillVertexDeclaration(HashState64* hash, VertexElement* element, uint32_t count)
     {
-        VertexDeclaration* vd = (VertexDeclaration*) NewVertexDeclaration(context, element, count);
-        vd->m_Stride = stride;
-        return vd;
-    }
-
-    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
-    {
-        VertexDeclaration* vd = new VertexDeclaration();
-        VK_ZERO_MEMORY(vd, sizeof(VertexDeclaration));
-
         assert(element);
         assert(count <= MAX_VERTEX_STREAM_COUNT);
+
+        VertexDeclaration* vd = new VertexDeclaration();
+        VK_ZERO_MEMORY(vd, sizeof(VertexDeclaration));
 
         vd->m_StreamCount = count;
 
         for (uint32_t i = 0; i < count; ++i)
         {
             vd->m_Streams[i].m_Name         = element[i].m_Name;
-            vd->m_Streams[i].m_LogicalIndex = i;
             vd->m_Streams[i].m_Size         = element[i].m_Size;
             vd->m_Streams[i].m_Type         = element[i].m_Type;
             vd->m_Streams[i].m_Offset       = vd->m_Stride;
@@ -3385,12 +3378,33 @@ namespace dmGraphics
             VkFormat vk_format = GetVulkanFormatFromTypeAndSize(vd->m_Streams[i].m_Type,vd->m_Streams[i].m_Size);
 
             vd->m_Streams[i].m_DescriptorIndex = Vulkan::GetVertexStreamDescriptorIndex(
-                vd->m_Streams[i].m_LogicalIndex,
-                vk_format,
-                vd->m_Streams[i].m_Offset
-            );
+                i, vk_format, vd->m_Streams[i].m_Offset);
+
+            dmHashUpdateBuffer64(hash, &vd->m_Streams[i].m_Size, sizeof(vd->m_Streams[i].m_Size));
+            dmHashUpdateBuffer64(hash, &vd->m_Streams[i].m_Type, sizeof(vd->m_Streams[i].m_Type));
         }
 
+        return vd;
+    }
+
+    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
+    {
+        HashState64 decl_hash_state;
+        dmHashInit64(&decl_hash_state, false);
+        dmHashUpdateBuffer64(&decl_hash_state, &stride, sizeof(stride));
+
+        VertexDeclaration* vd = CreateAndFillVertexDeclaration(&decl_hash_state, element, count);
+        vd->m_Stride = stride;
+        vd->m_Hash   = dmHashFinal64(&decl_hash_state);
+        return vd;
+    }
+
+    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
+    {
+        HashState64 decl_hash_state;
+        dmHashInit64(&decl_hash_state, false);
+        VertexDeclaration* vd = CreateAndFillVertexDeclaration(&decl_hash_state, element, count);
+        vd->m_Hash = dmHashFinal64(&decl_hash_state);
         return vd;
     }
 

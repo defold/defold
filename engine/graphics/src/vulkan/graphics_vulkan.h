@@ -42,6 +42,7 @@ namespace dmGraphics
             // bool        m_Normalize; // Not sure how to deal in VK
         };
 
+        uint64_t    m_Hash;
         Stream      m_Streams[MAX_VERTEX_STREAM_COUNT];
         uint16_t    m_StreamCount;
         uint16_t    m_Stride;
