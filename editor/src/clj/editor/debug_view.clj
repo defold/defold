@@ -22,7 +22,7 @@
            [java.nio.file Files]
            [java.util Collection]
            [javafx.scene Parent]
-           [javafx.scene.control Button Label ListView TreeItem TreeView TextField]
+           [javafx.scene.control Button Label ListView TextField TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout HBox Pane Priority]
            [org.apache.commons.io FilenameUtils]))
