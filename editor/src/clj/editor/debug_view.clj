@@ -1,7 +1,5 @@
 (ns editor.debug-view
-  (:require [cljfx.api :as fx]
-            [cljfx.fx.text-field :as fx.text-field]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -11,8 +9,6 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
-            [editor.error-reporting :as error-reporting]
-            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.lua :as lua]
             [editor.protobuf :as protobuf]
@@ -25,9 +21,8 @@
            [editor.debugging.mobdebug LuaStructure]
            [java.nio.file Files]
            [java.util Collection]
-           [javafx.event Event]
            [javafx.scene Parent]
-           [javafx.scene.control Button Label ListView TreeItem TreeView]
+           [javafx.scene.control Button Label ListView TreeItem TreeView TextField]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout HBox Pane Priority]
            [org.apache.commons.io FilenameUtils]))
@@ -243,117 +238,71 @@
     (.setAll children ^Collection (map make-variable-tree-item (concat locals upvalues)))
     ret))
 
-(defn- switch-entry-text [state text]
-  (let [length (count text)]
-    (assoc state :new-entry-text text
-                 :selection [length length])))
+(defn- switch-text-and-consume! [^KeyEvent e ^TextField text-field text]
+  (doto text-field
+    (.setText text)
+    (.end))
+  (.consume e))
 
-(defn- reset-history-index [state index]
-  (-> state
-      (assoc :history-index index)
-      (switch-entry-text ((:history state) index))))
+(defn- conj-history-entry [history text]
+  (if (= (peek history) text)
+    history
+    (conj history text)))
 
-(defn- swap-history-index [state f]
-  (reset-history-index state (f (:history-index state))))
+(defn- filter-key-pressed-event [^TextField text-field debug-view state-vol ^KeyEvent e]
+  (let [{:keys [history history-index] :as state} @state-vol]
+    (condp = (.getCode e)
+      KeyCode/ENTER
+      (let [text (.getText text-field)]
+        (vswap! state-vol #(-> %
+                               (dissoc :history-index :stashed-entry-text)
+                               (update :history conj-history-entry text)))
+        (.setText text-field "")
+        (on-eval-input debug-view text))
 
-(defn- handle-prompt-field-event [{:keys [event-type fx/event state]}]
-  (case event-type
-    ::text-changed
-    {:state (assoc state :new-entry-text event)}
+      KeyCode/UP
+      (cond
+        (empty? history)
+        nil
 
-    ::selection-changed
-    {:state (assoc state :selection event)}
+        (nil? history-index)
+        (let [index (dec (count history))
+              text (.getText text-field)]
+          (vswap! state-vol assoc
+                  :stashed-entry-text text
+                  :history-index index)
+          (switch-text-and-consume! e text-field (history index)))
 
-    ::key-pressed
-    (let [^KeyEvent event event
-          {:keys [new-entry-text history history-index]} state]
-      (condp = (.getCode event)
-        KeyCode/ENTER
-        {:eval new-entry-text
-         :state (-> state
-                    (dissoc :history-index :stashed-entry-text)
-                    (switch-entry-text "")
-                    (assoc :history (cond-> history
-                                            (not= (peek history) new-entry-text)
-                                            (conj new-entry-text))))}
+        (zero? history-index)
+        nil
 
-        KeyCode/UP
-        (cond
-          (empty? history)
-          nil
+        :else
+        (let [index (dec history-index)]
+          (vswap! state-vol assoc :history-index index)
+          (switch-text-and-consume! e text-field (history index))))
 
-          (nil? history-index)
-          (let [index (dec (count history))]
-            {:state (-> state
-                        (assoc :stashed-entry-text new-entry-text)
-                        (reset-history-index index))
-             :consume event})
+      KeyCode/DOWN
+      (cond
+        (or (empty? history) (nil? history-index))
+        nil
 
-          (zero? history-index)
-          nil
+        (= history-index (dec (count history)))
+        (do
+          (vswap! state-vol dissoc :history-index :stashed-entry-text)
+          (switch-text-and-consume! e text-field (:stashed-entry-text state)))
 
-          :else
-          {:state (swap-history-index state dec)
-           :consume event})
+        :else
+        (let [index (inc history-index)]
+          (vswap! state-vol assoc :history-index index)
+          (switch-text-and-consume! e text-field (history index))))
 
-        KeyCode/DOWN
-        (cond
-          (empty? history)
-          nil
+      nil)))
 
-          (nil? history-index)
-          nil
-
-          (= history-index (dec (count history)))
-          {:state (-> state
-                      (dissoc :history-index :stashed-entry-text)
-                      (switch-entry-text (:stashed-entry-text state)))
-           :consume event}
-
-          :else
-          {:state (swap-history-index state inc)
-           :consume event})
-
-        nil))))
-
-(def ^:private ext-selection-props
-  (fxui/make-ext-with-extra-props
-    {:selection fxui/text-input-selection-prop
-     :on-selection-changed fxui/on-text-input-selection-changed-prop}))
-
-(def ^:private ext-text-field-props
-  (fxui/make-ext-with-extra-props
-    (assoc fx.text-field/props
-      :filter-on-key-pressed (fxui/make-event-filter-prop KeyEvent/KEY_PRESSED))))
-
-(defn setup-prompt-field! [debug-view debugger-prompt-field]
-  (let [state-atom (atom {:history []
-                          :selection [0 0]
-                          :new-entry-text ""})
-        text-field-view (fn [{:keys [selection new-entry-text]}]
-                          {:fx/type ext-selection-props
-                           :desc {:fx/type ext-text-field-props
-                                  :selection selection
-                                  :on-selection-changed {:event-type ::selection-changed}
-                                  :desc {:fx/type fxui/ext-value
-                                         :value debugger-prompt-field
-                                         :filter-on-key-pressed {:event-type ::key-pressed}
-                                         :text new-entry-text
-                                         :on-text-changed {:event-type ::text-changed}}}})
-        renderer (fx/create-renderer
-                   :error-handler error-reporting/report-exception!
-                   :opts {:fx.opt/map-event-handler
-                          (-> handle-prompt-field-event
-                              (fx/wrap-co-effects
-                                {:state (fx/make-deref-co-effect state-atom)})
-                              (fx/wrap-effects
-                                {:state (fx/make-reset-effect state-atom)
-                                 :eval (fn [str _]
-                                         (on-eval-input debug-view str))
-                                 :consume (fn [^Event e _]
-                                            (.consume e))}))}
-                   :middleware (fx/wrap-map-desc assoc :fx/type text-field-view))]
-    (fx/mount-renderer state-atom renderer)))
+(defn setup-prompt-field! [debug-view ^TextField text-field]
+  (let [state-vol (volatile! {:history []})]
+    (.addEventFilter text-field KeyEvent/KEY_PRESSED
+                     (ui/event-handler e
+                       (filter-key-pressed-event text-field debug-view state-vol e)))))
 
 (defn- setup-controls!
   [debug-view ^Parent console-grid-pane ^Parent right-pane]
