@@ -746,45 +746,65 @@
 (defn sanitize-folder-name [name]
   (sanitize-common name))
 
-(defn make-rename-dialog ^String [name {:keys [title label validate sanitize] :as options}]
-  (let [root     ^Parent (ui/load-fxml "rename-dialog.fxml")
-        stage    (ui/make-dialog-stage (ui/main-stage))
-        scene    (Scene. root)
-        controls (ui/collect-controls root ["name" "path" "ok" "cancel" "name-label"])
-        return   (atom nil)
-        reset-return! (fn [] (reset! return (some-> (ui/text (:name controls)) sanitize not-empty)))
-        close    (fn [] (reset-return!) (.close stage))
-        validate (or validate (constantly nil))
-        do-validation (fn []
-                        (let [sanitized (some-> (not-empty (ui/text (:name controls))) sanitize)
-                              validation-msg (some-> sanitized validate)]
-                          (if (or (empty? sanitized) validation-msg)
-                            (do (ui/text! (:path controls) (or validation-msg ""))
-                                (ui/enable! (:ok controls) false))
-                            (do (ui/text! (:path controls) sanitized)
-                                (ui/enable! (:ok controls) true)))))]
-    (ui/title! stage title)
-    (when label
-      (ui/text! (:name-label controls) label))
-    (when-not (empty? name)
-      (ui/text! (:path controls) (sanitize name))
-      (ui/text! (:name controls) name)
-      (.selectAll ^TextField (:name controls)))
+(defn- rename-dialog [{:keys [initial-name name title label validate sanitize] :as props}]
+  (let [sanitized (some-> (not-empty name) sanitize)
+        validation-msg (some-> sanitized validate)
+        invalid (or (empty? sanitized) (some? validation-msg))]
+    {:fx/type dialog-stage
+     :showing (fxui/dialog-showing? props)
+     :on-close-request {:event-type :cancel}
+     :title title
+     :size :small
+     :header {:fx/type fxui/label
+              :variant :header
+              :text (str "Rename " initial-name)}
+     :content {:fx/type fxui/two-col-input-grid-pane
+               :style-class "dialog-content-padding"
+               :children [{:fx/type :label
+                           :text label}
+                          {:fx/type fxui/text-field
+                           :text name
+                           :variant (if invalid :error :default)
+                           :on-text-changed {:event-type :set-name}}
+                          {:fx/type :label
+                           :text "Preview"}
+                          {:fx/type fxui/text-field
+                           :editable false
+                           :text (or validation-msg sanitized)}]}
+     :footer {:fx/type dialog-buttons
+              :children [{:fx/type fxui/button
+                          :text "Cancel"
+                          :cancel-button true
+                          :on-action {:event-type :cancel}}
+                         {:fx/type fxui/button
+                          :variant :primary
+                          :default-button true
+                          :disable invalid
+                          :text "Rename"
+                          :on-action {:event-type :confirm}}]}}))
 
-    (ui/on-action! (:ok controls) (fn [_] (close)))
-    (.setDefaultButton ^Button (:ok controls) true)
-    (ui/on-action! (:cancel controls) (fn [_] (.close stage)))
-    (.setCancelButton ^Button (:cancel controls) true)
+(defn make-rename-dialog
+  "Shows rename dialog
 
-    (ui/on-edit! (:name controls) (fn [_old _new] (do-validation)))
-
-    (.setScene stage scene)
-
-    (do-validation)
-
-    (ui/show-and-wait! stage)
-
-    @return))
+  Options expect keys:
+  - `:title`
+  - `:label`
+  - `:validate`
+  - `:sanitize`"
+  ^String [name options]
+  (let [sanitize (:sanitize options)]
+    (fxui/show-dialog-and-await-result!
+      :initial-state {:name name}
+      :event-handler (fn [state event]
+                       (case (:event-type event)
+                         :set-name (assoc state :name (:fx/event event))
+                         :cancel (assoc state ::fxui/result nil)
+                         :confirm (assoc state ::fxui/result (-> state
+                                                                 :name
+                                                                 sanitize
+                                                                 not-empty))))
+      :description (assoc options :fx/type rename-dialog
+                                  :initial-name (sanitize name)))))
 
 (defn- relativize [^File base ^File path]
   (let [[^Path base ^Path path] (map #(Paths/get (.toURI ^File %)) [base path])]
