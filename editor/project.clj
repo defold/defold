@@ -171,6 +171,8 @@
                                 :aot          :all
                                 :omit-source  true
                                 :source-paths ["sidecar"]}
+                      :local-repl {:injections [(future (editor/-main))]
+                                   :repl-options {:init-ns editor}}
                       :release {:jvm-opts          ["-Ddefold.build=release"]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
                       :dev     {:plugins           [[jonase/eastwood "0.3.5" :exclusions [org.clojure/clojure]]]
