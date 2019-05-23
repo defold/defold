@@ -590,6 +590,48 @@ namespace dmGameSystem
 
     }
 
+    // physics.connect_joint(type, "obj_a#coll", "apa", posa, "obj_b#coll", posb [, params])
+    static int Physics_DisconnectJoint(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        int top = lua_gettop(L);
+
+        dmhash_t joint_id = dmScript::CheckHashOrString(L, 2);
+
+        dmMessage::URL urla;
+        dmScript::ResolveURL(L, 1, &urla, 0);
+
+        dmGameObject::HInstance instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
+        dmGameObject::HInstance instance_a = dmGameObject::GetInstanceFromIdentifier(collection, urla.m_Path);
+
+        lua_getglobal(L, PHYSICS_CONTEXT_NAME);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        uint32_t type_index_a;
+        void* comp_a = dmGameObject::GetComponentFromInstance(instance_a, urla.m_Fragment, &type_index_a);
+
+        // Now check that both components are collision objects
+        if (type_index_a != context->m_ComponentIndex) {
+            return DM_LUA_ERROR("Url %s.%s is not a collision object", dmHashReverseSafe64(urla.m_Path), dmHashReverseSafe64(urla.m_Fragment));
+        }
+
+        void* comp_world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+        bool is2D = CompCollisionIs2D(comp_world);
+        if (!is2D) {
+            return DM_LUA_ERROR("physics.disconnect_joint() is currently only supported with 2D physics");
+        }
+
+        // Unpack type specific joint connection paramaters
+        if (!dmGameSystem::DisconnectJoint(comp_world, comp_a, joint_id)) {
+            return DM_LUA_ERROR("could not disconnect joint");
+        }
+
+        return 0;
+    }
+
     static const luaL_reg PHYSICS_FUNCTIONS[] =
     {
         {"ray_cast",        Physics_RayCastAsync}, // Deprecated
@@ -597,6 +639,7 @@ namespace dmGameSystem
         {"raycast",         Physics_RayCast},
         {"create_joint",    Physics_CreateJoint},
         {"connect_joint",   Physics_ConnectJoint},
+        {"disconnect_joint", Physics_DisconnectJoint},
         {0, 0}
     };
 

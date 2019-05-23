@@ -52,6 +52,7 @@ namespace dmGameSystem
 
     bool CreateJoint(void* world, void* component, dmhash_t id);
     bool ConnectJoint(void* _world, void* _component_a, dmhash_t id, const Vectormath::Aos::Point3& apos, void* _component_b, const Vectormath::Aos::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params);
+    bool DisconnectJoint(void* _world, void* _component, dmhash_t id);
     // bool ConnectRopeJoint(void* _world, void* _component_a, dmhash_t id, const Vectormath::Aos::Point3& apos, void* _component_b, const Vectormath::Aos::Point3& bpos);
 }
 

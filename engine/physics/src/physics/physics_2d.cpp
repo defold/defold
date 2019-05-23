@@ -772,6 +772,26 @@ namespace dmPhysics
             FreeShape(shape); // NOTE: shape can't be freed prior to DestroyFixture
             fixture = save_next;
         }
+
+        // // Clear joints
+        // b2JointEdge* joint_edge = body->GetJointList();
+        // dmLogError("me: %p", body);
+        // while (joint_edge) {
+
+        //     b2Joint* joint = joint_edge->joint;
+        //     b2Body* body_a = joint->GetBodyA();
+        //     b2Body* body_b = joint->GetBodyB();
+        //     dmLogError("a: %p%s, b: %p%s", body_a, body_a == body ? " [x]" : "", body_b, body_b == body ? " [x]" : "");
+        //     // if (body_a == body) {
+        //     //     joint->m_bodyA = 0x0;
+        //     // }
+        //     // if (body_b == body) {
+        //     //     joint->m_bodyB = 0x0;
+        //     // }
+        //     // world->m_World.DestroyJoint(joint);
+        //     joint_edge = joint_edge->next;
+        // }
+
         world->m_World.DestroyBody(body);
     }
 
