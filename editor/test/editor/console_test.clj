@@ -4,8 +4,6 @@
 
 (def ^:private line-sub-regions-pattern (var-get #'console/line-sub-regions-pattern))
 (def ^:private line-sub-regions-pattern-partial (var-get #'console/line-sub-regions-pattern-partial))
-(def ^:private multi-re-match-result-seq (var-get #'console/multi-re-match-result-seq))
-(def ^:private make-line-sub-regions (var-get #'console/make-line-sub-regions))
 
 (deftest line-sub-regions-pattern-test
   (are [line matches]
@@ -123,7 +121,7 @@
 
 (deftest three-matches-on-same-line-where-two-are-partial
   (is (= 3 (count
-             (make-line-sub-regions {"/dksdk/analytics/crash_reporter.lua" :WIN
-                                     "/some/really/long/path/components/components/click_hint/click_hint_tap_text.script" :WIN}
-                                    identity 10
-                                    "components/components/click_hint/click_hint_tap_text.script:25: in function <components/components/click_hint/click_hint_tap_text.script:24> </dksdk/analytics/crash_reporter.lua:65>")))))
+             (#'console/make-line-sub-regions {"/absolute/project/path/file.lua" :WIN
+                                               "/some/really/long/path/to/some/resource/in/the/project/the_resource.script" :WIN}
+                                              identity 10
+                                              "urce/in/the/project/the_resource.script:25: in function <urce/in/the/project/the_resource.script:24> </absolute/project/path/file.lua:65>")))))
