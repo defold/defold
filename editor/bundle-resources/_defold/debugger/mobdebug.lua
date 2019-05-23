@@ -729,7 +729,11 @@ local function stringify_results(params, status, ...)
   local t = {...}
   for i,v in pairs(t) do -- stringify each of the returned values
     local ok, res = pcall(mobdebug.line, v, params)
-    t[i] = ok and res or ("%q"):format(res):gsub("\010","n"):gsub("\026","\\026")
+    if ok and res ~= nil then
+      t[i] = res
+    else
+      t[i] = ("%q"):format(res):gsub("\010","n"):gsub("\026","\\026")
+    end
   end
   -- stringify table with all returned values
   -- this is done to allow each returned value to be used (serialized or not)

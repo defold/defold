@@ -21,9 +21,9 @@
            [editor.debugging.mobdebug LuaStructure]
            [java.nio.file Files]
            [java.util Collection]
-           [javafx.event ActionEvent]
            [javafx.scene Parent]
            [javafx.scene.control Button Label ListView TextField TreeItem TreeView]
+           [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout HBox Pane Priority]
            [org.apache.commons.io FilenameUtils]))
 
@@ -102,6 +102,8 @@
                              (assoc :type (if (zero? i) :current-line :current-frame)))))
           frames)))
 
+(g/deftype History [String])
+
 (g/defnode DebugView
   (inherits core/Scope)
 
@@ -113,6 +115,10 @@
 
   (property console-grid-pane Parent)
   (property right-pane Parent)
+
+  (property evaluation-history History (default []))
+  (property evaluation-history-index g/Int)
+  (property evaluation-stashed-entry-text g/Str)
 
   (input active-resource resource/Resource)
 
@@ -142,12 +148,9 @@
        string/split-lines))
 
 (defn- on-eval-input
-  [debug-view ^ActionEvent event]
+  [debug-view code]
   (when-some [debug-session (g/node-value debug-view :debug-session)]
-    (let [input ^TextField (.getSource event)
-          code  (.getText input)
-          frame (current-stack-frame debug-view)]
-      (.clear input)
+    (let [frame (current-stack-frame debug-view)]
       (assert (= :suspended (mobdebug/state debug-session)))
       (console/append-console-entry! :eval-expression code)
       (future
@@ -241,6 +244,87 @@
     (.setAll children ^Collection (map make-variable-tree-item (concat locals upvalues)))
     ret))
 
+(defn- switch-text! [^TextField text-field text]
+  (doto text-field
+    (.setText text)
+    (.end)))
+
+(defn- conj-history-entry [history text]
+  (if (or (string/blank? text)
+          (= (peek history) text))
+    history
+    (conj history text)))
+
+(defn- eval-input! [^TextField text-field debug-view ^KeyEvent e]
+  (let [text (.getText text-field)]
+    (.consume e)
+    (switch-text! text-field "")
+    (g/transact
+      [(g/set-property debug-view :evaluation-history-index nil)
+       (g/set-property debug-view :evaluation-stashed-entry-text nil)
+       (g/update-property debug-view :evaluation-history conj-history-entry text)])
+    (on-eval-input debug-view text)))
+
+(defn- prev-history-entry! [^TextField text-field debug-view ^KeyEvent e]
+  (g/with-auto-evaluation-context ec
+    (let [history (g/node-value debug-view :evaluation-history ec)
+          history-index (g/node-value debug-view :evaluation-history-index ec)]
+      (cond
+        (empty? history)
+        nil
+
+        (nil? history-index)
+        (let [index (dec (count history))
+              text (.getText text-field)]
+          (.consume e)
+          (switch-text! text-field (history index))
+          (g/transact
+            [(g/set-property debug-view :evaluation-stashed-entry-text text)
+             (g/set-property debug-view :evaluation-history-index index)]))
+
+        (zero? history-index)
+        nil
+
+        :else
+        (let [index (dec history-index)]
+          (.consume e)
+          (switch-text! text-field (history index))
+          (g/transact
+            (g/set-property debug-view :evaluation-history-index index)))))))
+
+(defn- next-history-entry! [^TextField text-field debug-view ^KeyEvent e]
+  (g/with-auto-evaluation-context ec
+    (let [history (g/node-value debug-view :evaluation-history ec)
+          history-index (g/node-value debug-view :evaluation-history-index ec)
+          stashed-entry-text (g/node-value debug-view :evaluation-stashed-entry-text ec)]
+      (cond
+        (or (empty? history) (nil? history-index))
+        nil
+
+        (= history-index (dec (count history)))
+        (do
+          (.consume e)
+          (switch-text! text-field stashed-entry-text)
+          (g/transact
+            [(g/set-property debug-view :evaluation-history-index nil)
+             (g/set-property debug-view :evaluation-stashed-entry-text nil)]))
+
+        :else
+        (let [index (inc history-index)]
+          (.consume e)
+          (switch-text! text-field (history index))
+          (g/transact
+            (g/set-property debug-view :evaluation-history-index index)))))))
+
+(defn setup-prompt-field! [debug-view ^TextField text-field]
+  (.addEventFilter text-field KeyEvent/KEY_PRESSED
+                   (ui/event-handler e
+                     (condp = (.getCode ^KeyEvent e)
+                       KeyCode/ENTER (eval-input! text-field debug-view e)
+                       KeyCode/UP (prev-history-entry! text-field debug-view e)
+                       KeyCode/DOWN (next-history-entry! text-field debug-view e)
+                       nil))))
+
 (defn- setup-controls!
   [debug-view ^Parent console-grid-pane ^Parent right-pane]
   (ui/with-controls console-grid-pane [console-tool-bar
@@ -251,7 +335,7 @@
 
     ;; debugger prompt
     (.bind (.managedProperty debugger-prompt) (.visibleProperty debugger-prompt))
-    (ui/on-action! debugger-prompt-field #(on-eval-input debug-view %)))
+    (setup-prompt-field! debug-view debugger-prompt-field))
 
   (ui/with-controls right-pane [debugger-call-stack
                                 ^Parent debugger-data-split

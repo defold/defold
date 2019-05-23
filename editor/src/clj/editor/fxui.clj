@@ -1,21 +1,48 @@
 (ns editor.fxui
   (:require [cljfx.api :as fx]
+            [cljfx.coerce :as fx.coerce]
+            [cljfx.lifecycle :as fx.lifecycle]
+            [cljfx.mutator :as fx.mutator]
+            [cljfx.prop :as fx.prop]
             [editor.error-reporting :as error-reporting]
             [editor.ui :as ui]
             [editor.util :as eutil])
-  (:import [cljfx.lifecycle Lifecycle]
-           [javafx.application Platform]
+  (:import [javafx.application Platform]
            [javafx.scene Node]
-           [javafx.beans.value ChangeListener]))
+           [javafx.beans.property ReadOnlyProperty]
+           [javafx.beans.value ChangeListener]
+           [javafx.scene.control TextInputControl]))
+
+(set! *warn-on-reflection* true)
 
 (def ext-value
   "Extension lifecycle that returns value on `:value` key"
-  (reify Lifecycle
+  (reify fx.lifecycle/Lifecycle
     (create [_ desc _]
       (:value desc))
     (advance [_ _ desc _]
       (:value desc))
     (delete [_ _ _])))
+
+(defn make-ext-with-extra-props
+  "Creates extension lifecycle that allows specifying additional props
+
+  `props-config` is a map from arbitrary keys to values created by
+  `cljfx.prop/make`
+
+  Returned extension lifecycle expects these keys:
+  - `:desc` (required) - description of underlying component, can have
+    additional keys from `props-config`, such props will be applied *after*
+    applying other props from description"
+  [props-config]
+  (let [lifecycle (fx.lifecycle/wrap-extra-props fx.lifecycle/dynamic props-config)]
+    (reify fx.lifecycle/Lifecycle
+      (create [_ desc opts]
+        (fx.lifecycle/create lifecycle (:desc desc) opts))
+      (advance [_ component desc opts]
+        (fx.lifecycle/advance lifecycle component (:desc desc) opts))
+      (delete [_ component opts]
+        (fx.lifecycle/delete lifecycle component opts)))))
 
 (defn ext-focused-by-default
   "Function component that mimics extension lifecycle. Focuses node specified by
@@ -32,6 +59,72 @@
                                        (.removeListener (.sceneProperty node) this)
                                        (.requestFocus node)))))))
    :desc desc})
+
+(defn make-event-filter-prop
+  "Creates a prop-config that will add event filter for specified `event-type`
+
+  Value for such prop in component description is expected to be an event
+  handler (either EventHandler, function or event map)"
+  [event-type]
+  (fx.prop/make
+    (reify fx.mutator/Mutator
+      (assign! [_ instance coerce value]
+        (.addEventFilter ^Node instance event-type (coerce value)))
+      (replace! [this instance coerce old-value new-value]
+        (when-not (= old-value new-value)
+          (fx.mutator/retract! this instance coerce old-value)
+          (fx.mutator/assign! this instance coerce new-value)))
+      (retract! [_ instance coerce value]
+        (.removeEventFilter ^Node instance event-type (coerce value))))
+    (fx.lifecycle/wrap-coerce fx.lifecycle/event-handler
+                              fx.coerce/event-handler)))
+
+(def text-input-selection-prop
+  "Prop-config that will set selection of a TextInputControl component
+
+  Value for such prop in component description is expected to be a 2-element
+  vector of anchor and caret indices"
+  (fx.prop/make
+    (reify fx.mutator/Mutator
+      (assign! [_ instance coerce value]
+        (let [[anchor caret] (coerce value)]
+          (.selectRange ^TextInputControl instance anchor caret)))
+      (replace! [_ instance coerce _ new-value]
+        (let [[anchor caret] (coerce new-value)]
+          (.selectRange ^TextInputControl instance anchor caret)))
+      (retract! [_ _ _ _]))
+    fx.lifecycle/scalar))
+
+(def on-text-input-selection-changed-prop
+  "Prop-config that will observe changes for selection in TextInputControl
+
+  Value for such prop in component description is expected to be an event
+  handler (either function or event map)"
+  (fx.prop/make
+    (reify fx.mutator/Mutator
+      (assign! [_ instance coerce value]
+        (let [[caret-listener anchor-listener] (coerce value)]
+          (doto ^TextInputControl instance
+            (-> .caretPositionProperty (.addListener ^ChangeListener caret-listener))
+            (-> .anchorProperty (.addListener ^ChangeListener anchor-listener)))))
+      (replace! [this instance coerce old-value new-value]
+        (when-not (= old-value new-value)
+          (fx.mutator/retract! this instance coerce old-value)
+          (fx.mutator/assign! this instance coerce new-value)))
+      (retract! [_ instance coerce value]
+        (let [[caret-listener anchor-listener] (coerce value)]
+          (doto ^TextInputControl instance
+            (-> .caretPositionProperty (.removeListener ^ChangeListener caret-listener))
+            (-> .anchorProperty (.removeListener ^ChangeListener anchor-listener))))))
+    (fx.lifecycle/wrap-coerce
+      fx.lifecycle/event-handler
+      (fn [f]
+        [(reify ChangeListener
+           (changed [_ o _ new-caret]
+             (f [(.getAnchor ^TextInputControl (.getBean ^ReadOnlyProperty o)) new-caret])))
+         (reify ChangeListener
+           (changed [_ o _ new-anchor]
+             (f [new-anchor (.getCaretPosition ^TextInputControl (.getBean ^ReadOnlyProperty o))])))]))))
 
 (defmacro provide-single-default [m k v]
   `(let [m# ~m
@@ -90,6 +183,7 @@
       :or {initial-state {}}}]
   (let [state-atom (atom initial-state)
         renderer (fx/create-renderer
+                   :error-handler error-reporting/report-exception!
                    :opts {:fx.opt/map-event-handler #(swap! state-atom event-handler %)}
                    :middleware (fx/wrap-map-desc merge description))]
     (mount-renderer-and-await-result! state-atom renderer)))
