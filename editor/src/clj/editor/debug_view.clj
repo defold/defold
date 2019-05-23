@@ -102,6 +102,8 @@
                              (assoc :type (if (zero? i) :current-line :current-frame)))))
           frames)))
 
+(g/deftype History [String])
+
 (g/defnode DebugView
   (inherits core/Scope)
 
@@ -113,6 +115,10 @@
 
   (property console-grid-pane Parent)
   (property right-pane Parent)
+
+  (property evaluation-history History (default []))
+  (property evaluation-history-index g/Int)
+  (property evaluation-stashed-entry-text g/Str)
 
   (input active-resource resource/Resource)
 
@@ -238,29 +244,30 @@
     (.setAll children ^Collection (map make-variable-tree-item (concat locals upvalues)))
     ret))
 
-(defn- switch-text-and-consume! [^KeyEvent e ^TextField text-field text]
+(defn- switch-text! [^TextField text-field text]
   (doto text-field
     (.setText text)
-    (.end))
-  (.consume e))
+    (.end)))
 
 (defn- conj-history-entry [history text]
   (if (= (peek history) text)
     history
     (conj history text)))
 
-(defn- filter-key-pressed-event [^TextField text-field debug-view state-vol ^KeyEvent e]
-  (let [{:keys [history history-index] :as state} @state-vol]
-    (condp = (.getCode e)
-      KeyCode/ENTER
-      (let [text (.getText text-field)]
-        (vswap! state-vol #(-> %
-                               (dissoc :history-index :stashed-entry-text)
-                               (update :history conj-history-entry text)))
-        (.setText text-field "")
-        (on-eval-input debug-view text))
+(defn- eval-input! [^TextField text-field debug-view ^KeyEvent e]
+  (let [text (.getText text-field)]
+    (.consume e)
+    (switch-text! text-field "")
+    (g/transact
+      [(g/set-property debug-view :evaluation-history-index nil)
+       (g/set-property debug-view :evaluation-stashed-entry-text nil)
+       (g/update-property debug-view :evaluation-history conj-history-entry text)])
+    (on-eval-input debug-view text)))
 
-      KeyCode/UP
+(defn- prev-history-entry! [^TextField text-field debug-view ^KeyEvent e]
+  (g/with-auto-evaluation-context ec
+    (let [history (g/node-value debug-view :evaluation-history ec)
+          history-index (g/node-value debug-view :evaluation-history-index ec)]
       (cond
         (empty? history)
         nil
@@ -268,41 +275,54 @@
         (nil? history-index)
         (let [index (dec (count history))
               text (.getText text-field)]
-          (vswap! state-vol assoc
-                  :stashed-entry-text text
-                  :history-index index)
-          (switch-text-and-consume! e text-field (history index)))
+          (.consume e)
+          (switch-text! text-field (history index))
+          (g/transact
+            [(g/set-property debug-view :evaluation-stashed-entry-text text)
+             (g/set-property debug-view :evaluation-history-index index)]))
 
         (zero? history-index)
         nil
 
         :else
         (let [index (dec history-index)]
-          (vswap! state-vol assoc :history-index index)
-          (switch-text-and-consume! e text-field (history index))))
+          (.consume e)
+          (switch-text! text-field (history index))
+          (g/transact
+            (g/set-property debug-view :evaluation-history-index index)))))))
 
-      KeyCode/DOWN
+(defn- next-history-entry! [^TextField text-field debug-view ^KeyEvent e]
+  (g/with-auto-evaluation-context ec
+    (let [history (g/node-value debug-view :evaluation-history ec)
+          history-index (g/node-value debug-view :evaluation-history-index ec)
+          stashed-entry-text (g/node-value debug-view :evaluation-stashed-entry-text ec)]
       (cond
         (or (empty? history) (nil? history-index))
         nil
 
         (= history-index (dec (count history)))
         (do
-          (vswap! state-vol dissoc :history-index :stashed-entry-text)
-          (switch-text-and-consume! e text-field (:stashed-entry-text state)))
+          (.consume e)
+          (switch-text! text-field stashed-entry-text)
+          (g/transact
+            [(g/set-property debug-view :evaluation-history-index nil)
+             (g/set-property debug-view :evaluation-stashed-entry-text nil)]))
 
         :else
         (let [index (inc history-index)]
-          (vswap! state-vol assoc :history-index index)
-          (switch-text-and-consume! e text-field (history index))))
-
-      nil)))
+          (.consume e)
+          (switch-text! text-field (history index))
+          (g/transact
+            (g/set-property debug-view :evaluation-history-index index)))))))
 
 (defn setup-prompt-field! [debug-view ^TextField text-field]
-  (let [state-vol (volatile! {:history []})]
-    (.addEventFilter text-field KeyEvent/KEY_PRESSED
-                     (ui/event-handler e
-                       (filter-key-pressed-event text-field debug-view state-vol e)))))
+  (.addEventFilter text-field KeyEvent/KEY_PRESSED
+                   (ui/event-handler e
+                     (condp = (.getCode ^KeyEvent e)
+                       KeyCode/ENTER (eval-input! text-field debug-view e)
+                       KeyCode/UP (prev-history-entry! text-field debug-view e)
+                       KeyCode/DOWN (next-history-entry! text-field debug-view e)
+                       nil))))
 
 (defn- setup-controls!
   [debug-view ^Parent console-grid-pane ^Parent right-pane]

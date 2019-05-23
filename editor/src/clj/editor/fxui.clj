@@ -120,11 +120,11 @@
       fx.lifecycle/event-handler
       (fn [f]
         [(reify ChangeListener
-           (changed [_ o _ v]
-             (f [(.getAnchor ^TextInputControl (.getBean ^ReadOnlyProperty o)) v])))
+           (changed [_ o _ new-caret]
+             (f [(.getAnchor ^TextInputControl (.getBean ^ReadOnlyProperty o)) new-caret])))
          (reify ChangeListener
-           (changed [_ o _ v]
-             (f [v (.getCaretPosition ^TextInputControl (.getBean ^ReadOnlyProperty o))])))]))))
+           (changed [_ o _ new-anchor]
+             (f [new-anchor (.getCaretPosition ^TextInputControl (.getBean ^ReadOnlyProperty o))])))]))))
 
 (defmacro provide-single-default [m k v]
   `(let [m# ~m
