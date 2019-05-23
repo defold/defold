@@ -250,7 +250,8 @@
     (.end)))
 
 (defn- conj-history-entry [history text]
-  (if (= (peek history) text)
+  (if (or (string/blank? text)
+          (= (peek history) text))
     history
     (conj history text)))
 
