@@ -16,18 +16,8 @@ namespace dmGraphics
     };
 
     const static uint32_t MAX_VERTEX_STREAM_COUNT = 8;
-    const static uint32_t MAX_REGISTER_COUNT = 16;
-    const static uint32_t MAX_TEXTURE_COUNT = 32;
-
-    struct FrameBuffer
-    {
-        void*       m_ColorBuffer;
-        void*       m_DepthBuffer;
-        void*       m_StencilBuffer;
-        uint32_t    m_ColorBufferSize;
-        uint32_t    m_DepthBufferSize;
-        uint32_t    m_StencilBufferSize;
-    };
+    const static uint32_t MAX_REGISTER_COUNT      = 16;
+    const static uint32_t MAX_TEXTURE_COUNT       = 32;
 
     struct VertexDeclaration
     {
@@ -49,9 +39,10 @@ namespace dmGraphics
 
     struct RenderTarget
     {
-        TextureParams   m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
-        HTexture        m_ColorBufferTexture;
-        FrameBuffer     m_FrameBuffer;
+        TextureParams m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
+        void*         m_ColorTexture;
+        void*         m_DepthStencilTexture;
+        uint16_t      m_RenderTargetObject;
     };
 
     struct Context
@@ -59,7 +50,6 @@ namespace dmGraphics
         Context(const ContextParams& params);
 
         Vectormath::Aos::Vector4    m_ProgramRegisters[MAX_REGISTER_COUNT];
-        FrameBuffer*                m_CurrentFrameBuffer;
         void*                       m_CurrentProgram;
         void*                       m_CurrentVertexBuffer;
         void*                       m_CurrentIndexBuffer;
@@ -79,24 +69,6 @@ namespace dmGraphics
         uint32_t                    m_WindowHeight;
         uint32_t                    m_Dpi;
         int32_t                     m_ScissorRect[4];
-
-        // Draw state:
-        /*
-        CompareFunc                 m_DepthFunc;
-        CompareFunc                 m_StencilFunc;
-        StencilOp                   m_StencilOpSFail;
-        StencilOp                   m_StencilOpDPFail;
-        StencilOp                   m_StencilOpDPPass;
-        int32_t                     m_ScissorRect[4];
-        uint32_t                    m_StencilMask;
-        uint32_t                    m_StencilFuncRef;
-        uint32_t                    m_StencilFuncMask;
-        uint32_t                    m_RedMask : 1;
-        uint32_t                    m_GreenMask : 1;
-        uint32_t                    m_BlueMask : 1;
-        uint32_t                    m_AlphaMask : 1;
-        uint32_t                    m_DepthMask : 1;
-        */
         uint32_t                    m_TextureFormatSupport;
         uint32_t                    m_WindowOpened : 1;
         // Only use for testing

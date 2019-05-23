@@ -119,6 +119,42 @@ namespace dmGraphics
             VK_STENCIL_OP_INVERT
         };
 
+        static const VkFormat g_texture_formats[] = {
+            VK_FORMAT_R8_UNORM,   //TEXTURE_FORMAT_LUMINANCE
+            VK_FORMAT_R8G8_UNORM, //TEXTURE_FORMAT_LUMINANCE_ALPHA
+            VK_FORMAT_R8G8B8_UNORM, //TEXTURE_FORMAT_RGB
+            VK_FORMAT_R8G8B8A8_UNORM, //TEXTURE_FORMAT_RGBA
+            VK_FORMAT_R16G16B16_UNORM, //TEXTURE_FORMAT_RGB_16BPP
+            VK_FORMAT_R16G16B16A16_UNORM, //TEXTURE_FORMAT_RGBA_16BPP
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGB_DXT1
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGBA_DXT1
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGBA_DXT3
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGBA_DXT5
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_DEPTH
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_STENCIL
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGB_PVRTC_2BPPV1
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1
+            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGB_ETC1
+            VK_FORMAT_R16G16B16_SFLOAT, //TEXTURE_FORMAT_RGB16F
+            VK_FORMAT_R32G32B32_SFLOAT, //TEXTURE_FORMAT_RGB32F
+            VK_FORMAT_R16G16B16A16_SFLOAT, //TEXTURE_FORMAT_RGBA16F
+            VK_FORMAT_R32G32B32A32_SFLOAT, //TEXTURE_FORMAT_RGBA32F
+            VK_FORMAT_R16_SFLOAT, //TEXTURE_FORMAT_R16F
+            VK_FORMAT_R16G16_SFLOAT, //TEXTURE_FORMAT_RG16F
+            VK_FORMAT_R32_SFLOAT, //TEXTURE_FORMAT_R32F
+            VK_FORMAT_R32G32_SFLOAT, //TEXTURE_FORMAT_RG32F
+            VK_FORMAT_UNDEFINED  //TEXTURE_FORMAT_COUNT
+        };
+
+        struct  GeometryBuffer;
+        typedef GeometryBuffer VertexBuffer;
+        typedef GeometryBuffer IndexBuffer;
+        typedef VkRenderPass   RenderPass;
+        typedef VkFramebuffer  FrameBuffer;
+        typedef uint32_t       RenderTargetID;
+
         // TODO: Need to figure out proper frames-in-flight management..
         static const uint8_t g_vk_max_frames_in_flight = 1;
 
@@ -141,9 +177,31 @@ namespace dmGraphics
             VkImageLayout m_Layout;
         };
 
-        struct RenderPass
+        struct RenderTargetObject
         {
-            VkRenderPass m_Handle;
+            RenderTargetObject(RenderTargetID id)
+            : m_ID(id)
+            {
+                Reset();
+            }
+
+            void Reset()
+            {
+                m_RenderPass    = VK_NULL_HANDLE;
+                m_FrameBuffer   = VK_NULL_HANDLE;
+                m_Extent.width  = 0;
+                m_Extent.height = 0;
+            }
+
+            bool IsActive()
+            {
+                return m_RenderPass != VK_NULL_HANDLE && m_FrameBuffer != VK_NULL_HANDLE;
+            }
+
+            RenderPass     m_RenderPass;
+            FrameBuffer    m_FrameBuffer;
+            VkExtent2D     m_Extent;
+            RenderTargetID m_ID;
         };
 
         struct FrameResource
@@ -298,11 +356,10 @@ namespace dmGraphics
             uint64_t m_State;
         };
 
-        typedef GeometryBuffer VertexBuffer;
-        typedef GeometryBuffer IndexBuffer;
-
         struct Context
         {
+            int16_t                        m_CurrentRenderTarget;
+            uint32_t                       m_NextRenderTargetObjectID;
             uint32_t                       m_CurrentFrameImageIx;
             uint32_t                       m_CurrentFrameInFlight;
             uint32_t                       m_MaxDescriptorSets;
@@ -325,7 +382,7 @@ namespace dmGraphics
             VkRect2D                       m_MainScissor;
 
             RenderPass                     m_MainRenderPass;
-            Texture                        m_MainDepthBuffer;
+            Texture*                       m_MainDepthBuffer;
             Texture*                       m_NullTexture;
             FrameResource                  m_FrameResources[g_vk_max_frames_in_flight];
             Texture*                       m_Textures[MAX_TEXTURE_COUNT];
@@ -338,6 +395,7 @@ namespace dmGraphics
             dmArray<VkVertexInputAttributeDescription> m_VertexStreamDescriptors;
             dmArray<VkDescriptorSetLayoutBinding>      m_DescriptorSetLayoutBindings;
             dmArray<TextureSampler>                    m_TextureSamplers;
+            dmArray<RenderTargetObject>                m_RenderTargetObjects;
 
             dmHashTable64<Pipeline>      m_PipelineCache;
             PipelineState                m_PipelineState;
@@ -982,11 +1040,14 @@ namespace dmGraphics
             return VK_FORMAT_UNDEFINED;
         }
 
-        static VkFormat GetSuitableDepthFormat()
+        static VkFormat GetSuitableDepthFormat(VkFormat* depthFormatList = 0, uint16_t depthFormatCount = 0)
         {
+            VkFormat* vk_format_list       = 0;
+            uint16_t  vk_format_list_count = 0;
+
             // Depth formats are optional, so we need to query
             // what available formats we have.
-            VkFormat format_depth_list[] = {
+            VkFormat vk_format_list_default[] = {
                 VK_FORMAT_D32_SFLOAT_S8_UINT,
                 VK_FORMAT_D32_SFLOAT,
                 VK_FORMAT_D24_UNORM_S8_UINT,
@@ -994,8 +1055,13 @@ namespace dmGraphics
                 VK_FORMAT_D16_UNORM
             };
 
-            return GetSupportedFormat(format_depth_list,
-                sizeof(format_depth_list) / sizeof(VkFormat), VK_IMAGE_TILING_OPTIMAL,
+            if (!depthFormatList)
+            {
+                vk_format_list       = vk_format_list_default;
+                vk_format_list_count = sizeof(vk_format_list) / sizeof(VkFormat);
+            }
+
+            return GetSupportedFormat(vk_format_list, vk_format_list_count, VK_IMAGE_TILING_OPTIMAL,
                 VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
         }
 
@@ -1043,6 +1109,7 @@ namespace dmGraphics
                 vk_attachment_depth_ref.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             }
 
+            // TODO: Need a way to specify subpasses..
             VkSubpassDependency sub_pass_dependency;
             VK_ZERO_MEMORY(&sub_pass_dependency,sizeof(sub_pass_dependency));
 
@@ -1072,7 +1139,7 @@ namespace dmGraphics
             render_pass_create_info.dependencyCount = 1;
             render_pass_create_info.pDependencies   = &sub_pass_dependency;
 
-            VK_CHECK(vkCreateRenderPass(g_vk_context.m_LogicalDevice, &render_pass_create_info, 0, &rp.m_Handle));
+            VK_CHECK(vkCreateRenderPass(g_vk_context.m_LogicalDevice, &render_pass_create_info, 0, &rp));
 
             delete[] vk_attachment_desc;
             delete[] vk_attachment_color_ref;
@@ -1246,7 +1313,7 @@ namespace dmGraphics
             }
         }
 
-        static Pipeline CreatePipeline(Program* program, VertexBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration)
+        static Pipeline CreatePipeline(Program* program, VertexBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration, RenderPass* renderPass)
         {
             Pipeline      new_pipeline;
             PipelineState new_pipeline_state = g_vk_context.m_PipelineState;
@@ -1436,7 +1503,7 @@ namespace dmGraphics
             vk_pipeline_info.pColorBlendState    = &vk_color_blending;
             vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
             vk_pipeline_info.layout              = new_pipeline.m_Layout;
-            vk_pipeline_info.renderPass          = g_vk_context.m_MainRenderPass.m_Handle; // TODO: this should be based on active renderpass!
+            vk_pipeline_info.renderPass          = *renderPass;
             vk_pipeline_info.subpass             = 0;
             vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE; // Not sure about this
             vk_pipeline_info.basePipelineIndex   = -1; // ... Or this
@@ -1451,19 +1518,23 @@ namespace dmGraphics
 
         static Pipeline* GetPipeline(Program* program, VertexBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration)
         {
+            assert(g_vk_context.m_CurrentRenderTarget >= 0);
+            RenderTargetObject renderTarget = g_vk_context.m_RenderTargetObjects[g_vk_context.m_CurrentRenderTarget];
+
             HashState64 pipeline_hash_state;
             dmHashInit64(&pipeline_hash_state, false);
             dmHashUpdateBuffer64(&pipeline_hash_state, &program->m_VertexProgram->m_Hash, sizeof(program->m_VertexProgram->m_Hash));
             dmHashUpdateBuffer64(&pipeline_hash_state, &program->m_FragmentProgram->m_Hash, sizeof(program->m_FragmentProgram->m_Hash));
             dmHashUpdateBuffer64(&pipeline_hash_state, &g_vk_context.m_PipelineState, sizeof(g_vk_context.m_PipelineState));
             dmHashUpdateBuffer64(&pipeline_hash_state, &vertexDeclaration->m_Hash, sizeof(vertexDeclaration->m_Hash));
+            dmHashUpdateBuffer64(&pipeline_hash_state, &renderTarget.m_ID, sizeof(renderTarget.m_ID));
             uint64_t pipeline_hash = dmHashFinal64(&pipeline_hash_state);
 
             Pipeline* cached_pipeline = g_vk_context.m_PipelineCache.Get(pipeline_hash);
 
             if (!cached_pipeline)
             {
-                g_vk_context.m_PipelineCache.Put(pipeline_hash, CreatePipeline(program, vertexBuffer, vertexDeclaration));
+                g_vk_context.m_PipelineCache.Put(pipeline_hash, CreatePipeline(program, vertexBuffer, vertexDeclaration, &renderTarget.m_RenderPass));
                 cached_pipeline = g_vk_context.m_PipelineCache.Get(pipeline_hash);
 
                 dmLogInfo("Created new VK Pipeline with hash %llu", (unsigned long long) pipeline_hash);
@@ -1645,35 +1716,6 @@ namespace dmGraphics
             vkFreeCommandBuffers(g_vk_context.m_LogicalDevice, g_vk_context.m_MainCommandPool, 1, &vk_command_buffer);
         }
 
-        static const VkFormat g_vulkan_texture_format_table[] = {
-            VK_FORMAT_R8_UNORM,   //TEXTURE_FORMAT_LUMINANCE
-            VK_FORMAT_R8G8_UNORM, //TEXTURE_FORMAT_LUMINANCE_ALPHA
-            VK_FORMAT_R8G8B8_UNORM, //TEXTURE_FORMAT_RGB
-            VK_FORMAT_R8G8B8A8_UNORM, //TEXTURE_FORMAT_RGBA
-            VK_FORMAT_R16G16B16_UNORM, //TEXTURE_FORMAT_RGB_16BPP
-            VK_FORMAT_R16G16B16A16_UNORM, //TEXTURE_FORMAT_RGBA_16BPP
-            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGB_DXT1
-            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGBA_DXT1
-            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGBA_DXT3
-            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGBA_DXT5
-            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_DEPTH
-            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_STENCIL
-            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGB_PVRTC_2BPPV1
-            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
-            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1
-            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1
-            VK_FORMAT_UNDEFINED, //TEXTURE_FORMAT_RGB_ETC1
-            VK_FORMAT_R16G16B16_SFLOAT, //TEXTURE_FORMAT_RGB16F
-            VK_FORMAT_R32G32B32_SFLOAT, //TEXTURE_FORMAT_RGB32F
-            VK_FORMAT_R16G16B16A16_SFLOAT, //TEXTURE_FORMAT_RGBA16F
-            VK_FORMAT_R32G32B32A32_SFLOAT, //TEXTURE_FORMAT_RGBA32F
-            VK_FORMAT_R16_SFLOAT, //TEXTURE_FORMAT_R16F
-            VK_FORMAT_R16G16_SFLOAT, //TEXTURE_FORMAT_RG16F
-            VK_FORMAT_R32_SFLOAT, //TEXTURE_FORMAT_R32F
-            VK_FORMAT_R32G32_SFLOAT, //TEXTURE_FORMAT_RG32F
-            VK_FORMAT_UNDEFINED  //TEXTURE_FORMAT_COUNT
-        };
-
         static uint16_t GetTextureSamplerIndex(VkFilter minFilter, VkFilter magFilter, VkSamplerAddressMode wrapU, VkSamplerAddressMode wrapV)
         {
             for (uint16_t i=0; i < g_vk_context.m_TextureSamplers.Size(); i++)
@@ -1714,6 +1756,26 @@ namespace dmGraphics
             return sampler_index;
         }
 
+        static VkImageView CreateImageView(VkImage image, VkFormat format)
+        {
+            VkImageView vk_view;
+            VkImageViewCreateInfo vk_view_create_info;
+            VK_ZERO_MEMORY(&vk_view_create_info, sizeof(vk_view_create_info));
+
+            vk_view_create_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            vk_view_create_info.image                           = image;
+            vk_view_create_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+            vk_view_create_info.format                          = format;
+            vk_view_create_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            vk_view_create_info.subresourceRange.baseMipLevel   = 0;
+            vk_view_create_info.subresourceRange.levelCount     = 1;
+            vk_view_create_info.subresourceRange.baseArrayLayer = 0;
+            vk_view_create_info.subresourceRange.layerCount     = 1;
+
+            VK_CHECK(vkCreateImageView(g_vk_context.m_LogicalDevice, &vk_view_create_info, 0, &vk_view));
+            return vk_view;
+        }
+
         static void UploadTexture(Texture* texture, const TextureParams& params)
         {
             if (params.m_MipMap > 0)
@@ -1725,7 +1787,7 @@ namespace dmGraphics
             uint8_t bpp        = GetTextureFormatBPP(params.m_Format) >> 3;
             size_t data_size   = params.m_DataSize;
             void*  data        = (void*)params.m_Data;
-            VkFormat vk_format = g_vulkan_texture_format_table[params.m_Format];
+            VkFormat vk_format = g_texture_formats[params.m_Format];
             uint16_t vk_width  = params.m_Width;
             uint16_t vk_height = params.m_Height;
 
@@ -1794,20 +1856,7 @@ namespace dmGraphics
                     return;
                 }
 
-                VkImageViewCreateInfo vk_view_create_info;
-                VK_ZERO_MEMORY(&vk_view_create_info, sizeof(vk_view_create_info));
-
-                vk_view_create_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-                vk_view_create_info.image                           = texture->m_Image;
-                vk_view_create_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
-                vk_view_create_info.format                          = texture->m_Format;
-                vk_view_create_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-                vk_view_create_info.subresourceRange.baseMipLevel   = 0;
-                vk_view_create_info.subresourceRange.levelCount     = 1;
-                vk_view_create_info.subresourceRange.baseArrayLayer = 0;
-                vk_view_create_info.subresourceRange.layerCount     = 1;
-
-                VK_CHECK(vkCreateImageView(g_vk_context.m_LogicalDevice, &vk_view_create_info, 0, &texture->m_View));
+                texture->m_View = CreateImageView(texture->m_Image, texture->m_Format);
             }
 
             GPUMemory staging_buffer_memory;
@@ -1837,6 +1886,41 @@ namespace dmGraphics
             }
         }
 
+        static uint16_t GetFreeRenderTargetObject(RenderPass renderPass, FrameBuffer frameBuffer, VkExtent2D extent)
+        {
+            RenderTargetObject rt(g_vk_context.m_NextRenderTargetObjectID++);
+            rt.m_RenderPass  = renderPass;
+            rt.m_FrameBuffer = frameBuffer;
+            rt.m_Extent      = extent;
+
+            int32_t index = -1;
+
+            for (uint32_t i=0; i < g_vk_context.m_RenderTargetObjects.Size(); i++)
+            {
+                if (!g_vk_context.m_RenderTargetObjects[i].IsActive())
+                {
+                    index = i;
+                    break;
+                }
+            }
+
+            if (index == -1)
+            {
+                index = g_vk_context.m_RenderTargetObjects.Size();
+
+                if (g_vk_context.m_RenderTargetObjects.Full())
+                {
+                    g_vk_context.m_RenderTargetObjects.SetCapacity(g_vk_context.m_RenderTargetObjects.Capacity() + 1);
+                }
+
+                g_vk_context.m_RenderTargetObjects.Push(rt);
+            }
+
+            assert(index <= 0xffff);
+
+            return (uint16_t) index; // &g_vk_context.m_RenderTargetObjects[index];
+        }
+
         static Texture* CreateColorTexture(uint32_t width, uint32_t height)
         {
             Texture* texture  = new Texture();
@@ -1847,15 +1931,15 @@ namespace dmGraphics
             return texture;
         }
 
-        static Texture CreateDepthTexture(uint32_t width, uint32_t height, VkFormat format)
+        static Texture* CreateDepthTexture(uint32_t width, uint32_t height, VkFormat format)
         {
-            Texture depth_texture;
-            VK_ZERO_MEMORY(&depth_texture,sizeof(depth_texture));
+            Texture* depth_texture = new Texture();
+            VK_ZERO_MEMORY(depth_texture, sizeof(Texture));
 
             if(!CreateImage2D(width, height, format,
                 VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                &depth_texture.m_Image, &depth_texture.m_GPUBuffer))
+                &depth_texture->m_Image, &depth_texture->m_GPUBuffer))
             {
                 dmLogError("Failed to create depth texture");
                 return depth_texture;
@@ -1866,7 +1950,7 @@ namespace dmGraphics
             VK_ZERO_MEMORY(&vk_view_create_info, sizeof(vk_view_create_info));
 
             vk_view_create_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-            vk_view_create_info.image                           = depth_texture.m_Image;
+            vk_view_create_info.image                           = depth_texture->m_Image;
             vk_view_create_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
             vk_view_create_info.format                          = format;
             vk_view_create_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT;
@@ -1875,11 +1959,9 @@ namespace dmGraphics
             vk_view_create_info.subresourceRange.baseArrayLayer = 0;
             vk_view_create_info.subresourceRange.layerCount     = 1;
 
-            VK_CHECK(vkCreateImageView(g_vk_context.m_LogicalDevice, &vk_view_create_info, 0, &depth_texture.m_View));
+            VK_CHECK(vkCreateImageView(g_vk_context.m_LogicalDevice, &vk_view_create_info, 0, &depth_texture->m_View));
 
-            TransitionImageLayout(depth_texture.m_Image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-
-            depth_texture.m_Format = format;
+            depth_texture->m_Format = format;
 
             return depth_texture;
         }
@@ -1890,6 +1972,27 @@ namespace dmGraphics
                 g_vk_context.m_SwapChainImageExtent.width,
                 g_vk_context.m_SwapChainImageExtent.height,
                 GetSuitableDepthFormat());
+
+            TransitionImageLayout(g_vk_context.m_MainDepthBuffer->m_Image, g_vk_context.m_MainDepthBuffer->m_Format,
+                VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+        }
+
+        static VkFramebuffer CreateFramebuffer(VkRenderPass renderPass, uint32_t width, uint32_t height, VkImageView* attachments, uint16_t attachmentCount)
+        {
+            VkFramebuffer  vk_framebuffer;
+            VkFramebufferCreateInfo vk_framebuffer_create_info;
+            VK_ZERO_MEMORY(&vk_framebuffer_create_info,sizeof(vk_framebuffer_create_info));
+
+            vk_framebuffer_create_info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            vk_framebuffer_create_info.renderPass      = renderPass;
+            vk_framebuffer_create_info.attachmentCount = attachmentCount;
+            vk_framebuffer_create_info.pAttachments    = attachments;
+            vk_framebuffer_create_info.width           = width;
+            vk_framebuffer_create_info.height          = height;
+            vk_framebuffer_create_info.layers          = 1;
+
+            VK_CHECK(vkCreateFramebuffer(g_vk_context.m_LogicalDevice, &vk_framebuffer_create_info, 0, &vk_framebuffer));
+            return vk_framebuffer;
         }
 
         static void CreateMainFrameBuffers()
@@ -1901,25 +2004,26 @@ namespace dmGraphics
 
             for (uint8_t i=0; i < g_vk_context.m_MainFramebuffers.Size(); i++)
             {
-            	// NOTE: All swap chain images can share the same depth buffer (jg: is this really true?)
-                VkImageView& vk_image_view_color     = g_vk_context.m_SwapChainImageViews[i];
-                VkImageView& vk_image_view_depth     = g_vk_context.m_MainDepthBuffer.m_View;
-                VkImageView  vk_image_attachments[2] = { vk_image_view_color, vk_image_view_depth };
+                // NOTE: All swap chain images can share the same depth buffer (jg: is this really true?)
+                VkImageView&   vk_image_view_color     = g_vk_context.m_SwapChainImageViews[i];
+                VkImageView&   vk_image_view_depth     = g_vk_context.m_MainDepthBuffer->m_View;
+                VkImageView    vk_image_attachments[2] = { vk_image_view_color, vk_image_view_depth };
+                VkFramebuffer  vk_framebuffer          = CreateFramebuffer(g_vk_context.m_MainRenderPass,
+                    g_vk_context.m_SwapChainImageExtent.width,
+                    g_vk_context.m_SwapChainImageExtent.height,
+                    vk_image_attachments, sizeof(vk_image_attachments) / sizeof(VkImageView));
 
-                VkFramebufferCreateInfo framebuffer_create_info;
-                VK_ZERO_MEMORY(&framebuffer_create_info,sizeof(framebuffer_create_info));
+                g_vk_context.m_MainFramebuffers[i] = vk_framebuffer;
+            }
 
-                framebuffer_create_info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-                framebuffer_create_info.renderPass      = g_vk_context.m_MainRenderPass.m_Handle;
-                framebuffer_create_info.attachmentCount = sizeof(vk_image_attachments);
-                framebuffer_create_info.pAttachments    = vk_image_attachments;
-                framebuffer_create_info.width           = g_vk_context.m_SwapChainImageExtent.width;
-                framebuffer_create_info.height          = g_vk_context.m_SwapChainImageExtent.height;
-                framebuffer_create_info.layers          = 1;
+            if (g_vk_context.m_MainFramebuffers.Size() > 0)
+            {
+                RenderTargetObject rt(g_vk_context.m_NextRenderTargetObjectID++);
+                rt.m_RenderPass  = g_vk_context.m_MainRenderPass;
+                rt.m_FrameBuffer = g_vk_context.m_MainFramebuffers[0];
+                rt.m_Extent      = g_vk_context.m_SwapChainImageExtent;
 
-                VkFramebuffer* framebuffer_ptr = &g_vk_context.m_MainFramebuffers[i];
-
-                VK_CHECK(vkCreateFramebuffer(g_vk_context.m_LogicalDevice, &framebuffer_create_info, 0, framebuffer_ptr));
+                g_vk_context.m_RenderTargetObjects.Push(rt);
             }
         }
 
@@ -2000,6 +2104,8 @@ namespace dmGraphics
             g_vk_context.m_MaxDescriptorSets = 1024; // Note: this should be related to actual uniform count somehow..
             g_vk_context.m_TextureSamplers.SetCapacity(16);
             g_vk_context.m_PipelineCache.SetCapacity(32,64);
+            g_vk_context.m_RenderTargetObjects.SetCapacity(2);
+            g_vk_context.m_NextRenderTargetObjectID = 0;
 
             if (g_enable_validation_layers && GetValidationSupport())
             {
@@ -2220,7 +2326,11 @@ namespace dmGraphics
 
                 index = g_vk_context.m_DescriptorSetLayoutBindings.Size();
 
-                g_vk_context.m_DescriptorSetLayoutBindings.SetCapacity(g_vk_context.m_DescriptorSetLayoutBindings.Capacity() * 2);
+                if (g_vk_context.m_DescriptorSetLayoutBindings.Full())
+                {
+                    g_vk_context.m_DescriptorSetLayoutBindings.SetCapacity(g_vk_context.m_DescriptorSetLayoutBindings.Capacity() * 2);
+                }
+
                 g_vk_context.m_DescriptorSetLayoutBindings.Push(vk_desc);
             }
 
@@ -2252,7 +2362,11 @@ namespace dmGraphics
 
                 index = g_vk_context.m_VertexStreamDescriptors.Size();
 
-                g_vk_context.m_VertexStreamDescriptors.SetCapacity(g_vk_context.m_VertexStreamDescriptors.Capacity() * 2);
+                if (g_vk_context.m_VertexStreamDescriptors.Full())
+                {
+                    g_vk_context.m_VertexStreamDescriptors.SetCapacity(g_vk_context.m_VertexStreamDescriptors.Capacity() * 2);
+                }
+
                 g_vk_context.m_VertexStreamDescriptors.Push(vk_desc);
             }
 
@@ -2759,71 +2873,72 @@ namespace dmGraphics
 
         static void Clear(float r, float g, float b, float a, float d, float s)
         {
-        	VkClearRect vk_clear_rect;
-        	vk_clear_rect.rect.offset.x      = 0;
-			vk_clear_rect.rect.offset.y      = 0;
-			vk_clear_rect.rect.extent.width  = g_vk_context.m_SwapChainImageExtent.width;
-			vk_clear_rect.rect.extent.height = g_vk_context.m_SwapChainImageExtent.height;
-			vk_clear_rect.baseArrayLayer     = 0;
-			vk_clear_rect.layerCount         = 1;
+            VkClearRect vk_clear_rect;
+            vk_clear_rect.rect.offset.x      = 0;
+            vk_clear_rect.rect.offset.y      = 0;
+            vk_clear_rect.rect.extent.width  = g_vk_context.m_SwapChainImageExtent.width;
+            vk_clear_rect.rect.extent.height = g_vk_context.m_SwapChainImageExtent.height;
+            vk_clear_rect.baseArrayLayer     = 0;
+            vk_clear_rect.layerCount         = 1;
 
-			VkClearAttachment vk_clear_attachments[2];
-			VK_ZERO_MEMORY(vk_clear_attachments,sizeof(vk_clear_attachments));
+            VkClearAttachment vk_clear_attachments[2];
+            VK_ZERO_MEMORY(vk_clear_attachments,sizeof(vk_clear_attachments));
 
-			vk_clear_attachments[0].colorAttachment             = 0;
-			vk_clear_attachments[0].aspectMask                  = VK_IMAGE_ASPECT_COLOR_BIT;
-			vk_clear_attachments[0].clearValue.color.float32[0] = r;
-			vk_clear_attachments[0].clearValue.color.float32[1] = g;
-			vk_clear_attachments[0].clearValue.color.float32[2] = b;
-			vk_clear_attachments[0].clearValue.color.float32[3] = a;
+            vk_clear_attachments[0].colorAttachment             = 0;
+            vk_clear_attachments[0].aspectMask                  = VK_IMAGE_ASPECT_COLOR_BIT;
+            vk_clear_attachments[0].clearValue.color.float32[0] = r;
+            vk_clear_attachments[0].clearValue.color.float32[1] = g;
+            vk_clear_attachments[0].clearValue.color.float32[2] = b;
+            vk_clear_attachments[0].clearValue.color.float32[3] = a;
 
-			vk_clear_attachments[1].colorAttachment                 = 0;
-			vk_clear_attachments[1].aspectMask                      = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-			vk_clear_attachments[1].clearValue.depthStencil.stencil = s;
-			vk_clear_attachments[1].clearValue.depthStencil.depth   = d;
+            vk_clear_attachments[1].colorAttachment                 = 0;
+            vk_clear_attachments[1].aspectMask                      = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+            vk_clear_attachments[1].clearValue.depthStencil.stencil = s;
+            vk_clear_attachments[1].clearValue.depthStencil.depth   = d;
 
-			// NOTE: This should clear the currently bound framebuffer and not the
-			//       framebuffers used for the swap chain!
-        	vkCmdClearAttachments(
-        		g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx],
-			    2, vk_clear_attachments, 1, &vk_clear_rect);
+            // NOTE: This should clear the currently bound framebuffer and not the
+            //       framebuffers used for the swap chain!
+            vkCmdClearAttachments(
+                g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx],
+                2, vk_clear_attachments, 1, &vk_clear_rect);
         }
 
-        static void BeginFrame()
+        static void EndRenderPass()
         {
-        	uint32_t* vk_frame_image_ptr = (uint32_t*) &g_vk_context.m_CurrentFrameImageIx;
-        	uint32_t  vk_frame_image     = 0;
+            if (g_vk_context.m_CurrentRenderTarget < 0)
+            {
+                return;
+            }
 
-            FrameResource& current_frame_resource = g_vk_context.m_FrameResources[g_vk_context.m_CurrentFrameInFlight];
+            vkCmdEndRenderPass(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx]);
+            g_vk_context.m_CurrentRenderTarget = -1;
+        }
 
-            VK_CHECK(vkWaitForFences(g_vk_context.m_LogicalDevice, 1, &current_frame_resource.m_SubmitFence, VK_TRUE, UINT64_MAX));
-            VK_CHECK(vkResetFences(g_vk_context.m_LogicalDevice, 1, &current_frame_resource.m_SubmitFence));
+        static void BeginRenderPass(uint16_t renderTargetIndex)
+        {
+            if (g_vk_context.m_CurrentRenderTarget == renderTargetIndex)
+            {
+                return;
+            }
 
-            vkAcquireNextImageKHR(g_vk_context.m_LogicalDevice, g_vk_context.m_SwapChain, UINT64_MAX,
-                current_frame_resource.m_ImageAvailable, VK_NULL_HANDLE, vk_frame_image_ptr);
+            if (g_vk_context.m_CurrentRenderTarget != -1)
+            {
+                EndRenderPass();
+            }
 
-            vk_frame_image = *vk_frame_image_ptr;
-
-            VkCommandBufferBeginInfo vk_command_buffer_begin_info;
-
-            vk_command_buffer_begin_info.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-            vk_command_buffer_begin_info.flags            = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-            vk_command_buffer_begin_info.pInheritanceInfo = 0;
-            vk_command_buffer_begin_info.pNext            = 0;
-
-            VK_CHECK(vkBeginCommandBuffer(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx], &vk_command_buffer_begin_info));
+            RenderTargetObject* renderTargetObject = &g_vk_context.m_RenderTargetObjects[renderTargetIndex];
 
             VkRenderPassBeginInfo vk_render_pass_begin_info;
-		    vk_render_pass_begin_info.sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		    vk_render_pass_begin_info.renderPass  = g_vk_context.m_MainRenderPass.m_Handle;
-		    vk_render_pass_begin_info.framebuffer = g_vk_context.m_MainFramebuffers[vk_frame_image];
-		    vk_render_pass_begin_info.pNext       = 0;
+            vk_render_pass_begin_info.sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            vk_render_pass_begin_info.renderPass  = renderTargetObject->m_RenderPass;
+            vk_render_pass_begin_info.framebuffer = renderTargetObject->m_FrameBuffer;
+            vk_render_pass_begin_info.pNext       = 0;
 
-		    vk_render_pass_begin_info.renderArea.offset.x = 0;
-		    vk_render_pass_begin_info.renderArea.offset.y = 0;
-		    vk_render_pass_begin_info.renderArea.extent   = g_vk_context.m_SwapChainImageExtent;
-		    vk_render_pass_begin_info.clearValueCount     = 0;
-		    vk_render_pass_begin_info.pClearValues        = 0;
+            vk_render_pass_begin_info.renderArea.offset.x = 0;
+            vk_render_pass_begin_info.renderArea.offset.y = 0;
+            vk_render_pass_begin_info.renderArea.extent   = renderTargetObject->m_Extent;
+            vk_render_pass_begin_info.clearValueCount     = 0;
+            vk_render_pass_begin_info.pClearValues        = 0;
 
             VkClearValue vk_clear_values[2];
             VK_ZERO_MEMORY(vk_clear_values, sizeof(vk_clear_values));
@@ -2839,14 +2954,45 @@ namespace dmGraphics
             vk_render_pass_begin_info.clearValueCount = 2;
             vk_render_pass_begin_info.pClearValues    = vk_clear_values;
 
-		    vkCmdBeginRenderPass(g_vk_context.m_MainCommandBuffers[vk_frame_image], &vk_render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+            vkCmdBeginRenderPass(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx], &vk_render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+            g_vk_context.m_CurrentRenderTarget = renderTargetIndex;
+        }
+
+        static void BeginFrame()
+        {
+            FrameResource& current_frame_resource = g_vk_context.m_FrameResources[g_vk_context.m_CurrentFrameInFlight];
+
+            VK_CHECK(vkWaitForFences(g_vk_context.m_LogicalDevice, 1, &current_frame_resource.m_SubmitFence, VK_TRUE, UINT64_MAX));
+            VK_CHECK(vkResetFences(g_vk_context.m_LogicalDevice, 1, &current_frame_resource.m_SubmitFence));
+
+            vkAcquireNextImageKHR(g_vk_context.m_LogicalDevice, g_vk_context.m_SwapChain, UINT64_MAX,
+                current_frame_resource.m_ImageAvailable, VK_NULL_HANDLE, &g_vk_context.m_CurrentFrameImageIx);
+
+            VkCommandBufferBeginInfo vk_command_buffer_begin_info;
+
+            vk_command_buffer_begin_info.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            vk_command_buffer_begin_info.flags            = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+            vk_command_buffer_begin_info.pInheritanceInfo = 0;
+            vk_command_buffer_begin_info.pNext            = 0;
+
+            VK_CHECK(vkBeginCommandBuffer(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx], &vk_command_buffer_begin_info));
+
+            if (g_vk_context.m_CurrentRenderTarget < 0)
+            {
+                g_vk_context.m_CurrentRenderTarget = 0;
+            }
+
+            g_vk_context.m_RenderTargetObjects[0].m_FrameBuffer = g_vk_context.m_MainFramebuffers[g_vk_context.m_CurrentFrameImageIx];
+
+            BeginRenderPass(g_vk_context.m_CurrentRenderTarget);
         }
 
         static void EndFrame()
         {
             FrameResource& current_frame_resource = g_vk_context.m_FrameResources[g_vk_context.m_CurrentFrameInFlight];
 
-            vkCmdEndRenderPass(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx]);
+            EndRenderPass();
 
             VK_CHECK(vkEndCommandBuffer(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx]))
 
@@ -3121,8 +3267,8 @@ namespace dmGraphics
 
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
-    	assert(context);
-    	DM_PROFILE(Graphics, "Clear");
+        assert(context);
+        DM_PROFILE(Graphics, "Clear");
 
         float r = ((float)red)/255.0f;
         float g = ((float)green)/255.0f;
@@ -3741,83 +3887,174 @@ namespace dmGraphics
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
         RenderTarget* rt = new RenderTarget();
-        memset(rt, 0, sizeof(RenderTarget));
 
-        void** buffers[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBuffer, &rt->m_FrameBuffer.m_DepthBuffer, &rt->m_FrameBuffer.m_StencilBuffer};
-        uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBufferSize, &rt->m_FrameBuffer.m_DepthBufferSize, &rt->m_FrameBuffer.m_StencilBufferSize};
-        BufferType buffer_types[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};
+        memset(rt, 0, sizeof(RenderTarget));
+        memcpy(rt->m_BufferTextureParams, params, sizeof(rt->m_BufferTextureParams));
+
+        uint8_t has_color   = buffer_type_flags & dmGraphics::BUFFER_TYPE_COLOR_BIT;
+        uint8_t has_depth   = buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT;
+        uint8_t has_stencil = buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+
+        uint16_t fb_width  = 0;
+        uint16_t fb_height = 0;
+
+        // don't save the data
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
-            assert(GetBufferTypeIndex(buffer_types[i]) == i);
-            if (buffer_type_flags & buffer_types[i])
-            {
-                uint32_t buffer_size = sizeof(uint32_t) * params[i].m_Width * params[i].m_Height;
-                *(buffer_sizes[i]) = buffer_size;
-                rt->m_BufferTextureParams[i] = params[i];
-                rt->m_BufferTextureParams[i].m_DataSize = 0;
-
-                if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT))
-                {
-                    rt->m_BufferTextureParams[i].m_DataSize = buffer_size;
-                    rt->m_ColorBufferTexture = NewTexture(context, creation_params[i]);
-                }
-            }
+            rt->m_BufferTextureParams[i].m_Data     = 0x0;
+            rt->m_BufferTextureParams[i].m_DataSize = 0;
         }
+
+        Vulkan::RenderPassAttachment  rp_attachments[2];
+        Vulkan::RenderPassAttachment* rp_attachment_color         = 0;
+        Vulkan::RenderPassAttachment* rp_attachment_depth_stencil = 0;
+
+        VkImageView fb_attachments[2];
+        uint16_t    fb_attachment_count = 0;
+
+        if(has_color)
+        {
+            uint8_t color_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT);
+            fb_width  = params[color_buffer_index].m_Width;
+            fb_height = params[color_buffer_index].m_Height;
+
+            rp_attachment_color = &rp_attachments[0];
+            rp_attachment_color->m_Layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            rp_attachment_color->m_Format = Vulkan::g_texture_formats[params[color_buffer_index].m_Format];
+
+            // TODO: Remove this texture
+            Texture* texture            = NewTexture(context, creation_params[color_buffer_index]);
+            Vulkan::Texture* vk_texture = (Vulkan::Texture*) texture->m_Texture;
+            vk_texture->m_Format        = Vulkan::g_texture_formats[params[color_buffer_index].m_Format];
+
+            // TODO: Can we put this together with UploadTexture somehow?
+            //       We don't want to do the image transition I think, just use it as a backing store..
+            if(!Vulkan::CreateImage2D(vk_texture->m_Width, vk_texture->m_Height, vk_texture->m_Format,
+                VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                &vk_texture->m_Image, &vk_texture->m_GPUBuffer))
+            {
+                dmLogError("Failed to create color attachment");
+                assert(0); // TODO
+            }
+
+            vk_texture->m_View                    = Vulkan::CreateImageView(vk_texture->m_Image, vk_texture->m_Format);
+            fb_attachments[fb_attachment_count++] = vk_texture->m_View;
+
+            rt->m_ColorTexture = texture;
+        }
+
+        if(has_depth || has_stencil)
+        {
+            VkFormat vk_depth_stencil_format = VK_FORMAT_UNDEFINED;
+
+            uint8_t depth_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_DEPTH_BIT);
+            uint16_t depth_width       = params[depth_buffer_index].m_Width;
+            uint16_t depth_height      = params[depth_buffer_index].m_Height;
+
+            if (!has_color)
+            {
+                fb_width  = depth_width;
+                fb_height = depth_height;
+            }
+
+            // Only try depth formats first
+            if (has_depth && !has_stencil)
+            {
+                VkFormat vk_format_list[] = {
+                    VK_FORMAT_D32_SFLOAT,
+                    VK_FORMAT_D16_UNORM
+                };
+
+                vk_depth_stencil_format = Vulkan::GetSuitableDepthFormat(vk_format_list, 2);
+            }
+
+            // If we request both depth & stencil OR test above failed,
+            // try with default depth stencil formats
+            if (vk_depth_stencil_format == VK_FORMAT_UNDEFINED)
+            {
+                vk_depth_stencil_format = Vulkan::GetSuitableDepthFormat();
+            }
+
+            rp_attachment_depth_stencil           = &rp_attachments[1];
+            rp_attachment_depth_stencil->m_Layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            rp_attachment_depth_stencil->m_Format = vk_depth_stencil_format;
+
+            // TODO: Remove this texture
+            Vulkan::Texture* vk_texture           = Vulkan::CreateDepthTexture(depth_width, depth_height, vk_depth_stencil_format);
+            fb_attachments[fb_attachment_count++] = vk_texture->m_View;
+
+            rt->m_DepthStencilTexture = vk_texture;
+        }
+
+        Vulkan::RenderPass  rp = Vulkan::CreateRenderPass(rp_attachment_color, rp_attachment_color ? 1 : 0, rp_attachment_depth_stencil);
+        Vulkan::FrameBuffer fp = Vulkan::CreateFramebuffer(rp, fb_width, fb_height, fb_attachments, fb_attachment_count);
+        VkExtent2D extent;
+        extent.width  = params->m_Width;
+        extent.height = params->m_Height;
+
+        rt->m_RenderTargetObject = Vulkan::GetFreeRenderTargetObject(rp, fp, extent);
 
         return rt;
     }
 
     void DeleteRenderTarget(HRenderTarget rt)
     {
-        if (rt->m_ColorBufferTexture)
-            DeleteTexture(rt->m_ColorBufferTexture);
-        delete [] (char*)rt->m_FrameBuffer.m_DepthBuffer;
-        delete [] (char*)rt->m_FrameBuffer.m_StencilBuffer;
-        delete rt;
+        // TODO: Remove resources from vulkan
+        if (rt->m_ColorTexture)
+            delete (Texture*) rt->m_ColorTexture;
+        if (rt->m_DepthStencilTexture)
+            delete (Vulkan::Texture*) rt->m_DepthStencilTexture;
     }
 
     void SetRenderTarget(HContext context, HRenderTarget rendertarget, uint32_t transient_buffer_types)
     {
         (void) transient_buffer_types;
         assert(context);
-        context->m_CurrentFrameBuffer = &rendertarget->m_FrameBuffer;
+
+        if (rendertarget)
+        {
+            Vulkan::BeginRenderPass(rendertarget->m_RenderTargetObject);
+        }
+        else
+        {
+            Vulkan::BeginRenderPass(0);
+        }
     }
 
     HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type)
     {
         if(buffer_type != BUFFER_TYPE_COLOR_BIT)
             return 0;
-        return rendertarget->m_ColorBufferTexture;
+
+        return (HTexture) rendertarget->m_ColorTexture;
     }
 
-    void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
+    void GetRenderTargetSize(HRenderTarget rendertarget, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
-        assert(render_target);
+        assert(rendertarget);
         uint32_t i = GetBufferTypeIndex(buffer_type);
         assert(i < MAX_BUFFER_TYPE_COUNT);
-        width = render_target->m_BufferTextureParams[i].m_Width;
-        height = render_target->m_BufferTextureParams[i].m_Height;
+        width  = rendertarget->m_BufferTextureParams[i].m_Width;
+        height = rendertarget->m_BufferTextureParams[i].m_Height;
     }
 
     void SetRenderTargetSize(HRenderTarget rt, uint32_t width, uint32_t height)
     {
-        uint32_t buffer_size = sizeof(uint32_t) * width * height;
-
-        void** buffers[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBuffer, &rt->m_FrameBuffer.m_DepthBuffer, &rt->m_FrameBuffer.m_StencilBuffer};
-        uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBufferSize, &rt->m_FrameBuffer.m_DepthBufferSize, &rt->m_FrameBuffer.m_StencilBufferSize};
+        /*
+        assert(render_target);
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
-            if (buffers[i])
+            render_target->m_BufferTextureParams[i].m_Width = width;
+            render_target->m_BufferTextureParams[i].m_Height = height;
+            if(i == GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT))
             {
-                *(buffer_sizes[i]) = buffer_size;
-                rt->m_BufferTextureParams[i].m_Width = width;
-                rt->m_BufferTextureParams[i].m_Height = height;
-                if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT))
-                {
-                    rt->m_BufferTextureParams[i].m_DataSize = buffer_size;
-                }
+                if(render_target->m_ColorBufferTexture)
+                    SetTexture(render_target->m_ColorBufferTexture, render_target->m_BufferTextureParams[i]);
             }
         }
+        SetDepthStencilRenderBuffer(render_target, true);
+        */
     }
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format)
