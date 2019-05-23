@@ -30,7 +30,11 @@ static const luaL_reg Facebook_methods[] =
 static void LuaInit(lua_State* L)
 {
     int top = lua_gettop(L);
-    luaL_register(L, "facebook", Facebook_methods);
+    lua_getglobal(L, "facebook");
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
+        luaL_register(L, "facebook", Facebook_methods);
+    }
     lua_pop(L, 1);
     assert(top == lua_gettop(L));
 }
