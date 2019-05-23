@@ -1,21 +1,20 @@
 (ns editor.yamlparser
   (:refer-clojure :exclude [load])
   (:require [clojure.walk :refer [walk]])
-  (:import java.io.Reader
+  (:import [java.io Reader]
            [java.util List Map]
            [org.snakeyaml.engine.v1.api Load LoadSettingsBuilder]))
 
 (defn- translate
   [x key-transform-fn]
-  (let [wlk (partial walk #(translate % key-transform-fn) identity)
-        f (condp instance? x
-            ;; Turn maps into clojure maps and change keys to keywords, recurse
-            Map #(wlk (reduce (fn [m [k v]] (assoc m (key-transform-fn k) v)) {} %))
-            ;; Turn lists into clojure vectors, recurse
-            List #(wlk (into [] %))
-            ;; Other values we leave as is.
-            identity)]
-    (f x)))
+  (let [wlk (fn [x] (walk #(translate % key-transform-fn) identity x))]
+    (condp instance? x
+      ;; Turn maps into clojure maps and change keys to keywords, recurse
+      Map (wlk (reduce (fn [m [k v]] (assoc m (key-transform-fn k) v)) {} x))
+      ;; Turn lists into clojure vectors, recurse
+      List (wlk (into [] x))
+      ;; Other values we leave as is.
+      x)))
 
 (defn- new-loader
   ^Load []

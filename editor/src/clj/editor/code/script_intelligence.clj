@@ -13,9 +13,5 @@
   (input lua-completions ScriptCompletions :array :substitute gu/array-subst-remove-errors)
   (input build-errors g/Any :array)
   (output lua-completions ScriptCompletions :cached produce-lua-completions)
-  (output build-errors g/Any (g/fnk [build-errors] build-errors)))
-
-(defn lua-completions
-  [script-intelligence]
-  (g/node-value script-intelligence :lua-completions))
+  (output build-errors g/Any gu/passthrough))
 

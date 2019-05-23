@@ -286,7 +286,7 @@
 (defn register-resource-types [workspace]
   (for [def script-defs
         :let [args (assoc def
-                          :node-type ScriptNode
-                          :eager-loading? true
-                          :additional-load-fn additional-load-fn)]]
+                     :node-type ScriptNode
+                     :eager-loading? true
+                     :additional-load-fn additional-load-fn)]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))

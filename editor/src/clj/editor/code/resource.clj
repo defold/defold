@@ -146,7 +146,7 @@
   (let [debuggable? (contains? tags :debuggable)
         load-fn (partial load-fn additional-load-fn eager-loading? debuggable?)
         args (-> args
-                 (dissoc :eager-loading? :additional-load-fn)
+                 (dissoc :additional-load-fn :eager-loading?)
                  (assoc :load-fn load-fn
                         :read-fn read-fn
                         :write-fn write-fn

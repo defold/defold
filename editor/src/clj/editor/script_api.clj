@@ -1,5 +1,6 @@
 (ns editor.script-api
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.script-intelligence :as si]
@@ -16,7 +17,7 @@
 (defmulti convert
   "Converts YAML documentation input to the internal auto-complete format defined
   in `editor.lua` namespace."
-  #(or (:type %) :no-type))
+  :type)
 
 (defn- name-with-ns
   [ns name]
@@ -32,26 +33,27 @@
             :doc desc
             :display-string name
             :insert-string name}]
-          (map (comp convert #(assoc % :ns name))
-               (filter map? members)))))
+          (comp
+            (filter map?)
+            (map #(convert (assoc % :ns name))))
+          members)))
 
 (defn- param-names
   [params remove-optional?]
-  (letfn [(bracketname? [x] (= \[ (first (:name x))))
-          (optional? [x] (or (:optional x) (bracketname? x)))]
-    (mapv :name
-          (if remove-optional?
-            (filterv #(not (optional? %)) params)
-            (mapv #(if (and (:optional %) (not (bracketname? %)))
-                     (assoc % :name (str "[" (:name %) "]"))
-                     %)
-                  params)))))
+  (let [bracketname? (fn [x] (= \[ (first (:name x))))
+        optional? (fn [x] (or (:optional x) (bracketname? x)))
+        filter-optionals (if remove-optional?
+                           (filter #(not (optional? %)))
+                           (map #(if (and (:optional %) (not (bracketname? %)))
+                                   (assoc % :name (str "[" (:name %) "]"))
+                                   %)))]
+    (into [] (comp filter-optionals (map :name)) params)))
 
 (defn- build-param-string
   ([params]
    (build-param-string params false))
   ([params remove-optional?]
-   (str "(" (apply str (interpose ", " (param-names params remove-optional?))) ")")))
+   (str "(" (string/join "," (param-names params remove-optional?)) ")")))
 
 (defmethod convert "function"
   [{:keys [ns name desc parameters]}]
@@ -65,20 +67,19 @@
 
 (defmethod convert :default
   [{:keys [ns name desc]}]
-  (let [name (name-with-ns ns name)]
-    {:type :variable
-     :name name
-     :doc desc
-     :display-string name
-     :insert-string name}))
-
-(defmethod convert :no-type
-  [x]
-  nil)
+  (when name
+    (let [name (name-with-ns ns name)]
+      {:type :variable
+       :name name
+       :doc desc
+       :display-string name
+       :insert-string name})))
 
 (defn convert-lines
   [lines]
-  (mapv convert (yp/load (data/lines-reader lines) keyword)))
+  (into []
+        (comp (map convert) (remove nil?))
+        (-> (data/lines-reader lines) (yp/load keyword))))
 
 (defn combine-conversions
   "This function combines the individual hierarchical conversions into a map where
@@ -90,33 +91,32 @@
   (first (reduce
            (fn [[m ns] x]
              (cond
-               (vector? x)
                ;; Recurse into sublevels and merge the current map with the
                ;; result. Any key collisions will have vector values so we
                ;; can merge them with into.
-               [(merge-with into m (combine-conversions x)) ns]
+               (vector? x) [(merge-with into m (combine-conversions x)) ns]
 
-               :else
-               (if (= :namespace (:type x))
-                 [(let [m (assoc m (:name x) [])
-                        m (if-not (= "" ns)
-                            (update m ns conj x)
-                            m)]
-                    ;; Always add namespaces as members of the global namespace.
-                    (update m "" conj x))
-                  (:name x)]
-                 (if x
-                   [(update m ns conj x) ns]
-                   ;; Don't add empty parse results. They are probably
-                   ;; from syntactically valid but incomplete yaml
-                   ;; records.
-                   [m ns]))))
+               (= :namespace (:type x)) [(let [m (assoc m (:name x) [])
+                                               m (if-not (= "" ns)
+                                                   (update m ns conj x)
+                                                   m)]
+                                           ;; Always add namespaces as members
+                                           ;; of the global namespace.
+                                           (update m "" conj x))
+                                         (:name x)]
+
+               x [(update m ns conj x) ns]
+
+               ;; Don't add empty parse results. They are probably
+               ;; from syntactically valid but incomplete yaml
+               ;; records.
+               :else [m ns]))
            [{"" []} ""]
            conversions)))
 
 (defn lines->completion-info
   [lines]
-  (combine-conversions (remove nil? (convert-lines lines))))
+  (combine-conversions (convert-lines lines)))
 
 (g/defnk produce-completions
   [parse-result]
