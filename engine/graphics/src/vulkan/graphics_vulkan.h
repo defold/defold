@@ -45,11 +45,25 @@ namespace dmGraphics
         uint16_t      m_RenderTargetObject;
     };
 
+    struct Viewport
+    {
+        uint16_t m_X;
+        uint16_t m_Y;
+        uint16_t m_W;
+        uint16_t m_H;
+        bool     m_HasChanged;
+    };
+
     struct Context
     {
         Context(const ContextParams& params);
 
+        uint8_t m_ViewportChanged;
+        uint8_t m_CullFaceChanged;
+
         Vectormath::Aos::Vector4    m_ProgramRegisters[MAX_REGISTER_COUNT];
+        Viewport                    m_Viewport;
+
         void*                       m_CurrentProgram;
         void*                       m_CurrentVertexBuffer;
         void*                       m_CurrentIndexBuffer;

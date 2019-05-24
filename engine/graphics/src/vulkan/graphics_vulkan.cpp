@@ -358,7 +358,8 @@ namespace dmGraphics
 
         struct Context
         {
-            int16_t                        m_CurrentRenderTarget;
+            uint16_t                       m_CurrentRenderTarget        : 15;
+            uint16_t                       m_CurrentRenderTargetIsBound : 1;
             uint32_t                       m_NextRenderTargetObjectID;
             uint32_t                       m_CurrentFrameImageIx;
             uint32_t                       m_CurrentFrameInFlight;
@@ -1350,12 +1351,15 @@ namespace dmGraphics
             // it to the dynamic state list
             g_vk_context.m_MainScissor.extent = g_vk_context.m_SwapChainImageExtent;
 
+            VkViewport vk_viewport;
+            VK_ZERO_MEMORY(&vk_viewport, sizeof(vk_viewport));
+
             VkPipelineViewportStateCreateInfo vk_viewport_state;
             VK_ZERO_MEMORY(&vk_viewport_state,sizeof(vk_viewport_state));
 
             vk_viewport_state.sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
             vk_viewport_state.viewportCount = 1;
-            vk_viewport_state.pViewports    = &g_vk_context.m_MainViewport;
+            vk_viewport_state.pViewports    = &vk_viewport;
             vk_viewport_state.scissorCount  = 1;
             vk_viewport_state.pScissors     = &g_vk_context.m_MainScissor;
 
@@ -2170,13 +2174,6 @@ namespace dmGraphics
                 }
             }
 
-            g_vk_context.m_MainViewport.x         = 0;
-            g_vk_context.m_MainViewport.y         = 0;
-            g_vk_context.m_MainViewport.width     = 0;
-            g_vk_context.m_MainViewport.height    = 0;
-            g_vk_context.m_MainViewport.minDepth  = 0.0f;
-            g_vk_context.m_MainViewport.maxDepth  = 1.0f;
-
             VK_ZERO_MEMORY(&g_vk_context.m_MainScissor, sizeof(g_vk_context.m_MainScissor));
 
             PipelineState vk_default_pipeline;
@@ -2773,12 +2770,15 @@ namespace dmGraphics
 
         static inline void SetViewport(int32_t x, int32_t y, int32_t width, int32_t height)
         {
-            g_vk_context.m_MainViewport.x      = x;
-            g_vk_context.m_MainViewport.y      = (height+y);
-            g_vk_context.m_MainViewport.width  = width;
-            g_vk_context.m_MainViewport.height = -height;
+            VkViewport vk_viewport;
+            vk_viewport.x        = x;
+            vk_viewport.y        = y;
+            vk_viewport.width    = width;
+            vk_viewport.height   = height;
+            vk_viewport.minDepth = 0.0f;
+            vk_viewport.maxDepth = 1.0f;
 
-            vkCmdSetViewport(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx], 0, 1, &g_vk_context.m_MainViewport);
+            vkCmdSetViewport(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx], 0, 1, &vk_viewport);
         }
 
         static inline void SetScissor(uint32_t x, uint32_t y, uint32_t w, uint32_t h)
@@ -2905,23 +2905,25 @@ namespace dmGraphics
 
         static void EndRenderPass()
         {
-            if (g_vk_context.m_CurrentRenderTarget < 0)
+            if (!g_vk_context.m_CurrentRenderTargetIsBound)
             {
                 return;
             }
 
             vkCmdEndRenderPass(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx]);
-            g_vk_context.m_CurrentRenderTarget = -1;
+            g_vk_context.m_CurrentRenderTarget        = 0;
+            g_vk_context.m_CurrentRenderTargetIsBound = 0;
         }
 
         static void BeginRenderPass(uint16_t renderTargetIndex)
         {
-            if (g_vk_context.m_CurrentRenderTarget == renderTargetIndex)
+            if (g_vk_context.m_CurrentRenderTarget == renderTargetIndex &&
+                g_vk_context.m_CurrentRenderTargetIsBound)
             {
                 return;
             }
 
-            if (g_vk_context.m_CurrentRenderTarget != -1)
+            if (g_vk_context.m_CurrentRenderTargetIsBound)
             {
                 EndRenderPass();
             }
@@ -2956,7 +2958,8 @@ namespace dmGraphics
 
             vkCmdBeginRenderPass(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx], &vk_render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
-            g_vk_context.m_CurrentRenderTarget = renderTargetIndex;
+            g_vk_context.m_CurrentRenderTarget        = renderTargetIndex;
+            g_vk_context.m_CurrentRenderTargetIsBound = 1;
         }
 
         static void BeginFrame()
@@ -2977,11 +2980,6 @@ namespace dmGraphics
             vk_command_buffer_begin_info.pNext            = 0;
 
             VK_CHECK(vkBeginCommandBuffer(g_vk_context.m_MainCommandBuffers[g_vk_context.m_CurrentFrameImageIx], &vk_command_buffer_begin_info));
-
-            if (g_vk_context.m_CurrentRenderTarget < 0)
-            {
-                g_vk_context.m_CurrentRenderTarget = 0;
-            }
 
             g_vk_context.m_RenderTargetObjects[0].m_FrameBuffer = g_vk_context.m_MainFramebuffers[g_vk_context.m_CurrentFrameImageIx];
 
@@ -3579,6 +3577,20 @@ namespace dmGraphics
 
     static inline void DrawSetup(HContext context)
     {
+        if (context->m_CullFaceChanged || context->m_Viewport.m_HasChanged)
+        {
+            if (Vulkan::g_vk_context.m_PipelineState.m_CullFaceType == FACE_TYPE_BACK)
+            {
+                Vulkan::g_vk_context.m_PipelineState.m_CullFaceType = FACE_TYPE_FRONT;
+            }
+            else if (Vulkan::g_vk_context.m_PipelineState.m_CullFaceType == FACE_TYPE_FRONT)
+            {
+                Vulkan::g_vk_context.m_PipelineState.m_CullFaceType = FACE_TYPE_BACK;
+            }
+
+            context->m_CullFaceChanged = false;
+        }
+
         Vulkan::Program* program = (Vulkan::Program*) context->m_CurrentProgram;
 
         Vulkan::Pipeline* pipeline = Vulkan::GetPipeline(
@@ -3609,6 +3621,20 @@ namespace dmGraphics
             {
                 assert(0 && "Invalid index buffer type");
             }
+        }
+
+        if (context->m_Viewport.m_HasChanged)
+        {
+            if (Vulkan::g_vk_context.m_CurrentRenderTarget == 0)
+            {
+                Vulkan::SetViewport(context->m_Viewport.m_X, context->m_Viewport.m_X + context->m_Viewport.m_H, context->m_Viewport.m_W, -context->m_Viewport.m_H);
+            }
+            else
+            {
+                Vulkan::SetViewport(context->m_Viewport.m_X, context->m_Viewport.m_Y, context->m_Viewport.m_W, context->m_Viewport.m_H);
+            }
+
+            context->m_Viewport.m_HasChanged = false;
         }
     }
 
@@ -3854,7 +3880,12 @@ namespace dmGraphics
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         assert(context);
-        Vulkan::SetViewport(x,y,width,height);
+
+        context->m_Viewport.m_HasChanged = true;
+        context->m_Viewport.m_X = (uint16_t) x;
+        context->m_Viewport.m_Y = (uint16_t) y;
+        context->m_Viewport.m_W = (uint16_t) width;
+        context->m_Viewport.m_H = (uint16_t) height;
     }
 
     inline void SetConstantValue(void* program, int base_register, void* data, size_t data_size)
@@ -4011,6 +4042,8 @@ namespace dmGraphics
     {
         (void) transient_buffer_types;
         assert(context);
+
+        context->m_Viewport.m_HasChanged = true;
 
         if (rendertarget)
         {
@@ -4359,6 +4392,7 @@ namespace dmGraphics
     {
         assert(context);
         Vulkan::g_vk_context.m_PipelineState.m_CullFaceType = face_type;
+        context->m_CullFaceChanged = true;
     }
 
     void SetPolygonOffset(HContext context, float factor, float units)
