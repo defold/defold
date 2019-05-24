@@ -118,3 +118,10 @@
                                 "  from </dir/main.lua:33>"]
                         :regions [(resource-reference-region 1 (count "  from <") "/dir/main.lua:33" "/dir/main.lua" 32)]}
                        ["   via '/main.lua:8', '/main.lua:13'"]))))
+
+(deftest three-matches-on-same-line-where-two-are-partial
+  (is (= 3 (count
+             (#'console/make-line-sub-regions {"/absolute/project/path/file.lua" :WIN
+                                               "/some/really/long/path/to/some/resource/in/the/project/the_resource.script" :WIN}
+                                              identity 10
+                                              "urce/in/the/project/the_resource.script:25: in function <urce/in/the/project/the_resource.script:24> </absolute/project/path/file.lua:65>")))))

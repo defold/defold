@@ -1,6 +1,7 @@
 (ns editor.build-errors-view
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.code.data :refer [CursorRange->line-number]]
             [editor.defold-project :as project]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
@@ -11,9 +12,9 @@
   (:import [clojure.lang MapEntry PersistentQueue]
            [java.util Collection]
            [javafx.collections ObservableList]
-           [javafx.scene.control TabPane TreeItem TreeView]
+           [javafx.scene.control TreeItem TreeView]
            [javafx.scene.input Clipboard ClipboardContent]
-           [javafx.scene.layout Pane HBox]
+           [javafx.scene.layout HBox]
            [javafx.scene.text Text]))
 
 (set! *warn-on-reflection* true)
@@ -53,8 +54,8 @@
       (pair node-id depth))
     (pair node-id depth)))
 
-(defn- error-line [error]
-  (-> error :value ex-data :line))
+(defn- error-cursor-range [error]
+  (some-> error :user-data :cursor-range))
 
 (defn- missing-resource-node? [evaluation-context node-id]
   (and (g/node-instance? (:basis evaluation-context) resource/ResourceNode node-id)
@@ -74,12 +75,14 @@
         [origin-node-id origin-override-depth] (find-override-value-origin basis (:_node-id error) (:_label error) 0)
         origin-override-id (when (some? origin-node-id) (g/override-id basis origin-node-id))
         parent (parent-resource evaluation-context errors origin-override-depth origin-override-id)
-        line (error-line error)]
+        cursor-range (error-cursor-range error)]
     (cond-> {:parent parent
              :node-id origin-node-id
              :message (:message error)
              :severity (:severity error severity)}
-            line (assoc :line line))))
+
+            (some? cursor-range)
+            (assoc :cursor-range cursor-range))))
 
 (defn- push-causes [queue error path]
   (let [new-path (conj path error)]
@@ -120,7 +123,7 @@
 
 (defn- error-items [root-error]
   (->> (root-causes root-error)
-       (sort-by :line)
+       (sort-by :cursor-range)
        (group-by :parent)
        (sort-by error-pair->sort-value)
        (mapv (fn [[resource errors]]
@@ -153,10 +156,10 @@
 
 (defmethod make-tree-cell :default
   [error-item]
-  (let [line (:line error-item)
+  (let [cursor-range (:cursor-range error-item)
         message (cond->> (:message error-item)
-                  line
-                  (str "Line " line ": "))
+                         (some? cursor-range)
+                         (str "Line " (CursorRange->line-number cursor-range) ": "))
         icon (case (:severity error-item)
                :info "icons/32/Icons_E_00_info.png"
                :warning "icons/32/Icons_E_01_warning.png"
@@ -189,16 +192,15 @@
       (let [resource (-> error-item :parent :resource)
             node-id (:node-id error-item)
             selection (error-selection node-id resource)
-            opts (if-some [line (:line error-item)] {:line line} {})]
+            opts (select-keys error-item [:cursor-range])]
         (when (and (resource/openable-resource? resource) (resource/exists? resource))
           (ui/run-later
             (open-resource-fn resource selection opts)))))))
 
-(defn- error-line-for-clipboard [error]
-  (let [message (:message error)
-        line    (if-let [line (:line error)]
-                  (str "Line " line ": ")
-                  "")]
+(defn- error-line-for-clipboard [error-item]
+  (let [message (:message error-item)
+        line (when-some [cursor-range (:cursor-range error-item)]
+               (str "Line " (CursorRange->line-number cursor-range) ": "))]
     (str line message)))
 
 (defn- error-text-for-clipboard [selection]
