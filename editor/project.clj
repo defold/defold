@@ -172,7 +172,8 @@
                                 :omit-source  true
                                 :source-paths ["sidecar"]}
                       :local-repl {:injections [(future (editor/-main))]
-                                   :repl-options {:init-ns editor}}
+                                   :repl-options {:init-ns editor}
+                                   :jvm-opts ["-Ddefold.nrepl=false"]}
                       :release {:jvm-opts          ["-Ddefold.build=release"]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
                       :dev     {:plugins           [[jonase/eastwood "0.3.5" :exclusions [org.clojure/clojure]]]
@@ -188,6 +189,7 @@
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
                                                     "-Djdk.gtk.version=2"
+                                                    "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"
