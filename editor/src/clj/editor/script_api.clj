@@ -135,10 +135,10 @@
     (catch MarkedYamlEngineException myee
       (let [mark ^Mark (.get (.getProblemMark myee))
             line (inc (.getLine mark))
-            row (.getLine mark)
             col (.getColumn mark)
             ev (-> (error-values/error-fatal (.getMessage myee))
-                   (assoc :row row :line line :col col))]
+                   (assoc-in [:user-data :cursor-range]
+                             (data/line-number->CursorRange line col)))]
         (g/package-errors _node-id ev)))))
 
 (g/defnk produce-build-errors
