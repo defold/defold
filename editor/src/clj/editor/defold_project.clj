@@ -225,8 +225,6 @@
              (g/connect game-project :display-profiles-data project :display-profiles)
              (g/connect game-project :texture-profiles-data project :texture-profiles)
              (g/connect game-project :settings-map project :settings))))
-       ;; Prime the auto completion cache
-       (g/node-value (script-intelligence project) :lua-completions)
        project))))
 
 (defn make-embedded-resource [project type data]
@@ -797,6 +795,8 @@
     (render-progress! (swap! progress progress/advance 1 "Loading project..."))
     (let [project (make-project graph workspace-id)
           populated-project (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress 8))]
+      ;; Prime the auto completion cache
+      (g/node-value (script-intelligence project) :lua-completions)
       (cache-save-data! populated-project)
       populated-project)))
 
