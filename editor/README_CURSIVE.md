@@ -40,6 +40,8 @@ Time to open the Defold Editor project. The first time you open it, you'll need 
 
 8. Press **OK** to close the dialog. You should now be able to select the `lein run` configuration and launch the editor from the toolbar. Once you see the Defold Welcome screen, you can select `connect repl` and run that task to connect to the running editor. From the REPL you can evaluate code, redefine functions, or experiment with function calls while the editor is running.
 
+Alternatively to steps 5 and 6, you can create a configuration that starts local nrepl and editor simultaneously: create a local REPL configuration, select **Run with Leiningen** and add `+local-repl` profile.
+
 ## Recommended keyboard shortcuts
 
 The defaults for these might depend on the keymap you selected when installing IntelliJ, but here are some keyboard shortcuts you might find useful when working with Clojure. You can customize the bindings for these from the **Keymap** page in the Preferences dialog.
