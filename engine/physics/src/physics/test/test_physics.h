@@ -106,6 +106,8 @@ struct Funcs
     typedef void (*RayCastFunc)(typename T::WorldType world, const dmPhysics::RayCastRequest& request, dmPhysics::RayCastResponse& response);
     typedef void (*SetDebugCallbacks)(typename T::ContextType context, const dmPhysics::DebugCallbacks& callbacks);
     typedef void (*ReplaceShapeFunc)(typename T::ContextType context, typename T::CollisionShapeType old_shape, typename T::CollisionShapeType new_shape);
+    typedef void (*SetGravityFunc)(typename T::WorldType world, const Vectormath::Aos::Vector3& gravity);
+    typedef Vectormath::Aos::Vector3 (*GetGravityFunc)(typename T::WorldType world);
 };
 
 struct Test3D
@@ -156,6 +158,8 @@ struct Test3D
     Funcs<Test3D>::RayCastFunc                      m_RayCastFunc;
     Funcs<Test3D>::SetDebugCallbacks                m_SetDebugCallbacksFunc;
     Funcs<Test3D>::ReplaceShapeFunc                 m_ReplaceShapeFunc;
+    Funcs<Test3D>::SetGravityFunc                   m_SetGravityFunc;
+    Funcs<Test3D>::GetGravityFunc                   m_GetGravityFunc;
 
     float*      m_Vertices;
     uint32_t    m_VertexCount;
@@ -209,6 +213,8 @@ struct Test2D
     Funcs<Test2D>::RayCastFunc                      m_RayCastFunc;
     Funcs<Test2D>::SetDebugCallbacks                m_SetDebugCallbacksFunc;
     Funcs<Test2D>::ReplaceShapeFunc                 m_ReplaceShapeFunc;
+    Funcs<Test2D>::SetGravityFunc                   m_SetGravityFunc;
+    Funcs<Test2D>::GetGravityFunc                   m_GetGravityFunc;
 
     float*      m_Vertices;
     uint32_t    m_VertexCount;

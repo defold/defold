@@ -1,0 +1,365 @@
+// definitions
+
+$light-grey: #9FB0BE;
+$light-grey-lighter: derive($light-grey, 20%);
+$light-grey-lightest: derive($light-grey, 60%);
+$light-grey-darker: derive($light-grey, -20%);
+
+$grey: #393c41;
+
+$blue: #5BC0FF;
+$blue-lighter: derive($blue, 20%);
+$blue-lightest: derive($blue, 40%);
+
+$orange: #fa6731;
+
+$dark-grey: #2c2e33;
+$dark-grey-lightest: derive($dark-grey, 40%);
+$dark-grey-lighter: derive($dark-grey, 20%);
+$dark-grey-darker: derive($dark-grey, -40%);
+$dark-grey-darkest: derive($dark-grey, -60%);
+
+$red: #e32f44;
+$red-lighter: derive($red, 20%);
+$red-darker: #6b2f34; // just making it darker does not look good: too dirty, needed to desaturate a bit
+
+$spacing-smaller: 16px;
+$spacing-default: 24px;
+$spacing-larger: 32px;
+$spacing-largest: 40px;
+
+@mixin font-size-default { -fx-font-size: 14px; }
+@mixin font-size-header { -fx-font-size: 22px; }
+@mixin font-default { -fx-font-family: "Source Sans Pro"; }
+@mixin font-light { -fx-font-family: "Source Sans Pro Light"; }
+@mixin text-fill-text-color { -fx-text-fill: $light-grey; }
+@mixin spacing-smaller { -fx-spacing: $spacing-smaller;}
+@mixin spacing-default { -fx-spacing: $spacing-default;}
+
+// util
+
+@font-face {
+  font-family: 'Source Sans Pro';
+  src: url("SourceSansPro-Regular.ttf");
+}
+
+@font-face {
+  font-family: 'Source Sans Pro Light';
+  src: url("SourceSansPro-Light.ttf");
+}
+
+@font-face {
+  font-family: 'Source Sans Pro Semibold';
+  src: url("SourceSansPro-Semibold.ttf");
+}
+
+.spacing-smaller {
+  @include spacing-smaller();
+}
+.spacing-default {
+  @include spacing-default();
+}
+
+// label
+
+.label {
+  @include font-size-default();
+  @include font-default();
+  @include text-fill-text-color();
+}
+
+.header {
+  @include font-size-header();
+  @include font-light();
+  @include text-fill-text-color();
+}
+
+// button
+
+.button {
+  @include font-size-default();
+  @include font-default();
+  -fx-border-radius: 2px;
+  -fx-background-radius: 2px;
+  -fx-background-color: transparent;
+  -fx-padding: 6px 12px;
+  &:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.04);
+  }
+  &:focused {
+    -fx-background-color: rgba(255, 255, 255, 0.04);
+    &:hover {
+      -fx-background-color: rgba(255, 255, 255, 0.08);
+    }
+  }
+  &:armed {
+    -fx-background-color: transparent;
+    &:hover {
+      -fx-background-color: transparent;
+    }
+  }
+  &:disabled {
+    -fx-text-fill: $light-grey;
+    -fx-border-color: $light-grey-darker;
+    -fx-opacity: 0.4;
+  }
+}
+.button-primary {
+  -fx-text-fill: $blue;
+  -fx-border-color: $blue;
+  &:hover, &:focused {
+    -fx-text-fill: $blue-lighter;
+    -fx-border-color: $blue-lighter;
+  }
+}
+.button-secondary {
+  -fx-text-fill: $light-grey;
+  -fx-border-color: $light-grey-darker;
+  &:hover, &:focused {
+    -fx-text-fill: $light-grey-lighter;
+    -fx-border-color: $light-grey;
+  }
+}
+.button-danger {
+  -fx-text-fill: $red;
+  -fx-border-color: $red;
+  &:hover, &:focused {
+    -fx-text-fill: $red-lighter;
+    -fx-border-color: $red-lighter;
+  }
+}
+
+// dialog
+
+.dialog-body {
+  -fx-background-color: $dark-grey;
+}
+.dialog-body-small {
+  -fx-pref-width: 440px;
+}
+.dialog-body-default {
+  -fx-pref-width: 540px;
+}
+.dialog-body-large {
+  -fx-pref-width: 640px;
+}
+
+.dialog-content {
+  -fx-background-color: rgba(0, 0, 0, 0.14);
+  -fx-border-width: 1 0;
+  -fx-border-color: $dark-grey-lighter;
+}
+.dialog-content-padding {
+  -fx-padding: $spacing-larger;
+}
+.dialog-no-content {
+  -fx-pref-height: $spacing-largest;
+}
+
+.dialog-with-content-header {
+  -fx-padding: $spacing-default;
+}
+.dialog-without-content-header {
+  -fx-padding: $spacing-default $spacing-default 0 $spacing-default;
+}
+
+.dialog-with-content-footer {
+  -fx-padding: $spacing-default;
+}
+.dialog-without-content-footer {
+  -fx-padding: 0 $spacing-default $spacing-default $spacing-default;
+}
+
+// text inputs
+
+@mixin text-input-defaults() {
+  @include font-default();
+  @include font-size-default();
+  -fx-highlight-fill: $dark-grey-lightest;
+  -fx-text-fill: $light-grey-lightest;
+  -fx-prompt-text-fill: #54585e;
+  -fx-background-color: $dark-grey-darker;
+  -fx-border-width: 1px;
+
+  &:readonly {
+    @include text-fill-text-color();
+    -fx-background-color: transparent;
+    -fx-focus-traversable: false;
+  }
+}
+
+@mixin text-input-variant($border-color, $highlight-color) {
+  -fx-border-color: $border-color;
+  &:focused { -fx-border-color: $border-color $border-color $highlight-color $border-color; }
+  &:readonly { -fx-border-color: $border-color; }
+}
+
+.text-field {
+  @include text-input-defaults();
+  -fx-padding: 4px 8px;
+  &:focused {
+    -fx-border-width: 1px 1px 2px 1px;
+    -fx-padding: 4px 8px 3px 8px;
+  }
+  &:readonly {
+    -fx-border-width: 1px;
+    -fx-padding: 4px 8px;
+  }
+}
+
+.text-field-default {
+  @include text-input-variant($dark-grey-lighter, $orange);
+}
+
+.text-field-error {
+  @include text-input-variant($red-darker, $red);
+}
+
+.text-area {
+  @include text-input-defaults();
+
+  &:focused {
+    -fx-border-width: 1px 1px 2px 1px;
+    -fx-border-insets: 0px 0px 1px 0px;
+  }
+  .content {
+    -fx-padding: 4px 8px;
+    -fx-background-color: transparent;
+  }
+
+  &:readonly {
+    -fx-border-width: 1px;
+    -fx-border-insets: 0px;
+  }
+}
+.text-area-default {
+  @include text-input-variant($dark-grey-lighter, $orange);
+}
+.text-area-error {
+  @include text-input-variant($red-darker, $red);
+}
+.text-area-borderless {
+  @include text-input-variant(transparent, transparent);
+}
+.text-area-with-dialog-content-padding {
+  .content {
+    -fx-padding: $spacing-larger;
+  }
+}
+
+// scrolling
+
+.scroll-bar {
+  -fx-background-color: transparent;
+  > .thumb {
+    -fx-background-color: $dark-grey-lightest;
+    -fx-background-radius: 5px;
+    -fx-background-insets: 1px;
+    &:hover {
+      -fx-background-color: $light-grey-darker;
+    }
+    &:pressed {
+      -fx-background-color: $light-grey-lightest;
+    }
+  }
+  &:vertical {
+    -fx-pref-width: 10px;
+  }
+  &:horizontal {
+    -fx-pref-height: 10px;
+  }
+  > .increment-button,
+  > .increment-button > .increment-arrow,
+  > .decrement-button,
+  > .decrement-button > .decrement-arrow {
+    -fx-shape: null;
+    -fx-padding: 0;
+  }
+}
+
+.scroll-pane {
+  > .viewport {
+    -fx-background-color: transparent;
+  }
+  > .corner {
+    -fx-background-color: transparent;
+  }
+}
+
+// components
+
+.input-grid-pane {
+  -fx-hgap: $spacing-smaller;
+  -fx-vgap: $spacing-smaller;
+}
+
+.hyperlink {
+  @include font-size-default();
+  @include font-default();
+  -fx-text-fill: $blue;
+  -fx-border-width: 0;
+  -fx-padding: 0;
+  &:visited {
+    -fx-underline: false;
+  }
+  &:hover {
+    -fx-text-fill: $blue-lighter;
+    -fx-underline: true;
+  }
+}
+
+Text {
+  @include font-size-default();
+  @include font-default();
+  -fx-fill: $light-grey;
+}
+
+.progress-bar {
+  -fx-background-radius: 0;
+  -fx-min-width: 140px;
+
+  .bar {
+    -fx-background-color: $blue;
+    -fx-background-insets: 0;
+    -fx-background-radius: 4;
+    -fx-pref-height: 5px;
+  }
+
+  .track {
+    -fx-background-color: $grey;
+  }
+}
+
+.context-menu {
+  -fx-background-color: $grey;
+  -fx-background-radius: 2px;
+  -fx-padding: 5px;
+  .menu-item {
+    &:focused {
+      > .label {
+        -fx-text-fill: $light-grey-lightest;
+      }
+      -fx-background-color: $dark-grey-lightest;
+      -fx-background-radius: 1px;
+    }
+    &:disabled {
+      > .label {
+        @include text-fill-text-color();
+      }
+      -fx-background-color: transparent;
+    }
+  }
+  .separator {
+    -fx-padding: 3 0;
+    > .line {
+      -fx-background-color: $dark-grey-lightest;
+      -fx-border-color: transparent;
+    }
+    &:horizontal > .line {
+      -fx-pref-height: 1;
+    }
+    &:vertical > .line {
+      -fx-pref-width: 1;
+    }
+  }
+}

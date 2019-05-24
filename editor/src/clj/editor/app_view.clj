@@ -6,6 +6,7 @@
             [editor.bundle :as bundle]
             [editor.bundle-dialog :as bundle-dialog]
             [editor.changes-view :as changes-view]
+            [editor.code.data :refer [CursorRange->line-number]]
             [editor.console :as console]
             [editor.debug-view :as debug-view]
             [editor.defold-project :as project]
@@ -16,6 +17,7 @@
             [editor.engine.build-errors :as engine-build-errors]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
+            [editor.fxui :as fxui]
             [editor.game-project :as game-project]
             [editor.github :as github]
             [editor.graph-util :as gu]
@@ -52,6 +54,7 @@
             [util.profiler :as profiler]
             [service.smoke-log :as slog])
   (:import [com.defold.editor Editor]
+           [com.sun.javafx.scene NodeHelper]
            [java.io BufferedReader File IOException]
            [java.net URL]
            [java.util Collection List]
@@ -680,12 +683,19 @@
             (launch-new-engine!))))
       (catch Exception e
         (log/warn :exception e)
-        (dialogs/make-error-dialog (format "Launching %s Failed"
-                                           (if (some? selected-target)
-                                             (targets/target-message-label selected-target)
-                                             "New Local Engine"))
-                                   "If the engine is already running, shut down the process manually and retry."
-                                   (.getMessage e))))))
+        (dialogs/make-info-dialog
+          {:title "Launch Failed"
+           :icon :icon/triangle-error
+           :header {:fx/type :v-box
+                    :children [{:fx/type fxui/label
+                                :variant :header
+                                :text (format "Launching %s failed"
+                                              (if (some? selected-target)
+                                                (targets/target-message-label selected-target)
+                                                "New Local Engine"))}
+                               {:fx/type fxui/label
+                                :text "If the engine is already running, shut down the process manually and retry"}]}
+           :content (.getMessage e)})))))
 
 (defn async-build! [project evaluation-context prefs {:keys [debug? engine?] :or {debug? false engine? true}} old-artifact-map render-build-progress! result-fn]
   (assert (not @build-in-progress?))
@@ -763,9 +773,15 @@
   [project]
   (if (project/shared-script-state? project)
     true
-    (do (dialogs/make-alert-dialog "This project cannot be used with the debugger because it is configured to disable shared script state.
+    (do (dialogs/make-info-dialog
+          {:title "Debugging Not Supported"
+           :icon :icon/triangle-error
+           :header "This project cannot be used with the debugger"
+           :content {:fx/type fxui/label
+                     :style-class "dialog-content-padding"
+                     :text "It is configured to disable shared script state.
 
-If you do not specifically require different script states, consider changing the script.shared_state property in game.project.")
+If you do not specifically require different script states, consider changing the script.shared_state property in game.project."}})
         false)))
 
 (defn- run-with-debugger! [workspace project prefs debug-view render-build-error! web-server]
@@ -892,10 +908,12 @@ If you do not specifically require different script states, consider changing th
                           (when-some [updated-build-resources (not-empty (updated-build-resources evaluation-context project old-etags etags "/game.project"))]
                             (engine/reload-build-resources! target updated-build-resources))
                           (catch Exception e
-                            (dialogs/make-error-dialog "Hot Reload Failed"
-                                                       (format "Failed to reload resources on '%s'"
-                                                               (targets/target-message-label (targets/selected-target prefs)))
-                                                       (.getMessage e))))))))))
+                            (dialogs/make-info-dialog
+                              {:title "Hot Reload Failed"
+                               :icon :icon/triangle-error
+                               :header (format "Failed to reload resources on '%s'"
+                                               (targets/target-message-label (targets/selected-target prefs)))
+                               :content (.getMessage e)})))))))))
 
 (handler/defhandler :hot-reload :global
   (enabled? [debug-view prefs evaluation-context]
@@ -1455,16 +1473,20 @@ If you do not specifically require different script states, consider changing th
                               (first (:view-types resource-type)))
                             text-view-type)]
      (if (resource-node/defective? resource-node)
-       (do (dialogs/make-alert-dialog (format "Unable to open '%s', since it appears damaged." (resource/proj-path resource)))
+       (do (dialogs/make-info-dialog
+             {:title "Unable to Open Resource"
+              :icon :icon/triangle-error
+              :header (format "Unable to open '%s', since it appears damaged" (resource/proj-path resource))})
            false)
        (if-let [custom-editor (and (#{:code :text} (:id view-type))
                                    (let [ed-pref (some->
                                                    (prefs/get-prefs prefs "code-custom-editor" "")
                                                    string/trim)]
                                      (and (not (string/blank? ed-pref)) ed-pref)))]
-         (let [arg-tmpl (string/trim (if (:line opts) (prefs/get-prefs prefs "code-open-file-at-line" "{file}:{line}") (prefs/get-prefs prefs "code-open-file" "{file}")))
+         (let [cursor-range (:cursor-range opts)
+               arg-tmpl (string/trim (if cursor-range (prefs/get-prefs prefs "code-open-file-at-line" "{file}:{line}") (prefs/get-prefs prefs "code-open-file" "{file}")))
                arg-sub (cond-> {:file (resource/abs-path resource)}
-                               (:line opts) (assoc :line (:line opts)))
+                               cursor-range (assoc :line (CursorRange->line-number cursor-range)))
                args (->> (string/split arg-tmpl #" ")
                          (map #(substitute-args % arg-sub)))]
            (doto (ProcessBuilder. ^List (cons custom-editor args))
@@ -1487,12 +1509,11 @@ If you do not specifically require different script states, consider changing th
                                            resource-type view-type make-view-fn active-tab-pane-tabs opts)))]
              (.select (.getSelectionModel (.getTabPane tab)) tab)
              (when-let [focus (:focus-fn view-type)]
-               (ui/run-later
-                 ;; We run-later so javafx has time to squeeze in a
-                 ;; layout pass. The focus function of some views
-                 ;; needs proper width + height (f.i. code view for
-                 ;; scrolling to selected line).
-                 (focus (ui/user-data tab ::view) opts)))
+               ;; Force layout pass since the focus function of some views
+               ;; needs proper width + height (f.i. code view for
+               ;; scrolling to selected line).
+               (NodeHelper/layoutNodeForPrinting (.getRoot ^Scene (g/node-value app-view :scene)))
+               (focus (ui/user-data tab ::view) opts))
              ;; Do an initial rendering so it shows up as fast as possible.
              (ui/run-later (refresh-scene-views! app-view)
                            (ui/run-later (slog/smoke-log "opened-resource")))
@@ -1501,11 +1522,12 @@ If you do not specifically require different script states, consider changing th
                                   (resource/temp-path resource))
                  ^File f (File. path)]
              (ui/open-file f (fn [msg]
-                               (let [lines [(format "Could not open '%s'." (.getName f))
-                                            "This can happen if the file type is not mapped to an application in your OS."
-                                            "Underlying error from the OS:"
-                                            msg]]
-                                 (ui/run-later (dialogs/make-alert-dialog (string/join "\n" lines))))))
+                               (ui/run-later
+                                 (dialogs/make-info-dialog
+                                   {:title "Could Not Open File"
+                                    :icon :icon/triangle-error
+                                    :header (format "Could not open '%s'" (.getName f))
+                                    :content (str "This can happen if the file type is not mapped to an application in your OS.\n\nUnderlying error from the OS:\n" msg)}))))
              false)))))))
 
 (handler/defhandler :open :global
@@ -1754,7 +1776,11 @@ If you do not specifically require different script states, consider changing th
                              (when successful?
                                (if (some-> output-directory .isDirectory)
                                  (ui/open-file output-directory)
-                                 (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again.")))))))
+                                 (dialogs/make-info-dialog
+                                   {:title "Bundle Failed"
+                                    :icon :icon/triangle-error
+                                    :size :large
+                                    :header "Failed to bundle project, please fix build errors and try again"})))))))
 
 (handler/defhandler :bundle :global
   (run [user-data workspace project prefs app-view changes-view build-errors-view main-stage tool-tab-pane]
@@ -1774,10 +1800,13 @@ If you do not specifically require different script states, consider changing th
   (let [library-uris (project/project-dependencies project)
         hosts (into #{} (map url/strip-path) library-uris)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
-      (dialogs/make-alert-dialog (string/join "\n" ["Fetch was aborted because the following host could not be reached:"
-                                                    (str "\u00A0\u00A0\u2022\u00A0" first-unreachable-host) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
-                                                    ""
-                                                    "Please verify internet connection and try again."]))
+      (dialogs/make-info-dialog
+        {:title "Fetch Failed"
+         :icon :icon/triangle-error
+         :size :large
+         :header "Fetch was aborted because a host could not be reached"
+         :content (str "Unreachable host: " first-unreachable-host
+                       "\n\nPlease verify internet connection and try again.")})
       (future
         (error-reporting/catch-all!
           (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
@@ -1833,7 +1862,13 @@ If you do not specifically require different script states, consider changing th
           (let [main-scene (.getScene ^Stage main-stage)
                 render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
             (if (engine-build-errors/handle-build-error! render-build-error! project evaluation-context error)
-              (dialogs/make-alert-dialog "Failed to build ipa with Native Extensions. Please fix build errors and try again.")
+              (dialogs/make-info-dialog
+                {:title "Build Failed"
+                 :icon :icon/triangle-error
+                 :header "Failed to build ipa with native extensions, please fix build errors and try again"})
               (do (error-reporting/report-exception! error)
                   (when-let [message (:message result)]
-                    (dialogs/make-alert-dialog message))))))))))
+                    (dialogs/make-info-dialog
+                      {:title "Error"
+                       :icon :icon/triangle-error
+                       :header message}))))))))))

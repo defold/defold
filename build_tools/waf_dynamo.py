@@ -696,10 +696,14 @@ def _strip_executable(bld, platform, target_arch, path):
 AUTHENTICODE_CERTIFICATE="Midasplayer Technology AB"
 
 def authenticode_certificate_installed(task):
+    if Options.options.skip_codesign:
+        return 0
     ret = task.exec_command('powershell "Get-ChildItem cert: -Recurse | Where-Object {$_.FriendlyName -Like """%s*"""} | Measure | Foreach-Object { exit $_.Count }"' % AUTHENTICODE_CERTIFICATE, log=True)
     return ret > 0
 
 def authenticode_sign(task):
+    if Options.options.skip_codesign:
+        return
     exe_file = task.inputs[0].abspath(task.env)
     exe_file_to_sign = task.inputs[0].change_ext('_to_sign.exe').abspath(task.env)
     exe_file_signed = task.outputs[0].abspath(task.env)
@@ -799,9 +803,6 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
 
         <!-- Disable Firebase Analytics -->
         <meta-data android:name="firebase_analytics_collection_deactivated" android:value="true" />
-        <!-- For Facebook -->
-        <meta-data android:name="com.facebook.sdk.ApplicationName"
-            android:value="%(app_name)s" />
 
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="%(app_name)s"
@@ -817,10 +818,6 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
             </intent-filter>
         </activity>
         <activity android:name="com.dynamo.android.DispatcherActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-        <activity android:name="com.facebook.FacebookActivity"
-          android:theme="@android:style/Theme.Translucent.NoTitleBar"
-          android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
-          android:label="%(app_name)s" />
         <activity android:name="com.defold.iap.IapGooglePlayActivity"
           android:theme="@android:style/Theme.Translucent.NoTitleBar"
           android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
@@ -938,8 +935,7 @@ def android_package(task):
     # After the release of 1.2.149 Facebook dialogs stopped working, unless the engine was built
     # on NE server. It was narrowed down to what order the res dirs were listed in the aapt
     # argument list and now we use the same order on all places.
-    res_dirs = ["%s/ext/share/java/res/facebook" % dynamo_home,
-                "%s/ext/share/java/res/com.android.support.support-compat-27.1.1" % dynamo_home,
+    res_dirs = ["%s/ext/share/java/res/com.android.support.support-compat-27.1.1" % dynamo_home,
                 "%s/ext/share/java/res/com.android.support.support-core-ui-27.1.1" % dynamo_home,
                 "%s/ext/share/java/res/com.android.support.support-media-compat-27.1.1" % dynamo_home,
                 "%s/ext/share/java/res/com.google.android.gms.play-services-base-16.0.1" % dynamo_home,
@@ -1494,11 +1490,40 @@ def _find_msvc_installs():
                 continue
     return list(set(installs))
 
-def find_installed_msvc_versions(conf):
-    versions = []
-    for version, product_dir in _find_msvc_installs():
-        versions.append(('msvc '+ version, _get_msvc_target_support(conf, product_dir, version)))
-    return versions
+def get_msvc_version(conf, platform):
+    dynamo_home = conf.env['DYNAMO_HOME']
+    msvcdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'MicrosoftVisualStudio14.0')
+    windowskitsdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'WindowsKits')
+
+    if not os.path.exists(msvcdir):
+        msvcdir = os.path.normpath(os.path.join(os.environ['VS140COMNTOOLS'], '..', '..'))
+        windowskitsdir = os.path.join(os.environ['ProgramFiles(x86)'], 'Windows Kits')
+
+    target_map = {'win32': 'x86',
+                   'x86_64-win32': 'x64'}
+    platform_map = {'win32': '',
+                    'x86_64-win32': 'amd64'}
+
+    msvc_path = (os.path.join(msvcdir,'VC','bin', platform_map[platform]),
+                os.path.join(windowskitsdir,'8.1','bin',target_map[platform]))
+
+    includes = [os.path.join(msvcdir,'VC','include'),
+                os.path.join(msvcdir,'VC','atlmfc','include'),
+                os.path.join(windowskitsdir,'10','Include','10.0.10240.0','ucrt'),
+                os.path.join(windowskitsdir,'8.1','Include','winrt'),
+                os.path.join(windowskitsdir,'8.1','Include','um'),
+                os.path.join(windowskitsdir,'8.1','Include','shared')]
+    libdirs = [ os.path.join(msvcdir,'VC','lib','amd64'),
+                os.path.join(msvcdir,'VC','atlmfc','lib','amd64'),
+                os.path.join(windowskitsdir,'10','Lib','10.0.10240.0','ucrt','x64'),
+                os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um','x64')]
+    if platform == 'win32':
+        libdirs = [os.path.join(msvcdir,'VC','lib'),
+                    os.path.join(msvcdir,'VC','atlmfc','lib'),
+                    os.path.join(windowskitsdir,'10','Lib','10.0.10240.0','ucrt','x86'),
+                    os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um','x86')]
+
+    return msvc_path, includes, libdirs
 
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
@@ -1545,28 +1570,16 @@ def detect(conf):
     conf.env['DYNAMO_HOME'] = dynamo_home
 
     if 'win32' in platform:
-        target_map = {'win32': 'x86',
-                      'x86_64-win32': 'x64'}
-        platform_map = {'win32': 'x86',
-                        'x86_64-win32': 'amd64'}
+        if platform == 'x86_64-win32':
+            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', get_msvc_version(conf, 'x86_64-win32')))])]
+        else:
+            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', get_msvc_version(conf, 'win32')))])]
 
-        desired_version = 'msvc 14.0'
-
-        versions = find_installed_msvc_versions(conf)
-        conf.env['MSVC_INSTALLED_VERSIONS'] = versions
-        conf.env['MSVC_TARGETS'] = target_map[platform]
-        conf.env['MSVC_VERSIONS'] = [desired_version]
-
-        search_path = None
-        for (msvc_version, targets) in conf.env['MSVC_INSTALLED_VERSIONS']:
-            if msvc_version == desired_version:
-                for (target, (target_platform, paths)) in targets:
-                    if target == target_map[platform] and target_platform == platform_map[platform]:
-                        search_path = paths[0]
-        if search_path == None:
-            conf.fatal("Unable to determine search path for platform: %s" % platform)
-
-        conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = search_path)
+        target_map = {'win32': 'x86', 'x86_64-win32': 'x64'}
+        windowskitsdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'WindowsKits')
+        if not os.path.exists(windowskitsdir):
+            windowskitsdir = os.path.join(os.environ['ProgramFiles(x86)'], 'Windows Kits')
+        conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = [os.path.join(windowskitsdir, '8.1','bin', target_map[platform] )])
 
     if  build_util.get_target_os() in ('osx', 'ios'):
         conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True) # or possibly llvm-dsymutil
