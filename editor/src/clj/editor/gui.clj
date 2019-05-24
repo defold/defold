@@ -2905,8 +2905,17 @@
           (= :type-text (:type node))
           (dissoc :size-mode)))
 
+(def ^:private sanitize-nodes #(mapv sanitize-node %))
+
+(defn- sanitize-layout [layout]
+  (update layout :nodes sanitize-nodes))
+
+(def ^:private sanitize-layouts #(mapv sanitize-layout %))
+
 (defn- sanitize-scene [scene]
-  (update scene :nodes (partial mapv sanitize-node)))
+  (-> scene
+      (update :nodes sanitize-nodes)
+      (update :layouts sanitize-layouts)))
 
 (defn- register [workspace def]
   (let [ext (:ext def)
