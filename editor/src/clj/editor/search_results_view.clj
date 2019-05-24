@@ -1,6 +1,7 @@
 (ns editor.search-results-view
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.code.data :as data]
             [editor.core :as core]
             [editor.defold-project-search :as project-search]
             [editor.jfx :as jfx]
@@ -157,12 +158,15 @@
                     [item {}])
                   (let [resource (:resource item)]
                     (when (resource/exists? resource)
-                      ;; NOTE: :line and :caret-position are here to support
-                      ;; Open in External Editor and Open as Text, respectively.
-                      ;; :row, :start-col and :end-col are used by the code editor.
-                      (let [opts (-> item
-                                     (select-keys [:row :start-col :end-col :caret-position])
-                                     (assoc :line (inc (:row item))))]
+                      (let [row (:row item)
+                            cursor-range (data/->CursorRange (data/->Cursor row (:start-col item))
+                                                             (data/->Cursor row (:end-col item)))
+                            ;; NOTE:
+                            ;; :caret-position is here to support Open as Text.
+                            ;; We might want to remove it now that all text
+                            ;; files are opened using the code editor.
+                            opts {:caret-position (:caret-position item)
+                                  :cursor-range cursor-range}]
                         [resource opts]))))))
         selection))
 

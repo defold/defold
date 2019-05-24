@@ -6,6 +6,7 @@
             [editor.bundle :as bundle]
             [editor.bundle-dialog :as bundle-dialog]
             [editor.changes-view :as changes-view]
+            [editor.code.data :refer [CursorRange->line-number]]
             [editor.console :as console]
             [editor.debug-view :as debug-view]
             [editor.defold-project :as project]
@@ -1482,9 +1483,10 @@ If you do not specifically require different script states, consider changing th
                                                    (prefs/get-prefs prefs "code-custom-editor" "")
                                                    string/trim)]
                                      (and (not (string/blank? ed-pref)) ed-pref)))]
-         (let [arg-tmpl (string/trim (if (:line opts) (prefs/get-prefs prefs "code-open-file-at-line" "{file}:{line}") (prefs/get-prefs prefs "code-open-file" "{file}")))
+         (let [cursor-range (:cursor-range opts)
+               arg-tmpl (string/trim (if cursor-range (prefs/get-prefs prefs "code-open-file-at-line" "{file}:{line}") (prefs/get-prefs prefs "code-open-file" "{file}")))
                arg-sub (cond-> {:file (resource/abs-path resource)}
-                               (:line opts) (assoc :line (:line opts)))
+                               cursor-range (assoc :line (CursorRange->line-number cursor-range)))
                args (->> (string/split arg-tmpl #" ")
                          (map #(substitute-args % arg-sub)))]
            (doto (ProcessBuilder. ^List (cons custom-editor args))

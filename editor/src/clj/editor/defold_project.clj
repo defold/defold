@@ -34,8 +34,9 @@
 
 (def ^:dynamic *load-cache* nil)
 
-(def ^:private TBreakpoint {:resource s/Any
-                            :line     Long})
+(def ^:private TBreakpoint
+  {:resource s/Any
+   :row Long})
 
 (g/deftype Breakpoints [TBreakpoint])
 
