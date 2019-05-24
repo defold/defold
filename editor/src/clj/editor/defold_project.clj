@@ -225,6 +225,8 @@
              (g/connect game-project :display-profiles-data project :display-profiles)
              (g/connect game-project :texture-profiles-data project :texture-profiles)
              (g/connect game-project :settings-map project :settings))))
+       ;; Prime the auto completion cache
+       (g/node-value (script-intelligence project) :lua-completions)
        project))))
 
 (defn make-embedded-resource [project type data]

@@ -152,8 +152,7 @@
     (concat (g/connect self :completions si :lua-completions)
             (g/connect self :build-errors si :build-errors)
             (when (resource/file-resource? resource)
-              (g/connect self :save-data project :save-data))
-            ((var-get #'r/eager-load) self resource))))
+              (g/connect self :save-data project :save-data)))))
 
 (defn register-resource-types
   [workspace]
