@@ -310,6 +310,10 @@ static void LogFrameBufferError(GLenum status)
         return 0x0;
     }
 
+    void PreDeleteContext(HContext context)
+    {
+    }
+
     void DeleteContext(HContext context)
     {
         if (context != 0x0)

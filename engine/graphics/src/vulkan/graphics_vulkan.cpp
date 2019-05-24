@@ -2858,8 +2858,15 @@ namespace dmGraphics
             return true;
         }
 
-        static void CloseWindow()
+        static void Syncronize()
         {
+            VK_CHECK(vkQueueWaitIdle(g_vk_context.m_PresentQueue));
+        }
+
+        static void Destroy()
+        {
+            Syncronize();
+
             // Todo: Add cleanup of everything created from openwindow..
             for(uint8_t i=0; i < g_vk_max_frames_in_flight; i++)
             {
@@ -2867,8 +2874,6 @@ namespace dmGraphics
                 vkDestroySemaphore(g_vk_context.m_LogicalDevice, g_vk_context.m_FrameResources[i].m_RenderFinished, 0);
                 vkDestroyFence(g_vk_context.m_LogicalDevice, g_vk_context.m_FrameResources[i].m_SubmitFence, 0);
             }
-
-            VK_CHECK(vkQueueWaitIdle(g_vk_context.m_PresentQueue));
         }
 
         static void Clear(float r, float g, float b, float a, float d, float s)
@@ -3084,9 +3089,15 @@ namespace dmGraphics
         }
     }
 
+    void PreDeleteContext(HContext context)
+    {
+        Vulkan::Syncronize();
+    }
+
     void DeleteContext(HContext context)
     {
         assert(context);
+        Vulkan::Destroy();
         if (g_Context)
         {
             delete context;
@@ -3179,7 +3190,7 @@ namespace dmGraphics
             context->m_WindowWidth = 0;
             context->m_WindowHeight = 0;
 
-            Vulkan::CloseWindow();
+            // Vulkan::CloseWindow();
         }
     }
 

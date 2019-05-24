@@ -226,6 +226,8 @@ namespace dmEngine
 
     void Delete(HEngine engine)
     {
+        dmGraphics::PreDeleteContext(engine->m_GraphicsContext);
+
         if (engine->m_MainCollection)
             dmResource::Release(engine->m_Factory, engine->m_MainCollection);
         dmGameObject::PostUpdate(engine->m_Register);

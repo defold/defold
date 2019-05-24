@@ -431,6 +431,7 @@ namespace dmGraphics
 
     // JG: Figure this out!
     void BeginFrame(HContext context);
+    void PreDeleteContext(HContext context);
 
     /**
      * Get the window refresh rate

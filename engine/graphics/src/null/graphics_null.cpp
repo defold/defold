@@ -73,6 +73,10 @@ namespace dmGraphics
         }
     }
 
+    void PreDeleteContext(HContext context)
+    {
+    }
+
     void DeleteContext(HContext context)
     {
         assert(context);
