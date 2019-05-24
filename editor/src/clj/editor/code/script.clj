@@ -15,8 +15,8 @@
             [editor.resource :as resource]
             [editor.types :as t]
             [editor.workspace :as workspace])
-  (:import com.dynamo.lua.proto.Lua$LuaModule
-           com.google.protobuf.ByteString))
+  (:import [com.dynamo.lua.proto Lua$LuaModule]
+           [com.google.protobuf ByteString]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)

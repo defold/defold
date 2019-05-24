@@ -578,7 +578,7 @@
   (property all-selections g/Any)
   (property all-sub-selections g/Any)
 
-  (input script-intelligence g/Int :cascade-delete)
+  (input script-intelligence g/NodeID :cascade-delete)
   (input all-selected-node-ids g/Any :array)
   (input all-selected-node-properties g/Any :array)
   (input resources g/Any)

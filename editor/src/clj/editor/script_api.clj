@@ -38,12 +38,18 @@
             (map #(convert (assoc % :ns name))))
           members)))
 
+(defn- bracketname?
+  [x]
+  (= \[ (first (:name x))))
+
+(defn- optional-param?
+  [x]
+  (or (:optional x) (bracketname? x)))
+
 (defn- param-names
   [params remove-optional?]
-  (let [bracketname? (fn [x] (= \[ (first (:name x))))
-        optional? (fn [x] (or (:optional x) (bracketname? x)))
-        filter-optionals (if remove-optional?
-                           (filter #(not (optional? %)))
+  (let [filter-optionals (if remove-optional?
+                           (filter #(not (optional-param? %)))
                            (map #(if (and (:optional %) (not (bracketname? %)))
                                    (assoc % :name (str "[" (:name %) "]"))
                                    %)))]
