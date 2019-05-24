@@ -53,6 +53,7 @@
             [util.profiler :as profiler]
             [service.smoke-log :as slog])
   (:import [com.defold.editor Editor]
+           [com.sun.javafx.scene NodeHelper]
            [java.io BufferedReader File IOException]
            [java.net URL]
            [java.util Collection List]
@@ -1506,12 +1507,11 @@ If you do not specifically require different script states, consider changing th
                                            resource-type view-type make-view-fn active-tab-pane-tabs opts)))]
              (.select (.getSelectionModel (.getTabPane tab)) tab)
              (when-let [focus (:focus-fn view-type)]
-               (ui/run-later
-                 ;; We run-later so javafx has time to squeeze in a
-                 ;; layout pass. The focus function of some views
-                 ;; needs proper width + height (f.i. code view for
-                 ;; scrolling to selected line).
-                 (focus (ui/user-data tab ::view) opts)))
+               ;; Force layout pass since the focus function of some views
+               ;; needs proper width + height (f.i. code view for
+               ;; scrolling to selected line).
+               (NodeHelper/layoutNodeForPrinting (.getRoot ^Scene (g/node-value app-view :scene)))
+               (focus (ui/user-data tab ::view) opts))
              ;; Do an initial rendering so it shows up as fast as possible.
              (ui/run-later (refresh-scene-views! app-view)
                            (ui/run-later (slog/smoke-log "opened-resource")))
