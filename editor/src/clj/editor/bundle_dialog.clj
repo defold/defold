@@ -4,6 +4,7 @@
             [editor.bundle :as bundle]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
+            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.prefs :as prefs]
             [editor.system :as system]
@@ -36,12 +37,29 @@
                     (catch SecurityException _
                       false))]
     (if-not writable?
-      (do (dialogs/make-alert-dialog (str "Cannot create directory at \"" (.getAbsolutePath existing-entry) "\". You might not have permission to write to that directory, or there might be a file with the same name as the directory we're trying to create."))
+      (do (dialogs/make-info-dialog
+            {:title "Cannot Overwrite"
+             :icon :icon/triangle-error
+             :header "Cannot create a directory"
+             :content {:text (str "Cannot create directory at \"" (.getAbsolutePath existing-entry) "\". You might not have permission to write to that directory, or there might be a file with the same name as the directory we're trying to create.")
+                       :wrap-text true}})
           false)
-      (dialogs/make-confirm-dialog (str "A directory already exists at \"" (.getAbsolutePath existing-entry) "\".")
-                                   {:title "Overwrite Existing Directory?"
-                                    :ok-label "Overwrite"
-                                    :owner-window owner-window}))))
+      (dialogs/make-confirmation-dialog
+        {:title "Overwrite Existing Directory?"
+         :owner owner-window
+         :icon :icon/circle-question
+         :header {:fx/type :v-box
+                  :children [{:fx/type fxui/label
+                              :variant :header
+                              :text "A directory already exists"}
+                             {:fx/type fxui/label
+                              :text (format "Overwrite \"%s\"?" (.getAbsolutePath existing-entry))}]}
+         :buttons [{:text "Cancel"
+                    :cancel-button true
+                    :result false}
+                   {:text "Overwrite"
+                    :default-button true
+                    :result true}]}))))
 
 (defn- get-file
   ^File [^TextField text-field]
@@ -258,6 +276,18 @@
   (set-options! [_this options]
     (set-generic-options! view options workspace)))
 
+(defn- make-labeled-check-box
+  ^CheckBox [^String label ^String id ^Boolean default-value refresh!]
+  (doto (if (some? label)
+          (CheckBox. label)
+          (CheckBox.))
+    (ui/add-style! "labeled-check-box")
+    (.setMnemonicParsing false)
+    (.setId id)
+    (.setFocusTraversable false)
+    (ui/on-action! refresh!)
+    (ui/value! default-value)))
+
 ;; -----------------------------------------------------------------------------
 ;; Selectable platform
 ;; -----------------------------------------------------------------------------
@@ -324,42 +354,59 @@
   (assert (fn? refresh!))
   (let [make-file-field (partial make-file-field refresh! owner-window)
         certificate-file-field (make-file-field "certificate-text-field" "Choose Certificate" [["Certificates (*.pem)" "*.pem"]])
-        private-key-file-field (make-file-field "private-key-text-field" "Choose Private Key" [["Private Keys (*.pk8)" "*.pk8"]])]
+        private-key-file-field (make-file-field "private-key-text-field" "Choose Private Key" [["Private Keys (*.pk8)" "*.pk8"]])
+        architecture-controls (doto (VBox.)
+                                    (ui/children! [(make-labeled-check-box "32-bit (armv7)" "architecture-32bit-check-box" true refresh!)
+                                                   (make-labeled-check-box "64-bit (arm64)" "architecture-64bit-check-box" true refresh!)]))]
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "android")
       (ui/children! [(labeled! "Certificate" certificate-file-field)
-                     (labeled! "Private key" private-key-file-field)]))))
+                     (labeled! "Private key" private-key-file-field)
+                     (labeled! "Architectures" architecture-controls)]))))
 
 (defn- load-android-prefs! [prefs view]
-  (ui/with-controls view [certificate-text-field private-key-text-field]
+  (ui/with-controls view [certificate-text-field private-key-text-field architecture-32bit-check-box architecture-64bit-check-box]
     (ui/value! certificate-text-field (get-string-pref prefs "bundle-android-certificate"))
-    (ui/value! private-key-text-field (get-string-pref prefs "bundle-android-private-key"))))
+    (ui/value! private-key-text-field (get-string-pref prefs "bundle-android-private-key"))
+    (ui/value! architecture-32bit-check-box (prefs/get-prefs prefs "bundle-android-architecture-32bit?" true))
+    (ui/value! architecture-64bit-check-box (prefs/get-prefs prefs "bundle-android-architecture-64bit?" false))))
 
 (defn- save-android-prefs! [prefs view]
-  (ui/with-controls view [certificate-text-field private-key-text-field]
+  (ui/with-controls view [certificate-text-field private-key-text-field architecture-32bit-check-box architecture-64bit-check-box]
     (set-string-pref! prefs "bundle-android-certificate" (ui/value certificate-text-field))
-    (set-string-pref! prefs "bundle-android-private-key" (ui/value private-key-text-field))))
+    (set-string-pref! prefs "bundle-android-private-key" (ui/value private-key-text-field))
+    (prefs/set-prefs prefs "bundle-android-architecture-32bit?" (ui/value architecture-32bit-check-box))
+    (prefs/set-prefs prefs "bundle-android-architecture-64bit?" (ui/value architecture-64bit-check-box))))
 
 (defn- get-android-options [view]
-  (ui/with-controls view [certificate-text-field private-key-text-field]
-    {:certificate (get-file certificate-text-field)
+  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box certificate-text-field private-key-text-field]
+    {:architecture-32bit? (ui/value architecture-32bit-check-box)
+     :architecture-64bit? (ui/value architecture-64bit-check-box)
+     :certificate (get-file certificate-text-field)
      :private-key (get-file private-key-text-field)}))
 
-(defn- set-android-options! [view {:keys [certificate private-key] :as _options} issues]
-  (ui/with-controls view [certificate-text-field private-key-text-field ok-button]
+(defn- set-android-options! [view {:keys [architecture-32bit? architecture-64bit? certificate private-key] :as _options} issues]
+  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box certificate-text-field private-key-text-field ok-button]
     (doto certificate-text-field
       (set-file! certificate)
       (set-field-status! (:certificate issues)))
     (doto private-key-text-field
       (set-file! private-key)
       (set-field-status! (:private-key issues)))
-    (ui/enable! ok-button (or (and (nil? certificate)
-                                   (nil? private-key))
-                              (and (existing-file-of-type? "pem" certificate)
-                                   (existing-file-of-type? "pk8" private-key))))))
+    (doto architecture-32bit-check-box
+      (ui/value! architecture-32bit?)
+      (set-field-status! (:architecture issues)))
+    (doto architecture-64bit-check-box
+      (ui/value! architecture-64bit?)
+      (set-field-status! (:architecture issues)))
+    (ui/enable! ok-button (and (nil? (:architecture issues))
+                               (or (and (nil? certificate)
+                                        (nil? private-key))
+                                   (and (existing-file-of-type? "pem" certificate)
+                                        (existing-file-of-type? "pk8" private-key)))))))
 
-(defn- get-android-issues [{:keys [certificate private-key] :as _options}]
+(defn- get-android-issues [{:keys [certificate private-key architecture-32bit? architecture-64bit?] :as _options}]
   {:general (when (and (nil? certificate) (nil? private-key))
               [:info "Set certificate and private key, or leave blank to sign APK with an auto-generated debug certificate."])
    :certificate (cond
@@ -379,7 +426,9 @@
                   [:fatal "Invalid private key."]
 
                   (and (some? certificate) (nil? private-key))
-                  [:fatal "Private key must be set if certificate is specified."])})
+                  [:fatal "Private key must be set if certificate is specified."])
+   :architecture (when-not (or architecture-32bit? architecture-64bit?)
+                   [:fatal "At least one architecture must be selected."])})
 
 (deftype AndroidBundleOptionsPresenter [workspace view variant-choices]
   BundleOptionsPresenter
@@ -402,7 +451,7 @@
     (let [issues (get-android-issues options)]
       (set-generic-options! view options workspace)
       (set-android-options! view options issues)
-      (set-generic-headers! view issues [:certificate :private-key]))))
+      (set-generic-headers! view issues [:architecture :certificate :private-key]))))
 
 ;; -----------------------------------------------------------------------------
 ;; iOS
@@ -410,16 +459,6 @@
 
 (defn- get-code-signing-identity-names []
   (mapv second (bundle/find-identities)))
-
-(defn- make-labeled-check-box ^CheckBox [^String label ^String id ^Boolean default-value refresh!]
-  (doto (if (some? label)
-          (CheckBox. label)
-          (CheckBox.))
-    (ui/add-style! "labeled-check-box")
-    (.setId id)
-    (.setFocusTraversable false)
-    (ui/on-action! refresh!)
-    (ui/value! default-value)))
 
 (defn- make-ios-controls [refresh! owner-window]
   (assert (fn? refresh!))
@@ -436,9 +475,9 @@
                                                             (fromString [label]
                                                               (if (= no-identity-label label) nil label)))))
         architecture-controls (doto (VBox.)
-                                (ui/children! [(make-labeled-check-box "32-bit" "architecture-32bit-check-box" true refresh!)
-                                               (make-labeled-check-box "64-bit" "architecture-64bit-check-box" true refresh!)
-                                               (make-labeled-check-box "Simulator" "architecture-simulator-check-box" false refresh!)]))]
+                                (ui/children! [(make-labeled-check-box "32-bit (armv7)" "architecture-32bit-check-box" true refresh!)
+                                               (make-labeled-check-box "64-bit (arm64)" "architecture-64bit-check-box" true refresh!)
+                                               (make-labeled-check-box "Simulator (x86_64)" "architecture-simulator-check-box" false refresh!)]))]
     (ui/on-action! code-signing-identity-choice-box refresh!)
     (doto (VBox.)
       (ui/add-style! "settings")

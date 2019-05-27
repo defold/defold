@@ -203,7 +203,10 @@ public abstract class LuaBuilder extends Builder<Void> {
 
         srcBuilder.setFilename(task.input(0).getPath());
 
-        if (needsLuaSource.contains(project.getPlatform())) {
+        // Mostly used for our CI when we wish to run using ASAN (which doesn't like setjmp)
+        boolean use_vanilla_lua = this.project.option("use-vanilla-lua", "false").equals("true");
+
+        if (needsLuaSource.contains(project.getPlatform()) || use_vanilla_lua) {
             srcBuilder.setScript(ByteString.copyFrom(scriptBytesStripped));
         } else {
             byte[] bytecode = constructBytecode(task, "luajit-32", scriptBytesStripped);

@@ -211,6 +211,11 @@ namespace dmGui
         return (NodeProxy*)dmScript::CheckUserType(L, index, NODE_PROXY_TYPE_HASH, 0);
     }
 
+    static bool LuaIsNode(lua_State *L, int index)
+    {
+        return dmScript::GetUserType(L, index) == NODE_PROXY_TYPE_HASH;
+    }
+
     static bool IsValidNode(HScene scene, HNode node)
     {
         uint16_t version = (uint16_t) (node >> 16);
@@ -2794,8 +2799,6 @@ namespace dmGui
     /*# determines if the node is pickable by the supplied coordinates
      * Tests whether a coordinate is within the bounding box of a
      * node.
-     *
-     * @note The check returns false if the node, or any of its parents, is disabled
      *
      * @name gui.pick_node
      * @param node [type:node] node to be tested for picking

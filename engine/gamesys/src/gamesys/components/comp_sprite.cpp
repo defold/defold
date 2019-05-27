@@ -646,16 +646,17 @@ namespace dmGameSystem
                     frame_count = dmMath::Max(1u, frame_count * 2 - 2);
                 }
                 uint32_t frame = dmMath::Min(frame_count - 1, (uint32_t)(t * frame_count));
+                uint32_t frame_current = component->m_CurrentAnimationFrame;
                 if (frame >= interval) {
                     frame = 2 * (interval - 1) - frame;
                 }
 
-                if (frame != component->m_CurrentAnimationFrame)
+                component->m_CurrentAnimationFrame = frame;
+
+                if (frame != frame_current)
                 {
                     component->m_Size = GetSize(component, texture_set_ddf, component->m_AnimationID);
                 }
-
-                component->m_CurrentAnimationFrame = frame;
             }
         }
     }

@@ -49,7 +49,8 @@ function luajit_configure() {
 		armv7-android)
 			TAR_SKIP_BIN=1
 			XFLAGS="-DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT"
-			CROSS="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/${platform}-x86_64/bin/arm-linux-androideabi-"
+			export CROSS="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/${platform}-x86_64/bin/arm-linux-androideabi-"
+			export CC="gcc"
 			export HOST_CC="gcc -m32"
 			export HOST_CFLAGS="$XFLAGS -m32 -I."
 			export HOST_ALDFLAGS="-m32"
@@ -57,7 +58,8 @@ function luajit_configure() {
 		arm64-android)
 			TAR_SKIP_BIN=1
 			XFLAGS="-DLUAJIT_ENABLE_GC64 -DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT"
-			CROSS="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/aarch64-linux-android-${ANDROID_64_GCC_VERSION}/prebuilt/${platform}-x86_64/bin/aarch64-linux-android-"
+			export CROSS="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/aarch64-linux-android-${ANDROID_64_GCC_VERSION}/prebuilt/${platform}-x86_64/bin/aarch64-linux-android-"
+			export CC="gcc"
 			export HOST_CC="gcc -m64"
 			export HOST_CFLAGS="$XFLAGS -m64 -I."
 			export HOST_ALDFLAGS="-m64"
@@ -84,9 +86,6 @@ function luajit_configure() {
 	# These will be used for the cross compiling
 	export TARGET_TCFLAGS="$CFLAGS $XFLAGS"
 	export TARGET_CFLAGS="$CFLAGS $XFLAGS"
-	export TARGET_LDFLAGS="$CFLAGS"
-	export TARGET_AR="$AR rcus"
-	export TARGET_LD="$CC $CFLAGS"
 
 	# These are used for host compiling
 	export HOST_LD=true

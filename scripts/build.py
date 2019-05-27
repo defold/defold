@@ -16,18 +16,19 @@ from ConfigParser import ConfigParser
     Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 facebook-gameroom-2017-08-14 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
 PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
-PACKAGES_IOS_X86_64="protobuf-2.3.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_IOS="protobuf-2.3.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_IOS_64="protobuf-2.3.0 facebook-4.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_DARWIN="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 vpx-1.7.0 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0".split()
-PACKAGES_WIN32="facebook-gameroom-2017-08-14 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77".split()
-PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
-PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0".split()
-PACKAGES_ANDROID="protobuf-2.3.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_IOS="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_DARWIN="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 vpx-1.7.0 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_WIN32="facebook-gameroom-2017-08-14 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_ANDROID="protobuf-2.3.0 android-support-v4 android-support-multidex android-27 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-v4 android-support-multidex android-27 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
 PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
@@ -368,6 +369,7 @@ class Configuration(object):
             'arm64-darwin':   PACKAGES_IOS_64,
             'x86_64-ios':     PACKAGES_IOS_X86_64,
             'armv7-android':  PACKAGES_ANDROID,
+            'arm64-android':  PACKAGES_ANDROID_64,
             'js-web':         PACKAGES_EMSCRIPTEN,
             'wasm-web':       PACKAGES_EMSCRIPTEN
         }
@@ -381,7 +383,7 @@ class Configuration(object):
         for platform in other_platforms:
             packages = platform_packages.get(platform, [])
             package_paths = self._make_package_paths(platform, packages)
-            print("Installing %s packages" % platform)
+            print("Installing %s packages " % platform)
             for path in package_paths:
                 self._extract_tgz(path, self.ext)
             installed_packages.update(package_paths)
@@ -622,9 +624,7 @@ class Configuration(object):
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # Android Jars (external)
-            external_jars = ("facebooksdk.jar",
-                             "bolts-android-1.2.0.jar",
-                             "android-support-v4.jar",
+            external_jars = ("android-support-v4.jar",
                              "android-support-multidex.jar",
                              "android.jar",
                              "in-app-purchasing-2.0.61.jar")
@@ -683,9 +683,15 @@ class Configuration(object):
             HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
             ANDROID_ROOT = os.path.join(HOME, 'android')
             ANDROID_NDK_VERSION = '10e'
-            ANDROID_GCC_VERSION = '4.8'
+            if target_platform == 'armv7-android':
+                ANDROID_PLATFORM = 'arm-linux-androideabi'
+                ANDROID_GCC_VERSION = '4.8'
+            elif target_platform == 'arm64-android':
+                ANDROID_PLATFORM = 'aarch64-linux-android'
+                ANDROID_GCC_VERSION = '4.9'
+
             ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
-            strip = "%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-x86_64/bin/arm-linux-androideabi-strip" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, ANDROID_HOST)
+            strip = "%s/android-ndk-r%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_PLATFORM, ANDROID_GCC_VERSION, ANDROID_HOST, ANDROID_PLATFORM)
 
         self.exec_shell_command("%s %s" % (strip, path))
         return True
@@ -744,7 +750,6 @@ class Configuration(object):
             files = [
                 ('share/java', 'classes.dex'),
                 ('bin/%s' % (self.target_platform), 'dmengine.apk'),
-                ('bin/%s' % (self.target_platform), 'dmengine_release.apk'),
                 ('ext/share/java', 'android.jar'),
             ]
             for f in files:
@@ -936,7 +941,7 @@ class Configuration(object):
                      'osx-bundling': osx_files,
                      'linux-bundling': linux_files}
         # Add dmengine to 'artefacts' procedurally
-        for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android']],
+        for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android']],
                            'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
                            'js-bundling': [['js-web', 'js-web'], ['wasm-web', 'wasm-web']],
                            'ios-bundling': [['armv7-darwin', 'armv7-darwin'], ['arm64-darwin', 'arm64-darwin'], ['x86_64-ios', 'x86_64-ios']],
@@ -987,7 +992,7 @@ class Configuration(object):
         root = urlparse.urlparse(self.archive_path).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        platforms = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios', 'armv7-android', 'js-web', 'wasm-web']
+        platforms = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios', 'armv7-android', 'arm64-android', 'js-web', 'wasm-web']
         for platform in platforms:
             platform_sdk_url = join(self.archive_path, sha1, 'engine', platform).replace('\\', '/')
 
@@ -1116,15 +1121,23 @@ instructions.configure=\
         for p in glob(join(build_dir, 'build/distributions/*.zip')):
             self.upload_file(p, full_archive_path)
 
+    def _find_jdk8_folder(self, path):
+        for root, dirs, files in os.walk(path):
+            for d in dirs:
+                if d.startswith('jdk1.8.0'):
+                    return os.path.join(root, d, 'bin')
+        return ''
+
     def _set_java_8(self, env):
         if 'linux' in self.host2:
             env['JAVA_HOME'] = '/usr/lib/jvm/java-8-oracle'
         elif 'darwin' in self.host2:
             env['JAVA_HOME'] = self.exec_command(['/usr/libexec/java_home','-v','1.8']).strip()
         elif 'win32' in self.host2:
-            env['PATH'] = 'C:\\Program Files\\Java\\jdk1.8.0_162\\bin' + os.path.pathsep + env['PATH']
-        self._log("Setting JAVA to 1.8")
-
+            env['JAVA_HOME'] = self._find_jdk8_folder('C:\\Program Files\\Java')
+            env['PATH'] = env['JAVA_HOME'] + os.path.pathsep + env['PATH']
+        self._log("Setting JAVA to 1.8: " + env['JAVA_HOME'])
+        
     def _build_cr(self, product):
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
         env = self._form_env()
@@ -1152,14 +1165,6 @@ instructions.configure=\
             for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
                 self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
-        # TODO: Remove this block after one release with both json files.
-        # TODO: ---- CUT HERE ----
-        full_archive_path = join('s3://d.defold.com/editor2', sha1, 'editor2')
-        for ext in ['zip', 'dmg']:
-            for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
-                self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
-        # TODO: ---- CUT TO HERE ----
-
         self.wait_uploads()
 
     def release_editor2(self):
@@ -1174,14 +1179,6 @@ instructions.configure=\
         # Rather than accessing S3 from its web end-point, we always go through the CDN
         archive_url = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(archive_url.hostname)
-
-        # TODO: Remove this block after one release with both json files.
-        # TODO: ---- CUT HERE ----
-        key_v2 = bucket.new_key('editor2/channels/%(channel)s/update-v2.json' % {'channel': self.channel})
-        key_v2.content_type = 'application/json'
-        self._log("Updating channel '%s' for update-v2.json: %s" % (self.channel, key_v2))
-        key_v2.set_contents_from_string(json.dumps({'sha1': sha1}))
-        # TODO: ---- CUT TO HERE ----
 
         key_v3 = bucket.new_key('editor2/channels/%(channel)s/update-v3.json' % {'channel': self.channel})
         key_v3.content_type = 'application/json'
@@ -1653,7 +1650,7 @@ instructions.configure=\
         for f in futures:
             f()
 
-    def _download_editor2(self, sha1):
+    def _download_editor2(self, channel, sha1):
         bundles = {
             'x86_64-darwin': 'Defold-x86_64-darwin.dmg',
             'x86_64-linux' : 'Defold-x86_64-linux.zip',
@@ -1662,12 +1659,8 @@ instructions.configure=\
         host2 = get_host_platform2()
         bundle = bundles.get(host2)
         if bundle:
-            url = 'https://d.defold.com/archive/%s/editor2/%s' % (sha1, bundle)
+            url = 'https://d.defold.com/archive/%s/%s/editor2/%s' % (sha1, channel, bundle)
             path = self._download(url)
-            # the dev build currently publishes the editor to <host>/editor2 rather than <host>/archive
-            if not path:
-                url = 'https://d.defold.com/editor2/%s/editor2/%s' % (sha1, bundle)
-                path = self._download(url)
             return path
         else:
             print("No editor2 bundle found for %s" % host2)
@@ -1728,7 +1721,7 @@ instructions.configure=\
         cwd = join('tmp', 'smoke_test')
         if os.path.exists(cwd):
             shutil.rmtree(cwd)
-        path = self._download_editor2(sha1)
+        path = self._download_editor2(self.channel, sha1)
         info = self._install_editor2(path)
         config = ConfigParser()
         config.read(info['config'])
@@ -2080,7 +2073,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'x86_64-ios', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web', 'wasm-web'],
+                      choices = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'x86_64-ios', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'arm64-android', 'js-web', 'wasm-web'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',

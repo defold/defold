@@ -20,7 +20,7 @@
 
 (namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id node-id? produce-value node-by-id-at])
 
-(namespaces/import-vars [internal.graph.error-values error-info error-warning error-fatal ->error error? error-info? error-warning? error-fatal? error-aggregate flatten-errors package-errors precluding-errors unpack-errors worse-than])
+(namespaces/import-vars [internal.graph.error-values error-info error-warning error-fatal ->error error? error-info? error-warning? error-fatal? error-aggregate flatten-errors map->error package-errors precluding-errors unpack-errors worse-than])
 
 (namespaces/import-vars [internal.node value-type-schema value-type? isa-node-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-display-order])
 
@@ -753,6 +753,15 @@
 (defn make-evaluation-context
   ([] (is/default-evaluation-context @*the-system*))
   ([options] (is/custom-evaluation-context @*the-system* options)))
+
+(defn pruned-evaluation-context
+  "Selectively filters out cache entries from the supplied evaluation context.
+  Returns a new evaluation context with only the cache entries that passed the
+  cache-entry-pred predicate. The predicate function will be called with
+  node-id, output-label, evaluation-context and should return true if the
+  cache entry for the output-label should remain in the cache."
+  [evaluation-context cache-entry-pred]
+  (in/pruned-evaluation-context evaluation-context cache-entry-pred))
 
 (defn update-cache-from-evaluation-context!
   [evaluation-context]
