@@ -398,9 +398,9 @@ namespace dmGameSystem
             // bool collide_connected = lua_isnil(L, 8) ? true : luaL_checkinteger(L, 8) != 0;
 
             // bool CreateJoint(void* _world, void* _component, dmhash_t id)
-            bool r = dmGameSystem::CreateJoint(comp_world, comp_a, joint_id);
-            if (!r) {
-                return DM_LUA_ERROR("could not create joint");
+            dmPhysics::JointResult r = dmGameSystem::CreateJoint(comp_world, comp_a, joint_id);
+            if (r != dmPhysics::RESULT_OK) {
+                return DM_LUA_ERROR("could not create joint (%d)", r);
             }
         //}
 
@@ -582,20 +582,18 @@ namespace dmGameSystem
         // Unpack type specific joint connection paramaters
         dmPhysics::ConnectJointParams params(type);
         UnpackConnectJointParams(L, type, 7, params);
-        if (!dmGameSystem::ConnectJoint(comp_world, comp_a, joint_id, apos, comp_b, bpos, type, params)) {
-            return DM_LUA_ERROR("could not connect joint");
+        dmPhysics::JointResult r = dmGameSystem::ConnectJoint(comp_world, comp_a, joint_id, apos, comp_b, bpos, type, params);
+        if (r != dmPhysics::RESULT_OK) {
+            return DM_LUA_ERROR("could not connect joint (%d)", r);
         }
 
         return 0;
 
     }
 
-    // physics.connect_joint(type, "obj_a#coll", "apa", posa, "obj_b#coll", posb [, params])
     static int Physics_DisconnectJoint(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-
-        int top = lua_gettop(L);
 
         dmhash_t joint_id = dmScript::CheckHashOrString(L, 2);
 
@@ -625,8 +623,145 @@ namespace dmGameSystem
         }
 
         // Unpack type specific joint connection paramaters
-        if (!dmGameSystem::DisconnectJoint(comp_world, comp_a, joint_id)) {
-            return DM_LUA_ERROR("could not disconnect joint");
+        dmPhysics::JointResult r = dmGameSystem::DisconnectJoint(comp_world, comp_a, joint_id);
+        if (r != dmPhysics::RESULT_OK) {
+            return DM_LUA_ERROR("could not disconnect joint (%d)", r);
+        }
+
+        return 0;
+    }
+
+    static int Physics_GetJointProperties(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmhash_t joint_id = dmScript::CheckHashOrString(L, 2);
+
+        dmMessage::URL urla;
+        dmScript::ResolveURL(L, 1, &urla, 0);
+
+        dmGameObject::HInstance instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
+        dmGameObject::HInstance instance_a = dmGameObject::GetInstanceFromIdentifier(collection, urla.m_Path);
+
+        lua_getglobal(L, PHYSICS_CONTEXT_NAME);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        uint32_t type_index_a;
+        void* comp_a = dmGameObject::GetComponentFromInstance(instance_a, urla.m_Fragment, &type_index_a);
+
+        // Now check that both components are collision objects
+        if (type_index_a != context->m_ComponentIndex) {
+            return DM_LUA_ERROR("Url %s.%s is not a collision object", dmHashReverseSafe64(urla.m_Path), dmHashReverseSafe64(urla.m_Fragment));
+        }
+
+        void* comp_world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+        bool is2D = CompCollisionIs2D(comp_world);
+        if (!is2D) {
+            return DM_LUA_ERROR("physics.get_joint_properties() is currently only supported with 2D physics");
+        }
+
+        dmPhysics::JointType joint_type;
+        dmPhysics::ConnectJointParams joint_params;
+        dmPhysics::JointResult r = GetJointParams(comp_world, comp_a, joint_id, joint_type, joint_params);
+        if (r != dmPhysics::RESULT_OK)
+        {
+            return DM_LUA_ERROR("unable to get joint properties for %s (%d)", dmHashReverseSafe64(joint_id), r);
+        }
+
+        lua_newtable(L);
+        lua_pushboolean(L, joint_params.m_CollideConnected); lua_setfield(L, -2, "collide_connected");
+
+        switch (joint_type)
+        {
+            case dmPhysics::JOINT_TYPE_SPRING:
+                {
+                    lua_pushnumber(L, joint_params.m_SpringJointParams.m_Length); lua_setfield(L, -2, "length");
+                    lua_pushnumber(L, joint_params.m_SpringJointParams.m_FrequencyHz); lua_setfield(L, -2, "frequency");
+                    lua_pushnumber(L, joint_params.m_SpringJointParams.m_DampingRatio); lua_setfield(L, -2, "damping");
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_FIXED:
+                {
+                    lua_pushnumber(L, joint_params.m_FixedJointParams.m_MaxLength); lua_setfield(L, -2, "max_length");
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_HINGE:
+                {
+                    lua_pushnumber(L, joint_params.m_HingeJointParams.m_ReferenceAngle); lua_setfield(L, -2, "reference_angle");
+                    lua_pushnumber(L, joint_params.m_HingeJointParams.m_LowerAngle); lua_setfield(L, -2, "lower_angle");
+                    lua_pushnumber(L, joint_params.m_HingeJointParams.m_UpperAngle); lua_setfield(L, -2, "upper_angle");
+                    lua_pushnumber(L, joint_params.m_HingeJointParams.m_MaxMotorTorque); lua_setfield(L, -2, "max_motor_torque");
+                    lua_pushnumber(L, joint_params.m_HingeJointParams.m_MotorSpeed); lua_setfield(L, -2, "motor_speed");
+                    lua_pushboolean(L, joint_params.m_HingeJointParams.m_EnableLimit); lua_setfield(L, -2, "enable_limit");
+                    lua_pushboolean(L, joint_params.m_HingeJointParams.m_EnableMotor); lua_setfield(L, -2, "enable_motor");
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_SLIDER:
+                {
+                    Vectormath::Aos::Vector3 v(joint_params.m_SliderJointParams.m_LocalAxisA[0], joint_params.m_SliderJointParams.m_LocalAxisA[1], joint_params.m_SliderJointParams.m_LocalAxisA[2]);
+                    dmScript::PushVector3(L, v);
+                    lua_setfield(L, -2, "local_axis_a");
+                    lua_pushnumber(L, joint_params.m_SliderJointParams.m_ReferenceAngle); lua_setfield(L, -2, "reference_angle");
+                    lua_pushboolean(L, joint_params.m_SliderJointParams.m_EnableLimit); lua_setfield(L, -2, "enable_limit");
+                    lua_pushnumber(L, joint_params.m_SliderJointParams.m_LowerTranslation); lua_setfield(L, -2, "lower_translation");
+                    lua_pushnumber(L, joint_params.m_SliderJointParams.m_UpperTranslation); lua_setfield(L, -2, "upper_translation");
+                    lua_pushboolean(L, joint_params.m_SliderJointParams.m_EnableMotor); lua_setfield(L, -2, "enable_motor");
+                    lua_pushnumber(L, joint_params.m_SliderJointParams.m_MaxMotorForce); lua_setfield(L, -2, "max_motor_force");
+                    lua_pushnumber(L, joint_params.m_SliderJointParams.m_MotorSpeed); lua_setfield(L, -2, "motor_speed");
+                }
+                break;
+            default:
+                return false;
+        }
+
+        return 1;
+    }
+
+    static int Phyics_UpdateJoint(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmhash_t joint_id = dmScript::CheckHashOrString(L, 2);
+
+        dmMessage::URL urla;
+        dmScript::ResolveURL(L, 1, &urla, 0);
+
+        dmGameObject::HInstance instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
+        dmGameObject::HInstance instance_a = dmGameObject::GetInstanceFromIdentifier(collection, urla.m_Path);
+
+        lua_getglobal(L, PHYSICS_CONTEXT_NAME);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        uint32_t type_index_a;
+        void* comp_a = dmGameObject::GetComponentFromInstance(instance_a, urla.m_Fragment, &type_index_a);
+
+        // Now check that both components are collision objects
+        if (type_index_a != context->m_ComponentIndex) {
+            return DM_LUA_ERROR("Url %s.%s is not a collision object", dmHashReverseSafe64(urla.m_Path), dmHashReverseSafe64(urla.m_Fragment));
+        }
+
+        void* comp_world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+        bool is2D = CompCollisionIs2D(comp_world);
+        if (!is2D) {
+            return DM_LUA_ERROR("physics.update_joint() is currently only supported with 2D physics");
+        }
+
+        dmPhysics::JointType joint_type;
+        dmPhysics::JointResult r = GetJointType(comp_world, comp_a, joint_id, joint_type);
+        if (r != dmPhysics::RESULT_OK) {
+            return DM_LUA_ERROR("unable to update joint, could not get joint type (%d)", r);
+        }
+
+        dmPhysics::ConnectJointParams joint_params(joint_type);
+        UnpackConnectJointParams(L, joint_type, 3, joint_params);
+
+        r = UpdateJoint(comp_world, comp_a, joint_id, joint_params);
+        if (r != dmPhysics::RESULT_OK) {
+            return DM_LUA_ERROR("unable to update joint properties (%d)", r);
         }
 
         return 0;
@@ -637,9 +772,12 @@ namespace dmGameSystem
         {"ray_cast",        Physics_RayCastAsync}, // Deprecated
         {"raycast_async",   Physics_RayCastAsync},
         {"raycast",         Physics_RayCast},
+
         {"create_joint",    Physics_CreateJoint},
         {"connect_joint",   Physics_ConnectJoint},
         {"disconnect_joint", Physics_DisconnectJoint},
+        {"get_joint_properties", Physics_GetJointProperties},
+        {"update_joint",    Phyics_UpdateJoint},
         {0, 0}
     };
 

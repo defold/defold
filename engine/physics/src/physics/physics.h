@@ -31,6 +31,16 @@ namespace dmPhysics
         JOINT_TYPE_COUNT
     };
 
+    enum JointResult
+    {
+        RESULT_OK = 0,
+        RESULT_NOT_SUPPORTED = 1,
+        RESULT_ID_EXISTS = 2,
+        RESULT_ID_NOT_FOUND = 3,
+        RESULT_NOT_CONNECTED = 4,
+        RESULT_UNKNOWN_ERROR = -1,
+    };
+
     /// 3D context handle.
     typedef struct Context3D* HContext3D;
     /// 3D world handle.
@@ -1158,6 +1168,9 @@ namespace dmPhysics
             } m_SliderJointParams;
         };
 
+        ConnectJointParams()
+        {}
+
         ConnectJointParams(JointType type)
         {
             m_CollideConnected = false;
@@ -1197,6 +1210,8 @@ namespace dmPhysics
     };
 
     HJoint CreateJoint2D(HWorld2D world, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b, dmPhysics::JointType type, const ConnectJointParams& params);
+    bool GetJointParams2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, ConnectJointParams& params);
+    bool UpdateJoint2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, const ConnectJointParams& params);
     void DeleteJoint2D(HWorld2D world, HJoint joint);
 }
 
