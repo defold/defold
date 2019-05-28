@@ -377,7 +377,13 @@ public class Bob {
         options.addOption(null, "defoldsdk", true, "What version of the defold sdk (sha1) to use");
         options.addOption(null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"");
 
+        options.addOption(null, "use-vanilla-lua", false, "Only ships vanilla source code (i.e. no byte code)");
+
         options.addOption("l", "liveupdate", true, "yes if liveupdate content should be published");
+
+        options.addOption("ar", "architectures", true, "comma separated list of architectures to include for the platform");
+
+        options.addOption(null, "settings", true, "a path to a game project settings file. more than one occurrance are allowed. the settings files are applied left to right.");
 
         options.addOption(null, "version", false, "Prints the version number to the output");
 
@@ -478,6 +484,36 @@ public class Bob {
             }
         }
 
+        // Get and set architectures list.
+        Platform platform = project.getPlatform();
+        String[] architectures = platform.getArchitectures().getDefaultArchitectures();
+        List<String> availableArchitectures = Arrays.asList(platform.getArchitectures().getArchitectures());
+
+        if (cmd.hasOption("architectures")) {
+            architectures = cmd.getOptionValue("architectures").split(",");
+        }
+
+        if (architectures.length == 0) {
+            System.out.println(String.format("ERROR! --architectures cannot be empty. Available architectures: %s", String.join(", ", availableArchitectures)));
+            System.exit(1);
+            return;
+        }
+
+        // Remove duplicates and make sure they are all supported for
+        // selected platform.
+        Set<String> uniqueArchitectures = new HashSet<String>();
+        for (int i = 0; i < architectures.length; i++) {
+            String architecture = architectures[i];
+            if (!availableArchitectures.contains(architecture)) {
+                System.out.println(String.format("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s", architecture, platform.getPair(), String.join(", ", availableArchitectures)));
+                System.exit(1);
+                return;
+            }
+            uniqueArchitectures.add(architecture);
+        }
+
+        project.setOption("architectures", String.join(",", uniqueArchitectures));
+
         boolean shouldPublish = getOptionsValue(cmd, 'l', "no").equals("yes");
         project.setOption("liveupdate", shouldPublish ? "true" : "false");
 
@@ -506,6 +542,16 @@ public class Bob {
                 texCompression = cmd.getOptionValue("texture-compression");
             }
             project.setOption("texture-compression", texCompression);
+        }
+
+        if (cmd.hasOption("use-vanilla-lua")) {
+            project.setOption("use-vanilla-lua", "true");
+        }
+
+        if (cmd.hasOption("settings")) {
+            for (String filepath : cmd.getOptionValues("settings")) {
+                project.addPropertyFile(filepath);
+            }
         }
 
         List<TaskResult> result = project.build(new ConsoleProgress(), commands);

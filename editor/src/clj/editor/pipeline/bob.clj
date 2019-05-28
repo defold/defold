@@ -1,6 +1,7 @@
 (ns editor.pipeline.bob
   (:require
     [clojure.java.io :as io]
+    [clojure.string :as string]
     [dynamo.graph :as g]
     [editor.defold-project :as project]
     [editor.engine.build-errors :as engine-build-errors]
@@ -171,19 +172,42 @@
             generate-build-report? (assoc "build-report-html" build-report-path)
             publish-live-update-content? (assoc "liveupdate" "true"))))
 
-(defn- android-bundle-bob-args [{:keys [^File certificate ^File private-key] :as _bundle-options}]
-  (assert (or (nil? certificate) (.isFile certificate)))
-  (assert (or (nil? private-key) (.isFile private-key)))
-  (cond-> {}
-          certificate (assoc "certificate" (.getAbsolutePath certificate))
-          private-key (assoc "private-key" (.getAbsolutePath private-key))))
+(def ^:private android-architecture-option->bob-architecture-string
+  {:architecture-32bit? "armv7-android"
+   :architecture-64bit? "arm64-android"})
 
-(defn- ios-bundle-bob-args [{:keys [code-signing-identity ^File provisioning-profile] :as _bundle-options}]
-  (assert (string? (not-empty code-signing-identity)))
-  (assert (some-> provisioning-profile .isFile))
-  (let [provisioning-profile-path (.getAbsolutePath provisioning-profile)]
-    {"mobileprovisioning" provisioning-profile-path
-     "identity" code-signing-identity}))
+(defn- android-bundle-bob-args [{:keys [^File certificate ^File private-key] :as bundle-options}]
+  (let [bob-architectures
+        (for [[option-key bob-architecture] android-architecture-option->bob-architecture-string
+              :when (bundle-options option-key)]
+          bob-architecture)
+        bob-args {"architectures" (string/join "," bob-architectures)}]
+    (assert (or (and (nil? certificate)
+                     (nil? private-key))
+                (and (.isFile certificate)
+                     (.isFile private-key))))
+    (cond-> bob-args
+            certificate (assoc "certificate" (.getAbsolutePath certificate))
+            private-key (assoc "private-key" (.getAbsolutePath private-key)))))
+
+(def ^:private ios-architecture-option->bob-architecture-string
+  {:architecture-32bit? "armv7-darwin"
+   :architecture-64bit? "arm64-darwin"
+   :architecture-simulator? "x86_64-ios"})
+
+(defn- ios-bundle-bob-args [{:keys [code-signing-identity ^File provisioning-profile sign-app?] :as bundle-options}]
+  (let [bob-architectures (for [[option-key bob-architecture] ios-architecture-option->bob-architecture-string
+                                :when (bundle-options option-key)]
+                            bob-architecture)
+        bob-args {"architectures" (string/join "," bob-architectures)}]
+    (if-not sign-app?
+      bob-args
+      (do (assert (string? (not-empty code-signing-identity)))
+          (assert (some-> provisioning-profile .isFile))
+          (let [provisioning-profile-path (.getAbsolutePath provisioning-profile)]
+            (assoc bob-args
+              "mobileprovisioning" provisioning-profile-path
+              "identity" code-signing-identity))))))
 
 (def bundle-bob-commands ["distclean" "build" "bundle"])
 

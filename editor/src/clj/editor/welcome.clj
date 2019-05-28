@@ -455,17 +455,25 @@
                              project-location (location-field-location new-project-location-field)]
                          (cond
                            (string/blank? project-title)
-                           (dialogs/make-message-box "No Project Title"
-                                                     "You must specify a title for the project.")
+                           (dialogs/make-info-dialog
+                             {:title "No Project Title"
+                              :icon :icon/triangle-error
+                              :header "You must specify a title for the project"})
 
                            (not= project-title (string/trim project-title))
-                           (dialogs/make-message-box "Invalid Project Title"
-                                                     "Whitespace is not allowed around the project title.")
+                           (dialogs/make-info-dialog
+                             {:title "Invalid project title"
+                              :icon :icon/triangle-error
+                              :size :large
+                              :header "Whitespace is not allowed around the project title"})
 
                            (and (.exists project-location)
                                 (not (fs/empty-directory? project-location)))
-                           (dialogs/make-message-box "Conflicting Project Location"
-                                                     "A non-empty folder already exists at the chosen location.")
+                           (dialogs/make-info-dialog
+                             {:title "Conflicting Project Location"
+                              :icon :icon/triangle-error
+                              :size :large
+                              :header "A non-empty folder already exists at the chosen location"})
 
                            :else
                            (download-template! (:name project-template) (:zip-url project-template) (:skip-root? project-template) project-location project-title))))))))
@@ -532,17 +540,26 @@
                                  clone-directory (location-field-location import-project-location-field)]
                              (cond
                                (string/blank? project-folder)
-                               (dialogs/make-message-box "No Destination Folder"
-                                                         "You must specify a destination folder for the project.")
+                               (dialogs/make-info-dialog
+                                 {:title "No Destination Folder"
+                                  :icon :icon/triangle-error
+                                  :size :large
+                                  :header "You must specify a destination folder for the project"})
 
                                (not= project-folder (string/trim project-folder))
-                               (dialogs/make-message-box "Invalid Destination Folder"
-                                                         "Whitespace is not allowed around the folder name.")
+                               (dialogs/make-info-dialog
+                                 {:title "Invalid Destination Folder"
+                                  :icon :icon/triangle-error
+                                  :size :large
+                                  :header "Whitespace is not allowed around the folder name"})
 
                                (and (.exists clone-directory)
                                     (not (fs/empty-directory? clone-directory)))
-                               (dialogs/make-message-box "Conflicting Import Location"
-                                                         "A non-empty folder already exists at the chosen location.")
+                               (dialogs/make-info-dialog
+                                 {:title "Conflicting Import Location"
+                                  :icon :icon/triangle-error
+                                  :size :large
+                                  :header "A non-empty folder already exists at the chosen location"})
 
                                :else
                                (clone-project! project-title (:repository-url dashboard-project) clone-directory))))))
@@ -703,29 +720,45 @@
                                         (hide-progress! root)
                                         (cond
                                           (instance? UnknownHostException error)
-                                          (dialogs/make-error-dialog "No Internet Connection"
-                                                                     "You must be connected to the internet to download project content.")
+                                          (dialogs/make-info-dialog
+                                            {:title "No Internet Connection"
+                                             :icon :icon/triangle-error
+                                             :header "You must be connected to the internet to download project content"})
 
                                           (instance? SocketException error)
-                                          (dialogs/make-error-dialog "Host Unreachable"
-                                                                     "A firewall might be blocking network connections."
-                                                                     (.getMessage error))
+                                          (dialogs/make-info-dialog
+                                            {:title "Host Unreachable"
+                                             :icon :icon/triangle-error
+                                             :header "A firewall might be blocking network connections"
+                                             :content (.getMessage error)})
 
                                           (instance? SocketTimeoutException error)
-                                          (dialogs/make-error-dialog "Host Not Responding"
-                                                                     "The connection timed out."
-                                                                     (.getMessage error))
+                                          (dialogs/make-info-dialog
+                                            {:title "Host Not Responding"
+                                             :icon :icon/triangle-error
+                                             :header "The connection timed out"
+                                             :content (.getMessage error)})
 
                                           (instance? SSLException error)
-                                          (dialogs/make-error-dialog "SSL Connection Error"
-                                                                     (str "Could not establish an SSL connection. Common causes are:\n"
-                                                                          "\u00A0\u00A0\u2022\u00A0 Antivirus software configured to scan encrypted connections\n"
-                                                                          "\u00A0\u00A0\u2022\u00A0 Expired or misconfigured server certificate\n"
-                                                                          "\u00A0\u00A0\u2022\u00A0 Untrusted server certificate\n"
-                                                                          "\n"
-                                                                          "The following FAQ may apply:\n"
-                                                                          "[PKIX path building failed](https://github.com/defold/editor2-issues/blob/master/faq/pkixpathbuilding.md)")
-                                                                     (string/replace (.getMessage error) ": " ":\n\u00A0\u00A0"))
+                                          (dialogs/make-info-dialog
+                                            {:title "SSL Connection Error"
+                                             :icon :icon/triangle-error
+                                             :header "Could not establish an SSL connection"
+                                             :content {:fx/type :text-flow
+                                                       :style-class "dialog-content-padding"
+                                                       :children [{:fx/type :text
+                                                                   :text (str "Common causes are:\n"
+                                                                              "\u00A0\u00A0\u2022\u00A0 Antivirus software configured to scan encrypted connections\n"
+                                                                              "\u00A0\u00A0\u2022\u00A0 Expired or misconfigured server certificate\n"
+                                                                              "\u00A0\u00A0\u2022\u00A0 Untrusted server certificate\n"
+                                                                              "\n"
+                                                                              "The following FAQ may apply: ")}
+                                                                  {:fx/type :hyperlink
+                                                                   :text "PKIX path building failed"
+                                                                   :on-action (fn [_]
+                                                                                (ui/open-url "https://github.com/defold/editor2-issues/blob/master/faq/pkixpathbuilding.md"))}
+                                                                  {:fx/type :text
+                                                                   :text (str "\n\n" (string/replace (.getMessage error) ": " ":\n\u00A0\u00A0"))}]}})
 
                                           :else
                                           (error-reporting/report-exception! error))))))))

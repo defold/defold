@@ -1,17 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.scene.shape.*?>
-<?import javafx.scene.image.*?>
-<?import javafx.scene.web.*?>
 <?import javafx.geometry.*?>
-<?import javafx.scene.input.*?>
-<?import java.lang.*?>
-<?import java.net.*?>
-<?import java.util.*?>
 <?import javafx.scene.control.*?>
+<?import javafx.scene.image.*?>
 <?import javafx.scene.layout.*?>
-<?import javafx.scene.paint.*?>
-<?import javafx.scene.text.*?>
 
 <VBox prefHeight="774.0" prefWidth="1205.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
   <children>
@@ -19,7 +11,7 @@
     <Region id="menu-bar-space" />
     <SplitPane id="main-split" dividerPositions="0.228595178719867" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="160.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
       <items>
-        <AnchorPane prefHeight="160.0" prefWidth="100.0" SplitPane.resizableWithParent="false">
+        <AnchorPane id="left-pane" prefHeight="160.0" prefWidth="100.0" SplitPane.resizableWithParent="false">
           <children>
             <SplitPane id="assets-split" dividerPositions="0.5746666666666667" layoutX="24.0" layoutY="398.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
               <items>
@@ -80,7 +72,7 @@
                             <SplitPane id="editor-tabs-split" dividerPositions="0.5" orientation="HORIZONTAL" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                           </children>
                         </AnchorPane>
-                        <AnchorPane prefHeight="100.0" prefWidth="160.0" SplitPane.resizableWithParent="false">
+                        <AnchorPane id="bottom-pane" prefHeight="100.0" prefWidth="160.0" SplitPane.resizableWithParent="false">
                           <children>
                             <TabPane id="tool-tabs" layoutX="3.0" layoutY="38.0" prefHeight="200.0" prefWidth="200.0" tabClosingPolicy="UNAVAILABLE" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                               <tabs>
@@ -117,7 +109,7 @@
                                 </Tab>
                                 <Tab id="search-results-tab" text="Search Results">
                                   <content>
-                                    <AnchorPane id="search-results-container" prefHeight="180.0" prefWidth="200.0" />
+                                    <AnchorPane id="search-results-container" styleClass="search-results-view" prefHeight="180.0" prefWidth="200.0" />
                                   </content>
                                 </Tab>
                                 <Tab id="graph-tab" text="Graph">
@@ -176,7 +168,7 @@
                     </SplitPane>
                   </children>
                 </AnchorPane>
-                <AnchorPane prefHeight="160.0" prefWidth="100.0" SplitPane.resizableWithParent="false">
+                <AnchorPane id="right-pane" prefHeight="160.0" prefWidth="100.0" SplitPane.resizableWithParent="false">
                   <children>
                     <SplitPane id="right-split" dividerPositions="0.4" layoutX="50.0" layoutY="182.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                       <items>

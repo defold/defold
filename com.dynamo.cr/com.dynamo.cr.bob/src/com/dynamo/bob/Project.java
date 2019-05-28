@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
@@ -102,6 +104,7 @@ public class Project {
     private Map<String, String> options = new HashMap<String, String>();
     private List<URL> libUrls = new ArrayList<URL>();
     private final List<String> excludedCollectionProxies = new ArrayList<String>();
+    private List<String> propertyFiles = new ArrayList<String>();
 
     private BobProjectProperties projectProperties;
     private Publisher publisher;
@@ -367,9 +370,26 @@ public class Project {
         if (gameProject.exists()) {
             ByteArrayInputStream is = new ByteArrayInputStream(gameProject.getContent());
             projectProperties.load(is);
+
+            for (String filepath : propertyFiles) {
+                loadPropertyFile(filepath);
+            }
         } else {
             logWarning("No game.project found");
         }
+    }
+
+    public void addPropertyFile(String filepath) {
+        propertyFiles.add(filepath);
+    }
+
+    public void loadPropertyFile(String filepath) throws IOException, ParseException {
+        Path pathHandle = Paths.get(filepath);
+        if (!Files.exists(pathHandle) || !pathHandle.toFile().isFile())
+            throw new IOException(filepath + " is not a file");
+        byte[] data = Files.readAllBytes(pathHandle);
+        ByteArrayInputStream is = new ByteArrayInputStream(data);
+        projectProperties.load(is);
     }
 
     /**
@@ -493,6 +513,7 @@ public class Project {
         bundlers.put(Platform.X86_64Win32, Win64Bundler.class);
         bundlers.put(Platform.Armv7Android, AndroidBundler.class);
         bundlers.put(Platform.Armv7Darwin, IOSBundler.class);
+        bundlers.put(Platform.X86_64Ios, IOSBundler.class);
         bundlers.put(Platform.JsWeb, HTML5Bundler.class);
     }
 
@@ -545,7 +566,7 @@ public class Project {
         return false;
     }
 
-    public String[] getPlatformStrings() throws CompileExceptionError {
+    public Platform getPlatform() throws CompileExceptionError {
         String pair = option("platform", null);
         Platform p = Platform.getHostPlatform();
         if (pair != null) {
@@ -555,11 +576,16 @@ public class Project {
         if (p == null) {
             throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
         }
+
+        return p;
+    }
+
+    public String[] getPlatformStrings() throws CompileExceptionError {
+        Platform p = getPlatform();
         PlatformArchitectures platformArchs = p.getArchitectures();
         String[] platformStrings;
-        if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin || p == Platform.JsWeb || p == Platform.WasmWeb)
+        if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin || p == Platform.JsWeb || p == Platform.WasmWeb || p == Platform.Armv7Android || p == Platform.Arm64Android)
         {
-            // iOS is currently the only OS we use that supports fat binaries
             // Here we'll get a list of all associated architectures (armv7, arm64) and build them at the same time
             platformStrings = platformArchs.getArchitectures();
         }
@@ -571,7 +597,7 @@ public class Project {
         return platformStrings;
     }
 
-    public void buildEngine(IProgress monitor, String[] platformStrings, Map<String,String> appmanifestOptions) throws IOException, CompileExceptionError, MultipleCompileException {
+    public void buildEngine(IProgress monitor, String[] architectures, Map<String,String> appmanifestOptions) throws IOException, CompileExceptionError, MultipleCompileException {
 
         // Store the engine one level above the content build since that folder gets removed during a distclean
         String internalDir = FilenameUtils.concat(rootDirectory, ".internal");
@@ -585,13 +611,14 @@ public class Project {
         File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
         logFile.deleteOnExit();
 
-        IProgress m = monitor.subProgress(platformStrings.length);
+        IProgress m = monitor.subProgress(architectures.length);
         m.beginTask("Building engine...", 0);
 
         // Build all skews of platform
+        boolean androidResourcesGenerated = false;
         String outputDir = options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
-        for (int i = 0; i < platformStrings.length; ++i) {
-            Platform platform = Platform.get(platformStrings[i]);
+        for (int i = 0; i < architectures.length; ++i) {
+            Platform platform = Platform.get(architectures[i]);
 
             String buildPlatform = platform.getExtenderPair();
             File buildDir = new File(FilenameUtils.concat(outputDir, buildPlatform));
@@ -608,7 +635,9 @@ public class Project {
 
             File classesDexFile = null;
             File tmpDir = null;
-            if (platform.equals(Platform.Armv7Android)) {
+            if ((platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) && !androidResourcesGenerated) {
+                androidResourcesGenerated = true;
+
                 Bob.initAndroid(); // extract resources
 
                 // If we are building for Android, we expect a classes.dex file to be returned as well.
@@ -634,11 +663,11 @@ public class Project {
                 IResource sourceManifestFile = helper.getResource("android", "manifest");
 
                 Map<String, Object> properties = helper.createAndroidManifestProperties(this.getRootDirectory(), resDir, exeName);
-                helper.mergeManifests(this, platform, properties, sourceManifestFile, manifestFile);
+                helper.mergeManifests(properties, sourceManifestFile, manifestFile);
 
                 BundleHelper.throwIfCanceled(monitor);
 
-                List<ExtenderResource> extraSource = helper.generateAndroidResources(this, platform, resDir, manifestFile, null, tmpDir);
+                List<ExtenderResource> extraSource = helper.generateAndroidResources(this, resDir, manifestFile, null, tmpDir);
                 allSource.addAll(extraSource);
             }
 
@@ -678,7 +707,7 @@ public class Project {
             }
 
             // If we are building for Android, we expect a classes.dex file to be returned as well.
-            if (platform.equals(Platform.Armv7Android)) {
+            if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
                 int nameindex = 1;
                 while(true)
                 {
@@ -757,7 +786,17 @@ public class Project {
                         appmanifestOptions.put("baseVariant", variant);
                         appmanifestOptions.put("withSymbols", withSymbols.toString());
 
-                        buildEngine(monitor, platforms, appmanifestOptions);
+                        // Since this can be a call from Editor we can't expect the architectures option to be set.
+                        // We default to the default architectures for the platform, and take the option value
+                        // only if it has been set.
+                        Platform platform = this.getPlatform();
+                        String[] architectures = platform.getArchitectures().getDefaultArchitectures();
+                        String customArchitectures = this.option("architectures", null);
+                        if (customArchitectures != null) {
+                            architectures = customArchitectures.split(",");
+                        }
+
+                        buildEngine(monitor, architectures, appmanifestOptions);
                     } else {
                         // Remove the remote built executables in the build folder, they're still in the cache
                         cleanEngine(monitor, platforms);

@@ -1,12 +1,14 @@
 <component name="ProjectCodeStyleConfiguration">
   <code_scheme name="Project" version="173">
     <option name="RIGHT_MARGIN" value="80" />
+    <option name="SOFT_MARGINS" value="80,90" />
     <ClojureCodeStyleSettings>{
   :cursive.formatting/align-conditionals false
   :cursive.formatting/align-maps false
   :cursive.formatting/imports-use-vectors true
   :dynamo.graph/precluding-errors :only-indent
   :dynamo.graph/with-auto-evaluation-context :only-indent
+  :dynamo.graph/with-auto-or-fake-evaluation-context :only-indent
   :dynamo.graph/with-system :only-indent
   :editor.analytics-test/with-config! :only-indent
   :editor.file-test/with-temp-dir :only-indent

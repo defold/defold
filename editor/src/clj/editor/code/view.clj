@@ -1286,6 +1286,13 @@
                (suggestions-shown? view-node))
       (show-suggestions! view-node))))
 
+(defn toggle-comment! [view-node]
+  (set-properties! view-node nil
+                   (data/toggle-comment (get-property view-node :lines)
+                                        (get-property view-node :regions)
+                                        (get-property view-node :cursor-ranges)
+                                        (:line-comment (get-property view-node :grammar)))))
+
 (defn select-all! [view-node]
   (hide-suggestions! view-node)
   (set-properties! view-node :selection
@@ -1348,6 +1355,44 @@
 
 ;; -----------------------------------------------------------------------------
 
+(defn- insert-text! [view-node typed]
+  (let [undo-grouping (if (= "\r" typed) :newline :typing)
+        selected-suggestion (selected-suggestion view-node)
+        grammar (get-property view-node :grammar)
+        lines (get-property view-node :lines)
+        cursor-ranges (get-property view-node :cursor-ranges)
+        [insert-typed? show-suggestions?] (cond
+                                            (and (= "\r" typed) (some? selected-suggestion))
+                                            (do (accept-suggestion! view-node)
+                                                [false false])
+
+                                            (and (= "(" typed) (= :function (:type selected-suggestion)))
+                                            (do (accept-suggestion! view-node)
+                                                [false false])
+
+                                            (and (= "." typed) (= :namespace (:type selected-suggestion)))
+                                            (do (accept-suggestion! view-node)
+                                                [true true])
+
+                                            (data/typing-deindents-line? grammar lines cursor-ranges typed)
+                                            [true false]
+
+                                            :else
+                                            [true true])]
+    (when insert-typed?
+      (when (set-properties! view-node undo-grouping
+                             (data/key-typed (get-property view-node :indent-level-pattern)
+                                             (get-property view-node :indent-string)
+                                             grammar
+                                             lines
+                                             cursor-ranges
+                                             (get-property view-node :regions)
+                                             (get-property view-node :layout)
+                                             typed))
+        (if show-suggestions?
+          (show-suggestions! view-node)
+          (hide-suggestions! view-node))))))
+
 (defn handle-key-pressed! [view-node ^KeyEvent event]
   ;; Only handle bare key events that cannot be bound to handlers here.
   (when-not (or (.isAltDown event)
@@ -1362,6 +1407,7 @@
                   KeyCode/RIGHT (move! view-node :navigation :right)
                   KeyCode/UP    (move! view-node :navigation :up)
                   KeyCode/DOWN  (move! view-node :navigation :down)
+                  KeyCode/ENTER (insert-text! view-node "\r")
                   ::unhandled))
       (.consume event))))
 
@@ -1373,44 +1419,15 @@
 
 (defn handle-key-typed! [view-node ^KeyEvent event]
   (.consume event)
-  (when (typable-key-event? event)
-    (let [typed (.getCharacter event)
-          undo-grouping (if (= "\r" typed) :newline :typing)
-          selected-suggestion (selected-suggestion view-node)
-          grammar (get-property view-node :grammar)
-          lines (get-property view-node :lines)
-          cursor-ranges (get-property view-node :cursor-ranges)
-          [insert-typed? show-suggestions?] (cond
-                                              (and (= "\r" typed) (some? selected-suggestion))
-                                              (do (accept-suggestion! view-node)
-                                                  [false false])
-
-                                              (and (= "(" typed) (= :function (:type selected-suggestion)))
-                                              (do (accept-suggestion! view-node)
-                                                  [false false])
-
-                                              (and (= "." typed) (= :namespace (:type selected-suggestion)))
-                                              (do (accept-suggestion! view-node)
-                                                  [true true])
-
-                                              (data/typing-deindents-line? grammar lines cursor-ranges typed)
-                                              [true false]
-
-                                              :else
-                                              [true true])]
-      (when insert-typed?
-        (when (set-properties! view-node undo-grouping
-                               (data/key-typed (get-property view-node :indent-level-pattern)
-                                               (get-property view-node :indent-string)
-                                               grammar
-                                               lines
-                                               cursor-ranges
-                                               (get-property view-node :regions)
-                                               (get-property view-node :layout)
-                                               typed))
-          (if show-suggestions?
-            (show-suggestions! view-node)
-            (hide-suggestions! view-node)))))))
+  (let [character (.getCharacter event)]
+    (when (and (typable-key-event? event)
+               ;; Ignore characters in the control range and the ASCII delete
+               ;; as it is done by JavaFX in `TextInputControlBehavior`'s
+               ;; `defaultKeyTyped` method.
+               (pos? (.length character))
+               (> (int (.charAt character 0)) 0x1f)
+               (not= (int (.charAt character 0)) 0x7f))
+      (insert-text! view-node character))))
 
 (defn- refresh-mouse-cursor! [view-node ^MouseEvent event]
   (let [hovered-element (get-property view-node :hovered-element)
@@ -1636,6 +1653,11 @@
 
 (handler/defhandler :delete :code-view
   (run [view-node] (delete! view-node :delete-after)))
+
+(handler/defhandler :toggle-comment :code-view
+  (active? [view-node evaluation-context]
+           (contains? (get-property view-node :grammar evaluation-context) :line-comment))
+  (run [view-node] (toggle-comment! view-node)))
 
 (handler/defhandler :delete-backward :code-view
   (run [view-node] (delete! view-node :delete-before)))
@@ -2063,6 +2085,7 @@
                  {:command :replace-text               :label "Replace..."}
                  {:command :replace-next               :label "Replace Next"}
                  {:label :separator}
+                 {:command :toggle-comment             :label "Toggle Comment"}
                  {:command :reindent                   :label "Reindent Lines"}
 
                  {:label "Convert Indentation"
@@ -2076,7 +2099,6 @@
                               :command :convert-indentation
                               :user-data :four-spaces}]}
 
-                 {:command :toggle-comment             :label "Toggle Comment"}
                  {:label :separator}
                  {:command :sort-lines                 :label "Sort Lines"}
                  {:command :sort-lines-case-sensitive  :label "Sort Lines (Case Sensitive)"}
@@ -2500,13 +2522,13 @@
                   (ui/run-later (slog/smoke-log "code-view-visible")))
     view-node))
 
-(defn- focus-view! [view-node {:keys [line]}]
+(defn- focus-view! [view-node opts]
   (.requestFocus ^Node (g/node-value view-node :canvas))
-  (when-some [row (some-> ^double line dec)]
+  (when-some [cursor-range (:cursor-range opts)]
     (set-properties! view-node :navigation
                      (data/select-and-frame (get-property view-node :lines)
                                             (get-property view-node :layout)
-                                            (data/Cursor->CursorRange (data/->Cursor row 0))))))
+                                            cursor-range))))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace

@@ -63,6 +63,8 @@
                      [com.sun.xml.bind/jaxb-core "2.3.0"]
                      [com.sun.xml.bind/jaxb-impl "2.3.0"]
 
+                     [cljfx "1.2.12"]
+
                      [org.openjfx/javafx-base "12"]
                      [org.openjfx/javafx-base "12" :classifier "linux"]
                      [org.openjfx/javafx-base "12" :classifier "mac"]
@@ -133,8 +135,8 @@
 
   :protobuf-exclude  ["../engine/ddf/src/test"]
 
-  :sass              {:src "styling/stylesheets/main.sass"
-                      :output-directory "resources/editor.css"
+  :sass              {:src "styling/stylesheets/"
+                      :output-directory "resources/"
                       :source-maps false}
 
   :aliases           {"benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
@@ -169,6 +171,9 @@
                                 :aot          :all
                                 :omit-source  true
                                 :source-paths ["sidecar"]}
+                      :local-repl {:injections [(future (editor/-main))]
+                                   :repl-options {:init-ns editor}
+                                   :jvm-opts ["-Ddefold.nrepl=false"]}
                       :release {:jvm-opts          ["-Ddefold.build=release"]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
                       :dev     {:plugins           [[jonase/eastwood "0.3.5" :exclusions [org.clojure/clojure]]]
@@ -183,6 +188,8 @@
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
+                                                    "-Djdk.gtk.version=2"
+                                                    "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"

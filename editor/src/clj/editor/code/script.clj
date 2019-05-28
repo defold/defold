@@ -29,6 +29,7 @@
    ;; https://github.com/textmate/lua.tmbundle/blob/master/Preferences/Indent.tmPreferences
    :indent {:begin #"^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b)[^\"'])*)|(\{\s*))$"
             :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
+   :line-comment "--"
    :patterns [{:captures {1 {:name "keyword.control.lua"}
                           2 {:name "entity.name.function.scope.lua"}
                           3 {:name "entity.name.function.lua"}
@@ -135,15 +136,21 @@
               (update :properties into (:properties user-properties))
               (update :display-order into (:display-order user-properties)))))
 
-(defn- script->bytecode [lines proj-path]
+(defn- script->bytecode [lines proj-path arch]
   (try
-    (luajit/bytecode (data/lines-reader lines) proj-path)
+    (luajit/bytecode (data/lines-reader lines) proj-path arch)
     (catch Exception e
-      (let [{:keys [filename line message]} (ex-data e)]
-        (g/->error nil :lines :fatal e (.getMessage e)
-                   {:filename filename
-                    :line     line
-                    :message  message})))))
+      (let [{:keys [filename line message]} (ex-data e)
+            cursor-range (some-> line data/line-number->CursorRange)]
+        (g/map->error
+          {:_label :lines
+           :message (.getMessage e)
+           :severity :fatal
+           :user-data (cond-> {:filename filename
+                               :message message}
+
+                              (some? cursor-range)
+                              (assoc :cursor-range cursor-range))})))))
 
 (defn- build-script [resource _dep-resources user-data]
   (let [user-properties (:user-properties user-data)
@@ -153,14 +160,16 @@
                                              :type  type}))
                               (:properties user-properties))
         modules         (:modules user-data)
-        bytecode        (script->bytecode (:lines user-data) (:proj-path user-data))]
+        bytecode        (script->bytecode (:lines user-data) (:proj-path user-data) :32-bit)
+        bytecode-64     (script->bytecode (:lines user-data) (:proj-path user-data) :64-bit)]
     (g/precluding-errors
       [bytecode]
       {:resource resource
        :content  (protobuf/map->bytes Lua$LuaModule
                                       {:source     {:script   (ByteString/copyFromUtf8 (slurp (data/lines-reader (:lines user-data))))
                                                     :filename (resource/proj-path (:resource resource))
-                                                    :bytecode (ByteString/copyFrom ^bytes bytecode)}
+                                                    :bytecode (ByteString/copyFrom ^bytes bytecode)
+                                                    :bytecode-64 (ByteString/copyFrom ^bytes bytecode-64)}
                                        :modules    modules
                                        :resources  (mapv lua/lua-module->build-path modules)
                                        :properties (properties/properties->decls properties true)})})))
@@ -210,7 +219,7 @@
         (comp (filter data/breakpoint-region?)
               (map (fn [region]
                      {:resource resource
-                      :line (data/breakpoint-row region)})))
+                      :row (data/breakpoint-row region)})))
         regions))
 
 (g/defnode ScriptNode

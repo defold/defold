@@ -14,10 +14,10 @@ def build(bld):
                                 locallibs = 'tracking_lua_script',
                                 embed_source = 'lua/tracking.lua',
                                 target = 'tracking')
-                                
+
     tracking.find_sources_in_dirs('.')
     tracking.find_sources_in_dirs('../proto/tracking')
-    
+
     bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/tracking', 'tracking.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/tracking/tracking_ddf.proto')

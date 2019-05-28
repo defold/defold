@@ -1,6 +1,7 @@
 (ns editor.github
   (:require
    [clojure.string :as string]
+   [editor.connection-properties :refer [connection-properties]]
    [editor.gl :as gl]
    [editor.system :as system])
   (:import
@@ -8,7 +9,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def issue-repo "https://github.com/defold/editor2-issues")
+(def issue-repo (get-in connection-properties [:git-issues :url]))
 
 (defn- default-fields
   []

@@ -56,6 +56,10 @@
     >.settings.toggles {
       -fx-padding: $vertical-margin-width $horizontal-margin-width 0px ($label-column-width + $horizontal-margin-width);
     }
+
+    .labeled-check-box {
+        -fx-padding: 3px 0px 3px 0px;
+    }
   }
 
   @mixin generic-only-field-layout() {
@@ -68,7 +72,7 @@
 
   &.android {
     -fx-min-width: 600px;
-    @include field-layout(71px);
+    @include field-layout(85px);
   }
 
   &.html5 {

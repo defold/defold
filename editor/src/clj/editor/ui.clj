@@ -1,21 +1,20 @@
 (ns editor.ui
-  (:require
-   [clojure.java.io :as io]
-   [clojure.set :as set]
-   [clojure.string :as string]
-   [clojure.xml :as xml]
-   [dynamo.graph :as g]
-   [editor.error-reporting :as error-reporting]
-   [editor.handler :as handler]
-   [editor.jfx :as jfx]
-   [editor.progress :as progress]
-   [editor.math :as math]
-   [editor.menu :as menu]
-   [editor.util :as eutil]
-   [internal.util :as util]
-   [service.log :as log]
-   [service.smoke-log :as slog]
-   [util.profiler :as profiler])
+  (:require [clojure.java.io :as io]
+            [clojure.set :as set]
+            [clojure.string :as string]
+            [clojure.xml :as xml]
+            [dynamo.graph :as g]
+            [editor.error-reporting :as error-reporting]
+            [editor.handler :as handler]
+            [editor.jfx :as jfx]
+            [editor.progress :as progress]
+            [editor.math :as math]
+            [editor.menu :as menu]
+            [editor.util :as eutil]
+            [internal.util :as util]
+            [service.log :as log]
+            [service.smoke-log :as slog]
+            [util.profiler :as profiler])
   (:import
    [com.defold.control LongField]
    [com.defold.control ListCell]
@@ -66,7 +65,7 @@
 (defonce ^:private application-unfocused-threshold-ms 500)
 (defonce ^:private focus-state (atom nil))
 
-(def ^:private focus-change-listener
+(def focus-change-listener
   (reify ChangeListener
     (changed [_ _ _ focused?]
       (reset! focus-state {:focused? focused?
@@ -1108,13 +1107,18 @@
           (set! suppress? false))))))
 
 (defn- make-menu-command [^Scene scene id label icon ^Collection style-classes acc user-data command enabled? check]
-  (let [^MenuItem menu-item (if check
+  (let [key-combo (and acc (KeyCombination/keyCombination acc))
+        ^MenuItem menu-item (if check
                               (CheckMenuItem. label)
                               (MenuItem. label))]
+    ;; Currently not allowed due to a problem on macOS. See below.
+    ;; Still a problem in JavaFX 12.
+    (assert (not (and check key-combo)) "Keyboard shortcuts currently cannot be assigned to check menu items.")
+
     (user-data! menu-item ::menu-item-id id)
     (when command
       (.setId menu-item (name command)))
-    (when-some [key-combo (and acc (KeyCombination/keyCombination acc))]
+    (when (some? key-combo)
       (.setAccelerator menu-item key-combo))
     (when icon
       (.setGraphic menu-item (wrap-menu-image (jfx/get-image-view icon 16))))
@@ -1176,15 +1180,10 @@
                                 on-open))
                 (make-menu-command scene id label icon style-classes acc user-data command enabled? check)))))))))
 
-(defn- make-menu-items
-  ([^Scene scene menu command-contexts command->shortcut]
-   (g/with-auto-evaluation-context evaluation-context
-     (make-menu-items scene menu command-contexts command->shortcut evaluation-context)))
-  ([^Scene scene menu command-contexts command->shortcut evaluation-context]
-   (->> menu
-        (keep (fn [item]
-                (make-menu-item scene item command-contexts command->shortcut evaluation-context)))
-        (vec))))
+(defn- make-menu-items [^Scene scene menu command-contexts command->shortcut evaluation-context]
+  (into []
+        (keep #(make-menu-item scene % command-contexts command->shortcut evaluation-context))
+        menu))
 
 (defn- make-context-menu ^ContextMenu [menu-items]
   (let [context-menu (ContextMenu.)]
@@ -1206,7 +1205,9 @@
     (.consume event)
     (let [node ^Node (.getTarget event)
           scene ^Scene (.getScene node)
-          cm (make-context-menu (make-menu-items scene (menu/realize-menu menu-id) (contexts scene false) (or (user-data scene :command->shortcut) {})))]
+          menu-items (g/with-auto-or-fake-evaluation-context evaluation-context
+                       (make-menu-items scene (menu/realize-menu menu-id) (contexts scene false) (or (user-data scene :command->shortcut) {}) evaluation-context))
+          cm (make-context-menu menu-items)]
       (doto (.getItems cm)
         (refresh-separator-visibility)
         (refresh-menu-item-styles))
@@ -1415,8 +1416,8 @@
   (menu-items [this]))
 
 (defn- replace-menu!
-  [^MenuItem old ^MenuItem new]
-  (when-some [parent (.getParentMenu old)]
+  [^MenuBar menu-bar ^MenuItem old ^MenuItem new]
+  (when-some [parent (or (.getParentMenu old) menu-bar)]
     (when-some [parent-children (menu-items parent)]
       (let [index (.indexOf parent-children old)]
         (when (pos? index)
@@ -1474,7 +1475,7 @@
                                               visible-command-contexts
                                               command->shortcut
                                               evaluation-context)]
-            (replace-menu! menu-item new-menu-item)))))
+            (replace-menu! menu-bar menu-item new-menu-item)))))
     (clear-invalidated-menubar-items!)))
 
 (defn- refresh-separator-visibility [menu-items]
@@ -1714,7 +1715,7 @@
 
 (defn refresh
   [^Scene scene]
-  (g/with-auto-evaluation-context evaluation-context
+  (g/with-auto-or-fake-evaluation-context evaluation-context
     (refresh-menus! scene (or (user-data scene :command->shortcut) {}) evaluation-context)
     (refresh-toolbars! scene evaluation-context)))
 
@@ -1758,33 +1759,6 @@
                   (ref-set progress-snapshot @last-progress)
                   (ref-set render-inflight false))
                 (render-progress! @progress-snapshot)))))))))
-
-(defn modal-progress [title worker-fn]
-  (run-now
-   (let [root             ^Parent (load-fxml "progress.fxml")
-         stage            (make-dialog-stage (main-stage))
-         scene            (Scene. root)
-         title-control    ^Label (.lookup root "#title")
-         progress-control ^ProgressBar (.lookup root "#progress")
-         message-control  ^Label (.lookup root "#message")
-         return           (atom nil)
-         render-progress! (make-run-later-render-progress
-                            (fn [progress]
-                              (render-progress-controls! progress progress-control message-control)))]
-      (.setText title-control title)
-      (.setProgress progress-control 0)
-      (.setScene stage scene)
-      (future
-        (try
-          (reset! return (worker-fn render-progress!))
-          (catch Throwable e
-            (log/error :exception e)
-            (reset! return e)))
-        (run-later (.close stage)))
-      (.showAndWait stage)
-      (if (instance? Throwable @return)
-          (throw @return)
-          @return))))
 
 (defn- set-scene-disable! [^Scene scene disable?]
   (when-some [root (.getRoot scene)]

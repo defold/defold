@@ -2,6 +2,7 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as string]
+            [editor.connection-properties :refer [connection-properties]]
             [editor.process :as process]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -17,11 +18,11 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- download-url [sha1 ^Platform platform]
-  (format "https://d.defold.com/editor2/%s/editor2/Defold-%s.zip" sha1 (.getPair platform)))
+(defn- download-url [sha1 channel ^Platform platform]
+  (format (get-in connection-properties [:updater :download-url-template]) sha1 channel (.getPair platform)))
 
 (defn- update-url [channel]
-  (format "https://d.defold.com/editor2/channels/%s/update-v2.json" channel))
+  (format (get-in connection-properties [:updater :update-url-template]) channel))
 
 (def ^:private ^File support-dir
   (.getCanonicalFile (.toFile (Editor/getSupportPath))))
@@ -172,9 +173,9 @@
   operation"
   [updater]
   {:pre [(can-download-update? updater)]}
-  (let [{:keys [state-atom platform]} updater
+  (let [{:keys [state-atom platform channel]} updater
         {:keys [current-download server-sha1]} @state-atom
-        url (download-url server-sha1 platform)
+        url (download-url server-sha1 channel platform)
         zip-file (create-temp-zip-file)
         cancelled-atom (atom false)
         track-progress! (fn [progress]

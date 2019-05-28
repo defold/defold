@@ -65,11 +65,6 @@
                           :entries (pop-n entries n)})))]
     (update batch :entries #(take n %))))
 
-(defn show! [view-node]
-  (let [canvas (g/node-value view-node :canvas)
-        ^TabPane tab-pane (ui/closest-node-of-type TabPane canvas)]
-    (.select (.getSelectionModel tab-pane) 0)))
-
 ;; -----------------------------------------------------------------------------
 ;; Tool Bar
 ;; -----------------------------------------------------------------------------
@@ -330,7 +325,8 @@
       (g/connect console-node :regions view-node :regions)))
   view-node)
 
-(def ^:private line-sub-regions-pattern #"(?<=^|\s|[<\"'`])(\/[^\s>\"'`:]+)(?::?)(\d+)?")
+(def ^:private ^:const line-sub-regions-pattern #"(?<=^|\s|[<\"'`])(\/[^\s>\"'`:]+)(?::?)(\d+)?")
+(def ^:private ^:const line-sub-regions-pattern-partial #"([^\s<>:]+):(\d+)")
 
 (defn- make-resource-reference-region
   ([row start-col end-col resource-proj-path on-click!]
@@ -347,19 +343,30 @@
    (assoc (make-resource-reference-region row start-col end-col resource-proj-path on-click!)
      :row resource-row)))
 
+(defn- find-project-resource-from-potential-match
+  [resource-map partial-path]
+  (if (contains? resource-map partial-path)
+    partial-path ;; Already a valid path
+    (let [partial-matches (filter #(.endsWith ^String % partial-path) (keys resource-map))]
+      (when (= 1 (bounded-count 2 partial-matches))
+        (first partial-matches)))))
+
 (defn- make-line-sub-regions [resource-map on-region-click! row line]
-  (keep (fn [^MatchResult result]
-          (let [resource-proj-path (.group result 1)]
-            (when (contains? resource-map resource-proj-path)
-              (let [resource-row (some-> (.group result 2) Long/parseUnsignedLong)
-                    start-col (.start result)
-                    end-col (if (string/ends-with? (.group result) ":")
-                              (dec (.end result))
-                              (.end result))]
-                (if (nil? resource-row)
-                  (make-resource-reference-region row start-col end-col resource-proj-path on-region-click!)
-                  (make-resource-reference-region row start-col end-col resource-proj-path (dec (long resource-row)) on-region-click!))))))
-        (re-match-result-seq line-sub-regions-pattern line)))
+  (into []
+        (comp
+          (mapcat #(re-match-result-seq % line))
+          (keep (fn [^MatchResult result]
+                  (when-let [resource-proj-path (find-project-resource-from-potential-match resource-map (.group result 1))]
+                    (let [resource-row (some-> (.group result 2) Long/parseUnsignedLong)
+                          start-col (.start result)
+                          end-col (if (string/ends-with? (.group result) ":")
+                                    (dec (.end result))
+                                    (.end result))]
+                      (if (nil? resource-row)
+                        (make-resource-reference-region row start-col end-col resource-proj-path on-region-click!)
+                        (make-resource-reference-region row start-col end-col resource-proj-path (dec (long resource-row)) on-region-click!))))))
+          (distinct))
+        [line-sub-regions-pattern line-sub-regions-pattern-partial]))
 
 (defn- make-whole-line-region [type ^long row line]
   (assert (keyword? type))
@@ -485,7 +492,7 @@
                                (when (and (resource/openable-resource? resource)
                                           (resource/exists? resource))
                                  (let [opts (when-some [row (:row region)]
-                                              {:line (inc (long row))})]
+                                              {:cursor-range (data/Cursor->CursorRange (data/->Cursor row 0))})]
                                    (open-resource-fn resource opts))))))
         repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time]
                                                        (when (and (.isSelected console-tab) (not (ui/ui-disabled?)))

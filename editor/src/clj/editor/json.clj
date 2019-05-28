@@ -28,14 +28,7 @@
                :begin-captures {0 {:name "punctuation.definition.string.begin.json"}}
                :end #"\""
                :end-captures {0 {:name "punctuation.definition.string.end.json"}}
-               :name "string.quoted.double.json"}
-              {:begin #"/\*"
-               :captures {0 {:name "punctuation.definition.comment.json"}}
-               :end #"\*/"
-               :name "comment.block.json"}
-              {:captures {1 {:name "punctuation.definition.comment.json"}}
-               :match #"(//).*$\n?"
-               :name "comment.line.double-slash.js"}]})
+               :name "string.quoted.double.json"}]})
 
 (defonce ^:private json-loaders (atom {}))
 

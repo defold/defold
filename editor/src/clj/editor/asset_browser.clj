@@ -4,6 +4,7 @@
             [dynamo.graph :as g]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
+            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.ui :as ui]
@@ -310,8 +311,12 @@
         prospect-pairs (map (fn [^File f] [f (File. tgt-dir (FilenameUtils/getName (.toString f)))]) src-files)
         project-path (workspace/project-path workspace)]
     (if-let [illegal (illegal-copy-move-pairs project-path prospect-pairs)]
-      (dialogs/make-alert-dialog (str "Cannot paste because the following target directories are reserved:\n"
-                                      (string/join "\n" (map (comp (partial resource/file->proj-path project-path) second) illegal))))
+      (dialogs/make-info-dialog
+        {:title "Cannot Paste"
+         :icon :icon/triangle-error
+         :header "There are reserved target directories"
+         :content (str "Following target directories are reserved:\n"
+                       (string/join "\n" (map (comp (partial resource/file->proj-path project-path) second) illegal)))})
       (let [pairs (ensure-unique-dest-files (fn [_ basename] (str basename "_copy")) prospect-pairs)]
         (doseq [[^File src-file ^File tgt-file] pairs]
           (fs/copy! src-file tgt-file {:target :merge}))
@@ -392,10 +397,39 @@
 (handler/defhandler :delete :asset-browser
   (enabled? [selection] (delete? selection))
   (run [selection asset-browser selection-provider]
-    (let [names (apply str (interpose ", " (map resource/resource-name selection)))
-          next (-> (handler/succeeding-selection selection-provider)
+    (let [next (-> (handler/succeeding-selection selection-provider)
                    (handler/adapt-single resource/Resource))]
-      (when (dialogs/make-confirm-dialog (format "Are you sure you want to delete %s?" names))
+      (when (if (= 1 (count selection))
+              (dialogs/make-confirmation-dialog
+                {:title "Delete File?"
+                 :icon :icon/circle-question
+                 :header (format "Are you sure you want to delete %s?"
+                                 (resource/resource-name (first selection)))
+                 :buttons [{:text "Cancel"
+                            :cancel-button true
+                            :default-button true
+                            :result false}
+                           {:text "Delete"
+                            :variant :danger
+                            :result true}]})
+              (dialogs/make-confirmation-dialog
+                {:title "Delete Files?"
+                 :icon :icon/circle-question
+                 :header "Are you sure you want to delete these files?"
+                 :content {:fx/type fxui/label
+                           :style-class "dialog-content-padding"
+                           :text (format "You are about to delete: \n%s"
+                                         (->> selection
+                                              (map #(str "\u00A0\u00A0\u2022\u00A0"
+                                                         (resource/resource-name %)))
+                                              (string/join "\n")))}
+                 :buttons [{:text "Cancel"
+                            :cancel-button true
+                            :default-button true
+                            :result false}
+                           {:text "Delete"
+                            :variant :danger
+                            :result true}]}))
         (when (and (delete selection) next)
           (select-resource! asset-browser next))))))
 
@@ -474,8 +508,9 @@
   (enabled? [active-resource selection]
             (when-let [r (selected-or-active-resource selection active-resource)]
               (resource/exists? r)))
-  (run [active-resource asset-browser selection]
+  (run [active-resource asset-browser selection main-stage]
     (when-let [r (selected-or-active-resource selection active-resource)]
+      (app-view/show-asset-browser! (.getScene ^Stage main-stage))
       (select-resource! asset-browser r {:scroll? true}))))
 
 (defn- item->path [^TreeItem item]

@@ -7,6 +7,7 @@
             [editor.diff-view :as diff-view]
             [editor.disk-availability :as disk-availability]
             [editor.error-reporting :as error-reporting]
+            [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.handler :as handler]
             [editor.login :as login]
@@ -91,7 +92,18 @@
             (and (disk-availability/available?)
                  (pos? (count selection))))
   (run [async-reload! selection git changes-view workspace]
-    (when (dialogs/make-confirm-dialog (format "Are you sure you want to revert changes on selected files?"))
+    (when (dialogs/make-confirmation-dialog
+            {:title "Revert Changes?"
+             :size :large
+             :icon :icon/circle-question
+             :header "Are you sure you want to revert changes on selected files?"
+             :buttons [{:text "Cancel"
+                        :cancel-button true
+                        :default-button true
+                        :result false}
+                       {:text "Revert Changes"
+                        :variant :danger
+                        :result true}]})
       (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
         (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
         (async-reload! workspace changes-view moved-files)))))
@@ -131,10 +143,19 @@
     (loop []
       (if-some [locked-files (not-empty (git/locked-files git))]
         ;; Found locked files below the project. Notify user and offer to retry.
-        (if (dialogs/make-confirm-dialog (git/locked-files-error-message locked-files)
-                                         {:title "Not Safe to Sync"
-                                          :ok-label "Retry"
-                                          :cancel-label "Cancel"})
+        (if (dialogs/make-confirmation-dialog
+              {:title "Not Safe to Sync"
+               :icon :icon/circle-question
+               :header "There are locked files, retry?"
+               :content {:fx/type fxui/label
+                         :style-class "dialog-content-padding"
+                         :text (git/locked-files-error-message locked-files)}
+               :buttons [{:text "Cancel"
+                          :cancel-button true
+                          :result false}
+                         {:text "Retry"
+                          :default-button true
+                          :result true}]})
           (recur)
           false)
 
