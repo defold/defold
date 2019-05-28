@@ -1,7 +1,7 @@
 #include "crash.h"
 #include "crash_private.h"
 #include <dlib/log.h>
-#include <dlib/json.h>
+#include <dmsdk/dlib/json.h>
 #include <dlib/math.h>
 
 #include <stdio.h>

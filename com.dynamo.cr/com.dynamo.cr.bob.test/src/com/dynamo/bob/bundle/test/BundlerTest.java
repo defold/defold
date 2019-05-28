@@ -98,6 +98,12 @@ public class BundlerTest {
         }
     }
 
+    private File[] getBundleFiles() {
+        String projectName = "Unnamed";
+        File outputDirFile = new File(outputDir, projectName);
+        return outputDirFile.listFiles();
+    }
+
     @Parameters
     public static Collection<Platform[]> data() {
         Platform[][] data = new Platform[][] { {Platform.X86Win32}, {Platform.X86_64Win32}, {Platform.Armv7Android}, {Platform.JsWeb}};
@@ -322,5 +328,51 @@ public class BundlerTest {
             }
         }
         assertTrue(found);
+    }
+
+
+    @Test
+    public void testBundleResourcesDirs() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        File cust = new File(contentRoot, "custom");
+        cust.mkdir();
+        File sub1 = new File(contentRoot, "sub1");
+        File sub2 = new File(contentRoot, "sub2");
+        sub1.mkdir();
+        sub2.mkdir();
+        File sub_platform1 = new File(sub1, "common"); // common is a platform
+        File sub_platform2 = new File(sub2, this.platform.getExtenderPair());
+        sub_platform1.mkdir();
+        sub_platform2.mkdir();
+        createDefaultFiles();
+        createFile(contentRoot, "m.txt", "dummy");
+        createFile(sub_platform1.getAbsolutePath(), "s1-1.txt", "dummy");
+        createFile(sub_platform1.getAbsolutePath(), "s1-2.txt", "dummy");
+        createFile(sub_platform2.getAbsolutePath(), "s2-1.txt", "dummy");
+        createFile(sub_platform2.getAbsolutePath(), "s2-2.txt", "dummy");
+
+        createFile(contentRoot, "game.project", "[project]\nbundle_resources=\n[display]\nwidth=640\nheight=480\n");
+        build();
+        File[] files = getBundleFiles();
+        for (File file : files) {
+            System.out.println(String.format("%s: isFile %s", file.getAbsolutePath(), file.isFile() ? "true":"false"));
+        }
+        assertEquals(8, files.length);
+
+        createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1\n[display]\nwidth=640\nheight=480\n");
+        build();
+        files = getBundleFiles();
+        for (File file : files) {
+            System.out.println(String.format("%s: isFile %s", file.getAbsolutePath(), file.isFile() ? "true":"false"));
+        }
+        assertEquals(10, files.length);
+
+
+        createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1,/sub2\n[display]\nwidth=640\nheight=480\n");
+        build();
+        files = getBundleFiles();
+        for (File file : files) {
+            System.out.println(String.format("%s: isFile %s", file.getAbsolutePath(), file.isFile() ? "true":"false"));
+        }
+        assertEquals(12, files.length);
     }
 }

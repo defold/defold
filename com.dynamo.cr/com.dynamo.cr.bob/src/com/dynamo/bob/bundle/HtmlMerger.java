@@ -73,6 +73,7 @@ public class HtmlMerger {
             // they both have MERGE
             mergeNode(elementa, elementb);
         }
+
         for(Element childb : elementb.children()) {
             //String tagb = childb.tagName();
             String idb = childb.hasAttr("id") ? childb.attr("id") : null;

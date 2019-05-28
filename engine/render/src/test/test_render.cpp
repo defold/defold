@@ -68,6 +68,36 @@ protected:
     }
 };
 
+TEST_F(dmRenderTest, TestFontMapTextureFiltering)
+{
+    dmRender::HFontMap bitmap_font_map;
+    dmRender::FontMapParams bitmap_font_map_params;
+    bitmap_font_map_params.m_CacheWidth = 1;
+    bitmap_font_map_params.m_CacheHeight = 1;
+    bitmap_font_map_params.m_CacheCellWidth = 8;
+    bitmap_font_map_params.m_CacheCellHeight = 8;
+    bitmap_font_map_params.m_MaxAscent = 2;
+    bitmap_font_map_params.m_MaxDescent = 1;
+    bitmap_font_map_params.m_Glyphs.SetCapacity(1);
+    bitmap_font_map_params.m_Glyphs.SetSize(1);
+    memset((void*)&bitmap_font_map_params.m_Glyphs[0], 0, sizeof(dmRender::Glyph)*1);
+    for (uint32_t i = 0; i < 1; ++i)
+    {
+        bitmap_font_map_params.m_Glyphs[i].m_Character = i;
+        bitmap_font_map_params.m_Glyphs[i].m_Width = 1;
+        bitmap_font_map_params.m_Glyphs[i].m_LeftBearing = 1;
+        bitmap_font_map_params.m_Glyphs[i].m_Advance = 2;
+        bitmap_font_map_params.m_Glyphs[i].m_Ascent = 2;
+        bitmap_font_map_params.m_Glyphs[i].m_Descent = 1;
+    }
+    bitmap_font_map_params.m_ImageFormat = dmRenderDDF::TYPE_BITMAP;
+
+    bitmap_font_map = dmRender::NewFontMap(m_GraphicsContext, bitmap_font_map_params);
+    ASSERT_TRUE(VerifyFontMapMinFilter(bitmap_font_map, dmGraphics::TEXTURE_FILTER_LINEAR));
+    ASSERT_TRUE(VerifyFontMapMagFilter(bitmap_font_map, dmGraphics::TEXTURE_FILTER_LINEAR));
+    dmRender::DeleteFontMap(bitmap_font_map);
+}
+
 TEST_F(dmRenderTest, TestContextNewDelete)
 {
 
