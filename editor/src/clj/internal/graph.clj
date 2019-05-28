@@ -487,9 +487,7 @@
                (fn [arcs]
                  (util/removev
                    (fn [^Arc arc]
-                     (and (= source-id (.source-id arc))
-                          (= target-id (.target-id arc))
-                          (= source-label (.source-label arc))
+                     (and (= target-id (.target-id arc))
                           (= target-label (.target-label arc))))
                    arcs)))))
 
@@ -502,9 +500,7 @@
                  (util/removev
                    (fn [^Arc arc]
                      (and (= source-id (.source-id arc))
-                          (= target-id (.target-id arc))
-                          (= source-label (.source-label arc))
-                          (= target-label (.target-label arc))))
+                          (= source-label (.source-label arc))))
                    arcs)))))
 
 (defn override-by-id
@@ -1005,18 +1001,7 @@
 (defn- arc-source-label [^Arc arc]
   (.source-label arc))
 
-(defn- valid-arc-from-graph? [basis graph-id ^Arc arc]
-  (let [source-node-id (.source-id arc)]
-    (println "valid-arc" source-node-id (arc-source-label arc)
-             (= graph-id (gt/node-id->graph-id source-node-id))
-             (if-some [node (gt/node-by-id-at basis source-node-id)]
-               (pr-str node)
-               "DELETED"))
-    (and (= graph-id (gt/node-id->graph-id source-node-id))
-         (some? (gt/node-by-id-at basis source-node-id)))))
-
-(defn hydrate-after-undo [basis graph-id]
-  (println "hydrate-after-undo")
+(defn hydrate-after-undo [basis ^long graph-id]
   ;; NOTE: This was originally written in a simpler way. This longer-form
   ;; implementation is optimized in order to solve performance issues in graphs
   ;; with a large number of connections.
@@ -1026,36 +1011,50 @@
         graph (graphs graph-id)
         other-graphs (dissoc graphs graph-id)
         old-sarcs (get graph :sarcs)
-        arc-from-graph? #(= graph-id (gt/node-id->graph-id (arc-source-id %)))
+        arc-from-graph? #(= graph-id (gt/node-id->graph-id (.source-id ^Arc %)))
         arc-to-graph? #(= graph-id (gt/node-id->graph-id (.target-id ^Arc %)))
-        arc-valid? (comp some? (partial gt/node-by-id-at basis) arc-source-id)
+        arc-from-valid-source? (comp some? (partial gt/node-by-id-at basis) arc-source-id)
 
-        (comment only keep valid-external-arcs in new-sarcs, but still
+        #_(comment only keep valid-external-arcs in new-sarcs, but still
                  invalidate invalid external arcs. Also remove invalid arcs from other graphs)
+
+        #_(comment
+            * Get external arcs before rewind
+            * Disconnect from other graphs (will invalidate cache and update successors)
+            * Rewind graph
+            * Invalidate cache & update successors for internal connections
+              * (from rewound history,
+                      * added or removed connections
+                      * added or removed nodes)
+            * Replay transactions.
+            * Reconnect still-valid nodes to other graphs.)
+
+        ;; The evaluation-context used in property setters do not read from the
+        ;; system cache.
+
+        [invalid-external-arcs valid-external-arcs]
+        (util/separate-into [] arc-from-valid-source?
+                            (sequence
+                              (comp (mapcat :tarcs)
+                                    (mapcat val)
+                                    (mapcat val)
+                                    (filter arc-from-graph?))
+                              (vals other-graphs)))
 
         ;; Create a sarcs-like map structure containing just the Arcs that
         ;; connect nodes in our graph to nodes in other graphs. Use the tarcs
         ;; from the other graphs as the source of truth.
-        external-arcs (sequence
-                        (comp (mapcat :tarcs)
-                              (mapcat val)
-                              (mapcat val)
-                              (filter arc-from-graph?))
-                        (vals other-graphs))
-
-        external-sarcs (into {}
-                             (map (juxt key (comp (partial group-by arc-source-label) val)))
-                             (group-by arc-source-id
-                                       (into #{}
-                                             (comp (mapcat :tarcs)
-                                                   (mapcat val)
-                                                   (mapcat val)
-                                                   (filter arc-from-graph?))
-                                             (vals other-graphs))))
+        valid-external-sarcs (into {}
+                                  (map (juxt key
+                                             (comp (partial util/group-into {} [] arc-source-label)
+                                                   val)))
+                                  (util/group-into {} []
+                                                   arc-source-id
+                                                   valid-external-arcs))
 
         ;; Remove any sarcs that previously connected nodes in our graph to
         ;; nodes in other graphs. We will replace these connections with the
-        ;; ones in external-sarcs above.
+        ;; still-valid ones from external-sarcs above.
         internal-sarcs (reduce-kv (fn [internal-sarcs source-id arcs-by-source-label]
                                     (if-some [internal-arcs-by-source-label (not-empty
                                                                               (persistent!
@@ -1070,7 +1069,8 @@
                                   (transient old-sarcs)
                                   old-sarcs)
 
-        ;; The merge of the above internal and external sarcs are the new sarcs.
+        ;; The merge of the above internal-sarcs and the still-valid Arcs from
+        ;; external-arcs are the new sarcs.
         new-sarcs (persistent!
                     (reduce-kv (fn [new-sarcs source-id external-arcs-by-source-label]
                                  (assoc! new-sarcs source-id
@@ -1084,9 +1084,9 @@
                                internal-sarcs
                                valid-external-sarcs))
 
-        ;; We must refresh all outputs for which an Arc was introduced. In
-        ;; addition to being invalidated, we will update successors for these
-        ;; outputs outside this function.
+        ;; We must refresh all outputs for which an Arc was introduced or
+        ;; removed. In addition to being invalidated, we will update successors
+        ;; for these outputs outside this function.
         outputs-to-refresh (into []
                                  (mapcat (fn [[source-id external-arcs-by-source-label]]
                                            (if-some [old-arcs-by-source-label (old-sarcs source-id)]

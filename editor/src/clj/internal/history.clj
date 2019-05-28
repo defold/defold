@@ -4,8 +4,32 @@
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.transaction :as it]
-            [internal.util :as util])
-  (:import [java.util.concurrent.atomic AtomicLong]))
+            [internal.util :as util :refer [pair]])
+  (:import [internal.graph.types Arc]
+           [java.util.concurrent.atomic AtomicLong]))
+
+;; Notes:
+;; :sarcs and :tarcs should be in sync.
+;; Should contain the same Arcs, but grouped differently.
+;; The graph with the source node owns the :sarcs entry.
+;; The graph with the target node owns the :tarcs entry.
+;;
+;; (get-in basis [:graphs graph-id :successors]) => successors-by-node-id
+;; successors-by-node-id => {node-id {label {successor-node-id #{successor-label}}}}
+;; (get-in basis [:graphs graph-id :successors node-id label]) => {successor-node-id #{successor-label}}
+;;
+;; node-id above is a node owned by the graph.
+;; successor-node-id can refer to a node in another graph.
+;; When we awake a graph from history, we should clear out external successors before applying transaction steps.
+;;
+;; When reconnecting, we must update successors for all the connections that
+;; were added or removed during the transaction steps, as well as all the
+;; connections that we reconnect to other graphs. I.e. disconnected-arcs where
+;; the source node still exists after the transaction steps.
+;;
+;; Investigate:
+;; What is :successors used for? Can it affect the outcome of a property-setter,
+;; for example by altering the outcome of the override traverse-fn?
 
 (set! *warn-on-reflection* true)
 
@@ -118,7 +142,7 @@
                                                             history)]
             {history-entry-index 0}))))))
 
-(defn- finalize [{:keys [basis history outputs-to-refresh] :as altered-things}]
+#_(defn- finalize [{:keys [basis history outputs-to-refresh] :as altered-things}]
   (let [graph-id (history-graph-id history)
         {hydrated-basis :basis hydrated-outputs :outputs-to-refresh} (ig/hydrate-after-undo basis graph-id)
         finalized-outputs (into outputs-to-refresh hydrated-outputs)
@@ -128,14 +152,131 @@
       :basis finalized-basis
       :outputs-to-refresh finalized-outputs)))
 
-(defn- rewind-history [history basis history-entry-index]
+(defn- replace-group! [transient-groups-by-key key group]
+  (if (seq group)
+    (assoc! transient-groups-by-key key group)
+    (dissoc! transient-groups-by-key key)))
+
+(defn- remove-grouped-arcs-where [arc-pred unfiltered-arcs-by-label-by-node-id]
+  (let [[filtered-arcs-by-label-by-node-id removed-arcs]
+        (reduce-kv
+          (fn [[filtered-arcs-by-label-by-node-id removed-arcs] node-id unfiltered-arcs-by-label]
+            (let [[filtered-arcs-by-label removed-arcs]
+                  (reduce-kv
+                    (fn [[filtered-arcs-by-label removed-arcs] label unfiltered-arcs]
+                      (let [[filtered-arcs removed-arcs]
+                            (reduce
+                              (fn [[filtered-arcs removed-arcs] arc]
+                                (if (arc-pred arc)
+                                  (pair filtered-arcs (conj! removed-arcs arc))
+                                  (pair (conj! filtered-arcs arc) removed-arcs)))
+                              (pair (transient [])
+                                    removed-arcs)
+                              unfiltered-arcs)]
+                        (pair (replace-group! filtered-arcs-by-label label (persistent! filtered-arcs))
+                              removed-arcs)))
+                    (pair (transient unfiltered-arcs-by-label)
+                          removed-arcs)
+                    unfiltered-arcs-by-label)]
+              (pair (replace-group! filtered-arcs-by-label-by-node-id node-id (persistent! filtered-arcs-by-label))
+                    removed-arcs)))
+          (pair (transient unfiltered-arcs-by-label-by-node-id)
+                (transient []))
+          unfiltered-arcs-by-label-by-node-id)]
+    (pair (persistent! filtered-arcs-by-label-by-node-id)
+          (persistent! removed-arcs))))
+
+(defn- disconnect-graph [basis disconnected-graph-id]
+  (assert (gt/basis? basis))
+  (assert (gt/graph-id? disconnected-graph-id))
+  (let [arc-from-graph? #(= disconnected-graph-id (gt/node-id->graph-id (.source-id ^Arc %)))
+        other-graphs (dissoc (:graphs basis) graph-id)
+
+        [disconnected-graphs disconnected-arcs]
+        (reduce-kv (fn [[disconnected-graphs disconnected-arcs] graph-id graph]
+                     (let [[filtered-tarcs removed-arcs] (remove-grouped-arcs-where arc-from-graph? (:tarcs graph))]
+                       (pair (assoc-in disconnected-graphs [graph-id :tarcs] filtered-tarcs)
+                             (into disconnected-arcs removed-arcs))))
+                   (pair other-graphs [])
+                   other-graphs)
+
+        disconnected-basis (assoc basis :graphs disconnected-graphs)
+        disconnected-outputs (into #{}
+                                   (map (fn [^Arc arc]
+                                          [(.source-id arc) (.source-label arc)]))
+                                   disconnected-arcs)]
+    {:basis disconnected-basis
+     :disconnected-arcs disconnected-arcs
+     :outputs-to-refresh disconnected-outputs}))
+
+
+(defn- reconnect-graph [basis graph disconnected-arcs]
+  )
+
+(defn- remove-external-sarcs [graph known-external-arcs]
+  ;; Remove all :sarcs that target external nodes and update :successors to
+  ;; reflect this new state of affairs. The known-external-arcs should be a seq
+  ;; of Arcs that will be used to limit the search.
+  (let [^long graph-id (:_graph-id graph)
+        node-id-in-graph? #(= graph-id (gt/node-id->graph-id %))
+        arc-from-graph? #(node-id-in-graph? (.source-id ^Arc %))
+        source-node-id->source-labels (util/group-into {} #{}
+                                                       #(.source-id ^Arc %)
+                                                       #(.source-label ^Arc %)
+                                                       known-external-arcs)]
+    (-> graph
+        (update :sarcs
+                (fn [source-node-id->source-label->arcs]
+                  (reduce-kv
+                    (fn [source-node-id->source-label->arcs source-node-id source-labels]
+                      (update source-node-id->source-label->arcs
+                              source-node-id
+                              (fn [source-label->arcs]
+                                (reduce
+                                  (fn [source-label->arcs source-label]
+                                    (update source-label->arcs
+                                            source-label
+                                            (fn [arcs]
+                                              (into (empty arcs)
+                                                    (filter arc-from-graph?)
+                                                    arcs))))
+                                  source-label->arcs
+                                  source-labels))))
+                    source-node-id->source-label->arcs
+                    source-node-id->source-labels)))
+        (update :successors
+                (fn [source-node-id->source-label->successor-node-id->successor-labels]
+                  (reduce-kv
+                    (fn [source-node-id->source-label->successor-node-id->successor-labels source-node-id source-labels]
+                      (update source-node-id->source-label->successor-node-id->successor-labels
+                              source-node-id
+                              (fn [source-label->successor-node-id->successor-labels]
+                                (reduce
+                                  (fn [source-label->successor-node-id->successor-labels source-label]
+                                    (update source-label->successor-node-id->successor-labels
+                                            source-label
+                                            (fn [successor-node-id->successor-labels]
+                                              (transduce
+                                                (remove node-id-in-graph?)
+                                                (completing dissoc! persistent!)
+                                                (transient successor-node-id->successor-labels)
+                                                (keys successor-node-id->successor-labels)))))
+                                  source-label->successor-node-id->successor-labels
+                                  source-labels))))
+                    source-node-id->source-label->successor-node-id->successor-labels
+                    source-node-id->source-labels))))))
+
+(defn- rewind-history [history history-entry-index disconnected-arcs]
+  ;; The returned graph will not have any external connections to other graphs.
+  ;; Its successors will also be updated to reflect this. We must still evict
+  ;; the original successors from the cache, though.
+  ;; TODO! This should probably happen in disconnect-graph above?
   (let [rewound-history-end-index (inc history-entry-index)
         rewound-history (into [] (subvec history 0 rewound-history-end-index))
+        rewound-history (update-in rewound-history [(dec (count rewound-history)) :graph-after] remove-external-sarcs disconnected-arcs)
         rewound-graph (:graph-after (peek rewound-history))
-        rewound-graph-id (:_graph-id rewound-graph)
-        rewound-basis (assoc-in basis [:graphs rewound-graph-id] rewound-graph)
         rewound-outputs (transduce (map :outputs-modified) set/union (subvec history rewound-history-end-index))]
-    {:basis rewound-basis
+    {:graph rewound-graph
      :history rewound-history
      :outputs-to-refresh rewound-outputs}))
 
@@ -252,12 +393,18 @@
         max-history-entry-index (reduce max history-entry-indices)
         min-history-entry-index (reduce min history-entry-indices)]
     (assert (pos? min-history-entry-index) "Cannot alter the beginning of history.")
-    (let [{rewound-basis :basis
+    (let [graph-id (history-graph-id history)
+          {disconnected-basis :basis
+           disconnected-arcs :disconnected-arcs
+           disconnected-outputs :outputs-to-refresh} (disconnect-graph basis graph-id)
+          {rewound-graph :graph
            rewound-history :history
-           rewound-outputs :outputs-to-refresh} (rewind-history history basis (dec min-history-entry-index))
-          {altered-basis :basis
-           altered-history :history
-           altered-outputs :outputs-to-refresh} (replay-history rewound-history rewound-basis history undo-group-by-history-entry-index node-id-generators override-id-generator)]
+           rewound-outputs :outputs-to-refresh} (rewind-history history (dec min-history-entry-index))
+          {replayed-graph :graph
+           replayed-history :history
+           replayed-outputs :outputs-to-refresh} (replay-history rewound-history rewound-basis history undo-group-by-history-entry-index node-id-generators override-id-generator)
+          {reconnected-basis :basis
+           reconnected-outputs :outputs-to-refresh} (reconnect-graph basis graph disconnected-arcs)]
       (finalize
         {:basis altered-basis
          :context-after (:context-after (history max-history-entry-index))
@@ -266,7 +413,15 @@
          :outputs-to-refresh (set/union rewound-outputs altered-outputs)}))))
 
 (defn reset [history basis history-entry-index]
-  (let [{:keys [context-after context-before]} (history history-entry-index)]
+  (let [{disconnected-basis :basis
+         disconnected-arcs :disconnected-arcs
+         disconnected-outputs :outputs-to-refresh} (disconnect-graph basis graph-id)
+        {rewound-graph :graph
+         rewound-history :history
+         rewound-outputs :outputs-to-refresh} (rewind-history history history-entry-index)
+        rewound-graph-id (:_graph-id rewound-graph)
+        rewound-basis (assoc-in basis [:graphs rewound-graph-id] rewound-graph)
+        {:keys [context-after context-before]} (peek rewound-history)]
     (-> history
         (rewind-history basis history-entry-index)
         (assoc

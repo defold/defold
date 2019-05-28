@@ -4,13 +4,16 @@
             [clojure.set :as set]
             [clojure.string :as str]
             [schema.core :as s])
-  (:import [clojure.lang IEditableCollection]))
+  (:import [clojure.lang IEditableCollection MapEntry]))
 
 (set! *warn-on-reflection* true)
 
 (defn predicate? [x] (instance? schema.core.Predicate x))
 (defn schema?    [x] (satisfies? s/Schema x))
 (defn protocol?  [x] (and (map? x) (contains? x :on-interface)))
+
+(defn pair [a b]
+  (MapEntry. a b))
 
 (defn var-get-recursive [var-or-value]
   (if (var? var-or-value)
@@ -111,6 +114,19 @@
                    (groups-container-assoc groups-container key (group-conj group value))))
                (groups-container-prepare groups-container)
                coll)))))
+
+(defn separate-into
+  "Apply a predicate to every element in a collection. Return a pair of
+  [false-results, true-results]. You specify the empty collection to use for the
+  groups. If the optional value-fn is supplied, it will be used to transform
+  each element before adding them to the groups."
+  ([empty-group pred coll]
+   (separate-into empty-group pred nil coll))
+  ([empty-group pred value-fn coll]
+   (let [groups (group-into {} empty-group (comp boolean pred) value-fn coll)
+         false-results (get groups false empty-group)
+         true-results (get groups true empty-group)]
+     (pair false-results true-results))))
 
 (defn filterm [pred m]
   "like filter but applys the predicate to each key value pair of the map"
