@@ -38,7 +38,7 @@ namespace dmPhysics
         RESULT_ID_EXISTS = 2,
         RESULT_ID_NOT_FOUND = 3,
         RESULT_NOT_CONNECTED = 4,
-        RESULT_UNKNOWN_ERROR = -1,
+        RESULT_UNKNOWN_ERROR = 5,
     };
 
     /// 3D context handle.
@@ -1123,14 +1123,12 @@ namespace dmPhysics
      */
     void ReplaceShape2D(HContext2D context, HCollisionShape2D old_shape, HCollisionShape2D new_shape);
 
-    // HJoint CreateJoint2D(HWorld2D world, dmhash_t id);
-    // HJoint CreateJoint3D(HWorld3D world, dmhash_t id);
-    // dmhash_t GetJointId2D(HJoint joint);
-    // dmhash_t GetJointId3D(HJoint joint);
-
     struct ConnectJointParams
     {
         bool m_CollideConnected;
+        // float m_ReactionForce[3];
+        // float m_ReactionTorque;
+
         union {
             struct
             {
@@ -1146,6 +1144,8 @@ namespace dmPhysics
 
             struct
             {
+                float m_JointAngle; // read only
+                float m_JointSpeed; // read only
                 float m_ReferenceAngle;
                 float m_LowerAngle;
                 float m_UpperAngle;
@@ -1157,6 +1157,8 @@ namespace dmPhysics
 
             struct
             {
+                float m_JointTranslation; // read only
+                float m_JointSpeed; // read only
                 float m_LocalAxisA[3];
                 float m_ReferenceAngle;
                 bool m_EnableLimit;

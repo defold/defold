@@ -1142,11 +1142,6 @@ namespace dmPhysics
             case dmPhysics::JOINT_TYPE_HINGE:
                 {
                     b2RevoluteJoint* typed_joint = (b2RevoluteJoint*)joint;
-
-                    // typed_joint->GetJointAngle();
-                    // typed_joint->GetJointSpeed();
-
-                    // typed_joint->SetReferenceAngle(params.m_HingeJointParams.m_ReferenceAngle);
                     typed_joint->SetLimits(params.m_HingeJointParams.m_LowerAngle, params.m_HingeJointParams.m_UpperAngle);
                     typed_joint->SetMaxMotorTorque(params.m_HingeJointParams.m_MaxMotorTorque);
                     typed_joint->SetMotorSpeed(params.m_HingeJointParams.m_MotorSpeed);
@@ -1157,17 +1152,6 @@ namespace dmPhysics
             case dmPhysics::JOINT_TYPE_SLIDER:
                 {
                     b2PrismaticJoint* typed_joint = (b2PrismaticJoint*)joint;
-
-                    // typed_joint->GetJointTranslation();
-                    // typed_joint->GetJointSpeed();
-                    // typed_joint->GetMotorForce();
-
-                    // b2Vec2 axis = typed_joint->GetLocalAxisA();
-                    // params.m_SliderJointParams.m_LocalAxisA[0] = axis.x;
-                    // params.m_SliderJointParams.m_LocalAxisA[1] = axis.y;
-                    // params.m_SliderJointParams.m_LocalAxisA[2] = 0.0f;
-
-                    // typed_joint->GetReferenceAngle(params.m_SliderJointParams.m_ReferenceAngle);
                     typed_joint->EnableLimit(params.m_SliderJointParams.m_EnableLimit);
                     typed_joint->SetLimits(params.m_SliderJointParams.m_LowerTranslation * scale, params.m_SliderJointParams.m_UpperTranslation * scale);
                     typed_joint->EnableMotor(params.m_SliderJointParams.m_EnableMotor);
@@ -1208,9 +1192,6 @@ namespace dmPhysics
                 {
                     b2RevoluteJoint* typed_joint = (b2RevoluteJoint*)joint;
 
-                    // typed_joint->GetJointAngle();
-                    // typed_joint->GetJointSpeed();
-
                     params.m_HingeJointParams.m_ReferenceAngle = typed_joint->GetReferenceAngle();
                     params.m_HingeJointParams.m_LowerAngle = typed_joint->GetLowerLimit();
                     params.m_HingeJointParams.m_UpperAngle = typed_joint->GetUpperLimit();
@@ -1218,15 +1199,15 @@ namespace dmPhysics
                     params.m_HingeJointParams.m_MotorSpeed = typed_joint->GetMotorSpeed();
                     params.m_HingeJointParams.m_EnableLimit = typed_joint->IsLimitEnabled();
                     params.m_HingeJointParams.m_EnableMotor = typed_joint->IsMotorEnabled();
+
+                    // Read only properties
+                    params.m_HingeJointParams.m_JointAngle = typed_joint->GetJointAngle();
+                    params.m_HingeJointParams.m_JointSpeed = typed_joint->GetJointSpeed();
                 }
                 break;
             case dmPhysics::JOINT_TYPE_SLIDER:
                 {
                     b2PrismaticJoint* typed_joint = (b2PrismaticJoint*)joint;
-
-                    // typed_joint->GetJointTranslation();
-                    // typed_joint->GetJointSpeed();
-                    // typed_joint->GetMotorForce();
 
                     b2Vec2 axis = typed_joint->GetLocalAxisA();
                     params.m_SliderJointParams.m_LocalAxisA[0] = axis.x;
@@ -1239,6 +1220,10 @@ namespace dmPhysics
                     params.m_SliderJointParams.m_EnableMotor = typed_joint->IsMotorEnabled();
                     params.m_SliderJointParams.m_MaxMotorForce = typed_joint->GetMaxMotorForce() / scale;
                     params.m_SliderJointParams.m_MotorSpeed = typed_joint->GetMotorSpeed();
+
+                    // Read only properties
+                    params.m_SliderJointParams.m_JointTranslation = typed_joint->GetJointTranslation();
+                    params.m_SliderJointParams.m_JointSpeed = typed_joint->GetJointSpeed();
                 }
                 break;
             default:

@@ -340,6 +340,16 @@ namespace dmGameSystem
         return 1;
     }
 
+    // Matches JointResult in physics.h
+    static const char* PhysicsResultString[] = {
+        "result ok",
+        "not supported",
+        "a joint with that id already exist",
+        "joint id not found",
+        "joint not connected",
+        "unknown error",
+    };
+
     static int GetCollisionObject(lua_State* L, dmGameObject::HCollection collection, dmMessage::URL url, void** comp, void** comp_world)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -382,7 +392,7 @@ namespace dmGameSystem
 
         dmPhysics::JointResult r = dmGameSystem::CreateJoint(comp_world, comp, joint_id);
         if (r != dmPhysics::RESULT_OK) {
-            return DM_LUA_ERROR("could not create joint (%d)", r);
+            return DM_LUA_ERROR("could not create joint: %s (%d)", PhysicsResultString[r], r);
         }
 
         return 0;
@@ -549,7 +559,7 @@ namespace dmGameSystem
         UnpackConnectJointParams(L, type, 7, params);
         dmPhysics::JointResult r = dmGameSystem::ConnectJoint(comp_world_a, comp_a, joint_id, pos_a, comp_b, pos_b, type, params);
         if (r != dmPhysics::RESULT_OK) {
-            return DM_LUA_ERROR("could not connect joint (%d)", r);
+            return DM_LUA_ERROR("could not connect joint: %s (%d)", PhysicsResultString[r], r);
         }
 
         return 0;
@@ -573,7 +583,7 @@ namespace dmGameSystem
         // Unpack type specific joint connection paramaters
         dmPhysics::JointResult r = dmGameSystem::DisconnectJoint(comp_world, comp, joint_id);
         if (r != dmPhysics::RESULT_OK) {
-            return DM_LUA_ERROR("could not disconnect joint (%d)", r);
+            return DM_LUA_ERROR("could not disconnect joint: %s (%d)", PhysicsResultString[r], r);
         }
 
         return 0;
@@ -598,7 +608,7 @@ namespace dmGameSystem
         dmPhysics::JointResult r = GetJointParams(comp_world, comp, joint_id, joint_type, joint_params);
         if (r != dmPhysics::RESULT_OK)
         {
-            return DM_LUA_ERROR("unable to get joint properties for %s (%d)", dmHashReverseSafe64(joint_id), r);
+            return DM_LUA_ERROR("unable to get joint properties for %s: %s (%d)", dmHashReverseSafe64(joint_id), PhysicsResultString[r], r);
         }
 
         lua_newtable(L);
@@ -627,6 +637,10 @@ namespace dmGameSystem
                     lua_pushnumber(L, joint_params.m_HingeJointParams.m_MotorSpeed); lua_setfield(L, -2, "motor_speed");
                     lua_pushboolean(L, joint_params.m_HingeJointParams.m_EnableLimit); lua_setfield(L, -2, "enable_limit");
                     lua_pushboolean(L, joint_params.m_HingeJointParams.m_EnableMotor); lua_setfield(L, -2, "enable_motor");
+
+                    lua_pushnumber(L, joint_params.m_HingeJointParams.m_JointAngle); lua_setfield(L, -2, "joint_angle");
+                    lua_pushnumber(L, joint_params.m_HingeJointParams.m_JointSpeed); lua_setfield(L, -2, "joint_speed");
+
                 }
                 break;
             case dmPhysics::JOINT_TYPE_SLIDER:
@@ -641,6 +655,9 @@ namespace dmGameSystem
                     lua_pushboolean(L, joint_params.m_SliderJointParams.m_EnableMotor); lua_setfield(L, -2, "enable_motor");
                     lua_pushnumber(L, joint_params.m_SliderJointParams.m_MaxMotorForce); lua_setfield(L, -2, "max_motor_force");
                     lua_pushnumber(L, joint_params.m_SliderJointParams.m_MotorSpeed); lua_setfield(L, -2, "motor_speed");
+
+                    lua_pushnumber(L, joint_params.m_SliderJointParams.m_JointTranslation); lua_setfield(L, -2, "joint_translation");
+                    lua_pushnumber(L, joint_params.m_SliderJointParams.m_JointSpeed); lua_setfield(L, -2, "joint_speed");
                 }
                 break;
             default:
@@ -669,7 +686,7 @@ namespace dmGameSystem
         dmPhysics::JointType joint_type;
         dmPhysics::JointResult r = GetJointType(comp_world, comp, joint_id, joint_type);
         if (r != dmPhysics::RESULT_OK) {
-            return DM_LUA_ERROR("unable to update joint, could not get joint type (%d)", r);
+            return DM_LUA_ERROR("unable to update joint, could not get joint type: %s (%d)", PhysicsResultString[r], r);
         }
 
         dmPhysics::ConnectJointParams joint_params(joint_type);
@@ -677,7 +694,7 @@ namespace dmGameSystem
 
         r = UpdateJoint(comp_world, comp, joint_id, joint_params);
         if (r != dmPhysics::RESULT_OK) {
-            return DM_LUA_ERROR("unable to update joint properties (%d)", r);
+            return DM_LUA_ERROR("unable to update joint properties: %s (%d)", PhysicsResultString[r], r);
         }
 
         return 0;

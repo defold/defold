@@ -215,6 +215,15 @@ namespace dmPhysics
         return (dmPhysics::HJoint)0x1;
     }
 
+    bool GetJointParams2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, ConnectJointParams& params)
+    {
+        return true;
+    }
+
+    bool UpdateJoint2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, const ConnectJointParams& params)
+    {
+    }
+
     void DeleteJoint2D(HWorld2D world, HJoint joint)
     {
     }
