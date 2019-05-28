@@ -293,36 +293,35 @@
             (.setBackground Color/BLACK)
             (.clearRect 0 0 (.getWidth image) (.getHeight image))
             (.translate dx dy))]
-    (if antialias
-      (let [^Shape outline (.getOutline glyph-vector 0 0)
-            stroke-width (* 2.0 font-desc-outline-width)]
-        (when (> font-desc-shadow-alpha 0.0)
-          (when (> font-desc-alpha 0.0)
-            (.setPaint g (Color. 0.0 0.0 (* font-desc-shadow-alpha font-desc-alpha)))
-            (.fill g outline))
-          (when (and (> font-desc-outline-width 0.0)
-                     (> font-desc-outline-alpha 0.0))
-            (let [outline-stroke (BasicStroke. stroke-width)]
-              (.setPaint g (Color. 0.0 0.0 (* font-desc-shadow-alpha font-desc-outline-alpha)))
-              (.setStroke g outline-stroke)
-              (.draw g outline)))
-          (dotimes [n (:shadow-blur font-desc)]
-            (let [tmp (.getSubimage image 0 0 width height)]
-              (.filter shadow-convolve tmp image))))
-        (.setComposite g blend-composite)
+    (let [^Shape outline (.getOutline glyph-vector 0 0)
+          stroke-width (* 2.0 font-desc-outline-width)]
+      (when (> font-desc-shadow-alpha 0.0)
+        (when (> font-desc-alpha 0.0)
+          (.setPaint g (Color. 0.0 0.0 (* font-desc-shadow-alpha font-desc-alpha)))
+          (.fill g outline))
         (when (and (> font-desc-outline-width 0.0)
                    (> font-desc-outline-alpha 0.0))
           (let [outline-stroke (BasicStroke. stroke-width)]
-            (.setPaint g outline-color)
+            (.setPaint g (Color. 0.0 0.0 (* font-desc-shadow-alpha font-desc-outline-alpha)))
             (.setStroke g outline-stroke)
             (.draw g outline)))
-        (when (> font-desc-alpha 0.0)
-          (.setPaint g face-color)
-          (.fill g outline)))
-      (do
+        (dotimes [n (:shadow-blur font-desc)]
+          (let [tmp (.getSubimage image 0 0 width height)]
+            (.filter shadow-convolve tmp image))))
+      (.setComposite g blend-composite)
+      (when (and (> font-desc-outline-width 0.0)
+                 (> font-desc-outline-alpha 0.0))
+        (let [outline-stroke (BasicStroke. stroke-width)]
+          (.setPaint g outline-color)
+          (.setStroke g outline-stroke)
+          (.draw g outline)))
+      (when (> font-desc-alpha 0.0)
         (.setPaint g face-color)
-        (.setFont g font)
-        (.drawString g (String. (Character/toChars glyph-character)) 0 0)))
+        (.fill g outline)))
+    (do
+      (.setPaint g face-color)
+      (.setFont g font)
+      (.drawString g (String. (Character/toChars glyph-character)) 0 0))
     image))
 
 
@@ -380,8 +379,7 @@
     semi-glyphs))
 
 (defn- calculate-ttf-layer-mask [font-desc]
-  (let [antialias (int->boolean (:antialias font-desc))
-        ^double alpha (:alpha font-desc)
+  (let [^double alpha (:alpha font-desc)
         ^double shadow-alpha (:shadow-alpha font-desc)
         ^double outline-alpha (:outline-alpha font-desc)
         ^double outline-width (:outline-width font-desc)
@@ -389,13 +387,11 @@
         face-layer 0x1
         outline-layer (if (and (> outline-width 0.0)
                                (> outline-alpha 0.0)
-                               (= render-mode :mode-multi-layer)
-                               antialias)
+                               (= render-mode :mode-multi-layer))
                         0x2 0x0)
         shadow-layer (if (and (> shadow-alpha 0.0)
                               (> alpha 0.0)
-                              (= render-mode :mode-multi-layer)
-                              antialias)
+                              (= render-mode :mode-multi-layer))
                        0x4 0x0)]
     (bit-or face-layer outline-layer shadow-layer)))
 
@@ -404,10 +400,8 @@
         antialias (int->boolean (:antialias font-desc))
         semi-glyphs (ttf-semi-glyphs font-desc font antialias)
         font-metrics (font-metrics font)
-        padding (if antialias
-                  (+ (min (int 4) ^int (:shadow-blur font-desc))
-                     (int (:outline-width font-desc)))
-                  0)
+        padding (+ (min (int 4) ^int (:shadow-blur font-desc))
+                   (int (:outline-width font-desc)))
         glyph-cell-padding 1
         channel-count (if (and (> ^double (:outline-width font-desc) 0.0)
                                (> ^double (:outline-alpha font-desc) 0.0))
@@ -604,11 +598,9 @@
         ^double shadow-blur (:shadow-blur font-desc)
         ^double face-alpha (:alpha font-desc)
         ^double shadow-alpha (:shadow-alpha font-desc)
-        padding (if antialias
-                  (+ (int shadow-blur)
-                     (int outline-width)
-                     1)
-                  1)
+        padding (+ (int shadow-blur)
+                   (int outline-width)
+                   1)
         channel-count (if (and (> shadow-alpha 0.0)
                                (> face-alpha 0.0))
                         3 1)
