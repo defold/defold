@@ -215,7 +215,11 @@ namespace dmProfile
             {
                 if (g_StringTable.Full())
                 {
+                    // The logger will try to lock the g_ProfileLock in dmMessage::Post
+                    // but at this point we already have claimed it in the dmProfile::Begin function.
+                	dmSpinlock::Unlock(&g_ProfileLock);
                     dmLogWarning("String table full in profiler");
+                    dmSpinlock::Lock(&g_ProfileLock);
                 }
                 else
                 {
