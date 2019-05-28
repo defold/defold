@@ -134,11 +134,12 @@
     (lines->completion-info lines)
     (catch MarkedYamlEngineException myee
       (let [mark ^Mark (.get (.getProblemMark myee))
-            line (inc (.getLine mark))
+            row (.getLine mark)
             col (.getColumn mark)
-            ev (-> (error-values/error-fatal (.getMessage myee))
-                   (assoc-in [:user-data :cursor-range]
-                             (data/line-number->CursorRange line col)))]
+            cursor-range (data/Cursor->CursorRange (data/->Cursor row col))
+            message (string/trim (.getMessage myee))
+            ev (-> (error-values/error-fatal message)
+                   (assoc-in [:user-data :cursor-range] cursor-range))]
         (g/package-errors _node-id ev)))))
 
 (g/defnk produce-build-errors
