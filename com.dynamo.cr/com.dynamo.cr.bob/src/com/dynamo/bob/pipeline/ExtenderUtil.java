@@ -531,6 +531,9 @@ public class ExtenderUtil {
 
         return resources;
     }
+    private static String[] getBundleResourcePaths(Project project) {
+        return project.getProjectProperties().getStringValue("project", "bundle_resources", "").trim().split(",");
+    }
 
     /**
      * Collect bundle resources based on a Project and a target platform string used to collect correct platform specific resources.
@@ -548,8 +551,8 @@ public class ExtenderUtil {
         platformFolderAlternatives.add("common");
 
         // Project specific bundle resources
-        String bundleResourcesPath = project.getProjectProperties().getStringValue("project", "bundle_resources", "").trim();
-        if (bundleResourcesPath.length() > 0) {
+        String[] bundleResourcesPaths = getBundleResourcePaths(project);
+        for (String bundleResourcesPath : bundleResourcesPaths) {
             for (String platformAlt : platformFolderAlternatives) {
                 Map<String, IResource> projectBundleResources = ExtenderUtil.collectResources(project, FilenameUtils.concat(bundleResourcesPath, platformAlt + "/"), bundleExcludeList);
                 mergeBundleMap(bundleResources, projectBundleResources);
@@ -580,8 +583,9 @@ public class ExtenderUtil {
         String rootDir = project.getRootDirectory();
 
         // Project specific bundle resources
-        String bundleResourcesPath = rootDir + "/" + project.getProjectProperties().getStringValue("project", "bundle_resources", "").trim();
-        if (bundleResourcesPath.length() > 0) {
+        String[] bundleResourcesPaths = getBundleResourcePaths(project);
+        for (String path : bundleResourcesPaths) {
+            String bundleResourcesPath = rootDir + "/" + path;
             for (String platformAlt : platformFolderAlternatives) {
                 File dir = new File(FilenameUtils.concat(bundleResourcesPath, platformAlt + "/res"));
                 if (dir.exists() && dir.isDirectory() )

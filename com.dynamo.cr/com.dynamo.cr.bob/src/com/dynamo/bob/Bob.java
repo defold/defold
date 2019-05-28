@@ -377,9 +377,13 @@ public class Bob {
         options.addOption(null, "defoldsdk", true, "What version of the defold sdk (sha1) to use");
         options.addOption(null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"");
 
+        options.addOption(null, "use-vanilla-lua", false, "Only ships vanilla source code (i.e. no byte code)");
+
         options.addOption("l", "liveupdate", true, "yes if liveupdate content should be published");
 
         options.addOption("ar", "architectures", true, "comma separated list of architectures to include for the platform");
+
+        options.addOption(null, "settings", true, "a path to a game project settings file. more than one occurrance are allowed. the settings files are applied left to right.");
 
         options.addOption(null, "version", false, "Prints the version number to the output");
 
@@ -538,6 +542,16 @@ public class Bob {
                 texCompression = cmd.getOptionValue("texture-compression");
             }
             project.setOption("texture-compression", texCompression);
+        }
+
+        if (cmd.hasOption("use-vanilla-lua")) {
+            project.setOption("use-vanilla-lua", "true");
+        }
+
+        if (cmd.hasOption("settings")) {
+            for (String filepath : cmd.getOptionValues("settings")) {
+                project.addPropertyFile(filepath);
+            }
         }
 
         List<TaskResult> result = project.build(new ConsoleProgress(), commands);

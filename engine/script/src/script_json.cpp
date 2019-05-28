@@ -4,7 +4,7 @@
 #include <float.h>
 
 #include <dlib/dstrings.h>
-#include <dlib/json.h>
+#include <dmsdk/dlib/json.h>
 
 #include "script.h"
 
