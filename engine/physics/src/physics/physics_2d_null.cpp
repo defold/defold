@@ -222,6 +222,7 @@ namespace dmPhysics
 
     bool UpdateJoint2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, const ConnectJointParams& params)
     {
+        return true;
     }
 
     void DeleteJoint2D(HWorld2D world, HJoint joint)

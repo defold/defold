@@ -1165,6 +1165,7 @@ namespace dmPhysics
 
         return true;
     }
+
     bool GetJointParams2D(HWorld2D world, HJoint _joint, dmPhysics::JointType type, ConnectJointParams& params)
     {
         float scale = world->m_Context->m_Scale;
