@@ -500,6 +500,13 @@ namespace dmGameSystem
                 UnpackFloatParam(L, table_index, "motor_speed", params.m_HingeJointParams.m_MotorSpeed);
                 UnpackBoolParam(L, table_index, "enable_limit", params.m_HingeJointParams.m_EnableLimit);
                 UnpackBoolParam(L, table_index, "enable_motor", params.m_HingeJointParams.m_EnableMotor);
+
+                // We need to catch this as soon as possible, if it trickles down to Box2D it could cause an assert.
+                // The default values are both zero so they will not cause this error.
+                // (Same check below in JOINT_TYPE_SLIDER.)
+                if (params.m_HingeJointParams.m_LowerAngle > params.m_HingeJointParams.m_UpperAngle) {
+                    return DM_LUA_ERROR("property field 'lower_angle' must be lower or equal to 'upper_angle'");
+                }
                 break;
 
             case dmPhysics::JOINT_TYPE_SLIDER:
@@ -511,6 +518,10 @@ namespace dmGameSystem
                 UnpackBoolParam(L, table_index, "enable_motor", params.m_SliderJointParams.m_EnableMotor);
                 UnpackFloatParam(L, table_index, "max_motor_force", params.m_SliderJointParams.m_MaxMotorForce);
                 UnpackFloatParam(L, table_index, "motor_speed", params.m_SliderJointParams.m_MotorSpeed);
+
+                if (params.m_SliderJointParams.m_LowerTranslation > params.m_SliderJointParams.m_UpperTranslation) {
+                    return DM_LUA_ERROR("property field 'lower_translation' must be lower or equal to 'upper_translation'");
+                }
                 break;
 
             default:
@@ -700,6 +711,91 @@ namespace dmGameSystem
         return 0;
     }
 
+    /*# get the gravity for collection
+     *
+     * Get the gravity in runtime. The gravity returned is not global, it will return
+     * the gravity for the collection that the function is called from.
+     *
+     * Note: For 2D physics the z component will always be zero.
+     *
+     * @name physics.get_gravity
+     * @return [type:vector3] gravity vector of collection
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     local gravity = physics.get_gravity()
+     *     -- Inverse gravity!
+     *     gravity = -gravity
+     *     physics.set_gravity(gravity)
+     * end
+     * ```
+     */
+    static int Physics_GetGravity(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmMessage::URL sender;
+        if (!dmScript::GetURL(L, &sender)) {
+            return luaL_error(L, "could not find a requesting instance for physics.raycast");
+        }
+
+        dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+
+        Vectormath::Aos::Vector3 gravity = dmGameSystem::GetGravity(world);
+        dmScript::PushVector3(L, gravity);
+
+        return 1;
+    }
+
+    /*# set the gravity for collection
+     *
+     * Set the gravity in runtime. The gravity change is not global, it will only affect
+     * the collection that the function is called from.
+     *
+     * Note: For 2D physics the z component of the gravity vector will be ignored.
+     *
+     * @name physics.set_gravity
+     * @param gravity [type:vector3] the new gravity vector
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     -- Set "upside down" gravity for this collection.
+     *     physics.set_gravity(vmath.vector3(0, 10.0, 0))
+     * end
+     * ```
+     */
+    static int Physics_SetGravity(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmMessage::URL sender;
+        if (!dmScript::GetURL(L, &sender)) {
+            return luaL_error(L, "could not find a requesting instance for physics.raycast");
+        }
+
+        dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+
+        Vectormath::Aos::Vector3 new_gravity( *dmScript::CheckVector3(L, 1) );
+
+        dmGameSystem::SetGravity(world, new_gravity);
+
+        return 0;
+    }
+
     static const luaL_reg PHYSICS_FUNCTIONS[] =
     {
         {"ray_cast",        Physics_RayCastAsync}, // Deprecated
@@ -711,6 +807,10 @@ namespace dmGameSystem
         {"disconnect_joint", Physics_DisconnectJoint},
         {"get_joint_properties", Physics_GetJointProperties},
         {"update_joint",    Phyics_UpdateJoint},
+
+        {"set_gravity",     Physics_SetGravity},
+        {"get_gravity",     Physics_GetGravity},
+
         {0, 0}
     };
 

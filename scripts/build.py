@@ -1121,15 +1121,23 @@ instructions.configure=\
         for p in glob(join(build_dir, 'build/distributions/*.zip')):
             self.upload_file(p, full_archive_path)
 
+    def _find_jdk8_folder(self, path):
+        for root, dirs, files in os.walk(path):
+            for d in dirs:
+                if d.startswith('jdk1.8.0'):
+                    return os.path.join(root, d, 'bin')
+        return ''
+
     def _set_java_8(self, env):
         if 'linux' in self.host2:
             env['JAVA_HOME'] = '/usr/lib/jvm/java-8-oracle'
         elif 'darwin' in self.host2:
             env['JAVA_HOME'] = self.exec_command(['/usr/libexec/java_home','-v','1.8']).strip()
         elif 'win32' in self.host2:
-            env['PATH'] = 'C:\\Program Files\\Java\\jdk1.8.0_162\\bin' + os.path.pathsep + env['PATH']
-        self._log("Setting JAVA to 1.8")
-
+            env['JAVA_HOME'] = self._find_jdk8_folder('C:\\Program Files\\Java')
+            env['PATH'] = env['JAVA_HOME'] + os.path.pathsep + env['PATH']
+        self._log("Setting JAVA to 1.8: " + env['JAVA_HOME'])
+        
     def _build_cr(self, product):
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
         env = self._form_env()

@@ -4,6 +4,7 @@
             [editor.bundle :as bundle]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
+            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.prefs :as prefs]
             [editor.system :as system]
@@ -36,12 +37,29 @@
                     (catch SecurityException _
                       false))]
     (if-not writable?
-      (do (dialogs/make-alert-dialog (str "Cannot create directory at \"" (.getAbsolutePath existing-entry) "\". You might not have permission to write to that directory, or there might be a file with the same name as the directory we're trying to create."))
+      (do (dialogs/make-info-dialog
+            {:title "Cannot Overwrite"
+             :icon :icon/triangle-error
+             :header "Cannot create a directory"
+             :content {:text (str "Cannot create directory at \"" (.getAbsolutePath existing-entry) "\". You might not have permission to write to that directory, or there might be a file with the same name as the directory we're trying to create.")
+                       :wrap-text true}})
           false)
-      (dialogs/make-confirm-dialog (str "A directory already exists at \"" (.getAbsolutePath existing-entry) "\".")
-                                   {:title "Overwrite Existing Directory?"
-                                    :ok-label "Overwrite"
-                                    :owner-window owner-window}))))
+      (dialogs/make-confirmation-dialog
+        {:title "Overwrite Existing Directory?"
+         :owner owner-window
+         :icon :icon/circle-question
+         :header {:fx/type :v-box
+                  :children [{:fx/type fxui/label
+                              :variant :header
+                              :text "A directory already exists"}
+                             {:fx/type fxui/label
+                              :text (format "Overwrite \"%s\"?" (.getAbsolutePath existing-entry))}]}
+         :buttons [{:text "Cancel"
+                    :cancel-button true
+                    :result false}
+                   {:text "Overwrite"
+                    :default-button true
+                    :result true}]}))))
 
 (defn- get-file
   ^File [^TextField text-field]
@@ -258,12 +276,13 @@
   (set-options! [_this options]
     (set-generic-options! view options workspace)))
 
-(defn- make-labeled-check-box 
+(defn- make-labeled-check-box
   ^CheckBox [^String label ^String id ^Boolean default-value refresh!]
   (doto (if (some? label)
           (CheckBox. label)
           (CheckBox.))
     (ui/add-style! "labeled-check-box")
+    (.setMnemonicParsing false)
     (.setId id)
     (.setFocusTraversable false)
     (ui/on-action! refresh!)
@@ -337,8 +356,8 @@
         certificate-file-field (make-file-field "certificate-text-field" "Choose Certificate" [["Certificates (*.pem)" "*.pem"]])
         private-key-file-field (make-file-field "private-key-text-field" "Choose Private Key" [["Private Keys (*.pk8)" "*.pk8"]])
         architecture-controls (doto (VBox.)
-                                    (ui/children! [(make-labeled-check-box "32-bit" "architecture-32bit-check-box" true refresh!)
-                                                   (make-labeled-check-box "64-bit" "architecture-64bit-check-box" true refresh!)]))]
+                                    (ui/children! [(make-labeled-check-box "32-bit (armv7)" "architecture-32bit-check-box" true refresh!)
+                                                   (make-labeled-check-box "64-bit (arm64)" "architecture-64bit-check-box" true refresh!)]))]
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "android")
@@ -456,9 +475,9 @@
                                                             (fromString [label]
                                                               (if (= no-identity-label label) nil label)))))
         architecture-controls (doto (VBox.)
-                                (ui/children! [(make-labeled-check-box "32-bit" "architecture-32bit-check-box" true refresh!)
-                                               (make-labeled-check-box "64-bit" "architecture-64bit-check-box" true refresh!)
-                                               (make-labeled-check-box "Simulator" "architecture-simulator-check-box" false refresh!)]))]
+                                (ui/children! [(make-labeled-check-box "32-bit (armv7)" "architecture-32bit-check-box" true refresh!)
+                                               (make-labeled-check-box "64-bit (arm64)" "architecture-64bit-check-box" true refresh!)
+                                               (make-labeled-check-box "Simulator (x86_64)" "architecture-simulator-check-box" false refresh!)]))]
     (ui/on-action! code-signing-identity-choice-box refresh!)
     (doto (VBox.)
       (ui/add-style! "settings")

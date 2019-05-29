@@ -1404,5 +1404,31 @@ namespace dmGameSystem
         }
     }
 
+    void SetGravity(void* _world, const Vectormath::Aos::Vector3& gravity)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        if (world->m_3D)
+        {
+            dmPhysics::SetGravity3D(world->m_World3D, gravity);
+        }
+        else
+        {
+            dmPhysics::SetGravity2D(world->m_World2D, gravity);
+        }
+    }
+
+    Vectormath::Aos::Vector3 GetGravity(void* _world)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        if (world->m_3D)
+        {
+            return dmPhysics::GetGravity3D(world->m_World3D);
+        }
+        else
+        {
+            return dmPhysics::GetGravity2D(world->m_World2D);
+        }
+    }
+
 
 }

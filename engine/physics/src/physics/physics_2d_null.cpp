@@ -202,6 +202,15 @@ namespace dmPhysics
     {
     }
 
+    void SetGravity2D(HWorld2D world, const Vectormath::Aos::Vector3& gravity)
+    {
+    }
+
+    Vectormath::Aos::Vector3 GetGravity2D(HWorld2D world)
+    {
+        return Vectormath::Aos::Vector3(0.0f);
+    }
+
     void SetDebugCallbacks2D(HContext2D context, const DebugCallbacks& callbacks)
     {
     }

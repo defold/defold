@@ -1053,6 +1053,37 @@ namespace dmPhysics
     void RayCast2D(HWorld2D world, const RayCastRequest& request, RayCastResponse& response);
 
     /**
+     * Set the gravity for a 2D physics world.
+     *
+     * @param world Physics world for which to set the gravity
+     * @param gravity Gravity vector (z component will be ignored).
+     */
+    void SetGravity2D(HWorld2D world, const Vectormath::Aos::Vector3& gravity);
+
+    /**
+     * Set the gravity for a 3D physics world.
+     *
+     * @param world Physics world for which to set the gravity
+     * @param gravity Gravity vector.
+     */
+    void SetGravity3D(HWorld3D world, const Vectormath::Aos::Vector3& gravity);
+
+    /**
+     * Get the gravity for 2D physics world.
+     *
+     * @param world Physics world for which to get the gravity
+     */
+    Vectormath::Aos::Vector3 GetGravity2D(HWorld2D world);
+
+    /**
+     * Get the gravity for 3D physics world.
+     *
+     * @param world Physics world for which to get the gravity
+     */
+    Vectormath::Aos::Vector3 GetGravity3D(HWorld3D world);
+
+
+    /**
      * Callbacks used to draw the world for debugging purposes.
      */
     struct DebugCallbacks
@@ -1126,8 +1157,6 @@ namespace dmPhysics
     struct ConnectJointParams
     {
         bool m_CollideConnected;
-        // float m_ReactionForce[3];
-        // float m_ReactionTorque;
 
         union {
             struct
@@ -1171,7 +1200,8 @@ namespace dmPhysics
         };
 
         ConnectJointParams()
-        {}
+        {
+        }
 
         ConnectJointParams(JointType type)
         {
@@ -1197,13 +1227,16 @@ namespace dmPhysics
                     m_HingeJointParams.m_EnableMotor = false;
                     break;
                 case JOINT_TYPE_SLIDER:
-                    m_HingeJointParams.m_ReferenceAngle = 0.0f;
-                    m_HingeJointParams.m_LowerAngle = 0.0f;
-                    m_HingeJointParams.m_UpperAngle = 0.0f;
-                    m_HingeJointParams.m_MaxMotorTorque = 0.0f;
-                    m_HingeJointParams.m_MotorSpeed = 0.0f;
-                    m_HingeJointParams.m_EnableLimit = false;
-                    m_HingeJointParams.m_EnableMotor = false;
+                    m_SliderJointParams.m_LocalAxisA[0] = 1.0f;
+                    m_SliderJointParams.m_LocalAxisA[1] = 0.0f;
+                    m_SliderJointParams.m_LocalAxisA[3] = 0.0f;
+                    m_SliderJointParams.m_ReferenceAngle = 0.0f;
+                    m_SliderJointParams.m_EnableLimit = false;
+                    m_SliderJointParams.m_LowerTranslation = 0.0f;
+                    m_SliderJointParams.m_UpperTranslation = 0.0f;
+                    m_SliderJointParams.m_EnableMotor = false;
+                    m_SliderJointParams.m_MaxMotorForce = 0.0f;
+                    m_SliderJointParams.m_MotorSpeed = 0.0f;
                     break;
                 default:
                     break;

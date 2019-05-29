@@ -93,6 +93,8 @@ Here is a [Jenkins](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt
 
 You can also download desktop and html5 versions from the artifacts on that page.
 
+Upload the IAP Tester to Amazon by following [these instructions](https://kingfluence.com/display/Defold/How+to+upload+to+Amazon)
+
 ### Defold Team
 The following smoke tests are currently performed by the team on each platform (OSX, Win, Linux):
 * Start editor, build BBS for desktop and HTML5

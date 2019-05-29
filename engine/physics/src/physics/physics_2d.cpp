@@ -968,6 +968,21 @@ namespace dmPhysics
         response = callback.m_Response;
     }
 
+    void SetGravity2D(HWorld2D world, const Vectormath::Aos::Vector3& gravity)
+    {
+        b2Vec2 gravity_b;
+        ToB2(gravity, gravity_b, world->m_Context->m_Scale);
+        world->m_World.SetGravity(gravity_b);
+    }
+
+    Vectormath::Aos::Vector3 GetGravity2D(HWorld2D world)
+    {
+        b2Vec2 gravity_b = world->m_World.GetGravity();
+        Vectormath::Aos::Vector3 gravity;
+        FromB2(gravity_b, gravity, world->m_Context->m_InvScale);
+        return gravity;
+    }
+
     void SetDebugCallbacks2D(HContext2D context, const DebugCallbacks& callbacks)
     {
         context->m_DebugCallbacks = callbacks;
