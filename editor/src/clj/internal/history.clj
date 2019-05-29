@@ -22,9 +22,9 @@
 ;; successor-node-id can refer to a node in another graph.
 ;; When we awake a graph from history, we should clear out external successors before applying transaction steps.
 ;;
-;; When reconnecting, we must update successors for all the connections that
+;; When reattaching, we must update successors for all the connections that
 ;; were added or removed during the transaction steps, as well as all the
-;; connections that we reconnect to other graphs. I.e. disconnected-arcs where
+;; connections that we reattach to other graphs. I.e. detached-arcs where
 ;; the source node still exists after the transaction steps.
 ;;
 ;; Investigate:
@@ -143,14 +143,14 @@
             {history-entry-index 0}))))))
 
 #_(defn- finalize [{:keys [basis history outputs-to-refresh] :as altered-things}]
-  (let [graph-id (history-graph-id history)
-        {hydrated-basis :basis hydrated-outputs :outputs-to-refresh} (ig/hydrate-after-undo basis graph-id)
-        finalized-outputs (into outputs-to-refresh hydrated-outputs)
-        invalidated-labels-by-node-id (util/group-into {} #{} first second finalized-outputs)
-        finalized-basis (ig/update-successors hydrated-basis invalidated-labels-by-node-id)]
-    (assoc altered-things
-      :basis finalized-basis
-      :outputs-to-refresh finalized-outputs)))
+    (let [graph-id (history-graph-id history)
+          {hydrated-basis :basis hydrated-outputs :outputs-to-refresh} (ig/hydrate-after-undo basis graph-id)
+          finalized-outputs (into outputs-to-refresh hydrated-outputs)
+          invalidated-labels-by-node-id (util/group-into {} #{} first second finalized-outputs)
+          finalized-basis (ig/update-successors hydrated-basis invalidated-labels-by-node-id)]
+      (assoc altered-things
+        :basis finalized-basis
+        :outputs-to-refresh finalized-outputs)))
 
 (defn- replace-group! [transient-groups-by-key key group]
   (if (seq group)
@@ -186,31 +186,33 @@
     (pair (persistent! filtered-arcs-by-label-by-node-id)
           (persistent! removed-arcs))))
 
-(defn- disconnect-graph [basis disconnected-graph-id]
+(defn- detach-graph [basis detached-graph-id]
   (assert (gt/basis? basis))
-  (assert (gt/graph-id? disconnected-graph-id))
-  (let [arc-from-graph? #(= disconnected-graph-id (gt/node-id->graph-id (.source-id ^Arc %)))
+  (assert (gt/graph-id? detached-graph-id))
+  (let [arc-from-graph? #(= detached-graph-id (gt/node-id->graph-id (.source-id ^Arc %)))
         other-graphs (dissoc (:graphs basis) graph-id)
 
-        [disconnected-graphs disconnected-arcs]
-        (reduce-kv (fn [[disconnected-graphs disconnected-arcs] graph-id graph]
-                     (let [[filtered-tarcs removed-arcs] (remove-grouped-arcs-where arc-from-graph? (:tarcs graph))]
-                       (pair (assoc-in disconnected-graphs [graph-id :tarcs] filtered-tarcs)
-                             (into disconnected-arcs removed-arcs))))
-                   (pair other-graphs [])
-                   other-graphs)
+        [detached-graphs detached-arcs]
+        (reduce-kv
+          (fn [[detached-graphs detached-arcs] graph-id graph]
+            (let [[filtered-tarcs removed-arcs] (remove-grouped-arcs-where arc-from-graph? (:tarcs graph))]
+              (pair (assoc-in detached-graphs [graph-id :tarcs] filtered-tarcs)
+                    (into detached-arcs removed-arcs))))
+          (pair other-graphs [])
+          other-graphs)
 
-        disconnected-basis (assoc basis :graphs disconnected-graphs)
-        disconnected-outputs (into #{}
-                                   (map (fn [^Arc arc]
-                                          [(.source-id arc) (.source-label arc)]))
-                                   disconnected-arcs)]
-    {:basis disconnected-basis
-     :disconnected-arcs disconnected-arcs
-     :outputs-to-refresh disconnected-outputs}))
+        detached-basis (assoc basis :graphs detached-graphs)
+        detached-outputs (into #{}
+                               (map (fn [^Arc arc]
+                                      [(.source-id arc) (.source-label arc)]))
+                               detached-arcs)]
+    {:basis detached-basis
+     :detached-arcs detached-arcs
+     :evicted-outputs detached-outputs})) ; TODO: Move out of here?
 
 
-(defn- reconnect-graph [basis graph disconnected-arcs]
+(defn- reattach-graph [basis graph detached-arcs]
+  ;; TODO!
   )
 
 (defn- remove-external-sarcs [graph known-external-arcs]
@@ -266,14 +268,15 @@
                     source-node-id->source-label->successor-node-id->successor-labels
                     source-node-id->source-labels))))))
 
-(defn- rewind-history [history history-entry-index disconnected-arcs]
+(defn- rewind-history [history history-entry-index detached-arcs]
   ;; The returned graph will not have any external connections to other graphs.
   ;; Its successors will also be updated to reflect this. We must still evict
   ;; the original successors from the cache, though.
-  ;; TODO! This should probably happen in disconnect-graph above?
+  ;; TODO! This should probably happen in detach-graph above?
   (let [rewound-history-end-index (inc history-entry-index)
         rewound-history (into [] (subvec history 0 rewound-history-end-index))
-        rewound-history (update-in rewound-history [(dec (count rewound-history)) :graph-after] remove-external-sarcs disconnected-arcs)
+        ;; TODO: We cannot use detached-arcs here, since the historic :sarcs aren't in sync with the present :tarcs.
+        rewound-history (update-in rewound-history [(dec (count rewound-history)) :graph-after] remove-external-sarcs detached-arcs)
         rewound-graph (:graph-after (peek rewound-history))
         rewound-outputs (transduce (map :outputs-modified) set/union (subvec history rewound-history-end-index))]
     {:graph rewound-graph
@@ -292,9 +295,10 @@
             context-before (.context-before history-entry)
             context-after (.context-after history-entry)
             transaction-steps (.transaction-steps history-entry)
-            ^long undo-group (or (get undo-group-by-history-entry-index history-entry-index
-                                      (.undo-group history-entry))
-                                 (.incrementAndGet undo-group-counter))]
+            ^long undo-group (or (get undo-group-by-history-entry-index
+                                      history-entry-index
+                                      (.undo-group history-entry))       ; Not specified - use existing undo group.
+                                 (.incrementAndGet undo-group-counter))] ; Nil specified - use next available undo group.
         (if (zero? undo-group)
           (let [transaction-context (it/new-transaction-context altered-basis node-id-generators override-id-generator)
                 {:keys [basis outputs-modified]} (it/transact* transaction-context transaction-steps)
@@ -394,17 +398,16 @@
         min-history-entry-index (reduce min history-entry-indices)]
     (assert (pos? min-history-entry-index) "Cannot alter the beginning of history.")
     (let [graph-id (history-graph-id history)
-          {disconnected-basis :basis
-           disconnected-arcs :disconnected-arcs
-           disconnected-outputs :outputs-to-refresh} (disconnect-graph basis graph-id)
+          {detached-basis :basis
+           detached-arcs :detached-arcs} (detach-graph basis graph-id)
           {rewound-graph :graph
            rewound-history :history
-           rewound-outputs :outputs-to-refresh} (rewind-history history (dec min-history-entry-index))
+           rewound-outputs :outputs-to-refresh} (rewind-history history (dec min-history-entry-index) detached-arcs)
           {replayed-graph :graph
            replayed-history :history
            replayed-outputs :outputs-to-refresh} (replay-history rewound-history rewound-basis history undo-group-by-history-entry-index node-id-generators override-id-generator)
-          {reconnected-basis :basis
-           reconnected-outputs :outputs-to-refresh} (reconnect-graph basis graph disconnected-arcs)]
+          {reattached-basis :basis
+           reattached-outputs :outputs-to-refresh} (reattach-graph basis graph detached-arcs)]
       (finalize
         {:basis altered-basis
          :context-after (:context-after (history max-history-entry-index))
@@ -413,12 +416,12 @@
          :outputs-to-refresh (set/union rewound-outputs altered-outputs)}))))
 
 (defn reset [history basis history-entry-index]
-  (let [{disconnected-basis :basis
-         disconnected-arcs :disconnected-arcs
-         disconnected-outputs :outputs-to-refresh} (disconnect-graph basis graph-id)
+  (let [{detached-basis :basis
+         detached-arcs :detached-arcs
+         detached-outputs :outputs-to-refresh} (detach-graph basis graph-id)
         {rewound-graph :graph
          rewound-history :history
-         rewound-outputs :outputs-to-refresh} (rewind-history history history-entry-index)
+         rewound-outputs :outputs-to-refresh} (rewind-history history history-entry-index detached-arcs)
         rewound-graph-id (:_graph-id rewound-graph)
         rewound-basis (assoc-in basis [:graphs rewound-graph-id] rewound-graph)
         {:keys [context-after context-before]} (peek rewound-history)]
