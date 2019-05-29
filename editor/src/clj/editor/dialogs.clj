@@ -18,7 +18,8 @@
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.util :as util]
             [editor.workspace :as workspace]
-            [service.log :as log])
+            [service.log :as log]
+            [clojure.java.io :as io])
   (:import [clojure.lang Named]
            [java.io File]
            [java.nio.file Path Paths]
@@ -30,7 +31,8 @@
            [javafx.scene.input KeyCode]
            [javafx.scene.layout HBox VBox]
            [javafx.scene.text Text TextFlow]
-           [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Stage Window]))
+           [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Stage Window]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -675,7 +677,7 @@
                            :text "Name"}
                           {:fx/type fxui/text-field
                            :text ""
-                           :variant (if (not invalid) :default :error)
+                           :variant (if invalid :error :default)
                            :on-text-changed {:event-type :set-folder-name}}
                           {:fx/type fxui/label
                            :text "Preview"}
@@ -834,38 +836,71 @@
              (.relativize path)
              (.toString))))))
 
-(defn make-new-file-dialog [^File base-dir ^File location type ext]
-  (let [root ^Parent (ui/load-fxml "new-file-dialog.fxml")
-        stage (ui/make-dialog-stage (ui/main-stage))
-        scene (Scene. root)
-        controls (ui/collect-controls root ["name" "location" "browse" "path" "ok" "cancel"])
-        return (atom nil)
-        close (fn [perform?]
-                (when perform?
-                  (reset! return (File. base-dir (ui/text (:path controls)))))
-                (.close stage))
-        set-location (fn [location] (ui/text! (:location controls) (relativize base-dir location)))]
-    (ui/title! stage (str "New " type))
-    (set-location location)
+(defn- new-file-dialog
+  [{:keys [^File base-dir ^File location type ext name] :as props}]
+  (let [sanitized-name (sanitize-file-name ext name)
+        empty (not (seq sanitized-name))
+        relative-path (FilenameUtils/separatorsToUnix (relativize base-dir location))
+        location-exists (.exists location)
+        valid-input (and (not empty) location-exists)]
+    {:fx/type dialog-stage
+     :showing (fxui/dialog-showing? props)
+     :on-close-request {:event-type :cancel}
+     :title (str "New " type)
+     :size :small
+     :header {:fx/type fxui/label
+              :variant :header
+              :text (str "Enter " type " File Name")}
+     :content {:fx/type fxui/two-col-input-grid-pane
+               :style-class "dialog-content-padding"
+               :children [{:fx/type fxui/label
+                           :text "Name"}
+                          {:fx/type fxui/text-field
+                           :text ""
+                           :variant (if empty :error :default)
+                           :on-text-changed {:event-type :set-file-name}}
+                          {:fx/type fxui/label
+                           :text "Location"}
+                          {:fx/type fxui/text-field
+                           :variant (if location-exists :default :error)
+                           :on-text-changed {:event-type :set-location}
+                           :text relative-path}
+                          {:fx/type fxui/label
+                           :text "Path"}
+                          {:fx/type fxui/text-field
+                           :disable true
+                           :text (if valid-input
+                                   (str relative-path \/ sanitized-name)
+                                   "")}]}
+     :footer {:fx/type dialog-buttons
+              :children [{:fx/type fxui/button
+                          :text "Cancel"
+                          :cancel-button true
+                          :on-action {:event-type :cancel}}
+                         {:fx/type fxui/button
+                          :disable (not valid-input)
+                          :text "Ok"
+                          :variant :primary
+                          :default-button true
+                          :on-action {:event-type :confirm}}]}}))
 
-    (.bind (.textProperty ^TextField (:path controls))
-      (.concat (.concat (.textProperty ^TextField (:location controls)) "/") (.concat (.textProperty ^TextField (:name controls)) (str "." ext))))
-
-    (ui/on-action! (:browse controls) (fn [_] (let [location (-> (doto (DirectoryChooser.)
-                                                                   (.setInitialDirectory (File. (str base-dir "/" (ui/text (:location controls)))))
-                                                                   (.setTitle "Set Path"))
-                                                               (.showDialog nil))]
-                                                (when location
-                                                  (set-location location)))))
-    (ui/on-action! (:ok controls) (fn [_] (close true)))
-    (.setDefaultButton ^Button (:ok controls) true)
-    (ui/on-action! (:cancel controls) (fn [_] (close false)))
-    (.setCancelButton ^Button (:cancel controls) true)
-
-    (.setScene stage scene)
-    (ui/show-and-wait! stage)
-
-    @return))
+(defn make-new-file-dialog
+  [^File base-dir ^File location type ext]
+  (println "base-dir" base-dir "location" location "type" type "ext" ext)
+  (fxui/show-dialog-and-await-result!
+    :initial-state {:name ""
+                    :base-dir base-dir
+                    :location location
+                    :type type
+                    :ext ext}
+    :event-handler (fn [state {:keys [fx/event event-type]}]
+                     (case event-type
+                       :set-file-name (assoc state :name event)
+                       :set-location (assoc state :location (io/file base-dir event))
+                       :cancel (assoc state ::fxui/result nil)
+                       :confirm (assoc state ::fxui/result
+                                       (io/file (:location state) (sanitize-file-name ext (:name state))))))
+    :description {:fx/type new-file-dialog}))
 
 (handler/defhandler ::rename-conflicting-files :dialog
   (run [^Stage stage]
