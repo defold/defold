@@ -63,8 +63,8 @@
        (some? (g/node-value node-id :_output-jammers evaluation-context))))
 
 (defn- error-item [evaluation-context root-cause]
-  (let [message (:message (first root-cause))
-        severity (:severity (first root-cause))
+  (let [{:keys [message severity]} (first root-cause)
+        cursor-range (error-cursor-range (first root-cause))
         errors (drop-while (comp (fn [node-id]
                                    (or (nil? node-id)
                                        (missing-resource-node? evaluation-context node-id)))
@@ -75,7 +75,7 @@
         [origin-node-id origin-override-depth] (find-override-value-origin basis (:_node-id error) (:_label error) 0)
         origin-override-id (when (some? origin-node-id) (g/override-id basis origin-node-id))
         parent (parent-resource evaluation-context errors origin-override-depth origin-override-id)
-        cursor-range (error-cursor-range error)]
+        cursor-range (or cursor-range (error-cursor-range error))]
     (cond-> {:parent parent
              :node-id origin-node-id
              :message (:message error)
