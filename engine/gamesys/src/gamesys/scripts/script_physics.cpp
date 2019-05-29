@@ -350,30 +350,10 @@ namespace dmGameSystem
         "unknown error",
     };
 
-    static int GetCollisionObject(lua_State* L, dmGameObject::HCollection collection, dmMessage::URL url, void** comp, void** comp_world)
+    static void GetCollisionObject(lua_State* L, int indx, dmGameObject::HCollection collection, void** comp, void** comp_world)
     {
-        DM_LUA_STACK_CHECK(L, 0);
-
-        dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, url.m_Path);
-
-        lua_getglobal(L, PHYSICS_CONTEXT_NAME);
-        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
-
-        uint32_t type_index;
-        *comp = dmGameObject::GetComponentFromInstance(instance, url.m_Fragment, &type_index);
-
-        // Now check that the component is a collision object
-        if (type_index != context->m_ComponentIndex) {
-            return DM_LUA_ERROR("url %s.%s is not a collision object", dmHashReverseSafe64(url.m_Path), dmHashReverseSafe64(url.m_Fragment));
-        }
-
-        *comp_world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
-        if (!CompCollisionIs2D(*comp_world)) {
-            return DM_LUA_ERROR("joints are currently only supported with 2D physics");
-        }
-
-        return 0;
+        dmMessage::URL receiver;
+        dmGameObject::GetComponentUserDataFromLua(L, indx, collection, COLLISION_OBJECT_EXT, (uintptr_t*)comp, &receiver, comp_world);
     }
 
     static int Physics_CreateJoint(lua_State* L)
@@ -388,7 +368,7 @@ namespace dmGameSystem
 
         void* comp = 0x0;
         void* comp_world = 0x0;
-        GetCollisionObject(L, collection, url, &comp, &comp_world);
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
         dmPhysics::JointResult r = dmGameSystem::CreateJoint(comp_world, comp, joint_id);
         if (r != dmPhysics::RESULT_OK) {
@@ -535,8 +515,6 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        int top = lua_gettop(L);
-
         dmPhysics::JointType type = (dmPhysics::JointType)luaL_checkinteger(L, 1);
         if (type >= dmPhysics::JOINT_TYPE_COUNT)
         {
@@ -544,11 +522,6 @@ namespace dmGameSystem
         }
 
         dmhash_t joint_id = dmScript::CheckHashOrString(L, 3);
-
-        dmMessage::URL url_a;
-        dmScript::ResolveURL(L, 2, &url_a, 0);
-        dmMessage::URL url_b;
-        dmScript::ResolveURL(L, 5, &url_b, 0);
         Vectormath::Aos::Point3 pos_a = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 4));
         Vectormath::Aos::Point3 pos_b = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 6));
 
@@ -556,10 +529,10 @@ namespace dmGameSystem
 
         void* comp_a = 0x0;
         void* comp_world_a = 0x0;
-        GetCollisionObject(L, collection, url_a, &comp_a, &comp_world_a);
+        GetCollisionObject(L, 2, collection, &comp_a, &comp_world_a);
         void* comp_b = 0x0;
         void* comp_world_b = 0x0;
-        GetCollisionObject(L, collection, url_b, &comp_b, &comp_world_b);
+        GetCollisionObject(L, 5, collection, &comp_b, &comp_world_b);
 
         if (comp_world_a != comp_world_b) {
             return DM_LUA_ERROR("joints can only be connected to collision objects within the same physics world");
@@ -582,14 +555,11 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
 
         dmhash_t joint_id = dmScript::CheckHashOrString(L, 2);
-
-        dmMessage::URL url;
-        dmScript::ResolveURL(L, 1, &url, 0);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
 
         void* comp = 0x0;
         void* comp_world = 0x0;
-        GetCollisionObject(L, collection, url, &comp, &comp_world);
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
         // Unpack type specific joint connection paramaters
         dmPhysics::JointResult r = dmGameSystem::DisconnectJoint(comp_world, comp, joint_id);
@@ -605,14 +575,11 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
 
         dmhash_t joint_id = dmScript::CheckHashOrString(L, 2);
-
-        dmMessage::URL url;
-        dmScript::ResolveURL(L, 1, &url, 0);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
 
         void* comp = 0x0;
         void* comp_world = 0x0;
-        GetCollisionObject(L, collection, url, &comp, &comp_world);
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
         dmPhysics::JointType joint_type;
         dmPhysics::ConnectJointParams joint_params;
@@ -683,16 +650,12 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
 
         dmhash_t joint_id = dmScript::CheckHashOrString(L, 2);
-
-        dmMessage::URL url;
-        dmScript::ResolveURL(L, 1, &url, 0);
-
         dmGameObject::HInstance instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
 
         void* comp = 0x0;
         void* comp_world = 0x0;
-        GetCollisionObject(L, collection, url, &comp, &comp_world);
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
         dmPhysics::JointType joint_type;
         dmPhysics::JointResult r = GetJointType(comp_world, comp, joint_id, joint_type);

@@ -410,8 +410,6 @@ namespace dmGameSystem
 
         // Destory joints
         JointEntry* joint_entry = component->m_Joints;
-        int i = 0;
-
         while (joint_entry)
         {
             if (joint_entry->m_Joint)
