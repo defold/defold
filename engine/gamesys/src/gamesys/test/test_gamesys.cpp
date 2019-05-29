@@ -1021,16 +1021,16 @@ TEST_P(DrawCountTest, DrawCount)
 }
 
 /* Physics joints */
-// Test for input consuming in collection proxy
-TEST_F(ComponentTest, ConsumeInputInCollectionProxy)
+TEST_F(ComponentTest, JointTest)
 {
+    // TODO
     /* Setup:
     ** joint_test_a
     ** - [collisionobject] collision_object/joint_test_sphere.collisionobject
     ** - [script] collision_object/joint_test.script
     ** joint_test_b
     ** - [collisionobject] collision_object/joint_test_sphere.collisionobject
-    */
+
 
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
@@ -1054,7 +1054,7 @@ TEST_F(ComponentTest, ConsumeInputInCollectionProxy)
     dmGameObject::InputAction test_input_action;
     test_input_action.m_ActionId = dmHashString64("test_action_consume");
     test_input_action.m_Pressed  = 1;
-
+*/
 }
 
 /* Camera */

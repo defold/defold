@@ -59,7 +59,6 @@ namespace dmGameSystem
 
     void SetGravity(void* world, const Vectormath::Aos::Vector3& gravity);
     Vectormath::Aos::Vector3 GetGravity(void* _world);
-
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H

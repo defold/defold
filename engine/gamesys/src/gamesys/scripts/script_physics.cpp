@@ -711,6 +711,48 @@ namespace dmGameSystem
         return 0;
     }
 
+    /*# set the gravity for collection
+     *
+     * Set the gravity in runtime. The gravity change is not global, it will only affect
+     * the collection that the function is called from.
+     *
+     * Note: For 2D physics the z component of the gravity vector will be ignored.
+     *
+     * @name physics.set_gravity
+     * @param gravity [type:vector3] the new gravity vector
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     -- Set "upside down" gravity for this collection.
+     *     physics.set_gravity(vmath.vector3(0, 10.0, 0))
+     * end
+     * ```
+     */
+    static int Physics_SetGravity(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmMessage::URL sender;
+        if (!dmScript::GetURL(L, &sender)) {
+            return luaL_error(L, "could not find a requesting instance for physics.set_gravity");
+        }
+
+        dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+
+        Vectormath::Aos::Vector3 new_gravity( *dmScript::CheckVector3(L, 1) );
+
+        dmGameSystem::SetGravity(world, new_gravity);
+
+        return 0;
+    }
+
     /*# get the gravity for collection
      *
      * Get the gravity in runtime. The gravity returned is not global, it will return
@@ -737,7 +779,7 @@ namespace dmGameSystem
 
         dmMessage::URL sender;
         if (!dmScript::GetURL(L, &sender)) {
-            return luaL_error(L, "could not find a requesting instance for physics.raycast");
+            return luaL_error(L, "could not find a requesting instance for physics.get_gravity");
         }
 
         dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
@@ -754,48 +796,6 @@ namespace dmGameSystem
         return 1;
     }
 
-    /*# set the gravity for collection
-     *
-     * Set the gravity in runtime. The gravity change is not global, it will only affect
-     * the collection that the function is called from.
-     *
-     * Note: For 2D physics the z component of the gravity vector will be ignored.
-     *
-     * @name physics.set_gravity
-     * @param gravity [type:vector3] the new gravity vector
-     * @examples
-     *
-     * ```lua
-     * function init(self)
-     *     -- Set "upside down" gravity for this collection.
-     *     physics.set_gravity(vmath.vector3(0, 10.0, 0))
-     * end
-     * ```
-     */
-    static int Physics_SetGravity(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 0);
-
-        dmMessage::URL sender;
-        if (!dmScript::GetURL(L, &sender)) {
-            return luaL_error(L, "could not find a requesting instance for physics.raycast");
-        }
-
-        dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
-        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
-
-        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-        void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
-
-        Vectormath::Aos::Vector3 new_gravity( *dmScript::CheckVector3(L, 1) );
-
-        dmGameSystem::SetGravity(world, new_gravity);
-
-        return 0;
-    }
-
     static const luaL_reg PHYSICS_FUNCTIONS[] =
     {
         {"ray_cast",        Physics_RayCastAsync}, // Deprecated
@@ -810,7 +810,6 @@ namespace dmGameSystem
 
         {"set_gravity",     Physics_SetGravity},
         {"get_gravity",     Physics_GetGravity},
-
         {0, 0}
     };
 

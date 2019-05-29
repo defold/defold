@@ -1229,7 +1229,7 @@ namespace dmPhysics
                 case JOINT_TYPE_SLIDER:
                     m_SliderJointParams.m_LocalAxisA[0] = 1.0f;
                     m_SliderJointParams.m_LocalAxisA[1] = 0.0f;
-                    m_SliderJointParams.m_LocalAxisA[3] = 0.0f;
+                    m_SliderJointParams.m_LocalAxisA[2] = 0.0f;
                     m_SliderJointParams.m_ReferenceAngle = 0.0f;
                     m_SliderJointParams.m_EnableLimit = false;
                     m_SliderJointParams.m_LowerTranslation = 0.0f;
