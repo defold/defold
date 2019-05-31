@@ -70,15 +70,12 @@ namespace dmHID
             g_Context = context;
             if (glfwSetCharCallback(CharacterCallback) == 0) {
                 dmLogFatal("could not set glfw char callback.");
-                return false;
             }
             if (glfwSetMarkedTextCallback(MarkedTextCallback) == 0) {
                 dmLogFatal("could not set glfw marked text callback.");
-                return false;
             }
             if (glfwSetGamepadCallback(GamepadCallback) == 0) {
                 dmLogFatal("could not set glfw gamepad callback.");
-                return false;
             }
             context->m_KeyboardConnected = 0;
             context->m_MouseConnected = 0;

@@ -11,6 +11,7 @@
 #include <dlib/time.h>
 #include <ddf/ddf.h>
 
+#include <graphics/graphics.h>
 #include <hid/hid.h>
 #include <input/input_ddf.h>
 
@@ -53,7 +54,6 @@ int main(int argc, char *argv[])
 
     FILE* out = 0x0;
 
-    uint32_t gamepad_count = 0;
 
     const char* filename = "default.gamepads";
     if (argc > 1)
@@ -61,6 +61,31 @@ int main(int argc, char *argv[])
 
     g_HidContext = dmHID::NewContext(dmHID::NewContextParams());
     dmHID::Init(g_HidContext);
+    dmGraphics::Initialize();
+
+    dmGraphics::ContextParams graphics_context_params;
+    graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+    graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+    graphics_context_params.m_VerifyGraphicsCalls = false;
+    dmGraphics::HContext graphics_context = dmGraphics::NewContext(graphics_context_params);
+    if (graphics_context == 0x0)
+    {
+        dmLogFatal("Unable to create the graphics context.");
+        return 1;
+    }
+
+    dmGraphics::WindowParams window_params;
+    window_params.m_Width = 32;
+    window_params.m_Height = 32;
+    window_params.m_Samples = 0;
+    window_params.m_Title = "gdc";
+    window_params.m_Fullscreen = 0;
+    window_params.m_PrintDeviceInfo = false;
+    window_params.m_HighDPI = 0;
+    dmGraphics::WindowResult window_result = dmGraphics::OpenWindow(graphics_context, &window_params);
+
+retry:
+    uint32_t gamepad_count = 0;
     dmHID::Update(g_HidContext);
 
     for (uint32_t i = 0; i < dmHID::MAX_GAMEPAD_COUNT; ++i)
@@ -73,8 +98,15 @@ int main(int argc, char *argv[])
     }
     if (gamepad_count == 0)
     {
-        printf("No connected gamepads, bye!\n");
-        goto bail;
+        printf("No connected gamepads!\n");
+        printf("* Retry? [y/n]\n");
+        char should_retry = 'n';
+        scanf("%c\n", &should_retry);
+        if (should_retry == 'y') {
+            goto retry;
+        } else {
+            goto bail;
+        }
     }
     if (gamepad_count > 1)
     {
