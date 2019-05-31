@@ -98,7 +98,7 @@ namespace dmInput
 
         dmInputDDF::GamepadTrigger* m_DDFGamepadTriggersData;
         uint32_t m_DDFGamepadTriggersCount;
-        dmArray<GamepadBinding*> m_DisconnectedGamepadBindings;
+        dmArray<uint32_t> m_DisconnectedGamepadIndices;
     };
 
     struct GamepadInput

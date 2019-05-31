@@ -129,6 +129,7 @@ struct joystick_hwdata
 typedef struct joystick_hwdata recDevice;
 
 static recDevice *gpDeviceList = NULL;
+static IOHIDManagerRef gHidManager = nil;
 
 static void
 HIDReportErrorNum(char *strError, long numError)
@@ -255,18 +256,22 @@ HIDCreateOpenDeviceInterface(io_object_t hidDevice, recDevice * pDevice)
  */
 
 static IOReturn
-HIDCloseReleaseInterface(recDevice * pDevice)
+HIDCloseReleaseInterface(recDevice * pDevice, bool should_close)
 {
     IOReturn result = kIOReturnSuccess;
 
     if ((NULL != pDevice) && (NULL != pDevice->interface)) {
-        /* close the interface */
-        result = (*(pDevice->interface))->close(pDevice->interface);
-        if (kIOReturnNotOpen == result) {
-            /* do nothing as device was not opened, thus can't be closed */
-        } else if (kIOReturnSuccess != result)
-            HIDReportErrorNum("Failed to close IOHIDDeviceInterface.",
-                              result);
+        if (should_close) {
+            /* close the interface */
+            result = (*(pDevice->interface))->close(pDevice->interface);
+            if (kIOReturnNotOpen == result) {
+                /* do nothing as device was not opened, thus can't be closed */
+            } else if (kIOReturnSuccess != result) {
+                HIDReportErrorNum("Failed to close IOHIDDeviceInterface.",
+                                  result);
+            }
+        }
+
         /* release the interface */
         result = (*(pDevice->interface))->Release(pDevice->interface);
         if (kIOReturnSuccess != result)
@@ -616,7 +621,7 @@ HIDDisposeElementList(recElement ** elementList)
  */
 
 static recDevice *
-HIDDisposeDevice(recDevice ** ppDevice)
+HIDDisposeDevice(recDevice ** ppDevice, bool should_close)
 {
     kern_return_t result = KERN_SUCCESS;
     recDevice *pDeviceNext = NULL;
@@ -635,7 +640,7 @@ HIDDisposeDevice(recDevice ** ppDevice)
         HIDDisposeElementList(&(*ppDevice)->firstButton);
         HIDDisposeElementList(&(*ppDevice)->firstHat);
 
-        result = HIDCloseReleaseInterface(*ppDevice);   /* function sanity checks interface value (now application does not own device) */
+        result = HIDCloseReleaseInterface(*ppDevice, should_close);   /* function sanity checks interface value (now application does not own device) */
         if (kIOReturnSuccess != result)
             HIDReportErrorNum
                 ("HIDCloseReleaseInterface failed when trying to dipose device.",
@@ -703,13 +708,14 @@ static int removeGamepadByIOObj(io_object_t io_obj) {
                 } else {
                     gpDeviceList = d->pNext;
                 }
-                HIDDisposeDevice(&d);
+                // Dispose of the device, but don't close it since
+                // it appears it has already been closed when disconnected.
+                HIDDisposeDevice(&d, false);
                 break;
             }
             prev_d = d;
             d = d->pNext;
         }
-        // HIDDisposeDevice(&device);
 
         return found;
     }
@@ -767,7 +773,6 @@ static void gamepadWasRemoved(void* inContext, IOReturn inResult, void* inSender
 }
 
 int XSDL_numjoysticks = 0;
-IOHIDManagerRef gHidManager = nil;
 
 int XSDL_SYS_JoystickInit(void)
 {
@@ -777,12 +782,10 @@ int XSDL_SYS_JoystickInit(void)
 
     XSDL_numjoysticks = 0;
 
-    // HACK andsve
     gHidManager = IOHIDManagerCreate(kCFAllocatorDefault, kIOHIDOptionsTypeNone);
 
     NSMutableArray *criterionArray = [NSMutableArray arrayWithCapacity:3];
     {
-        // NSMutableDictionary* criterion = [[NSMutableDictionary alloc] init];
         NSMutableDictionary* criterion = [NSMutableDictionary dictionaryWithCapacity: 2];
             [criterion setObject: [NSNumber numberWithInt: kHIDPage_GenericDesktop]
                           forKey: (NSString*)CFSTR(kIOHIDDeviceUsagePageKey)];
@@ -791,7 +794,6 @@ int XSDL_SYS_JoystickInit(void)
         [criterionArray addObject:criterion];
     }
     {
-        // NSMutableDictionary* criterion = [[NSMutableDictionary alloc] init];
         NSMutableDictionary* criterion = [NSMutableDictionary dictionaryWithCapacity: 2];
             [criterion setObject: [NSNumber numberWithInt: kHIDPage_GenericDesktop]
                           forKey: (NSString*)CFSTR(kIOHIDDeviceUsagePageKey)];
@@ -800,7 +802,6 @@ int XSDL_SYS_JoystickInit(void)
         [criterionArray addObject:criterion];
     }
     {
-        // NSMutableDictionary* criterion = [[NSMutableDictionary alloc] init];
         NSMutableDictionary* criterion = [NSMutableDictionary dictionaryWithCapacity: 2];
             [criterion setObject: [NSNumber numberWithInt: kHIDPage_GenericDesktop]
                           forKey: (NSString*)CFSTR(kIOHIDDeviceUsagePageKey)];
@@ -814,8 +815,6 @@ int XSDL_SYS_JoystickInit(void)
     IOHIDManagerRegisterDeviceRemovalCallback(gHidManager, gamepadWasRemoved, NULL);
     IOHIDManagerScheduleWithRunLoop(gHidManager, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
     IOHIDManagerOpen(gHidManager, kIOHIDOptionsTypeNone);
-
-    NSLog(@"registered gamepad callbacks");
 
     return XSDL_numjoysticks;
 }
@@ -1010,7 +1009,7 @@ int _glfwInitJoysticks( void )
 int _glfwTerminateJoysticks()
 {
     while (NULL != gpDeviceList)
-        gpDeviceList = HIDDisposeDevice(&gpDeviceList);
+        gpDeviceList = HIDDisposeDevice(&gpDeviceList, true);
 
     IOHIDManagerClose(gHidManager, kIOHIDOptionsTypeNone);
 
