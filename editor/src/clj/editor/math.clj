@@ -131,13 +131,17 @@
 (defn quat->euler [^Quat4d quat]
   (quat-components->euler (.getX quat) (.getY quat) (.getZ quat) (.getW quat)))
 
+(defn offset-scaled
+  ^Tuple3d [^Tuple3d original ^Tuple3d offset ^double scale-factor]
+  (doto ^Tuple3d (.clone original) ; Overwritten - we just want an instance.
+    (.scaleAdd scale-factor offset original)))
+
 (defn rotate
   ^Vector3d [^Quat4d rotation ^Vector3d v]
   (let [q (doto (Quat4d.) (.set (Vector4d. v)))
         _ (.mul q rotation q)
         _ (.mulInverse q rotation)]
     (Vector3d. (.getX q) (.getY q) (.getZ q))))
-
 
 (defn transform
   ^Vector3d [^Matrix4d mat ^Vector3d v]

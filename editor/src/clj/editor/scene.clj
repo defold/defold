@@ -499,6 +499,7 @@
   (output viewport Region :abstract)
   (output all-renderables g/Any :abstract)
 
+  (output camera-type g/Keyword (g/fnk [camera] (:type camera)))
   (output scene-render-data g/Any :cached produce-scene-render-data)
   (output aux-render-data g/Any :cached produce-aux-render-data)
 
@@ -881,7 +882,9 @@
                 (fn []
                   (g/transact
                     (g/set-property camera-node :local-camera end-camera)))))
-    (g/transact (g/set-property camera-node :local-camera end-camera))))
+    (g/transact
+      (g/set-property camera-node :local-camera end-camera)))
+  nil)
 
 (defn- fudge-empty-aabb [^AABB aabb]
   (if-not (geom/empty-aabb? aabb)
@@ -900,7 +903,7 @@
         camera (view->camera view)
         viewport (g/node-value view :viewport)
         local-cam (g/node-value camera :local-camera)
-        end-camera (c/camera-orthographic-frame-aabb local-cam viewport aabb)]
+        end-camera (c/camera-frame-aabb local-cam viewport aabb)]
     (set-camera! camera local-cam end-camera animate?)))
 
 (defn realign-camera [view animate?]
@@ -908,8 +911,18 @@
         camera (view->camera view)
         viewport (g/node-value view :viewport)
         local-cam (g/node-value camera :local-camera)
-        end-camera (c/camera-orthographic-realign local-cam viewport aabb)]
+        end-camera (c/camera-orthographic-realign (c/camera-ensure-orthographic local-cam) viewport aabb)]
     (set-camera! camera local-cam end-camera animate?)))
+
+(defn set-camera-type! [view projection-type]
+  (let [camera-controller (view->camera view)
+        old-camera (g/node-value camera-controller :local-camera)
+        current-type (:type old-camera)]
+    (when (not= current-type projection-type)
+      (let [new-camera (case projection-type
+                         :orthographic (c/camera-perspective->orthographic old-camera)
+                         :perspective (c/camera-orthographic->perspective old-camera))]
+        (set-camera! camera-controller old-camera new-camera false)))))
 
 (handler/defhandler :frame-selection :global
   (active? [app-view evaluation-context]
@@ -927,11 +940,24 @@
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (realign-camera view true))))
 
+(handler/defhandler :set-camera-type :global
+  (active? [app-view evaluation-context]
+           (active-scene-view app-view evaluation-context))
+  (run [app-view user-data]
+       (when-some [view (active-scene-view app-view)]
+         (set-camera-type! view (:camera-type user-data))))
+  (state [app-view user-data]
+         (some-> (active-scene-view app-view)
+                 (g/node-value :camera-type)
+                 (= (:camera-type user-data)))))
+
 (defn- set-manip-space! [app-view manip-space]
   (assert (contains? #{:local :world} manip-space))
   (g/set-property! app-view :manip-space manip-space))
 
 (handler/defhandler :set-manip-space :global
+  (active? [app-view evaluation-context]
+           (active-scene-view app-view evaluation-context))
   (enabled? [app-view user-data evaluation-context]
             (let [active-tool (g/node-value app-view :active-tool evaluation-context)]
               (contains? (scene-tools/supported-manip-spaces active-tool)
@@ -982,6 +1008,15 @@
                   :command :scene-play}
                  {:label "Stop"
                   :command :scene-stop}
+                 {:label :separator}
+                 {:label "Orthographic Camera"
+                  :command :set-camera-type
+                  :user-data {:camera-type :orthographic}
+                  :check true}
+                 {:label "Perspective Camera"
+                  :command :set-camera-type
+                  :user-data {:camera-type :perspective}
+                  :check true}
                  {:label :separator}
                  {:label "Frame Selection"
                   :command :frame-selection}

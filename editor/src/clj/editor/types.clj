@@ -188,10 +188,10 @@
   [type           :- (s/enum :perspective :orthographic)
    position       :- Point3d
    rotation       :- Quat4d
-   z-near         :- s/Num
-   z-far          :- s/Num
-   fov-x          :- s/Num
-   fov-y          :- s/Num
+   ^double z-near :- s/Num
+   ^double z-far  :- s/Num
+   ^double fov-x  :- s/Num
+   ^double fov-y  :- s/Num
    focus-point    :- Vector4d
    filter-fn      :- Runnable]
   Position
@@ -202,7 +202,7 @@
 (g/deftype OutlineCommand
     {:label      (s/maybe s/Str)
      :enabled    (s/maybe  s/Bool)
-     :command-fn  (s/maybe  s/Any)
+     :command-fn (s/maybe  s/Any)
      :context    (s/maybe  s/Any)})
 
 (g/deftype OutlineItem

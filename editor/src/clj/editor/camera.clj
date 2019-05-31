@@ -1,15 +1,19 @@
 (ns editor.camera
   (:require [dynamo.graph :as g]
-            [schema.core :as s]
-            [editor.ui :as ui]
             [editor.geom :as geom]
+            [editor.graph-util :as gu]
             [editor.math :as math]
             [editor.types :as types]
-            [editor.graph-util :as gu])
+            [schema.core :as s])
   (:import [editor.types AABB Camera Rect Region]
            [javax.vecmath Point3d Quat4d Matrix3d Matrix4d Vector3d Vector4d AxisAngle4d Tuple3d Tuple4d]))
 
 (set! *warn-on-reflection* true)
+
+(s/defn camera-forward-vector :- Vector3d
+  [camera :- Camera]
+  (math/rotate (types/rotation camera)
+               (Vector3d. 0.0 0.0 -1.0)))
 
 (s/defn camera-view-matrix :- Matrix4d
   [camera :- Camera]
@@ -139,12 +143,12 @@
          position (doto (Point3d.) (.set 0.0 0.0 1.0) (.scale distance))
          rotation (doto (Quat4d.) (.set 0.0 0.0 0.0 1.0))]
      (types/->Camera t position rotation
-                     0 10000
-                     (get opts :fov-x 30) (get opts :fov-y 30)
-                     (Vector4d. 0 0 0 1.0)
+                     0.1 10000.0
+                     (get opts :fov-x 30.0) (get opts :fov-y 30.0)
+                     (Vector4d. 0.0 0.0 0.0 1.0)
                      filter-fn))))
 
-(s/defn set-orthographic :- Camera
+(s/defn set-extents :- Camera
   [camera :- Camera fov-x :- s/Num fov-y :- s/Num z-near :- s/Num z-far :- s/Num]
   (assoc camera
          :fov-x fov-x
@@ -172,8 +176,9 @@
     (.transform view-matrix position)
     (.setZ position 0.0)
     (.transform ^Matrix4d (geom/invert view-matrix) position)
-    (assoc camera :position position
-           :focus-point (Vector4d. (.x center) (.y center) (.z center) 1.0))))
+    (assoc camera
+      :position position
+      :focus-point (Vector4d. (.x center) (.y center) (.z center) 1.0))))
 
 (s/defn camera-project :- Point3d
   "Returns a point in device space (i.e., corresponding to pixels on screen)
@@ -276,12 +281,31 @@
              temp))
          rows scales)))
 
-(defn dolly
-  [camera delta]
-  (let [dolly-fn (fn [fov] (max 0.01 (+ (or fov 0) (* (or fov 1) delta))))]
+(defn- dolly-orthographic [camera delta]
+  (let [dolly-fn (fn [fov]
+                   (max 0.01 (+ (or fov 0)
+                                (* (or fov 1)
+                                   delta))))]
     (-> camera
-      (update :fov-x dolly-fn)
-      (update :fov-y dolly-fn))))
+        (update :fov-x dolly-fn)
+        (update :fov-y dolly-fn))))
+
+(defn- dolly-perspective [camera delta]
+  (let [forward (camera-forward-vector camera)
+        position (types/position camera)
+        focus ^Vector4d (:focus-point camera)
+        camera-to-focus-point (doto (Vector3d. (.x focus) (.y focus) (.z focus))
+                                (.sub position))
+        distance-to-focus-point (.length camera-to-focus-point)
+        offset-distance (if (pos? delta)
+                          (max 0.01 (* delta distance-to-focus-point))
+                          (min -0.01 (* delta distance-to-focus-point)))]
+    (update camera :position math/offset-scaled forward offset-distance)))
+
+(defn dolly [camera delta]
+  (case (:type camera)
+    :orthographic (dolly-orthographic camera delta)
+    :perspective (dolly-perspective camera delta)))
 
 (defn track
   [^Camera camera ^Region viewport last-x last-y evt-x evt-y]
@@ -292,7 +316,7 @@
         delta (camera-unproject camera viewport last-x last-y screen-z)]
     (.sub delta world)
     (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
-           :focus-point (doto focus (.add delta)))))
+      :focus-point (doto focus (.add delta)))))
 
 (defn tumble
   [^Camera camera last-x last-y evt-x evt-y]
@@ -380,9 +404,24 @@
                         [(* aspect fov-y) fov-y])
         filter-fn (or (:filter-fn camera) identity)]
     (-> camera
-      (camera-set-center aabb)
-      (set-orthographic fov-x fov-y (:z-near camera) (:z-far camera))
-      filter-fn)))
+        (camera-set-center aabb)
+        (set-extents fov-x fov-y (:z-near camera) (:z-far camera))
+        filter-fn)))
+
+(s/defn camera-perspective-frame-aabb :- Camera
+  [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
+  ;; TODO: Dolly camera so that the aabb fits within the frustum.
+  (assert (= :perspective (:type camera)))
+  (let [filter-fn (or (:filter-fn camera) identity)]
+    (-> camera
+        (camera-set-center aabb)
+        filter-fn)))
+
+(s/defn camera-frame-aabb :- Camera
+  [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
+  (case (:type camera)
+    :orthographic (camera-orthographic-frame-aabb camera viewport aabb)
+    :perspective (camera-perspective-frame-aabb camera viewport aabb)))
 
 (defn camera-orthographic-realign ^Camera
   [^Camera camera ^Region viewport ^AABB aabb]
@@ -391,8 +430,9 @@
         delta ^Vector4d (doto (Vector4d. ^Point3d (:position camera))
                           (.sub focus))
         dist (.length delta)]
-    (assoc camera :position (Point3d. (.x focus) (.y focus) dist)
-           :rotation (Quat4d. 0.0 0.0 0.0 1.0))))
+    (assoc camera
+      :position (Point3d. (.x focus) (.y focus) dist)
+      :rotation (Quat4d. 0.0 0.0 0.0 1.0))))
 
 (s/defn camera-orthographic-frame-aabb-y :- Camera
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
@@ -402,18 +442,40 @@
         filter-fn (or (:filter-fn camera) identity)]
     (-> camera
       (camera-set-center aabb)
-      (set-orthographic fov-x fov-y (:z-near camera) (:z-far camera))
+      (set-extents fov-x fov-y (:z-near camera) (:z-far camera))
       filter-fn)))
 
-(g/defnk produce-camera [_node-id local-camera viewport]
+(s/defn camera-orthographic->perspective :- Camera
+  [camera :- Camera]
+  (assert (= :orthographic (:type camera)))
+  (assoc camera
+    :type :perspective
+    :fov-x 30.0
+    :fov-y 30.0))
+
+(s/defn camera-perspective->orthographic :- Camera
+  [camera :- Camera]
+  (assert (= :perspective (:type camera)))
+  (assoc camera :type :orthographic))
+
+(s/defn camera-ensure-orthographic :- Camera
+  [camera :- Camera]
+  (case (:type camera)
+    :orthographic camera
+    :perspective (camera-perspective->orthographic camera)))
+
+(g/defnk produce-camera [_node-id local-camera scene-aabb viewport]
   (let [w (- (:right viewport) (:left viewport))
         h (- (:bottom viewport) (:top viewport))]
     (if (and (> w 0) (> h 0))
       (let [aspect (/ (double w) h)
             filter-fn (or (:filter-fn local-camera) identity)]
         (-> local-camera
-          (set-orthographic (* aspect (:fov-y local-camera)) (:fov-y local-camera) 0 10000)
-          filter-fn))
+            (set-extents (* aspect (:fov-y local-camera))
+                         (:fov-y local-camera)
+                         (:z-near local-camera)
+                         (:z-far local-camera))
+            filter-fn))
       local-camera)))
 
 (defn handle-input [self action user-data]
