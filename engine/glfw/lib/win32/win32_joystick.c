@@ -44,9 +44,6 @@ void _update_joystick(int joy)
     DWORD dwResult;
     XINPUT_STATE state;
 
-    if (joy < 0)
-        return;
-
     dwResult = XInputGetState(joy, &state);
     g_ControllerPresent[joy] = dwResult == ERROR_SUCCESS;
 
@@ -85,6 +82,11 @@ static int _glfwJoystickPresent( int joy )
 
 int _glfwPlatformGetJoystickParam( int joy, int param )
 {
+    if (joy < 0 && joy >= GLFW_MAX_XINPUT_CONTROLLERS)
+    {
+        return 0;
+    }
+
     if( param == GLFW_PRESENT )
     {
         _update_joystick(joy);
@@ -110,7 +112,7 @@ int _glfwPlatformGetJoystickParam( int joy, int param )
 
     case GLFW_BUTTONS:
         // Return number of joystick buttons
-		// NOTE: We fake 16 buttons. The actual number is 14 but the button-mask is sparse in XInput. bit 0-9 + bit 12-15 
+		// NOTE: We fake 16 buttons. The actual number is 14 but the button-mask is sparse in XInput. bit 0-9 + bit 12-15
         return 16;
 
     default:
@@ -282,8 +284,6 @@ static float _glfwCalcJoystickPos( DWORD pos, DWORD min, DWORD max )
 int _glfwPlatformGetJoystickParam( int joy, int param )
 {
     JOYCAPS jc;
-
-//  return 0;
 
     // Is joystick present?
     if( !_glfwJoystickPresent( joy ) )
