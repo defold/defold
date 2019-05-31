@@ -800,7 +800,7 @@ namespace dmGraphics
     {
     }
 
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT], const uint8_t buffer_count)
     {
         RenderTarget* rt = new RenderTarget();
         memset(rt, 0, sizeof(RenderTarget));
@@ -850,7 +850,7 @@ namespace dmGraphics
         context->m_CurrentFrameBuffer = &rendertarget->m_FrameBuffer;
     }
 
-    HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type)
+    HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type, uint8_t buffer_ix)
     {
         if(buffer_type != BUFFER_TYPE_COLOR_BIT)
             return 0;

@@ -518,7 +518,7 @@ namespace dmGraphics
         // TODO:
     }
 
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT])
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT], const uint8_t buffer_count)
     {
         // TODO:
         assert(false && "Not supported");
@@ -547,7 +547,7 @@ namespace dmGraphics
         assert(false && "Not supported");
     }
 
-    HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type)
+    HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type, uint8_t buffer_ix)
     {
         // TODO:
         assert(false && "Not supported");

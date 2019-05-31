@@ -97,10 +97,12 @@ namespace dmGraphics
         GLuint      m_VboId;
     };
 
+    #define MAX_RENDER_TARGET_ATTACHMENTS 4
+
     struct RenderTarget
     {
         TextureParams   m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
-        HTexture        m_ColorBufferTexture;
+        HTexture        m_ColorBufferTexture[MAX_RENDER_TARGET_ATTACHMENTS];
         GLuint          m_DepthBuffer;
         GLuint          m_StencilBuffer;
         GLuint          m_DepthStencilBuffer;

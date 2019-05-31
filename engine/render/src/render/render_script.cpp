@@ -47,6 +47,7 @@ namespace dmRender
     #define RENDER_SCRIPT_MAG_FILTER_NAME "mag_filter"
     #define RENDER_SCRIPT_U_WRAP_NAME "u_wrap"
     #define RENDER_SCRIPT_V_WRAP_NAME "v_wrap"
+    #define RENDER_SCRIPT_COUNT_NAME "count"
 
     static uint32_t RENDER_SCRIPT_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_INSTANCE_TYPE_HASH = 0;
@@ -619,6 +620,7 @@ namespace dmRender
         dmhash_t namehash = dmScript::CheckHashOrString(L, 1);
 
         const char* required_keys[] = { "format", "width", "height" };
+        uint8_t buffer_count = 1;
         uint32_t buffer_type_flags = 0;
         uint32_t max_tex_size = dmGraphics::GetMaxTextureSize(i->m_RenderContext->m_GraphicsContext);
         luaL_checktype(L, 2, LUA_TTABLE);
@@ -710,6 +712,10 @@ namespace dmRender
                 {
                     p->m_VWrap = (dmGraphics::TextureWrap)(int)luaL_checknumber(L, -1);
                 }
+                else if (strncmp(key, RENDER_SCRIPT_COUNT_NAME, strlen(RENDER_SCRIPT_COUNT_NAME)) == 0)
+                {
+                    buffer_count = luaL_checknumber(L, -1);
+                }
                 else
                 {
                     lua_pop(L, 2);
@@ -737,7 +743,7 @@ namespace dmRender
             }
         }
 
-        dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
+        dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params, buffer_count);
         RegisterRenderTarget(i->m_RenderContext, render_target, namehash);
 
         lua_pushlightuserdata(L, (void*)render_target);
@@ -1027,11 +1033,19 @@ namespace dmRender
         dmGraphics::HRenderTarget render_target = 0x0;
 
         uint32_t unit = luaL_checknumber(L, 1);
+
+        uint32_t buffer_ix = 0;
+
+        if (lua_isnumber(L,4))
+        {
+            buffer_ix = luaL_checkinteger(L, 4);
+        }
+
         if (lua_islightuserdata(L, 2))
         {
             render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
             dmGraphics::BufferType buffer_type = (dmGraphics::BufferType)(int)luaL_checknumber(L, 3);
-            dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, buffer_type);
+            dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, buffer_type, buffer_ix);
             if(texture != 0)
             {
                 if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uintptr_t)texture)))
