@@ -861,10 +861,14 @@
                            :on-text-changed {:event-type :set-file-name}}
                           {:fx/type fxui/label
                            :text "Location"}
-                          {:fx/type fxui/text-field
-                           :variant (if location-exists :default :error)
-                           :on-text-changed {:event-type :set-location}
-                           :text relative-path}
+                          {:fx/type :h-box
+                           :children [{:fx/type fxui/text-field
+                                       :variant (if location-exists :default :error)
+                                       :on-text-changed {:event-type :set-location}
+                                       :text relative-path}
+                                      {:fx/type fxui/button
+                                       :on-action {:event-type :pick-location}
+                                       :text "…"}]}
                           {:fx/type fxui/label
                            :text "Path"}
                           {:fx/type fxui/text-field
@@ -897,9 +901,25 @@
                      (case event-type
                        :set-file-name (assoc state :name event)
                        :set-location (assoc state :location (io/file base-dir event))
+                       :pick-location (assoc state :location
+                                             (let [initial-dir (if (.exists ^File (:location state))
+                                                                 (:location state)
+                                                                 base-dir)
+                                                   path (-> (doto (DirectoryChooser.)
+                                                              (.setInitialDirectory initial-dir)
+                                                              (.setTitle "Set Path"))
+                                                            (.showDialog nil))]
+                                               (io/file base-dir (relativize base-dir path))))
                        :cancel (assoc state ::fxui/result nil)
                        :confirm (assoc state ::fxui/result
-                                       (io/file (:location state) (sanitize-file-name ext (:name state))))))
+                                       (-> (io/file (:location state) (sanitize-file-name ext (:name state)))
+                                           ;; Canonical path turns Windows path
+                                           ;; into the correct case. We need
+                                           ;; this to be able to match internal
+                                           ;; resource maps, which are case
+                                           ;; sensitive unlike the NTFS file
+                                           ;; system.
+                                           (.getCanonicalFile)))))
     :description {:fx/type new-file-dialog}))
 
 (handler/defhandler ::rename-conflicting-files :dialog
