@@ -96,7 +96,7 @@ namespace dmProfile
             return;
         }
 
-        g_StringTable.SetCapacity(1024, 1200); // Rather arbitrary...
+        g_StringTable.SetCapacity(1024, 1536); // Rather arbitrary...
         g_StringPool = dmStringPool::New();
 
         if (g_Scopes.Capacity() == 0)
@@ -215,11 +215,7 @@ namespace dmProfile
             {
                 if (g_StringTable.Full())
                 {
-                    // The logger will try to lock the g_ProfileLock in dmMessage::Post
-                    // but at this point we already have claimed it in the dmProfile::Begin function.
-                    dmSpinlock::Unlock(&g_ProfileLock);
                     dmLogWarning("String table full in profiler");
-                    dmSpinlock::Lock(&g_ProfileLock);
                 }
                 else
                 {
