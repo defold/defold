@@ -12,18 +12,6 @@
 namespace dmPhysics
 {
 
-    // struct Joint2D
-    // {
-    //     dmhash_t m_Id;
-    //     b2Joint* m_B2Joint;
-    //     Vectormath::Aos::Point3 m_PositionA;
-    //     Vectormath::Aos::Point3 m_PositionB;
-    //     Joint2D(dmhash_t id) {
-    //         m_Id = id;
-    //         m_B2Joint = 0x0;
-    //     }
-    // };
-
     Context2D::Context2D()
     : m_Worlds()
     , m_DebugCallbacks()
@@ -772,7 +760,6 @@ namespace dmPhysics
             FreeShape(shape); // NOTE: shape can't be freed prior to DestroyFixture
             fixture = save_next;
         }
-
         world->m_World.DestroyBody(body);
     }
 

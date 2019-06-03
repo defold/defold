@@ -49,8 +49,6 @@ namespace dmPhysics
     typedef void* HCollisionShape3D;
     /// 3D collision object handle.
     typedef void* HCollisionObject3D;
-    /// 3D joint handle
-    // typedef void* HJoint3D;
 
     /// 2D context handle.
     typedef struct Context2D* HContext2D;
@@ -62,9 +60,8 @@ namespace dmPhysics
     typedef void* HCollisionObject2D;
     /// 2D cull-set handle
     typedef void* HHullSet2D;
-    /// 2D joint handle
-    // typedef void* HJoint2D;
 
+    /// Generic Joint handle
     typedef void* HJoint;
 
     /// Empty cell value, see SetGridShapeHull

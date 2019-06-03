@@ -350,6 +350,7 @@ namespace dmGameSystem
         "unknown error",
     };
 
+    // Helper to get collisionobject component and world.
     static void GetCollisionObject(lua_State* L, int indx, dmGameObject::HCollection collection, void** comp, void** comp_world)
     {
         dmMessage::URL receiver;

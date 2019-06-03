@@ -34,6 +34,7 @@ namespace dmGameSystem
     struct CollisionComponent;
     struct JointEndPoint;
 
+    /// Joint entry that will keep track of joint connections from collision components.
     struct JointEntry
     {
         dmhash_t m_Id;
@@ -49,6 +50,7 @@ namespace dmGameSystem
         }
     };
 
+    /// Joint end point to keep track of joint connections to collision components.
     struct JointEndPoint
     {
         JointEndPoint* m_Next;
@@ -67,8 +69,10 @@ namespace dmGameSystem
             dmPhysics::HCollisionObject2D m_Object2D;
         };
 
-        // dmArray<dmPhysics::HJoint> m_Joints;
+        /// Linked list of joints FROM this component.
         JointEntry* m_Joints;
+
+        /// Linked list of joints TO this component.
         JointEndPoint* m_JointEndPoints;
 
         uint16_t m_Mask;
@@ -99,7 +103,7 @@ namespace dmGameSystem
         dmArray<CollisionComponent*> m_Components;
     };
 
-    // static void DeleteJoint(CollisionWorld* world, CollisionComponent* component, dmhash_t id);
+    // Forward declarations
     static void DeleteJoint(CollisionWorld* world, dmPhysics::HJoint joint);
     static void DeleteJoint(CollisionWorld* world, JointEntry* joint_entry);
 
@@ -368,8 +372,6 @@ namespace dmGameSystem
         component->m_StartAsEnabled = true;
         component->m_Joints = 0x0;
         component->m_JointEndPoints = 0x0;
-        // component->m_Joints.SetCapacity(8);
-        // component->m_Joints2D = new dmArray<dmPhysics::HJoint2D>();
 
         CollisionWorld* world = (CollisionWorld*)params.m_World;
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, false))
@@ -1159,36 +1161,7 @@ namespace dmGameSystem
         }
     }
 
-    bool CompCollisionIs2D(void* comp_world)
-    {
-        return !((CollisionWorld*)comp_world)->m_3D;
-    }
-
-    dmPhysics::HWorld2D CompCollisionGetPhysicsWorld2D(void* comp_world)
-    {
-        return ((CollisionWorld*)comp_world)->m_World2D;
-    }
-
-    dmPhysics::HCollisionObject2D CompCollisionGetObject2D(void* comp_world, void* comp)
-    {
-        return ((CollisionComponent*)comp)->m_Object2D;
-    }
-
-    dmhash_t CompCollisionObjectGetIdentifier(void* _component)
-    {
-        CollisionComponent* component = (CollisionComponent*)_component;
-        return dmGameObject::GetIdentifier(component->m_Instance);
-    }
-
-    void* CompCollisionObjectGetComponent(const dmGameObject::ComponentGetParams& params)
-    {
-        //CollisionWorld* world = (CollisionWorld*)params.m_World;
-        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
-        return component;
-        // uint32_t index = (uint32_t)*params.m_UserData;
-        // return &world->m_Components.Get(index);
-    }
-
+    // Find a JointEntry in the linked list of a collision component based on the joint id.
     static JointEntry* FindJointEntry(CollisionWorld* world, CollisionComponent* component, dmhash_t id)
     {
         JointEntry* joint_entry = component->m_Joints;
@@ -1214,6 +1187,7 @@ namespace dmGameSystem
         return true;
     }
 
+    // Creates a new JointEntry in a collision component.
     dmPhysics::JointResult CreateJoint(void* _world, void* _component, dmhash_t id)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
@@ -1232,6 +1206,7 @@ namespace dmGameSystem
         return dmPhysics::RESULT_OK;
     }
 
+    // Connects a joint between two components, a JointEntry with the id must exist for this to succeed.
     dmPhysics::JointResult ConnectJoint(void* _world, void* _component_a, dmhash_t id, const Vectormath::Aos::Point3& apos, void* _component_b, const Vectormath::Aos::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
@@ -1426,6 +1401,12 @@ namespace dmGameSystem
         {
             return dmPhysics::GetGravity2D(world->m_World2D);
         }
+    }
+
+    dmhash_t CompCollisionObjectGetIdentifier(void* _component)
+    {
+        CollisionComponent* component = (CollisionComponent*)_component;
+        return dmGameObject::GetIdentifier(component->m_Instance);
     }
 
 

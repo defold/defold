@@ -25,8 +25,6 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCollisionObjectAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
 
-    void*                      CompCollisionObjectGetComponent(const dmGameObject::ComponentGetParams& params);
-
     dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
 
     dmGameObject::UpdateResult CompCollisionObjectPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params);
@@ -45,10 +43,6 @@ namespace dmGameSystem
     void RayCast(void* world, const dmPhysics::RayCastRequest& request, dmPhysics::RayCastResponse& response);
     uint64_t GetLSBGroupHash(void* world, uint16_t mask);
     dmhash_t CompCollisionObjectGetIdentifier(void* component);
-
-    bool                            CompCollisionIs2D(void* comp_world);
-    dmPhysics::HWorld2D             CompCollisionGetPhysicsWorld2D(void* comp_world);
-    dmPhysics::HCollisionObject2D   CompCollisionGetObject2D(void* comp_world, void* comp);
 
     dmPhysics::JointResult CreateJoint(void* _world, void* _component, dmhash_t id);
     dmPhysics::JointResult ConnectJoint(void* _world, void* _component_a, dmhash_t id, const Vectormath::Aos::Point3& apos, void* _component_b, const Vectormath::Aos::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params);

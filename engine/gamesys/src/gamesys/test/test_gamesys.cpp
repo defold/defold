@@ -1057,7 +1057,6 @@ TEST_F(ComponentTest, JointTest)
     bool tests_done = false;
     while (!tests_done)
     {
-        // printf("step iteration\n");
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -1067,6 +1066,7 @@ TEST_F(ComponentTest, JointTest)
         lua_pop(L, 1);
     }
 
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
 }
 
