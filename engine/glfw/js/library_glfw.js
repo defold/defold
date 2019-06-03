@@ -737,6 +737,8 @@ var LibraryGLFW = {
     GLFW.mouseWheelFunc = cbfun;
   },
 
+  glfwSetGamepadCallback: function(cbfun) {},
+
   /* Joystick input */
 
   glfwGetJoystickParam: function(joy, param) {

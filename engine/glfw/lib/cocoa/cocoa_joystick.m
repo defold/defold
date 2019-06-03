@@ -105,6 +105,7 @@ typedef struct recElement recElement;
 struct joystick_hwdata
 {
     io_service_t ffservice;     /* Interface for force feedback, 0 = no ff */
+    io_service_t hid_service;
     IOHIDDeviceInterface **interface;   /* interface to device, NULL = no interface */
 
     char product[256];          /* name of product */
@@ -128,11 +129,12 @@ struct joystick_hwdata
 typedef struct joystick_hwdata recDevice;
 
 static recDevice *gpDeviceList = NULL;
+static IOHIDManagerRef gHidManager = nil;
 
 static void
 HIDReportErrorNum(char *strError, long numError)
 {
-    printf("%s\n", strError);
+    printf("%s (%ld)\n", strError, numError);
 }
 
 void XSDL_SetError(const char* str)
@@ -254,18 +256,22 @@ HIDCreateOpenDeviceInterface(io_object_t hidDevice, recDevice * pDevice)
  */
 
 static IOReturn
-HIDCloseReleaseInterface(recDevice * pDevice)
+HIDCloseReleaseInterface(recDevice * pDevice, bool should_close)
 {
     IOReturn result = kIOReturnSuccess;
 
     if ((NULL != pDevice) && (NULL != pDevice->interface)) {
-        /* close the interface */
-        result = (*(pDevice->interface))->close(pDevice->interface);
-        if (kIOReturnNotOpen == result) {
-            /* do nothing as device was not opened, thus can't be closed */
-        } else if (kIOReturnSuccess != result)
-            HIDReportErrorNum("Failed to close IOHIDDeviceInterface.",
-                              result);
+        if (should_close) {
+            /* close the interface */
+            result = (*(pDevice->interface))->close(pDevice->interface);
+            if (kIOReturnNotOpen == result) {
+                /* do nothing as device was not opened, thus can't be closed */
+            } else if (kIOReturnSuccess != result) {
+                HIDReportErrorNum("Failed to close IOHIDDeviceInterface.",
+                                  result);
+            }
+        }
+
         /* release the interface */
         result = (*(pDevice->interface))->Release(pDevice->interface);
         if (kIOReturnSuccess != result)
@@ -615,7 +621,7 @@ HIDDisposeElementList(recElement ** elementList)
  */
 
 static recDevice *
-HIDDisposeDevice(recDevice ** ppDevice)
+HIDDisposeDevice(recDevice ** ppDevice, bool should_close)
 {
     kern_return_t result = KERN_SUCCESS;
     recDevice *pDeviceNext = NULL;
@@ -634,7 +640,7 @@ HIDDisposeDevice(recDevice ** ppDevice)
         HIDDisposeElementList(&(*ppDevice)->firstButton);
         HIDDisposeElementList(&(*ppDevice)->firstHat);
 
-        result = HIDCloseReleaseInterface(*ppDevice);   /* function sanity checks interface value (now application does not own device) */
+        result = HIDCloseReleaseInterface(*ppDevice, should_close);   /* function sanity checks interface value (now application does not own device) */
         if (kIOReturnSuccess != result)
             HIDReportErrorNum
                 ("HIDCloseReleaseInterface failed when trying to dipose device.",
@@ -645,114 +651,170 @@ HIDDisposeDevice(recDevice ** ppDevice)
     return pDeviceNext;
 }
 
+static recDevice* findGamepadByIOObj(io_object_t io_obj) {
+    recDevice* device = gpDeviceList;
+    int i = 0;
+    while (device) {
+        if (device->hid_service == io_obj) {
+            return device;
+        }
+        device = device->pNext;
+    }
+    return NULL;
+}
+
+static recDevice* findLastGamepadByIOObj(io_object_t io_obj) {
+
+    recDevice* lastDevice = gpDeviceList;
+    while (lastDevice && lastDevice->pNext) {
+        lastDevice = lastDevice->pNext;
+    }
+
+    return lastDevice;
+}
+
+
+static int removeGamepadByIOObj(io_object_t io_obj) {
+    recDevice* device = findGamepadByIOObj(io_obj);
+    if (device) {
+        // locate device in joy list
+        int found = -1;
+        for( int i = 0; i <= GLFW_JOYSTICK_LAST; ++ i )
+        {
+            if (_glfwJoy[i].Device == device) {
+                _glfwJoy[i].Device = NULL;
+                _glfwJoy[i].Present = GL_FALSE;
+
+                if (_glfwJoy[i].Axis)
+                    free(_glfwJoy[i].Axis);
+
+                if (_glfwJoy[i].Button)
+                    free(_glfwJoy[i].Button);
+
+                _glfwJoy[i].Axis = 0;
+                _glfwJoy[i].Button = 0;
+
+                found = i;
+                break;
+            }
+        }
+
+        recDevice* d = gpDeviceList;
+        recDevice* prev_d = NULL;
+        while (d) {
+            if (d->hid_service == io_obj) {
+                if (prev_d) {
+                    prev_d->pNext = d->pNext;
+                } else {
+                    gpDeviceList = d->pNext;
+                }
+                // Dispose of the device, but don't close it since
+                // it appears it has already been closed when disconnected.
+                HIDDisposeDevice(&d, false);
+                break;
+            }
+            prev_d = d;
+            d = d->pNext;
+        }
+
+        return found;
+    }
+    return -1;
+}
+
+static void gamepadWasAdded(void* inContext, IOReturn inResult, void* inSender, IOHIDDeviceRef device) {
+    io_service_t ioservice = IOHIDDeviceGetService(device);
+
+    // The device might already been added in the init step
+    recDevice* new_device = HIDBuildDevice(ioservice);
+    if (!new_device)
+        return;
+
+    new_device->ffservice = 0;
+    new_device->hid_service = ioservice;
+
+    /* Add device to the end of the list */
+    recDevice* lastDevice = findLastGamepadByIOObj(ioservice);
+    if (lastDevice)
+        lastDevice->pNext = new_device;
+    else
+        gpDeviceList = new_device;
+
+    // locate device in joy list
+    int found = -1;
+    for( int i = 0; i <= GLFW_JOYSTICK_LAST; ++ i )
+    {
+        if (!_glfwJoy[i].Present) {
+            _glfwJoy[i].Device = new_device;
+            _glfwJoy[i].Present = GL_TRUE;
+
+            _glfwJoy[i].NumAxes = new_device->axes;
+            _glfwJoy[i].Axis = malloc(sizeof(float) * new_device->axes);
+
+            _glfwJoy[i].NumButtons = new_device->buttons;
+            _glfwJoy[i].Button = malloc(sizeof(char) * new_device->buttons);
+            found = i;
+            break;
+        }
+    }
+
+    if (found >= 0 && _glfwWin.gamepadCallback) {
+        _glfwWin.gamepadCallback(found, 1);
+    }
+}
+
+static void gamepadWasRemoved(void* inContext, IOReturn inResult, void* inSender, IOHIDDeviceRef device) {
+    io_service_t ioservice = IOHIDDeviceGetService(device);
+
+    int i = removeGamepadByIOObj(ioservice);
+    if (i >= 0 && _glfwWin.gamepadCallback) {
+        _glfwWin.gamepadCallback(i, 0);
+    }
+}
+
 int XSDL_numjoysticks = 0;
 
 int XSDL_SYS_JoystickInit(void)
 {
-    IOReturn result = kIOReturnSuccess;
     mach_port_t masterPort = 0;
-    io_iterator_t hidObjectIterator = 0;
     CFMutableDictionaryRef hidMatchDictionary = NULL;
-    recDevice *device, *lastDevice;
     io_object_t ioHIDDeviceObject = 0;
 
     XSDL_numjoysticks = 0;
 
-    if (gpDeviceList) {
-        XSDL_SetError("Joystick: Device list already inited.");
-        return -1;
+    gHidManager = IOHIDManagerCreate(kCFAllocatorDefault, kIOHIDOptionsTypeNone);
+
+    NSMutableArray *criterionArray = [NSMutableArray arrayWithCapacity:3];
+    {
+        NSMutableDictionary* criterion = [NSMutableDictionary dictionaryWithCapacity: 2];
+            [criterion setObject: [NSNumber numberWithInt: kHIDPage_GenericDesktop]
+                          forKey: (NSString*)CFSTR(kIOHIDDeviceUsagePageKey)];
+            [criterion setObject: [NSNumber numberWithInt: kHIDUsage_GD_Joystick]
+                          forKey: (NSString*)CFSTR(kIOHIDDeviceUsageKey)];
+        [criterionArray addObject:criterion];
+    }
+    {
+        NSMutableDictionary* criterion = [NSMutableDictionary dictionaryWithCapacity: 2];
+            [criterion setObject: [NSNumber numberWithInt: kHIDPage_GenericDesktop]
+                          forKey: (NSString*)CFSTR(kIOHIDDeviceUsagePageKey)];
+            [criterion setObject: [NSNumber numberWithInt: kHIDUsage_GD_GamePad]
+                          forKey: (NSString*)CFSTR(kIOHIDDeviceUsageKey)];
+        [criterionArray addObject:criterion];
+    }
+    {
+        NSMutableDictionary* criterion = [NSMutableDictionary dictionaryWithCapacity: 2];
+            [criterion setObject: [NSNumber numberWithInt: kHIDPage_GenericDesktop]
+                          forKey: (NSString*)CFSTR(kIOHIDDeviceUsagePageKey)];
+            [criterion setObject: [NSNumber numberWithInt: kHIDUsage_GD_MultiAxisController]
+                          forKey: (NSString*)CFSTR(kIOHIDDeviceUsageKey)];
+        [criterionArray addObject:criterion];
     }
 
-    result = IOMasterPort(bootstrap_port, &masterPort);
-    if (kIOReturnSuccess != result) {
-        XSDL_SetError("Joystick: IOMasterPort error with bootstrap_port.");
-        return -1;
-    }
-
-    /* Set up a matching dictionary to search I/O Registry by class name for all HID class devices. */
-    hidMatchDictionary = IOServiceMatching(kIOHIDDeviceKey);
-    if (hidMatchDictionary) {
-        /* Add key for device type (joystick, in this case) to refine the matching dictionary. */
-
-        /* NOTE: we now perform this filtering later
-           UInt32 usagePage = kHIDPage_GenericDesktop;
-           UInt32 usage = kHIDUsage_GD_Joystick;
-           CFNumberRef refUsage = NULL, refUsagePage = NULL;
-
-           refUsage = CFNumberCreate (kCFAllocatorDefault, kCFNumberIntType, &usage);
-           CFDictionarySetValue (hidMatchDictionary, CFSTR (kIOHIDPrimaryUsageKey), refUsage);
-           refUsagePage = CFNumberCreate (kCFAllocatorDefault, kCFNumberIntType, &usagePage);
-           CFDictionarySetValue (hidMatchDictionary, CFSTR (kIOHIDPrimaryUsagePageKey), refUsagePage);
-         */
-    } else {
-        XSDL_SetError
-            ("Joystick: Failed to get HID CFMutableDictionaryRef via IOServiceMatching.");
-        return -1;
-    }
-
-    /*/ Now search I/O Registry for matching devices. */
-    result =
-        IOServiceGetMatchingServices(masterPort, hidMatchDictionary,
-                                     &hidObjectIterator);
-    /* Check for errors */
-    if (kIOReturnSuccess != result) {
-        XSDL_SetError("Joystick: Couldn't create a HID object iterator.");
-        return -1;
-    }
-    if (!hidObjectIterator) {   /* there are no joysticks */
-        gpDeviceList = NULL;
-        XSDL_numjoysticks = 0;
-        return 0;
-    }
-    /* IOServiceGetMatchingServices consumes a reference to the dictionary, so we don't need to release the dictionary ref. */
-
-    /* build flat linked list of devices from device iterator */
-
-    gpDeviceList = lastDevice = NULL;
-
-    while ((ioHIDDeviceObject = IOIteratorNext(hidObjectIterator))) {
-        /* build a device record */
-        device = HIDBuildDevice(ioHIDDeviceObject);
-        if (!device)
-            continue;
-
-        /* Filter device list to non-keyboard/mouse stuff */
-        if ((device->usagePage != kHIDPage_GenericDesktop) ||
-            ((device->usage != kHIDUsage_GD_Joystick &&
-              device->usage != kHIDUsage_GD_GamePad &&
-              device->usage != kHIDUsage_GD_MultiAxisController))) {
-
-            /* release memory for the device */
-            HIDDisposeDevice(&device);
-            DisposePtr((Ptr) device);
-            continue;
-        }
-
-        /* We have to do some storage of the io_service_t for
-         * SDL_HapticOpenFromJoystick */
-        device->ffservice = 0;
-/*
-        if (FFIsForceFeedback(ioHIDDeviceObject) == FF_OK) {
-            device->ffservice = ioHIDDeviceObject;
-        } else {
-            device->ffservice = 0;
-        }*/
-
-        /* Add device to the end of the list */
-        if (lastDevice)
-            lastDevice->pNext = device;
-        else
-            gpDeviceList = device;
-        lastDevice = device;
-    }
-    IOObjectRelease(hidObjectIterator);        /* release the iterator */
-
-    /* Count the total number of devices we found */
-    device = gpDeviceList;
-    while (device) {
-        XSDL_numjoysticks++;
-        device = device->pNext;
-    }
+    IOHIDManagerSetDeviceMatchingMultiple(gHidManager, (__bridge CFArrayRef)criterionArray);
+    IOHIDManagerRegisterDeviceMatchingCallback(gHidManager, gamepadWasAdded, NULL);
+    IOHIDManagerRegisterDeviceRemovalCallback(gHidManager, gamepadWasRemoved, NULL);
+    IOHIDManagerScheduleWithRunLoop(gHidManager, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
+    IOHIDManagerOpen(gHidManager, kIOHIDOptionsTypeNone);
 
     return XSDL_numjoysticks;
 }
@@ -824,6 +886,10 @@ void
 XSDL_SYS_JoystickUpdate(int joy_index)
 {
     recDevice *device = (recDevice*) _glfwJoy[joy_index].Device;
+    if (!device) {
+        return;
+    }
+
     recElement *element;
     SInt32 value;
     //SInt32 range;
@@ -936,36 +1002,16 @@ int _glfwInitJoysticks( void )
         _glfwJoy[ i ].Device = 0;
     }
 
-    int ret = XSDL_SYS_JoystickInit();
-    if (ret == -1)
-        return GL_FALSE;
-    else
-    {
-        recDevice* device = gpDeviceList;
-        int i = 0;
-        while (device)
-        {
-            //printf("%d: %s\n", i, device->product);
-            _glfwJoy[i].Present = GL_TRUE;
-            _glfwJoy[i].Device = device;
-            _glfwJoy[i].NumAxes = device->axes;
-            _glfwJoy[i].Axis = malloc(sizeof(float) * device->axes);
-
-            _glfwJoy[i].NumButtons = device->buttons;
-            _glfwJoy[i].Button = malloc(sizeof(unsigned char) * device->buttons);
-
-            i++;
-            device = device->pNext;
-        }
-
-        return GL_TRUE;
-    }
+    XSDL_SYS_JoystickInit();
+    return GL_TRUE;
 }
 
 int _glfwTerminateJoysticks()
 {
     while (NULL != gpDeviceList)
-        gpDeviceList = HIDDisposeDevice(&gpDeviceList);
+        gpDeviceList = HIDDisposeDevice(&gpDeviceList, true);
+
+    IOHIDManagerClose(gHidManager, kIOHIDOptionsTypeNone);
 
     int i;
     for( i = 0; i <= GLFW_JOYSTICK_LAST; ++ i )
@@ -1023,7 +1069,7 @@ int _glfwPlatformGetJoystickPos( int joy, float *pos, int numaxes )
 
 
     // Update joystick state
-    if (joy < XSDL_numjoysticks)
+    if (joy <= GLFW_JOYSTICK_LAST)
     {
         XSDL_SYS_JoystickUpdate(joy);
     }
@@ -1055,7 +1101,7 @@ int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons, int numbut
     }
 
     // Update joystick state
-    if (joy < XSDL_numjoysticks)
+    if (joy <= GLFW_JOYSTICK_LAST)
     {
         XSDL_SYS_JoystickUpdate(joy);
     }
