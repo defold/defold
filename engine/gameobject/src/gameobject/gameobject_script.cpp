@@ -1020,16 +1020,15 @@ namespace dmGameObject
         }
 
         dmGameObjectDDF::SetParent ddf;
+        ddf.m_KeepWorldTransform = lua_toboolean(L, 3);
 
         if (parent_instance)
         {
-            ddf.m_ParentId           = dmGameObject::GetIdentifier(parent_instance);
-            ddf.m_KeepWorldTransform = lua_toboolean(L, 3);
+            ddf.m_ParentId = dmGameObject::GetIdentifier(parent_instance);
         }
         else
         {
-            ddf.m_ParentId           = 0;
-            ddf.m_KeepWorldTransform = 0;
+            ddf.m_ParentId = 0;
         }
 
         dmMessage::URL receiver;
