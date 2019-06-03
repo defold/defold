@@ -351,27 +351,22 @@
       (when (= 1 (bounded-count 2 partial-matches))
         (first partial-matches)))))
 
-(defn- multi-re-match-result-seq
-  "Takes a sequence of regular expressions and a string to match them against.
-  Will match each regular expression in turn by calling `re-match-result-seq`
-  and return the first non-empty sequence, short circuiting. Or nil if none of
-  the regular expressions match."
-  [regular-expressions string]
-  (assert (sequential? regular-expressions))
-  (first (filter not-empty (for [re regular-expressions] (re-match-result-seq re string)))))
-
 (defn- make-line-sub-regions [resource-map on-region-click! row line]
-  (keep (fn [^MatchResult result]
-          (when-let [resource-proj-path (find-project-resource-from-potential-match resource-map (.group result 1))]
-            (let [resource-row (some-> (.group result 2) Long/parseUnsignedLong)
-                  start-col (.start result)
-                  end-col (if (string/ends-with? (.group result) ":")
-                            (dec (.end result))
-                            (.end result))]
-              (if (nil? resource-row)
-                (make-resource-reference-region row start-col end-col resource-proj-path on-region-click!)
-                (make-resource-reference-region row start-col end-col resource-proj-path (dec (long resource-row)) on-region-click!)))))
-        (multi-re-match-result-seq [line-sub-regions-pattern line-sub-regions-pattern-partial] line)))
+  (into []
+        (comp
+          (mapcat #(re-match-result-seq % line))
+          (keep (fn [^MatchResult result]
+                  (when-let [resource-proj-path (find-project-resource-from-potential-match resource-map (.group result 1))]
+                    (let [resource-row (some-> (.group result 2) Long/parseUnsignedLong)
+                          start-col (.start result)
+                          end-col (if (string/ends-with? (.group result) ":")
+                                    (dec (.end result))
+                                    (.end result))]
+                      (if (nil? resource-row)
+                        (make-resource-reference-region row start-col end-col resource-proj-path on-region-click!)
+                        (make-resource-reference-region row start-col end-col resource-proj-path (dec (long resource-row)) on-region-click!))))))
+          (distinct))
+        [line-sub-regions-pattern line-sub-regions-pattern-partial]))
 
 (defn- make-whole-line-region [type ^long row line]
   (assert (keyword? type))
@@ -497,8 +492,7 @@
                                (when (and (resource/openable-resource? resource)
                                           (resource/exists? resource))
                                  (let [opts (when-some [row (:row region)]
-                                              {:line (inc (long row))
-                                               :row row})]
+                                              {:cursor-range (data/Cursor->CursorRange (data/->Cursor row 0))})]
                                    (open-resource-fn resource opts))))))
         repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time]
                                                        (when (and (.isSelected console-tab) (not (ui/ui-disabled?)))

@@ -1,6 +1,7 @@
 <component name="ProjectCodeStyleConfiguration">
   <code_scheme name="Project" version="173">
     <option name="RIGHT_MARGIN" value="80" />
+    <option name="SOFT_MARGINS" value="80,90" />
     <ClojureCodeStyleSettings>{
   :cursive.formatting/align-conditionals false
   :cursive.formatting/align-maps false

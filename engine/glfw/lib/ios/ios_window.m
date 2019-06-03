@@ -152,7 +152,7 @@ id<UIApplicationDelegate> g_ApplicationDelegate = 0;
     }
 
     // handleOpenURL is deprecated. We call it from here as if openURL is implemented, handleOpenURL won't be called.
-    if ([g_ApplicationDelegate application: application handleOpenURL:url])
+    if ([self application: application handleOpenURL:url])
         handled = YES;
 
     return handled;
@@ -1733,5 +1733,4 @@ GLFWAPI void glfwAccelerometerEnable()
     [[UIAccelerometer sharedAccelerometer] setDelegate:_glfwWin.viewController];
     g_AccelerometerEnabled = 1;
 }
-
 
