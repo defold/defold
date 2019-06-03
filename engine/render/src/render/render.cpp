@@ -510,12 +510,28 @@ namespace dmRender
         if (context->m_RenderList.Empty())
             return;
 
-        // First sort on the tag masks
+        uint32_t sorted = 1;
         {
+            uint32_t tagmask = context->m_RenderList[0].m_TagMask;
+            uint32_t size = context->m_RenderList.Size();
+            for (uint32_t i = 1; sorted && i < size; ++i) {
+                const RenderListEntry& ea = context->m_RenderList[i];
+                if (tagmask != ea.m_TagMask) {
+                    sorted = sorted && (tagmask < ea.m_TagMask);
+                    tagmask = ea.m_TagMask;
+                }
+            }
+        }
+
+        // First sort on the tag masks
+        if (!sorted)
+        {
+            DM_PROFILE(Render, "SortRenderList_sort");
             RenderListEntrySorter sort;
             sort.m_Base = context->m_RenderList.Begin();
             std::stable_sort(context->m_RenderListSortIndices.Begin(), context->m_RenderListSortIndices.End(), sort);
         }
+
         // Now find the ranges of tag masks
         {
             RenderListEntry* entries = context->m_RenderList.Begin();

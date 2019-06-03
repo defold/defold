@@ -332,6 +332,9 @@ namespace dmRender
     dmRenderDDF::MaterialDesc::VertexSpace GetMaterialVertexSpace(HMaterial material);
     void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);
 
+    uint32_t                        GetMaterialFlags(HMaterial material);
+    void                            SetMaterialFlags(HMaterial material, uint32_t flags);
+
     uint64_t                        GetMaterialUserData1(HMaterial material);
     void                            SetMaterialUserData1(HMaterial material, uint64_t user_data);
     uint64_t                        GetMaterialUserData2(HMaterial material);

@@ -135,6 +135,7 @@ namespace dmParticle
         uint16_t                m_Retiring : 1;
         /// If this emitter needs to be rehashed
         uint16_t                m_ReHash : 1;
+        uint16_t                : 11; // Padding
     };
 
     struct Instance
@@ -253,7 +254,9 @@ namespace dmParticle
         /// Blend mode
         dmParticleDDF::BlendMode    m_BlendMode;
         /// The max life time possible of a particle (used for quantizing particle life time when sorting)
-        float                   m_MaxParticleLifeTime;
+        float                       m_MaxParticleLifeTime;
+        /// If the particles should be sorted
+        uint16_t                    m_SortEnabled;
     };
 
     /**

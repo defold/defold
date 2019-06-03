@@ -375,6 +375,16 @@ namespace dmRender
         return material->m_RenderContext;
     }
 
+    uint32_t GetMaterialFlags(HMaterial material)
+    {
+        return material->m_Flags;
+    }
+
+    void SetMaterialFlags(HMaterial material, uint32_t flags)
+    {
+        material->m_Flags = flags;
+    }
+
     uint64_t GetMaterialUserData1(HMaterial material)
     {
         return material->m_UserData1;

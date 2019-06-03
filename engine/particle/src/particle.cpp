@@ -580,8 +580,12 @@ namespace dmParticle
 
         UpdateEmitterState(instance, emitter, emitter_prototype, emitter_ddf, dt);
 
-        GenerateKeys(emitter, emitter_prototype->m_MaxParticleLifeTime);
-        SortParticles(emitter);
+        if (emitter_prototype->m_SortEnabled) {
+            DM_PROFILE(Particle, "Sort");
+
+            GenerateKeys(emitter, emitter_prototype->m_MaxParticleLifeTime);
+            SortParticles(emitter);
+        }
 
         Simulate(instance, emitter, emitter_prototype, emitter_ddf, dt);
     }
@@ -1258,8 +1262,6 @@ namespace dmParticle
 
     void SortParticles(Emitter* emitter)
     {
-        DM_PROFILE(Particle, "Sort");
-
         std::sort(emitter->m_Particles.Begin(), emitter->m_Particles.End(), SortPred());
     }
 
@@ -1914,6 +1916,11 @@ namespace dmParticle
     void SetMaterial(HPrototype prototype, uint32_t emitter_index, void* material)
     {
         prototype->m_Emitters[emitter_index].m_Material = material;
+    }
+
+    void SetEmitterSort(HPrototype prototype, uint32_t emitter_index, uint16_t sort)
+    {
+        prototype->m_Emitters[emitter_index].m_SortEnabled = sort;
     }
 
     void SetTileSource(HPrototype prototype, uint32_t emitter_index, void* tile_source)

@@ -57,6 +57,11 @@ message MaterialDesc
         FILTER_MODE_MAG_LINEAR  = 1;
     }
 
+    enum FeatureFlags // bit field flags (1,2,4,8,...)
+    {
+        NO_SORT = 1;
+    }
+
     message Sampler
     {
         required string name           = 1; // uniform name
@@ -75,4 +80,5 @@ message MaterialDesc
     repeated Constant fragment_constants = 7;
     repeated string textures = 8;
     repeated Sampler samplers = 9;
+    optional uint32 flags = 10;
 }

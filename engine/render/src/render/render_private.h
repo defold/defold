@@ -69,6 +69,7 @@ namespace dmRender
         dmArray<MaterialConstant>               m_Constants;
         dmArray<Sampler>                        m_Samplers;
         uint32_t                                m_TagMask;
+        uint32_t                                m_Flags;
         uint64_t                                m_UserData1;
         uint64_t                                m_UserData2;
         dmRenderDDF::MaterialDesc::VertexSpace  m_VertexSpace;

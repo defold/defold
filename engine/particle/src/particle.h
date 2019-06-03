@@ -472,6 +472,14 @@ namespace dmParticle
      */
     DM_PARTICLE_PROTO(void, SetMaterial, HPrototype prototype, uint32_t emitter_index, void* material);
     /**
+     * Set the sorting flag in the emitter
+     * @param prototype Prototype
+     * @param emitter_index Index of the emitter in question
+     * @param nosort 1 to enable sorting, 0 to skip sorting (1 is default)
+     */
+    DM_PARTICLE_PROTO(void, SetEmitterSort, HPrototype prototype, uint32_t emitter_index, uint16_t sort);
+
+    /**
      * Set tile source in the emitter in the supplied prototype
      * @param prototype Prototype
      * @param emitter_index Index of the emitter in question
