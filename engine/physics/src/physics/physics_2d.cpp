@@ -1170,7 +1170,7 @@ namespace dmPhysics
 
     bool GetJointParams2D(HWorld2D world, HJoint _joint, dmPhysics::JointType type, ConnectJointParams& params)
     {
-        float scale = world->m_Context->m_Scale;
+        float inv_scale = world->m_Context->m_InvScale;
 
         b2Joint* joint = (b2Joint*)_joint;
         params.m_CollideConnected = joint->GetCollideConnected();
@@ -1180,7 +1180,7 @@ namespace dmPhysics
             case dmPhysics::JOINT_TYPE_SPRING:
                 {
                     b2DistanceJoint* typed_joint = (b2DistanceJoint*)joint;
-                    params.m_SpringJointParams.m_Length = typed_joint->GetLength() / scale;
+                    params.m_SpringJointParams.m_Length = typed_joint->GetLength() * inv_scale;
                     params.m_SpringJointParams.m_FrequencyHz = typed_joint->GetFrequency();
                     params.m_SpringJointParams.m_DampingRatio = typed_joint->GetDampingRatio();
                 }
@@ -1188,7 +1188,7 @@ namespace dmPhysics
             case dmPhysics::JOINT_TYPE_FIXED:
                 {
                     b2RopeJoint* typed_joint = (b2RopeJoint*)joint;
-                    params.m_FixedJointParams.m_MaxLength = typed_joint->GetMaxLength() / scale;
+                    params.m_FixedJointParams.m_MaxLength = typed_joint->GetMaxLength() * inv_scale;
                 }
                 break;
             case dmPhysics::JOINT_TYPE_HINGE:
@@ -1218,10 +1218,10 @@ namespace dmPhysics
                     params.m_SliderJointParams.m_LocalAxisA[2] = 0.0f;
                     params.m_SliderJointParams.m_ReferenceAngle = typed_joint->GetReferenceAngle();
                     params.m_SliderJointParams.m_EnableLimit = typed_joint->IsLimitEnabled();
-                    params.m_SliderJointParams.m_LowerTranslation = typed_joint->GetLowerLimit() / scale;
-                    params.m_SliderJointParams.m_UpperTranslation = typed_joint->GetUpperLimit() / scale;
+                    params.m_SliderJointParams.m_LowerTranslation = typed_joint->GetLowerLimit() * inv_scale;
+                    params.m_SliderJointParams.m_UpperTranslation = typed_joint->GetUpperLimit() * inv_scale;
                     params.m_SliderJointParams.m_EnableMotor = typed_joint->IsMotorEnabled();
-                    params.m_SliderJointParams.m_MaxMotorForce = typed_joint->GetMaxMotorForce() / scale;
+                    params.m_SliderJointParams.m_MaxMotorForce = typed_joint->GetMaxMotorForce() * inv_scale;
                     params.m_SliderJointParams.m_MotorSpeed = typed_joint->GetMotorSpeed();
 
                     // Read only properties
@@ -1240,5 +1240,25 @@ namespace dmPhysics
     {
         assert(_joint);
         world->m_World.DestroyJoint((b2Joint*)_joint);
+    }
+
+    bool GetJointReactionForce2D(HWorld2D world, HJoint _joint, Vectormath::Aos::Vector3& force, float inv_dt)
+    {
+        float inv_scale = world->m_Context->m_InvScale;
+
+        b2Joint* joint = (b2Joint*)_joint;
+        b2Vec2 bv2 = joint->GetReactionForce(inv_dt);
+        FromB2(bv2, force, inv_scale);
+
+        return true;
+    }
+
+    bool GetJointReactionTorque2D(HWorld2D world, HJoint _joint, float& torque, float inv_dt)
+    {
+        float inv_scale = world->m_Context->m_InvScale;
+
+        b2Joint* joint = (b2Joint*)_joint;
+        torque = joint->GetReactionTorque(inv_dt) * inv_scale;
+        return true;
     }
 }

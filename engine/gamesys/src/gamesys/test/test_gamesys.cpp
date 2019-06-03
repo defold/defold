@@ -1023,7 +1023,6 @@ TEST_P(DrawCountTest, DrawCount)
 /* Physics joints */
 TEST_F(ComponentTest, JointTest)
 {
-    // TODO
     /* Setup:
     ** joint_test_a
     ** - [collisionobject] collision_object/joint_test_sphere.collisionobject

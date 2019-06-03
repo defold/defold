@@ -98,6 +98,7 @@ namespace dmGameSystem
             dmPhysics::HWorld2D m_World2D;
             dmPhysics::HWorld3D m_World3D;
         };
+        float m_LastDT; // Used to calculate joint reaction force and torque.
         uint8_t m_ComponentIndex;
         uint8_t m_3D : 1;
         dmArray<CollisionComponent*> m_Components;
@@ -884,6 +885,8 @@ namespace dmGameSystem
         step_world_context.m_RayCastCallback = RayCastCallback;
         step_world_context.m_RayCastUserData = world;
 
+        world->m_LastDT = params.m_UpdateContext->m_DT;
+
         g_NumPhysicsTransformsUpdated = 0;
 
         if (physics_context->m_3D)
@@ -1375,6 +1378,50 @@ namespace dmGameSystem
         {
             dmPhysics::DeleteJoint2D(world->m_World2D, joint);
         }
+    }
+
+    dmPhysics::JointResult GetJointReactionForce(void* _world, void* _component, dmhash_t id, Vectormath::Aos::Vector3& force)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        if (!IsJointsSupported(world)) {
+            return dmPhysics::RESULT_NOT_SUPPORTED;
+        }
+
+        CollisionComponent* component = (CollisionComponent*)_component;
+        JointEntry* joint_entry = FindJointEntry(world, component, id);
+
+        if (!joint_entry) {
+            return dmPhysics::RESULT_ID_NOT_FOUND;
+        }
+
+        if (!joint_entry->m_Joint) {
+            return dmPhysics::RESULT_NOT_CONNECTED;
+        }
+
+        bool r = GetJointReactionForce2D(world->m_World2D, joint_entry->m_Joint, force, 1.0f / world->m_LastDT);
+        return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
+    }
+
+    dmPhysics::JointResult GetJointReactionTorque(void* _world, void* _component, dmhash_t id, float& torque)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        if (!IsJointsSupported(world)) {
+            return dmPhysics::RESULT_NOT_SUPPORTED;
+        }
+
+        CollisionComponent* component = (CollisionComponent*)_component;
+        JointEntry* joint_entry = FindJointEntry(world, component, id);
+
+        if (!joint_entry) {
+            return dmPhysics::RESULT_ID_NOT_FOUND;
+        }
+
+        if (!joint_entry->m_Joint) {
+            return dmPhysics::RESULT_NOT_CONNECTED;
+        }
+
+        bool r = GetJointReactionTorque2D(world->m_World2D, joint_entry->m_Joint, torque, 1.0f / world->m_LastDT);
+        return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
     }
 
     void SetGravity(void* _world, const Vectormath::Aos::Vector3& gravity)

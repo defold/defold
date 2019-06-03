@@ -50,6 +50,8 @@ namespace dmGameSystem
     dmPhysics::JointResult GetJointParams(void* _world, void* _component, dmhash_t id, dmPhysics::JointType& joint_type, dmPhysics::ConnectJointParams& joint_params);
     dmPhysics::JointResult GetJointType(void* _world, void* _component, dmhash_t id, dmPhysics::JointType& joint_type);
     dmPhysics::JointResult UpdateJoint(void* _world, void* _component, dmhash_t id, const dmPhysics::ConnectJointParams& joint_params);
+    dmPhysics::JointResult GetJointReactionForce(void* _world, void* _component, dmhash_t id, Vectormath::Aos::Vector3& force);
+    dmPhysics::JointResult GetJointReactionTorque(void* _world, void* _component, dmhash_t id, float& torque);
 
     void SetGravity(void* world, const Vectormath::Aos::Vector3& gravity);
     Vectormath::Aos::Vector3 GetGravity(void* _world);

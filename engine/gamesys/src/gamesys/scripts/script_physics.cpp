@@ -38,6 +38,65 @@ namespace dmGameSystem
      * @namespace physics
      */
 
+    /*# spring joint type
+     *
+     * The following properties are available when connecting a joint of `JOINT_TYPE_SPRING` type:
+     * - [type:number] `length`: The natural length between the anchor points.
+     * - [type:number] `frequency`: The mass-spring-damper frequency in Hertz. A value of 0 disables softness.
+     * - [type:number] `damping`: The damping ratio. 0 = no damping, 1 = critical damping.
+     *
+     * @name physics.JOINT_TYPE_SPRING
+     * @variable
+     */
+
+    /*# fixed joint type
+     *
+     * The following properties are available when connecting a joint of `JOINT_TYPE_FIXED` type:
+     * - [type:number] `max_length`: The maximum length of the rope.
+     *
+     * @name physics.JOINT_TYPE_FIXED
+     * @variable
+     */
+
+    /*# hinge joint type
+     *
+     * The following properties are available when connecting a joint of `JOINT_TYPE_HINGE` type:
+     * - [type:number] `reference_angle`: The bodyB angle minus bodyA angle in the reference state (radians).
+     * - [type:number] `lower_angle`: The lower angle for the joint limit (radians).
+     * - [type:number] `upper_angle`: The upper angle for the joint limit (radians).
+     * - [type:number] `max_motor_torque`: The maximum motor torque used to achieve the desired motor speed. Usually in N-m.
+     * - [type:number] `motor_speed`: The desired motor speed. Usually in radians per second.
+     * - [type:boolean] `enable_limit`: A flag to enable joint limits.
+     * - [type:boolean] `enable_motor`: A flag to enable the joint motor.
+     *
+     * Read only fields, available from `physics.get_joint_properties()`:
+     * - [type:number] `joint_angle`: Current joint angle in radians.
+     * - [type:number] `joint_speed`: Current joint angle speed in radians per second.
+     *
+     * @name physics.JOINT_TYPE_HINGE
+     * @variable
+     */
+
+    /*# hinge joint type
+     *
+     * The following properties are available when connecting a joint of `JOINT_TYPE_SLIDER` type:
+     * - [type:vector3] `local_axis_a`: The local translation unit axis in bodyA.
+     * - [type:number] `reference_angle`: The constrained angle between the bodies: bodyB_angle - bodyA_angle.
+     * - [type:boolean] `enable_limit`: Enable/disable the joint limit.
+     * - [type:number] `lower_translation`: The lower translation limit, usually in meters.
+     * - [type:number] `upper_translation`: The upper translation limit, usually in meters.
+     * - [type:boolean] `enable_motor`: Enable/disable the joint motor.
+     * - [type:number] `max_motor_force`: The maximum motor torque, usually in N-m.
+     * - [type:number] `motor_speed`: The desired motor speed in radians per second.
+     *
+     * Read only fields, available from `physics.get_joint_properties()`:
+     * - [type:number] `joint_translation`: Current joint translation, usually in meters.
+     * - [type:number] `joint_speed`: Current joint translation speed, usually in meters per second.
+     *
+     * @name physics.JOINT_TYPE_SLIDER
+     * @variable
+     */
+
     struct PhysicsScriptContext
     {
         dmMessage::HSocket m_Socket;
@@ -357,6 +416,18 @@ namespace dmGameSystem
         dmGameObject::GetComponentUserDataFromLua(L, indx, collection, COLLISION_OBJECT_EXT, (uintptr_t*)comp, &receiver, comp_world);
     }
 
+    /*# create a physics joint
+     *
+     * Create a physics joint in runtime with a specific id. There cannot be two joints
+     * with the same ids on the same collision object. Creating a joint will not
+     * automatically connect.
+     *
+     * Note: Currently only supported in 2D physics.
+     *
+     * @name physics.create_joint
+     * @param collisionobject [type:string|hash|url] the collision object where the joint shall be created
+     * @param joint_id [type:string|hash] unique id of the joint
+     */
     static int Physics_CreateJoint(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -512,6 +583,26 @@ namespace dmGameSystem
         return 0;
     }
 
+    /*# connect a physics joint
+     *
+     * Connects a physics joint between two collision object components. The joint has to be created before a
+     * connection can be created.
+     *
+     * Note: Currently only supported in 2D physics.
+     *
+     * @name physics.connect_joint
+     * @param joint_type [type:number] the joint type
+     * @param collisionobject_a [type:string|hash|url] first collision object (where the joint exist)
+     * @param joint_id [type:string|hash] id of the joint
+     * @param position_a [type:vector3] local position where to attach the joint on the first collision object
+     * @param collisionobject_b [type:string|hash|url] second collision object
+     * @param position_b [type:vector3] local position where to attach the joint on the second collision object
+     * @param [properties] [type:table] optional joint specific properties table
+     *
+     * See each joint type for possible properties field. The one field that is accepted for all joint types is:
+     * - [type:boolean] `collide_connected`: Set this flag to true if the attached bodies should collide.
+     *
+     */
     static int Physics_ConnectJoint(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -551,6 +642,18 @@ namespace dmGameSystem
 
     }
 
+    /*# disconnect a physics joint
+     *
+     * Disconnects an already connected physics joint. The joint has to be created and connected before a
+     * disconnect can be issued.
+     *
+     * Note: Currently only supported in 2D physics.
+     *
+     * @name physics.disconnect_joint
+     * @param collisionobject [type:string|hash|url] collision object where the joint exist
+     * @param joint_id [type:string|hash] id of the joint
+     *
+     */
     static int Physics_DisconnectJoint(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -571,6 +674,21 @@ namespace dmGameSystem
         return 0;
     }
 
+    /*# get a connected joint properties
+     *
+     * Get a table for properties for a connected joint. The joint has to be created and connected before
+     * properties can be retrieved.
+     *
+     * Note: Currently only supported in 2D physics.
+     *
+     * @name physics.get_joint_properties
+     * @param collisionobject [type:string|hash|url] collision object where the joint exist
+     * @param joint_id [type:string|hash] id of the joint
+     * @return [type:table] properties table. See the joint types for what fields are available, the only field available for all types is:
+     *
+     * - [type:boolean] `collide_connected`: Set this flag to true if the attached bodies should collide.
+     *
+     */
     static int Physics_GetJointProperties(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -646,6 +764,21 @@ namespace dmGameSystem
         return 1;
     }
 
+    /*# update a connected joint properties
+     *
+     * Updates the properties for an already connected joint. The joint has to be created and connected before
+     * properties can be changed.
+     *
+     * Note: Currently only supported in 2D physics.
+     *
+     * @name physics.update_joint
+     * @param collisionobject [type:string|hash|url] collision object where the joint exist
+     * @param joint_id [type:string|hash] id of the joint
+     * @param properties [type:table] joint specific properties table
+     *
+     * Note: The `collide_connected` field cannot be updated/changed after a connection has been made.
+     *
+     */
     static int Phyics_UpdateJoint(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -673,6 +806,78 @@ namespace dmGameSystem
         }
 
         return 0;
+    }
+
+    /*# get the reaction force for a joint
+     *
+     * Get the reaction force for a connected joint. The joint has to be created and connected before
+     * the reaction force can be calculated.
+     *
+     * Note: Currently only supported in 2D physics.
+     *
+     * @name physics.get_joint_reaction_force
+     * @param collisionobject [type:string|hash|url] collision object where the joint exist
+     * @param joint_id [type:string|hash] id of the joint
+     * @return force [type:vector3] reaction force for the joint
+     *
+     */
+    static int Physics_GetJointReactionForce(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmhash_t joint_id = dmScript::CheckHashOrString(L, 2);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        Vectormath::Aos::Vector3 reaction_force(0.0f);
+        dmPhysics::JointResult r = GetJointReactionForce(comp_world, comp, joint_id, reaction_force);
+        if (r != dmPhysics::RESULT_OK)
+        {
+            return DM_LUA_ERROR("unable to get joint reaction force for %s: %s (%d)", dmHashReverseSafe64(joint_id), PhysicsResultString[r], r);
+        }
+
+        dmScript::PushVector3(L, reaction_force);
+
+        return 1;
+    }
+
+    /*# get the reaction torque for a joint
+     *
+     * Get the reaction torque for a connected joint. The joint has to be created and connected before
+     * the reaction torque can be calculated.
+     *
+     * Note: Currently only supported in 2D physics.
+     *
+     * @name physics.get_joint_reaction_torque
+     * @param collisionobject [type:string|hash|url] collision object where the joint exist
+     * @param joint_id [type:string|hash] id of the joint
+     * @return torque [type:float] the reaction torque on bodyB in N*m.
+     *
+     */
+    static int Physics_GetJointReactionTorque(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmhash_t joint_id = dmScript::CheckHashOrString(L, 2);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        float reaction_torque = 0.0f;
+        dmPhysics::JointResult r = GetJointReactionTorque(comp_world, comp, joint_id, reaction_torque);
+        if (r != dmPhysics::RESULT_OK)
+        {
+            return DM_LUA_ERROR("unable to get joint reaction torque for %s: %s (%d)", dmHashReverseSafe64(joint_id), PhysicsResultString[r], r);
+        }
+
+        lua_pushnumber(L, reaction_torque);
+
+        return 1;
     }
 
     /*# set the gravity for collection
@@ -770,7 +975,9 @@ namespace dmGameSystem
         {"connect_joint",   Physics_ConnectJoint},
         {"disconnect_joint", Physics_DisconnectJoint},
         {"get_joint_properties", Physics_GetJointProperties},
-        {"update_joint",    Phyics_UpdateJoint},
+        {"update_joint", Phyics_UpdateJoint},
+        {"get_joint_reaction_force",  Physics_GetJointReactionForce},
+        {"get_joint_reaction_torque", Physics_GetJointReactionTorque},
 
         {"set_gravity",     Physics_SetGravity},
         {"get_gravity",     Physics_GetGravity},
