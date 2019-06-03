@@ -174,6 +174,15 @@ namespace dmPhysics
     {
     }
 
+    void SetGravity3D(HWorld3D world, const Vectormath::Aos::Vector3& gravity)
+    {
+    }
+
+    Vectormath::Aos::Vector3 GetGravity3D(HWorld3D world)
+    {
+        return Vectormath::Aos::Vector3(0.0f);
+    }
+
     void SetDebugCallbacks3D(HContext3D context, const DebugCallbacks& callbacks)
     {
     }

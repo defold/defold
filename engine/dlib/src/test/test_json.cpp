@@ -3,7 +3,7 @@
 #include <jc_test/jc_test.h>
 #include <string.h>
 #include <string>
-#include "../dlib/json.h"
+#include "../dmsdk/dlib/json.h"
 #include "data/flickr.json.embed.h"
 
 class dmJsonTest: public jc_test_base_class

@@ -4,7 +4,7 @@
 #include <dlib/array.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
-#include <dlib/json.h>
+#include <dmsdk/dlib/json.h>
 #include <script/script.h>
 #include <extension/extension.h>
 #include <android_native_app_glue.h>

@@ -271,6 +271,11 @@ public class BundleHelper {
                 args.add("-F"); args.add(apk.getAbsolutePath());
             }
 
+            boolean debuggable = Integer.parseInt(projectProperties.getStringValue("android", "debuggable", "0")) != 0;
+            if (debuggable) {
+                args.add("--debug-mode");
+            }
+
             for( String s : resourceDirectories )
             {
                 args.add("-S"); args.add(s);
@@ -391,7 +396,6 @@ public class BundleHelper {
         javaROutput.mkdir();
 
         // Include built-in/default facebook and gms resources
-        resourceDirectories.add(Bob.getPath("res/facebook"));
         resourceDirectories.add(Bob.getPath("res/com.android.support.support-compat-27.1.1"));
         resourceDirectories.add(Bob.getPath("res/com.android.support.support-core-ui-27.1.1"));
         resourceDirectories.add(Bob.getPath("res/com.android.support.support-media-compat-27.1.1"));
@@ -400,7 +404,10 @@ public class BundleHelper {
         resourceDirectories.add(Bob.getPath("res/com.google.firebase.firebase-messaging-17.3.4"));
 
         List<String> extraPackages = new ArrayList<>();
-        extraPackages.add("com.facebook");
+
+        if (bundleContext != null) {
+            extraPackages.addAll((List<String>)bundleContext.getOrDefault("aapt-extra-packages", new ArrayList<String>()));
+        }
         extraPackages.add("com.google.android.gms");
         extraPackages.add("com.google.android.gms.common");
 

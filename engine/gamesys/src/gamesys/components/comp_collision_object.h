@@ -42,6 +42,8 @@ namespace dmGameSystem
     void RayCast(void* world, const dmPhysics::RayCastRequest& request, dmPhysics::RayCastResponse& response);
     uint64_t GetLSBGroupHash(void* world, uint16_t mask);
     dmhash_t CompCollisionObjectGetIdentifier(void* component);
+    void SetGravity(void* world, const Vectormath::Aos::Vector3& gravity);
+    Vectormath::Aos::Vector3 GetGravity(void* _world);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H

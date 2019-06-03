@@ -218,6 +218,11 @@ namespace dmSound
         return false;
     }
 
+    void OnWindowFocus(bool focus)
+    {
+        (void)focus;
+    }
+
     Result RegisterDevice(struct DeviceType* device)
     {
         return RESULT_OK;
