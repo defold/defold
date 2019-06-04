@@ -892,7 +892,6 @@
 
 (defn make-new-file-dialog
   [^File base-dir ^File location type ext]
-  (println "base-dir" base-dir "location" location "type" type "ext" ext)
   (fxui/show-dialog-and-await-result!
     :initial-state {:name ""
                     :base-dir base-dir
@@ -902,7 +901,7 @@
     :event-handler (fn [state {:keys [fx/event event-type]}]
                      (case event-type
                        :set-file-name (assoc state :name event)
-                       :set-location (assoc state :location (io/file base-dir event))
+                       :set-location (assoc state :location (io/file base-dir (sanitize-folder-name event)))
                        :pick-location (assoc state :location
                                              (let [previous-location (:location state)
                                                    initial-dir (if (.exists ^File previous-location)
