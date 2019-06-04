@@ -27,6 +27,7 @@ var LibraryGLFW = {
     keyFunc: null,
     charFunc: null,
     markedTextFunc: null,
+    gamepadFunc:null,
     mouseButtonFunc: null,
     mousePosFunc: null,
     mouseWheelFunc: null,
@@ -445,24 +446,28 @@ var LibraryGLFW = {
   
             if (gamepad) {
               if (!GLFW.joys[joy]) {
-                //console.log('glfw joystick connected:',joy, gamepad.id);
                 GLFW.joys[joy] = {
                   id: allocate(intArrayFromString(gamepad.id), 'i8', ALLOC_NORMAL),
                   buttonsCount: gamepad.buttons.length,
                   axesCount: gamepad.axes.length,
                   buttons: gamepad.buttons,
                   axes: gamepad.axes
-                };
+                };          
+              if (GLFW.gamepadFunc) {
+                  Runtime.dynCall('vii', GLFW.gamepadFunc, [joy, 1]);
+                }
               }
               GLFW.joys[joy].buttons = gamepad.buttons;
-              GLFW.joys[joy].axes = gamepad.axes;
+              GLFW.joys[joy].axes = gamepad.axes;   
             } else {
               if (GLFW.joys[joy]) {
-              //console.log('glfw joystick disconnected:',joy);
                 
                 _free(GLFW.joys[joy].id);
   
                 delete GLFW.joys[joy];
+                if (GLFW.gamepadFunc) {
+                  Runtime.dynCall('vii', GLFW.gamepadFunc, [joy, 0]);
+                }
             }
           }
         }
@@ -737,7 +742,11 @@ var LibraryGLFW = {
     GLFW.mouseWheelFunc = cbfun;
   },
 
-  glfwSetGamepadCallback: function(cbfun) {},
+  glfwSetGamepadCallback: function(cbfun) {
+    GLFW.gamepadFunc = cbfun;
+    GLFW.refreshJoysticks();
+    return 1;
+  },
 
   /* Joystick input */
 
@@ -791,7 +800,6 @@ var LibraryGLFW = {
 
   glfwGetJoystickDeviceId: function(joy, device_id) {
     if (GLFW.joys[joy]) {
-      //setValue(device_id, allocate(intArrayFromString("Wireless Controller"), 'i8', ALLOC_NORMAL), '*');
       setValue(device_id, GLFW.joys[joy].id, '*');
       return 1;
     } else {
