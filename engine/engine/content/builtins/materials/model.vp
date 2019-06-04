@@ -4,7 +4,7 @@
 // If world vertex space is selected, you can remove the
 // normal matrix multiplication for optimal performance.
 
-attribute mediump vec4 position;
+attribute highp vec4 position;
 attribute mediump vec2 texcoord0;
 attribute mediump vec3 normal;
 
