@@ -9,6 +9,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.form :as form]
             [editor.fxui :as fxui]
+            [editor.handler :as handler]
             [editor.resource :as resource]
             [editor.settings :as settings]
             [editor.ui :as ui]
@@ -16,11 +17,14 @@
             [editor.view :as view]
             [editor.workspace :as workspace])
   (:import [javafx.event Event ActionEvent]
+           [javafx.scene Node]
            [javafx.scene.control ListView$EditEvent TextInputControl]
+           [javafx.scene.layout Region]
            [javafx.scene.input KeyEvent KeyCode]
-           [javafx.util StringConverter]
            [javafx.stage Popup]
-           [javafx.scene.layout Region]))
+           [javafx.util StringConverter]))
+
+(set! *warn-on-reflection* true)
 
 (def ^:private cell-height 27)
 
@@ -114,7 +118,7 @@
                (workspace/to-absolute-path)
                (workspace/resolve-workspace-resource workspace)))))
 
-(defn- contains-ignore-case? [str ^String sub]
+(defn- contains-ignore-case? [^String str ^String sub]
   (let [sub-length (.length sub)]
     (if (zero? sub-length)
       true
@@ -176,7 +180,12 @@
   ;; TODO selection is also flaky :c
   (let [{:keys [selected-indices]} state
         disable-remove (empty? selected-indices)
-        disable-add (not (form/has-default? element))]
+        disable-add (not (form/has-default? element))
+        add-event {:event-type :add-element
+                   :path path
+                   :element (form/field-default element)}
+        remove-event {:event-type :remove-selected
+                      :path path}]
     {:fx/type :v-box
      :spacing 4
      :children [{:fx/type fx.ext.list-view/with-selection-props
@@ -185,39 +194,34 @@
                          :on-selected-indices-changed {:event-type :select
                                                        :path path}}
                  :desc {:fx/type :list-view
-                        :context-menu {:fx/type :context-menu
-                                       :items [{:fx/type :menu-item
-                                                :text "Add"
-                                                :disable disable-add
-                                                :on-action {:event-type :add-element
-                                                            :path path
-                                                            :element (form/field-default element)}}
-                                               {:fx/type :menu-item
-                                                :text "Remove"
-                                                :disable disable-remove
-                                                :on-action {:event-type :remove-selected
-                                                            :path path}}]}
-                        :cell-factory (fn [uri]
-                                        {:text (str uri)
-                                         :converter uri-string-converter})
+                        :items (vec value)
+                        :editable true
                         :on-edit-commit {:event-type :edit-list-item
                                          :path path}
-                        :editable true
-                        :fixed-cell-size cell-height
                         :pref-height (+ 2                   ;; top and bottom insets
                                         1                   ;; bottom padding
                                         9                   ;; horizontal progress bar height
                                         (* cell-height
                                            (max (count value) 1)))
-                        :items (vec value)}}
+                        :fixed-cell-size cell-height
+                        :cell-factory (fn [uri]
+                                        {:text (str uri)
+                                         :converter uri-string-converter})
+                        :context-menu {:fx/type :context-menu
+                                       :items [{:fx/type :menu-item
+                                                :text "Add"
+                                                :disable disable-add
+                                                :on-action add-event}
+                                               {:fx/type :menu-item
+                                                :text "Remove"
+                                                :disable disable-remove
+                                                :on-action remove-event}]}}}
                 {:fx/type :h-box
                  :spacing 4
                  :children [{:fx/type :button
                              :style-class ["button" "icon-button"]
                              :disable disable-add
-                             :on-action {:event-type :add-element
-                                         :path path
-                                         :element (form/field-default element)}
+                             :on-action add-event
                              :graphic {:fx/type :image-view
                                        :image "icons/32/Icons_M_07_plus.png"
                                        :fit-width 16
@@ -225,8 +229,7 @@
                             {:fx/type :button
                              :style-class ["button" "icon-button"]
                              :disable disable-remove
-                             :on-action {:event-type :remove-selected
-                                         :path path}
+                             :on-action remove-event
                              :graphic {:fx/type :image-view
                                        :image "icons/32/Icons_M_11_minus.png"
                                        :fit-width 16
@@ -288,7 +291,11 @@
 
 (defn- make-row [values ui-state resource-string-converter row {:keys [path label help visible] :as field}]
   (let [value (get values path ::no-value)
-        state (get ui-state path ::no-value)]
+        state (get ui-state path ::no-value)
+        error (settings/get-setting-error
+                (if (= value ::no-value) nil value)
+                field
+                :build-targets)]
     (cond-> []
             :always
             (conj {:fx/type :label
@@ -319,6 +326,10 @@
 
             :always
             (conj {:fx/type :v-box
+                   :style-class (case (:severity error)
+                                  :fatal ["cljfx-form-error"]
+                                  :warning ["cljfx-form-warning"]
+                                  [])
                    :grid-pane/row row
                    :grid-pane/column 2
                    :visible visible
@@ -441,7 +452,8 @@
     {:fx/type with-anchor-pane-props
      :desc {:fx/type fxui/ext-value
             :value parent}
-     :props {:children [{:fx/type :v-box
+     :props {:focus-traversable true
+             :children [{:fx/type :v-box
                          :style-class "cljfx-form-floating-area"
                          :anchor-pane/top 24
                          :anchor-pane/right 24
@@ -449,6 +461,7 @@
                          :padding 12
                          :spacing 8
                          :children [{:fx/type :text-field
+                                     :id "filter-text-field"
                                      :style-class ["text-field" "filter-text-field"]
                                      :prompt-text "Filter"
                                      :text filter-term
@@ -560,6 +573,7 @@
                                     (g/node-value view-id :form-view)))]
     (ui/timer-start! repaint-timer)
     (ui/timer-stop-on-closed! tab repaint-timer)
+    (ui/context! parent :form {:root parent} nil)
     view-id))
 
 (defn register-view-types [workspace]
@@ -567,3 +581,7 @@
                                 :id :cljfx-form-view
                                 :label "Cljfx Form"
                                 :make-view-fn make-form-view))
+
+(handler/defhandler :filter-form :form
+  (run [^Node root]
+       (.requestFocus (.lookup root "#filter-text-field"))))

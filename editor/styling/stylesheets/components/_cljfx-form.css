@@ -67,6 +67,17 @@
       -fx-border-width: 0;
     }
   }
+  .cljfx-form-error {
+    .combo-box, .list-view, .text-field, .check-box > .box {
+      -fx-border-color: $error-severity-fatal;
+    }
+  }
+
+  .cljfx-form-warning {
+    .combo-box, .list-view, .text-field, .check-box > .box {
+      -fx-border-color: $error-severity-warning;
+    }
+  }
 }
 
 $floating-input-border: #56595d;

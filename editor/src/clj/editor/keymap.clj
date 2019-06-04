@@ -66,6 +66,7 @@
             ["Meta+Delete" :delete-to-end-of-line]
             ["Meta+Down" :end-of-file]
             ["Meta+E" :hide-selected]
+            ["Meta+F" :filter-form]
             ["Meta+F" :find-text]
             ["Meta+G" :find-next]
             ["Meta+L" :goto-line]
@@ -148,6 +149,7 @@
            ["Ctrl+Delete" :delete-next-word]
            ["Ctrl+E" :hide-selected]
            ["Ctrl+End" :end-of-file]
+           ["Ctrl+F" :filter-form]
            ["Ctrl+F" :find-text]
            ["Ctrl+G" :find-next]
            ["Ctrl+H" :replace-text]
@@ -248,6 +250,7 @@
            ["Ctrl+Delete" :delete-next-word]
            ["Ctrl+E" :hide-selected]
            ["Ctrl+End" :end-of-file]
+           ["Ctrl+F" :filter-form]
            ["Ctrl+F" :find-text]
            ["Ctrl+G" :find-next]
            ["Ctrl+H" :replace-text]
@@ -344,6 +347,7 @@
     "Shift+Left"
     "Shift+Right"
     "Shift+Up"
+    "Ctrl+F"
     "Ctrl+H"
     "Space"
     "F5"})
