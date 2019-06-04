@@ -248,7 +248,7 @@
 
   Additional keys:
   - `:variant` (optional, default `:secondary`) - a styling variant, either
-    `:secondary`, `:primary` or `:danger`"
+    `:secondary`, `:primary`, `:icon` or `:danger`"
   [{:keys [variant]
     :or {variant :secondary}
     :as props}]
@@ -258,7 +258,8 @@
       (add-style-classes "button" (case variant
                                     :primary "button-primary"
                                     :secondary "button-secondary"
-                                    :danger "button-danger"))))
+                                    :danger "button-danger"
+                                    :icon "button-icon"))))
 
 (defn two-col-input-grid-pane
   "Grid pane whose children are partitioned into pairs and displayed in 2

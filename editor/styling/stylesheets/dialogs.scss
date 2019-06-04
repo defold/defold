@@ -128,6 +128,22 @@ $spacing-largest: 40px;
     -fx-border-color: $red-lighter;
   }
 }
+.button-icon {
+  -fx-text-fill: $light-grey;
+  -fx-border-color: $light-grey-darker;
+  -fx-padding: 0;
+  -fx-min-width: 29px;
+  -fx-max-width: 29px;
+  -fx-pref-width: 29px;
+  -fx-min-height: 29px;
+  -fx-max-height: 29px;
+  -fx-pref-height: 29px;
+  -fx-focus-traversable: false;
+  &:hover, &:focused {
+    -fx-text-fill: $light-grey-lighter;
+    -fx-border-color: $light-grey;
+  }
+}
 
 // dialog
 

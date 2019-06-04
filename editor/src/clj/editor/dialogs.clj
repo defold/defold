@@ -868,6 +868,7 @@
                                        :on-text-changed {:event-type :set-location}
                                        :text relative-path}
                                       {:fx/type fxui/button
+                                       :variant :icon
                                        :on-action {:event-type :pick-location}
                                        :text "…"}]}
                           {:fx/type fxui/label
