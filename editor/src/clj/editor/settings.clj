@@ -79,7 +79,7 @@
     (assoc :type :choicebox)
 
     (= :library-list (:type setting))
-    (assoc :type :list :element {:type :url :default "http://url.to/library"})
+    (assoc :type :list :element {:type :url :default "https://url.to/library"})
 
     (= :comma-separated-list (:type setting))
     (assoc :type :list :element {:type :string :default (or (first (:default setting)) "item")})))

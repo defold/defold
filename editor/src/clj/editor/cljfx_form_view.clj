@@ -1,0 +1,569 @@
+(ns editor.cljfx-form-view
+  (:require [cljfx.api :as fx]
+            [cljfx.ext.list-view :as fx.ext.list-view]
+            [cljfx.fx.anchor-pane :as fx.anchor-pane]
+            [clojure.set :as set]
+            [clojure.string :as string]
+            [dynamo.graph :as g]
+            [editor.dialogs :as dialogs]
+            [editor.error-reporting :as error-reporting]
+            [editor.form :as form]
+            [editor.fxui :as fxui]
+            [editor.resource :as resource]
+            [editor.settings :as settings]
+            [editor.ui :as ui]
+            [editor.url :as url]
+            [editor.view :as view]
+            [editor.workspace :as workspace])
+  (:import [javafx.event Event ActionEvent]
+           [javafx.scene.control ListView$EditEvent TextInputControl]
+           [javafx.scene.input KeyEvent KeyCode]
+           [javafx.util StringConverter]
+           [javafx.stage Popup]
+           [javafx.scene.layout Region]))
+
+(def ^:private cell-height 27)
+
+(g/defnk produce-form-view [renderer form-data ui-state]
+  (renderer {:form-data form-data
+             :ui-state ui-state})
+  nil)
+
+(g/defnode CljfxFormView
+  (inherits view/WorkbenchView)
+  (input form-data g/Any :substitute {})
+  (property ui-state g/Any (default {:filter-term ""}))
+  (property renderer g/Any)
+  (output form-view g/Any :cached produce-form-view))
+
+;; region event handling
+
+(defmulti handle-event :event-type)
+
+(defmethod handle-event :default [e]
+  (prn :handle e))
+
+(defmethod handle-event :clear [{:keys [path]}]
+  {:clear path})
+
+(defmethod handle-event :set [{:keys [path fx/event]}]
+  {:set [path event]})
+
+(defmethod handle-event :select [{:keys [ui-state path fx/event]}]
+  {:set-ui-state (update ui-state path assoc :selected-indices event)})
+
+(defmethod handle-event :add-element [{:keys [ui-state path form-data element]}]
+  (let [value (get-in form-data [:values path])
+        selection-path [path :selected-indices]
+        new-value (into (or value []) [element])]
+    [[:set [path new-value]]
+     [:set-ui-state (assoc-in ui-state selection-path [(dec (count new-value))])]]))
+
+(defmethod handle-event :edit-list-item [{:keys [^ListView$EditEvent fx/event path form-data]}]
+  (let [value (get-in form-data [:values path])
+        new-element (.getNewValue event)]
+    (when (some? new-element)
+      {:set [path (assoc value (.getIndex event) new-element)]})))
+
+(defmethod handle-event :remove-selected [{:keys [ui-state path form-data]}]
+  (let [value (get-in form-data [:values path])
+        selection-path [path :selected-indices]
+        selected-indices (set (get-in ui-state selection-path))]
+    {:set-ui-state (assoc-in ui-state selection-path [])
+     :set [path (into []
+                      (keep-indexed
+                        (fn [i x]
+                          (when-not (contains? selected-indices i)
+                            x)))
+                      value)]}))
+
+(defmethod handle-event :open-resource [{:keys [^Event fx/event value]}]
+  {:open-resource [(.getTarget event) value]})
+
+(defmethod handle-event :browse-resource [{:keys [workspace project filter path]}]
+  (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext filter}))]
+    {:set [path resource]}))
+
+(defmethod handle-event :filter-text-changed [{:keys [ui-state fx/event]}]
+  {:set-ui-state (assoc ui-state :filter-term event)})
+
+(defmethod handle-event :filter-key-pressed [{:keys [^KeyEvent fx/event ui-state]}]
+  (when (= KeyCode/ESCAPE (.getCode event))
+    {:set-ui-state (assoc ui-state :filter-term "")}))
+
+;; endregion
+
+(def with-anchor-pane-props
+  (fx/make-ext-with-props fx.anchor-pane/props))
+
+(def uri-string-converter
+  (proxy [StringConverter] []
+    (toString
+      ([] "uri-string-converter")
+      ([v] (str v)))
+    (fromString [v]
+      (url/try-parse v))))
+
+(defn- make-resource-string-converter [workspace]
+  (proxy [StringConverter] []
+    (toString
+      ([] "resource-string-converter")
+      ([v] (resource/resource->proj-path v)))
+    (fromString [v]
+      (some->> (when-not (string/blank? v) v)
+               (workspace/to-absolute-path)
+               (workspace/resolve-workspace-resource workspace)))))
+
+(defn- contains-ignore-case? [str ^String sub]
+  (let [sub-length (.length sub)]
+    (if (zero? sub-length)
+      true
+      (let [str-length (.length str)]
+        (loop [i 0]
+          (cond
+            (= i str-length) false
+            (.regionMatches str true i sub 0 sub-length) true
+            :else (recur (inc i))))))))
+
+;; region input views
+
+(defmulti input-view :type)
+
+(defmethod input-view :default [{:keys [value type] :as field}]
+  {:fx/type :label
+   :wrap-text true
+   :text (str type " "
+              (if (nil? value) "***NIL***" value) " "
+              (dissoc field :resource-string-converter))})
+
+(defmethod input-view :string [{:keys [value path]}]
+  {:fx/type :text-field
+   :text-formatter {:fx/type :text-formatter
+                    :value-converter :default
+                    :value value
+                    :on-value-changed {:event-type :set
+                                       :path path}}})
+
+(defmethod input-view :boolean [{:keys [value path]}]
+  {:fx/type :check-box
+   :selected value
+   :on-selected-changed {:event-type :set
+                         :path path}})
+
+(defmethod input-view :integer [{:keys [value path]}]
+  {:fx/type :text-field
+   :alignment :center-right
+   :max-width 80
+   :text-formatter {:fx/type :text-formatter
+                    :value-converter :integer
+                    :value (int value)
+                    :on-value-changed {:event-type :set
+                                       :path path}}})
+
+(defmethod input-view :number [{:keys [value path]}]
+  {:fx/type :text-field
+   :alignment :center-right
+   :max-width 80
+   :text-formatter {:fx/type :text-formatter
+                    :value-converter :double
+                    :value (double value)
+                    :on-value-changed {:event-type :set
+                                       :path path}}})
+
+(defmethod input-view :list [{:keys [value path state element]
+                              :or {state {:selected-indices []}}}]
+  ;; TODO entering invalid values should be better. editable sucks.
+  ;; TODO selection is also flaky :c
+  (let [{:keys [selected-indices]} state
+        disable-remove (empty? selected-indices)
+        disable-add (not (form/has-default? element))]
+    {:fx/type :v-box
+     :spacing 4
+     :children [{:fx/type fx.ext.list-view/with-selection-props
+                 :props {:selection-mode :multiple
+                         :selected-indices selected-indices
+                         :on-selected-indices-changed {:event-type :select
+                                                       :path path}}
+                 :desc {:fx/type :list-view
+                        :context-menu {:fx/type :context-menu
+                                       :items [{:fx/type :menu-item
+                                                :text "Add"
+                                                :disable disable-add
+                                                :on-action {:event-type :add-element
+                                                            :path path
+                                                            :element (form/field-default element)}}
+                                               {:fx/type :menu-item
+                                                :text "Remove"
+                                                :disable disable-remove
+                                                :on-action {:event-type :remove-selected
+                                                            :path path}}]}
+                        :cell-factory (fn [uri]
+                                        {:text (str uri)
+                                         :converter uri-string-converter})
+                        :on-edit-commit {:event-type :edit-list-item
+                                         :path path}
+                        :editable true
+                        :fixed-cell-size cell-height
+                        :pref-height (+ 2                   ;; top and bottom insets
+                                        1                   ;; bottom padding
+                                        9                   ;; horizontal progress bar height
+                                        (* cell-height
+                                           (max (count value) 1)))
+                        :items (vec value)}}
+                {:fx/type :h-box
+                 :spacing 4
+                 :children [{:fx/type :button
+                             :style-class ["button" "icon-button"]
+                             :disable disable-add
+                             :on-action {:event-type :add-element
+                                         :path path
+                                         :element (form/field-default element)}
+                             :graphic {:fx/type :image-view
+                                       :image "icons/32/Icons_M_07_plus.png"
+                                       :fit-width 16
+                                       :fit-height 16}}
+                            {:fx/type :button
+                             :style-class ["button" "icon-button"]
+                             :disable disable-remove
+                             :on-action {:event-type :remove-selected
+                                         :path path}
+                             :graphic {:fx/type :image-view
+                                       :image "icons/32/Icons_M_11_minus.png"
+                                       :fit-width 16
+                                       :fit-height 16}}]}]}))
+
+(defmethod input-view :resource [{:keys [path value filter resource-string-converter]}]
+  {:fx/type :h-box
+   :spacing 4
+   :children [{:fx/type :text-field
+               :h-box/hgrow :always
+               :text-formatter {:fx/type :text-formatter
+                                :value-converter resource-string-converter
+                                :value value
+                                :on-value-changed {:event-type :set
+                                                   :path path}}}
+              {:fx/type :button
+               :style-class ["button" "icon-button"]
+               :disable (not (and (resource/openable-resource? value)
+                                  (resource/exists? value)))
+               :graphic {:fx/type :image-view
+                         :image "icons/32/Icons_S_14_linkarrow.png"
+                         :fit-width 22
+                         :fit-height 22}
+               :on-action {:event-type :open-resource
+                           :value value}}
+              {:fx/type :button
+               :style-class ["button" "icon-button"]
+               :text "\u2026"
+               :on-action {:event-type :browse-resource
+                           :path path
+                           :filter filter}}]})
+
+(defmethod input-view :choicebox [{:keys [path value options from-string to-string]
+                                   :or {to-string str}}]
+  (let [value->label (into {} options)
+        label->value (set/map-invert value->label)]
+    {:fx/type :combo-box
+     :value value
+     :on-value-changed {:event-type :set
+                        :path path}
+     :converter (proxy [StringConverter] []
+                  (toString
+                    ([] "string-converter")
+                    ([value]
+                     (get value->label value (to-string value))))
+                  (fromString [s]
+                    (get label->value s (and from-string (from-string s)))))
+     :editable (some? from-string)
+     :button-cell (fn [x]
+                    {:text (value->label x)})
+     :cell-factory (fn [x]
+                     {:text (value->label x)})
+     :items (mapv first options)}))
+
+(defn- field-view [field]
+  (input-view field))
+
+;; endregion
+
+(defn- make-row [values ui-state resource-string-converter row {:keys [path label help visible] :as field}]
+  (let [value (get values path ::no-value)
+        state (get ui-state path ::no-value)]
+    (cond-> []
+            :always
+            (conj {:fx/type :label
+                   :grid-pane/row row
+                   :grid-pane/column 0
+                   :grid-pane/valignment :top
+                   :grid-pane/margin {:top 5}
+                   :visible visible
+                   :managed visible
+                   :alignment :top-left
+                   :tooltip {:fx/type :tooltip
+                             :text help}
+                   :text label})
+
+            (not= value ::no-value)
+            (conj {:fx/type :button
+                   :grid-pane/row row
+                   :grid-pane/column 1
+                   :grid-pane/valignment :top
+                   :grid-pane/halignment :right
+                   :visible visible
+                   :managed visible
+                   :style-class ["button" "icon-button"]
+                   :graphic {:fx/type :image-view
+                             :image "icons/32/Icons_S_02_Reset.png"}
+                   :on-action {:event-type :clear
+                               :path path}})
+
+            :always
+            (conj {:fx/type :v-box
+                   :grid-pane/row row
+                   :grid-pane/column 2
+                   :visible visible
+                   :managed visible
+                   :min-height cell-height
+                   :alignment :center-left
+                   :children [(cond-> field
+                                      :always
+                                      (assoc :fx/type field-view
+                                             :resource-string-converter resource-string-converter
+                                             :value (if (= ::no-value value)
+                                                      (form/field-default field)
+                                                      value))
+
+                                      (not= ::no-value state)
+                                      (assoc :state state))]}))))
+
+(defn- display-title-text [title]
+  (string/capitalize (string/replace title "_" " ")))
+
+(defn- section-view [{:keys [title help fields values ui-state resource-string-converter visible]}]
+  {:fx/type :v-box
+   :visible visible
+   :managed visible
+   :children (cond-> []
+
+                     :always
+                     (conj {:fx/type :label
+                            :style-class ["label" "title"]
+                            :text (display-title-text title)})
+
+                     help
+                     (conj {:fx/type :label
+                            :text help})
+
+                     :always
+                     (conj {:fx/type :grid-pane
+                            :style-class "fields"
+                            :column-constraints [{:fx/type :column-constraints
+                                                  :min-width 150
+                                                  :max-width 150}
+                                                 {:fx/type :column-constraints
+                                                  :min-width cell-height
+                                                  :max-width cell-height}
+                                                 {:fx/type :column-constraints
+                                                  :hgrow :always
+                                                  :min-width 250
+                                                  :max-width 400}]
+                            :children (first
+                                        (reduce
+                                          (fn [[acc row] field]
+                                            [(into acc (make-row values ui-state resource-string-converter row field))
+                                             (if (:visible field) (inc row) row)])
+                                          [[] 0]
+                                          fields))}))})
+
+;; region filtering
+
+(defmulti filterable-strings :type)
+
+(defmethod filterable-strings :default [{:keys [value]}]
+  (when (some? value)
+    [(str value)]))
+
+(defmethod filterable-strings :boolean [_]
+  [])
+
+(defmethod filterable-strings :list [{:keys [value] :as field}]
+  (eduction
+    (map #(assoc (:element field) :value %))
+    (mapcat filterable-strings)
+    value))
+
+(defmethod filterable-strings :resource [{:keys [value]}]
+  [(resource/resource->proj-path value)])
+
+(defmethod filterable-strings :choicebox [{:keys [value] :as field}]
+  (when (some? value)
+    [((:to-string field str) value)]))
+
+(defn- set-field-visibility [field values filter-term section-visible]
+  (let [value (get values (:path field) ::no-value)
+        visible (and (or section-visible
+                         (contains-ignore-case? (:label field) filter-term)
+                         (boolean (some #(contains-ignore-case? % filter-term)
+                                        (filterable-strings
+                                          (assoc field :value (if (= value ::no-value)
+                                                                (form/field-default field)
+                                                                value))))))
+                     (or (not (:deprecated field))
+                         (some? (settings/get-setting-error
+                                  (if (= value ::no-value) nil value)
+                                  field
+                                  :build-targets))))]
+    (assoc field :visible visible)))
+
+(defn- set-section-visibility [{:keys [title fields] :as section} values filter-term]
+  (let [visible (contains-ignore-case? (display-title-text title) filter-term)
+        fields (into []
+                     (comp
+                       (remove :hidden?)
+                       (map #(set-field-visibility % values filter-term visible)))
+                     fields)]
+    (-> section
+        (assoc :visible (or visible (boolean (some :visible fields)))
+               :fields fields))))
+
+;; endregion
+
+(defn- form-view [{:keys [parent form-data ui-state resource-string-converter]}]
+  (let [{:keys [sections values]} form-data
+        filter-term (:filter-term ui-state)
+        sections-with-visibility (mapv #(set-section-visibility % values filter-term)
+                                       sections)
+        visible-titles (into []
+                             (comp
+                               (filter :visible)
+                               (map :title))
+                             sections-with-visibility)]
+    {:fx/type with-anchor-pane-props
+     :desc {:fx/type fxui/ext-value
+            :value parent}
+     :props {:children [{:fx/type :v-box
+                         :style-class "cljfx-form-floating-area"
+                         :anchor-pane/top 24
+                         :anchor-pane/right 24
+                         :view-order 0
+                         :padding 12
+                         :spacing 8
+                         :children [{:fx/type :text-field
+                                     :style-class ["text-field" "filter-text-field"]
+                                     :prompt-text "Filter"
+                                     :text filter-term
+                                     :on-key-pressed {:event-type :filter-key-pressed}
+                                     :on-text-changed {:event-type :filter-text-changed}}
+                                    {:fx/type :h-box
+                                     :children [{:fx/type :label
+                                                 :h-box/hgrow :always
+                                                 :max-width Double/MAX_VALUE
+                                                 :text "Jump to"}
+                                                {:fx/type :image-view
+                                                 :image "icons/32/Icons_S_05_arrowdown.png"}]}
+                                    {:fx/type :text-field
+                                     :text "Jump to"
+                                     :on-action (fn [^ActionEvent e]
+                                                  (let [^Region node (.getSource e)
+                                                        p (.localToScreen node 0 (.getHeight node))]
+                                                    (fx/create-component
+                                                      {:fx/type fx/ext-on-instance-lifecycle
+                                                       :on-created #(.show ^Popup % (ui/main-stage) (.getX p) (.getY p))
+                                                       :desc {:fx/type :popup
+                                                              :auto-hide true
+                                                              :content [{:fx/type :v-box
+                                                                         :children (for [x visible-titles]
+                                                                                     {:fx/type :label
+                                                                                      :style {:-fx-background-color :red}
+                                                                                      :text x})}]}})))}]}
+                        {:fx/type :scroll-pane
+                         :anchor-pane/top 0
+                         :anchor-pane/right 0
+                         :anchor-pane/bottom 0
+                         :anchor-pane/left 0
+                         :view-order 1
+                         :fit-to-width true
+                         :content {:fx/type :v-box
+                                   :style-class "cljfx-form"
+                                   :children (first
+                                               (reduce
+                                                 (fn
+                                                   ([[acc seen-visible] section]
+                                                    (let [section-view (assoc section
+                                                                         :fx/type section-view
+                                                                         :values values
+                                                                         :ui-state ui-state
+                                                                         :resource-string-converter resource-string-converter)
+                                                          visible (:visible section)]
+                                                      (if (empty? acc)
+                                                        [(conj acc section-view) visible]
+                                                        [(into acc [{:fx/type :separator
+                                                                     :visible (and seen-visible visible)
+                                                                     :managed (and seen-visible visible)}
+                                                                    section-view])
+                                                         (or seen-visible visible)]))))
+                                                 [[] false]
+                                                 sections-with-visibility))}}]}}))
+
+(defn- wrap-force-refresh [f view-id]
+  (fn [event]
+    (f event)
+    (g/node-value view-id :form-view)))
+
+(defn- create-renderer [view-id parent workspace project]
+  (let [resource-string-converter (make-resource-string-converter workspace)]
+    (fx/create-renderer
+      :error-handler error-reporting/report-exception!
+      :opts {:fx.opt/map-event-handler
+             (-> handle-event
+                 (fx/wrap-co-effects
+                   {:ui-state #(g/node-value view-id :ui-state)
+                    :form-data #(g/node-value view-id :form-data)
+                    :workspace (constantly workspace)
+                    :project (constantly project)})
+                 (fx/wrap-effects
+                   {:set (fn [[path value] _]
+                           (let [ops (:form-ops (g/node-value view-id :form-data))]
+                             (form/set-value! ops path value)))
+                    :clear (fn [path _]
+                             (let [ops (:form-ops (g/node-value view-id :form-data))]
+                               (when (form/can-clear? ops)
+                                 (form/clear-value! ops path))))
+                    :set-ui-state (fn [ui-state _]
+                                    (g/set-property! view-id :ui-state ui-state))
+                    :open-resource (fn [[node value] _]
+                                     (ui/run-command node :open {:resources [value]}))
+                    :reset-text (fn [^TextInputControl node _]
+                                  (.setText node ""))})
+                 (wrap-force-refresh view-id))}
+
+      :middleware (comp
+                    fxui/wrap-dedupe-desc
+                    (fx/wrap-map-desc
+                      (fn [{:keys [form-data ui-state]}]
+                        {:fx/type form-view
+                         :form-data form-data
+                         :ui-state ui-state
+                         :parent parent
+                         :resource-string-converter resource-string-converter}))))))
+
+(defn- make-form-view [graph parent resource-node opts]
+  (let [{:keys [workspace project tab]} opts
+        view-id (-> (g/make-nodes graph [view [CljfxFormView]]
+                      (g/set-property view :renderer (create-renderer view parent workspace project))
+                      (g/connect resource-node :form-data view :form-data))
+                    g/transact
+                    g/tx-nodes-added
+                    first)
+        repaint-timer (ui/->timer 60 "refresh-form-view"
+                                  (fn [_timer _elapsed]
+                                    (g/node-value view-id :form-view)))]
+    (ui/timer-start! repaint-timer)
+    (ui/timer-stop-on-closed! tab repaint-timer)
+    view-id))
+
+(defn register-view-types [workspace]
+  (workspace/register-view-type workspace
+                                :id :cljfx-form-view
+                                :label "Cljfx Form"
+                                :make-view-fn make-form-view))

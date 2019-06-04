@@ -149,18 +149,19 @@
             :edit #(ui/request-focus! check)}]))
 
 (defmethod create-field-control :choicebox [{:keys [options path help from-string to-string]} {:keys [set cancel]} _]
-  (let [option-map (into {} options)
-        inv-options (clojure.set/map-invert option-map)
+  (let [value->label (into {} options)
+        label->value (clojure.set/map-invert value->label)
         converter (proxy [StringConverter] []
                     (toString [value]
-                      (get option-map value (or (and to-string (to-string value)) (str value))))
+                      (get value->label value (or (and to-string (to-string value))
+                                                  (str value))))
                     (fromString [s]
-                      (get inv-options s (and from-string (from-string s)))))
+                      (get label->value s (and from-string (from-string s)))))
         internal-change (atom false)
         cb (doto (ComboBox.)
              (-> (.getItems) (.addAll (object-array (map first options))))
              (.setConverter converter)
-             (ui/cell-factory! (fn [val] {:text (option-map val)})))
+             (ui/cell-factory! (fn [val] {:text (value->label val)})))
         update-fn (fn [value]
                     (reset! internal-change true)
                     (.setValue cb value)

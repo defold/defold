@@ -103,9 +103,9 @@
 
 (defn- find-custom-resources [resource-map custom-paths]
   (->> (flatten (keep (fn [custom-path]
-                      (when-let [base-resource (resource-map custom-path)]
-                        (resource/resource-seq base-resource)))
-                    custom-paths))
+                        (when-let [base-resource (resource-map custom-path)]
+                          (resource/resource-seq base-resource)))
+                      custom-paths))
        (distinct)
        (filter file-resource?)))
 
@@ -225,4 +225,4 @@
     :node-type GameProjectNode
     :load-fn load-game-project
     :icon game-project-icon
-    :view-types [:form-view :text]))
+    :view-types [:form-view :cljfx-form-view :text]))
