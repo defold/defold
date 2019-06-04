@@ -47,14 +47,14 @@ void _update_joystick(int joy)
     dwResult = XInputGetState(joy, &state);
     g_ControllerPresent[joy] = dwResult == ERROR_SUCCESS;
 
-	int state_now = g_ControllerPresent[joy];
-	int state_prev = g_ControllerPresent_prev[joy];
+    int state_now = g_ControllerPresent[joy];
+    int state_prev = g_ControllerPresent_prev[joy];
 
-	if (state_now != state_prev)
-	{
-		_glfwWin.gamepadCallback(joy, g_ControllerPresent[joy]);
-		g_ControllerPresent_prev[joy] = g_ControllerPresent[joy];
-	}
+    if (state_now != state_prev)
+    {
+        _glfwWin.gamepadCallback(joy, g_ControllerPresent[joy]);
+        g_ControllerPresent_prev[joy] = g_ControllerPresent[joy];
+    }
 }
 
 void _glfwPlatformDiscoverJoysticks()
@@ -80,9 +80,9 @@ static int _glfwJoystickPresent( int joy )
     return GL_FALSE;
 }
 
-int _glfwPlatformGetJoystickParam( int joy, int param )
+int _glfwPlatformGetJoystickParam(int joy, int param)
 {
-    if (joy < 0 && joy >= GLFW_MAX_XINPUT_CONTROLLERS)
+    if (joy < 0 || joy >= GLFW_MAX_XINPUT_CONTROLLERS)
     {
         return 0;
     }
@@ -112,7 +112,7 @@ int _glfwPlatformGetJoystickParam( int joy, int param )
 
     case GLFW_BUTTONS:
         // Return number of joystick buttons
-		// NOTE: We fake 16 buttons. The actual number is 14 but the button-mask is sparse in XInput. bit 0-9 + bit 12-15
+        // NOTE: We fake 16 buttons. The actual number is 14 but the button-mask is sparse in XInput. bit 0-9 + bit 12-15
         return 16;
 
     default:
@@ -170,7 +170,7 @@ int _glfwPlatformGetJoystickPos(int joy, float *pos, int numaxes)
 
 #undef AXIS_VAL
 #undef TRIGGER_VAL
-	return axis;
+    return axis;
 }
 
 //========================================================================
