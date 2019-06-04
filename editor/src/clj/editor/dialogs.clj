@@ -1,5 +1,6 @@
 (ns editor.dialogs
   (:require [cljfx.api :as fx]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.core :as core]
@@ -18,13 +19,13 @@
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.util :as util]
             [editor.workspace :as workspace]
-            [service.log :as log]
-            [clojure.java.io :as io])
+            [service.log :as log])
   (:import [clojure.lang Named]
            [java.io File]
            [java.nio.file Path Paths]
            [java.util Collection List]
            [javafx.application Platform]
+           [javafx.event Event]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
            [javafx.scene.control Button ListView TextField]
@@ -682,7 +683,7 @@
                           {:fx/type fxui/label
                            :text "Preview"}
                           {:fx/type fxui/text-field
-                           :disable true
+                           :editable false
                            :text (or error-msg sanitized-name)}]}
      :footer {:fx/type dialog-buttons
               :children [{:fx/type fxui/button
@@ -691,7 +692,7 @@
                           :on-action {:event-type :cancel}}
                          {:fx/type fxui/button
                           :disable (or invalid path-empty)
-                          :text "Ok"
+                          :text "Create Folder"
                           :variant :primary
                           :default-button true
                           :on-action {:event-type :confirm}}]}}))
@@ -754,7 +755,7 @@
       string/trim
       (string/replace #"[/\\]" "") ; strip path separators
       (string/replace #"[\"']" "") ; strip quotes
-      (string/replace #"^\.*" "") ; prevent hiding files (.dotfile)
+      (string/replace #"^\.+" "") ; prevent hiding files (.dotfile)
       (string/replace #"[<>:|?*]" ""))) ; Additional Windows forbidden characters
 
 (defn sanitize-file-name [extension name]
@@ -874,7 +875,7 @@
                           {:fx/type fxui/label
                            :text "Preview"}
                           {:fx/type fxui/text-field
-                           :disable true
+                           :editable false
                            :text (if valid-input
                                    (str relative-path \/ sanitized-name)
                                    "")}]}
@@ -903,14 +904,15 @@
                        :set-file-name (assoc state :name event)
                        :set-location (assoc state :location (io/file base-dir (sanitize-folder-name event)))
                        :pick-location (assoc state :location
-                                             (let [previous-location (:location state)
+                                             (let [window (.getWindow (.getScene ^Node (.getSource ^Event event)))
+                                                   previous-location (:location state)
                                                    initial-dir (if (.exists ^File previous-location)
                                                                  previous-location
                                                                  base-dir)
                                                    path (-> (doto (DirectoryChooser.)
                                                               (.setInitialDirectory initial-dir)
                                                               (.setTitle "Set Path"))
-                                                            (.showDialog nil))]
+                                                            (.showDialog window))]
                                                (if path
                                                  (io/file base-dir (relativize base-dir path))
                                                  previous-location)))
