@@ -764,14 +764,14 @@ namespace dmGameSystem
         return 1;
     }
 
-    /*# update a connected joint properties
+    /*# set a connected joint properties
      *
      * Updates the properties for an already connected joint. The joint has to be created and connected before
      * properties can be changed.
      *
      * Note: Currently only supported in 2D physics.
      *
-     * @name physics.update_joint
+     * @name physics.set_joint_properties
      * @param collisionobject [type:string|hash|url] collision object where the joint exist
      * @param joint_id [type:string|hash] id of the joint
      * @param properties [type:table] joint specific properties table
@@ -794,7 +794,7 @@ namespace dmGameSystem
         dmPhysics::JointType joint_type;
         dmPhysics::JointResult r = GetJointType(comp_world, comp, joint_id, joint_type);
         if (r != dmPhysics::RESULT_OK) {
-            return DM_LUA_ERROR("unable to update joint, could not get joint type: %s (%d)", PhysicsResultString[r], r);
+            return DM_LUA_ERROR("unable to set joint properties, could not get joint type: %s (%d)", PhysicsResultString[r], r);
         }
 
         dmPhysics::ConnectJointParams joint_params(joint_type);
@@ -802,7 +802,7 @@ namespace dmGameSystem
 
         r = UpdateJoint(comp_world, comp, joint_id, joint_params);
         if (r != dmPhysics::RESULT_OK) {
-            return DM_LUA_ERROR("unable to update joint properties: %s (%d)", PhysicsResultString[r], r);
+            return DM_LUA_ERROR("unable to set joint properties: %s (%d)", PhysicsResultString[r], r);
         }
 
         return 0;
@@ -975,7 +975,7 @@ namespace dmGameSystem
         {"connect_joint",   Physics_ConnectJoint},
         {"disconnect_joint", Physics_DisconnectJoint},
         {"get_joint_properties", Physics_GetJointProperties},
-        {"update_joint", Phyics_UpdateJoint},
+        {"set_joint_properties", Phyics_UpdateJoint},
         {"get_joint_reaction_force",  Physics_GetJointReactionForce},
         {"get_joint_reaction_torque", Physics_GetJointReactionTorque},
 

@@ -276,7 +276,7 @@ local joint_tests = {
             current_properties.enable_motor = true
             current_properties.motor_speed = 100
             current_properties.max_motor_force = 10000
-            physics.update_joint(self.a_coll, self.joint_id, current_properties)
+            physics.set_joint_properties(self.a_coll, self.joint_id, current_properties)
 
             -- give it a few updates to let the physics sim settle
             coroutine.yield()
