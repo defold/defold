@@ -863,6 +863,7 @@
                           {:fx/type fxui/label
                            :text "Location"}
                           {:fx/type :h-box
+                           :spacing 4
                            :children [{:fx/type fxui/text-field
                                        :h-box/hgrow :always
                                        :variant (if location-exists :default :error)

@@ -7,6 +7,10 @@ $light-grey-darker: derive($light-grey, -20%);
 
 $grey: #393c41;
 
+$button-grey: #52575C;
+$button-mid-grey: #393c41;
+$button-dark-grey-header: #373a40;
+
 $blue: #5BC0FF;
 $blue-lighter: derive($blue, 20%);
 $blue-lightest: derive($blue, 40%);
@@ -128,20 +132,26 @@ $spacing-largest: 40px;
     -fx-border-color: $red-lighter;
   }
 }
+
 .button-icon {
   -fx-text-fill: $light-grey;
-  -fx-border-color: $light-grey-darker;
+  -fx-background-radius: 2px;
+  -fx-border-radius: 2px;
+  -fx-background-color: $button-mid-grey;
   -fx-padding: 0;
-  -fx-min-width: 29px;
-  -fx-max-width: 29px;
-  -fx-pref-width: 29px;
-  -fx-min-height: 29px;
-  -fx-max-height: 29px;
-  -fx-pref-height: 29px;
+  -fx-min-width: 28px;
+  -fx-max-width: 28px;
+  -fx-pref-width: 28px;
+  -fx-min-height: 28px;
+  -fx-max-height: 28px;
+  -fx-pref-height: 28px;
   -fx-focus-traversable: false;
-  &:hover, &:focused {
-    -fx-text-fill: $light-grey-lighter;
-    -fx-border-color: $light-grey;
+  -fx-border-width: 0;
+  &:hover {
+    -fx-background-color: $button-grey;
+  }
+  &:armed {
+    -fx-background-color: $button-dark-grey-header !important;
   }
 }
 
