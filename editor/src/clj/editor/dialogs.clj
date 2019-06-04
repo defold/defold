@@ -863,6 +863,7 @@
                            :text "Location"}
                           {:fx/type :h-box
                            :children [{:fx/type fxui/text-field
+                                       :h-box/hgrow :always
                                        :variant (if location-exists :default :error)
                                        :on-text-changed {:event-type :set-location}
                                        :text relative-path}
@@ -870,7 +871,7 @@
                                        :on-action {:event-type :pick-location}
                                        :text "…"}]}
                           {:fx/type fxui/label
-                           :text "Path"}
+                           :text "Preview"}
                           {:fx/type fxui/text-field
                            :disable true
                            :text (if valid-input
@@ -883,7 +884,7 @@
                           :on-action {:event-type :cancel}}
                          {:fx/type fxui/button
                           :disable (not valid-input)
-                          :text "Ok"
+                          :text (str "Create " type)
                           :variant :primary
                           :default-button true
                           :on-action {:event-type :confirm}}]}}))
@@ -902,14 +903,17 @@
                        :set-file-name (assoc state :name event)
                        :set-location (assoc state :location (io/file base-dir event))
                        :pick-location (assoc state :location
-                                             (let [initial-dir (if (.exists ^File (:location state))
-                                                                 (:location state)
+                                             (let [previous-location (:location state)
+                                                   initial-dir (if (.exists ^File previous-location)
+                                                                 previous-location
                                                                  base-dir)
                                                    path (-> (doto (DirectoryChooser.)
                                                               (.setInitialDirectory initial-dir)
                                                               (.setTitle "Set Path"))
                                                             (.showDialog nil))]
-                                               (io/file base-dir (relativize base-dir path))))
+                                               (if path
+                                                 (io/file base-dir (relativize base-dir path))
+                                                 previous-location)))
                        :cancel (assoc state ::fxui/result nil)
                        :confirm (assoc state ::fxui/result
                                        (-> (io/file (:location state) (sanitize-file-name ext (:name state)))
