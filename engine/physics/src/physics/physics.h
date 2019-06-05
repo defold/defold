@@ -1243,7 +1243,7 @@ namespace dmPhysics
 
     HJoint CreateJoint2D(HWorld2D world, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b, dmPhysics::JointType type, const ConnectJointParams& params);
     bool GetJointParams2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, ConnectJointParams& params);
-    bool UpdateJoint2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, const ConnectJointParams& params);
+    bool SetJointParams2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, const ConnectJointParams& params);
     void DeleteJoint2D(HWorld2D world, HJoint joint);
     bool GetJointReactionForce2D(HWorld2D world, HJoint joint, Vectormath::Aos::Vector3& force, float inv_dt);
     bool GetJointReactionTorque2D(HWorld2D world, HJoint joint, float& torque, float inv_dt);

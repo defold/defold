@@ -1009,7 +1009,7 @@ TYPED_TEST(PhysicsTest, JointGeneral)
 
     // Update SPRING joint
     joint_params.m_SpringJointParams.m_Length = 10.0f;
-    bool r = dmPhysics::UpdateJoint2D(TestFixture::m_World, joint, joint_type, joint_params);
+    bool r = dmPhysics::SetJointParams2D(TestFixture::m_World, joint, joint_type, joint_params);
     ASSERT_TRUE(r);
 
     // Get SPRING joint params
@@ -1030,7 +1030,7 @@ TYPED_TEST(PhysicsTest, JointGeneral)
 
     // Update FIXED joint
     joint_params.m_FixedJointParams.m_MaxLength = 10.0f;
-    r = dmPhysics::UpdateJoint2D(TestFixture::m_World, joint, joint_type, joint_params);
+    r = dmPhysics::SetJointParams2D(TestFixture::m_World, joint, joint_type, joint_params);
     ASSERT_TRUE(r);
 
     // Get FIXED joint params
@@ -1051,7 +1051,7 @@ TYPED_TEST(PhysicsTest, JointGeneral)
 
     // Update HINGE joint
     joint_params.m_HingeJointParams.m_MotorSpeed = 10.0f;
-    r = dmPhysics::UpdateJoint2D(TestFixture::m_World, joint, joint_type, joint_params);
+    r = dmPhysics::SetJointParams2D(TestFixture::m_World, joint, joint_type, joint_params);
     ASSERT_TRUE(r);
 
     // Get HINGE joint params
@@ -1072,7 +1072,7 @@ TYPED_TEST(PhysicsTest, JointGeneral)
 
     // Update SLIDER joint
     joint_params.m_SliderJointParams.m_MotorSpeed = 10.0f;
-    r = dmPhysics::UpdateJoint2D(TestFixture::m_World, joint, joint_type, joint_params);
+    r = dmPhysics::SetJointParams2D(TestFixture::m_World, joint, joint_type, joint_params);
     ASSERT_TRUE(r);
 
     // Get SLIDER joint params

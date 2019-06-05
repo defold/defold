@@ -229,7 +229,7 @@ namespace dmPhysics
         return true;
     }
 
-    bool UpdateJoint2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, const ConnectJointParams& params)
+    bool SetJointParams2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, const ConnectJointParams& params)
     {
         return true;
     }

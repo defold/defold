@@ -1121,7 +1121,7 @@ namespace dmPhysics
         return joint;
     }
 
-    bool UpdateJoint2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, const ConnectJointParams& params)
+    bool SetJointParams2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, const ConnectJointParams& params)
     {
         float scale = world->m_Context->m_Scale;
 
@@ -1145,7 +1145,7 @@ namespace dmPhysics
                 {
                     b2RevoluteJoint* typed_joint = (b2RevoluteJoint*)joint;
                     typed_joint->SetLimits(params.m_HingeJointParams.m_LowerAngle, params.m_HingeJointParams.m_UpperAngle);
-                    typed_joint->SetMaxMotorTorque(params.m_HingeJointParams.m_MaxMotorTorque);
+                    typed_joint->SetMaxMotorTorque(params.m_HingeJointParams.m_MaxMotorTorque * scale);
                     typed_joint->SetMotorSpeed(params.m_HingeJointParams.m_MotorSpeed);
                     typed_joint->EnableLimit(params.m_HingeJointParams.m_EnableLimit);
                     typed_joint->EnableMotor(params.m_HingeJointParams.m_EnableMotor);
@@ -1198,7 +1198,7 @@ namespace dmPhysics
                     params.m_HingeJointParams.m_ReferenceAngle = typed_joint->GetReferenceAngle();
                     params.m_HingeJointParams.m_LowerAngle = typed_joint->GetLowerLimit();
                     params.m_HingeJointParams.m_UpperAngle = typed_joint->GetUpperLimit();
-                    params.m_HingeJointParams.m_MaxMotorTorque = typed_joint->GetMaxMotorTorque();
+                    params.m_HingeJointParams.m_MaxMotorTorque = typed_joint->GetMaxMotorTorque() * inv_scale;
                     params.m_HingeJointParams.m_MotorSpeed = typed_joint->GetMotorSpeed();
                     params.m_HingeJointParams.m_EnableLimit = typed_joint->IsLimitEnabled();
                     params.m_HingeJointParams.m_EnableMotor = typed_joint->IsMotorEnabled();

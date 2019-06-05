@@ -416,43 +416,8 @@ namespace dmGameSystem
         dmGameObject::GetComponentUserDataFromLua(L, indx, collection, COLLISION_OBJECT_EXT, (uintptr_t*)comp, &receiver, comp_world);
     }
 
-    /*# create a physics joint
-     *
-     * Create a physics joint in runtime with a specific id. There cannot be two joints
-     * with the same ids on the same collision object. Creating a joint will not
-     * automatically connect.
-     *
-     * Note: Currently only supported in 2D physics.
-     *
-     * @name physics.create_joint
-     * @param collisionobject [type:string|hash|url] the collision object where the joint shall be created
-     * @param joint_id [type:string|hash] unique id of the joint
-     */
-    static int Physics_CreateJoint(lua_State* L)
+    static int GetTableField(lua_State* L, int table_index, const char* table_field, int expected_type)
     {
-        DM_LUA_STACK_CHECK(L, 0);
-
-        dmhash_t joint_id = dmScript::CheckHashOrString(L, 2);
-
-        dmMessage::URL url;
-        dmScript::ResolveURL(L, 1, &url, 0);
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
-
-        void* comp = 0x0;
-        void* comp_world = 0x0;
-        GetCollisionObject(L, 1, collection, &comp, &comp_world);
-
-        dmPhysics::JointResult r = dmGameSystem::CreateJoint(comp_world, comp, joint_id);
-        if (r != dmPhysics::RESULT_OK) {
-            return DM_LUA_ERROR("could not create joint: %s (%d)", PhysicsResultString[r], r);
-        }
-
-        return 0;
-    }
-
-    static int UnpackFloatParam(lua_State* L, int table_index, const char* table_field, float& float_out)
-    {
-        DM_LUA_STACK_CHECK(L, 0);
         lua_getfield(L, table_index, table_field);
         int type = lua_type(L, -1);
 
@@ -460,61 +425,50 @@ namespace dmGameSystem
         if (type == LUA_TNIL || type == LUA_TNONE) {
             lua_pop(L, 1);
             return 0;
-        } else if (type != LUA_TNUMBER) {
-            return DM_LUA_ERROR("physics.connect_joint property table field %s must be of number type.", table_field);
+        } else if (type != expected_type) {
+            return luaL_error(L, "joint property table field %s must be of %s type.", table_field, lua_typename(L, expected_type));
         }
 
-        float_out = lua_tonumber(L, -1);
-        lua_pop(L, 1);
-
-        return 0;
+        return 1;
     }
 
-    static int UnpackVec3Param(lua_State* L, int table_index, const char* table_field, float float_out[3])
+    static void UnpackFloatParam(lua_State* L, int table_index, const char* table_field, float& float_out)
     {
-        DM_LUA_STACK_CHECK(L, 0);
-        lua_getfield(L, table_index, table_field);
-        int type = lua_type(L, -1);
-        bool vec3_type = dmScript::IsVector3(L, -1);
-
-        // return if the field was not found
-        if (type == LUA_TNIL || type == LUA_TNONE) {
+        if (GetTableField(L, table_index, table_field, LUA_TNUMBER))
+        {
+            float_out = lua_tonumber(L, -1);
             lua_pop(L, 1);
-            return 0;
-        } else if (!vec3_type) {
-            return DM_LUA_ERROR("physics.connect_joint property table field %s must be of vmath.vector3 type.", table_field);
         }
-
-        Vectormath::Aos::Vector3* v3 = dmScript::ToVector3(L, -1);
-        float_out[0] = v3->getX();
-        float_out[1] = v3->getY();
-        float_out[2] = v3->getZ();
-        lua_pop(L, 1);
-
-        return 0;
     }
 
-    static int UnpackBoolParam(lua_State* L, int table_index, const char* table_field, bool& bool_out)
+    static void UnpackVec3Param(lua_State* L, int table_index, const char* table_field, float float_out[3])
     {
-        DM_LUA_STACK_CHECK(L, 0);
-        lua_getfield(L, table_index, table_field);
-        int type = lua_type(L, -1);
+        if (GetTableField(L, table_index, table_field, LUA_TUSERDATA))
+        {
+            Vectormath::Aos::Vector3* v3 = dmScript::ToVector3(L, -1);
+            if (!v3) {
+                lua_pop(L, 1);
+                luaL_error(L, "joint property table field %s must be of vmath.vector3 type.", table_field);
+                return;
+            }
 
-        // return if the field was not found
-        if (type == LUA_TNIL || type == LUA_TNONE) {
+            float_out[0] = v3->getX();
+            float_out[1] = v3->getY();
+            float_out[2] = v3->getZ();
             lua_pop(L, 1);
-            return 0;
-        } else if (type != LUA_TBOOLEAN) {
-            return DM_LUA_ERROR("physics.connect_joint property table field %s must be of bool type.", table_field);
         }
-
-        bool_out = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-
-        return 0;
     }
 
-    static int UnpackConnectJointParams(lua_State* L, dmPhysics::JointType type, int table_index, dmPhysics::ConnectJointParams& params)
+    static void UnpackBoolParam(lua_State* L, int table_index, const char* table_field, bool& bool_out)
+    {
+        if (GetTableField(L, table_index, table_field, LUA_TBOOLEAN))
+        {
+            bool_out = lua_toboolean(L, -1);
+            lua_pop(L, 1);
+        }
+    }
+
+    static void UnpackConnectJointParams(lua_State* L, dmPhysics::JointType type, int table_index, dmPhysics::ConnectJointParams& params)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -524,9 +478,10 @@ namespace dmGameSystem
         int table_index_type = lua_type(L, table_index);
         if (table_index_type == LUA_TNIL || table_index_type == LUA_TNONE) {
             // Early exit if table was nil (just returns default values from above).
-            return 0;
+            return;
         } else if (table_index_type != LUA_TTABLE) {
-            return DM_LUA_ERROR("argument %d to physics.connect_joint must be either nil or table.", table_index);
+            DM_LUA_ERROR("argument %d to physics.connect_joint must be either nil or table.", table_index)
+            return;
         }
 
         // Common fields for all joints:
@@ -557,7 +512,8 @@ namespace dmGameSystem
                 // The default values are both zero so they will not cause this error.
                 // (Same check below in JOINT_TYPE_SLIDER.)
                 if (params.m_HingeJointParams.m_LowerAngle > params.m_HingeJointParams.m_UpperAngle) {
-                    return DM_LUA_ERROR("property field 'lower_angle' must be lower or equal to 'upper_angle'");
+                    luaL_error(L, "property field 'lower_angle' must be lower or equal to 'upper_angle'");
+                    return;
                 }
                 break;
 
@@ -572,27 +528,28 @@ namespace dmGameSystem
                 UnpackFloatParam(L, table_index, "motor_speed", params.m_SliderJointParams.m_MotorSpeed);
 
                 if (params.m_SliderJointParams.m_LowerTranslation > params.m_SliderJointParams.m_UpperTranslation) {
-                    return DM_LUA_ERROR("property field 'lower_translation' must be lower or equal to 'upper_translation'");
+                    luaL_error(L, "property field 'lower_translation' must be lower or equal to 'upper_translation'");
+                    return;
                 }
                 break;
 
             default:
-                return DM_LUA_ERROR("property table not implemented for joint type %d", type);
+                DM_LUA_ERROR("property table not implemented for joint type %d", type)
+                return;
         }
 
-        return 0;
+        return;
     }
 
-    /*# connect a physics joint
+    /*# create a physics joint
      *
-     * Connects a physics joint between two collision object components. The joint has to be created before a
-     * connection can be created.
+     * Create a physics joint between two collision object components.
      *
      * Note: Currently only supported in 2D physics.
      *
-     * @name physics.connect_joint
+     * @name physics.create_joint
      * @param joint_type [type:number] the joint type
-     * @param collisionobject_a [type:string|hash|url] first collision object (where the joint exist)
+     * @param collisionobject_a [type:string|hash|url] first collision object
      * @param joint_id [type:string|hash] id of the joint
      * @param position_a [type:vector3] local position where to attach the joint on the first collision object
      * @param collisionobject_b [type:string|hash|url] second collision object
@@ -603,7 +560,7 @@ namespace dmGameSystem
      * - [type:boolean] `collide_connected`: Set this flag to true if the attached bodies should collide.
      *
      */
-    static int Physics_ConnectJoint(lua_State* L)
+    static int Physics_CreateJoint(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -630,31 +587,30 @@ namespace dmGameSystem
             return DM_LUA_ERROR("joints can only be connected to collision objects within the same physics world");
         }
 
-        // Unpack type specific joint connection paramaters
         dmPhysics::ConnectJointParams params(type);
         UnpackConnectJointParams(L, type, 7, params);
-        dmPhysics::JointResult r = dmGameSystem::ConnectJoint(comp_world_a, comp_a, joint_id, pos_a, comp_b, pos_b, type, params);
+        dmPhysics::JointResult r = dmGameSystem::CreateJoint(comp_world_a, comp_a, joint_id, pos_a, comp_b, pos_b, type, params);
         if (r != dmPhysics::RESULT_OK) {
-            return DM_LUA_ERROR("could not connect joint: %s (%d)", PhysicsResultString[r], r);
+            return DM_LUA_ERROR("could not create joint: %s (%d)", PhysicsResultString[r], r);
         }
 
         return 0;
 
     }
 
-    /*# disconnect a physics joint
+    /*# destroy a physics joint
      *
-     * Disconnects an already connected physics joint. The joint has to be created and connected before a
-     * disconnect can be issued.
+     * Destroy an already physics joint. The joint has to be created before a
+     * destroy can be issued.
      *
      * Note: Currently only supported in 2D physics.
      *
-     * @name physics.disconnect_joint
+     * @name physics.destroy_joint
      * @param collisionobject [type:string|hash|url] collision object where the joint exist
      * @param joint_id [type:string|hash] id of the joint
      *
      */
-    static int Physics_DisconnectJoint(lua_State* L)
+    static int Physics_DestroyJoint(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -666,7 +622,7 @@ namespace dmGameSystem
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
 
         // Unpack type specific joint connection paramaters
-        dmPhysics::JointResult r = dmGameSystem::DisconnectJoint(comp_world, comp, joint_id);
+        dmPhysics::JointResult r = dmGameSystem::DestroyJoint(comp_world, comp, joint_id);
         if (r != dmPhysics::RESULT_OK) {
             return DM_LUA_ERROR("could not disconnect joint: %s (%d)", PhysicsResultString[r], r);
         }
@@ -674,9 +630,9 @@ namespace dmGameSystem
         return 0;
     }
 
-    /*# get a connected joint properties
+    /*# get properties for a joint
      *
-     * Get a table for properties for a connected joint. The joint has to be created and connected before
+     * Get a table for properties for a connected joint. The joint has to be created before
      * properties can be retrieved.
      *
      * Note: Currently only supported in 2D physics.
@@ -764,9 +720,9 @@ namespace dmGameSystem
         return 1;
     }
 
-    /*# set a connected joint properties
+    /*# set properties for a joint
      *
-     * Updates the properties for an already connected joint. The joint has to be created and connected before
+     * Updates the properties for an already connected joint. The joint has to be created before
      * properties can be changed.
      *
      * Note: Currently only supported in 2D physics.
@@ -779,7 +735,7 @@ namespace dmGameSystem
      * Note: The `collide_connected` field cannot be updated/changed after a connection has been made.
      *
      */
-    static int Phyics_UpdateJoint(lua_State* L)
+    static int Physics_SetJointProperties(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -800,7 +756,7 @@ namespace dmGameSystem
         dmPhysics::ConnectJointParams joint_params(joint_type);
         UnpackConnectJointParams(L, joint_type, 3, joint_params);
 
-        r = UpdateJoint(comp_world, comp, joint_id, joint_params);
+        r = SetJointParams(comp_world, comp, joint_id, joint_params);
         if (r != dmPhysics::RESULT_OK) {
             return DM_LUA_ERROR("unable to set joint properties: %s (%d)", PhysicsResultString[r], r);
         }
@@ -810,7 +766,7 @@ namespace dmGameSystem
 
     /*# get the reaction force for a joint
      *
-     * Get the reaction force for a connected joint. The joint has to be created and connected before
+     * Get the reaction force for a joint. The joint has to be created before
      * the reaction force can be calculated.
      *
      * Note: Currently only supported in 2D physics.
@@ -846,7 +802,7 @@ namespace dmGameSystem
 
     /*# get the reaction torque for a joint
      *
-     * Get the reaction torque for a connected joint. The joint has to be created and connected before
+     * Get the reaction torque for a joint. The joint has to be created before
      * the reaction torque can be calculated.
      *
      * Note: Currently only supported in 2D physics.
@@ -972,10 +928,9 @@ namespace dmGameSystem
         {"raycast",         Physics_RayCast},
 
         {"create_joint",    Physics_CreateJoint},
-        {"connect_joint",   Physics_ConnectJoint},
-        {"disconnect_joint", Physics_DisconnectJoint},
+        {"destroy_joint",   Physics_DestroyJoint},
         {"get_joint_properties", Physics_GetJointProperties},
-        {"set_joint_properties", Phyics_UpdateJoint},
+        {"set_joint_properties", Physics_SetJointProperties},
         {"get_joint_reaction_force",  Physics_GetJointReactionForce},
         {"get_joint_reaction_torque", Physics_GetJointReactionTorque},
 

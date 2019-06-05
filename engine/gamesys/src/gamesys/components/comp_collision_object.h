@@ -44,12 +44,11 @@ namespace dmGameSystem
     uint64_t GetLSBGroupHash(void* world, uint16_t mask);
     dmhash_t CompCollisionObjectGetIdentifier(void* component);
 
-    dmPhysics::JointResult CreateJoint(void* _world, void* _component, dmhash_t id);
-    dmPhysics::JointResult ConnectJoint(void* _world, void* _component_a, dmhash_t id, const Vectormath::Aos::Point3& apos, void* _component_b, const Vectormath::Aos::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params);
-    dmPhysics::JointResult DisconnectJoint(void* _world, void* _component, dmhash_t id);
+    dmPhysics::JointResult CreateJoint(void* _world, void* _component_a, dmhash_t id, const Vectormath::Aos::Point3& apos, void* _component_b, const Vectormath::Aos::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params);
+    dmPhysics::JointResult DestroyJoint(void* _world, void* _component, dmhash_t id);
     dmPhysics::JointResult GetJointParams(void* _world, void* _component, dmhash_t id, dmPhysics::JointType& joint_type, dmPhysics::ConnectJointParams& joint_params);
     dmPhysics::JointResult GetJointType(void* _world, void* _component, dmhash_t id, dmPhysics::JointType& joint_type);
-    dmPhysics::JointResult UpdateJoint(void* _world, void* _component, dmhash_t id, const dmPhysics::ConnectJointParams& joint_params);
+    dmPhysics::JointResult SetJointParams(void* _world, void* _component, dmhash_t id, const dmPhysics::ConnectJointParams& joint_params);
     dmPhysics::JointResult GetJointReactionForce(void* _world, void* _component, dmhash_t id, Vectormath::Aos::Vector3& force);
     dmPhysics::JointResult GetJointReactionTorque(void* _world, void* _component, dmhash_t id, float& torque);
 

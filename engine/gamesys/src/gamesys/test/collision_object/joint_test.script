@@ -24,51 +24,57 @@ function init(self)
     -- FAIL, test invalid parameters
     assert_error(function() physics.create_joint() end)
     assert_error(function() physics.create_joint(self.a) end)
-    assert_error(function() physics.create_joint(self.a_coll) end)
-    assert_error(function() physics.create_joint(self.a_coll, nil) end)
-    assert_error(function() physics.create_joint(".", "asd") end)
+    assert_error(function() physics.create_joint(physics.JOINT_TYPE_SPRING) end)
+    assert_error(function() physics.create_joint(physics.JOINT_TYPE_SPRING, self.a) end)
+    assert_error(function() physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll) end)
+    assert_error(function() physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, nil) end)
+    assert_error(function() physics.create_joint(physics.JOINT_TYPE_SPRING, ".", "asd") end)
+    assert_error(function() physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id) end)
+    assert_error(function() physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id, zp) end)
+    assert_error(function() physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id, zp, self.b_coll) end)
 
     -- Successfully create one joint on obj a
-    physics.create_joint(self.a_coll, self.joint_id)
+    physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id, zp, self.b_coll, zp)
 
     -- FAIL, should not be able to create two joints with same name
-    assert_error(function() physics.create_joint(self.a_coll, self.joint_id) end)
+    assert_error(function() physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id, zp, self.b_coll, zp) end)
+    physics.destroy_joint(self.a_coll, self.joint_id)
 
     -- Connect and disconnect multiple times, different joint types
-    physics.connect_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id, zp, self.b_coll, zp)
-    physics.disconnect_joint(self.a_coll, self.joint_id)
-    physics.connect_joint(physics.JOINT_TYPE_FIXED, self.a_coll, self.joint_id, zp, self.b_coll, zp)
-    physics.disconnect_joint(self.a_coll, self.joint_id)
-    physics.connect_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp)
-    physics.disconnect_joint(self.a_coll, self.joint_id)
-    physics.connect_joint(physics.JOINT_TYPE_SLIDER, self.a_coll, self.joint_id, zp, self.b_coll, zp)
-    physics.disconnect_joint(self.a_coll, self.joint_id)
+    physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id, zp, self.b_coll, zp)
+    physics.destroy_joint(self.a_coll, self.joint_id)
+    physics.create_joint(physics.JOINT_TYPE_FIXED, self.a_coll, self.joint_id, zp, self.b_coll, zp)
+    physics.destroy_joint(self.a_coll, self.joint_id)
+    physics.create_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp)
+    physics.destroy_joint(self.a_coll, self.joint_id)
+    physics.create_joint(physics.JOINT_TYPE_SLIDER, self.a_coll, self.joint_id, zp, self.b_coll, zp)
+    physics.destroy_joint(self.a_coll, self.joint_id)
 
     -- Recreate with joint specific parameters + verify properties
     local properties = {}
-    physics.connect_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id, zp, self.b_coll, zp, { length = 5 })
+    physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id, zp, self.b_coll, zp, { length = 5 })
     properties = physics.get_joint_properties(self.a_coll, self.joint_id)
     assert(properties.length == 5)
-    physics.disconnect_joint(self.a_coll, self.joint_id)
+    physics.destroy_joint(self.a_coll, self.joint_id)
 
-    physics.connect_joint(physics.JOINT_TYPE_FIXED, self.a_coll, self.joint_id, zp, self.b_coll, zp, { max_length = 5 })
+    physics.create_joint(physics.JOINT_TYPE_FIXED, self.a_coll, self.joint_id, zp, self.b_coll, zp, { max_length = 5 })
     properties = physics.get_joint_properties(self.a_coll, self.joint_id)
     assert(properties.max_length == 5)
-    physics.disconnect_joint(self.a_coll, self.joint_id)
+    physics.destroy_joint(self.a_coll, self.joint_id)
 
-    physics.connect_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp, { lower_angle = 0, upper_angle = 10, enable_limit = true })
+    physics.create_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp, { lower_angle = 0, upper_angle = 10, enable_limit = true })
     properties = physics.get_joint_properties(self.a_coll, self.joint_id)
     assert(properties.lower_angle == 0)
     assert(properties.upper_angle == 10)
     assert(properties.enable_limit)
-    physics.disconnect_joint(self.a_coll, self.joint_id)
+    physics.destroy_joint(self.a_coll, self.joint_id)
 
-    physics.connect_joint(physics.JOINT_TYPE_SLIDER, self.a_coll, self.joint_id, zp, self.b_coll, zp, { enable_motor = true, lower_translation = 10, upper_translation = 20 })
+    physics.create_joint(physics.JOINT_TYPE_SLIDER, self.a_coll, self.joint_id, zp, self.b_coll, zp, { enable_motor = true, lower_translation = 10, upper_translation = 20 })
     properties = physics.get_joint_properties(self.a_coll, self.joint_id)
     assert(properties.enable_motor)
     assert(properties.lower_translation == 10)
     assert(properties.upper_translation == 20)
-    physics.disconnect_joint(self.a_coll, self.joint_id)
+    physics.destroy_joint(self.a_coll, self.joint_id)
 end
 
 -- helper functions to verify test data.
@@ -130,7 +136,7 @@ local joint_tests = {
             new_b_obj(self, vmath.vector3(0,-5,0))
 
             -- Setup SPRING joint with length 5
-            physics.connect_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id, zp, self.b_coll, zp, { length = 5 })
+            physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id, zp, self.b_coll, zp, { length = 5 })
 
             -- give it a few updates to let the physics sim settle
             coroutine.yield()
@@ -159,7 +165,7 @@ local joint_tests = {
             assert_near(length, 5)
 
             -- Cleanup, for next test
-            physics.disconnect_joint(self.a_coll, self.joint_id)
+            physics.destroy_joint(self.a_coll, self.joint_id)
         end
     },
     {
@@ -169,7 +175,7 @@ local joint_tests = {
             new_b_obj(self, vmath.vector3(0,-5,0))
 
             -- Setup FIXED joint with length 5
-            physics.connect_joint(physics.JOINT_TYPE_FIXED, self.a_coll, self.joint_id, zp, self.b_coll, zp, { max_length = 5 })
+            physics.create_joint(physics.JOINT_TYPE_FIXED, self.a_coll, self.joint_id, zp, self.b_coll, zp, { max_length = 5 })
 
             -- give it a few updates to let the physics sim settle
             coroutine.yield()
@@ -198,7 +204,7 @@ local joint_tests = {
             assert_near(length, 5)
 
             -- Cleanup, for next test
-            physics.disconnect_joint(self.a_coll, self.joint_id)
+            physics.destroy_joint(self.a_coll, self.joint_id)
         end
     },
     {
@@ -208,7 +214,7 @@ local joint_tests = {
             new_b_obj(self, vmath.vector3(0,-5,0))
 
             -- Setup HINGE joint with motor enabled
-            physics.connect_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp, { max_motor_torque = 100, motor_speed = 10.0, enable_motor = true })
+            physics.create_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp, { max_motor_torque = 100, motor_speed = 10.0, enable_motor = true })
 
             local orig_rotation = go.get(self.b, "euler.z")
 
@@ -249,7 +255,7 @@ local joint_tests = {
             assert_true(new_rotation > orig_rotation)
 
             -- Cleanup, for next test
-            physics.disconnect_joint(self.a_coll, self.joint_id)
+            physics.destroy_joint(self.a_coll, self.joint_id)
         end
     },
     {
@@ -259,7 +265,7 @@ local joint_tests = {
             new_b_obj(self, zp)
 
             -- Setup SLIDER joint with motor enabled
-            physics.connect_joint(physics.JOINT_TYPE_SLIDER, self.a_coll, self.joint_id, zp, self.b_coll, zp, { local_axis_a = vmath.vector3(0,1,0), lower_translation = 0, upper_translation = 10, enable_limit = true })
+            physics.create_joint(physics.JOINT_TYPE_SLIDER, self.a_coll, self.joint_id, zp, self.b_coll, zp, { local_axis_a = vmath.vector3(0,1,0), lower_translation = 0, upper_translation = 10, enable_limit = true })
 
             -- give it a few updates to let the physics sim settle
             coroutine.yield()
@@ -306,7 +312,7 @@ local joint_tests = {
             assert_near(10, p_b.x)
 
             -- Cleanup, for next test
-            physics.disconnect_joint(self.a_coll, self.joint_id)
+            physics.destroy_joint(self.a_coll, self.joint_id)
         end
     }
 }

@@ -411,7 +411,7 @@ namespace dmGameSystem
         }
         component->m_JointEndPoints = 0x0;
 
-        // Destory joints
+        // Destroy joints
         JointEntry* joint_entry = component->m_Joints;
         while (joint_entry)
         {
@@ -1190,27 +1190,8 @@ namespace dmGameSystem
         return true;
     }
 
-    // Creates a new JointEntry in a collision component.
-    dmPhysics::JointResult CreateJoint(void* _world, void* _component, dmhash_t id)
-    {
-        CollisionWorld* world = (CollisionWorld*)_world;
-        if (!IsJointsSupported(world)) {
-            return dmPhysics::RESULT_NOT_SUPPORTED;
-        }
-
-        CollisionComponent* component = (CollisionComponent*)_component;
-        if (FindJointEntry(world, component, id)) {
-            return dmPhysics::RESULT_ID_EXISTS;
-        }
-
-        JointEntry* joint_entry = new JointEntry(id, 0x0, component->m_Joints);
-        component->m_Joints = joint_entry;
-
-        return dmPhysics::RESULT_OK;
-    }
-
     // Connects a joint between two components, a JointEntry with the id must exist for this to succeed.
-    dmPhysics::JointResult ConnectJoint(void* _world, void* _component_a, dmhash_t id, const Vectormath::Aos::Point3& apos, void* _component_b, const Vectormath::Aos::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params)
+    dmPhysics::JointResult CreateJoint(void* _world, void* _component_a, dmhash_t id, const Vectormath::Aos::Point3& apos, void* _component_b, const Vectormath::Aos::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         if (!IsJointsSupported(world)) {
@@ -1220,20 +1201,23 @@ namespace dmGameSystem
         CollisionComponent* component_a = (CollisionComponent*)_component_a;
         CollisionComponent* component_b = (CollisionComponent*)_component_b;
 
+        // Check if there is already a joint with this id
         JointEntry* joint_entry = FindJointEntry(world, component_a, id);
-        if (!joint_entry) {
-            return dmPhysics::RESULT_ID_NOT_FOUND;
+        if (joint_entry) {
+            return dmPhysics::RESULT_ID_EXISTS;
         }
 
-        // Delete previous joint connection, if available
-        if (joint_entry->m_Joint) {
-            DeleteJoint(world, joint_entry);
-        }
+        dmPhysics::HJoint joint_handle = dmPhysics::CreateJoint2D(world->m_World2D, component_a->m_Object2D, apos, component_b->m_Object2D, bpos, type, joint_params);
 
+        // NOTE: For the future, we might think about preallocating these structs
+        // in batches (when needed) and store them in an object pool.
+        // - so that when deleting a collision world, it's easy to delete everything quickly (as opposed to traversing each component).
+        // - so we can avoid the frequent new/delete.
+
+        // Create new joint entry to hold the generic joint handle
+        joint_entry = new JointEntry(id, joint_handle, component_a->m_Joints);
+        component_a->m_Joints = joint_entry;
         joint_entry->m_Type = type;
-        if (!world->m_3D) {
-            joint_entry->m_Joint = dmPhysics::CreateJoint2D(world->m_World2D, component_a->m_Object2D, apos, component_b->m_Object2D, bpos, type, joint_params);
-        }
 
         // Setup a joint end point for component B.
         JointEndPoint* new_end_point = new JointEndPoint();
@@ -1247,7 +1231,7 @@ namespace dmGameSystem
         return dmPhysics::RESULT_OK;
     }
 
-    dmPhysics::JointResult DisconnectJoint(void* _world, void* _component, dmhash_t id)
+    dmPhysics::JointResult DestroyJoint(void* _world, void* _component, dmhash_t id)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         if (!IsJointsSupported(world)) {
@@ -1265,6 +1249,22 @@ namespace dmGameSystem
         }
 
         DeleteJoint(world, joint_entry);
+
+        // Remove joint entry from list on component instance
+        if (component->m_Joints == joint_entry) {
+            component->m_Joints = joint_entry->m_Next;
+        } else {
+            JointEntry* j = component->m_Joints;
+            while (j) {
+                if (j->m_Next == joint_entry) {
+                    j->m_Next = joint_entry->m_Next;
+                    break;
+                }
+                j = j->m_Next;
+            }
+        }
+
+        delete joint_entry;
 
         return dmPhysics::RESULT_OK;
     }
@@ -1315,7 +1315,7 @@ namespace dmGameSystem
         return dmPhysics::RESULT_OK;
     }
 
-    dmPhysics::JointResult UpdateJoint(void* _world, void* _component, dmhash_t id, const dmPhysics::ConnectJointParams& joint_params)
+    dmPhysics::JointResult SetJointParams(void* _world, void* _component, dmhash_t id, const dmPhysics::ConnectJointParams& joint_params)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         if (!IsJointsSupported(world)) {
@@ -1333,7 +1333,7 @@ namespace dmGameSystem
             return dmPhysics::RESULT_NOT_CONNECTED;
         }
 
-        bool r = UpdateJoint2D(world->m_World2D, joint_entry->m_Joint, joint_entry->m_Type, joint_params);
+        bool r = SetJointParams2D(world->m_World2D, joint_entry->m_Joint, joint_entry->m_Type, joint_params);
         return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
     }
 
