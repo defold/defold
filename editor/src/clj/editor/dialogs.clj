@@ -840,7 +840,7 @@
 (defn- new-file-dialog
   [{:keys [^File base-dir ^File location type ext name] :as props}]
   (let [sanitized-name (sanitize-file-name ext name)
-        empty (not (seq sanitized-name))
+        empty (empty? sanitized-name)
         relative-path (FilenameUtils/separatorsToUnix (relativize base-dir location))
         location-exists (.exists location)
         valid-input (and (not empty) location-exists)]
