@@ -82,6 +82,24 @@
 
 (defrecord ^:private HistoryEntry [^long undo-group label sequence-label context-before context-after graph-after outputs-modified transaction-steps])
 
+(defn- arc-source-id
+  ^long [^Arc arc]
+  (.source-id arc))
+
+(defn- arc-source-label
+  ^long [^Arc arc]
+  (.source-label arc))
+
+(defn- arc-target-id
+  ^long [^Arc arc]
+  (.target-id arc))
+
+(defn- arc-target-label
+  ^long [^Arc arc]
+  (.target-label arc))
+
+(def ^:private arc-output (juxt arc-source-id arc-source-label))
+
 (declare sequence-label? undo-group?)
 
 (defn- make-history-entry
@@ -189,7 +207,8 @@
 (defn- detach-graph [basis detached-graph-id]
   (assert (gt/basis? basis))
   (assert (gt/graph-id? detached-graph-id))
-  (let [arc-from-graph? #(= detached-graph-id (gt/node-id->graph-id (.source-id ^Arc %)))
+  (let [arc-from-graph? #(= detached-graph-id (gt/node-id->graph-id (arc-source-id %)))
+        original-successors (get-in basis [:graphs detached-graph-id :successors])
         other-graphs (dissoc (:graphs basis) graph-id)
 
         [detached-graphs detached-arcs]
@@ -201,19 +220,54 @@
           (pair other-graphs [])
           other-graphs)
 
-        detached-basis (assoc basis :graphs detached-graphs)
-        detached-outputs (into #{}
-                               (map (fn [^Arc arc]
-                                      [(.source-id arc) (.source-label arc)]))
-                               detached-arcs)]
+        detached-basis (assoc basis :graphs detached-graphs)]
     {:basis detached-basis
      :detached-arcs detached-arcs
-     :evicted-outputs detached-outputs})) ; TODO: Move out of here?
+     :original-successors original-successors}))
 
+(def ^:private arcs->sarcs (partial util/classify {} [] [arc-source-id arc-source-label]))
+(def ^:private arcs->tarcs-updates-by-graph-id (partial util/classify {} [] [(comp gt/node-id->graph-id arc-target-id) (constantly :tarcs) arc-target-id arc-target-label]))
+(def ^:private arcs->successors-changed (partial util/group-into {} #{} arc-source-id arc-source-label))
 
-(defn- reattach-graph [basis graph detached-arcs]
-  ;; TODO!
-  )
+(defn- reattach-graph [basis detached-graph detached-arcs original-successors]
+  (assert (gt/basis? basis))
+  (assert (ig/graph? detached-graph))
+  (let [arc-source-exists? (comp (partial contains? (:nodes detached-graph)) arc-source-id)
+        [invalid-arcs reattached-arcs] (util/separate-into [] arc-source-exists? detached-arcs)
+        reattached-sarcs (arcs->sarcs reattached-arcs)
+        reattached-graph (update detached-graph :sarcs util/merge-deep reattached-sarcs)
+        reattached-basis (ig/update-successors
+                           (update basis :graphs
+                                   (fn [graphs]
+                                     (-> graphs
+                                         (util/deep-merge (arcs->tarcs-updates-by-graph-id reattached-arcs))
+                                         (assoc (:_graph-id reattached-graph)
+                                                reattached-graph))))
+                           (arcs->successors-changed reattached-arcs))
+
+        ;; TODO: The New Take
+        ;; We need to evict from the cache all outputs that were only successors
+        ;; before the rewind, as well as the outputs that are successors after
+        ;; reattaching the graph.
+
+        ;; The second case is covered by calling invalidate-outputs with the set
+        ;; of :outputs-modified from the history (union of rewind & replay) once
+        ;; we've updated successors in the reattached basis. The first case
+        ;; means figuring out which of the old successors were not covered by
+        ;; the second case.
+
+        ;; original-successors is a map of [source-node-id source-label] -> {successor-node-id #{successor-label}}
+        evicted-successor-outputs (into #{}
+                                        (comp (map arc-output)
+                                              (distinct)
+                                              (mapcat (fn [output]
+                                                        (map (fn [[successor-node-id successor-labels]]
+                                                               ;; TODO: This is wrong.
+                                                               )
+                                                             (get-in original-successors output)))))
+                                        invalid-arcs)]
+    {:basis reattached-basis
+     :evicted-outputs detached-outputs}))
 
 (defn- remove-external-sarcs [graph known-external-arcs]
   ;; Remove all :sarcs that target external nodes and update :successors to
@@ -399,7 +453,8 @@
     (assert (pos? min-history-entry-index) "Cannot alter the beginning of history.")
     (let [graph-id (history-graph-id history)
           {detached-basis :basis
-           detached-arcs :detached-arcs} (detach-graph basis graph-id)
+           detached-arcs :detached-arcs
+           detached-output-successors :detached-output-successors} (detach-graph basis graph-id)
           {rewound-graph :graph
            rewound-history :history
            rewound-outputs :outputs-to-refresh} (rewind-history history (dec min-history-entry-index) detached-arcs)
@@ -407,7 +462,7 @@
            replayed-history :history
            replayed-outputs :outputs-to-refresh} (replay-history rewound-history rewound-basis history undo-group-by-history-entry-index node-id-generators override-id-generator)
           {reattached-basis :basis
-           reattached-outputs :outputs-to-refresh} (reattach-graph basis graph detached-arcs)]
+           reattached-outputs :outputs-to-refresh} (reattach-graph basis graph detached-arcs detached-output-successors)]
       (finalize
         {:basis altered-basis
          :context-after (:context-after (history max-history-entry-index))

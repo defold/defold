@@ -128,6 +128,55 @@
          true-results (get groups true empty-group)]
      (pair false-results true-results))))
 
+(defn classify
+  "Create a recursive grouping by applyling a sequence of key-fns to each
+  element in a collection. Returns a nested map of keys to groups, eventually
+  culminating in a sequence of items. You specify the empty collection to use
+  for the groups. If the optional value-fn is supplied, it will be used to
+  transform each element before adding them to the groups at the leaf level."
+  ([groups-container empty-group key-fns coll]
+   (classify groups-container empty-group key-fns nil coll))
+  ([groups-container empty-group key-fns value-fn coll]
+   (if-some [key-fn (first key-fns)]
+     (into groups-container
+           (map (juxt key
+                      (comp (partial classify
+                                     (empty groups-container)
+                                     empty-group
+                                     (next key-fns)
+                                     value-fn)
+                            val)))
+           (group-into {} [] key-fn nil coll))
+     (cond
+       (some? value-fn)
+       (into empty-group (map value-fn) coll)
+
+       (not= [] empty-group)
+       (into empty-group coll)
+
+       :else
+       coll))))
+
+(defn deep-merge
+  "Merge two nested data structures recursively using `(into coll-a coll-b)`.
+  Values of conflicting map keys will be merged with a recursive call."
+  [coll-a coll-b]
+  (cond
+    (map? coll-a)
+    (into coll-a
+          (map (fn [[key-b :as entry-b]]
+                 (if-some [entry-a (find coll-a key-b)]
+                   [key-b (deep-merge (val entry-a)
+                                      (val entry-b))]
+                   entry-b)))
+          coll-b)
+
+    (coll? coll-a)
+    (into coll-a coll-b)
+
+    :else
+    coll-b))
+
 (defn filterm [pred m]
   "like filter but applys the predicate to each key value pair of the map"
   (into {} (filter pred m)))
