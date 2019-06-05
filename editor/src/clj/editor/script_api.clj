@@ -157,9 +157,14 @@
   [project self resource]
   (let [si (project/script-intelligence project)]
     (concat (g/connect self :completions si :lua-completions)
-            (g/connect self :build-errors si :build-errors)
             (when (resource/file-resource? resource)
-              (g/connect self :save-data project :save-data)))))
+              ;; Only connect to the script-intelligence build errors if this is
+              ;; a file resource. The assumption is that if it is a file
+              ;; resource then it is being actively worked on. Otherwise it
+              ;; belongs to an external dependency and should not stop the build
+              ;; on errors.
+              (concat (g/connect self :build-errors si :build-errors)
+                      (g/connect self :save-data project :save-data))))))
 
 (defn register-resource-types
   [workspace]
