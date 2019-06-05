@@ -1,0 +1,353 @@
+-- helper function for general tests in init() function
+-- does a pcall and verify that it fails
+local function assert_error(func)
+    local r, err = pcall(func)
+    if not r then
+        print(err)
+    end
+    assert(not r)
+end
+
+-- reusable zero point
+local zp = vmath.vector3(0)
+
+function init(self)
+
+    physics.set_gravity(vmath.vector3(0, -100, 0))
+
+    self.a = "joint_test_a"
+    self.a_coll = self.a .. "#collisionobject"
+    self.b = "joint_test_b"
+    self.b_coll = self.b .. "#collisionobject"
+    self.joint_id = "test_joint"
+
+    -- FAIL, test invalid parameters
+    assert_error(function() physics.create_joint() end)
+    assert_error(function() physics.create_joint(self.a) end)
+    assert_error(function() physics.create_joint(physics.JOINT_TYPE_SPRING) end)
+    assert_error(function() physics.create_joint(physics.JOINT_TYPE_SPRING, self.a) end)
+    assert_error(function() physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll) end)
+    assert_error(function() physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, nil) end)
+    assert_error(function() physics.create_joint(physics.JOINT_TYPE_SPRING, ".", "asd") end)
+    assert_error(function() physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id) end)
+    assert_error(function() physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id, zp) end)
+    assert_error(function() physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id, zp, self.b_coll) end)
+
+    -- Successfully create one joint on obj a
+    physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id, zp, self.b_coll, zp)
+
+    -- FAIL, should not be able to create two joints with same name
+    assert_error(function() physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id, zp, self.b_coll, zp) end)
+    physics.destroy_joint(self.a_coll, self.joint_id)
+
+    -- Connect and disconnect multiple times, different joint types
+    physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id, zp, self.b_coll, zp)
+    physics.destroy_joint(self.a_coll, self.joint_id)
+    physics.create_joint(physics.JOINT_TYPE_FIXED, self.a_coll, self.joint_id, zp, self.b_coll, zp)
+    physics.destroy_joint(self.a_coll, self.joint_id)
+    physics.create_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp)
+    physics.destroy_joint(self.a_coll, self.joint_id)
+    physics.create_joint(physics.JOINT_TYPE_SLIDER, self.a_coll, self.joint_id, zp, self.b_coll, zp)
+    physics.destroy_joint(self.a_coll, self.joint_id)
+
+    -- Recreate with joint specific parameters + verify properties
+    local properties = {}
+    physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id, zp, self.b_coll, zp, { length = 5 })
+    properties = physics.get_joint_properties(self.a_coll, self.joint_id)
+    assert(properties.length == 5)
+    physics.destroy_joint(self.a_coll, self.joint_id)
+
+    physics.create_joint(physics.JOINT_TYPE_FIXED, self.a_coll, self.joint_id, zp, self.b_coll, zp, { max_length = 5 })
+    properties = physics.get_joint_properties(self.a_coll, self.joint_id)
+    assert(properties.max_length == 5)
+    physics.destroy_joint(self.a_coll, self.joint_id)
+
+    physics.create_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp, { lower_angle = 0, upper_angle = 10, enable_limit = true })
+    properties = physics.get_joint_properties(self.a_coll, self.joint_id)
+    assert(properties.lower_angle == 0)
+    assert(properties.upper_angle == 10)
+    assert(properties.enable_limit)
+    physics.destroy_joint(self.a_coll, self.joint_id)
+
+    physics.create_joint(physics.JOINT_TYPE_SLIDER, self.a_coll, self.joint_id, zp, self.b_coll, zp, { enable_motor = true, lower_translation = 10, upper_translation = 20 })
+    properties = physics.get_joint_properties(self.a_coll, self.joint_id)
+    assert(properties.enable_motor)
+    assert(properties.lower_translation == 10)
+    assert(properties.upper_translation == 20)
+    physics.destroy_joint(self.a_coll, self.joint_id)
+end
+
+-- helper functions to verify test data.
+-- throws a Lua error if the assert(s) fails.
+local function assert_near(a, b)
+    local eps = 0.001
+    local diff = math.abs(a - b)
+    if not (diff < eps) then
+        local err_msg = "assert_near failed, a: " .. tostring(a) .. ", b: " .. tostring(b) .. " diff == " .. tostring(diff) .. " >= " .. tostring(eps)
+        error(debug.traceback(err_msg))
+    end
+end
+
+local function assert_true(a)
+    if not a then
+        local err_msg = "assert_true failed, a: " .. tostring(a)
+        error(debug.traceback(err_msg))
+    end
+end
+
+-- helper function to create a new GO with a dynamic collisionobject component.
+-- used to avoid having to reset the same GO between test runs (since set_position
+-- doesn't work for dynamic collision objects).
+local function new_b_obj(self, pos)
+    -- delete previous B obj
+    go.delete(self.b)
+
+    -- yield so we are sure the old B obj is removed
+    coroutine.yield()
+
+    -- spawn a new b object with the factory
+    local new_b = factory.create(self.a .. "#factory", pos)
+    self.b = new_b
+
+    -- update the collisionobject url
+    local t_url = msg.url(new_b)
+    t_url.fragment = "collisionobject"
+    self.b_coll = t_url
+end
+
+-- joint type enum to string
+-- helper function to print joint type during tests
+local joint_type_to_string = {
+    [physics.JOINT_TYPE_SPRING] = "JOINT_TYPE_SPRING",
+    [physics.JOINT_TYPE_FIXED] = "JOINT_TYPE_FIXED",
+    [physics.JOINT_TYPE_HINGE] = "JOINT_TYPE_HINGE",
+    [physics.JOINT_TYPE_SLIDER] = "JOINT_TYPE_SLIDER",
+}
+
+-- list of test
+-- each test has a function that will be turned into a coroutine,
+-- this means that each test can yield between test steps,
+-- effectively kicking the engine step.
+local joint_tests = {
+    {
+        joint_type = physics.JOINT_TYPE_SPRING,
+        test_func = function(self, dt)
+            go.set_position(zp, self.a)
+            new_b_obj(self, vmath.vector3(0,-5,0))
+
+            -- Setup SPRING joint with length 5
+            physics.create_joint(physics.JOINT_TYPE_SPRING, self.a_coll, self.joint_id, zp, self.b_coll, zp, { length = 5 })
+
+            -- give it a few updates to let the physics sim settle
+            coroutine.yield()
+            coroutine.yield()
+
+            -- Verify that position for B is at ~length 5 from A
+            local p_a = go.get_position(self.a)
+            local p_b = go.get_position(self.b)
+            local length = vmath.length(p_a - p_b)
+            assert_near(length, 5)
+            assert_near(p_b.x, 0)
+
+            -- Move A
+            go.set_position(vmath.vector3(5,0,0), self.a)
+
+            -- give it a few updates to let the physics sim settle
+            coroutine.yield()
+            coroutine.yield()
+            coroutine.yield()
+            coroutine.yield()
+
+            -- Verify that position for B is STILL at ~length 5
+            local p_a = go.get_position(self.a)
+            local p_b = go.get_position(self.b)
+            local length = vmath.length(p_a - p_b)
+            assert_near(length, 5)
+
+            -- Cleanup, for next test
+            physics.destroy_joint(self.a_coll, self.joint_id)
+        end
+    },
+    {
+        joint_type = physics.JOINT_TYPE_FIXED,
+        test_func = function(self, dt)
+            go.set_position(zp, self.a)
+            new_b_obj(self, vmath.vector3(0,-5,0))
+
+            -- Setup FIXED joint with length 5
+            physics.create_joint(physics.JOINT_TYPE_FIXED, self.a_coll, self.joint_id, zp, self.b_coll, zp, { max_length = 5 })
+
+            -- give it a few updates to let the physics sim settle
+            coroutine.yield()
+            coroutine.yield()
+
+            -- Verify that position for B is at ~length 5 from A
+            local p_a = go.get_position(self.a)
+            local p_b = go.get_position(self.b)
+            local length = vmath.length(p_a - p_b)
+            assert_near(length, 5)
+            assert_near(p_b.x, 0)
+
+            -- Move A
+            go.set_position(vmath.vector3(5,0,0), self.a)
+
+            -- give it a few updates to let the physics sim settle
+            coroutine.yield()
+            coroutine.yield()
+            coroutine.yield()
+            coroutine.yield()
+
+            -- Verify that position for B is STILL at ~length 5
+            local p_a = go.get_position(self.a)
+            local p_b = go.get_position(self.b)
+            local length = vmath.length(p_a - p_b)
+            assert_near(length, 5)
+
+            -- Cleanup, for next test
+            physics.destroy_joint(self.a_coll, self.joint_id)
+        end
+    },
+    {
+        joint_type = physics.JOINT_TYPE_HINGE,
+        test_func = function(self, dt)
+            go.set_position(zp, self.a)
+            new_b_obj(self, vmath.vector3(0,-5,0))
+
+            -- Setup HINGE joint with motor enabled
+            physics.create_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp, { max_motor_torque = 100, motor_speed = 10.0, enable_motor = true })
+
+            local orig_rotation = go.get(self.b, "euler.z")
+
+            -- give it a few updates to let the physics sim settle
+            coroutine.yield()
+            coroutine.yield()
+
+            -- The hinge is welded together, the distance should be 0
+            local p_a = go.get_position(self.a)
+            local p_b = go.get_position(self.b)
+            local length = vmath.length(p_a - p_b)
+            assert_near(0, length)
+            assert_near(0, p_b.x)
+
+            -- Verify that B obj has rotated (due to motor)
+            local new_rotation = go.get(self.b, "euler.z")
+            assert_true(new_rotation > orig_rotation)
+            orig_rotation = new_rotation
+
+            -- Move A
+            go.set_position(vmath.vector3(5,0,0), self.a)
+
+            -- give it a few updates to let the physics sim settle
+            coroutine.yield()
+            coroutine.yield()
+            coroutine.yield()
+            coroutine.yield()
+
+            -- Position should have changed, but distance should not.
+            local p_a = go.get_position(self.a)
+            local p_b = go.get_position(self.b)
+            local length = vmath.length(p_a - p_b)
+            assert_near(0, length)
+            assert_near(5, p_b.x)
+
+            -- Verify that B obj has rotated even more
+            local new_rotation = go.get(self.b, "euler.z")
+            assert_true(new_rotation > orig_rotation)
+
+            -- Cleanup, for next test
+            physics.destroy_joint(self.a_coll, self.joint_id)
+        end
+    },
+    {
+        joint_type = physics.JOINT_TYPE_SLIDER,
+        test_func = function(self, dt)
+            go.set_position(zp, self.a)
+            new_b_obj(self, zp)
+
+            -- Setup SLIDER joint with motor enabled
+            physics.create_joint(physics.JOINT_TYPE_SLIDER, self.a_coll, self.joint_id, zp, self.b_coll, zp, { local_axis_a = vmath.vector3(0,1,0), lower_translation = 0, upper_translation = 10, enable_limit = true })
+
+            -- give it a few updates to let the physics sim settle
+            coroutine.yield()
+            coroutine.yield()
+
+            local p_a = go.get_position(self.a)
+            local p_b = go.get_position(self.b)
+            local length = vmath.length(p_a - p_b)
+            assert_near(0, length)
+            assert_near(0, p_b.x)
+
+            -- Turn on motor
+            local current_properties = physics.get_joint_properties(self.a_coll, self.joint_id)
+            current_properties.enable_motor = true
+            current_properties.motor_speed = 100
+            current_properties.max_motor_force = 10000
+            physics.set_joint_properties(self.a_coll, self.joint_id, current_properties)
+
+            -- give it a few updates to let the physics sim settle
+            coroutine.yield()
+            coroutine.yield()
+            coroutine.yield()
+            coroutine.yield()
+            coroutine.yield()
+            coroutine.yield()
+
+            -- Verify that the position has changed to end of upper limit (10)
+            local p_a = go.get_position(self.a)
+            local p_b = go.get_position(self.b)
+            local length = vmath.length(p_a - p_b)
+            assert_near(10, length)
+            assert_near(0, p_b.x)
+
+            -- Move obj A on x-axis, make sure that obj B follows along.
+            go.set_position(vmath.vector3(10, 0, 0), self.a)
+            coroutine.yield()
+            coroutine.yield()
+            coroutine.yield()
+
+            local p_a = go.get_position(self.a)
+            local p_b = go.get_position(self.b)
+            local length = vmath.length(p_a - p_b)
+            assert_near(10, length)
+            assert_near(10, p_b.x)
+
+            -- Cleanup, for next test
+            physics.destroy_joint(self.a_coll, self.joint_id)
+        end
+    }
+}
+local current_test = nil
+tests_done = false
+
+-- Simulate each joint type, verify the state
+-- Sets tests_done to true when finished
+function update(self, dt)
+
+    if not current_test then
+        current_test = table.remove(joint_tests, 1)
+
+        if not current_test then
+            print("All tests done!")
+            tests_done = true
+        else
+            print("Running test for: " .. joint_type_to_string[current_test.joint_type])
+            current_test.co = coroutine.create(current_test.test_func)
+        end
+
+    else
+        local status = coroutine.status(current_test.co)
+
+        if status == "dead" then
+            print("Finished test for: " .. joint_type_to_string[current_test.joint_type])
+            current_test = nil
+            return
+        end
+        local r, err = coroutine.resume(current_test.co, self, dt)
+        if not r then
+            print("Test failed: " .. err)
+            assert(false)
+        end
+    end
+
+
+end
