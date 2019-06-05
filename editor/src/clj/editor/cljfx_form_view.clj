@@ -16,12 +16,10 @@
             [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace])
-  (:import [javafx.event Event ActionEvent]
+  (:import [javafx.event Event]
            [javafx.scene Node]
-           [javafx.scene.control ListView$EditEvent TextInputControl]
-           [javafx.scene.layout Region]
+           [javafx.scene.control ListView$EditEvent TextInputControl ScrollPane]
            [javafx.scene.input KeyEvent KeyCode]
-           [javafx.stage Popup]
            [javafx.util StringConverter]))
 
 (set! *warn-on-reflection* true)
@@ -94,6 +92,16 @@
 (defmethod handle-event :filter-key-pressed [{:keys [^KeyEvent fx/event ui-state]}]
   (when (= KeyCode/ESCAPE (.getCode event))
     {:set-ui-state (assoc ui-state :filter-term "")}))
+
+(defmethod handle-event :jump-to [{:keys [section ^Node parent]}]
+  (let [^ScrollPane scroll-pane (.lookup parent "#scroll-pane")
+        ^Node node (.lookup parent (str "#" section))
+        content-height (-> scroll-pane .getContent .getBoundsInLocal .getHeight)
+        viewport-height (-> scroll-pane .getViewportBounds .getHeight)]
+    (when (> content-height viewport-height)
+      (.setVvalue scroll-pane (/ (- (.getMinY (.getBoundsInParent node))
+                                    24) ;; form padding
+                                 (- content-height viewport-height))))))
 
 ;; endregion
 
@@ -289,8 +297,9 @@
 
 ;; endregion
 
-(defn- make-row [values ui-state resource-string-converter row {:keys [path label help visible] :as field}]
-  (let [value (get values path ::no-value)
+(defn- make-row [values ui-state resource-string-converter row field]
+  (let [{:keys [path label help visible]} field
+        value (get values path ::no-value)
         state (get ui-state path ::no-value)
         error (settings/get-setting-error
                 (if (= value ::no-value) nil value)
@@ -352,6 +361,7 @@
 
 (defn- section-view [{:keys [title help fields values ui-state resource-string-converter visible]}]
   {:fx/type :v-box
+   :id title
    :visible visible
    :managed visible
    :children (cond-> []
@@ -376,12 +386,16 @@
                                                   :max-width cell-height}
                                                  {:fx/type :column-constraints
                                                   :hgrow :always
-                                                  :min-width 250
+                                                  :min-width 200
                                                   :max-width 400}]
                             :children (first
                                         (reduce
                                           (fn [[acc row] field]
-                                            [(into acc (make-row values ui-state resource-string-converter row field))
+                                            [(into acc (make-row values
+                                                                 ui-state
+                                                                 resource-string-converter
+                                                                 row
+                                                                 field))
                                              (if (:visible field) (inc row) row)])
                                           [[] 0]
                                           fields))}))})
@@ -437,7 +451,37 @@
         (assoc :visible (or visible (boolean (some :visible fields)))
                :fields fields))))
 
+(defn- filter-text-field [{:keys [text]}]
+  {:fx/type :text-field
+   :id "filter-text-field"
+   :style-class ["text-field" "filter-text-field"]
+   :prompt-text "Filter"
+   :text text
+   :on-key-pressed {:event-type :filter-key-pressed}
+   :on-text-changed {:event-type :filter-text-changed}})
+
 ;; endregion
+
+(defn- make-section-views [sections values ui-state resource-string-converter]
+  (first
+    (reduce
+      (fn
+        ([[acc seen-visible] section]
+         (let [section-view (assoc section
+                              :fx/type section-view
+                              :values values
+                              :ui-state ui-state
+                              :resource-string-converter resource-string-converter)
+               visible (:visible section)]
+           (if (empty? acc)
+             [(conj acc section-view) visible]
+             [(into acc [{:fx/type :separator
+                          :visible (and seen-visible visible)
+                          :managed (and seen-visible visible)}
+                         section-view])
+              (or seen-visible visible)]))))
+      [[] false]
+      sections)))
 
 (defn- form-view [{:keys [parent form-data ui-state resource-string-converter]}]
   (let [{:keys [sections values]} form-data
@@ -448,75 +492,44 @@
                              (comp
                                (filter :visible)
                                (map :title))
-                             sections-with-visibility)]
+                             sections-with-visibility)
+        section-views (make-section-views sections-with-visibility
+                                          values
+                                          ui-state
+                                          resource-string-converter)]
     {:fx/type with-anchor-pane-props
      :desc {:fx/type fxui/ext-value
             :value parent}
-     :props {:focus-traversable true
-             :children [{:fx/type :v-box
+     :props {:children [{:fx/type :h-box
                          :style-class "cljfx-form-floating-area"
                          :anchor-pane/top 24
                          :anchor-pane/right 24
                          :view-order 0
-                         :padding 12
-                         :spacing 8
-                         :children [{:fx/type :text-field
-                                     :id "filter-text-field"
-                                     :style-class ["text-field" "filter-text-field"]
-                                     :prompt-text "Filter"
-                                     :text filter-term
-                                     :on-key-pressed {:event-type :filter-key-pressed}
-                                     :on-text-changed {:event-type :filter-text-changed}}
-                                    {:fx/type :h-box
-                                     :children [{:fx/type :label
-                                                 :h-box/hgrow :always
-                                                 :max-width Double/MAX_VALUE
-                                                 :text "Jump to"}
-                                                {:fx/type :image-view
-                                                 :image "icons/32/Icons_S_05_arrowdown.png"}]}
-                                    {:fx/type :text-field
-                                     :text "Jump to"
-                                     :on-action (fn [^ActionEvent e]
-                                                  (let [^Region node (.getSource e)
-                                                        p (.localToScreen node 0 (.getHeight node))]
-                                                    (fx/create-component
-                                                      {:fx/type fx/ext-on-instance-lifecycle
-                                                       :on-created #(.show ^Popup % (ui/main-stage) (.getX p) (.getY p))
-                                                       :desc {:fx/type :popup
-                                                              :auto-hide true
-                                                              :content [{:fx/type :v-box
-                                                                         :children (for [x visible-titles]
-                                                                                     {:fx/type :label
-                                                                                      :style {:-fx-background-color :red}
-                                                                                      :text x})}]}})))}]}
-                        {:fx/type :scroll-pane
+                         :children [{:fx/type filter-text-field
+                                     :text filter-term}
+                                    {:fx/type :menu-button
+                                     :text "Jump to..."
+                                     :style-class "jump-to-menu-button"
+                                     :disable (empty? visible-titles)
+                                     :items (mapv (fn [title]
+                                                    {:fx/type :menu-item
+                                                     :on-action {:event-type :jump-to
+                                                                 :section title}
+                                                     :text (display-title-text title)})
+                                                  (sort visible-titles))}]}
+                        {:fx/type fx/ext-on-instance-lifecycle
                          :anchor-pane/top 0
                          :anchor-pane/right 0
                          :anchor-pane/bottom 0
                          :anchor-pane/left 0
-                         :view-order 1
-                         :fit-to-width true
-                         :content {:fx/type :v-box
-                                   :style-class "cljfx-form"
-                                   :children (first
-                                               (reduce
-                                                 (fn
-                                                   ([[acc seen-visible] section]
-                                                    (let [section-view (assoc section
-                                                                         :fx/type section-view
-                                                                         :values values
-                                                                         :ui-state ui-state
-                                                                         :resource-string-converter resource-string-converter)
-                                                          visible (:visible section)]
-                                                      (if (empty? acc)
-                                                        [(conj acc section-view) visible]
-                                                        [(into acc [{:fx/type :separator
-                                                                     :visible (and seen-visible visible)
-                                                                     :managed (and seen-visible visible)}
-                                                                    section-view])
-                                                         (or seen-visible visible)]))))
-                                                 [[] false]
-                                                 sections-with-visibility))}}]}}))
+                         :on-created #(ui/context! % :form {:root parent} nil)
+                         :desc {:fx/type :scroll-pane
+                                :id "scroll-pane"
+                                :view-order 1
+                                :fit-to-width true
+                                :content {:fx/type :v-box
+                                          :style-class "cljfx-form"
+                                          :children section-views}}}]}}))
 
 (defn- wrap-force-refresh [f view-id]
   (fn [event]
@@ -533,7 +546,8 @@
                    {:ui-state #(g/node-value view-id :ui-state)
                     :form-data #(g/node-value view-id :form-data)
                     :workspace (constantly workspace)
-                    :project (constantly project)})
+                    :project (constantly project)
+                    :parent (constantly parent)})
                  (fx/wrap-effects
                    {:set (fn [[path value] _]
                            (let [ops (:form-ops (g/node-value view-id :form-data))]
@@ -563,7 +577,10 @@
 (defn- make-form-view [graph parent resource-node opts]
   (let [{:keys [workspace project tab]} opts
         view-id (-> (g/make-nodes graph [view [CljfxFormView]]
-                      (g/set-property view :renderer (create-renderer view parent workspace project))
+                      (g/set-property view :renderer (create-renderer view
+                                                                      parent
+                                                                      workspace
+                                                                      project))
                       (g/connect resource-node :form-data view :form-data))
                     g/transact
                     g/tx-nodes-added
@@ -573,7 +590,6 @@
                                     (g/node-value view-id :form-view)))]
     (ui/timer-start! repaint-timer)
     (ui/timer-stop-on-closed! tab repaint-timer)
-    (ui/context! parent :form {:root parent} nil)
     view-id))
 
 (defn register-view-types [workspace]

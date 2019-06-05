@@ -343,14 +343,15 @@
 (def ^:private default-allowed-duplicate-shortcuts
   #{"Alt+Down"
     "Alt+Up"
+    "Ctrl+F"
+    "Ctrl+H"
+    "F5"
+    "Meta+F"
     "Shift+Down"
     "Shift+Left"
     "Shift+Right"
     "Shift+Up"
-    "Ctrl+F"
-    "Ctrl+H"
-    "Space"
-    "F5"})
+    "Space"})
 
 ;; These are only (?) used in contexts where there is no text field
 ;; interested in the actual typable input.

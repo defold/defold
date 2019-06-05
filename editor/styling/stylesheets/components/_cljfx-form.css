@@ -82,23 +82,54 @@
 
 $floating-input-border: #56595d;
 
+@mixin floating-input() {
+  -fx-border-color: $floating-input-border;
+  -fx-border-radius: 2px;
+  -fx-background-radius: 3px;
+  -fx-pref-width: 120px;
+  -fx-background-position: right 6px center;
+  -fx-background-repeat: no-repeat;
+  -fx-padding: 4px 22px 4px 8px;
+}
+
 .cljfx-form-floating-area {
   -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 8, 0, 0, 4);
   -fx-background-color: $mid-grey;
   -fx-background-radius: 6px;
+  -fx-padding: 12px;
+  -fx-spacing: 8px;
+
   .filter-text-field {
-    -fx-border-color: $floating-input-border;
-    -fx-border-radius: 2px;
+    @include floating-input();
     -fx-background-color: rgba(0, 0, 0, 0.1);
-    -fx-background-radius: 3px;
     -fx-background-image: url("icons/32/Icons_M_09_search.png");
-    -fx-background-position: right 6px center;
-    -fx-background-repeat: no-repeat;
     -fx-background-size: 15px;
+    -fx-cursor: text;
     &:focused {
+      -fx-padding: 4px 22px 3px 8px;
       -fx-background-color: $root-background;
       -fx-border-color: $floating-input-border $floating-input-border $defold-orange $floating-input-border;
     }
   }
 
+  .jump-to-menu-button {
+    @include floating-input();
+    -fx-focus-traversable: false;
+    -fx-background-color: $mid-grey;
+    -fx-background-image: url("icons/32/Icons_S_05_arrowdown.png");
+
+    &:hover {
+      -fx-background-color: $grey;
+    }
+    &:disabled {
+      .label {
+        -fx-opacity: 1;
+      }
+      -fx-opacity: 0.4;
+    }
+    .label {
+      -fx-alignment: center-left;
+    }
+
+  }
 }
