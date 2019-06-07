@@ -369,11 +369,18 @@ public class BundleHelper {
     public List<ExtenderResource> generateAndroidResources(Project project, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError, IOException {
         List<String> resourceDirectories = new ArrayList<>();
 
-        BundleHelper.createAndroidResourceFolders(resDir);
+        // File extensionsFolderResources = new File(extensionsFolder, "res");
+        // extensionsFolderResources.mkdir();
 
         // Get all Android specific resources needed to create R.java files
+        BundleHelper.createAndroidResourceFolders(resDir);
+        copyAndroidIcons(resDir);
+
+        File extensionsFolder = new File(tmpDir, "extensions");
+        extensionsFolder.mkdir();
+
         Map<String, IResource> resources = ExtenderUtil.getAndroidResources(project);
-        ExtenderUtil.storeAndroidResources(resDir, resources);
+        ExtenderUtil.storeAndroidResources(extensionsFolder, resources);
 
         Map<String, Object> bundleContext = null;
         {
@@ -389,9 +396,13 @@ public class BundleHelper {
             }
         }
 
-        resourceDirectories.add(resDir.getAbsolutePath());
+        for (File file : extensionsFolder.listFiles()) {
+            if (file.isDirectory()) {
+                resourceDirectories.add(file.getAbsolutePath());
+            }
+        }
 
-        copyAndroidIcons(resDir);
+        resourceDirectories.add(resDir.getAbsolutePath());
 
         // Run aapt to generate R.java files
         //     <tmpDir>/rjava - Output directory of aapt, all R.java files will be stored here

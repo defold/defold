@@ -607,6 +607,7 @@ public class ExtenderUtil {
     public static void storeAndroidResources(File targetDirectory, Map<String, IResource> resources) throws IOException, CompileExceptionError {
         for (String relativePath : resources.keySet()) {
             IResource r = resources.get(relativePath);
+
             File outputFile = new File(targetDirectory, relativePath);
             if (!outputFile.getParentFile().exists()) {
                 outputFile.getParentFile().mkdirs();
@@ -624,6 +625,7 @@ public class ExtenderUtil {
         if (!folder.exists()) {
             return dirs;
         }
+
         for (File file : folder.listFiles()) {
             if (file.isDirectory()) {
                 dirs.add(file.getAbsolutePath());
@@ -648,10 +650,8 @@ public class ExtenderUtil {
             if (bundleResourcesPath.length() > 0) {
                 for (String platformAlt : platformFolderAlternatives) {
                     String path = FilenameUtils.concat(bundleResourcesPath, platformAlt);
-                    for (String subdir : ExtenderUtil.getDirectoriesOnDisc(path)) {
-                        Map<String, IResource> projectBundleResources = ExtenderUtil.collectResources(project, subdir, bundleExcludeList);
-                        mergeBundleMap(androidResources, projectBundleResources);
-                    }
+                    Map<String, IResource> projectBundleResources = ExtenderUtil.collectResources(project, path, bundleExcludeList);
+                    mergeBundleMap(androidResources, projectBundleResources);
                 }
             }
         }
@@ -661,10 +661,8 @@ public class ExtenderUtil {
         for (String extension : extensionFolders) {
             for (String platformAlt : platformFolderAlternatives) {
                 String path = FilenameUtils.concat("/" + extension, "res/" + platformAlt);
-                for (String subdir : ExtenderUtil.getDirectoriesOnDisc(path)) {
-                    Map<String, IResource> extensionBundleResources = ExtenderUtil.collectResources(project, subdir, bundleExcludeList);
-                    mergeBundleMap(androidResources, extensionBundleResources);
-                }
+                Map<String, IResource> extensionBundleResources = ExtenderUtil.collectResources(project, path, bundleExcludeList);
+                mergeBundleMap(androidResources, extensionBundleResources);
             }
         }
 
