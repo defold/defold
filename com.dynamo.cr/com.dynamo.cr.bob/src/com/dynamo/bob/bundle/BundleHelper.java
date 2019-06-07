@@ -369,9 +369,6 @@ public class BundleHelper {
     public List<ExtenderResource> generateAndroidResources(Project project, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError, IOException {
         List<String> resourceDirectories = new ArrayList<>();
 
-        // File extensionsFolderResources = new File(extensionsFolder, "res");
-        // extensionsFolderResources.mkdir();
-
         // Get all Android specific resources needed to create R.java files
         BundleHelper.createAndroidResourceFolders(resDir);
         copyAndroidIcons(resDir);
