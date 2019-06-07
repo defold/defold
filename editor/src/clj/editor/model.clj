@@ -111,10 +111,12 @@
                       true (assoc-in [:user-data :vertex-space] vertex-space)
                       true (update :batch-key
                                    (fn [old-key]
-                                     [old-key shader gpu-textures (case vertex-space
-                                                                    nil _node-id
-                                                                    :vertex-space-local _node-id
-                                                                    :vertex-space-world :vertex-space-world)])))))
+                                     ;; We can only batch-render models that use
+                                     ;; :vertex-space-world. In :vertex-space-local
+                                     ;; we must supply individual transforms for
+                                     ;; each model instance in the shader uniforms.
+                                     (when (= :vertex-space-world vertex-space)
+                                       [old-key shader gpu-textures]))))))
     {:aabb geom/empty-bounding-box
      :renderable {:passes [pass/selection]}}))
 

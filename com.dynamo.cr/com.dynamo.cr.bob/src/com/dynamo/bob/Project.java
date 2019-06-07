@@ -614,6 +614,8 @@ public class Project {
         IProgress m = monitor.subProgress(architectures.length);
         m.beginTask("Building engine...", 0);
 
+        final String variant = appmanifestOptions.get("baseVariant");
+
         // Build all skews of platform
         boolean androidResourcesGenerated = false;
         String outputDir = options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
@@ -657,7 +659,7 @@ public class Project {
                 String title = projectProperties.getStringValue("project", "title", "Unnamed");
                 String exeName = BundleHelper.projectNameToBinaryName(title);
 
-                BundleHelper helper = new BundleHelper(this, platform, tmpDir, "");
+                BundleHelper helper = new BundleHelper(this, platform, tmpDir, "", variant);
 
                 File manifestFile = new File(tmpDir, "AndroidManifest.xml"); // the final, merged manifest
                 IResource sourceManifestFile = helper.getResource("android", "manifest");

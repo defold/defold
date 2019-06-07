@@ -279,7 +279,7 @@ public class IOSBundler implements IBundler {
         }
         properties.put("orientation-support", orientationSupport);
 
-        BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app");
+        BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app", variant);
         helper.copyIosIcons();
 
         Platform targetPlatform = Platform.Armv7Darwin;

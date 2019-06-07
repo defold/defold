@@ -96,7 +96,7 @@ namespace dmProfile
             return;
         }
 
-        g_StringTable.SetCapacity(1024, 1200); // Rather arbitrary...
+        g_StringTable.SetCapacity(1024, 1536); // Rather arbitrary...
         g_StringPool = dmStringPool::New();
 
         if (g_Scopes.Capacity() == 0)
