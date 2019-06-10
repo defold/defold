@@ -334,8 +334,6 @@ Export-Package: com.amazonaws,
  org.joda.time.field,
  org.joda.time.format,
  org.joda.time.tz,
-<<<<<<< HEAD
-=======
  org.jsoup,
  org.jsoup.helper,
  org.jsoup.internal,
@@ -343,7 +341,6 @@ Export-Package: com.amazonaws,
  org.jsoup.parser,
  org.jsoup.safety,
  org.jsoup.select,
->>>>>>> def3923
  org.yaml.snakeyaml,
  org.yaml.snakeyaml.composer,
  org.yaml.snakeyaml.constructor,
