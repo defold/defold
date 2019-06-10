@@ -610,30 +610,17 @@ public class ExtenderUtil {
         }
     }
 
-    public static List<String> getDirectoriesOnDisc(String path) {
-        File folder = new File(path);
-        List<String> dirs = new ArrayList<String>();
-        if (!folder.exists()) {
-            return dirs;
-        }
-        for (File file : folder.listFiles()) {
-            if (file.isDirectory()) {
-                dirs.add(file.getAbsolutePath());
-            }
-        }
-        return dirs;
-    }
-
     public static Map<String, IResource> getAndroidResources(Project project) throws CompileExceptionError {
 
         Map<String, IResource> androidResources = new HashMap<String, IResource>();
         List<String> bundleExcludeList = trimExcludePaths(Arrays.asList(project.getProjectProperties().getStringValue("project", "bundle_exclude_resources", "").split(",")));
+        List<String> platformFolderAlternatives = new ArrayList<String>();
 
         List<String> armv7ExtenderPaths = new ArrayList<String>(Arrays.asList(Platform.Armv7Android.getExtenderPaths()));
         List<String> arm64ExtenderPaths = new ArrayList<String>(Arrays.asList(Platform.Arm64Android.getExtenderPaths()));
         Set<String> set = new LinkedHashSet<>(armv7ExtenderPaths);
         set.addAll(arm64ExtenderPaths);
-        List<String> platformFolderAlternatives = new ArrayList<>(set);
+        platformFolderAlternatives = new ArrayList<>(set);
 
         // Project specific bundle resources
         for (String bundleResourcesPath : getBundleResourcePaths(project)) {

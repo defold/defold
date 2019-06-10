@@ -1566,6 +1566,9 @@ namespace dmGameObject
      * frame. Note that game objects scheduled for deletion will be counted against
      * `max_instances` in "game.project" until they are actually removed.
      *
+     * [icon:attention] Deleting a game object containing a particle FX component emitting particles will not immediately stop the particle FX from emitting particles. You need to manually stop the particle FX using `particlefx.stop()`.
+     * [icon:attention] Deleting a game object containing a sound component that is playing will not immediately stop the sound from playing. You need to manually stop the sound using `sound.stop()`.
+     *
      * @name go.delete
      * @param [id] [type:string|hash|url|table] optional id or table of id's of the instance(s) to delete, the instance of the calling script is deleted by default
      * @param [recursive] [type:boolean] optional boolean, set to true to recursively delete child hiearchy in child to parent order

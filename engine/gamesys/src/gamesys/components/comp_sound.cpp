@@ -157,6 +157,8 @@ namespace dmGameSystem
      * Inversely, to find the linear value from a dB value, use the formula
      * <code>10<sup>db/20</sup></code>.
      *
+     * [icon:attention] A sound will continue to play even if the game object the sound component belonged to is deleted. You can send a `stop_sound` to stop the sound.
+     *
      * @message
      * @name play_sound
      * @param [delay] [type:number] delay in seconds before the sound starts playing, default is 0.
