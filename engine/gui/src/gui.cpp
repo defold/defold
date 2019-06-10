@@ -3587,7 +3587,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             const Animation* anim = &scene->m_Animations[i];
             if (value == anim->m_Value)
             {
-                //scene->m_Animations.EraseSwap(i);
+                // Make sure to invoke the callback when we are re-using the
+                // animation index so that we can clean up dangling ref's in
+                // the gui_script module.
+                if (anim->m_AnimationComplete)
+                {
+                    anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+                }
+
                 animation_index = i;
                 break;
             }
