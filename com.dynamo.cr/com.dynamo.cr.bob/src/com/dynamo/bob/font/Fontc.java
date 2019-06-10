@@ -41,6 +41,29 @@ import java.util.Comparator;
 import javax.imageio.ImageIO;
 
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.FileUtils;
+import java.awt.image.DataBufferByte;
+
+// import com.dynamo.bob.TexcLibrary;
+// import com.dynamo.bob.TexcLibrary.ColorSpace;
+// import com.dynamo.bob.TexcLibrary.DitherType;
+// import com.dynamo.bob.TexcLibrary.PixelFormat;
+//import com.dynamo.bob.TexcLibrary.CompressionLevel;
+//import com.dynamo.bob.TexcLibrary.CompressionType;
+// import com.dynamo.bob.TexcLibrary.FlipAxis;
+
+import com.dynamo.graphics.proto.Graphics.PlatformProfile;
+import com.dynamo.graphics.proto.Graphics.TextureImage;
+
+import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
+
+import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
+import com.dynamo.graphics.proto.Graphics.TextureImage.Type;
+
+import com.dynamo.graphics.proto.Graphics.TextureProfile;
+
+import com.dynamo.bob.pipeline.TextureGenerator;
+import com.dynamo.bob.pipeline.TextureGeneratorException;
 
 import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.BMFont.Char;
@@ -275,13 +298,6 @@ public class Fontc {
                       .setMaxDescent(maxDescent);
     }
 
-    // We use repeatedWrite to create a (cell) padding around the glyph bitmap data
-    private void repeatedWrite(ByteArrayOutputStream dataOut, int repeat, int value) {
-        for (int i = 0; i < repeat; i++) {
-            dataOut.write(value);
-        }
-    }
-
     private float getPaddedSdfSpread(float spreadInput)
     {
         // Make sure the output spread value is not zero. We distribute the distance values over
@@ -301,7 +317,7 @@ public class Fontc {
         return sdfLimitValue * (1.0f - sdf_edge) + sdf_edge;
     }
 
-    public BufferedImage generateGlyphData(boolean preview, final FontResourceResolver resourceResolver) throws FontFormatException {
+    public BufferedImage generateGlyphData(boolean preview, final FontResourceResolver resourceResolver) throws TextureGeneratorException, FontFormatException {
 
         ByteArrayOutputStream glyphDataBank = new ByteArrayOutputStream(1024*1024*4);
 
@@ -488,7 +504,6 @@ public class Fontc {
 
             // Generate bitmap for each glyph depending on format
             BufferedImage glyphImage = null;
-            int clearData = 0;
             if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_BITMAP &&
                 inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
                 glyphImage = drawGlyph(glyph, padding, font, blendComposite, faceColor, outlineColor, shadowConvolve);
@@ -498,7 +513,6 @@ public class Fontc {
             } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD &&
                        inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
                 glyphImage = makeDistanceField(glyph, padding, sdf_spread, sdf_shadow_spread, font, sdf_edge, shadowConvolve);
-                clearData = 0;
             } else {
                 throw new FontFormatException("Invalid font format combination!");
             }
@@ -510,43 +524,108 @@ public class Fontc {
             } else {
 
                 glyph.cache_entry_offset = dataOffset;
+
+                // TODO: Create a PadImage function
+                BufferedImage paddedGlyphImage = new BufferedImage(glyphImage.getWidth() + cell_padding * 2,
+                                                                    glyphImage.getHeight() + cell_padding * 2, BufferedImage.TYPE_3BYTE_BGR);
+
+                int clearData = 0;
+
+                int py = 0;
                 // Get raster data from rendered glyph and store in glyph data bank
-                int dataSizeOut = (glyphImage.getWidth() + cell_padding * 2) * (glyphImage.getHeight() + cell_padding * 2) * channelCount;
-
-                repeatedWrite(glyphDataBank, (glyphImage.getWidth() + cell_padding * 2) * channelCount, clearData);
-                for (int y = 0; y < glyphImage.getHeight(); y++) {
-
-                    repeatedWrite(glyphDataBank, channelCount, clearData);
-                    for (int x = 0; x < glyphImage.getWidth(); x++) {
+                for (int x = 0; x < paddedGlyphImage.getWidth(); ++x)
+                    paddedGlyphImage.setRGB(x, py, clearData);
+                py++;
+                //repeatedWrite(glyphData, (glyphImage.getWidth() + cell_padding * 2) * channelCount, clearData);
+                for (int y = 0; y < glyphImage.getHeight(); y++, py++) {
+                    int px = 0;
+                    paddedGlyphImage.setRGB(px++, py, clearData);
+                    for (int x = 0; x < glyphImage.getWidth(); x++, px++) {
 
                         int color = glyphImage.getRGB(x, y);
-                        int blue  = (color) & 0xff;
-                        int green = (color >> 8) & 0xff;
-                        int red   = (color >> 16) & 0xff;
-                        int alpha = (color >> 24) & 0xff;
-                        blue = (blue * alpha) / 255;
-                        green = (green * alpha) / 255;
-                        red = (red * alpha) / 255;
+                        paddedGlyphImage.setRGB(px, py, color);
+
+                        // int color = glyphImage.getRGB(x, y);
+                        // int blue  = (color) & 0xff;
+                        // int green = (color >> 8) & 0xff;
+                        // int red   = (color >> 16) & 0xff;
+                        // int alpha = (color >> 24) & 0xff;
+                        // blue = (blue * alpha) / 255;
+                        // green = (green * alpha) / 255;
+                        // red = (red * alpha) / 255;
 
 
-                        glyphDataBank.write((byte)red);
+                        // glyphData.write((byte)red);
 
-                        if (channelCount > 1) {
-                            glyphDataBank.write((byte)green);
-                            glyphDataBank.write((byte)blue);
+                        // if (channelCount > 1) {
+                        //     glyphData.write((byte)green);
+                        //     glyphData.write((byte)blue);
 
-                            if (channelCount > 3) {
+                        //     if (channelCount > 3) {
 
-                                glyphDataBank.write((byte)alpha);
-                            }
-                        }
+                        //         glyphData.write((byte)alpha);
+                        //     }
+                        // }
                     }
 
-                    repeatedWrite(glyphDataBank, channelCount, clearData);
+                    //repeatedWrite(glyphData, channelCount, clearData);
+                    paddedGlyphImage.setRGB(px++, py, clearData);
                 }
-                repeatedWrite(glyphDataBank, (glyphImage.getWidth() + cell_padding * 2) * channelCount, clearData);
-                dataOffset += dataSizeOut;
-                glyph.cache_entry_size = dataOffset - glyph.cache_entry_offset;
+                //repeatedWrite(glyphData, (glyphImage.getWidth() + cell_padding * 2) * channelCount, clearData);
+                for (int x = 0; x < paddedGlyphImage.getWidth(); ++x)
+                    paddedGlyphImage.setRGB(x, 0, clearData);
+
+                // TextureFormatAlternative.CompressionLevel compressionLevel = TextureFormatAlternative.CompressionLevel.BEST;
+                // TextureImage.CompressionType compressionType = TextureImage.CompressionType.CT_WEBP;
+                // TextureFormat textureFormat = TextureGenerator.pickOptimalFormat(channelCount, TextureGenerator.TEXTURE_FORMAT_RGBA);
+                // TextureImage.Image image = TextureGenerator.generateFromColorAndFormat( paddedGlyphImage,
+                //                                                                         paddedGlyphImage.getColorModel(),
+                //                                                                         textureFormat,
+                //                                                                         compressionLevel,
+                //                                                                         compressionType,
+                //                                                                         false, // no mipmaps
+                //                                                                         );
+
+                TextureFormatAlternative.CompressionLevel compressionLevel = TextureFormatAlternative.CompressionLevel.BEST;
+                TextureImage.CompressionType compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_WEBP;
+                TextureFormat textureFormat = TextureGenerator.pickOptimalFormat(channelCount, TextureFormat.TEXTURE_FORMAT_RGBA);
+
+                TextureFormatAlternative textureFormatAlternative = TextureFormatAlternative.newBuilder()
+                    .setFormat(textureFormat)
+                    .setCompressionLevel(compressionLevel)
+                    .setCompressionType(compressionType)
+                    .build();
+
+                PlatformProfile platformProfile = PlatformProfile.newBuilder()
+                    .setOs(PlatformProfile.OS.OS_ID_GENERIC)
+                    .setPremultiplyAlpha(true) // Premultiply alpha is default, but it's here for clarity
+                    .addFormats(textureFormatAlternative)
+                    .setMipmaps(false)
+                    .setMaxTextureSize(0) // keep original size
+                    .build();
+
+                TextureProfile textureProfile = TextureProfile.newBuilder()
+                    .setName("fontc")
+                    .addPlatforms(platformProfile)
+                    .build();
+
+
+                boolean compress = true;
+
+                try {
+                    TextureImage textureImages = TextureGenerator.generate(paddedGlyphImage, textureProfile, true);
+                    TextureImage.Image textureImage = textureImages.getAlternatives(0);
+
+                    //int maxTextureSize, boolean compress, boolean premulAlpha, EnumSet<FlipAxis> flipAxis
+
+                    // int dataSizeOut = (glyphImage.getWidth() + cell_padding * 2) * (glyphImage.getHeight() + cell_padding * 2) * channelCount;
+                    ByteString imageData = textureImage.getData();
+                    glyphDataBank.write(imageData.toByteArray());
+                    dataOffset += imageData.size();
+                    glyph.cache_entry_size = dataOffset - glyph.cache_entry_offset;
+                } catch(IOException e) {
+                    throw new TextureGeneratorException(String.format("Failed to generate font texture: %s", e.getMessage()));
+                }
             }
 
         }
@@ -606,6 +685,8 @@ public class Fontc {
     private BufferedImage drawBMFontGlyph(Glyph glyph, BufferedImage imageBMFontInput) {
         return imageBMFontInput.getSubimage(glyph.x, glyph.y, glyph.width, glyph.ascent + glyph.descent);
     }
+
+    int glyph_count = 0;
 
     private BufferedImage makeDistanceField(Glyph glyph, int padding, float sdf_spread, float sdf_shadow_spread, Font font, float edge, ConvolveOp shadowConvolve) {
         int width = glyph.width + padding * 2;
@@ -726,6 +807,26 @@ public class Fontc {
             }
         }
 
+        // File file = new File(String.format("../glyphs/glyph%d", glyph_count));
+
+        // byte[] imageBytes = ((DataBufferByte) image.getData().getDataBuffer()).getData();
+        // try {
+        //     FileUtils.writeByteArrayToFile(file, imageBytes);
+        //     System.out.println("Wrote " + file.getAbsolutePath());
+        // } catch (IOException e) {
+        //     System.out.println("Failed to write " + file.getAbsolutePath());
+        // }
+
+        // File imageFile = new File(String.format("../glyphs/glyph%d.png", glyph_count));
+        // try {
+        //     ImageIO.write(image, "png", imageFile);
+        //     System.out.println("Wrote " + imageFile.getAbsolutePath());
+        // } catch (IOException e) {
+        //     System.out.println("Failed to write " + file.getAbsolutePath());
+        // }
+
+        glyph_count++;
+
         return image;
     }
 
@@ -832,7 +933,7 @@ public class Fontc {
         return fontMapLayerMask;
     }
 
-    public BufferedImage compile(InputStream fontStream, FontDesc fontDesc, boolean preview, final FontResourceResolver resourceResolver) throws FontFormatException, IOException {
+    public BufferedImage compile(InputStream fontStream, FontDesc fontDesc, boolean preview, final FontResourceResolver resourceResolver) throws FontFormatException, TextureGeneratorException, IOException {
         this.fontDesc = fontDesc;
         this.fontMapBuilder = FontMap.newBuilder();
 
@@ -891,7 +992,7 @@ public class Fontc {
         return previewImage;
     }
 
-    public static void main(String[] args) throws FontFormatException {
+    public static void main(String[] args) throws FontFormatException, TextureGeneratorException {
         try {
             System.setProperty("java.awt.headless", "true");
             if (args.length != 2 && args.length != 3 && args.length != 4)    {
