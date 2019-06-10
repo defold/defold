@@ -29,30 +29,46 @@
   [invalidate-map entries]
   (reduce (fn [m entry] (update m entry (fnil unchecked-inc 0))) invalidate-map entries))
 
+(defn affected-outputs
+  "Given a sequence of [node-id output-label], returns a sequence that also
+  includes successor outputs that are recursively affected."
+  [basis outputs]
+  ;; The 'gr/dependencies' function takes a map in the format {node-id #{label}},
+  ;; whereas outputs is a sequence of [node-id label] pairs. We need to convert
+  ;; the sequence into a map and back.
+  (let [queried-label-sets-by-node-id (util/group-into {} #{} first second outputs)
+        affected-label-sets-by-node-id (gt/dependencies basis queried-label-sets-by-node-id)]
+    (into []
+          (mapcat (fn [[node-id labels]]
+                    (map (fn [label]
+                           [node-id label])
+                         labels)))
+          affected-label-sets-by-node-id)))
+
+(defn invalidate-explicit-outputs
+  "Invalidate the given outputs specifically. Does not invalidate successor
+  outputs that are affected by these outputs. To obtain the full sequence of
+  affected outputs, use the affected-outputs function. Outputs are specified as
+  pairs of [node-id output-label]."
+  [system explicit-outputs]
+  (-> system
+      (update :cache c/cache-invalidate explicit-outputs)
+      (update :invalidate-counters bump-invalidate-counters explicit-outputs)))
+
 (defn invalidate-outputs
   "Invalidate the given outputs and _everything_ that could be
   affected by them. Outputs are specified as pairs of [node-id label]
   for both the argument and return value."
   [system outputs]
-  ;; 'dependencies' takes a map, where outputs is a vec of node-id+label pairs
   (let [basis (basis system)
-        cache-entries (->> outputs
-                           ;; vec -> map, [[node-id label]] -> {node-id #{labels}}
-                           (reduce (fn [m [node-id label]]
-                                     (update m node-id (fn [label-set label] (if label-set (conj label-set label) #{label})) label))
-                                   {})
-                           (gt/dependencies basis)
-                           ;; map -> vec
-                           (into [] (mapcat (fn [[node-id labels]] (mapv #(vector node-id %) labels)))))]
-    (-> system
-        (update :cache c/cache-invalidate cache-entries)
-        (update :invalidate-counters bump-invalidate-counters cache-entries))))
+        affected-outputs (affected-outputs basis outputs)]
+    (invalidate-explicit-outputs system affected-outputs)))
 
 (defn alter-history
   "Alters history for a graph in the system. The supplied alter-fn is called
   with a snapshot of the system, its basis, and the history for the specified
   graph-id. It should return nil to leave the system unaltered, or a map
-  containing :basis, :history and :outputs-to-refresh."
+  containing :basis, :history and :invalidated-outputs."
   [system graph-id alter-fn]
   (let [graphs (graphs system)
         basis (ig/multigraph-basis graphs)
@@ -62,14 +78,13 @@
       system
       (let [altered-basis (:basis alter-results)
             altered-history (:history alter-results)
-            altered-outputs (:outputs-to-refresh alter-results)
-            altered-graph (-> altered-basis :graphs (get graph-id))]
+            altered-outputs (:invalidated-outputs alter-results)]
         (assert (gt/basis? altered-basis))
         (assert (history/history? altered-history))
         (-> system
-            (assoc-in [:graphs graph-id] altered-graph)
+            (assoc :graphs (:graphs basis))
             (assoc-in [:history graph-id] altered-history)
-            (invalidate-outputs altered-outputs))))))
+            (invalidate-explicit-outputs altered-outputs))))))
 
 (def ^:private default-history-context-pred (constantly true))
 
