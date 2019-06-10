@@ -1291,11 +1291,23 @@ run:
         return fileSystem.get(FilenameUtils.normalize(path, true));
     }
 
-    public void findResourcePaths(String path, Collection<String> result)
-    {
+    public void findResourcePaths(String path, Collection<String> result) {
         fileSystem.walk(path, new FileSystemWalker() {
             public void handleFile(String path, Collection<String> results) {
                 results.add(FilenameUtils.normalize(path, true));
+            }
+        }, result);
+    }
+
+    // Finds the first level of directories in a path
+    public void findResourceDirs(String path, Collection<String> result) {
+        fileSystem.walk(path, new FileSystemWalker() {
+            public boolean handleDirectory(String dir, Collection<String> results) {
+                if (path.equals(dir)) {
+                    return true;
+                }
+                results.add(FilenameUtils.normalize(dir, true));
+                return false; // skip recursion
             }
         }, result);
     }
