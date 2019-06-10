@@ -555,6 +555,21 @@
                                   (cr [0 1] [0 2])]
                                  [[(c 0 3) ["X"]]]))))
 
+  (testing "Cursors in ranges"
+    (is (= []
+           (splice-cursor-ranges [(c 0 1)]
+                                 [[(cr [0 0] [0 2]) ["test"]]])))
+    (is (= [#code/range[[0 0 ::data/sticky :left]
+                        [0 0 ::data/sticky :left]]]
+           (splice-cursor-ranges [#code/range[[0 1 ::data/sticky :left]
+                                              [0 1 ::data/sticky :left]]]
+                                 [[(cr [0 0] [0 2]) ["test"]]])))
+    (is (= [#code/range[[0 4 ::data/sticky :right]
+                        [0 4 ::data/sticky :right]]]
+           (splice-cursor-ranges [#code/range[[0 1 ::data/sticky :right]
+                                              [0 1 ::data/sticky :right]]]
+                                 [[(cr [0 0] [0 2]) ["test"]]]))))
+
   (testing "Preserves extra data"
     (let [cursor-range (with-meta
                          (assoc

@@ -1446,11 +1446,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     void UpdateAnimations(HScene scene, float dt)
     {
         dmArray<Animation>* animations = &scene->m_Animations;
-        uint32_t n = animations->Size();
 
         uint32_t active_animations = 0;
 
-        for (uint32_t i = 0; i < n; ++i)
+        for (uint32_t i = 0; i < animations->Size(); ++i)
         {
             Animation* anim = &(*animations)[i];
 
@@ -1543,7 +1542,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
         }
 
-        n = animations->Size();
+        uint32_t n = animations->Size();
         for (uint32_t i = 0; i < n; ++i)
         {
             Animation* anim = &(*animations)[i];
