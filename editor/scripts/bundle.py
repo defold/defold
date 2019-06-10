@@ -98,6 +98,7 @@ def ziptree(path, outfile, directory = None):
     return outfile
 
 def git_sha1_from_version_file():
+    """ Gets the version number and checks if that tag exists """
     with open('../VERSION', 'r') as version_file:
         version = version_file.read().strip()
 

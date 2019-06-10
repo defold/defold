@@ -63,6 +63,7 @@ public class BundleHelper {
     private String title;
     private File buildDir;
     private File appDir;
+    private String variant;
     private Map<String, Map<String, Object>> propertiesMap;
 
     public static final String MANIFEST_NAME_ANDROID    = "AndroidManifest.xml";
@@ -78,7 +79,7 @@ public class BundleHelper {
         }
     }
 
-    public BundleHelper(Project project, Platform platform, File bundleDir, String appDirSuffix) throws IOException {
+    public BundleHelper(Project project, Platform platform, File bundleDir, String appDirSuffix, String variant) throws IOException {
         this.projectProperties = project.getProjectProperties();
 
         this.project = project;
@@ -89,6 +90,8 @@ public class BundleHelper {
         this.appDir = new File(bundleDir, title + appDirSuffix);
 
         this.propertiesMap = createPropertiesMap(project.getProjectProperties());
+
+        this.variant = variant;
     }
 
     public static String projectNameToBinaryName(String projectName) {
@@ -271,7 +274,7 @@ public class BundleHelper {
                 args.add("-F"); args.add(apk.getAbsolutePath());
             }
 
-            boolean debuggable = Integer.parseInt(projectProperties.getStringValue("android", "debuggable", "0")) != 0;
+            boolean debuggable = this.variant.equals(Bob.VARIANT_DEBUG) || Integer.parseInt(projectProperties.getStringValue("android", "debuggable", "0")) != 0;
             if (debuggable) {
                 args.add("--debug-mode");
             }

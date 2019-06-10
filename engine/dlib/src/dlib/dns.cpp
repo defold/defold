@@ -71,10 +71,10 @@ namespace dmDNS
             // so that we can attempt to make a connection anyway.
             req->m_Status = ARES_SUCCESS;
         }
-        else if (status != ARES_ECANCELLED)
+        else if (status != ARES_ECANCELLED || status != ARES_EDESTRUCTION)
         {
-            // If the request is cancelled, something went wrong with the channel so we cannot
-            // guarantee that the request data is still alive. In that case, we don't touch
+            // we cannot guarantee that the request data is still alive if the
+            // request is either cancelled or destroyed. If so, we don't touch
             // the request pointer.
             req->m_Status = (uint32_t) status;
         }
@@ -107,7 +107,7 @@ namespace dmDNS
         RequestInfo* req = (RequestInfo*) arg;
 
         // Same as ares_gethost_callback, we need to trust the req pointer.
-        if (status != ARES_ECANCELLED)
+        if (status != ARES_ECANCELLED || status != ARES_EDESTRUCTION)
         {
             req->m_Status = (uint32_t) status;
         }

@@ -1020,6 +1020,55 @@ TEST_P(DrawCountTest, DrawCount)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+/* Physics joints */
+TEST_F(ComponentTest, JointTest)
+{
+    /* Setup:
+    ** joint_test_a
+    ** - [collisionobject] collision_object/joint_test_sphere.collisionobject
+    ** - [script] collision_object/joint_test.script
+    ** joint_test_b
+    ** - [collisionobject] collision_object/joint_test_sphere.collisionobject
+    */
+
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = L;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* path_joint_test_a = "/collision_object/joint_test_a.goc";
+    const char* path_joint_test_b = "/collision_object/joint_test_b.goc";
+
+    dmhash_t hash_go_joint_test_a = dmHashString64("/joint_test_a");
+    dmhash_t hash_go_joint_test_b = dmHashString64("/joint_test_b");
+
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_joint_test_b, hash_go_joint_test_b, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_b);
+
+    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_joint_test_a, hash_go_joint_test_a, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_a);
+
+    // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+}
+
 /* Camera */
 
 const char* valid_camera_resources[] = {"/camera/valid.camerac"};
