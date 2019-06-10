@@ -604,7 +604,8 @@ public class ExtenderUtil {
         return bundleResources;
     }
 
-    /** Gets a list of all android specific folders (/res/android) from all project and extension resource folders
+    /** Gets a list of all android specific folders (/res) from all project and extension resource folders
+     * E.g. "res/android/res" but not "res/android/foo"
      */
     public static List<String> getAndroidResourcePaths(Project project, Platform platform) throws CompileExceptionError {
 
@@ -619,8 +620,11 @@ public class ExtenderUtil {
         for (String path : bundleResourcesPaths) {
             String bundleResourcesPath = rootDir + "/" + path;
             for (String platformAlt : platformFolderAlternatives) {
-                String platformPath = FilenameUtils.concat(bundleResourcesPath, platformAlt);
-                out.addAll(ExtenderUtil.getDirectoriesOnDisc(platformPath));
+                File dir = new File(FilenameUtils.concat(bundleResourcesPath, platformAlt + "/res"));
+                if (dir.exists() && dir.isDirectory() )
+                {
+                    out.add(dir.getAbsolutePath());
+                }
             }
         }
 
@@ -628,8 +632,11 @@ public class ExtenderUtil {
         List<String> extensionFolders = getExtensionFolders(project);
         for (String extension : extensionFolders) {
             for (String platformAlt : platformFolderAlternatives) {
-                String platformPath = FilenameUtils.concat(rootDir +"/" + extension, "res/" + platformAlt);
-                out.addAll(ExtenderUtil.getDirectoriesOnDisc(platformPath));
+                File dir = new File(FilenameUtils.concat(rootDir +"/" + extension, "res/" + platformAlt + "/res"));
+                if (dir.exists() && dir.isDirectory() )
+                {
+                    out.add(dir.getAbsolutePath());
+                }
             }
         }
 
@@ -651,40 +658,25 @@ public class ExtenderUtil {
         }
     }
 
-    public static List<String> getDirectoriesOnDisc(String path) {
-        File folder = new File(path);
-        List<String> dirs = new ArrayList<String>();
-        if (!folder.exists()) {
-            return dirs;
-        }
-        for (File file : folder.listFiles()) {
-            if (file.isDirectory()) {
-                dirs.add(file.getAbsolutePath());
-            }
-        }
-        return dirs;
-    }
-
     public static Map<String, IResource> getAndroidResources(Project project) throws CompileExceptionError {
 
         Map<String, IResource> androidResources = new HashMap<String, IResource>();
         List<String> bundleExcludeList = trimExcludePaths(Arrays.asList(project.getProjectProperties().getStringValue("project", "bundle_exclude_resources", "").split(",")));
+        List<String> platformFolderAlternatives = new ArrayList<String>();
 
         List<String> armv7ExtenderPaths = new ArrayList<String>(Arrays.asList(Platform.Armv7Android.getExtenderPaths()));
         List<String> arm64ExtenderPaths = new ArrayList<String>(Arrays.asList(Platform.Arm64Android.getExtenderPaths()));
         Set<String> set = new LinkedHashSet<>(armv7ExtenderPaths);
         set.addAll(arm64ExtenderPaths);
-        List<String> platformFolderAlternatives = new ArrayList<>(set);
+        platformFolderAlternatives = new ArrayList<>(set);
 
         // Project specific bundle resources
         for (String bundleResourcesPath : getBundleResourcePaths(project)) {
             if (bundleResourcesPath.length() > 0) {
                 for (String platformAlt : platformFolderAlternatives) {
                     String path = FilenameUtils.concat(bundleResourcesPath, platformAlt);
-                    for (String subdir : ExtenderUtil.getDirectoriesOnDisc(path)) {
-                        Map<String, IResource> projectBundleResources = ExtenderUtil.collectResources(project, subdir, bundleExcludeList);
-                        mergeBundleMap(androidResources, projectBundleResources);
-                    }
+                    Map<String, IResource> projectBundleResources = ExtenderUtil.collectResources(project, path, bundleExcludeList);
+                    mergeBundleMap(androidResources, projectBundleResources);
                 }
             }
         }
@@ -694,10 +686,8 @@ public class ExtenderUtil {
         for (String extension : extensionFolders) {
             for (String platformAlt : platformFolderAlternatives) {
                 String path = FilenameUtils.concat("/" + extension, "res/" + platformAlt);
-                for (String subdir : ExtenderUtil.getDirectoriesOnDisc(path)) {
-                    Map<String, IResource> extensionBundleResources = ExtenderUtil.collectResources(project, subdir, bundleExcludeList);
-                    mergeBundleMap(androidResources, extensionBundleResources);
-                }
+                Map<String, IResource> extensionBundleResources = ExtenderUtil.collectResources(project, path, bundleExcludeList);
+                mergeBundleMap(androidResources, extensionBundleResources);
             }
         }
 
