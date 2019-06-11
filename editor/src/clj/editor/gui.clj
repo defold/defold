@@ -1171,9 +1171,9 @@
   ;; Overloaded outputs
   (output gpu-texture TextureLifecycle (g/fnk [font-data] (:texture font-data)))
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [aabb-size font font-shaders pivot text-data]
-                 (let [[w h] aabb-size
-                       offset (pivot-offset pivot aabb-size)
+          (g/fnk [size font font-shaders pivot text-data]
+                 (let [[w h] size
+                       offset (pivot-offset pivot size)
                        lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))
                        font-map (get-in text-data [:font-data :font-map])
                        texture-recip-uniform (font/get-texture-recip-uniform font-map)
