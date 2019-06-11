@@ -233,6 +233,12 @@
 (def ^:private arcs->tarcs-updates-by-graph-id (partial util/classify {} [] [(comp gt/node-id->graph-id arc-target-id) (constantly :tarcs) arc-target-id arc-target-label]))
 (def ^:private arcs->successors-changed (partial util/group-into {} #{} arc-source-id arc-source-label))
 
+(defn- make-arcs-to-outputs-transducer []
+  (comp (map (fn [arc]
+               (pair (arc-target-id arc)
+                     (arc-target-label arc))))
+        (distinct)))
+
 (defn- reattach-graph [basis detached-graph detached-arcs original-successors-by-graph-id]
   (assert (gt/basis? basis))
   (assert (ig/graph? detached-graph))
@@ -255,9 +261,9 @@
                         (assoc (:_graph-id reattached-graph)
                                reattached-graph))))
           (outputs->successors-changed
-            (concat
-              (arcs->outputs reattached-arcs)
-              tx-outputs-modified)))
+            (into tx-outputs-modified
+                  (make-arcs-to-outputs-transducer)
+                  reattached-arcs)))
 
         ;; TODO: The New Take
         ;; We need to evict from the cache all outputs that were only successors
@@ -276,29 +282,21 @@
         ;; * Everything upstream from outputs that were modified by transaction steps.
         ;; * Outputs in other graphs that were previously upstream from a node that no longer exist in the detached graph.
 
-        invalidated-external-outputs
-        (into #{}
-              (comp (map (fn [arc]
-                           (pair (arc-target-id arc)
-                                 (arc-target-label arc))))
-                    (distinct)
+
+        ;; In addition to the outputs that were modified by transaction steps,
+        ;; we must also invalidate all outputs in other graphs upstream from
+        ;; arcs we don't reattach.
+        invalidated-detached-outputs-in-other-graphs
+        (successor-outputs (arcs->outputs invalid-arcs))
+        #_(into #{}
+              (comp (make-arcs-to-outputs-transducer)
                     (mapcat (fn [[node-id label]]
                               (old-successors node-id label))))
               invalid-arcs)
 
-        invalidated-outputs ()
-
-
-
-        evicted-successor-outputs (into #{}
-                                        (comp (map arc-output)
-                                              (distinct)
-                                              (mapcat (fn [output]
-                                                        (map (fn [[successor-node-id successor-labels]]
-                                                               ;; TODO: This is wrong.
-                                                               )
-                                                             (get-in original-successors output)))))
-                                        invalid-arcs)]
+        invalidated-outputs
+        (into invalidated-detached-outputs-in-other-graphs
+              tx-outputs-modified)]
     {:basis reattached-basis
      :invalidated-outputs invalidated-outputs}))
 
@@ -360,6 +358,7 @@
   ;; Its successors will also be updated to reflect this. We must still evict
   ;; the original successors from the cache, though.
   ;; TODO! This should probably happen in detach-graph above?
+  ;; TODO: In fact :successors should be removed from the returned graph, since they won't be valid.
   (let [rewound-history-end-index (inc history-entry-index)
         rewound-history (into [] (subvec history 0 rewound-history-end-index))
         ;; TODO: We cannot use detached-arcs here, since the historic :sarcs aren't in sync with the present :tarcs.
@@ -389,6 +388,9 @@
         (if (zero? undo-group)
           (let [transaction-context (it/new-transaction-context altered-basis node-id-generators override-id-generator)
                 {:keys [basis outputs-modified]} (it/transact* transaction-context transaction-steps)
+                ;; TODO: outputs-modified here will be invalid unless we update-successors after each transaction.
+                ;; TODO: Store :nodes-affected instead, and resolve successors at the end.
+                ;; TODO: This means :successors will be invalid in historic graphs.
                 altered-graph (-> basis :graphs (get graph-id))
                 altered-history-entry (make-history-entry 0 label sequence-label context-before context-after altered-graph outputs-modified transaction-steps)]
             (recur basis
