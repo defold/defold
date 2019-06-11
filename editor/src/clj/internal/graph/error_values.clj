@@ -113,9 +113,9 @@
 
 (defn flatten-errors [& errors]
   (some->> errors
-           (map unpack-if-package)
            flatten
-           (filter #(instance? ErrorValue %))
+           (map unpack-if-package)
+           (filter error-value?)
            not-empty
            error-aggregate))
 

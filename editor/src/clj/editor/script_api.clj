@@ -145,7 +145,7 @@
 (g/defnk produce-build-errors
   [parse-result]
   (when (g/error-package? parse-result)
-    (g/unpack-errors parse-result)))
+    parse-result))
 
 (g/defnode ScriptApiNode
   (inherits r/CodeEditorResourceNode)
