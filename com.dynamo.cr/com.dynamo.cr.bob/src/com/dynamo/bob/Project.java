@@ -1309,6 +1309,8 @@ run:
                 results.add(FilenameUtils.normalize(dir, true));
                 return false; // skip recursion
             }
+            public void handleFile(String path, Collection<String> results) { // skip any files
+            }
         }, result);
     }
 

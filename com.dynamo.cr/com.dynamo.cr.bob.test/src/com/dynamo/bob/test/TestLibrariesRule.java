@@ -13,19 +13,34 @@ public class TestLibrariesRule extends ExternalResource {
 
     private File serverLocation;
 
+    private void createEntry(ZipOutputStream out, String name, byte[] data) throws IOException {
+        ZipEntry ze = new ZipEntry(name);
+        out.putNextEntry(ze);
+        if (data != null) {
+            out.write(data);
+        }
+        out.closeEntry();
+    }
+
     void createLib(String root, String subdir, String name, String sha1) throws IOException {
         File file = new File(String.format("%s/test_lib%s.zip", root, name));
         ZipOutputStream out = new ZipOutputStream(new FileOutputStream(file));
         out.setComment(sha1);
         ZipEntry ze;
 
-        ze = new ZipEntry(String.format("%sgame.project", subdir));
-        out.putNextEntry(ze);
-        out.write(String.format("[library]\ninclude_dirs=test_lib%s", name).getBytes());
+        if (!subdir.isEmpty()) {
+            String accumulate = "";
+            String[] parts = subdir.split("/");
+            for (String part : parts) {
+                accumulate += part + "/";
+                createEntry(out, accumulate, null);
+            }
+        }
 
-        ze = new ZipEntry(String.format("%stest_lib%s/file%s.in", subdir, name, name));
-        out.putNextEntry(ze);
-        out.write(String.format("file%s", name).getBytes());
+        createEntry(out, String.format("%sgame.project", subdir), String.format("[library]\ninclude_dirs=test_lib%s", name).getBytes());
+
+        createEntry(out, String.format("%stest_lib%s/", subdir, name), null);
+        createEntry(out, String.format("%stest_lib%s/file%s.in", subdir, name, name), String.format("file%s", name).getBytes());
 
         out.close();
     }
