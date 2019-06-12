@@ -395,10 +395,7 @@ union SaveLoadBuffer
         dmResource::Result r = dmResource::GetRaw(context->m_ResourceFactory, filename, &resource, &resource_size);
         if (r != dmResource::RESULT_OK) {
             lua_pushnil(L);
-            char* error_msg;
-            asprintf(&error_msg, "Failed to load resource: %s (%d)", filename, r);
-            lua_pushstring(L, error_msg);
-            free(error_msg);
+            lua_pushfstring(L, "Failed to load resource: %s (%d)", filename, r);
             assert(top + 2 == lua_gettop(L));
             return 2;
         }
