@@ -583,9 +583,9 @@ public class ExtenderUtil {
         project.findResourceDirs(ExtenderUtil.stripLeadingSlash(path), subdirs);
 
         for (String subdir : subdirs) {
-            String name = FilenameUtils.getName(subdir);
+            String name = FilenameUtils.getName(FilenameUtils.normalizeNoEndSeparator(subdir));
             // For the list of reserved names, see Table 1: https://developer.android.com/guide/topics/resources/providing-resources
-            String[] assetDirs = new String[]{"animator", "anim", "color", "drawable", "mipmap", "layout", "menu", "raw", "values", "xml", "font"};
+            String[] assetDirs = new String[]{"values", "xml", "layout", "animator", "anim", "color", "drawable", "mipmap", "menu", "raw", "font"};
             for (String reserved : assetDirs) {
                 if (name.startsWith(reserved)) {
                     return true;

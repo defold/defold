@@ -9,7 +9,6 @@ import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -40,8 +39,6 @@ import java.util.zip.ZipFile;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.io.filefilter.DirectoryFileFilter;
-import org.apache.commons.io.filefilter.RegexFileFilter;
 import org.apache.commons.codec.binary.Base64;
 
 import com.defold.extender.client.ExtenderClient;
@@ -70,12 +67,9 @@ import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.pipeline.ExtenderUtil;
-import com.dynamo.bob.pipeline.ExtenderUtil.JavaRExtenderResource;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.ReportGenerator;
-import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 /**
@@ -1300,7 +1294,7 @@ run:
     }
 
     // Finds the first level of directories in a path
-    public void findResourceDirs(String path, Collection<String> result) {
+    public void findResourceDirs(final String path, Collection<String> result) {
         fileSystem.walk(path, new FileSystemWalker() {
             public boolean handleDirectory(String dir, Collection<String> results) {
                 if (path.equals(dir)) {
