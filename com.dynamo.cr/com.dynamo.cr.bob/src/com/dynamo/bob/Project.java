@@ -392,6 +392,19 @@ public class Project {
         projectProperties.load(is);
     }
 
+    private void logExceptionToStdErr(IResource res, int line)
+    {
+        String resourceString = "unspecified";
+        String resourceLineString = "";
+        if (res != null) {
+            resourceString = res.toString();
+        }
+        if (line > 0) {
+            resourceLineString = String.format(" at line %d", line);
+        }
+        System.err.println("Error in resource: " + resourceString + resourceLineString);
+    }
+
     /**
      * Build the project
      * @param monitor
@@ -404,9 +417,11 @@ public class Project {
             loadProjectFile();
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
+            logExceptionToStdErr(e.getResource(), e.getLineNumber());
             // Pass on unmodified
             throw e;
         } catch (MultipleCompileException e) {
+            logExceptionToStdErr(e.getContextResource(), -1);
             // Pass on unmodified
             throw e;
         } catch (Throwable e) {
@@ -1289,6 +1304,10 @@ run:
 
     public IResource getResource(String path) {
         return fileSystem.get(FilenameUtils.normalize(path, true));
+    }
+
+    public IResource getGameProjectResource() {
+        return getResource("/game.project");
     }
 
     public void findResourcePaths(String path, Collection<String> result)
