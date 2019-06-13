@@ -1,10 +1,10 @@
 #if defined(_MSC_VER)
 #include <dlib/safe_windows.h>
-#include <signal.h>
 #endif
 
 #include <stdio.h>
 #include <string.h>
+#include <signal.h>
 
 #include <dlib/log.h>
 #include <dlib/math.h>
