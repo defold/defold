@@ -1,5 +1,6 @@
 #if defined(_MSC_VER)
 #include <dlib/safe_windows.h>
+#include <signal.h>
 #endif
 
 #include <stdio.h>
@@ -51,12 +52,12 @@ bool IsIgnoredTrigger(uint32_t trigger_id) {
 
 dmHID::HContext g_HidContext = 0;
 
-static volatile sig_atomic_t g_SkipTrigger = 0;
+static volatile bool g_SkipTrigger = false;
 
 static void sig_handler(int _)
 {
     (void)_;
-    g_SkipTrigger = 1;
+    g_SkipTrigger = true;
 }
 
 int main(int argc, char *argv[])
@@ -214,7 +215,7 @@ retry:
             if (g_SkipTrigger) {
                 printf("Skipping trigger.\n");
                 driver.m_Triggers[i].m_Skip = true;
-                g_SkipTrigger = 0;
+                g_SkipTrigger = false;
                 break;
             }
 
