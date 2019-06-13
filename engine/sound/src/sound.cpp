@@ -1263,7 +1263,9 @@ namespace dmSound
     void OnWindowFocus(bool focus)
     {
         SoundSystem* sound = g_SoundSystem;
-        sound->m_HasWindowFocus = focus;
+        if (sound) {
+            sound->m_HasWindowFocus = focus;
+        }
     }
 
 }

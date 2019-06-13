@@ -151,7 +151,7 @@ public class AndroidBundler implements IBundler {
         }
 
         Platform targetPlatform = Platform.Armv7Android;
-        BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, "");
+        BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, "", variant);
 
         // Create APK
         File ap1 = new File(appDir, title + ".ap1");
