@@ -110,6 +110,7 @@
 (def ^:private common-extension-paths
   [["ext.manifest"]
    ["include"]
+   ["manifests"]
    ["src"]
    ["lib" "common"]])
 
