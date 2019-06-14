@@ -476,9 +476,10 @@ public class ExtenderUtil {
             sources.addAll( listFilesRecursive( project, extension + "/include/" ) );
             sources.addAll( listFilesRecursive( project, extension + "/src/") );
 
-            // Get "lib" folder; branches of into sub folders such as "common" and platform specifics
+            // Get "lib" and "manifest" folders; branches of into sub folders such as "common" and platform specifics
             for (String platformAlt : platformFolderAlternatives) {
                 sources.addAll( listFilesRecursive( project, extension + "/lib/" + platformAlt + "/") );
+                sources.addAll( listFilesRecursive( project, extension + "/manifests/" + platformAlt + "/") );
             }
         }
 
