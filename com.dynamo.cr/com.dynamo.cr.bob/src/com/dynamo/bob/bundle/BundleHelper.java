@@ -63,6 +63,7 @@ public class BundleHelper {
     private String title;
     private File buildDir;
     private File appDir;
+    private String variant;
     private Map<String, Map<String, Object>> propertiesMap;
 
     public static final String MANIFEST_NAME_ANDROID    = "AndroidManifest.xml";
@@ -78,7 +79,7 @@ public class BundleHelper {
         }
     }
 
-    public BundleHelper(Project project, Platform platform, File bundleDir, String appDirSuffix) throws IOException {
+    public BundleHelper(Project project, Platform platform, File bundleDir, String appDirSuffix, String variant) throws IOException {
         this.projectProperties = project.getProjectProperties();
 
         this.project = project;
@@ -89,6 +90,8 @@ public class BundleHelper {
         this.appDir = new File(bundleDir, title + appDirSuffix);
 
         this.propertiesMap = createPropertiesMap(project.getProjectProperties());
+
+        this.variant = variant;
     }
 
     public static String projectNameToBinaryName(String projectName) {
@@ -271,7 +274,7 @@ public class BundleHelper {
                 args.add("-F"); args.add(apk.getAbsolutePath());
             }
 
-            boolean debuggable = Integer.parseInt(projectProperties.getStringValue("android", "debuggable", "0")) != 0;
+            boolean debuggable = this.variant.equals(Bob.VARIANT_DEBUG) || Integer.parseInt(projectProperties.getStringValue("android", "debuggable", "0")) != 0;
             if (debuggable) {
                 args.add("--debug-mode");
             }
@@ -366,11 +369,17 @@ public class BundleHelper {
     public List<ExtenderResource> generateAndroidResources(Project project, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError, IOException {
         List<String> resourceDirectories = new ArrayList<>();
 
-        BundleHelper.createAndroidResourceFolders(resDir);
-
         // Get all Android specific resources needed to create R.java files
+        BundleHelper.createAndroidResourceFolders(resDir);
+        copyAndroidIcons(resDir);
+
+        // We store the extensions' resources in a separate folder, because they otherwise failed on the Android naming convention.
+        // I.e. resDir contains asset directories, extensionsDir contains package directories that contain asset directiores
+        File extensionsDir = new File(tmpDir, "extensions");
+        extensionsDir.mkdir();
+
         Map<String, IResource> resources = ExtenderUtil.getAndroidResources(project);
-        ExtenderUtil.storeAndroidResources(resDir, resources);
+        ExtenderUtil.storeAndroidResources(extensionsDir, resources);
 
         Map<String, Object> bundleContext = null;
         {
@@ -386,9 +395,13 @@ public class BundleHelper {
             }
         }
 
-        resourceDirectories.add(resDir.getAbsolutePath());
+        for (File file : extensionsDir.listFiles()) {
+            if (file.isDirectory()) {
+                resourceDirectories.add(file.getAbsolutePath());
+            }
+        }
 
-        copyAndroidIcons(resDir);
+        resourceDirectories.add(resDir.getAbsolutePath());
 
         // Run aapt to generate R.java files
         //     <tmpDir>/rjava - Output directory of aapt, all R.java files will be stored here

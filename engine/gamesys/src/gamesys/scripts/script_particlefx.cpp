@@ -117,6 +117,8 @@ namespace dmGameSystem
      * Particle FX started this way need to be manually stopped through `particlefx.stop()`.
      * Which particle FX to play is identified by the URL.
      *
+     * [icon:attention] A particle FX will continue to emit particles even if the game object the particle FX component belonged to is deleted. You can call `particlefx.stop()` to stop it from emitting more particles.
+     *
      * @name particlefx.play
      * @param url [type:string|hash|url] the particle fx that should start playing.
      * @param [emitter_state_function] [type:function(self, id, emitter, state)] optional callback function that will be called when an emitter attached to this particlefx changes state.
