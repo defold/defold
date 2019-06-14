@@ -109,6 +109,7 @@ public class Project {
         this.fileSystem = fileSystem;
         this.fileSystem.setRootDirectory(rootDirectory);
         this.fileSystem.setBuildDirectory(buildDirectory);
+        clearProjectProperties();
     }
 
     public Project(IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
@@ -117,6 +118,7 @@ public class Project {
         this.fileSystem = fileSystem;
         this.fileSystem.setRootDirectory(this.rootDirectory);
         this.fileSystem.setBuildDirectory(this.buildDirectory);
+        clearProjectProperties();
     }
 
     public void dispose() {
@@ -348,7 +350,7 @@ public class Project {
                 }
             }
         } catch (CompileExceptionError e) {
-        	throw e;
+            throw e;
         } catch (Throwable e) {
             throw new CompileExceptionError(null, 0, e.getMessage(), e);
         }
@@ -1285,7 +1287,15 @@ run:
         return fileSystem.get(FilenameUtils.normalize(path, true));
     }
 
-    public void findResourcePaths(String path, Collection<String> result) {
+    public static String stripLeadingSlash(String path) {
+        while (path.length() > 0 && path.charAt(0) == '/') {
+            path = path.substring(1);
+        }
+        return path;
+    }
+
+    public void findResourcePaths(String _path, Collection<String> result) {
+        final String path = Project.stripLeadingSlash(_path);
         fileSystem.walk(path, new FileSystemWalker() {
             public void handleFile(String path, Collection<String> results) {
                 results.add(FilenameUtils.normalize(path, true));
@@ -1294,13 +1304,14 @@ run:
     }
 
     // Finds the first level of directories in a path
-    public void findResourceDirs(final String path, Collection<String> result) {
+    public void findResourceDirs(String _path, Collection<String> result) {
+        final String path = Project.stripLeadingSlash(_path);
         fileSystem.walk(path, new FileSystemWalker() {
             public boolean handleDirectory(String dir, Collection<String> results) {
                 if (path.equals(dir)) {
                     return true;
                 }
-                results.add(FilenameUtils.normalize(dir, true));
+                results.add(FilenameUtils.getName(FilenameUtils.normalizeNoEndSeparator(dir)));
                 return false; // skip recursion
             }
             public void handleFile(String path, Collection<String> results) { // skip any files
@@ -1321,11 +1332,11 @@ run:
     }
 
     public void excludeCollectionProxy(String path) {
-    	this.excludedCollectionProxies.add(path);
+        this.excludedCollectionProxies.add(path);
     }
 
     public final List<String> getExcludedCollectionProxies() {
-    	return this.excludedCollectionProxies;
+        return this.excludedCollectionProxies;
     }
 
 }

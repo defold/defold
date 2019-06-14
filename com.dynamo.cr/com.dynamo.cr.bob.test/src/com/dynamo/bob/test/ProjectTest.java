@@ -188,10 +188,16 @@ public class ProjectTest {
         List<String> results = new ArrayList<String>();
         project.findResourceDirs("", results);
 
-        assertTrue(results.contains("test_lib1/"));
-        assertTrue(results.contains("test_lib2/"));
-        assertTrue(results.contains("test_lib3/"));
-        assertTrue(results.contains("test_lib5/"));
+        assertTrue(results.contains("test_lib1"));
+        assertTrue(results.contains("test_lib2"));
+        assertTrue(results.contains("test_lib3"));
+        assertTrue(results.contains("test_lib5"));
+
+        results = new ArrayList<String>();
+        project.findResourceDirs("test_lib1/", results);
+        assertEquals(2, results.size());
+        assertTrue(results.contains("testdir1"));
+        assertTrue(results.contains("testdir2"));
     }
 
     private class FileHandler extends ResourceHandler {

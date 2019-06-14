@@ -40,6 +40,8 @@ public class TestLibrariesRule extends ExternalResource {
         createEntry(out, String.format("%sgame.project", subdir), String.format("[library]\ninclude_dirs=test_lib%s", name).getBytes());
 
         createEntry(out, String.format("%stest_lib%s/", subdir, name), null);
+        createEntry(out, String.format("%stest_lib%s/testdir1/", subdir, name), null);
+        createEntry(out, String.format("%stest_lib%s/testdir2/", subdir, name), null);
         createEntry(out, String.format("%stest_lib%s/file%s.in", subdir, name, name), String.format("file%s", name).getBytes());
 
         out.close();
