@@ -660,7 +660,7 @@
    :preserve-extension true,
    :help "custom ProGuard file to help strip redundant Java classes from the final .apk",
    :label "ProGuard config",
-   :default "",
+   :default "/builtins/manifests/android/dmengine.pro",
    :path ["android" "proguard"]}
   {:type :resource,
    :filter "icns",
