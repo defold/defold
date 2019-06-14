@@ -34,7 +34,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/index_pool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/object_pool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/image.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/json.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/log.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/math.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/md5.h')
@@ -93,6 +92,7 @@ def build(bld):
 
     if re.match('arm.*?android', bld.env.PLATFORM):
         source_dirs.append('dlib/linux')
+        source_dirs.append('dlib/android')
     elif 'darwin' in bld.env.PLATFORM or 'ios' in bld.env.PLATFORM:
         source_dirs.append('dlib/darwin')
     elif 'win32' in bld.env.PLATFORM:

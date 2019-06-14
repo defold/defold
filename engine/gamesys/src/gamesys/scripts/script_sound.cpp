@@ -344,12 +344,14 @@ namespace dmGameSystem
     }
 
     /*# plays a sound
-     * Make the sound component play its sound. Multiple voices is supported. The limit is set to 32 voices per sound component.
+     * Make the sound component play its sound. Multiple voices are supported. The limit is set to 32 voices per sound component.
      *
      * [icon:attention] Note that gain is in linear scale, between 0 and 1.
      * To get the dB value from the gain, use the formula `20 * log(gain)`.
      * Inversely, to find the linear value from a dB value, use the formula
      * <code>10<sup>db/20</sup></code>.
+     *
+     * [icon:attention] A sound will continue to play even if the game object the sound component belonged to is deleted. You can call `sound.stop()` to stop the sound.
      *
      * @name sound.play
      * @param url [type:string|hash|url] the sound that should play
@@ -496,5 +498,10 @@ namespace dmGameSystem
         luaL_register(L, "sound", SOUND_FUNCTIONS);
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
+    }
+
+    void ScriptSoundOnWindowFocus(bool focus)
+    {
+        dmSound::OnWindowFocus(focus);
     }
 }

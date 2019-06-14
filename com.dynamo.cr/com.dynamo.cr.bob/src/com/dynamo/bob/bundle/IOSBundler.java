@@ -249,27 +249,6 @@ public class IOSBundler implements IBundler {
         List<String> urlSchemes = new ArrayList<String>();
 
         BundleHelper.throwIfCanceled(canceled);
-        String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
-        if (facebookAppId != null) {
-            urlSchemes.add("fb" + facebookAppId);
-
-            applicationQueriesSchemes.add("fbapi");
-            applicationQueriesSchemes.add("fbapi20130214");
-            applicationQueriesSchemes.add("fbapi20130410");
-            applicationQueriesSchemes.add("fbapi20130702");
-            applicationQueriesSchemes.add("fbapi20131010");
-            applicationQueriesSchemes.add("fbapi20131219");
-            applicationQueriesSchemes.add("fbapi20140410");
-            applicationQueriesSchemes.add("fbapi20140116");
-            applicationQueriesSchemes.add("fbapi20150313");
-            applicationQueriesSchemes.add("fbapi20150629");
-            applicationQueriesSchemes.add("fbauth");
-            applicationQueriesSchemes.add("fbauth2");
-            applicationQueriesSchemes.add("fb-messenger-api20140430");
-            applicationQueriesSchemes.add("fb-messenger-platform-20150128");
-            applicationQueriesSchemes.add("fb-messenger-platform-20150218");
-            applicationQueriesSchemes.add("fb-messenger-platform-20150305");
-        }
 
         String bundleId = projectProperties.getStringValue("ios", "bundle_identifier");
         if (bundleId != null) {
@@ -300,7 +279,7 @@ public class IOSBundler implements IBundler {
         }
         properties.put("orientation-support", orientationSupport);
 
-        BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app");
+        BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app", variant);
         helper.copyIosIcons();
 
         Platform targetPlatform = Platform.Armv7Darwin;

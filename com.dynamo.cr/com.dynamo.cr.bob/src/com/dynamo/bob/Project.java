@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
@@ -102,6 +104,7 @@ public class Project {
     private Map<String, String> options = new HashMap<String, String>();
     private List<URL> libUrls = new ArrayList<URL>();
     private final List<String> excludedCollectionProxies = new ArrayList<String>();
+    private List<String> propertyFiles = new ArrayList<String>();
 
     private BobProjectProperties projectProperties;
     private Publisher publisher;
@@ -367,9 +370,26 @@ public class Project {
         if (gameProject.exists()) {
             ByteArrayInputStream is = new ByteArrayInputStream(gameProject.getContent());
             projectProperties.load(is);
+
+            for (String filepath : propertyFiles) {
+                loadPropertyFile(filepath);
+            }
         } else {
             logWarning("No game.project found");
         }
+    }
+
+    public void addPropertyFile(String filepath) {
+        propertyFiles.add(filepath);
+    }
+
+    public void loadPropertyFile(String filepath) throws IOException, ParseException {
+        Path pathHandle = Paths.get(filepath);
+        if (!Files.exists(pathHandle) || !pathHandle.toFile().isFile())
+            throw new IOException(filepath + " is not a file");
+        byte[] data = Files.readAllBytes(pathHandle);
+        ByteArrayInputStream is = new ByteArrayInputStream(data);
+        projectProperties.load(is);
     }
 
     /**
@@ -594,6 +614,8 @@ public class Project {
         IProgress m = monitor.subProgress(architectures.length);
         m.beginTask("Building engine...", 0);
 
+        final String variant = appmanifestOptions.get("baseVariant");
+
         // Build all skews of platform
         boolean androidResourcesGenerated = false;
         String outputDir = options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
@@ -637,7 +659,7 @@ public class Project {
                 String title = projectProperties.getStringValue("project", "title", "Unnamed");
                 String exeName = BundleHelper.projectNameToBinaryName(title);
 
-                BundleHelper helper = new BundleHelper(this, platform, tmpDir, "");
+                BundleHelper helper = new BundleHelper(this, platform, tmpDir, "", variant);
 
                 File manifestFile = new File(tmpDir, "AndroidManifest.xml"); // the final, merged manifest
                 IResource sourceManifestFile = helper.getResource("android", "manifest");

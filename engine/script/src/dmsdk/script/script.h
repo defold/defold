@@ -339,6 +339,14 @@ namespace dmScript
      */
     Vectormath::Aos::Vector3* ToVector3(lua_State* L, int index);
 
+    /**
+     * Check if the value at #index is a Vectormath::Aos::Vector3*
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true if value at #index is a Vectormath::Aos::Vector3*
+     */
+    bool IsVector3(lua_State* L, int index);
+
     /*# push a Vectormath::Aos::Vector3 onto the Lua stack
      *
      * Push a Vectormath::Aos::Vector3 value onto the supplied lua state, will increase the stack by 1.
@@ -355,7 +363,7 @@ namespace dmScript
      * @name dmScript::CheckVector3
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return vector3 [type:Vectormath::Aos::Vector3] The value
+     * @return vector3 [type:Vectormath::Aos::Vector3*] The pointer to the value
      */
     Vectormath::Aos::Vector3* CheckVector3(lua_State* L, int index);
 
@@ -367,6 +375,14 @@ namespace dmScript
      * @return v [type:Vectormath::Aos::Vector4*] The pointer to the value, or 0 if not correct type
      */
     Vectormath::Aos::Vector4* ToVector4(lua_State* L, int index);
+
+    /**
+     * Check if the value at #index is a Vectormath::Aos::Vector4*
+     * @param L Lua state
+     * @param index Index of the value
+     * @return true if value at #index is a Vectormath::Aos::Vector4*
+     */
+    bool IsVector4(lua_State* L, int index);
 
     /*# push a Vectormath::Aos::Vector4 on the stack
      * Push a Vectormath::Aos::Vector4 value onto the supplied lua state, will increase the stack by 1.
@@ -383,7 +399,7 @@ namespace dmScript
      * @name dmScript::CheckVector4
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return vector4 [type:Vectormath::Aos::Vector4] The value
+     * @return vector4 [type:Vectormath::Aos::Vector4*] The pointer to the value
      */
     Vectormath::Aos::Vector4* CheckVector4(lua_State* L, int index);
 
@@ -411,7 +427,7 @@ namespace dmScript
      * @name dmScript::CheckQuat
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return quat [type:Vectormath::Aos::Quat] The value
+     * @return quat [type:Vectormath::Aos::Quat*] The pointer to the value
      */
     Vectormath::Aos::Quat* CheckQuat(lua_State* L, int index);
 
@@ -440,7 +456,7 @@ namespace dmScript
      * @name dmScript::CheckMatrix4
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return matrix [type:Vectormath::Aos::Matrix4] The value
+     * @return matrix [type:Vectormath::Aos::Matrix4*] The pointer to the value
      */
     Vectormath::Aos::Matrix4* CheckMatrix4(lua_State* L, int index);
 
