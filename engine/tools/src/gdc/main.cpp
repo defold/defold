@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <signal.h>
 
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -26,6 +27,7 @@ struct Trigger
     dmInputDDF::GamepadType m_Type;
     uint32_t m_Index;
     bool m_Modifiers[dmInputDDF::MAX_GAMEPAD_MODIFIER_COUNT];
+    bool m_Skip;
 };
 
 struct Driver
@@ -38,11 +40,29 @@ struct Driver
 
 void GetDelta(dmHID::GamepadPacket* zero_packet, dmHID::GamepadPacket* input_packet, bool* axis, uint32_t* index, float* value, float* delta);
 void DumpDriver(FILE* out, Driver* driver);
+bool IsIgnoredTrigger(uint32_t trigger_id) {
+    // Ignore connected/disconnected triggers.
+    if (trigger_id == dmInputDDF::GAMEPAD_CONNECTED ||
+        trigger_id == dmInputDDF::GAMEPAD_DISCONNECTED) {
+        return true;
+    }
+
+    return false;
+}
 
 dmHID::HContext g_HidContext = 0;
 
+static volatile bool g_SkipTrigger = false;
+
+static void sig_handler(int _)
+{
+    (void)_;
+    g_SkipTrigger = true;
+}
+
 int main(int argc, char *argv[])
 {
+
     int result = 0;
     dmHID::HGamepad gamepad = dmHID::INVALID_GAMEPAD_HANDLE;
     dmHID::HGamepad gamepads[dmHID::MAX_GAMEPAD_COUNT];
@@ -99,10 +119,9 @@ retry:
     if (gamepad_count == 0)
     {
         printf("No connected gamepads!\n");
-        printf("* Retry? [y/n]\n");
+        printf("* Retry? [y/n] ");
         char should_retry = 'n';
-        scanf("%c\n", &should_retry);
-        if (should_retry == 'y') {
+        if (scanf(" %c", &should_retry) == 1 && should_retry == 'y') {
             goto retry;
         } else {
             goto bail;
@@ -126,7 +145,8 @@ retry:
                 gamepad = gamepads[index-1];
                 break;
             }
-            printf("Invalid input, try again: ");
+            printf("Invalid input!");
+            goto bail;
         }
     }
     else
@@ -155,6 +175,9 @@ retry:
     float value;
     float delta;
 
+    // Register signal handler so user can press Ctrl+C to skip a trigger.
+    signal(SIGINT, sig_handler);
+
     printf("* Don't press anything on the gamepad...\n");
     timer = wait_delay;
     while (true)
@@ -179,11 +202,23 @@ retry:
     }
     for (uint8_t i = 0; i < dmInputDDF::MAX_GAMEPAD_COUNT; ++i)
     {
+        // Ignore connected/disconnected triggers.
+        if (IsIgnoredTrigger(dmInputDDF_Gamepad_DESCRIPTOR.m_EnumValues[i].m_Value)) {
+            continue;
+        }
+
         State state = STATE_WAITING;
         timer = wait_delay;
         bool run = true;
         while (run)
         {
+            if (g_SkipTrigger) {
+                printf("Skipping trigger.\n");
+                driver.m_Triggers[i].m_Skip = true;
+                g_SkipTrigger = false;
+                break;
+            }
+
             dmHID::Update(g_HidContext);
             dmHID::GetGamepadPacket(gamepad, &packet);
             GetDelta(&prev_packet, &packet, &axis, &index, &value, &delta);
@@ -289,6 +324,11 @@ void DumpDriver(FILE* out, Driver* driver)
     fprintf(out, "    dead_zone: %.3f\n", driver->m_DeadZone);
     for (uint32_t i = 0; i < dmInputDDF::MAX_GAMEPAD_COUNT; ++i)
     {
+        // Ignore connected/disconnected triggers.
+        if (IsIgnoredTrigger(dmInputDDF_Gamepad_DESCRIPTOR.m_EnumValues[i].m_Value) || driver->m_Triggers[i].m_Skip) {
+            continue;
+        }
+
         fprintf(out, "    map { input: %s type: %s index: %d ",
                 dmInputDDF_Gamepad_DESCRIPTOR.m_EnumValues[i].m_Name,
                 dmInputDDF_GamepadType_DESCRIPTOR.m_EnumValues[driver->m_Triggers[i].m_Type].m_Name,

@@ -155,10 +155,20 @@ namespace dmHID
             {
                 Gamepad* pad = &context->m_Gamepads[i];
                 int glfw_joystick = GLFW_JOYSTICKS[i];
+                bool prev_connected = pad->m_Connected;
                 pad->m_Connected = glfwGetJoystickParam(glfw_joystick, GLFW_PRESENT) == GL_TRUE;
                 if (pad->m_Connected)
                 {
                     GamepadPacket& packet = pad->m_Packet;
+
+                    // Workaround to get connectivity packet even if callback
+                    // wasn't been set before the gamepad was connected.
+                    if (!prev_connected)
+                    {
+                        packet.m_HasConnectivity = true;
+                        packet.m_Connected = true;
+                    }
+
                     pad->m_AxisCount = glfwGetJoystickParam(glfw_joystick, GLFW_AXES);
                     pad->m_ButtonCount = dmMath::Min(MAX_GAMEPAD_BUTTON_COUNT, (uint32_t) glfwGetJoystickParam(glfw_joystick, GLFW_BUTTONS));
                     glfwGetJoystickPos(glfw_joystick, packet.m_Axis, pad->m_AxisCount);

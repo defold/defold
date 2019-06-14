@@ -316,7 +316,6 @@ namespace dmHID
      * @return a new hid context, or INVALID_CONTEXT if it could not be created
      */
     HContext NewContext(const NewContextParams& params);
-    void SetGamepadFuncUserdata(HContext context, void* userdata);
 
     /**
      * Deletes a hid context.
@@ -324,6 +323,14 @@ namespace dmHID
      * @param context context to be deleted
      */
     void DeleteContext(HContext context);
+
+    /**
+     * Set user data that will be passed along to the gamepad connectivity callback.
+     *
+     * @params context context for which the userdata should be set
+     * @params userdata userdata that should be passed along to callback
+     */
+    void SetGamepadFuncUserdata(HContext context, void* userdata);
 
     /**
      * Initializes a hid context.
@@ -516,6 +523,13 @@ namespace dmHID
      */
     void SetMarkedText(HContext context, char* text);
 
+    /**
+     * Set the connectivity status (usually only when changed) for a gamepad index.
+     *
+     * @param context context handle
+     * @param gamepad index of gamepad
+     * @param connected connectivity status, true for connected, false for disconnected
+     */
     void SetGamepadConnectivity(HContext context, int gamepad, bool connected);
 
     /**
