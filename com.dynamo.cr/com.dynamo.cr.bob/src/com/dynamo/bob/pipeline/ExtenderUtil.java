@@ -408,8 +408,10 @@ public class ExtenderUtil {
     public static boolean hasNativeExtensions(Project project) {
         BobProjectProperties projectProperties = project.getProjectProperties();
         if (hasPropertyResource(project, projectProperties, "native_extension", "app_manifest") ||
-            hasPropertyResource(project, projectProperties, "android", "proguard") )
+            hasPropertyResource(project, projectProperties, "android", "proguard") &&
+            !projectProperties.getStringValue("android", "proguard", "").startsWith("/builtins/")) {
             return true;
+        }
 
         ArrayList<String> paths = new ArrayList<>();
         project.findResourcePaths("", paths);
