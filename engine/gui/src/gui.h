@@ -442,8 +442,8 @@ namespace dmGui
         uint32_t m_TextCount;
         uint32_t m_GamepadIndex;
         uint16_t m_IsGamepad : 1;
-        uint16_t m_HasConnectivity : 1;
-        uint16_t m_Connected : 1;
+        uint16_t m_GamepadDisconnected : 1;
+        uint16_t m_GamepadConnected : 1;
         uint16_t m_HasText : 1;
         /// If the input was 0 last update
         uint16_t m_Pressed : 1;

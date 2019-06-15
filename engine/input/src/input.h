@@ -28,8 +28,8 @@ namespace dmInput
         uint32_t     m_HasText;
         uint32_t m_GamepadIndex;
         uint32_t m_IsGamepad : 1;
-        uint32_t m_HasConnectivity : 1;
-        uint32_t m_Connected : 1;
+        uint32_t m_GamepadDisconnected : 1;
+        uint32_t m_GamepadConnected : 1;
         uint32_t m_Pressed : 1;
         uint32_t m_Released : 1;
         uint32_t m_Repeated : 1;

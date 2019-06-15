@@ -165,8 +165,7 @@ namespace dmHID
                     // wasn't been set before the gamepad was connected.
                     if (!prev_connected)
                     {
-                        packet.m_HasConnectivity = true;
-                        packet.m_Connected = true;
+                        packet.m_GamepadConnected = true;
                     }
 
                     pad->m_AxisCount = glfwGetJoystickParam(glfw_joystick, GLFW_AXES);
