@@ -96,6 +96,10 @@ namespace dmInput
         AccelerationBinding* m_AccelerationBinding;
         TextBinding* m_TextBinding;
         dmHashTable64< Action > m_Actions;
+
+        dmInputDDF::GamepadTrigger* m_DDFGamepadTriggersData;
+        uint32_t m_DDFGamepadTriggersCount;
+        dmArray<uint32_t> m_DisconnectedGamepadIndices;
     };
 
     struct GamepadInput

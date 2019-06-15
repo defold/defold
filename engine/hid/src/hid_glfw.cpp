@@ -49,6 +49,14 @@ namespace dmHID
         SetMarkedText(g_Context, text);
     }
 
+    static void GamepadCallback(int gamepad_id, int connected)
+    {
+        if (g_Context->m_GamepadConnectivityCallback) {
+            g_Context->m_GamepadConnectivityCallback(gamepad_id, connected, g_Context->m_GamepadConnectivityUserdata);
+        }
+        SetGamepadConnectivity(g_Context, gamepad_id, connected);
+    }
+
     bool Init(HContext context)
     {
         if (context != 0x0)
@@ -62,11 +70,12 @@ namespace dmHID
             g_Context = context;
             if (glfwSetCharCallback(CharacterCallback) == 0) {
                 dmLogFatal("could not set glfw char callback.");
-                return false;
             }
             if (glfwSetMarkedTextCallback(MarkedTextCallback) == 0) {
                 dmLogFatal("could not set glfw marked text callback.");
-                return false;
+            }
+            if (glfwSetGamepadCallback(GamepadCallback) == 0) {
+                dmLogFatal("could not set glfw gamepad callback.");
             }
             context->m_KeyboardConnected = 0;
             context->m_MouseConnected = 0;
@@ -147,10 +156,19 @@ namespace dmHID
             {
                 Gamepad* pad = &context->m_Gamepads[i];
                 int glfw_joystick = GLFW_JOYSTICKS[i];
+                bool prev_connected = pad->m_Connected;
                 pad->m_Connected = glfwGetJoystickParam(glfw_joystick, GLFW_PRESENT) == GL_TRUE;
                 if (pad->m_Connected)
                 {
                     GamepadPacket& packet = pad->m_Packet;
+
+                    // Workaround to get connectivity packet even if callback
+                    // wasn't been set before the gamepad was connected.
+                    if (!prev_connected)
+                    {
+                        packet.m_GamepadConnected = true;
+                    }
+
                     pad->m_AxisCount = glfwGetJoystickParam(glfw_joystick, GLFW_AXES);
                     glfwGetJoystickPos(glfw_joystick, packet.m_Axis, pad->m_AxisCount);
 
