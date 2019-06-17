@@ -1851,6 +1851,8 @@ namespace dmGameSystem
             gui_input_action.m_ScreenDY = params.m_InputAction->m_ScreenDY;
             gui_input_action.m_GamepadIndex = params.m_InputAction->m_GamepadIndex;
             gui_input_action.m_IsGamepad = params.m_InputAction->m_IsGamepad;
+            gui_input_action.m_GamepadDisconnected = params.m_InputAction->m_GamepadDisconnected;
+            gui_input_action.m_GamepadConnected = params.m_InputAction->m_GamepadConnected;
             gui_input_action.m_AccX = params.m_InputAction->m_AccX;
             gui_input_action.m_AccY = params.m_InputAction->m_AccY;
             gui_input_action.m_AccZ = params.m_InputAction->m_AccZ;
