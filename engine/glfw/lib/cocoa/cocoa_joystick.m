@@ -1255,7 +1255,7 @@ int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons, int numbut
 
 int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats )
 {
-    int       i;
+    int i;
 
     // Is joystick present?
     if( !_glfwJoy[ joy ].Present )
