@@ -7,7 +7,7 @@
         android:installLocation="auto">
 
     <uses-feature android:required="true" android:glEsVersion="0x00020000" />
-    <uses-sdk android:minSdkVersion="9" android:targetSdkVersion="26" />
+    <uses-sdk android:minSdkVersion="{{android.minimum_sdk_version}}" android:targetSdkVersion="{{android.target_sdk_version}}" />
     <application
         {{#has-icons?}}
         android:icon="@drawable/icon"
