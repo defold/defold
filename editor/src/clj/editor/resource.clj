@@ -55,8 +55,8 @@
   (FilenameUtils/separatorsToUnix path))
 
 (defn relative-path [^File f1 ^File f2]
-  (let [p1 (->unix-seps (str (.getAbsolutePath f1)))
-        p2 (->unix-seps (str (.getAbsolutePath f2)))
+  (let [p1 (->unix-seps (str (.getCanonicalPath f1)))
+        p2 (->unix-seps (str (.getCanonicalPath f2)))
         path (string/replace p2 p1 "")]
     (if (.startsWith path "/")
       (subs path 1)
