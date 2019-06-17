@@ -51,7 +51,6 @@ public class ExtenderUtilTest {
             for (int i = 0; i < parts.length - 1; ++i) {
                 accumulate += parts[i] + "/";
 
-                System.out.println("MAWE: createDirs: " + accumulate);
                 fileSystem.addDirectory(accumulate);
             }
         }
