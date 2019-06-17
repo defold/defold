@@ -717,6 +717,7 @@
                                       (ui/run-later
                                         (hide-progress! root)))
                                     (catch Throwable error
+                                      (fs/delete-directory! dest-directory {:fail :silently})
                                       (ui/run-later
                                         (hide-progress! root)
                                         (cond
