@@ -1116,8 +1116,8 @@ bail:
 
         input_action.m_IsGamepad = action->m_IsGamepad;
         input_action.m_GamepadIndex = action->m_GamepadIndex;
-        input_action.m_HasConnectivity = action->m_HasConnectivity;
-        input_action.m_Connected = action->m_Connected;
+        input_action.m_GamepadDisconnected = action->m_GamepadDisconnected;
+        input_action.m_GamepadConnected = action->m_GamepadConnected;
 
         input_buffer->Push(input_action);
     }

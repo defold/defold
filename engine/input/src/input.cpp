@@ -393,7 +393,8 @@ namespace dmInput
         action->m_TouchCount = 0;
         action->m_TextCount = 0;
         action->m_HasText = 0;
-        action->m_HasConnectivity = 0;
+        action->m_GamepadDisconnected = 0;
+        action->m_GamepadConnected = 0;
     }
 
     struct UpdateContext
@@ -647,14 +648,14 @@ namespace dmInput
                             const GamepadTrigger& trigger = triggers[i];
                             const GamepadInput& input = config->m_Inputs[trigger.m_Input];
 
-                            if ((trigger.m_Input == dmInputDDF::GAMEPAD_CONNECTED && packet->m_Connected) ||
-                                (trigger.m_Input == dmInputDDF::GAMEPAD_DISCONNECTED && !packet->m_Connected))
+                            if ((trigger.m_Input == dmInputDDF::GAMEPAD_CONNECTED && packet->m_GamepadConnected) ||
+                                (trigger.m_Input == dmInputDDF::GAMEPAD_DISCONNECTED && packet->m_GamepadDisconnected))
                             {
                                 Action* action = gamepad_binding->m_Actions.Get(trigger.m_ActionId);
                                 if (action != 0x0)
                                 {
-                                    action->m_HasConnectivity = packet->m_HasConnectivity;
-                                    action->m_Connected = packet->m_Connected;
+                                    action->m_GamepadDisconnected = packet->m_GamepadDisconnected;
+                                    action->m_GamepadConnected = packet->m_GamepadConnected;
                                 }
 
                             } else {
@@ -845,7 +846,7 @@ namespace dmInput
 
     void ForEachActiveCallback(CallbackData* data, const dmhash_t* key, Action* action)
     {
-        bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released || action->m_TextCount > 0 || action->m_TouchCount > 0 || action->m_HasText || action->m_HasConnectivity;
+        bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released || action->m_TextCount > 0 || action->m_TouchCount > 0 || action->m_HasText || action->m_GamepadConnected || action->m_GamepadDisconnected;
         // Mouse move action
         active = active || (*key == 0 && (action->m_DX != 0 || action->m_DY != 0 || action->m_AccelerationSet));
         if (active)

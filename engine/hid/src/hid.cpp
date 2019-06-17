@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <dlib/log.h>
 #include "hid.h"
 #include "hid_private.h"
@@ -155,11 +156,11 @@ namespace dmHID
     }
 
     void SetGamepadConnectivity(HContext context, int gamepad, bool connected) {
-        if (context) {
-            GamepadPacket* p = &context->m_Gamepads[gamepad].m_Packet;
-            p->m_HasConnectivity = true;
-            p->m_Connected = connected;
-        }
+        assert(context);
+
+        GamepadPacket* p = &context->m_Gamepads[gamepad].m_Packet;
+        p->m_GamepadDisconnected = !connected;
+        p->m_GamepadConnected = connected;
     }
 
     bool GetMousePacket(HContext context, MousePacket* out_packet)
@@ -180,7 +181,8 @@ namespace dmHID
         if (gamepad != 0x0 && out_packet != 0x0)
         {
             *out_packet = gamepad->m_Packet;
-            gamepad->m_Packet.m_HasConnectivity = false;
+            gamepad->m_Packet.m_GamepadDisconnected = false;
+            gamepad->m_Packet.m_GamepadConnected = false;
             return true;
         }
         else
