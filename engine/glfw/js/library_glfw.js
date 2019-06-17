@@ -454,7 +454,7 @@ var LibraryGLFW = {
 
             if (gamepad) {
               if (!GLFW.joys[joy] || GLFW.joys[joy].id_string != gamepad.id) {
-               if (GLFW.joys[joy]) {
+                if (GLFW.joys[joy]) {
                   //In case when user change gamepad while browser in background (minimized)
                   GLFW.disconnectJoystick(joy);
                 }
@@ -465,7 +465,7 @@ var LibraryGLFW = {
                   buttonsCount: gamepad.buttons.length
                 };
                 if (GLFW.gamepadFunc) {
-                    Runtime.dynCall('vii', GLFW.gamepadFunc, [joy, 1]);
+                  Runtime.dynCall('vii', GLFW.gamepadFunc, [joy, 1]);
                 }
               }
               GLFW.joys[joy].buttons = gamepad.buttons;
@@ -777,7 +777,7 @@ var LibraryGLFW = {
     GLFW.refreshJoysticks();
     var state = GLFW.joys[joy];
     if (!state || !state.axes) {
-       for (var i = 0; i < numaxes; i++) {
+      for (var i = 0; i < numaxes; i++) {
         setValue(pos + i*4, 0, 'float');
       }
       return;
