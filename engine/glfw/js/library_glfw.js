@@ -448,10 +448,10 @@ var LibraryGLFW = {
         if (forceUpdate || Browser.mainLoop.currentFrameNumber !== GLFW.lastGamepadStateFrame || !Browser.mainLoop.currentFrameNumber) {
           GLFW.lastGamepadState = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads : null);
           GLFW.lastGamepadStateFrame = Browser.mainLoop.currentFrameNumber;
-  
+
           for (var joy = 0; joy < GLFW.lastGamepadState.length; ++joy) {
             var gamepad = GLFW.lastGamepadState[joy];
-  
+
             if (gamepad) {
               if (!GLFW.joys[joy] || GLFW.joys[joy].id_string != gamepad.id) {
                if (GLFW.joys[joy]) {
@@ -463,7 +463,7 @@ var LibraryGLFW = {
                   id_string: gamepad.id,
                   axesCount: gamepad.axes.length,
                   buttonsCount: gamepad.buttons.length
-                };          
+                };
                 if (GLFW.gamepadFunc) {
                     Runtime.dynCall('vii', GLFW.gamepadFunc, [joy, 1]);
                 }
@@ -770,7 +770,7 @@ var LibraryGLFW = {
           break;
         }
     }
-    return result; 
+    return result;
   },
 
   glfwGetJoystickPos: function(joy, pos, numaxes) {
@@ -945,4 +945,3 @@ var LibraryGLFW = {
 
 autoAddDeps(LibraryGLFW, '$GLFW');
 mergeInto(LibraryManager.library, LibraryGLFW);
-
