@@ -114,7 +114,9 @@ int _glfwPlatformGetJoystickParam(int joy, int param)
         // Return number of joystick buttons
         // NOTE: We fake 16 buttons. The actual number is 14 but the button-mask is sparse in XInput. bit 0-9 + bit 12-15
         return 16;
-
+    case GLFW_HATS:
+        // Return number of hats
+        return 1;
     default:
         break;
     }
@@ -222,6 +224,53 @@ int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
     return GL_TRUE;
 }
 
+int _glfwPlatformGetJoystickGUID( int joy, char guid[33] )
+{
+    // Is joystick present?
+    if( !_glfwJoystickPresent(joy) )
+    {
+        return GL_FALSE;
+    }
+    else
+    {
+        // From glfw3:
+        XINPUT_CAPABILITIES xic;
+        if (XInputGetCapabilities(joy, 0, &xic) != ERROR_SUCCESS)
+        {
+            return GL_FALSE;
+        }
+
+        // Generate a joystick GUID that matches the SDL 2.0.5+ one
+        sprintf(guid, "78696e707574%02x000000000000000000", xic.SubType & 0xff);
+
+        return GL_TRUE;
+    }
+}
+
+int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats )
+{
+    DWORD result;
+    XINPUT_STATE state;
+
+    if( !_glfwJoystickPresent(joy) )
+    {
+        return 0;
+    }
+
+    result = XInputGetState(joy, &state);
+
+    if (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP)
+        hats[0] |= GLFW_HAT_UP;
+    if (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT)
+        hats[0] |= GLFW_HAT_RIGHT;
+    if (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN)
+        hats[0] |= GLFW_HAT_DOWN;
+    if (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT)
+        hats[0] |= GLFW_HAT_LEFT;
+
+    return 1;
+}
+
 #else
 
 //************************************************************************
@@ -327,8 +376,6 @@ int _glfwPlatformGetJoystickPos( int joy, float *pos, int numaxes )
     JOYCAPS   jc;
     JOYINFOEX ji;
     int       axis;
-
-//  return 0;
 
     // Is joystick present?
     if( !_glfwJoystickPresent( joy ) )
