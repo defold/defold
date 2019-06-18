@@ -378,10 +378,6 @@ namespace dmInput
                         }
                     }
                     context->m_GamepadMaps.Put(device_id, config);
-                    if (gamepad_map.m_SdlGuid && strlen(gamepad_map.m_SdlGuid) > 0) {
-                        device_id = dmHashString32(gamepad_map.m_SdlGuid);
-                    }
-                    context->m_GamepadMaps.Put(device_id, config);
                 }
                 else
                 {
@@ -603,14 +599,8 @@ namespace dmInput
                     if (connected)
                     {
                         const char* device_name;
-                        char sdl_guid[33];
                         dmHID::GetGamepadDeviceName(gamepad, &device_name);
-                        dmHID::GetGamepadDeviceGUID(gamepad, sdl_guid);
                         gamepad_binding->m_DeviceId = dmHashString32(device_name);
-                        gamepad_binding->m_DeviceGUID = 0x0;//dmHashString32(sdl_guid);
-                        if (strlen(sdl_guid) > 0) {
-                            gamepad_binding->m_DeviceGUID = dmHashString32(sdl_guid);
-                        }
                         gamepad_binding->m_Connected = 1;
                         gamepad_binding->m_NoMapWarning = 0;
                     }
@@ -626,13 +616,7 @@ namespace dmInput
                     dmHID::GamepadPacket* packet = &gamepad_binding->m_Packet;
 
                     dmHID::GamepadPacket* prev_packet = &gamepad_binding->m_PreviousPacket;
-                    GamepadConfig* config = 0x0;
-                    if (gamepad_binding->m_DeviceGUID) {
-                        config = binding->m_Context->m_GamepadMaps.Get(gamepad_binding->m_DeviceGUID);
-                    }
-                    if (config == 0x0) {
-                        config = binding->m_Context->m_GamepadMaps.Get(gamepad_binding->m_DeviceId);
-                    }
+                    GamepadConfig* config = binding->m_Context->m_GamepadMaps.Get(gamepad_binding->m_DeviceId);
                     if (config != 0x0)
                     {
                         dmHID::GetGamepadPacket(gamepad, packet);

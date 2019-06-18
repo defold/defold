@@ -187,8 +187,6 @@ int _glfwPlatformGetJoystickPos( int joy, float *pos, int numaxes );
 int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons, int numbuttons );
 int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats );
 int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id );
-int _glfwPlatformGetJoystickDeviceVendor( int joy, char** device_id );
-int _glfwPlatformGetJoystickGUID( int joy, char guid[33] );
 
 // Threads
 GLFWthread _glfwPlatformCreateThread( GLFWthreadfun fun, void *arg );

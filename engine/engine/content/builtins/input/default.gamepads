@@ -1,7 +1,6 @@
 driver
 {
     device: "PS4 Dualshock"
-    sdl_guid: "030000004c050000c405000000010000"
     platform: "osx"
     dead_zone: 0.200
 

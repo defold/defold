@@ -108,7 +108,6 @@ struct joystick_hwdata
     io_service_t hid_service;
     IOHIDDeviceInterface **interface;   /* interface to device, NULL = no interface */
 
-    char vendor[256];           /* name of vendor */
     char product[256];          /* name of product */
     long usage;                 /* usage page from IOUSBHID Parser.h which defines general usage */
     long usagePage;             /* usage within above page from IOUSBHID Parser.h which defines specific usage */
@@ -124,8 +123,6 @@ struct joystick_hwdata
 
     int removed;
     int uncentered;
-
-    uint8_t guid[16];
 
     struct joystick_hwdata *pNext;      /* next device */
 };
@@ -486,28 +483,6 @@ HIDTopLevelElementHandler(const void *value, void *parameter)
         XSDL_SetError("CFNumberGetValue error retrieving pDevice->usage.");
 }
 
-/* extracts device info from CF dictionary records in IO registry */
-
-void SDL_JoystickGetGUIDString(uint8_t guid[16], char pszGUID[33])
-{
-    static const char k_rgchHexToASCII[] = "0123456789abcdef";
-
-    if (pszGUID == NULL) {
-        return;
-    }
-
-    for (int i = 0; i < 16; i++) {
-        // each input byte writes 2 ascii chars, and might write a null byte.
-        // If we don't have room for next input byte, stop
-        unsigned char c = guid[i];
-
-        *pszGUID++ = k_rgchHexToASCII[c >> 4];
-        *pszGUID++ = k_rgchHexToASCII[c & 0x0F];
-    }
-    *pszGUID = '\0';
-}
-
-
 static void
 HIDGetDeviceInfo(io_object_t hidDevice, CFMutableDictionaryRef hidProperties,
                  recDevice * pDevice)
@@ -548,21 +523,6 @@ HIDGetDeviceInfo(io_object_t hidDevice, CFMutableDictionaryRef hidProperties,
                         ("CFStringGetCString error retrieving pDevice->product.");
             }
 
-            /* get vendor name */
-            refCF =
-                CFDictionaryGetValue(hidProperties, CFSTR(kIOHIDManufacturerKey));
-            if (!refCF)
-                refCF =
-                    CFDictionaryGetValue(usbProperties,
-                                         CFSTR("Unknown"));
-            if (refCF) {
-                if (!CFStringGetCString
-                    (refCF, pDevice->vendor, 256,
-                     CFStringGetSystemEncoding()))
-                    XSDL_SetError
-                        ("CFStringGetCString error retrieving pDevice->vendor.");
-            }
-
             /* get usage page and usage */
             refCF =
                 CFDictionaryGetValue(hidProperties,
@@ -581,68 +541,6 @@ HIDGetDeviceInfo(io_object_t hidDevice, CFMutableDictionaryRef hidProperties,
                         XSDL_SetError
                             ("CFNumberGetValue error retrieving pDevice->usage.");
             }
-
-            // refCF = CFDictionaryGetValue(hidProperties, CFSTR(kIOHIDVendorIDKey));
-            // if (refCF) {
-            //     if (!CFNumberGetValue(refCF, kCFNumberLongType, &pDevice->guid[0])) {
-            //         XSDL_SetError("CFNumberGetValue error retrieving pDevice->guid[0]");
-            //     }
-            // }
-
-            // refCF = CFDictionaryGetValue(hidProperties, CFSTR(kIOHIDProductIDKey));
-            // if (refCF) {
-            //     if (!CFNumberGetValue(refCF, kCFNumberLongType, &pDevice->guid[8])) {
-            //         XSDL_SetError("CFNumberGetValue error retrieving pDevice->guid[8]");
-            //     }
-            // }
-
-            int32_t vendor = 0;
-            int32_t product = 0;
-            int32_t version = 0;
-
-            refCF = CFDictionaryGetValue(hidProperties, CFSTR(kIOHIDVendorIDKey));
-            if (refCF) {
-                CFNumberGetValue(refCF, kCFNumberSInt32Type, &vendor);
-            }
-
-            refCF = CFDictionaryGetValue(hidProperties, CFSTR(kIOHIDProductIDKey));
-            if (refCF) {
-                CFNumberGetValue(refCF, kCFNumberSInt32Type, &product);
-            }
-
-            refCF = CFDictionaryGetValue(hidProperties, CFSTR(kIOHIDVersionNumberKey));
-            if (refCF) {
-                CFNumberGetValue(refCF, kCFNumberSInt32Type, &version);
-            }
-
-            uint16_t *guid16 = (uint16_t *)pDevice->guid;
-            memset(guid16, 0, sizeof(pDevice->guid));
-
-#define SDL_HARDWARE_BUS_USB        0x03
-#define SDL_HARDWARE_BUS_BLUETOOTH  0x05
-
-            if (vendor && product) {
-                *guid16++ = (SDL_HARDWARE_BUS_USB);
-                *guid16++ = 0;
-                *guid16++ = ((uint16_t)vendor);
-                *guid16++ = 0;
-                *guid16++ = ((uint16_t)product);
-                *guid16++ = 0;
-                *guid16++ = ((uint16_t)version);
-                *guid16++ = 0;
-            } else {
-                *guid16++ = (SDL_HARDWARE_BUS_BLUETOOTH);
-                *guid16++ = 0;
-                strlcpy((char*)guid16, pDevice->product, sizeof(pDevice->guid) - 4);
-            }
-
-            // TEMP debug
-            // printf("GUID: ");
-            // for (uint8_t i = 0; i < 16; i++)
-            // {
-            //     printf("%x", pDevice->guid[i]);
-            // }
-            // printf("\n");
 
             if (NULL == refCF) {        /* get top level element HID usage page or usage */
                 /* use top level element instead */
@@ -856,8 +754,6 @@ static void gamepadWasAdded(void* inContext, IOReturn inResult, void* inSender, 
 
             _glfwJoy[i].NumHats = new_device->hats;
             _glfwJoy[i].Hat = malloc(sizeof(unsigned char) * new_device->hats);
-
-            printf("%d: %s %s - hatcount: %ld\n", i, new_device->vendor, new_device->product, new_device->hats);
 
             found = i;
             break;
@@ -1278,48 +1174,6 @@ int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
     {
         recDevice* d = (recDevice*) _glfwJoy[ joy ].Device;
         *device_id = d->product;
-        return GL_TRUE;
-    }
-}
-
-int _glfwPlatformGetJoystickDeviceVendor( int joy, char** vendor_id )
-{
-    // Is joystick present?
-    if( !_glfwJoy[ joy ].Present )
-    {
-        return GL_FALSE;
-    }
-    else
-    {
-        recDevice* d = (recDevice*) _glfwJoy[ joy ].Device;
-        *vendor_id = d->vendor;
-        return GL_TRUE;
-    }
-}
-
-int _glfwPlatformGetJoystickGUID( int joy, char guid[33] )
-{
-    // Is joystick present?
-    if( !_glfwJoy[ joy ].Present )
-    {
-        return GL_FALSE;
-    }
-    else
-    {
-        recDevice* d = (recDevice*) _glfwJoy[ joy ].Device;
-        // *vendor_id = d->vendor;
-        // TEMP debug
-        // char guid[33];
-        memset(guid, 0, sizeof(char) * 33);
-        SDL_JoystickGetGUIDString(d->guid, guid);
-        // printf("GUID1: %s\n", guid);
-
-        // printf("GUID2: ");
-        // for (uint8_t i = 0; i < 16; i++)
-        // {
-        //     printf("%02x", d->guid[i]);
-        // }
-        // printf("\n");
         return GL_TRUE;
     }
 }

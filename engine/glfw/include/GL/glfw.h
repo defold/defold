@@ -526,8 +526,6 @@ GLFWAPI int GLFWAPIENTRY glfwGetJoystickPos( int joy, float *pos, int numaxes );
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickButtons( int joy, unsigned char *buttons, int numbuttons );
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickHats( int joy, unsigned char *hats, int numhats );
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickDeviceId( int joy, char** device_id );
-GLFWAPI int GLFWAPIENTRY glfwGetJoystickDeviceVendor( int joy, char** vendor_id );
-GLFWAPI int GLFWAPIENTRY glfwGetJoystickDeviceGUID( int joy, char guid[33] );
 
 /* Time */
 GLFWAPI double GLFWAPIENTRY glfwGetTime( void );

@@ -224,29 +224,6 @@ int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
     return GL_TRUE;
 }
 
-int _glfwPlatformGetJoystickGUID( int joy, char guid[33] )
-{
-    // Is joystick present?
-    if( !_glfwJoystickPresent(joy) )
-    {
-        return GL_FALSE;
-    }
-    else
-    {
-        // From glfw3:
-        XINPUT_CAPABILITIES xic;
-        if (XInputGetCapabilities(joy, 0, &xic) != ERROR_SUCCESS)
-        {
-            return GL_FALSE;
-        }
-
-        // Generate a joystick GUID that matches the SDL 2.0.5+ one
-        sprintf(guid, "78696e707574%02x000000000000000000", xic.SubType & 0xff);
-
-        return GL_TRUE;
-    }
-}
-
 int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats )
 {
     DWORD result;

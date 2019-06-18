@@ -34,14 +34,11 @@ struct Trigger
 struct Driver
 {
     const char* m_Device;
-    const char* m_DeviceVendor;
-    const char* m_DeviceGUID;
     const char* m_Platform;
     float m_DeadZone;
     Trigger m_Triggers[dmInputDDF::MAX_GAMEPAD_COUNT];
 };
 
-// void GetDelta(dmHID::GamepadPacket* zero_packet, dmHID::GamepadPacket* input_packet, bool* axis, uint32_t* index, float* value, float* delta);
 void GetDelta(dmHID::GamepadPacket* zero_packet, dmHID::GamepadPacket* input_packet, dmInputDDF::GamepadType* gamepad_type, uint32_t* index, float* value, float* delta);
 void DumpDriver(FILE* out, Driver* driver);
 bool IsIgnoredTrigger(uint32_t trigger_id) {
@@ -159,20 +156,13 @@ retry:
     }
 
     const char* device_name;
-    const char* device_vendor;
-    // const char* device_guid;
-    char device_guid[33];
     dmHID::GetGamepadDeviceName(gamepad, &device_name);
-    dmHID::GetGamepadDeviceVendor(gamepad, &device_vendor);
-    dmHID::GetGamepadDeviceGUID(gamepad, device_guid);
 
     printf("\n%s will be added to %s\n\n", device_name, filename);
 
     Driver driver;
     memset(&driver, 0, sizeof(Driver));
     driver.m_Device = device_name;
-    driver.m_DeviceVendor = device_vendor;
-    driver.m_DeviceGUID = device_guid;
     driver.m_Platform = DM_PLATFORM;
     driver.m_DeadZone = 0.2f;
 
@@ -353,7 +343,6 @@ void DumpDriver(FILE* out, Driver* driver)
     fprintf(out, "    device: \"%s\"\n", driver->m_Device);
     fprintf(out, "    platform: \"%s\"\n", driver->m_Platform);
     fprintf(out, "    dead_zone: %.3f\n", driver->m_DeadZone);
-    fprintf(out, "    sdl_guid: \"%s\"\n", driver->m_DeviceGUID);
     for (uint32_t i = 0; i < dmInputDDF::MAX_GAMEPAD_COUNT; ++i)
     {
         // Ignore connected/disconnected triggers.

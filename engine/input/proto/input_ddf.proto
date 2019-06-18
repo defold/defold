@@ -221,7 +221,6 @@ message GamepadMap
     required string platform = 2;
     required float dead_zone = 3;
     repeated GamepadMapEntry map = 4;
-    optional string sdl_guid = 5;
 }
 
 message GamepadMaps

@@ -31,7 +31,7 @@ namespace dmHID
     /// Maximum number of gamepad buttons supported
     const static uint32_t MAX_GAMEPAD_BUTTON_COUNT = 256;
     /// Maximum number of gamepad hats supported
-    const static uint32_t MAX_GAMEPAD_HAT_COUNT = 8;
+    const static uint32_t MAX_GAMEPAD_HAT_COUNT = 4;
 
     /// Maximum number of simultaneous touches supported
     // An iPad supports a maximum of 11 simultaneous touches
@@ -389,9 +389,6 @@ namespace dmHID
      * @param a pointer to the device name, or 0x0 if not specified
      */
     void GetGamepadDeviceName(HGamepad gamepad, const char** out_device_name);
-    void GetGamepadDeviceVendor(HGamepad gamepad, const char** out_device_vendor);
-    // void GetGamepadDeviceGUID(HGamepad gamepad, const char** out_guid);
-    void GetGamepadDeviceGUID(HGamepad gamepad, char guid[33]);
 
     /**
      * Check if a keyboard is connected.
