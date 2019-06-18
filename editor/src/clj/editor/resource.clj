@@ -62,11 +62,10 @@
   (let [p1-lower (string/lower-case (->unix-seps (str (.getAbsolutePath f1))))
         p2-abs (->unix-seps (str (.getAbsolutePath f2)))
         p2-lower (string/lower-case p2-abs)
-        idx (.indexOf p2-lower p1-lower)
-        path (if-not (= -1 idx)
+        path (if (string/starts-with? p2-lower p1-lower)
                (subs p2-abs (count p1-lower))
                p2-abs)]
-    (if (.startsWith path "/")
+    (if (string/starts-with? path "/")
       (subs path 1)
       path)))
 
