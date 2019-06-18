@@ -338,9 +338,6 @@ namespace dmInput
             if (strcmp(DM_PLATFORM, gamepad_map.m_Platform) == 0)
             {
                 uint32_t device_id = dmHashString32(gamepad_map.m_Device);
-                if (gamepad_map.m_SdlGuid && strlen(gamepad_map.m_SdlGuid) > 0) {
-                    device_id = dmHashString32(gamepad_map.m_SdlGuid);
-                }
 
                 if (context->m_GamepadMaps.Get(device_id) == 0x0)
                 {
@@ -379,6 +376,10 @@ namespace dmInput
                                 break;
                             }
                         }
+                    }
+                    context->m_GamepadMaps.Put(device_id, config);
+                    if (gamepad_map.m_SdlGuid && strlen(gamepad_map.m_SdlGuid) > 0) {
+                        device_id = dmHashString32(gamepad_map.m_SdlGuid);
                     }
                     context->m_GamepadMaps.Put(device_id, config);
                 }

@@ -982,18 +982,6 @@ XSDL_PrivateJoystickHat(SDL_Joystick * joystick, Uint8 hat, Uint8 value)
 }
 #endif
 
-static const char* hat_enum_to_str[] = {
-    "GLFW_HAT_CENTERED",
-    "GLFW_HAT_UP",
-    "GLFW_HAT_RIGHTUP",
-    "GLFW_HAT_RIGHT",
-    "GLFW_HAT_RIGHTDOWN",
-    "GLFW_HAT_DOWN",
-    "GLFW_HAT_LEFTDOWN",
-    "GLFW_HAT_LEFT",
-    "GLFW_HAT_LEFTUP"
-};
-
 /* Function to update the state of a joystick - called as a device poll.
  * This function shouldn't update the joystick structure directly,
  * but instead should call SDL_PrivateJoystick*() to deliver events
@@ -1061,8 +1049,6 @@ XSDL_SYS_JoystickUpdate(int joy_index)
     while (element) {
         uint8_t pos = 0;
 
-
-
         int range = (element->max - element->min + 1);
         value = HIDGetElementValue(device, element) - element->min;
         if (range == 4)         /* 4 position hatswitch - scale up value */
@@ -1104,9 +1090,6 @@ XSDL_SYS_JoystickUpdate(int joy_index)
         }
         if (pos != _glfwJoy[joy_index].Hat[i])
             _glfwJoy[joy_index].Hat[i] = pos;
-        // if (pos != joystick->hats[i])
-            // SDL_PrivateJoystickHat(joystick, i, pos);
-        // printf("hat elem %p - %d - %d - %d [%s]\n", element, i, value, pos, hat_enum_to_str[pos]);
 
         element = element->pNext;
         ++i;

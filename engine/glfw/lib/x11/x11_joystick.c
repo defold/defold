@@ -514,6 +514,17 @@ int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons,
     return numbuttons;
 }
 
+int _glfwPlatformGetJoystickGUID( int joy, char guid[33] )
+{
+    return GL_FALSE;
+}
+
+int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats )
+{
+    // No explicit hat support on Linux. (Seems to be exposed as axis instead.)
+    return 0;
+}
+
 //========================================================================
 // _glfwPlatformGetJoystickDeviceId() - Get joystick device id
 //========================================================================
