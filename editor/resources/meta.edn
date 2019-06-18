@@ -504,10 +504,6 @@
    :label "Custom entitlements"
    :default "",
    :path ["ios" "entitlements"]}
-  {:type :string,
-   :help "the miminimum operating system version required for the app to run on iOS (MinimumOSVersion)",
-   :default "8.0",
-   :path ["ios" "minimum_os_version"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
