@@ -753,7 +753,6 @@
 (defn- sanitize-common [name]
   (-> name
       string/trim
-      (string/replace #"[/\\]" "") ; strip path separators
       (string/replace #"[\"']" "") ; strip quotes
       (string/replace #"^\.+" "") ; prevent hiding files (.dotfile)
       (string/replace #"[<>:|?*]" ""))) ; Additional Windows forbidden characters
@@ -761,6 +760,7 @@
 (defn sanitize-file-name [extension name]
   (-> name
       sanitize-common
+      (string/replace #"[/\\]" "") ; strip path separators
       (#(if (empty? extension) (string/replace % #"\..*" "") %)) ; disallow adding extension = resource type
       (#(if (and (seq extension) (seq %))
           (str % "." extension)
