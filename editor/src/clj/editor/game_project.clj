@@ -225,4 +225,4 @@
     :node-type GameProjectNode
     :load-fn load-game-project
     :icon game-project-icon
-    :view-types [:form-view :cljfx-form-view :text]))
+    :view-types [:cljfx-form-view :text]))

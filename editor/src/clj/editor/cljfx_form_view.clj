@@ -18,7 +18,7 @@
             [editor.workspace :as workspace])
   (:import [javafx.event Event]
            [javafx.scene Node]
-           [javafx.scene.control ListView$EditEvent TextInputControl ScrollPane]
+           [javafx.scene.control ListView$EditEvent ScrollPane]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.util StringConverter]))
 
@@ -144,9 +144,7 @@
 (defmethod input-view :default [{:keys [value type] :as field}]
   {:fx/type :label
    :wrap-text true
-   :text (str type " "
-              (if (nil? value) "***NIL***" value) " "
-              (dissoc field :resource-string-converter))})
+   :text (str type " " (if (nil? value) "***NIL***" value) " " field)})
 
 (defmethod input-view :string [{:keys [value path]}]
   {:fx/type :text-field
@@ -439,8 +437,10 @@
                                   :build-targets))))]
     (assoc field :visible visible)))
 
-(defn- set-section-visibility [{:keys [title fields] :as section} values filter-term]
-  (let [visible (contains-ignore-case? title filter-term)
+(defn- set-section-visibility [{:keys [title help fields] :as section} values filter-term]
+  (let [visible (or (contains-ignore-case? title filter-term)
+                    (and (some? help)
+                         (contains-ignore-case? help filter-term)))
         fields (into []
                      (comp
                        (remove :hidden?)
@@ -563,9 +563,7 @@
                     :set-ui-state (fn [ui-state _]
                                     (g/set-property! view-id :ui-state ui-state))
                     :open-resource (fn [[node value] _]
-                                     (ui/run-command node :open {:resources [value]}))
-                    :reset-text (fn [^TextInputControl node _]
-                                  (.setText node ""))})
+                                     (ui/run-command node :open {:resources [value]}))})
                  (wrap-force-refresh view-id))}
 
       :middleware (comp
@@ -589,7 +587,7 @@
                     g/transact
                     g/tx-nodes-added
                     first)
-        repaint-timer (ui/->timer 60 "refresh-form-view"
+        repaint-timer (ui/->timer 30 "refresh-form-view"
                                   (fn [_timer _elapsed]
                                     (g/node-value view-id :form-view)))]
     (ui/timer-start! repaint-timer)
@@ -599,7 +597,7 @@
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :cljfx-form-view
-                                :label "Cljfx Form"
+                                :label "Form"
                                 :make-view-fn make-form-view))
 
 (handler/defhandler :filter-form :form
