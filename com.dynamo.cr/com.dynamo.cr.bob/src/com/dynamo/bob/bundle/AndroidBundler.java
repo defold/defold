@@ -166,7 +166,7 @@ public class AndroidBundler implements IBundler {
             // Pass along
             throw e;
         } catch (Exception e) {
-            throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
+            throw new CompileExceptionError(sourceManifestFile, -1, e);
         }
 
         BundleHelper.throwIfCanceled(canceled);
