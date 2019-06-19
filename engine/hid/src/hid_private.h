@@ -11,7 +11,7 @@ namespace dmHID
         uint32_t m_Index;
         uint32_t m_AxisCount;
         uint32_t m_ButtonCount;
-        uint32_t m_HatCount;
+        uint8_t m_HatCount;
         uint32_t m_Connected : 1;
     };
 

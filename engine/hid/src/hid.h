@@ -598,7 +598,14 @@ namespace dmHID
      */
     bool GetGamepadButton(GamepadPacket* packet, uint32_t button);
 
-    int GetGamepadHat(GamepadPacket* packet, uint32_t hat);
+    /**
+     * Convenience function to retrieve the state of a gamepad hat from a gamepad packet.
+     * @param packet Gamepad packet
+     * @param hat The requested hat index
+     * @param hat_value Reference to where the hat value should be written
+     * @return If the hat has data or not
+     */
+    bool GetGamepadHat(GamepadPacket* packet, uint32_t hat, uint8_t& hat_value);
 
     /**
      * Sets the state of a gamepad button.
