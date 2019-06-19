@@ -483,6 +483,8 @@ HIDTopLevelElementHandler(const void *value, void *parameter)
         XSDL_SetError("CFNumberGetValue error retrieving pDevice->usage.");
 }
 
+/* extracts device info from CF dictionary records in IO registry */
+
 static void
 HIDGetDeviceInfo(io_object_t hidDevice, CFMutableDictionaryRef hidProperties,
                  recDevice * pDevice)
@@ -909,7 +911,6 @@ XSDL_SYS_JoystickUpdate(int joy_index)
 
             for (i = 0; i < device->hats; i++)
                 _glfwJoy[joy_index].Hat[i] = GLFW_HAT_CENTERED;
-              //  XSDL_PrivateJoystickHat(joystick, i, SDL_HAT_CENTERED);
         }
 
         return;
