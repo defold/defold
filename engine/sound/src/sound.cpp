@@ -1187,7 +1187,7 @@ namespace dmSound
             }
         }
 
-        if (sound->m_IsPhoneCallActive)
+        if (sound->m_IsPhoneCallActive || !sound->m_HasWindowFocus)
         {
             // We can't play sounds when the phone is active.
             return RESULT_OK;
