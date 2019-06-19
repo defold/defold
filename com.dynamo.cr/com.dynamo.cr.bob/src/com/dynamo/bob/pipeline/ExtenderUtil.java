@@ -239,7 +239,7 @@ public class ExtenderUtil {
     // Used to rename a resource in the multipart request and prefix the content with a base variant
 
     public static class FSAliasResource extends FSExtenderResource {
-        public IResource resource;
+        private IResource resource;
         private String alias;
         private String rootDir;
 
@@ -319,7 +319,7 @@ public class ExtenderUtil {
             }
 
             byte[] prefixBytes = prefix.getBytes();
-            byte[] content = resource.getContent();
+            byte[] content = getResource().getContent();
             byte[] c = new byte[prefixBytes.length + content.length];
             System.arraycopy(prefixBytes, 0, c, 0, prefixBytes.length);
             System.arraycopy(content, 0, c, prefixBytes.length, content.length);
