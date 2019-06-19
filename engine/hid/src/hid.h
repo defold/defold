@@ -238,6 +238,8 @@ namespace dmHID
     {
         float m_Axis[MAX_GAMEPAD_AXIS_COUNT];
         uint32_t m_Buttons[MAX_GAMEPAD_BUTTON_COUNT / 32 + 1];
+        bool m_GamepadDisconnected;
+        bool m_GamepadConnected;
     };
 
     /**
@@ -283,6 +285,8 @@ namespace dmHID
         float m_X, m_Y, m_Z;
     };
 
+    typedef void (* DMHIDGamepadFunc)(uint32_t, bool, void*);
+
     /// parameters to be passed to NewContext
     struct NewContextParams
     {
@@ -301,6 +305,8 @@ namespace dmHID
         /// if mouse wheel scroll direction should be flipped (see DEF-2450)
         uint32_t m_FlipScrollDirection : 1;
 
+        DMHIDGamepadFunc m_GamepadConnectivityCallback;
+
     };
 
     /**
@@ -317,6 +323,14 @@ namespace dmHID
      * @param context context to be deleted
      */
     void DeleteContext(HContext context);
+
+    /**
+     * Set user data that will be passed along to the gamepad connectivity callback.
+     *
+     * @params context context for which the userdata should be set
+     * @params userdata userdata that should be passed along to callback
+     */
+    void SetGamepadFuncUserdata(HContext context, void* userdata);
 
     /**
      * Initializes a hid context.
@@ -508,6 +522,15 @@ namespace dmHID
      * @param text The marked text string
      */
     void SetMarkedText(HContext context, char* text);
+
+    /**
+     * Set the connectivity status (usually only when changed) for a gamepad index.
+     *
+     * @param context context handle
+     * @param gamepad index of gamepad
+     * @param connected connectivity status, true for connected, false for disconnected
+     */
+    void SetGamepadConnectivity(HContext context, int gamepad, bool connected);
 
     /**
      * Show keyboard if applicable

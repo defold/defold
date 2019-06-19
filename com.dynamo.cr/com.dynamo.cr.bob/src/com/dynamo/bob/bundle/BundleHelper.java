@@ -5,7 +5,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
@@ -50,10 +49,8 @@ import com.samskivert.mustache.Template;
 import java.awt.AlphaComposite;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
-import java.awt.Image;
 import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
-import java.net.URL;
 
 
 public class BundleHelper {
@@ -373,8 +370,23 @@ public class BundleHelper {
         return items;
     }
 
+    public static void findAndroidAssetDirs(File dir, List<String> result) {
+        if (!dir.isDirectory()) {
+            return;
+        }
+        if (ExtenderUtil.matchesAndroidAssetDirectoryName(dir.getName())) {
+            String parent = dir.getParentFile().getAbsolutePath();
+            if (!result.contains(parent)) {
+                result.add(parent);
+            }
+            return;
+        }
+        for (File file : dir.listFiles()) {
+            findAndroidAssetDirs(file, result);
+        }
+    }
+
     public List<ExtenderResource> generateAndroidResources(Project project, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError {
-        List<String> resourceDirectories = new ArrayList<>();
 
         // Get all Android specific resources needed to create R.java files
         try {
@@ -406,12 +418,8 @@ public class BundleHelper {
             }
         }
 
-        for (File file : extensionsDir.listFiles()) {
-            if (file.isDirectory()) {
-                resourceDirectories.add(file.getAbsolutePath());
-            }
-        }
-
+        List<String> resourceDirectories = new ArrayList<>();
+        findAndroidAssetDirs(extensionsDir, resourceDirectories);
         resourceDirectories.add(resDir.getAbsolutePath());
 
         // Run aapt to generate R.java files
