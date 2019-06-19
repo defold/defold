@@ -87,6 +87,7 @@ namespace dmHID
                 gamepad.m_Connected = 0;
                 gamepad.m_AxisCount = 0;
                 gamepad.m_ButtonCount = 0;
+                gamepad.m_HatCount = 0;
                 memset(&gamepad.m_Packet, 0, sizeof(GamepadPacket));
             }
             return true;
@@ -169,8 +170,12 @@ namespace dmHID
                     }
 
                     pad->m_AxisCount = glfwGetJoystickParam(glfw_joystick, GLFW_AXES);
-                    pad->m_ButtonCount = dmMath::Min(MAX_GAMEPAD_BUTTON_COUNT, (uint32_t) glfwGetJoystickParam(glfw_joystick, GLFW_BUTTONS));
                     glfwGetJoystickPos(glfw_joystick, packet.m_Axis, pad->m_AxisCount);
+
+                    pad->m_HatCount = dmMath::Min(MAX_GAMEPAD_HAT_COUNT, (uint32_t) glfwGetJoystickParam(glfw_joystick, GLFW_HATS));
+                    glfwGetJoystickHats(glfw_joystick, packet.m_Hat, pad->m_HatCount);
+
+                    pad->m_ButtonCount = dmMath::Min(MAX_GAMEPAD_BUTTON_COUNT, (uint32_t) glfwGetJoystickParam(glfw_joystick, GLFW_BUTTONS));
                     unsigned char buttons[MAX_GAMEPAD_BUTTON_COUNT];
                     glfwGetJoystickButtons(glfw_joystick, buttons, pad->m_ButtonCount);
                     for (uint32_t j = 0; j < pad->m_ButtonCount; ++j)
