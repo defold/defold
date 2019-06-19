@@ -327,7 +327,6 @@ public class ExtenderUtil {
         }
     }
 
-
     private static List<ExtenderResource> listFilesRecursive(Project project, String path) {
         List<ExtenderResource> resources = new ArrayList<ExtenderResource>();
         ArrayList<String> paths = new ArrayList<>();
