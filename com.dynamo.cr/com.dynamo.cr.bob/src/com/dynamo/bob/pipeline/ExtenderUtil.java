@@ -39,6 +39,7 @@ import com.dynamo.bob.util.BobProjectProperties;
 public class ExtenderUtil {
 
     public static final String appManifestPath = "_app/" + ExtenderClient.appManifestFilename;
+    public static final String proguardPath = "_app/app.pro";
 
     private static class FSExtenderResource implements ExtenderResource {
 
@@ -234,19 +235,17 @@ public class ExtenderUtil {
     }
 
     // Used to rename a resource in the multipart request and prefix the content with a base variant
-    public static class FSAppManifestResource extends FSExtenderResource {
 
+    public static class FSAliasResource extends FSExtenderResource {
         private IResource resource;
         private String alias;
         private String rootDir;
-        private Map<String, String> options;
 
-        FSAppManifestResource(IResource resource, String rootDir, String alias, Map<String, String> options) {
+        FSAliasResource(IResource resource, String rootDir, String alias) {
             super(resource);
             this.resource = resource;
             this.rootDir = rootDir;
             this.alias = alias;
-            this.options = options;
         }
 
         public IResource getResource() {
@@ -281,20 +280,9 @@ public class ExtenderUtil {
 
         @Override
         public byte[] getContent() throws IOException {
-            String prefix = "";
-            if (options != null) {
-                prefix += "context:" + System.getProperty("line.separator");
-                for (String key : options.keySet()) {
-                    String value = options.get(key);
-                    prefix += String.format("    %s: %s", key, value) + System.getProperty("line.separator");
-                }
-            }
-
-            byte[] prefixBytes = prefix.getBytes();
             byte[] content = resource.getContent();
-            byte[] c = new byte[prefixBytes.length + content.length];
-            System.arraycopy(prefixBytes, 0, c, 0, prefixBytes.length);
-            System.arraycopy(content, 0, c, prefixBytes.length, content.length);
+            byte[] c = new byte[content.length];
+            System.arraycopy(content, 0, c, 0, content.length);
             return c;
         }
 
@@ -309,6 +297,33 @@ public class ExtenderUtil {
         }
     }
 
+    public static class FSAppManifestResource extends FSAliasResource {
+        private Map<String, String> options;
+
+        FSAppManifestResource(IResource resource, String rootDir, String alias, Map<String, String> options) {
+            super(resource, rootDir, alias);
+            this.options = options;
+        }
+
+        @Override
+        public byte[] getContent() throws IOException {
+            String prefix = "";
+            if (options != null) {
+                prefix += "context:" + System.getProperty("line.separator");
+                for (String key : options.keySet()) {
+                    String value = options.get(key);
+                    prefix += String.format("    %s: %s", key, value) + System.getProperty("line.separator");
+                }
+            }
+
+            byte[] prefixBytes = prefix.getBytes();
+            byte[] content = getResource().getContent();
+            byte[] c = new byte[prefixBytes.length + content.length];
+            System.arraycopy(prefixBytes, 0, c, 0, prefixBytes.length);
+            System.arraycopy(content, 0, c, prefixBytes.length, content.length);
+            return c;
+        }
+    }
 
     private static List<ExtenderResource> listFilesRecursive(Project project, String path) {
         List<ExtenderResource> resources = new ArrayList<ExtenderResource>();
@@ -371,6 +386,17 @@ public class ExtenderUtil {
         return folders;
     }
 
+    private static boolean hasPropertyResource(Project project, BobProjectProperties projectProperties, String section, String key) {
+        String path = projectProperties.getStringValue(section, key, "");
+        if (!path.isEmpty()) {
+            IResource resource = project.getResource(path);
+            if (resource.exists()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Returns true if the project should build remotely
      * @param project
@@ -378,12 +404,10 @@ public class ExtenderUtil {
      */
     public static boolean hasNativeExtensions(Project project) {
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String appManifest = projectProperties.getStringValue("native_extension", "app_manifest", "");
-        if (!appManifest.isEmpty()) {
-            IResource resource = project.getResource(appManifest);
-            if (resource.exists()) {
-                return true;
-            }
+        if (hasPropertyResource(project, projectProperties, "native_extension", "app_manifest") ||
+            hasPropertyResource(project, projectProperties, "android", "proguard") &&
+            !projectProperties.getStringValue("android", "proguard", "").startsWith("/builtins/")) {
+            return true;
         }
 
         ArrayList<String> paths = new ArrayList<>();
@@ -395,6 +419,20 @@ public class ExtenderUtil {
             }
         }
         return false;
+    }
+
+    private static IResource getPropertyResource(Project project, BobProjectProperties projectProperties, String section, String key) throws CompileExceptionError {
+        String path = projectProperties.getStringValue(section, key, "");
+        if (!path.isEmpty()) {
+            IResource resource = project.getResource(path);
+            if (resource.exists()) {
+                return resource;
+            } else {
+                IResource projectResource = project.getResource("game.project");
+                throw new CompileExceptionError(projectResource, 0, String.format("No such resource: %s.%s: %s", section, key, path));
+            }
+        }
+        return null;
     }
 
     /**
@@ -411,22 +449,18 @@ public class ExtenderUtil {
 
         // Find app manifest if there is one
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String appManifest = projectProperties.getStringValue("native_extension", "app_manifest", "");
-        if (!appManifest.isEmpty()) {
-            IResource resource = project.getResource(appManifest);
-            if (resource.exists()) {
-                // We use an alias so the the app manifest has a predefined name
-                sources.add( new FSAppManifestResource( resource, project.getRootDirectory(), appManifestPath, appmanifestOptions ) );
-            } else {
-                IResource projectResource = project.getResource("game.project");
-                throw new CompileExceptionError(projectResource, 0, String.format("No such resource: %s", resource.getAbsPath()));
-            }
-        }
-        else if (appmanifestOptions != null)
         {
-            // Make up appmanifest
-        	IResource resource = new EmptyResource(project.getRootDirectory(), appManifestPath);
-        	sources.add( new FSAppManifestResource( resource, project.getRootDirectory(), appManifestPath, appmanifestOptions ) );
+            IResource resource = getPropertyResource(project, projectProperties, "native_extension", "app_manifest");
+            if (resource == null) {
+                 resource = new EmptyResource(project.getRootDirectory(), appManifestPath);
+            }
+            sources.add( new FSAppManifestResource(resource, project.getRootDirectory(), appManifestPath, appmanifestOptions ));
+        }
+        {
+            IResource resource = getPropertyResource(project, projectProperties, "android", "proguard");
+            if (resource != null) {
+                sources.add(new FSAliasResource(resource, project.getRootDirectory(), proguardPath));
+            }
         }
 
         // Find extension folders
@@ -441,9 +475,10 @@ public class ExtenderUtil {
             sources.addAll( listFilesRecursive( project, extension + "/include/" ) );
             sources.addAll( listFilesRecursive( project, extension + "/src/") );
 
-            // Get "lib" folder; branches of into sub folders such as "common" and platform specifics
+            // Get "lib" and "manifest" folders; branches of into sub folders such as "common" and platform specifics
             for (String platformAlt : platformFolderAlternatives) {
                 sources.addAll( listFilesRecursive( project, extension + "/lib/" + platformAlt + "/") );
+                sources.addAll( listFilesRecursive( project, extension + "/manifests/" + platformAlt + "/") );
             }
         }
 

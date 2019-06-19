@@ -794,7 +794,7 @@ public class BundleHelper {
         }
     }
 
-    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, List<String> srcNames, List<File> outputEngines, File outputClassesDex) throws CompileExceptionError, MultipleCompileException {
+    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, List<String> srcNames, List<File> outputEngines, File outputClassesDex, File proguardMapping) throws CompileExceptionError, MultipleCompileException {
         File zipFile = null;
 
         try {
@@ -889,6 +889,21 @@ public class BundleHelper {
             }
         }
 
+        if (proguardMapping != null)
+        {
+            String name = "mapping.txt";
+            try {
+                Path source = zip.getPath(name);
+                if (Files.isReadable(source)) {
+                    try (FileOutputStream out = new FileOutputStream(proguardMapping)) {
+                        Files.copy(source, out);
+                    }
+                }
+            } catch (IOException e) {
+                throw new CompileExceptionError(String.format("Failed to copy %s to %s", name, proguardMapping.getAbsolutePath()), e.getCause());
+            }
+        }
+
         for (int i = 0; i < srcNames.size(); i++) {
             String srcName = srcNames.get(i);
             File outputEngine = outputEngines.get(i);
@@ -903,5 +918,4 @@ public class BundleHelper {
             }
         }
     }
-
 }
