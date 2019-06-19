@@ -19,7 +19,7 @@
   (:import [javafx.event Event]
            [javafx.scene Node]
            [javafx.scene.control ListView$EditEvent TextInputControl ScrollPane]
-           [javafx.scene.input KeyEvent KeyCode]
+           [javafx.scene.input KeyCode KeyEvent]
            [javafx.util StringConverter]))
 
 (set! *warn-on-reflection* true)
@@ -184,8 +184,6 @@
 
 (defmethod input-view :list [{:keys [value path state element]
                               :or {state {:selected-indices []}}}]
-  ;; TODO entering invalid values should be better. editable sucks.
-  ;; TODO selection is also flaky :c
   (let [{:keys [selected-indices]} state
         disable-remove (empty? selected-indices)
         disable-add (not (form/has-default? element))
@@ -196,34 +194,35 @@
                       :path path}]
     {:fx/type :v-box
      :spacing 4
-     :children [{:fx/type fx.ext.list-view/with-selection-props
-                 :props {:selection-mode :multiple
-                         :selected-indices selected-indices
-                         :on-selected-indices-changed {:event-type :select
-                                                       :path path}}
-                 :desc {:fx/type :list-view
-                        :items (vec value)
-                        :editable true
-                        :on-edit-commit {:event-type :edit-list-item
-                                         :path path}
-                        :pref-height (+ 2                   ;; top and bottom insets
-                                        1                   ;; bottom padding
-                                        9                   ;; horizontal progress bar height
-                                        (* cell-height
-                                           (max (count value) 1)))
-                        :fixed-cell-size cell-height
-                        :cell-factory (fn [uri]
-                                        {:text (str uri)
-                                         :converter uri-string-converter})
-                        :context-menu {:fx/type :context-menu
-                                       :items [{:fx/type :menu-item
-                                                :text "Add"
-                                                :disable disable-add
-                                                :on-action add-event}
-                                               {:fx/type :menu-item
-                                                :text "Remove"
-                                                :disable disable-remove
-                                                :on-action remove-event}]}}}
+     :children [{:fx/type fxui/ext-with-advance-events
+                 :desc {:fx/type fx.ext.list-view/with-selection-props
+                        :props {:selection-mode :multiple
+                                :selected-indices selected-indices
+                                :on-selected-indices-changed {:event-type :select
+                                                              :path path}}
+                        :desc {:fx/type :list-view
+                               :items (vec value)
+                               :editable true
+                               :on-edit-commit {:event-type :edit-list-item
+                                                :path path}
+                               :pref-height (+ 2                   ;; top and bottom insets
+                                               1                   ;; bottom padding
+                                               9                   ;; horizontal progress bar height
+                                               (* cell-height
+                                                  (max (count value) 1)))
+                               :fixed-cell-size cell-height
+                               :cell-factory (fn [uri]
+                                               {:text (str uri)
+                                                :converter uri-string-converter})
+                               :context-menu {:fx/type :context-menu
+                                              :items [{:fx/type :menu-item
+                                                       :text "Add"
+                                                       :disable disable-add
+                                                       :on-action add-event}
+                                                      {:fx/type :menu-item
+                                                       :text "Remove"
+                                                       :disable disable-remove
+                                                       :on-action remove-event}]}}}}
                 {:fx/type :h-box
                  :spacing 4
                  :children [{:fx/type :button
@@ -356,12 +355,12 @@
                                       (not= ::no-value state)
                                       (assoc :state state))]}))))
 
-(defn- display-title-text [title]
-  (string/capitalize (string/replace title "_" " ")))
+(defn- section-id [title]
+  (string/replace title " " "-"))
 
 (defn- section-view [{:keys [title help fields values ui-state resource-string-converter visible]}]
   {:fx/type :v-box
-   :id title
+   :id (section-id title)
    :visible visible
    :managed visible
    :children (cond-> []
@@ -369,7 +368,7 @@
                      :always
                      (conj {:fx/type :label
                             :style-class ["label" "title"]
-                            :text (display-title-text title)})
+                            :text title})
 
                      help
                      (conj {:fx/type :label
@@ -441,7 +440,7 @@
     (assoc field :visible visible)))
 
 (defn- set-section-visibility [{:keys [title fields] :as section} values filter-term]
-  (let [visible (contains-ignore-case? (display-title-text title) filter-term)
+  (let [visible (contains-ignore-case? title filter-term)
         fields (into []
                      (comp
                        (remove :hidden?)
@@ -483,6 +482,19 @@
       [[] false]
       sections)))
 
+(defn- jump-to-button [{:keys [visible-titles]}]
+  {:fx/type :menu-button
+   :text "Jump to..."
+   :style-class "jump-to-menu-button"
+   :disable (empty? visible-titles)
+   :items (->> visible-titles
+               (sort #(.compareToIgnoreCase ^String %1 %2))
+               (mapv (fn [title]
+                       {:fx/type :menu-item
+                        :on-action {:event-type :jump-to
+                                    :section (section-id title)}
+                        :text title})))})
+
 (defn- form-view [{:keys [parent form-data ui-state resource-string-converter]}]
   (let [{:keys [sections values]} form-data
         filter-term (:filter-term ui-state)
@@ -507,16 +519,8 @@
                          :view-order 0
                          :children [{:fx/type filter-text-field
                                      :text filter-term}
-                                    {:fx/type :menu-button
-                                     :text "Jump to..."
-                                     :style-class "jump-to-menu-button"
-                                     :disable (empty? visible-titles)
-                                     :items (mapv (fn [title]
-                                                    {:fx/type :menu-item
-                                                     :on-action {:event-type :jump-to
-                                                                 :section title}
-                                                     :text (display-title-text title)})
-                                                  (sort visible-titles))}]}
+                                    {:fx/type jump-to-button
+                                     :visible-titles visible-titles}]}
                         {:fx/type fx/ext-on-instance-lifecycle
                          :anchor-pane/top 0
                          :anchor-pane/right 0

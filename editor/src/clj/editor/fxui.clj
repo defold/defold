@@ -61,6 +61,22 @@
                                        (.requestFocus node)))))))
    :desc desc})
 
+(def ext-with-advance-events
+  "Extension lifecycle that notifies all listeners even during advancing
+
+  Expected keys:
+  - `:desc` (required) - description of underlying component"
+  (reify fx.lifecycle/Lifecycle
+    (create [_ {:keys [desc]} opts]
+      (binding [fx.lifecycle/*in-progress?* false]
+        (fx.lifecycle/create fx.lifecycle/dynamic desc opts)))
+    (advance [_ component {:keys [desc]} opts]
+      (binding [fx.lifecycle/*in-progress?* false]
+        (fx.lifecycle/advance fx.lifecycle/dynamic component desc opts)))
+    (delete [_ component opts]
+      (binding [fx.lifecycle/*in-progress?* false]
+        (fx.lifecycle/delete fx.lifecycle/dynamic component opts)))))
+
 (defn make-event-filter-prop
   "Creates a prop-config that will add event filter for specified `event-type`
 
