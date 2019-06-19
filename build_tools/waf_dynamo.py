@@ -808,7 +808,6 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
                 android:label="%(app_name)s"
                 android:configChanges="orientation|screenSize|keyboardHidden"
                 android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
-                android:screenOrientation="portrait"
                 android:launchMode="singleTask">
             <meta-data android:name="android.app.lib_name"
                     android:value="%(lib_name)s" />

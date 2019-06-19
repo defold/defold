@@ -181,13 +181,16 @@ enum Gamepad
     GAMEPAD_START = 22;
     GAMEPAD_BACK = 23;
     GAMEPAD_GUIDE = 24;
-    MAX_GAMEPAD_COUNT = 25;
+    GAMEPAD_CONNECTED = 25;
+    GAMEPAD_DISCONNECTED = 26;
+    MAX_GAMEPAD_COUNT = 27;
 }
 
 enum GamepadType
 {
     GAMEPAD_TYPE_AXIS = 0;
     GAMEPAD_TYPE_BUTTON = 1;
+    GAMEPAD_TYPE_HAT = 2;
 }
 
 enum GamepadModifier
@@ -209,6 +212,7 @@ message GamepadMapEntry
     required GamepadType type = 2;
     required uint32 index = 3;
     repeated GamepadModifier_t mod = 4;
+    optional uint32 hat_mask = 5;
 }
 
 message GamepadMap

@@ -80,6 +80,7 @@ struct _GLFWwin_struct {
     GLFWkeyfun           keyCallback;
     GLFWcharfun          charCallback;
     GLFWmarkedtextfun    markedTextCallback;
+    GLFWgamepadfun       gamepadCallback;
 
     // User selected window settings
     int       fullscreen;      // Fullscreen flag
@@ -237,8 +238,10 @@ GLFWGLOBAL struct {
     void*         Device;
     int           NumAxes;
     int           NumButtons;
+    int           NumHats;
     float         *Axis;
     unsigned char *Button;
+    unsigned char *Hat;
 } _glfwJoy[ GLFW_JOYSTICK_LAST + 1 ];
 
 //========================================================================

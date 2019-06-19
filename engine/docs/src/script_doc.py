@@ -264,6 +264,44 @@ from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.message import Message
 import json
 
+# add a ref doc group to each document
+# this can be used to build a menu with the ref docs grouped in a certain way
+def add_group_to_doc_dict(doc_dict):
+    info = doc_dict.get("info")
+    if info:
+        namespace = info.get("namespace")
+        refdocgroups = [
+            {
+                "group": "SYSTEM",
+                "namespaces": ["crash", "gui", "go", "profiler", "render", "resource", "sys", "window", "engine", "physics"]
+            },
+            {
+                "group": "COMPONENTS",
+                "namespaces": ["camera", "collectionproxy", "collectionfactory", "collisionobject", "factory", "label", "model", "particlefx", "sound", "spine", "sprite", "tilemap"]
+            },
+            {
+                "group": "SCRIPT",
+                "namespaces": ["buffer", "builtins", "html5", "http", "image", "json", "msg", "timer", "vmath", "zlib"]
+            },
+            {
+                "group": "EXTENSIONS",
+                "namespaces": ["facebook", "iap", "iac", "push", "webview"]
+            },
+            {
+                "group": "DEFOLD SDK",
+                "namespaces": ["dmAlign", "dmArray", "dmBuffer", "dmConditionVariable", "dmConfigFile", "dmExtension", "dmGraphics", "dmHash", "dmJson", "dmLog", "dmMutex", "dmScript", "sharedlibrary"]
+            },
+            {
+                "group": "LUA STANDARD LIBS",
+                "namespaces": ["base", "bit", "coroutine", "debug", "io", "socket", "math", "os", "package", "string", "table"]
+            },
+        ]
+
+        for refdocgroup in refdocgroups:
+            if namespace in refdocgroup.get("namespaces"):
+                info["group"] = refdocgroup.get("group")
+                return
+
 def message_to_dict(message):
     ret = {}
     for field in message.DESCRIPTOR.fields:
@@ -308,6 +346,7 @@ if __name__ == '__main__':
             f.write(doc.SerializeToString())
         elif options.type == 'json':
             doc_dict = message_to_dict(doc)
+            add_group_to_doc_dict(doc_dict)
             json.dump(doc_dict, f, indent = 2)
         else:
             print 'Unknown type: %s' % options.type

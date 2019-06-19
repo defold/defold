@@ -309,6 +309,15 @@
 
 (def ^:private prop-key->prop-index (set/map-invert prop-index->prop-key))
 
+(def ^:private euler-v4->clj-quat (comp math/vecmath->clj math/euler->quat))
+
+(defn- clj-quat->euler-v4 [clj-quat]
+  (-> (doto (Quat4d.)
+        (math/clj->vecmath clj-quat))
+      math/quat->euler
+      properties/round-vec
+      (conj 1.0)))
+
 (g/defnk produce-node-msg [type parent child-index _declared-properties]
   (let [pb-renames {:x-anchor :xanchor
                     :y-anchor :yanchor
@@ -342,8 +351,12 @@
                                               :size [1.0 1.0 0.0 1.0]
                                               :size-mode :size-mode-auto)))
               (into (map (fn [[k v]] [v (get-in props [k :value])]) pb-renames)))
-        msg (-> (reduce (fn [msg [k default]] (update msg k v3->v4 default)) msg v3-fields)
-              (update :rotation (fn [r] (conj (math/quat->euler (doto (Quat4d.) (math/clj->vecmath (or r [0.0 0.0 0.0 1.0])))) 1))))]
+        msg (-> (reduce (fn [msg [k default]]
+                          (update msg k v3->v4 default))
+                        msg
+                        v3-fields)
+                (update :rotation (fn [rotation]
+                                    (clj-quat->euler-v4 (or rotation [0.0 0.0 0.0 1.0])))))]
     msg))
 
 (def gui-node-parent-attachments
@@ -2656,15 +2669,22 @@
         (when (:layout user-data)
           (add-layout-options node-id user-data))))))
 
-(def node-property-fns (-> {}
-                         (into (map (fn [label] [label [label (comp v4->v3 label)]]) [:position :rotation :scale :size]))
-                         (conj [:rotation [:rotation (comp math/vecmath->clj math/euler->quat :rotation)]])
-                         (into (map (fn [[ddf-label label]] [ddf-label [label ddf-label]]) [[:xanchor :x-anchor]
-                                                                                            [:yanchor :y-anchor]]))))
+(def node-property-fns
+  {:position [:position v4->v3]
+   :rotation [:rotation euler-v4->clj-quat]
+   :scale [:scale v4->v3]
+   :size [:size v4->v3]
+   :xanchor [:x-anchor identity]
+   :yanchor [:y-anchor identity]})
 
 (defn- convert-node-desc [node-desc]
-  (into {} (map (fn [[key val]] (let [[new-key f] (get node-property-fns key [key key])]
-                                  [new-key (f node-desc)])) node-desc)))
+  (into {}
+        (map (fn [[key val :as entry]]
+               (if-some [[new-key convert-fn] (node-property-fns key)]
+                 [new-key (convert-fn val)]
+                 entry)))
+        node-desc))
+
 (defn- sort-node-descs
   [node-descs]
   (let [parent-id->children (group-by :parent (remove #(str/blank? (:id %)) node-descs))
@@ -2864,19 +2884,38 @@
       alpha
       (get color 3 1.0))))
 
+(defn- sanitize-node-colors [node]
+  (reduce (fn [node [color-field alpha-field]]
+            (assoc node alpha-field (color-alpha node color-field alpha-field)))
+          node
+          [[:color :alpha]
+           [:shadow :shadow-alpha]
+           [:outline :outline-alpha]]))
+
+(defn- sanitize-node-rotation [node]
+  (update node :rotation (comp clj-quat->euler-v4 euler-v4->clj-quat)))
+
 (defn- sanitize-node [node]
-  (-> (reduce (fn [node [color-field alpha-field]]
-                (assoc node alpha-field (color-alpha node color-field alpha-field)))
-        node [[:color :alpha]
-              [:shadow :shadow-alpha]
-              [:outline :outline-alpha]])
-    (cond->
-      (= :type-text (:type node))
-      ;; Size mode is not applicable for text nodes, but might still be stored in the files from editor1
-      (dissoc node :size-mode))))
+  (cond-> (-> node
+              sanitize-node-colors
+              sanitize-node-rotation)
+
+          ;; Size mode is not applicable for text nodes, but might still be
+          ;; stored in the files from editor 1.
+          (= :type-text (:type node))
+          (dissoc :size-mode)))
+
+(def ^:private sanitize-nodes #(mapv sanitize-node %))
+
+(defn- sanitize-layout [layout]
+  (update layout :nodes sanitize-nodes))
+
+(def ^:private sanitize-layouts #(mapv sanitize-layout %))
 
 (defn- sanitize-scene [scene]
-  (update scene :nodes (partial mapv sanitize-node)))
+  (-> scene
+      (update :nodes sanitize-nodes)
+      (update :layouts sanitize-layouts)))
 
 (defn- register [workspace def]
   (let [ext (:ext def)

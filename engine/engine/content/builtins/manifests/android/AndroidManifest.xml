@@ -7,7 +7,7 @@
         android:installLocation="auto">
 
     <uses-feature android:required="true" android:glEsVersion="0x00020000" />
-    <uses-sdk android:minSdkVersion="9" android:targetSdkVersion="26" />
+    <uses-sdk android:minSdkVersion="{{android.minimum_sdk_version}}" android:targetSdkVersion="{{android.target_sdk_version}}" />
     <application
         {{#has-icons?}}
         android:icon="@drawable/icon"
@@ -26,10 +26,6 @@
 
         <!-- Disable Firebase Analytics -->
         <meta-data android:name="firebase_analytics_collection_deactivated" android:value="true" />
-
-        <!-- For Facebook -->
-        <meta-data android:name="com.facebook.sdk.ApplicationName"
-            android:value="{{project.title}}" />
 
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="{{project.title}}"

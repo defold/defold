@@ -5,7 +5,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
@@ -50,10 +49,8 @@ import com.samskivert.mustache.Template;
 import java.awt.AlphaComposite;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
-import java.awt.Image;
 import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
-import java.net.URL;
 
 
 public class BundleHelper {
@@ -63,6 +60,7 @@ public class BundleHelper {
     private String title;
     private File buildDir;
     private File appDir;
+    private String variant;
     private Map<String, Map<String, Object>> propertiesMap;
 
     public static final String MANIFEST_NAME_ANDROID    = "AndroidManifest.xml";
@@ -78,7 +76,7 @@ public class BundleHelper {
         }
     }
 
-    public BundleHelper(Project project, Platform platform, File bundleDir, String appDirSuffix) throws IOException {
+    public BundleHelper(Project project, Platform platform, File bundleDir, String appDirSuffix, String variant) throws IOException {
         this.projectProperties = project.getProjectProperties();
 
         this.project = project;
@@ -89,6 +87,8 @@ public class BundleHelper {
         this.appDir = new File(bundleDir, title + appDirSuffix);
 
         this.propertiesMap = createPropertiesMap(project.getProjectProperties());
+
+        this.variant = variant;
     }
 
     public static String projectNameToBinaryName(String projectName) {
@@ -271,7 +271,7 @@ public class BundleHelper {
                 args.add("-F"); args.add(apk.getAbsolutePath());
             }
 
-            boolean debuggable = Integer.parseInt(projectProperties.getStringValue("android", "debuggable", "0")) != 0;
+            boolean debuggable = this.variant.equals(Bob.VARIANT_DEBUG) || Integer.parseInt(projectProperties.getStringValue("android", "debuggable", "0")) != 0;
             if (debuggable) {
                 args.add("--debug-mode");
             }
@@ -363,14 +363,35 @@ public class BundleHelper {
         return items;
     }
 
-    public List<ExtenderResource> generateAndroidResources(Project project, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError, IOException {
-        List<String> resourceDirectories = new ArrayList<>();
+    public static void findAndroidAssetDirs(File dir, List<String> result) {
+        if (!dir.isDirectory()) {
+            return;
+        }
+        if (ExtenderUtil.matchesAndroidAssetDirectoryName(dir.getName())) {
+            String parent = dir.getParentFile().getAbsolutePath();
+            if (!result.contains(parent)) {
+                result.add(parent);
+            }
+            return;
+        }
+        for (File file : dir.listFiles()) {
+            findAndroidAssetDirs(file, result);
+        }
+    }
 
-        BundleHelper.createAndroidResourceFolders(resDir);
+    public List<ExtenderResource> generateAndroidResources(Project project, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError, IOException {
 
         // Get all Android specific resources needed to create R.java files
+        BundleHelper.createAndroidResourceFolders(resDir);
+        copyAndroidIcons(resDir);
+
+        // We store the extensions' resources in a separate folder, because they otherwise failed on the Android naming convention.
+        // I.e. resDir contains asset directories, extensionsDir contains package directories that contain asset directiores
+        File extensionsDir = new File(tmpDir, "extensions");
+        extensionsDir.mkdir();
+
         Map<String, IResource> resources = ExtenderUtil.getAndroidResources(project);
-        ExtenderUtil.storeAndroidResources(resDir, resources);
+        ExtenderUtil.storeAndroidResources(extensionsDir, resources);
 
         Map<String, Object> bundleContext = null;
         {
@@ -386,9 +407,9 @@ public class BundleHelper {
             }
         }
 
+        List<String> resourceDirectories = new ArrayList<>();
+        findAndroidAssetDirs(extensionsDir, resourceDirectories);
         resourceDirectories.add(resDir.getAbsolutePath());
-
-        copyAndroidIcons(resDir);
 
         // Run aapt to generate R.java files
         //     <tmpDir>/rjava - Output directory of aapt, all R.java files will be stored here
@@ -773,7 +794,7 @@ public class BundleHelper {
         }
     }
 
-    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, List<String> srcNames, List<File> outputEngines, File outputClassesDex) throws CompileExceptionError, MultipleCompileException {
+    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, List<String> srcNames, List<File> outputEngines, File outputClassesDex, File proguardMapping) throws CompileExceptionError, MultipleCompileException {
         File zipFile = null;
 
         try {
@@ -868,6 +889,21 @@ public class BundleHelper {
             }
         }
 
+        if (proguardMapping != null)
+        {
+            String name = "mapping.txt";
+            try {
+                Path source = zip.getPath(name);
+                if (Files.isReadable(source)) {
+                    try (FileOutputStream out = new FileOutputStream(proguardMapping)) {
+                        Files.copy(source, out);
+                    }
+                }
+            } catch (IOException e) {
+                throw new CompileExceptionError(String.format("Failed to copy %s to %s", name, proguardMapping.getAbsolutePath()), e.getCause());
+            }
+        }
+
         for (int i = 0; i < srcNames.size(); i++) {
             String srcName = srcNames.get(i);
             File outputEngine = outputEngines.get(i);
@@ -882,5 +918,4 @@ public class BundleHelper {
             }
         }
     }
-
 }

@@ -314,18 +314,16 @@ public class Fontc {
         // Shadow_spread is the maximum distance to the glyph outline.
         float sdf_shadow_spread = 0.0f;
 
-        if (fontDesc.getAntialias() != 0) {
-            if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
-                sdf_spread        = getPaddedSdfSpread(fontDesc.getOutlineWidth());
-                sdf_shadow_spread = getPaddedSdfSpread((float)fontDesc.getShadowBlur());
+        if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
+            sdf_spread        = getPaddedSdfSpread(fontDesc.getOutlineWidth());
+            sdf_shadow_spread = getPaddedSdfSpread((float)fontDesc.getShadowBlur());
 
-                // The +1 is needed to give a little bit of extra padding since the spread
-                // always gets padded by the sqrt of a pixel diagonal
-                padding = fontDesc.getShadowBlur() + (int)(fontDesc.getOutlineWidth()) + 1;
-            }
-            else {
-                padding = Math.min(4, fontDesc.getShadowBlur()) + (int)(fontDesc.getOutlineWidth());
-            }
+            // The +1 is needed to give a little bit of extra padding since the spread
+            // always gets padded by the sqrt of a pixel diagonal
+            padding = fontDesc.getShadowBlur() + (int)(fontDesc.getOutlineWidth()) + 1;
+        }
+        else {
+            padding = Math.min(4, fontDesc.getShadowBlur()) + (int)(fontDesc.getOutlineWidth());
         }
 
         Color faceColor = new Color(fontDesc.getAlpha(), 0.0f, 0.0f);
@@ -748,39 +746,33 @@ public class Fontc {
         g.clearRect(0, 0, image.getWidth(), image.getHeight());
         g.translate(dx, dy);
 
-        if (this.fontDesc.getAntialias() != 0) {
-            Shape outline = glyph.vector.getOutline(0, 0);
-            if (this.fontDesc.getShadowAlpha() > 0.0f) {
-                if (this.fontDesc.getAlpha() > 0.0f) {
-                    g.setPaint(new Color(0.0f, 0.0f, this.fontDesc.getShadowAlpha() * this.fontDesc.getAlpha()));
-                    g.fill(outline);
-                }
-                if (this.outlineStroke != null && this.fontDesc.getOutlineAlpha() > 0.0f) {
-                    g.setPaint(new Color(0.0f, 0.0f, this.fontDesc.getShadowAlpha() * this.fontDesc.getOutlineAlpha()));
-                    g.setStroke(this.outlineStroke);
-                    g.draw(outline);
-                }
-                for (int pass = 0; pass < this.fontDesc.getShadowBlur(); ++pass) {
-                    BufferedImage tmp = image.getSubimage(0, 0, width, height);
-                    shadowConvolve.filter(tmp, image);
-                }
+        Shape outline = glyph.vector.getOutline(0, 0);
+        if (this.fontDesc.getShadowAlpha() > 0.0f) {
+            if (this.fontDesc.getAlpha() > 0.0f) {
+                g.setPaint(new Color(0.0f, 0.0f, this.fontDesc.getShadowAlpha() * this.fontDesc.getAlpha()));
+                g.fill(outline);
             }
-
-            g.setComposite(blendComposite);
             if (this.outlineStroke != null && this.fontDesc.getOutlineAlpha() > 0.0f) {
-                g.setPaint(outlineColor);
+                g.setPaint(new Color(0.0f, 0.0f, this.fontDesc.getShadowAlpha() * this.fontDesc.getOutlineAlpha()));
                 g.setStroke(this.outlineStroke);
                 g.draw(outline);
             }
-
-            if (this.fontDesc.getAlpha() > 0.0f) {
-                g.setPaint(faceColor);
-                g.fill(outline);
+            for (int pass = 0; pass < this.fontDesc.getShadowBlur(); ++pass) {
+                BufferedImage tmp = image.getSubimage(0, 0, width, height);
+                shadowConvolve.filter(tmp, image);
             }
-        } else {
+        }
+
+        g.setComposite(blendComposite);
+        if (this.outlineStroke != null && this.fontDesc.getOutlineAlpha() > 0.0f) {
+            g.setPaint(outlineColor);
+            g.setStroke(this.outlineStroke);
+            g.draw(outline);
+        }
+
+        if (this.fontDesc.getAlpha() > 0.0f) {
             g.setPaint(faceColor);
-            g.setFont(font);
-            g.drawString(new String(Character.toChars(glyph.c)), 0, 0);
+            g.fill(outline);
         }
 
         return image;
@@ -824,15 +816,13 @@ public class Fontc {
 
         if (this.fontDesc.getRenderMode() == FontRenderMode.MODE_MULTI_LAYER)
         {
-            if (this.fontDesc.getAntialias() != 0 &&
-                this.fontDesc.getOutlineAlpha() > 0 &&
+            if (this.fontDesc.getOutlineAlpha() > 0 &&
                 this.fontDesc.getOutlineWidth() > 0)
             {
                 fontMapLayerMask |= LAYER_OUTLINE;
             }
 
-            if (this.fontDesc.getAntialias() != 0 &&
-                this.fontDesc.getShadowAlpha() > 0 &&
+            if (this.fontDesc.getShadowAlpha() > 0 &&
                 this.fontDesc.getAlpha() > 0)
             {
                 fontMapLayerMask |= LAYER_SHADOW;

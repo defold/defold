@@ -193,6 +193,7 @@ class Configuration(object):
                  branch = None,
                  channel = None,
                  eclipse_version = None,
+                 engine_artifacts = None,
                  waf_options = []):
 
         if sys.platform == 'win32':
@@ -230,6 +231,7 @@ class Configuration(object):
         self.branch = branch
         self.channel = channel
         self.eclipse_version = eclipse_version
+        self.engine_artifacts = engine_artifacts
         self.waf_options = waf_options
 
         self.thread_pool = None
@@ -1137,7 +1139,7 @@ instructions.configure=\
             env['JAVA_HOME'] = self._find_jdk8_folder('C:\\Program Files\\Java')
             env['PATH'] = env['JAVA_HOME'] + os.path.pathsep + env['PATH']
         self._log("Setting JAVA to 1.8: " + env['JAVA_HOME'])
-        
+
     def _build_cr(self, product):
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
         env = self._form_env()
@@ -1151,7 +1153,7 @@ instructions.configure=\
                '--platform=x86_64-win32',
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
-               '--engine-artifacts=auto']
+               '--engine-artifacts=%s' % self.engine_artifacts]
 
         cwd = join(self.defold_root, 'editor')
 
@@ -2142,6 +2144,10 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = '3.8',
                       help = 'Eclipse version')
 
+    parser.add_option('--engine-artifacts', dest='engine_artifacts',
+                      default = 'auto',
+                      help = 'What engine version to bundle the Editor with (auto, dynamo-home, archived, archived-stable or a SHA1)')
+
     options, all_args = parser.parse_args()
 
     args = filter(lambda x: x[:2] != '--', all_args)
@@ -2173,6 +2179,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       branch = options.branch,
                       channel = options.channel,
                       eclipse_version = options.eclipse_version,
+                      engine_artifacts = options.engine_artifacts,
                       waf_options = waf_options)
 
     for cmd in args:

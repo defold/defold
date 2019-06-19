@@ -355,7 +355,7 @@ union SaveLoadBuffer
      *
      * Loads a custom resource. Specify the full filename of the resource that you want
      * to load. When loaded, the file data is returned as a string.
-     * If loading fails, the function returns nil.
+     * If loading fails, the function returns nil plus the error message.
      *
      * In order for the engine to include custom resources in the build process, you need
      * to specify them in the "custom_resources" key in your "game.project" settings file.
@@ -367,15 +367,20 @@ union SaveLoadBuffer
      *
      * @name sys.load_resource
      * @param filename [type:string] resource to load, full path
-     * @return data [type:string] loaded data, or nil if the resource could not be loaded
+     * @return data [type:string] loaded data, or `nil` if the resource could not be loaded
+     * @return error [type:string] the error message, or `nil` if no error occurred
      * @examples
      *
      * ```lua
      * -- Load level data into a string
-     * local data = sys.load_resource("/assets/level_data.json")
+     * local data, error = sys.load_resource("/assets/level_data.json")
      * -- Decode json string to a Lua table
-     * local data_table = json.decode(data)
-     * pprint(data_table)
+     * if data then
+     *   local data_table = json.decode(data)
+     *   pprint(data_table)
+     * else
+     *   print(error)
+     * end
      * ```
      */
     int Sys_LoadResource(lua_State* L)
@@ -389,12 +394,13 @@ union SaveLoadBuffer
         uint32_t resource_size;
         dmResource::Result r = dmResource::GetRaw(context->m_ResourceFactory, filename, &resource, &resource_size);
         if (r != dmResource::RESULT_OK) {
-            dmLogWarning("Failed to load resource: %s (%d)", filename, r);
             lua_pushnil(L);
-        } else {
-            lua_pushlstring(L, (const char*) resource, resource_size);
-            free(resource);
+            lua_pushfstring(L, "Failed to load resource: %s (%d)", filename, r);
+            assert(top + 2 == lua_gettop(L));
+            return 2;
         }
+        lua_pushlstring(L, (const char*) resource, resource_size);
+        free(resource);
         assert(top + 1 == lua_gettop(L));
         return 1;
     }

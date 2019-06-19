@@ -30,6 +30,8 @@ namespace dmHID
     const static uint32_t MAX_GAMEPAD_AXIS_COUNT = 32;
     /// Maximum number of gamepad buttons supported
     const static uint32_t MAX_GAMEPAD_BUTTON_COUNT = 32;
+    /// Maximum number of gamepad hats supported
+    const static uint32_t MAX_GAMEPAD_HAT_COUNT = 4;
 
     /// Maximum number of simultaneous touches supported
     // An iPad supports a maximum of 11 simultaneous touches
@@ -238,6 +240,9 @@ namespace dmHID
     {
         float m_Axis[MAX_GAMEPAD_AXIS_COUNT];
         uint32_t m_Buttons[MAX_GAMEPAD_BUTTON_COUNT / 32 + 1];
+        uint8_t m_Hat[MAX_GAMEPAD_HAT_COUNT];
+        bool m_GamepadDisconnected;
+        bool m_GamepadConnected;
     };
 
     /**
@@ -283,6 +288,8 @@ namespace dmHID
         float m_X, m_Y, m_Z;
     };
 
+    typedef void (* DMHIDGamepadFunc)(uint32_t, bool, void*);
+
     /// parameters to be passed to NewContext
     struct NewContextParams
     {
@@ -301,6 +308,8 @@ namespace dmHID
         /// if mouse wheel scroll direction should be flipped (see DEF-2450)
         uint32_t m_FlipScrollDirection : 1;
 
+        DMHIDGamepadFunc m_GamepadConnectivityCallback;
+
     };
 
     /**
@@ -317,6 +326,14 @@ namespace dmHID
      * @param context context to be deleted
      */
     void DeleteContext(HContext context);
+
+    /**
+     * Set user data that will be passed along to the gamepad connectivity callback.
+     *
+     * @params context context for which the userdata should be set
+     * @params userdata userdata that should be passed along to callback
+     */
+    void SetGamepadFuncUserdata(HContext context, void* userdata);
 
     /**
      * Initializes a hid context.
@@ -510,6 +527,15 @@ namespace dmHID
     void SetMarkedText(HContext context, char* text);
 
     /**
+     * Set the connectivity status (usually only when changed) for a gamepad index.
+     *
+     * @param context context handle
+     * @param gamepad index of gamepad
+     * @param connected connectivity status, true for connected, false for disconnected
+     */
+    void SetGamepadConnectivity(HContext context, int gamepad, bool connected);
+
+    /**
      * Show keyboard if applicable
      * @param context context
      * @param type keyboard type
@@ -571,6 +597,15 @@ namespace dmHID
      * @return If the button was pressed or not
      */
     bool GetGamepadButton(GamepadPacket* packet, uint32_t button);
+
+    /**
+     * Convenience function to retrieve the state of a gamepad hat from a gamepad packet.
+     * @param packet Gamepad packet
+     * @param hat The requested hat index
+     * @param hat_value Reference to where the hat value should be written
+     * @return If the hat has data or not
+     */
+    bool GetGamepadHat(GamepadPacket* packet, uint32_t hat, uint8_t& hat_value);
 
     /**
      * Sets the state of a gamepad button.
