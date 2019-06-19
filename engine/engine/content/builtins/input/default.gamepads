@@ -1,6 +1,6 @@
 driver
 {
-    device: "PS4 Dualshock"
+    device: "Wireless Controller"
     platform: "osx"
     dead_zone: 0.2
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }

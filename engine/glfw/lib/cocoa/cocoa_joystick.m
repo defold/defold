@@ -939,7 +939,6 @@ XSDL_SYS_JoystickUpdate(int joy_index)
         ++i;
     }
 
-#if 1
     element = device->firstHat;
     i = 0;
     while (element) {
@@ -990,7 +989,6 @@ XSDL_SYS_JoystickUpdate(int joy_index)
         element = element->pNext;
         ++i;
     }
-#endif
 
     return;
 }

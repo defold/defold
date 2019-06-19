@@ -112,7 +112,7 @@ GLFWAPI int GLFWAPIENTRY glfwGetJoystickHats( int joy,
         return 0;
     }
 
-    // Clear button states
+    // Clear hat states, ie all centered.
     for( i = 0; i < numhats; i++ )
     {
         hats[ i ] = GLFW_HAT_CENTERED;

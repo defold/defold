@@ -338,7 +338,6 @@ namespace dmInput
             if (strcmp(DM_PLATFORM, gamepad_map.m_Platform) == 0)
             {
                 uint32_t device_id = dmHashString32(gamepad_map.m_Device);
-
                 if (context->m_GamepadMaps.Get(device_id) == 0x0)
                 {
                     GamepadConfig config;

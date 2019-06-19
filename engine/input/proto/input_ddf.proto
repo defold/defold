@@ -217,7 +217,7 @@ message GamepadMapEntry
 
 message GamepadMap
 {
-    optional string device = 1;
+    required string device = 1;
     required string platform = 2;
     required float dead_zone = 3;
     repeated GamepadMapEntry map = 4;

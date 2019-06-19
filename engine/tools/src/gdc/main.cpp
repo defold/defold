@@ -119,14 +119,14 @@ retry:
     }
     if (gamepad_count == 0)
     {
-        printf("No connected gamepads!\n");
-        printf("* Retry? [y/n] ");
-        char should_retry = 'n';
-        if (scanf(" %c", &should_retry) == 1 && should_retry == 'y') {
-            goto retry;
-        } else {
-            goto bail;
-        }
+        printf("No connected gamepads, rechecking in 3 seconds. "); fflush(stdout);
+        dmTime::Sleep(1000000);
+        printf("2.. "); fflush(stdout);
+        dmTime::Sleep(1000000);
+        printf("1.. "); fflush(stdout);
+        dmTime::Sleep(1000000);
+        printf("Rechecking...\n");
+        goto retry;
     }
     if (gamepad_count > 1)
     {
@@ -201,7 +201,8 @@ retry:
             prev_packet = packet;
         }
     }
-    // for (uint8_t i = 7; i < 7+5; ++i)
+
+    printf("* NOTE: If gamepad is missing a trigger, you can skip it with Ctrl+C.\n");
     for (uint8_t i = 0; i < dmInputDDF::MAX_GAMEPAD_COUNT; ++i)
     {
         // Ignore connected/disconnected triggers.

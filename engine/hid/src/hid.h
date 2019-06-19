@@ -29,7 +29,7 @@ namespace dmHID
     /// Maximum number of gamepad axis supported
     const static uint32_t MAX_GAMEPAD_AXIS_COUNT = 32;
     /// Maximum number of gamepad buttons supported
-    const static uint32_t MAX_GAMEPAD_BUTTON_COUNT = 256;
+    const static uint32_t MAX_GAMEPAD_BUTTON_COUNT = 32;
     /// Maximum number of gamepad hats supported
     const static uint32_t MAX_GAMEPAD_HAT_COUNT = 4;
 
