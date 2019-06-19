@@ -302,6 +302,7 @@
 (defn construct
   [node-type-ref args]
   (assert (and node-type-ref (deref node-type-ref)))
+;;  (println :construct node-type-ref args)
   (assert-no-extra-args node-type-ref args)
   (-> (new internal.node.NodeImpl node-type-ref)
       (merge (defaults node-type-ref))
@@ -333,7 +334,7 @@
 (defn- validate-evaluation-context-options [options]
   ;; :dry-run means no production functions will be called, useful speedup when tracing dependencies
   ;; :no-local-temp disables the non deterministic local caching of non :cached outputs, useful for stable results when debugging dependencies
-  (assert (every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context} (keys options)) (str (keys options)))
+  (assert (every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context :lua-state :lua-env} (keys options)) (str (keys options)))
   (assert (not (and (some? (:cache options)) (nil? (:basis options))))))
 
 (defn default-evaluation-context
@@ -576,7 +577,7 @@
 
 (defn- all-available-arguments
   [description]
-  (set/union #{:_this :_basis}
+  (set/union #{:_this :_basis :_evaluation-context}
              (util/key-set (:input description))
              (util/key-set (:property description))
              (util/key-set (:output description))))
@@ -1034,6 +1035,7 @@
       extract-fn-arguments
       merge-property-dependencies
       apply-property-dependencies-to-outputs
+      ;;inspect
       attach-declared-properties-output
       attach-input-dependencies
       attach-property-behaviors
@@ -1190,7 +1192,7 @@
 
 (defn- call-with-error-checked-fnky-arguments-form
   [description label node-sym node-id-sym evaluation-context-sym arguments runtime-fnk-expr & [supplied-arguments]]
-  (let [base-args {:_node-id `(gt/node-id ~node-sym) :_basis `(:basis ~evaluation-context-sym)}
+  (let [base-args {:_node-id `(gt/node-id ~node-sym) :_basis `(:basis ~evaluation-context-sym) :_evaluation-context evaluation-context-sym}
         arglist (without arguments (keys supplied-arguments))
         argument-forms (zipmap arglist (map #(get base-args % (if (= label %)
                                                                 `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~label)
@@ -1228,6 +1230,9 @@
 
     (= :_basis argument)
     `(:basis ~evaluation-context-sym)
+
+    (= :_evaluation-context argument)
+    evaluation-context-sym
 
     (and (= output argument)
          (desc-has-property? description argument)
@@ -1328,10 +1333,10 @@
 
       (contains? global cache-key)
       (trace-expr node-id label evaluation-context :cache
-                   (fn []
-                     (when-some [cached-result (get global cache-key)]
-                       (swap! (:hits evaluation-context) conj cache-key)
-                       (nil->cached-nil cached-result)))))))
+                  (fn []
+                    (when-some [cached-result (get global cache-key)]
+                      (swap! (:hits evaluation-context) conj cache-key)
+                      (nil->cached-nil cached-result)))))))
 
 (defn check-local-temp-cache [node-id label evaluation-context]
   (let [local-temp (some-> (:local-temp evaluation-context) deref)
@@ -1352,7 +1357,10 @@
 (defn- gather-arguments-form [description label node-sym node-id-sym evaluation-context-sym arguments-sym schema-sym forms]
   (let [arg-names (get-in description [:output label :arguments])
         argument-forms (zipmap arg-names (map #(fnk-argument-form description label % node-sym node-id-sym evaluation-context-sym) arg-names))
-        argument-forms (assoc argument-forms :_node-id node-id-sym :_basis `(:basis ~evaluation-context-sym))]
+        argument-forms (assoc argument-forms
+                              :_node-id node-id-sym
+                              :_basis `(:basis ~evaluation-context-sym)
+                              :_evaluation-context evaluation-context-sym)]
     (list `let
           [arguments-sym argument-forms]
           forms)))

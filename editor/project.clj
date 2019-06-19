@@ -2,7 +2,9 @@
   :description      "Defold game editor"
   :url              "https://www.defold.com/learn/"
 
-  :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))}
+  :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))
+                     "sonatype" {:url "https://oss.sonatype.org/content/repositories/snapshots"
+                                 :snapshots true}}
 
   :plugins          [[lein-protobuf-minimal-mg "0.4.5" :hooks false]
                      [lein-sass "0.4.0"]
@@ -104,6 +106,10 @@
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-macosx-universal"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-amd64"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]
+
+                     [net.sandius.rembulan/rembulan-compiler      "0.1-SNAPSHOT"]
+                     [net.sandius.rembulan/rembulan-runtime       "0.1-SNAPSHOT"]
+                     [net.sandius.rembulan/rembulan-stdlib        "0.1-SNAPSHOT"]
 
                      [org.snakeyaml/snakeyaml-engine "1.0"]]
 

@@ -275,6 +275,32 @@
   [node-type-ref & {:as args}]
   (in/construct node-type-ref args))
 
+(defn rt-defnode [symb & body]
+  (let [[symb forms] (ctm/name-with-attributes symb body)
+        fully-qualified-node-type-symbol (symbol (str *ns*) (str symb))
+        node-type-def (in/process-node-type-forms fully-qualified-node-type-symbol forms)
+        fn-paths (in/extract-def-fns node-type-def)
+        fn-defs (for [[path func] fn-paths]
+                  (list `def (in/dollar-name symb path) func))
+        node-type-def (util/update-paths node-type-def fn-paths
+                                         (fn [path func curr]
+                                           (assoc curr :fn (list `var (in/dollar-name symb path)))))
+        node-key (:key node-type-def)
+        derivations (for [tref (:supertypes node-type-def)]
+                      `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
+                         (derive ~node-key ~(:key (deref tref)))))
+        node-type-def (update node-type-def :supertypes #(list `quote %))
+        runtime-definer (symbol (str symb "*"))
+        type-regs (for [[key-form value-type-form] (:register-type-info node-type-def)]
+                    `(in/register-value-type ~key-form ~value-type-form))
+        node-type-def (dissoc node-type-def :register-type-info)]
+    `(do
+       ~@type-regs
+       ~@fn-defs
+       (defn ~runtime-definer [] ~node-type-def)
+       (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
+       ~@derivations)))
+
 (defmacro defnode
   "Given a name and a specification of behaviors, creates a node,
    and attendant functions.
@@ -344,33 +370,34 @@
   number of such protocols.
 
   Every node always implements dynamo.graph/Node."
-  [symb & body]
-  (let [[symb forms] (ctm/name-with-attributes symb body)
-        fully-qualified-node-type-symbol (symbol (str *ns*) (str symb))
-        node-type-def (in/process-node-type-forms fully-qualified-node-type-symbol forms)
-        fn-paths (in/extract-def-fns node-type-def)
-        fn-defs (for [[path func] fn-paths]
-                  (list `def (in/dollar-name symb path) func))
-        node-type-def (util/update-paths node-type-def fn-paths
-                                         (fn [path func curr]
-                                           (assoc curr :fn (list `var (in/dollar-name symb path)))))
-        node-key (:key node-type-def)
-        derivations (for [tref (:supertypes node-type-def)]
-                      `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
-                         (derive ~node-key ~(:key (deref tref)))))
-        node-type-def (update node-type-def :supertypes #(list `quote %))
-        runtime-definer (symbol (str symb "*"))
-        ;; TODO - investigate if we even need to register these types
-        ;; in release builds, since we don't do schema checking?
-        type-regs (for [[key-form value-type-form] (:register-type-info node-type-def)]
-                    `(in/register-value-type ~key-form ~value-type-form))
-        node-type-def (dissoc node-type-def :register-type-info)]
-    `(do
-       ~@type-regs
-       ~@fn-defs
-       (defn ~runtime-definer [] ~node-type-def)
-       (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
-       ~@derivations)))
+  [symb & body] (apply rt-defnode symb body)
+  #_[symb & body]
+  #_(let [[symb forms] (ctm/name-with-attributes symb body)
+          fully-qualified-node-type-symbol (symbol (str *ns*) (str symb))
+          node-type-def (in/process-node-type-forms fully-qualified-node-type-symbol forms)
+          fn-paths (in/extract-def-fns node-type-def)
+          fn-defs (for [[path func] fn-paths]
+                    (list `def (in/dollar-name symb path) func))
+          node-type-def (util/update-paths node-type-def fn-paths
+                                           (fn [path func curr]
+                                             (assoc curr :fn (list `var (in/dollar-name symb path)))))
+          node-key (:key node-type-def)
+          derivations (for [tref (:supertypes node-type-def)]
+                        `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
+                           (derive ~node-key ~(:key (deref tref)))))
+          node-type-def (update node-type-def :supertypes #(list `quote %))
+          runtime-definer (symbol (str symb "*"))
+          ;; TODO - investigate if we even need to register these types
+          ;; in release builds, since we don't do schema checking?
+          type-regs (for [[key-form value-type-form] (:register-type-info node-type-def)]
+                      `(in/register-value-type ~key-form ~value-type-form))
+          node-type-def (dissoc node-type-def :register-type-info)]
+      `(do
+         ~@type-regs
+         ~@fn-defs
+         (defn ~runtime-definer [] ~node-type-def)
+         (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
+         ~@derivations)))
 
 
 
@@ -433,6 +460,7 @@
 
 (defn- construct-node-with-id
   [graph-id node-type args]
+;;  (println :construct-node-with-id node-type args)
   (apply construct node-type :_node-id (is/next-node-id @*the-system* graph-id) (mapcat identity args)))
 
 (defn make-node
