@@ -464,19 +464,37 @@
     :orthographic camera
     :perspective (camera-perspective->orthographic camera)))
 
+(s/defn find-z-extents :- [s/Num s/Num]
+  [cam-pos :- Vector3d cam-dir :- Vector3d aabb :- AABB]
+  (loop [corners (geom/aabb->corners aabb)
+         near Double/MAX_VALUE
+         far Double/MIN_VALUE]
+    (if-some [corner (first corners)]
+      (let [cam->corner (math/subtract-vector corner cam-pos)
+            distance (.dot cam-dir cam->corner)]
+        (recur (next corners)
+               (min distance near)
+               (max distance far)))
+      [(max 1.0 near)
+       (max 10.0 far)])))
+
 (g/defnk produce-camera [_node-id local-camera scene-aabb viewport]
-  (let [w (- (:right viewport) (:left viewport))
-        h (- (:bottom viewport) (:top viewport))]
-    (if (and (> w 0) (> h 0))
-      (let [aspect (/ (double w) h)
-            filter-fn (or (:filter-fn local-camera) identity)]
-        (-> local-camera
-            (set-extents (* aspect (:fov-y local-camera))
-                         (:fov-y local-camera)
-                         (:z-near local-camera)
-                         (:z-far local-camera))
-            filter-fn))
-      local-camera)))
+  (let [filter-fn (or (:filter-fn local-camera) identity)
+        w (- (:right viewport) (:left viewport))
+        h (- (:bottom viewport) (:top viewport))
+        aspect (if (and (pos? w) (pos? h))
+                 (/ (double w) h)
+                 1.0)
+        fov-y (:fov-y local-camera)
+        fov-x (* aspect fov-y)
+        [z-near z-far] (if (nil? scene-aabb)
+                         [0.1 10000.0]
+                         (find-z-extents (types/position local-camera)
+                                         (camera-forward-vector local-camera)
+                                         scene-aabb))]
+    (-> local-camera
+        (set-extents fov-x fov-y z-near z-far)
+        filter-fn)))
 
 (defn handle-input [self action user-data]
   (let [viewport                   (g/node-value self :viewport)
@@ -527,6 +545,7 @@
   (property local-camera Camera)
   (property movements-enabled g/Any (default #{:dolly :track :tumble}))
 
+  (input scene-aabb AABB)
   (input viewport Region)
 
   (output viewport Region (gu/passthrough viewport))

@@ -485,6 +485,23 @@
           [(get renderables-by-pass pass/selection)
            (get renderables-by-pass pass/opaque-selection)])))
 
+(defn- calculate-scene-aabb
+  ^AABB [^AABB union-aabb ^Matrix4d parent-world-transform scene]
+  (let [local-transform ^Matrix4d (:transform scene geom/Identity4d)
+        world-transform (doto (Matrix4d. parent-world-transform)
+                          (.mul local-transform))
+        local-aabb (:aabb scene)
+        union-aabb (if (or (nil? local-aabb)
+                           (geom/empty-aabb? local-aabb))
+                     union-aabb
+                     (-> local-aabb
+                         (geom/aabb-transform world-transform)
+                         (geom/aabb-union union-aabb)))]
+    (reduce (fn [^AABB union-aabb child-scene]
+              (calculate-scene-aabb union-aabb world-transform child-scene))
+            union-aabb
+            (:children scene))))
+
 (g/defnode SceneRenderer
   (property info-label Label (dynamic visible (g/constantly false)))
 
@@ -503,20 +520,18 @@
   (output scene-render-data g/Any :cached produce-scene-render-data)
   (output aux-render-data g/Any :cached produce-aux-render-data)
 
-  (output selected-renderables g/Any :cached (g/fnk [scene-render-data] (:selected-renderables scene-render-data)))
-  (output selected-aabb AABB :cached (g/fnk [scene-render-data scene]
-                                       (let [renderables (sequence cat (vals (:renderables scene-render-data)))
-                                             {selected-aabbs true nonselected-aabbs false} (util/group-into {} [] :selected :aabb renderables)]
-                                         (cond
-                                           (seq selected-aabbs)
+  (output selected-renderables g/Any (g/fnk [scene-render-data] (:selected-renderables scene-render-data)))
+  (output selected-aabb AABB :cached (g/fnk [scene-render-data scene-aabb]
+                                       (let [selected-aabbs (sequence (comp (mapcat val)
+                                                                            (filter :selected)
+                                                                            (map :aabb))
+                                                                      (:renderables scene-render-data))]
+                                         (if (seq selected-aabbs)
                                            (reduce geom/aabb-union geom/null-aabb selected-aabbs)
-
-                                           (some? (:default-aabb scene))
-                                           (:default-aabb scene)
-
-                                           :else
-                                           (reduce geom/aabb-union geom/null-aabb (concat selected-aabbs nonselected-aabbs))))))
-
+                                           scene-aabb))))
+  (output scene-aabb AABB :cached (g/fnk [scene]
+                                    (or (:default-aabb scene)
+                                        (calculate-scene-aabb geom/null-aabb geom/Identity4d scene))))
   (output renderables-screen-aabb+picking-node-id g/Any :cached produce-renderables-screen-aabb+picking-node-id)
   (output selected-updatables g/Any :cached (g/fnk [selected-renderables]
                                               (into {}
@@ -1339,6 +1354,7 @@
 
                     (g/connect camera          :camera                        view-id         :camera)
                     (g/connect camera          :input-handler                 view-id         :input-handlers)
+                    (g/connect view-id         :scene-aabb                    camera          :scene-aabb)
                     (g/connect view-id         :viewport                      camera          :viewport)
 
                     (g/connect app-view-id     :selected-node-ids             view-id         :selection)

@@ -171,6 +171,11 @@
   (doto (Vector3d. v1)
     (.add v2)))
 
+(defn subtract-vector
+  ^Vector3d [^Tuple3d v1 ^Tuple3d v2]
+  (doto (Vector3d. v1)
+    (.sub v2)))
+
 (defn multiply-vector
   ^Vector3d [^Vector3d v1 ^Vector3d v2]
   (Vector3d. (* (.-x v1) (.-x v2))
