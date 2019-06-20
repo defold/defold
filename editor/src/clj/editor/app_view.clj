@@ -63,7 +63,7 @@
            [javafx.event Event]
            [javafx.geometry Orientation]
            [javafx.scene Parent Scene]
-           [javafx.scene.control MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy Tooltip]
+           [javafx.scene.control MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ClipboardContent]
            [javafx.scene.layout AnchorPane StackPane]
@@ -1332,6 +1332,7 @@ If you do not specifically require different script states, consider changing th
 
 (defn- configure-editor-tab-pane! [^TabPane tab-pane ^Scene app-scene app-view]
   (.setTabClosingPolicy tab-pane TabPane$TabClosingPolicy/ALL_TABS)
+  (.setTabDragPolicy tab-pane TabPane$TabDragPolicy/REORDER)
   (-> tab-pane
       (.getSelectionModel)
       (.selectedItemProperty)
