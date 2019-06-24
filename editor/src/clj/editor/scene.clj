@@ -1031,7 +1031,7 @@
         (let [input-handlers (g/sources-of (:basis evaluation-context) view-id :input-handlers)]
           (doseq [action action-queue]
             (dispatch-input input-handlers action tool-user-data))
-          (when (some (#{:mouse-pressed :mouse-released} (:type %)) action-queue)
+          (when (some #(#{:mouse-pressed :mouse-released} (:type %)) action-queue)
             (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
       (when (seq active-updatables)
         (g/set-property! view-id :updatable-states new-updatable-states))
