@@ -402,7 +402,7 @@ public class BundleHelper {
         extensionsDir.mkdir();
 
         Map<String, IResource> resources = ExtenderUtil.getAndroidResources(project);
-        ExtenderUtil.storeAndroidResources(extensionsDir, resources);
+        ExtenderUtil.storeResources(extensionsDir, resources);
 
         Map<String, Object> bundleContext = null;
         {
@@ -437,9 +437,6 @@ public class BundleHelper {
 
         List<String> extraPackages = new ArrayList<>();
 
-        if (bundleContext != null) {
-            extraPackages.addAll((List<String>)bundleContext.getOrDefault("aapt-extra-packages", new ArrayList<String>()));
-        }
         extraPackages.add("com.google.android.gms");
         extraPackages.add("com.google.android.gms.common");
 

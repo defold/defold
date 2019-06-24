@@ -123,10 +123,10 @@ public class IOSBundler implements IBundler {
 
         Map<String, IResource> bundleResources = null;
         if (simulatorBinary) {
-            bundleResources = ExtenderUtil.collectResources(project, Platform.X86_64Ios);
+            bundleResources = ExtenderUtil.collectBundleResources(project, Platform.X86_64Ios);
         } else {
             // Collect bundle/package resources to be included in .App directory
-            bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
+            bundleResources = ExtenderUtil.collectBundleResources(project, Platform.Arm64Darwin);
         }
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
