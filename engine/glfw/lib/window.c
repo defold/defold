@@ -488,6 +488,7 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
     wndconfig.glDebug        = _glfwLibrary.hints.glDebug ? GL_TRUE : GL_FALSE;
     wndconfig.glProfile      = _glfwLibrary.hints.glProfile;
     wndconfig.highDPI        = _glfwLibrary.hints.highDPI;
+    wndconfig.clientAPI      = _glfwLibrary.hints.clientAPI;
 
     if( wndconfig.glMajor == 1 && wndconfig.glMinor > 5 )
     {
@@ -702,6 +703,9 @@ GLFWAPI void GLFWAPIENTRY glfwOpenWindowHint( int target, int hint )
             break;
         case GLFW_WINDOW_HIGH_DPI:
             _glfwLibrary.hints.highDPI = hint;
+            break;
+        case GLFW_CLIENT_API:
+            _glfwLibrary.hints.clientAPI = hint;
             break;
         default:
             break;
@@ -969,6 +973,8 @@ GLFWAPI int GLFWAPIENTRY glfwGetWindowParam( int param )
             return _glfwWin.glProfile;
         case GLFW_WINDOW_HIGH_DPI:
             return _glfwWin.highDPI;
+        case GLFW_CLIENT_API:
+            return _glfwWin.clientAPI;
         default:
             return 0;
     }
