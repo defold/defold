@@ -587,42 +587,45 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
     _glfwPlatformRefreshWindowParams();
     _glfwRefreshContextParams();
 
-    if( _glfwWin.glMajor < wndconfig.glMajor ||
-        ( _glfwWin.glMajor == wndconfig.glMajor &&
-          _glfwWin.glMinor < wndconfig.glMinor ) )
+    if (wndconfig.clientAPI != GLFW_NO_API)
     {
-        glfwCloseWindow();
-        return GL_FALSE;
-    }
+        if( _glfwWin.glMajor < wndconfig.glMajor ||
+            ( _glfwWin.glMajor == wndconfig.glMajor &&
+              _glfwWin.glMinor < wndconfig.glMinor ) )
+        {
+            glfwCloseWindow();
+            return GL_FALSE;
+        }
 
-    // Do we have non-power-of-two textures (added to core in version 2.0)?
-    _glfwWin.has_GL_ARB_texture_non_power_of_two =
-        ( _glfwWin.glMajor >= 2 ) ||
-        glfwExtensionSupported( "GL_ARB_texture_non_power_of_two" );
+        // Do we have non-power-of-two textures (added to core in version 2.0)?
+        _glfwWin.has_GL_ARB_texture_non_power_of_two =
+            ( _glfwWin.glMajor >= 2 ) ||
+            glfwExtensionSupported( "GL_ARB_texture_non_power_of_two" );
 
-    // Do we have automatic mipmap generation (added to core in version 1.4)?
-    _glfwWin.has_GL_SGIS_generate_mipmap =
-        ( _glfwWin.glMajor >= 2 ) || ( _glfwWin.glMinor >= 4 ) ||
-        glfwExtensionSupported( "GL_SGIS_generate_mipmap" );
+        // Do we have automatic mipmap generation (added to core in version 1.4)?
+        _glfwWin.has_GL_SGIS_generate_mipmap =
+            ( _glfwWin.glMajor >= 2 ) || ( _glfwWin.glMinor >= 4 ) ||
+            glfwExtensionSupported( "GL_SGIS_generate_mipmap" );
 
-    //
-    // The following check for glGetString(i) is a modification to improve compatibility
-    // with Linux. We have encountered cases where GL_VERSION is 3.0 or higher but where
-    // the function glGetStringi could not be found. In these cases we fallback to the
-    // deprecated function glGetString. This should not change the control-flow for any
-    // other platform.
-    //
-    // 2016-04-29
-    // Jakob Pogulis <jakob.pogulis@king.com>
-    // Ragnar Svensson <ragnar.svensson@king.com>
-    //
-    _glfwWin.GetStringi = NULL;
-    if (_glfwWin.glMajor > 2) {
-        _glfwWin.GetStringi = (PFNGLGETSTRINGIPROC) glfwGetProcAddress("glGetStringi");
-        if (!_glfwWin.GetStringi) {
-            if (glfwGetProcAddress("glGetString") == NULL) {
-                glfwCloseWindow();
-                return GL_FALSE;
+        //
+        // The following check for glGetString(i) is a modification to improve compatibility
+        // with Linux. We have encountered cases where GL_VERSION is 3.0 or higher but where
+        // the function glGetStringi could not be found. In these cases we fallback to the
+        // deprecated function glGetString. This should not change the control-flow for any
+        // other platform.
+        //
+        // 2016-04-29
+        // Jakob Pogulis <jakob.pogulis@king.com>
+        // Ragnar Svensson <ragnar.svensson@king.com>
+        //
+        _glfwWin.GetStringi = NULL;
+        if (_glfwWin.glMajor > 2) {
+            _glfwWin.GetStringi = (PFNGLGETSTRINGIPROC) glfwGetProcAddress("glGetStringi");
+            if (!_glfwWin.GetStringi) {
+                if (glfwGetProcAddress("glGetString") == NULL) {
+                    glfwCloseWindow();
+                    return GL_FALSE;
+                }
             }
         }
     }
