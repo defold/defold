@@ -992,7 +992,12 @@
   (reduce (fn [action [node-id label]]
             (when action
               ((g/node-value node-id label) node-id action user-data)))
-          action input-handlers))
+          action input-handlers)
+  (case (:type action)
+    (:mouse-pressed :mouse-released)
+    (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+
+    nil))
 
 (defn- update-updatables
   [updatable-states play-mode active-updatables]
