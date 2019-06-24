@@ -441,13 +441,13 @@ public class BundleHelper {
         extraPackages.add("com.google.android.gms.common");
 
         if (bundleContext != null) {
-            extraPackages.addAll((List<String>)bundleContext.getOrDefault("aaptExtraPackages", new ArrayList<String>()));
-
             List<String> excludePackages = (List<String>)bundleContext.getOrDefault("aaptExcludePackages", new ArrayList<String>());
             List<String> excludeResourceDirs = (List<String>)bundleContext.getOrDefault("aaptExcludeResourceDirs", new ArrayList<String>());
 
             extraPackages = excludeItems(extraPackages, excludePackages);
             resourceDirectories = excludeItems(resourceDirectories, excludeResourceDirs);
+
+            extraPackages.addAll((List<String>)bundleContext.getOrDefault("aaptExtraPackages", new ArrayList<String>()));
         }
 
         return generateRJava(resourceDirectories, extraPackages, manifestFile, apk, javaROutput);

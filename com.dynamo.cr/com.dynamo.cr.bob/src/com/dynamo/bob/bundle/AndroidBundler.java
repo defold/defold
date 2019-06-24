@@ -184,10 +184,6 @@ public class AndroidBundler implements IBundler {
         // Collect bundle/package resources to be included in APK zip
         Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, targetPlatform);
 
-        System.out.println("MAWE:");
-        printResources("BUNDLE RESOURCES", bundleResources);
-        System.out.println("MAWE: <- end");
-
         BundleHelper.throwIfCanceled(canceled);
 
         for(File dex : classesDex)
