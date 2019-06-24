@@ -1,3 +1,0 @@
-instructions.configure=\
-  addRepository(type:0,location:http${#58}//cr.defold.com/downloads/cr-editor/1.0/repository/);\
-  addRepository(type:1,location:http${#58}//cr.defold.com/downloads/cr-editor/1.0/repository/);
