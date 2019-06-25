@@ -63,18 +63,35 @@ namespace dmGraphics
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
+        context->m_WindowOpened = 1;
+
         return WINDOW_RESULT_OK;
     }
 
     void CloseWindow(HContext context)
-    {}
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            glfwCloseWindow();
+            context->m_WindowOpened = 0;
+        }
+    }
 
     void IconifyWindow(HContext context)
     {}
 
     uint32_t GetWindowState(HContext context, WindowState state)
     {
-        return 0;
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            return glfwGetWindowParam(state);
+        }
+        else
+        {
+            return 0;
+        }
     }
 
     uint32_t GetDisplayDpi(HContext context)
@@ -120,14 +137,15 @@ namespace dmGraphics
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {}
 
-
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        return 0;
+        return (HVertexBuffer) new uint32_t;
     }
 
     void DeleteVertexBuffer(HVertexBuffer buffer)
-    {}
+    {
+        delete (uint32_t*) buffer;
+    }
 
     void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {}
@@ -147,16 +165,18 @@ namespace dmGraphics
 
     uint32_t GetMaxElementsVertices(HContext context)
     {
-        return 0;
+        return 65536;
     }
 
     HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        return 0;
+        return (HIndexBuffer) new uint32_t;
     }
 
     void DeleteIndexBuffer(HIndexBuffer buffer)
-    {}
+    {
+        delete (uint32_t*) buffer;
+    }
 
     void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {}
@@ -181,18 +201,18 @@ namespace dmGraphics
 
     uint32_t GetMaxElementsIndices(HContext context)
     {
-        return 0;
+        return 65536;
     }
 
 
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
     {
-        return 0;
+        return new VertexDeclaration;
     }
 
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
     {
-        return 0;
+        return new VertexDeclaration;
     }
 
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
@@ -216,21 +236,23 @@ namespace dmGraphics
 
     HVertexProgram NewVertexProgram(HContext context, const void* program, uint32_t program_size)
     {
-        return 0;
+        return (HVertexProgram) new uint32_t;
     }
 
     HFragmentProgram NewFragmentProgram(HContext context, const void* program, uint32_t program_size)
     {
-        return 0;
+        return (HFragmentProgram) new uint32_t;
     }
 
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
-        return 0;
+        return (HProgram) new uint32_t;
     }
 
     void DeleteProgram(HContext context, HProgram program)
-    {}
+    {
+        delete (uint32_t*) program;
+    }
 
     bool ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size)
     {
@@ -243,10 +265,14 @@ namespace dmGraphics
     }
 
     void DeleteVertexProgram(HVertexProgram prog)
-    {}
+    {
+        delete (uint32_t*) prog;
+    }
 
     void DeleteFragmentProgram(HFragmentProgram prog)
-    {}
+    {
+        delete (uint32_t*) prog;
+    }
 
     ShaderDesc::Language GetShaderProgramLanguage(HContext context)
     {
@@ -331,11 +357,13 @@ namespace dmGraphics
 
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
-        return 0;
+        return new RenderTarget;
     }
 
     void DeleteRenderTarget(HRenderTarget render_target)
-    {}
+    {
+        delete render_target;
+    }
 
     void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
     {}
@@ -358,11 +386,13 @@ namespace dmGraphics
 
     HTexture NewTexture(HContext context, const TextureCreationParams& params)
     {
-        return 0;
+        return new Texture;
     }
 
     void DeleteTexture(HTexture t)
-    {}
+    {
+        delete t;
+    }
 
     void SetTexture(HTexture texture, const TextureParams& params)
     {}
@@ -423,5 +453,10 @@ namespace dmGraphics
     {}
 
     void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
-    {}
+    {
+        while (0 != is_running(user_data))
+        {
+            step_method(user_data);
+        }
+    }
 }
