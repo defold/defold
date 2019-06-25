@@ -32,6 +32,16 @@ def build(bld):
 
         obj.find_sources_in_dirs('. flash ../proto/graphics')
 
+    if Options.options.with_vulkan:
+      obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
+                             includes = ['. vulkan', '../proto'],
+                             proto_gen_py = True,
+                             protoc_includes = '../proto',
+                             uselib = 'DDF DLIB',
+                             target = 'graphics_vulkan')
+
+      obj.find_sources_in_dirs('. vulkan ../proto/graphics')
+
     obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
                            includes = ['. null', '../proto'],
                            proto_gen_py = True,
