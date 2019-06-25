@@ -388,6 +388,19 @@ public class Project {
         projectProperties.load(is);
     }
 
+    private void logExceptionToStdErr(IResource res, int line)
+    {
+        String resourceString = "unspecified";
+        String resourceLineString = "";
+        if (res != null) {
+            resourceString = res.toString();
+        }
+        if (line > 0) {
+            resourceLineString = String.format(" at line %d", line);
+        }
+        System.err.println("Error in resource: " + resourceString + resourceLineString);
+    }
+
     /**
      * Build the project
      * @param monitor
@@ -400,9 +413,11 @@ public class Project {
             loadProjectFile();
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
+            logExceptionToStdErr(e.getResource(), e.getLineNumber());
             // Pass on unmodified
             throw e;
         } catch (MultipleCompileException e) {
+            logExceptionToStdErr(e.getContextResource(), -1);
             // Pass on unmodified
             throw e;
         } catch (Throwable e) {
@@ -632,45 +647,56 @@ public class Project {
             List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform, appmanifestOptions);
 
             File classesDexFile = null;
+            File proguardMappingFile = null;
             File tmpDir = null;
-            if ((platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) && !androidResourcesGenerated) {
-                androidResourcesGenerated = true;
 
-                Bob.initAndroid(); // extract resources
+            if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
+                // If we are building for Android, We output a mapping file per architechture
+                // so that the user can select which of the mapping files are more suitable,
+                // since they can diff between architechtures
+                String mappingsName = "mapping-" + (platform.equals(Platform.Armv7Android) ? "armv7" : "arm64") + ".txt";
+                proguardMappingFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), mappingsName));
 
-                // If we are building for Android, we expect a classes.dex file to be returned as well.
-                classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), "classes.dex"));
+                if (!androidResourcesGenerated)
+                {
+                    androidResourcesGenerated = true;
 
-                List<String> resDirs = new ArrayList<>();
-                List<String> extraPackages = new ArrayList<>();
+                    Bob.initAndroid(); // extract resources
 
-                // Create temp files and directories needed to run aapt and output R.java files
-                tmpDir = Files.createTempDirectory("bob_bundle_tmp").toFile();
-                tmpDir.mkdirs();
+                    // If we are building for Android, we expect a classes.dex file to be returned as well.
+                    classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), "classes.dex"));
 
-                // <tmpDir>/res - Where to collect all resources needed for aapt
-                File resDir = new File(tmpDir, "res");
-                resDir.mkdir();
+                    List<String> resDirs = new ArrayList<>();
+                    List<String> extraPackages = new ArrayList<>();
 
-                String title = projectProperties.getStringValue("project", "title", "Unnamed");
-                String exeName = BundleHelper.projectNameToBinaryName(title);
+                    // Create temp files and directories needed to run aapt and output R.java files
+                    tmpDir = Files.createTempDirectory("bob_bundle_tmp").toFile();
+                    tmpDir.mkdirs();
 
-                BundleHelper helper = new BundleHelper(this, platform, tmpDir, "", variant);
+                    // <tmpDir>/res - Where to collect all resources needed for aapt
+                    File resDir = new File(tmpDir, "res");
+                    resDir.mkdir();
 
-                File manifestFile = new File(tmpDir, "AndroidManifest.xml"); // the final, merged manifest
-                IResource sourceManifestFile = helper.getResource("android", "manifest");
+                    String title = projectProperties.getStringValue("project", "title", "Unnamed");
+                    String exeName = BundleHelper.projectNameToBinaryName(title);
 
-                Map<String, Object> properties = helper.createAndroidManifestProperties(this.getRootDirectory(), resDir, exeName);
-                helper.mergeManifests(properties, sourceManifestFile, manifestFile);
+                    BundleHelper helper = new BundleHelper(this, platform, tmpDir, "", variant);
 
-                BundleHelper.throwIfCanceled(monitor);
+                    File manifestFile = new File(tmpDir, "AndroidManifest.xml"); // the final, merged manifest
+                    IResource sourceManifestFile = helper.getResource("android", "manifest");
 
-                List<ExtenderResource> extraSource = helper.generateAndroidResources(this, resDir, manifestFile, null, tmpDir);
-                allSource.addAll(extraSource);
+                    Map<String, Object> properties = helper.createAndroidManifestProperties(this.getRootDirectory(), resDir, exeName);
+                    helper.mergeManifests(properties, sourceManifestFile, manifestFile);
+
+                    BundleHelper.throwIfCanceled(monitor);
+
+                    List<ExtenderResource> extraSource = helper.generateAndroidResources(this, resDir, manifestFile, null, tmpDir);
+                    allSource.addAll(extraSource);
+                }
             }
 
             ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
-            BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile, defaultNames, exes, classesDexFile);
+            BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile, defaultNames, exes, classesDexFile, proguardMappingFile);
 
             if (tmpDir != null) {
                 FileUtils.deleteDirectory(tmpDir);
@@ -1285,6 +1311,10 @@ run:
 
     public IResource getResource(String path) {
         return fileSystem.get(FilenameUtils.normalize(path, true));
+    }
+
+    public IResource getGameProjectResource() {
+        return getResource("/game.project");
     }
 
     public static String stripLeadingSlash(String path) {

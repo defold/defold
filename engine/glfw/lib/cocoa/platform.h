@@ -238,8 +238,10 @@ GLFWGLOBAL struct {
     void*         Device;
     int           NumAxes;
     int           NumButtons;
+    int           NumHats;
     float         *Axis;
     unsigned char *Button;
+    unsigned char *Hat;
 } _glfwJoy[ GLFW_JOYSTICK_LAST + 1 ];
 
 //========================================================================

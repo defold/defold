@@ -1,9 +1,0 @@
-/war/WEB-INF/classes
-/war/WEB-INF/lib/appengine*.jar
-/war/WEB-INF/lib/datanucleus*.jar
-/war/WEB-INF/lib/jsr107*.jar
-/war/WEB-INF/lib/geronimo*.jar
-/war/WEB-INF/lib/jdo*.jar
-/war/WEB-INF/appengine-generated/local_db.bin
-/war/index.html
-

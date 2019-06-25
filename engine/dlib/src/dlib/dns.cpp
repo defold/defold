@@ -161,7 +161,7 @@ namespace dmDNS
             }
             else
             {
-                sockaddr_in6* saddr     = (struct sockaddr_in6 *) iterator->ai_addr;
+                sockaddr_in6* saddr     = (struct sockaddr_in6 *) selected->ai_addr;
                 req->m_Address.m_family = dmSocket::DOMAIN_IPV6;
                 memcpy(&req->m_Address.m_address[0], &saddr->sin6_addr, sizeof(struct in6_addr));
             }

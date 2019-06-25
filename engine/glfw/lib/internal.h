@@ -185,6 +185,7 @@ void * _glfwPlatformGetProcAddress( const char *procname );
 int _glfwPlatformGetJoystickParam( int joy, int param );
 int _glfwPlatformGetJoystickPos( int joy, float *pos, int numaxes );
 int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons, int numbuttons );
+int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats );
 int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id );
 
 // Threads

@@ -104,7 +104,8 @@ namespace dmInput
     struct GamepadInput
     {
         uint16_t m_Index;
-        uint16_t m_Type : 1;
+        uint16_t m_HatMask;
+        uint16_t m_Type : 2;
         uint16_t m_Negate : 1;
         uint16_t m_Scale : 1;
         uint16_t m_Clamp : 1;

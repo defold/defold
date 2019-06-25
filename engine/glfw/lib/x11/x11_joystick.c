@@ -149,7 +149,7 @@ int _glfwInitJoystick(int deviceIndex, int deviceId, int deviceFd, int isLegacy)
 
     // The joystick is supported and connected
     _glfwJoy[ deviceIndex ].Present = GL_TRUE;
-        
+
     // We only have a inotify on /dev/input/
     if (!isLegacy)
     {
@@ -255,7 +255,7 @@ void _glfwTerminateJoysticks( void )
     // Close any opened joysticks
     for( i = 0; i <= GLFW_JOYSTICK_LAST; ++ i )
     {
-        _glfwTerminateJoystick(i);    
+        _glfwTerminateJoystick(i);
     }
 
     // From glfw 3
@@ -397,7 +397,7 @@ void _glfwUpdateConnectionState(void)
 
                 if (deviceIndex != -1 && deviceFd && init_res)
                 {
-                    _glfwWin.gamepadCallback(id, 1);      
+                    _glfwWin.gamepadCallback(id, 1);
                 }
             }
             else if (e->mask & IN_DELETE)
@@ -512,6 +512,16 @@ int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons,
     }
 
     return numbuttons;
+}
+
+//========================================================================
+// Get joystick hats states
+//========================================================================
+
+int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats )
+{
+    // No explicit hat support on Linux. (Seems to be exposed as axis instead.)
+    return 0;
 }
 
 //========================================================================

@@ -354,6 +354,10 @@ namespace dmInput
                         GamepadInput& input = config.m_Inputs[entry.m_Input];
                         input.m_Index = (uint16_t)entry.m_Index;
                         input.m_Type = entry.m_Type;
+                        if (entry.m_Type == dmInputDDF::GAMEPAD_TYPE_HAT)
+                        {
+                            input.m_HatMask = entry.m_HatMask;
+                        }
                         for (uint32_t k = 0; k < entry.m_Mod.m_Count; ++k)
                         {
                             switch (entry.m_Mod[k].m_Mod)
@@ -890,6 +894,15 @@ namespace dmInput
             break;
         case dmInputDDF::GAMEPAD_TYPE_BUTTON:
             v = dmHID::GetGamepadButton(packet, input.m_Index) ? 1.0f : 0.0f;
+            break;
+        case dmInputDDF::GAMEPAD_TYPE_HAT:
+            {
+                uint8_t t = 0;
+                bool s = dmHID::GetGamepadHat(packet, input.m_Index, t);
+                if (s && (t & input.m_HatMask)) {
+                    v = 1.0f;
+                }
+            }
             break;
         }
         return v;
