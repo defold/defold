@@ -178,16 +178,13 @@
                                    :jvm-opts ["-Ddefold.nrepl=false"]}
                       :release {:jvm-opts          ["-Ddefold.build=release"]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
-                      :dev     {:plugins [[lein-cljfmt "0.6.4"]
-                                          [lein-kibit "0.1.6"]]
-                                :dependencies      [[clj-async-profiler-mg "0.4.1"]
+                      :dev     {:dependencies      [[clj-async-profiler-mg "0.4.1"]
                                                     [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
                                                     [criterium "0.4.3"]
                                                     [org.clojure/test.check   "0.9.0"]
                                                     [org.clojure/tools.trace  "0.7.9"]
                                                     [org.mockito/mockito-core "1.10.19"]
-                                                    [ring "1.4.0"]
-                                                    [clj-kondo "2019.06.16-alpha" :exclusions [org.clojure/clojure]]]
+                                                    [ring "1.4.0"]]
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
