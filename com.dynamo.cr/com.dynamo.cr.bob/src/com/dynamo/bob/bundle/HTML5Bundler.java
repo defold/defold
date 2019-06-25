@@ -151,7 +151,7 @@ public class HTML5Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
         // Collect bundle/package resources to be included in bundle directory
-        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.JsWeb);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, Platform.JsWeb);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
 
