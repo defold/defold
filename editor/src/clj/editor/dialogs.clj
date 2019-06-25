@@ -769,6 +769,14 @@
 (defn sanitize-folder-name [name]
   (sanitize-common name))
 
+(defn sanitize-path [path]
+  (string/join \/
+               (into []
+                     (comp
+                       (remove empty?)
+                       (map sanitize-folder-name))
+                     (string/split path #"[\\\/]"))))
+
 (defn- rename-dialog [{:keys [initial-name name title label validate sanitize] :as props}]
   (let [sanitized (some-> (not-empty name) sanitize)
         validation-msg (some-> sanitized validate)
@@ -903,7 +911,7 @@
     :event-handler (fn [state {:keys [fx/event event-type]}]
                      (case event-type
                        :set-file-name (assoc state :name event)
-                       :set-location (assoc state :location (io/file base-dir (sanitize-folder-name event)))
+                       :set-location (assoc state :location (io/file base-dir (sanitize-path event)))
                        :pick-location (assoc state :location
                                              (let [window (.getWindow (.getScene ^Node (.getSource ^Event event)))
                                                    previous-location (:location state)
