@@ -1,6 +1,7 @@
 (ns editor.fxui
   (:require [cljfx.api :as fx]
             [cljfx.coerce :as fx.coerce]
+            [cljfx.component :as fx.component]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
@@ -59,6 +60,22 @@
                                        (.removeListener (.sceneProperty node) this)
                                        (.requestFocus node)))))))
    :desc desc})
+
+(def ext-with-advance-events
+  "Extension lifecycle that notifies all listeners even during advancing
+
+  Expected keys:
+  - `:desc` (required) - description of underlying component"
+  (reify fx.lifecycle/Lifecycle
+    (create [_ {:keys [desc]} opts]
+      (binding [fx.lifecycle/*in-progress?* false]
+        (fx.lifecycle/create fx.lifecycle/dynamic desc opts)))
+    (advance [_ component {:keys [desc]} opts]
+      (binding [fx.lifecycle/*in-progress?* false]
+        (fx.lifecycle/advance fx.lifecycle/dynamic component desc opts)))
+    (delete [_ component opts]
+      (binding [fx.lifecycle/*in-progress?* false]
+        (fx.lifecycle/delete fx.lifecycle/dynamic component opts)))))
 
 (defn make-event-filter-prop
   "Creates a prop-config that will add event filter for specified `event-type`
@@ -125,6 +142,24 @@
          (reify ChangeListener
            (changed [_ o _ new-anchor]
              (f [new-anchor (.getCaretPosition ^TextInputControl (.getBean ^ReadOnlyProperty o))])))]))))
+
+(defn wrap-dedupe-desc
+  "Renderer middleware that skips advancing if new description is the same"
+  [lifecycle]
+  (reify fx.lifecycle/Lifecycle
+    (create [_ desc opts]
+      (with-meta
+        {:desc desc
+         :child (fx.lifecycle/create lifecycle desc opts)}
+        {`fx.component/instance #(-> % :child fx.component/instance)}))
+    (advance [_ component desc opts]
+      (if (= desc (:desc component))
+        component
+        (-> component
+            (assoc :desc desc)
+            (update :child #(fx.lifecycle/advance lifecycle % desc opts)))))
+    (delete [_ component opts]
+      (fx.lifecycle/delete lifecycle (:child component) opts))))
 
 (defmacro provide-single-default [m k v]
   `(let [m# ~m
