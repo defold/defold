@@ -42,7 +42,6 @@ def build(bld):
 
     additional_libs = ['CRASH']
     exported_symbols = ['DefaultSoundDevice', 'NullSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt']
-    graphics_lib = 'GRAPHICS'
 
     # Add stb_vorbis and/or tremolo depending on platform
     if 'web' in bld.env['PLATFORM'] or 'win32' in bld.env['PLATFORM']:
@@ -52,13 +51,15 @@ def build(bld):
         exported_symbols.append('AudioDecoderTremolo')
         additional_libs.append('TREMOLO')
 
-        if Options.options.with_vulkan:
-          graphics_lib = 'GRAPHICS_VULKAN'
-
     if 'win32' in bld.env['PLATFORM']:
         exported_symbols.append('GameroomExt')
         exported_symbols.append('FacebookExt')
         exported_symbols.append('IAPExt')
+
+    # Set graphics library to use (at some point both GL/VK should be used)
+    graphics_lib = 'GRAPHICS'
+    if not 'web' in bld.env['PLATFORM'] and Options.options.with_vulkan:
+        graphics_lib = 'GRAPHICS_VULKAN'
 
     mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'WebViewExt']
     if bld.env['PLATFORM'] in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
