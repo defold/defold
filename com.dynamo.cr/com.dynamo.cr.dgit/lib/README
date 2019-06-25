@@ -1,2 +1,0 @@
-* org.eclipse.jgit* is dependent on jsch. If jgit is upgraded
-  make sure to upgrade jsch as well to corresponding version.

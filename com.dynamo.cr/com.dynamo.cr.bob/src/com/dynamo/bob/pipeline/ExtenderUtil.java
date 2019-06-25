@@ -630,7 +630,7 @@ public class ExtenderUtil {
     }
 
     // Collects all resources (even those inside the zip packages) and stores them into one single folder
-    public static void storeAndroidResources(File targetDirectory, Map<String, IResource> resources) throws IOException, CompileExceptionError {
+    public static void storeAndroidResources(File targetDirectory, Map<String, IResource> resources) throws CompileExceptionError {
         for (String relativePath : resources.keySet()) {
             IResource r = resources.get(relativePath);
             File outputFile = new File(targetDirectory, relativePath);
@@ -639,8 +639,12 @@ public class ExtenderUtil {
             } else if (outputFile.exists()) {
                 throw new CompileExceptionError(r, 0, "The resource already exists in another extension: " + relativePath);
             }
-            byte[] data = r.getContent();
-            FileUtils.writeByteArrayToFile(outputFile, data);
+            try {
+                byte[] data = r.getContent();
+                FileUtils.writeByteArrayToFile(outputFile, data);
+            } catch (Exception e) {
+                throw new CompileExceptionError(r, 0, e);
+            }
         }
     }
 
@@ -861,12 +865,22 @@ public class ExtenderUtil {
     In this case the values _under_ 'armv7-android' will be returned.
     */
 
-    public static Map<String, Object> getPlatformSettingsFromExtensions(Project project, String platform) throws IOException, CompileExceptionError {
+    public static Map<String, Object> getPlatformSettingsFromExtensions(Project project, String platform) throws CompileExceptionError {
         List<String> folders = ExtenderUtil.getExtensionFolders(project);
         Map<String, Object> ctx = new HashMap<String, Object>();
         for (String folder : folders) {
             IResource resource = project.getResource(folder + "/" + ExtenderClient.extensionFilename);
-            Map<String, Object> manifest = ExtenderUtil.readYaml(resource);
+
+            Map<String, Object> manifest = null;
+            try {
+                manifest = ExtenderUtil.readYaml(resource);
+            } catch (Exception e) {
+                throw new CompileExceptionError(resource, -1, e);
+            }
+
+            if (manifest == null) {
+                throw new CompileExceptionError(resource, -1, "Could not parse extension manifest file.");
+            }
 
             Map<String, Object> platforms = (Map<String, Object>)manifest.getOrDefault("platforms", null);
             if (platforms == null) {
