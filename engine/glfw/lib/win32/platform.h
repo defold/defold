@@ -135,6 +135,7 @@ typedef struct tagKBDLLHOOKSTRUCT {
 #define XBUTTON2 2
 #endif
 
+// Hard limit of 4 for XInput... :(
 #define GLFW_MAX_XINPUT_CONTROLLERS 4
 #ifndef WGL_EXT_swap_control
 
@@ -315,6 +316,7 @@ struct _GLFWwin_struct {
     GLFWkeyfun           keyCallback;
     GLFWcharfun          charCallback;
     GLFWmarkedtextfun    markedTextCallback;
+    GLFWgamepadfun       gamepadCallback;
 
     // User selected window settings
     int       fullscreen;      // Fullscreen flag

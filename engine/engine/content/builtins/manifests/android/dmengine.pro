@@ -124,7 +124,6 @@
   ** SDK_INT;
 }
 
-
 # Preserve the required interface from the License Verification Library
 # (but don't nag the developer if the library is not used at all).
 
@@ -152,6 +151,7 @@
 -dontwarn com.google.auto.common.BasicAnnotationProcessor
 -dontwarn android.support.v4.**
 -dontwarn android.app.NotificationChannel
+-dontwarn android.app.NotificationManager
 -dontwarn com.google.android.gms.auth.GoogleAuthUtil
 -dontwarn com.google.android.gms.**
 -dontwarn com.google.protobuf.**
@@ -164,7 +164,6 @@
 -dontwarn com.amazon.device.iap.**
 -dontwarn com.amazon.venezia.**
 
--dontwarn android.app.NotificationManager
 
 # Switch off some optimizations that trip older versions of the Dalvik VM.
 
@@ -205,15 +204,16 @@
 -keep public class android.app.AlarmManager
 -keep public class android.app.NativeActivity
 -keep public class android.app.Notification
-#-keep public class android.app.NotificationChannel
 -keep public class android.app.NotificationManager
 -keep public class android.app.PendingIntent
 -keep public class android.app.Service
+-keep public class android.content.BroadcastReceiver
 -keep public class android.content.ComponentName
 -keep public class android.content.Context
 -keep public class android.content.Intent
-#-keep public class android.content.IntentSender.SendIntentException
+-keep public class android.content.IntentSender
 -keep public class android.content.ServiceConnection
+-keep public class android.content.SharedPreferences
 -keep public class android.content.pm.ActivityInfo
 -keep public class android.content.pm.ApplicationInfo
 -keep public class android.content.pm.PackageInfo
@@ -247,17 +247,25 @@
 -keep public class android.util.Log
 -keep public class android.view.Gravity
 -keep public class android.view.KeyEvent
+-keep public class android.view.MotionEvent
 -keep public class android.view.View
-#-keep public class android.view.ViewGroup.LayoutParams
 -keep public class android.view.ViewGroup
+-keep public class android.view.Window
 -keep public class android.view.WindowManager
 -keep public class android.view.inputmethod.CompletionInfo
 -keep public class android.view.inputmethod.EditorInfo
 -keep public class android.view.inputmethod.InputConnection
 -keep public class android.view.inputmethod.InputConnectionWrapper
 -keep public class android.view.inputmethod.InputMethodManager
+-keep public class android.webkit.ConsoleMessage
+-keep public class android.webkit.JavascriptInterface
+-keep public class android.webkit.WebChromeClient
+-keep public class android.webkit.WebSettings
+-keep public class android.webkit.WebView
+-keep public class android.webkit.WebViewClient
 -keep public class android.widget.EditText
 -keep public class android.widget.FrameLayout
+-keep public class android.widget.LinearLayout
 -keep public class android.widget.TextView
 -keep public class com.amazon.device.iap.PurchasingListener
 -keep public class com.amazon.device.iap.PurchasingService
@@ -271,13 +279,6 @@
 -keep public class com.amazon.device.iap.model.UserData
 -keep public class com.amazon.device.iap.model.UserDataResponse
 -keep public class com.android.vending.billing.IInAppBillingService
-# -keep public class com.defold.iap.IapGooglePlay.Action
-# -keep public class com.defold.sound.SoundManager
-# -keep public class com.dynamo.android.DefoldActivity
-# -keep public class com.dynamo.android.DispatcherActivity.PseudoActivity
-# -keep public class com.dynamo.android.DispatcherActivity
-# -keep public class com.dynamo.upnp.Request
-# -keep public class com.dynamo.upnp.Response
 -keep public class com.facebook.AccessToken
 -keep public class com.facebook.CallbackManager
 -keep public class com.facebook.FacebookCallback
@@ -301,6 +302,7 @@
 -keep public class com.google.android.gms.ads.identifier.AdvertisingIdClient
 -keep public class com.google.android.gms.common.*
 -keep public class com.google.android.gms.common.ConnectionResult
+-keep public class com.google.android.gms.common.GooglePlayServicesUtil
 -keep public class com.google.android.gms.common.GoogleApiAvailability
 -keep public class com.google.android.gms.tasks.OnCompleteListener
 -keep public class com.google.android.gms.tasks.Task
@@ -309,6 +311,9 @@
 -keep public class com.google.firebase.iid.FirebaseInstanceId
 -keep public class com.google.firebase.iid.InstanceIdResult
 -keep public class com.google.firebase.messaging.RemoteMessage
+-keep public class com.google.android.gms.gcm.GoogleCloudMessaging
+-keep class com.google.android.gms.** { *; }
+-dontwarn com.google.android.gms.**
 -dontwarn com.google.protobuf.**
 -dontwarn com.google.firebase.messaging.R
 -dontwarn com.google.firebase.messaging.R$*
