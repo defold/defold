@@ -3,9 +3,11 @@
     <option name="RIGHT_MARGIN" value="80" />
     <option name="SOFT_MARGINS" value="80,90" />
     <ClojureCodeStyleSettings>{
+  :cljfx.composite/props :only-indent
   :cursive.formatting/align-conditionals false
   :cursive.formatting/align-maps false
   :cursive.formatting/imports-use-vectors true
+  :dynamo.graph/make-nodes :only-indent
   :dynamo.graph/precluding-errors :only-indent
   :dynamo.graph/with-auto-evaluation-context :only-indent
   :dynamo.graph/with-auto-or-fake-evaluation-context :only-indent

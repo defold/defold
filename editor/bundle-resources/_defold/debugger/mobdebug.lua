@@ -1137,9 +1137,9 @@ local function listen(port)
   local err
   local listen_socket, err = socket.bind("*", port or mobdebug.port)
 
-  print("Listening for debugger on " .. listen_socket:getsockname())
-
   if err then error(err) end
+
+  print("Listening for debugger on " .. listen_socket:getsockname())
 
   server, err = listen_socket:accept()
 

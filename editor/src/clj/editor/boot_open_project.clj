@@ -5,6 +5,7 @@
             [editor.asset-browser :as asset-browser]
             [editor.build-errors-view :as build-errors-view]
             [editor.changes-view :as changes-view]
+            [editor.cljfx-form-view :as cljfx-form-view]
             [editor.code.view :as code-view]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
@@ -73,6 +74,7 @@
         (text/register-view-types workspace)
         (code-view/register-view-types workspace)
         (scene/register-view-types workspace)
+        (cljfx-form-view/register-view-types workspace)
         (form-view/register-view-types workspace)
         (html-view/register-view-types workspace)))
     (resource-types/register-resource-types! workspace)

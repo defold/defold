@@ -1,0 +1,135 @@
+.cljfx-form {
+  -fx-padding: 24px;
+  .title {
+    -fx-text-fill: $defold-white;
+    -fx-font-family: "Source Sans Pro Light";
+    -fx-font-size: 24px;
+  }
+  .separator {
+    -fx-padding: 30 0;
+    -fx-background-color: transparent;
+    > .line {
+      -fx-background-color: rgba(255, 255, 255, 0.1);
+      -fx-border-color: transparent;
+    }
+  }
+  .fields {
+    -fx-padding: 16px;
+    -fx-hgap: 3px;
+    -fx-vgap: 12px;
+  }
+  .icon-button {
+    -fx-background-radius: 2px;
+    -fx-border-radius: 2px;
+    -fx-background-color: $mid-grey !important;
+    -fx-padding: 0;
+    -fx-min-width: 27px;
+    -fx-max-width: 27px;
+    -fx-pref-width: 27px;
+    -fx-min-height: 27px;
+    -fx-max-height: 27px;
+    -fx-pref-height: 27px;
+    -fx-focus-traversable: false;
+    -fx-border-width: 0;
+    &:hover {
+        -fx-background-color: $grey !important;
+    }
+    &:armed {
+        -fx-background-color: $dark-grey-header !important;
+    }
+  }
+  .list-view {
+    -fx-border-radius: 2px;
+    -fx-padding: 0 0 1px 0;
+    -fx-border-color: $input-border;
+    -fx-background-color: $input-background;
+    -fx-background-radius: 20px;
+    .list-cell {
+      .text-field {
+        -fx-border-width: 0;
+      }
+    }
+  }
+  .text-field {
+    -fx-border-radius: 2px;
+    -fx-background-radius: 2px;
+  }
+  .check-box > .box {
+    -fx-border-radius: 2px;
+    -fx-background-radius: 2px;
+    -fx-pref-width: 22px;
+    -fx-pref-height: 22px;
+  }
+  .combo-box {
+    -fx-border-radius: 2px;
+    -fx-background-radius: 2px;
+    > .text-field {
+      -fx-border-width: 0;
+    }
+  }
+  .cljfx-form-error {
+    .combo-box, .list-view, .text-field, .check-box > .box {
+      -fx-border-color: $error-severity-fatal;
+    }
+  }
+
+  .cljfx-form-warning {
+    .combo-box, .list-view, .text-field, .check-box > .box {
+      -fx-border-color: $error-severity-warning;
+    }
+  }
+}
+
+$floating-input-border: #56595d;
+
+@mixin floating-input() {
+  -fx-border-color: $floating-input-border;
+  -fx-border-radius: 2px;
+  -fx-background-radius: 3px;
+  -fx-pref-width: 120px;
+  -fx-background-position: right 6px center;
+  -fx-background-repeat: no-repeat;
+  -fx-padding: 4px 22px 4px 8px;
+}
+
+.cljfx-form-floating-area {
+  -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 8, 0, 0, 4);
+  -fx-background-color: $mid-grey;
+  -fx-background-radius: 6px;
+  -fx-padding: 12px;
+  -fx-spacing: 8px;
+
+  .filter-text-field {
+    @include floating-input();
+    -fx-background-color: rgba(0, 0, 0, 0.1);
+    -fx-background-image: url("icons/32/Icons_M_09_search.png");
+    -fx-background-size: 15px;
+    -fx-cursor: text;
+    &:focused {
+      -fx-padding: 4px 22px 3px 8px;
+      -fx-background-color: $root-background;
+      -fx-border-color: $floating-input-border $floating-input-border $defold-orange $floating-input-border;
+    }
+  }
+
+  .jump-to-menu-button {
+    @include floating-input();
+    -fx-focus-traversable: false;
+    -fx-background-color: $mid-grey;
+    -fx-background-image: url("icons/32/Icons_S_05_arrowdown.png");
+
+    &:hover {
+      -fx-background-color: $grey;
+    }
+    &:disabled {
+      .label {
+        -fx-opacity: 1;
+      }
+      -fx-opacity: 0.4;
+    }
+    .label {
+      -fx-alignment: center-left;
+    }
+
+  }
+}

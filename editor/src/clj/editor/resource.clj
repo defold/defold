@@ -55,10 +55,17 @@
   (FilenameUtils/separatorsToUnix path))
 
 (defn relative-path [^File f1 ^File f2]
-  (let [p1 (->unix-seps (str (.getAbsolutePath f1)))
-        p2 (->unix-seps (str (.getAbsolutePath f2)))
-        path (string/replace p2 p1 "")]
-    (if (.startsWith path "/")
+  ;; The strange comparison below is done due to the fact that we support case
+  ;; insensitive file systems. For example NTFS and HFS. We want to compare the
+  ;; paths without case but preserve the casing as supplied by the caller in the
+  ;; result we produce.
+  (let [p1-lower (string/lower-case (->unix-seps (str (.getAbsolutePath f1))))
+        p2-abs (->unix-seps (str (.getAbsolutePath f2)))
+        p2-lower (string/lower-case p2-abs)
+        path (if (string/starts-with? p2-lower p1-lower)
+               (subs p2-abs (count p1-lower))
+               p2-abs)]
+    (if (string/starts-with? path "/")
       (subs path 1)
       path)))
 
