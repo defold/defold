@@ -299,7 +299,7 @@
         value (get values path ::no-value)
         state (get ui-state path ::no-value)
         error (settings/get-setting-error
-                (if (= value ::no-value) nil value)
+                (when-not (= value ::no-value) value)
                 field
                 :build-targets)]
     (cond-> []
@@ -446,9 +446,8 @@
                        (remove :hidden?)
                        (map #(set-field-visibility % values filter-term visible)))
                      fields)]
-    (-> section
-        (assoc :visible (or visible (boolean (some :visible fields)))
-               :fields fields))))
+    (assoc section :visible (or visible (boolean (some :visible fields)))
+                   :fields fields)))
 
 (defn- filter-text-field [{:keys [text]}]
   {:fx/type :text-field
