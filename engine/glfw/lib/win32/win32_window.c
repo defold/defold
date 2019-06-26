@@ -1261,7 +1261,7 @@ static int createWindow( const _GLFWwndconfig *wndconfig,
         return GL_FALSE;
     }
 
-    if (wndconfig.clientAPI != GLFW_NO_API)
+    if (wndconfig->clientAPI != GLFW_NO_API)
     {
         initWGLExtensions();
     }
