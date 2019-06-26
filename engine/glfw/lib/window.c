@@ -490,37 +490,40 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
     wndconfig.highDPI        = _glfwLibrary.hints.highDPI;
     wndconfig.clientAPI      = _glfwLibrary.hints.clientAPI;
 
-    if( wndconfig.glMajor == 1 && wndconfig.glMinor > 5 )
+    if (wndconfig.clientAPI != GLFW_NO_API)
     {
-        // OpenGL 1.x series ended with version 1.5
-        return GL_FALSE;
-    }
-    else if( wndconfig.glMajor == 2 && wndconfig.glMinor > 1 )
-    {
-        // OpenGL 2.x series ended with version 2.1
-        return GL_FALSE;
-    }
-    else if( wndconfig.glMajor == 3 && wndconfig.glMinor > 3 )
-    {
-        // OpenGL 3.x series ended with version 3.3
-        return GL_FALSE;
-    }
-    else
-    {
-        // For now, let everything else through
-    }
+        if( wndconfig.glMajor == 1 && wndconfig.glMinor > 5 )
+        {
+            // OpenGL 1.x series ended with version 1.5
+            return GL_FALSE;
+        }
+        else if( wndconfig.glMajor == 2 && wndconfig.glMinor > 1 )
+        {
+            // OpenGL 2.x series ended with version 2.1
+            return GL_FALSE;
+        }
+        else if( wndconfig.glMajor == 3 && wndconfig.glMinor > 3 )
+        {
+            // OpenGL 3.x series ended with version 3.3
+            return GL_FALSE;
+        }
+        else
+        {
+            // For now, let everything else through
+        }
 
-    if( wndconfig.glProfile &&
-        ( wndconfig.glMajor < 3 || ( wndconfig.glMajor == 3 && wndconfig.glMinor < 2 ) ) )
-    {
-        // Context profiles are only defined for OpenGL version 3.2 and above
-        return GL_FALSE;
-    }
+        if( wndconfig.glProfile &&
+            ( wndconfig.glMajor < 3 || ( wndconfig.glMajor == 3 && wndconfig.glMinor < 2 ) ) )
+        {
+            // Context profiles are only defined for OpenGL version 3.2 and above
+            return GL_FALSE;
+        }
 
-    if( wndconfig.glForward && wndconfig.glMajor < 3 )
-    {
-        // Forward-compatible contexts are only defined for OpenGL version 3.0 and above
-        return GL_FALSE;
+        if( wndconfig.glForward && wndconfig.glMajor < 3 )
+        {
+            // Forward-compatible contexts are only defined for OpenGL version 3.0 and above
+            return GL_FALSE;
+        }
     }
 
     // Clear for next open call
