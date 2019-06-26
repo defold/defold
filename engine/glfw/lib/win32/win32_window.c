@@ -1261,7 +1261,10 @@ static int createWindow( const _GLFWwndconfig *wndconfig,
         return GL_FALSE;
     }
 
-    initWGLExtensions();
+    if (wndconfig.clientAPI != GLFW_NO_API)
+    {
+        initWGLExtensions();
+    }
 
     // Read back window size
     if (GetClientRect(_glfwWin.window, &client_rect))
@@ -1385,7 +1388,10 @@ int _glfwPlatformOpenWindow( int width, int height,
                            wndconfig->refreshRate );
     }
 
-    initWGLExtensions();
+    if (wndconfig->clientAPI != GLFW_NO_API)
+    {
+        initWGLExtensions();
+    }
 
     if( !createWindow( wndconfig, fbconfig ) )
     {
@@ -1395,7 +1401,7 @@ int _glfwPlatformOpenWindow( int width, int height,
 
     _glfwRefreshContextParams();
 
-    if( fbconfig->samples > 0 )
+    if( fbconfig->samples > 0 && wndconfig->clientAPI != GLFW_NO_API)
     {
         // We want FSAA, but can we get it?
         // FSAA is not a hard constraint, so otherwise we just don't care
@@ -1407,7 +1413,7 @@ int _glfwPlatformOpenWindow( int width, int height,
         }
     }
 
-    if( wndconfig->glMajor > 2 )
+    if( wndconfig->glMajor > 2 && wndconfig->clientAPI != GLFW_NO_API)
     {
         if ( wndconfig->glMajor != _glfwWin.glMajor ||
              wndconfig->glMinor != _glfwWin.glMinor )
@@ -1572,7 +1578,7 @@ void _glfwPlatformSetWindowSize( int width, int height )
     }
 
     // Change fullscreen video mode?
-    if( _glfwWin.fullscreen && mode != _glfwWin.modeID )
+    if( _glfwWin.fullscreen && mode != _glfwWin.modeID && _glfwLibrary.hints.clientAPI != GLFW_NO_API)
     {
         _glfwSetVideoModeMODE( mode );
 
