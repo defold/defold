@@ -1,17 +1,12 @@
 (ns leiningen.preflight
-  (:require [cljfmt.core :as cljfmt]
-            [clojure.java.io :as io]
-            [clojure.java.shell :as shell]
-            [clojure.string :as string]
-            [kibit.driver :as kibit]
+  (:require [clojure.java.io :as io]
             [leiningen.core.main :as main])
-  (:import [java.io InputStreamReader BufferedReader]))
+  (:import [java.io InputStreamReader]))
 
 (defn- print-stream-in-background
   [stream]
   (future
     (let [isr (InputStreamReader. stream)
-          chars (char-array 4096)
           sb (StringBuilder.)
           flush-sb (fn []
                      (print (.toString sb))
@@ -31,7 +26,7 @@
 (defn- run-preflight-check
   []
   (let [proc (.exec (Runtime/getRuntime)
-                    (into-array ["java" "-jar" "editor-preflight-1.0.0.jar"])
+                    ^"[Ljava.lang.String;" (into-array ["java" "-jar" "editor-preflight-1.0.0.jar"])
                     nil
                     (io/file "."))]
     (print-stream-in-background (.getInputStream proc))
@@ -39,6 +34,6 @@
     (.waitFor proc)))
 
 (defn preflight
-  [project & rest]
+  [project & _rest]
   (run-preflight-check)
   (main/resolve-and-apply project ["test"]))
