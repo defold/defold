@@ -51,10 +51,9 @@
 (defn- run
   [files]
   (print "Collecting source files.")
-  (let [files (or (seq files) (dots-until-done (future (take 1 (find-files-to-check)))))
+  (let [files (or (seq files) (dots-until-done (future (find-files-to-check))))
         nfiles (count files)]
-    (println)
-    (println (str " Found " nfiles " files."))
+    (println (str " Found " nfiles " files.\n"))
     (into [] (map #(run-linter % files nfiles)) linters)))
 
 (defn- strings->files
@@ -79,4 +78,4 @@
           (println (str " " error (if (one? error) " error." " errors.")))
           (println (str " " incorrect (if (one? incorrect) " issue." " issues.")))
           (.write w (str "----- " name " report -----\n" report "\n\n")))))
-    (println "Results saved to preflight-report.txt")))
+    (println "\nResults saved to preflight-report.txt")))
