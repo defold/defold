@@ -142,7 +142,7 @@
                       :source-maps false}
 
   :aliases           {"benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
-                      "preflight" ["with-profile" "+dev,+test" "preflight"]}
+                      "preflight" ["with-profile" "+preflight,+dev,+test" "preflight"]}
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"}
@@ -169,6 +169,8 @@
 
   :profiles          {:test    {:injections [(defonce force-toolkit-init (javafx.application.Platform/startup (fn [])))]
                                 :resource-paths ["test/resources"]}
+                      :preflight {:dependencies [[jonase/kibit "0.1.6" :exclusions [org.clojure/clojure]]
+                                                 [cljfmt-mg "0.6.4" :exclusions [org.clojure/clojure]]]}
                       :uberjar {:prep-tasks  ^:replace ["clean" "protobuf" ["sass" "once"] "javac" ["run" "-m" "aot"]]
                                 :aot          :all
                                 :omit-source  true

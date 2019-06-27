@@ -1,6 +1,6 @@
 (ns leiningen.preflight
   (:require [clojure.java.io :as io]
-            [leiningen.core.main :as main])
+            [leiningen.core.eval :as lein-eval])
   (:import [java.io InputStreamReader]))
 
 (defn- print-stream-in-background
@@ -9,7 +9,7 @@
     (let [isr (InputStreamReader. stream)
           sb (StringBuilder.)
           flush-sb (fn []
-                     (print (.toString sb))
+                     (print (str sb))
                      (flush)
                      (.setLength sb 0))]
       (loop []
@@ -23,17 +23,16 @@
               (Thread/sleep 10)
               (recur)))))))
 
-(defn- run-preflight-check
-  []
-  (let [proc (.exec (Runtime/getRuntime)
-                    ^"[Ljava.lang.String;" (into-array ["java" "-jar" "editor-preflight-1.0.0.jar"])
-                    nil
-                    (io/file "."))]
-    (print-stream-in-background (.getInputStream proc))
-    (print-stream-in-background (.getErrorStream proc))
-    (.waitFor proc)))
-
 (defn preflight
   [project & _rest]
-  (run-preflight-check)
-  (main/resolve-and-apply project ["test"]))
+  (lein-eval/eval-in-project
+    project
+    '(do
+       (load-file "tasks/leiningen/preflight/fmt.clj")
+       (load-file "tasks/leiningen/preflight/kibit.clj")
+       (load-file "tasks/leiningen/preflight/test.clj")
+       (load-file "tasks/leiningen/preflight/core.clj")
+       (in-ns 'preflight.core)
+       (main)
+       (shutdown-agents)
+       (System/exit 0))))
