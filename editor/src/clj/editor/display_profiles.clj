@@ -2,17 +2,9 @@
   (:require [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.geom :as geom]
-            [editor.gl :as gl]
-            [editor.gl.shader :as shader]
-            [editor.gl.vertex :as vtx]
-            [editor.defold-project :as project]
-            [editor.scene :as scene]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.math :as math]
-            [editor.gl.pass :as pass]
             [editor.graph-util :as gu]
             [util.text-util :as text-util])
   (:import (com.dynamo.render.proto Render$DisplayProfiles)))
@@ -21,7 +13,7 @@
 
 (def pb-def {:ext "display_profiles"
              :label "Display Profiles"
-             :view-types [:form-view :text]
+             :view-types [:form-view :cljfx-form-view :text]
              :icon "icons/32/Icons_50-Display-profiles.png"
              :pb-class Render$DisplayProfiles})
 

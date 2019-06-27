@@ -45,6 +45,7 @@
   (output form-data g/Any :cached
           (g/fnk [form-data amazon-buckets]
                  (-> form-data
+                     (assoc :navigation false)
                      (form-view/update-form-setting ["liveupdate" "amazon-credential-profile"]
                                           #(assoc %
                                                   :type :choicebox
@@ -83,7 +84,7 @@
     :node-type LiveUpdateSettingsNode
     :load-fn load-live-update-settings
     :icon live-update-icon
-    :view-types [:form-view :text]))
+    :view-types [:cljfx-form-view :text]))
 
 (defn get-live-update-settings-path [project]
   (let [project-settings (project/settings project)

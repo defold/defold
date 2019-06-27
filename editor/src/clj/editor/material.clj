@@ -61,7 +61,8 @@
 
 (def ^:private form-data
   (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)]
-     {:sections
+     {:navigation false
+      :sections
       [{:title "Material"
         :fields
         [{:path [:name]
@@ -266,4 +267,4 @@
     :load-fn load-material
     :sanitize-fn convert-textures-to-samplers
     :icon "icons/32/Icons_31-Material.png"
-    :view-types [:form-view :text]))
+    :view-types [:form-view :cljfx-form-view :text]))

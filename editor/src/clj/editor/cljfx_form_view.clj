@@ -1,14 +1,17 @@
 (ns editor.cljfx-form-view
   (:require [cljfx.api :as fx]
             [cljfx.ext.list-view :as fx.ext.list-view]
+            [cljfx.ext.table-view :as fx.ext.table-view]
             [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
+            [editor.field-expression :as field-expression]
             [editor.form :as form]
             [editor.fxui :as fxui]
+            [editor.jfx :as jfx]
             [editor.handler :as handler]
             [editor.resource :as resource]
             [editor.settings :as settings]
@@ -60,6 +63,28 @@
         new-value (into (or value []) [element])]
     [[:set [path new-value]]
      [:set-ui-state (assoc-in ui-state selection-path [(dec (count new-value))])]]))
+
+(defmethod handle-event :add-resources [{:keys [path workspace project filter form-data ui-state]}]
+  (let [value (get-in form-data [:values path] [])
+        selection-path [path :selected-indices]
+        resources (dialogs/make-resource-dialog workspace project {:ext filter
+                                                                   :selection :multiple})]
+    (when-not (empty? resources)
+      (let [new-resources (into value resources)]
+        [[:set [path new-resources]]
+         [:set-ui-state (assoc-in ui-state selection-path (vec (range (count value)
+                                                                      (count new-resources))))]]))))
+
+(defmethod handle-event :browse-file [{:keys [path filter ^Event fx/event title]}]
+  (when-let [file (dialogs/make-file-dialog (or title "Select File")
+                                            filter
+                                            nil
+                                            (.getWindow (.getScene ^Node (.getSource event))))]
+    {:set [path (.getAbsolutePath file)]}))
+
+(defmethod handle-event :browse-directory [{:keys [path title]}]
+  (when-let [file (ui/choose-directory (or title "Select Directory") nil)]
+    {:set [path file]}))
 
 (defmethod handle-event :edit-list-item [{:keys [^ListView$EditEvent fx/event path form-data]}]
   (let [value (get-in form-data [:values path])
@@ -116,6 +141,14 @@
     (fromString [v]
       (url/try-parse v))))
 
+(def number-converter
+  (proxy [StringConverter] []
+    (toString
+      ([] "number-string-converter")
+      ([v] (field-expression/format-number v)))
+    (fromString [v]
+      (field-expression/to-double v))))
+
 (defn- make-resource-string-converter [workspace]
   (proxy [StringConverter] []
     (toString
@@ -139,6 +172,31 @@
 
 ;; region input views
 
+(defn- text-field [props]
+  (assoc props :fx/type :text-field
+               :style-class ["text-field" "cljfx-form-text-field"]))
+
+(defn- add-image-fit-size [{:keys [fit-size] :as props}]
+  (-> props
+      (dissoc :fit-size)
+      (update :graphic assoc :fit-width fit-size :fit-height fit-size)))
+
+(defn- add-image [props]
+  (cond-> (-> props
+              (dissoc :image)
+              (assoc :graphic {:fx/type :image-view
+                               :image (jfx/get-image (:image props))}))
+
+          (contains? props :fit-size)
+          add-image-fit-size))
+
+(defn- icon-button [props]
+  (cond-> (assoc props :fx/type :button
+                       :style-class ["button" "cljfx-form-icon-button"])
+
+          (contains? props :image)
+          add-image))
+
 (defmulti input-view :type)
 
 (defmethod input-view :default [{:keys [value type] :as field}]
@@ -147,7 +205,7 @@
    :text (str type " " (if (nil? value) "***NIL***" value) " " field)})
 
 (defmethod input-view :string [{:keys [value path]}]
-  {:fx/type :text-field
+  {:fx/type text-field
    :text-formatter {:fx/type :text-formatter
                     :value-converter :default
                     :value value
@@ -156,12 +214,13 @@
 
 (defmethod input-view :boolean [{:keys [value path]}]
   {:fx/type :check-box
+   :style-class ["check-box" "cljfx-form-check-box"]
    :selected value
    :on-selected-changed {:event-type :set
                          :path path}})
 
 (defmethod input-view :integer [{:keys [value path]}]
-  {:fx/type :text-field
+  {:fx/type text-field
    :alignment :center-right
    :max-width 80
    :text-formatter {:fx/type :text-formatter
@@ -171,23 +230,27 @@
                                        :path path}}})
 
 (defmethod input-view :number [{:keys [value path]}]
-  {:fx/type :text-field
+  {:fx/type text-field
    :alignment :center-right
    :max-width 80
    :text-formatter {:fx/type :text-formatter
-                    :value-converter :double
-                    :value (double value)
+                    :value-converter number-converter
+                    :value value
                     :on-value-changed {:event-type :set
                                        :path path}}})
 
-(defmethod input-view :list [{:keys [value path state element]
+(defmethod input-view :list [{:keys [value path state element resource-string-converter]
                               :or {state {:selected-indices []}}}]
   (let [{:keys [selected-indices]} state
         disable-remove (empty? selected-indices)
         disable-add (not (form/has-default? element))
-        add-event {:event-type :add-element
-                   :path path
-                   :element (form/field-default element)}
+        add-event (if (= :resource (:type element))
+                    {:event-type :add-resources
+                     :path path
+                     :filter (:filter element)}
+                    {:event-type :add-element
+                     :path path
+                     :element (form/field-default element)})
         remove-event {:event-type :remove-selected
                       :path path}]
     {:fx/type :v-box
@@ -199,6 +262,7 @@
                                 :on-selected-indices-changed {:event-type :select
                                                               :path path}}
                         :desc {:fx/type :list-view
+                               :style-class ["list-view" "cljfx-form-list-view"]
                                :items (vec value)
                                :editable true
                                :on-edit-commit {:event-type :edit-list-item
@@ -209,9 +273,23 @@
                                                (* cell-height
                                                   (max (count value) 1)))
                                :fixed-cell-size cell-height
-                               :cell-factory (fn [uri]
-                                               {:text (str uri)
-                                                :converter uri-string-converter})
+                               :cell-factory (fn [v]
+                                               (case (:type element)
+                                                 :url
+                                                 {:text (str v)
+                                                  :converter uri-string-converter}
+
+                                                 :resource
+                                                 {:text (resource/resource->proj-path v)
+                                                  :converter resource-string-converter}
+
+                                                 :string
+                                                 {:text v
+                                                  :converter :default}
+
+                                                 {:text (str v)
+                                                  :converter :default}))
+
                                :context-menu {:fx/type :context-menu
                                               :items [{:fx/type :menu-item
                                                        :text "Add"
@@ -223,55 +301,136 @@
                                                        :on-action remove-event}]}}}}
                 {:fx/type :h-box
                  :spacing 4
-                 :children [{:fx/type :button
-                             :style-class ["button" "icon-button"]
+                 :children [{:fx/type icon-button
                              :disable disable-add
                              :on-action add-event
-                             :graphic {:fx/type :image-view
-                                       :image "icons/32/Icons_M_07_plus.png"
-                                       :fit-width 16
-                                       :fit-height 16}}
-                            {:fx/type :button
-                             :style-class ["button" "icon-button"]
+                             :image "icons/32/Icons_M_07_plus.png"
+                             :fit-size 16}
+                            {:fx/type icon-button
                              :disable disable-remove
                              :on-action remove-event
-                             :graphic {:fx/type :image-view
-                                       :image "icons/32/Icons_M_11_minus.png"
-                                       :fit-width 16
-                                       :fit-height 16}}]}]}))
+                             :image "icons/32/Icons_M_11_minus.png"
+                             :fit-size 16}]}]}))
+
+(defmethod input-view :table [{:keys [value path columns state]
+                               :or {state {:selected-indices []}}
+                               :as field}]
+  (let [{:keys [selected-indices]} state
+        disable-remove (empty? selected-indices)
+        default-row (form/table-row-defaults field)
+        disable-add (nil? default-row)
+        add-event {:event-type :add-element
+                   :path path
+                   :element default-row}
+        remove-event {:event-type :remove-selected
+                      :path path}]
+    {:fx/type :v-box
+     :spacing 4
+     :children [{:fx/type :stack-pane
+                 :style-class "cljfx-table-view-wrapper"
+                 :children [{:fx/type fxui/ext-with-advance-events
+                             :desc {:fx/type fx.ext.table-view/with-selection-props
+                                    :props {:selection-mode :multiple
+                                            :selected-indices selected-indices
+                                            :on-selected-indices-changed {:event-type :select
+                                                                          :path path}}
+                                    :desc {:fx/type :table-view
+                                           :style-class ["table-view" "cljfx-table-view"]
+                                           :editable true
+                                           :fixed-cell-size cell-height
+                                           :pref-height (+ cell-height ;; header
+                                                           2 ;; insets
+                                                           9 ;; bottom scrollbar
+                                                           (* cell-height (max 1 (count value))))
+                                           :columns (mapv (fn [{:keys [path label type]}]
+                                                            {:fx/type :table-column
+                                                             :reorderable false
+                                                             :min-width 80
+                                                             :on-edit-commit prn
+                                                             :text label
+                                                             :cell-value-factory #(get-in % path)
+                                                             :cell-factory (fn [x]
+                                                                             {:text (pr-str x)})})
+                                                          columns)
+                                           :items value}}}]}
+                {:fx/type :h-box
+                 :spacing 4
+                 :children [{:fx/type icon-button
+                             :disable disable-add
+                             :on-action add-event
+                             :image "icons/32/Icons_M_07_plus.png"
+                             :fit-size 16}
+                            {:fx/type icon-button
+                             :disable disable-remove
+                             :on-action remove-event
+                             :image "icons/32/Icons_M_11_minus.png"
+                             :fit-size 16}]}
+                {:fx/type :label
+                 :wrap-text true
+                 :text (with-out-str (clojure.pprint/pprint field))}]}))
 
 (defmethod input-view :resource [{:keys [path value filter resource-string-converter]}]
   {:fx/type :h-box
    :spacing 4
-   :children [{:fx/type :text-field
+   :children [{:fx/type text-field
                :h-box/hgrow :always
                :text-formatter {:fx/type :text-formatter
                                 :value-converter resource-string-converter
                                 :value value
                                 :on-value-changed {:event-type :set
                                                    :path path}}}
-              {:fx/type :button
-               :style-class ["button" "icon-button"]
+              {:fx/type icon-button
                :disable (not (and (resource/openable-resource? value)
                                   (resource/exists? value)))
-               :graphic {:fx/type :image-view
-                         :image "icons/32/Icons_S_14_linkarrow.png"
-                         :fit-width 22
-                         :fit-height 22}
+               :image "icons/32/Icons_S_14_linkarrow.png"
+               :fit-size 22
                :on-action {:event-type :open-resource
                            :value value}}
-              {:fx/type :button
-               :style-class ["button" "icon-button"]
+              {:fx/type icon-button
                :text "\u2026"
                :on-action {:event-type :browse-resource
                            :path path
                            :filter filter}}]})
+
+(defmethod input-view :file [{:keys [path value filter title]}]
+  {:fx/type :h-box
+   :spacing 4
+   :children [{:fx/type text-field
+               :h-box/hgrow :always
+               :text-formatter {:fx/type :text-formatter
+                                :value-converter :default
+                                :value value
+                                :on-value-changed {:event-type :set
+                                                   :path path}}}
+              {:fx/type icon-button
+               :text "\u2026"
+               :on-action {:event-type :browse-file
+                           :path path
+                           :filter filter
+                           :title title}}]})
+
+(defmethod input-view :directory [{:keys [path value title]}]
+  {:fx/type :h-box
+   :spacing 4
+   :children [{:fx/type text-field
+               :h-box/hgrow :always
+               :text-formatter {:fx/type :text-formatter
+                                :value-converter :default
+                                :value value
+                                :on-value-changed {:event-type :set
+                                                   :path path}}}
+              {:fx/type icon-button
+               :text "\u2026"
+               :on-action {:event-type :browse-directory
+                           :path path
+                           :title title}}]})
 
 (defmethod input-view :choicebox [{:keys [path value options from-string to-string]
                                    :or {to-string str}}]
   (let [value->label (into {} options)
         label->value (set/map-invert value->label)]
     {:fx/type :combo-box
+     :style-class ["combo-box" "combo-box-base" "cljfx-form-combo-box"]
      :value value
      :on-value-changed {:event-type :set
                         :path path}
@@ -316,17 +475,16 @@
                              :text help}
                    :text label})
 
-            (not= value ::no-value)
-            (conj {:fx/type :button
+            (and (form/optional-field? field)
+                 (not= value ::no-value))
+            (conj {:fx/type icon-button
                    :grid-pane/row row
                    :grid-pane/column 1
                    :grid-pane/valignment :top
                    :grid-pane/halignment :right
                    :visible visible
                    :managed visible
-                   :style-class ["button" "icon-button"]
-                   :graphic {:fx/type :image-view
-                             :image "icons/32/Icons_S_02_Reset.png"}
+                   :image "icons/32/Icons_S_02_Reset.png"
                    :on-action {:event-type :clear
                                :path path}})
 
@@ -365,7 +523,7 @@
 
                      :always
                      (conj {:fx/type :label
-                            :style-class ["label" "title"]
+                            :style-class ["label" "cljfx-form-title"]
                             :text title})
 
                      help
@@ -374,7 +532,7 @@
 
                      :always
                      (conj {:fx/type :grid-pane
-                            :style-class "fields"
+                            :style-class "cljfx-form-fields"
                             :column-constraints [{:fx/type :column-constraints
                                                   :min-width 150
                                                   :max-width 150}
@@ -474,6 +632,7 @@
            (if (empty? acc)
              [(conj acc section-view) visible]
              [(into acc [{:fx/type :separator
+                          :style-class "cljfx-form-separator"
                           :visible (and seen-visible visible)
                           :managed (and seen-visible visible)}
                          section-view])
@@ -511,28 +670,32 @@
     {:fx/type with-anchor-pane-props
      :desc {:fx/type fxui/ext-value
             :value parent}
-     :props {:children [{:fx/type :h-box
-                         :style-class "cljfx-form-floating-area"
-                         :anchor-pane/top 24
-                         :anchor-pane/right 24
-                         :view-order 0
-                         :children [{:fx/type filter-text-field
-                                     :text filter-term}
-                                    {:fx/type jump-to-button
-                                     :visible-titles visible-titles}]}
-                        {:fx/type fx/ext-on-instance-lifecycle
-                         :anchor-pane/top 0
-                         :anchor-pane/right 0
-                         :anchor-pane/bottom 0
-                         :anchor-pane/left 0
-                         :on-created #(ui/context! % :form {:root parent} nil)
-                         :desc {:fx/type :scroll-pane
-                                :id "scroll-pane"
-                                :view-order 1
-                                :fit-to-width true
-                                :content {:fx/type :v-box
-                                          :style-class "cljfx-form"
-                                          :children section-views}}}]}}))
+     :props {:children (cond-> []
+                               (:navigation form-data true)
+                               (conj {:fx/type :h-box
+                                      :style-class "cljfx-form-floating-area"
+                                      :anchor-pane/top 24
+                                      :anchor-pane/right 24
+                                      :view-order 0
+                                      :children [{:fx/type filter-text-field
+                                                  :text filter-term}
+                                                 {:fx/type jump-to-button
+                                                  :visible-titles visible-titles}]})
+
+                               :always
+                               (conj {:fx/type fx/ext-on-instance-lifecycle
+                                      :anchor-pane/top 0
+                                      :anchor-pane/right 0
+                                      :anchor-pane/bottom 0
+                                      :anchor-pane/left 0
+                                      :on-created #(ui/context! % :form {:root parent} nil)
+                                      :desc {:fx/type :scroll-pane
+                                             :id "scroll-pane"
+                                             :view-order 1
+                                             :fit-to-width true
+                                             :content {:fx/type :v-box
+                                                       :style-class "cljfx-form"
+                                                       :children section-views}}}))}}))
 
 (defn- wrap-force-refresh [f view-id]
   (fn [event]
