@@ -1,33 +1,13 @@
 (ns preflight.core
   (:require [clojure.java.io :as io]
-            [clojure.java.shell :as shell]
-            [clojure.string :as string]
             [preflight.fmt :as fmt]
             [preflight.kibit :as kibit]
             [preflight.test :as test])
-  (:import [java.io File PrintWriter StringWriter]))
+  (:import [java.io File]))
 
 (defn- find-files-to-check
   []
   (filter #(.isFile ^File %) (file-seq (io/file "src/clj/"))))
-
-(defn- make-spinner
-  []
-  (let [state (atom 0)]
-    (fn []
-      (printf "%c\b" (nth [\| \/ \- \\] @state))
-      (flush)
-      (swap! state #(rem (inc %) 4)))))
-
-(defn- spin-until-done
-  [fut]
-  (let [spinner (make-spinner)]
-    (while (not (future-done? fut))
-      (spinner)
-      (Thread/sleep 100))
-    (print " ")
-    (flush))
-  @fut)
 
 (defn- make-doter
   []
@@ -48,7 +28,7 @@
 
 (defn- run-linter
   [[name lintfn {:keys [:print-average]}] files nfiles]
-  (print (str "Running " name "."))
+  (print (str "Running " name))
   (let [start (System/nanoTime)
         result (dots-until-done (future (lintfn files)))
         time (/ (- (System/nanoTime) start) 1000000000.0)
@@ -58,21 +38,20 @@
     [name result]))
 
 #_(defn- kondo
-  [files]
-  (with-out-str
-    (-> (kondo/run! {:lint (map #(.getCanonicalPath ^File %) files)}) kondo/print!)))
+    [files]
+    (with-out-str
+      (-> (kondo/run! {:lint (map #(.getCanonicalPath ^File %) files)}) kondo/print!)))
 
 (def ^:private ^:const linters
   [["clj-fmt" fmt/check-files {:print-average true}]
    ["kibit" kibit/check {:print-average true}]
    ;;["clj-kondo" kondo {:print-average true}]
-   ["tests" test/run {:print-average false}]
-   ])
+   ["tests" test/run {:print-average false}]])
 
 (defn- run
   [files]
-  (print "Collecting source files. ")
-  (let [files (or (seq files) (spin-until-done (future (take 1 (find-files-to-check)))))
+  (print "Collecting source files.")
+  (let [files (or (seq files) (dots-until-done (future (take 1 (find-files-to-check)))))
         nfiles (count files)]
     (println)
     (println (str " Found " nfiles " files."))
@@ -95,9 +74,4 @@
     (println "Saving results to preflight-report.txt")
     (with-open [w (io/writer "preflight-report.txt")]
       (doseq [[name result] results]
-        (.write w (str "----- " name " report -----\n" result "\n\n"))))
-    #_(doseq [[name result] results]
-        (println (str "----- " name " report -----\n" result "\n\n"))))
-  ;;(shutdown-agents)
-  )
-
+        (.write w (str "----- " name " report -----\n" result "\n\n"))))))

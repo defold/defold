@@ -1,6 +1,5 @@
 (ns preflight.fmt
   (:require [cljfmt.core :as cljfmt]
-            [cljfmt.diff :as diff]
             [clojure.java.io :as io]
             [clojure.string :as str])
   (:import difflib.DiffUtils
@@ -23,8 +22,8 @@
 (defn- format-diff
   (^String [options ^File file]
    (let [original (slurp (io/file file))]
-     (format-diff options file original (reformat-string options original))))
-  (^String [options ^File file original revised]
+     (format-diff file original (reformat-string options original))))
+  (^String [^File file original revised]
    (unified-diff (.getCanonicalPath file) original revised)))
 
 (def ^:private ^:const zero-counts {:okay 0, :incorrect 0, :error 0})
@@ -37,7 +36,7 @@
         (if (not= original revised)
           (-> status
               (assoc-in [:counts :incorrect] 1)
-              (assoc :diff (format-diff options file original revised)))
+              (assoc :diff (format-diff file original revised)))
           (assoc-in status [:counts :okay] 1)))
       (catch Exception ex
         (-> status
@@ -52,7 +51,7 @@
     (.toString sw)))
 
 (defn- print-file-status
-  ^String [options status]
+  ^String [_options status]
   (let [path (.getCanonicalPath ^File (:file status))]
     (when-let [ex (:exception status)]
       (str "Failed to format file: " path \newline (print-stack-trace ex)))
