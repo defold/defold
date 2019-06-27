@@ -120,10 +120,9 @@
 
 (defn check-files
   [files]
-  (print-final-result
-    (transduce
-      (comp (map (fn [status]
-                   {:report (print-file-status options status)
-                    :counts (:counts status)})))
-      merge-results
-      (pmap (partial check-one options) files))))
+  (transduce
+    (comp (map (fn [status]
+                 {:report (print-file-status options status)
+                  :counts (:counts status)})))
+    merge-results
+    (pmap (partial check-one options) files)))

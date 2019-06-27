@@ -22,10 +22,12 @@
   []
   (let [sw (StringWriter.)
         pw (PrintWriter. sw)
-        lock (ReentrantLock.)]
+        lock (ReentrantLock.)
+        counts (atom {:incorrect 0 :error 0})]
     {:reporter (fn [{:keys [file line expr alt]}]
                  (try
                    (.lock lock)
+                   (swap! counts #(update % :incorrect inc))
                    (.print pw (format "\nAt %s:%s:\nConsider using:\n" file line))
                    (.print pw (pprint-code alt))
                    (.print pw "\ninstead of:\n")
@@ -35,7 +37,8 @@
                      (.unlock lock))))
      :str-writer sw
      :writer pw
-     :lock lock}))
+     :lock lock
+     :counts counts}))
 
 (defn- run-check
   [source-files rules]
@@ -54,6 +57,7 @@
                         lock ^ReentrantLock (:lock reporter)]
                     (try
                       (.lock lock)
+                      (swap! (:counts reporter) #(update % :error inc))
                       (.print pw (format "Check failed -- skipping rest of file (%s:%s:%s)\n"
                                          (.getPath file)
                                          (:line e-info)
@@ -62,7 +66,8 @@
                       (finally
                         (.unlock lock)))))))
             source-files))
-    (str (:str-writer reporter))))
+    {:counts @(:counts reporter)
+     :report (str (:str-writer reporter))}))
 
 (defn check
   [files]

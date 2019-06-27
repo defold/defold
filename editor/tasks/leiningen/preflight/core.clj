@@ -69,9 +69,14 @@
 (defn main
   []
   (println "\n===== Defold Editor Preflight Check =====\n")
-  (let [results (run nil)]
+  (let [results (run nil)
+        one? #(= 1 %)]
     (println "\n===== Preflight check done =====\n")
-    (println "Saving results to preflight-report.txt")
     (with-open [w (io/writer "preflight-report.txt")]
-      (doseq [[name result] results]
-        (.write w (str "----- " name " report -----\n" result "\n\n"))))))
+      (doseq [[name {:keys [report counts]}] results]
+        (let [{:keys [incorrect error]} counts]
+          (println (str name ":"))
+          (println (str " " error (if (one? error) " error." " errors.")))
+          (println (str " " incorrect (if (one? incorrect) " issue." " issues.")))
+          (.write w (str "----- " name " report -----\n" report "\n\n")))))
+    (println "Results saved to preflight-report.txt")))
