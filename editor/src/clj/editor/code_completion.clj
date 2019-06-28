@@ -39,7 +39,7 @@
             requires)))
 
 (defn combine-completions
-  [local-completion-info required-completion-infos]
+  [local-completion-info required-completion-infos script-intelligence-completions]
   (merge-with (fn [dest new]
                 (let [taken-display-strings (into #{} (map :display-string) dest)]
                   (into dest
@@ -48,5 +48,6 @@
                         new)))
               @lua/defold-docs
               @lua/lua-std-libs-docs
+              script-intelligence-completions
               (make-local-completions local-completion-info)
               (make-required-completions (:requires local-completion-info) required-completion-infos)))

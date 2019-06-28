@@ -714,6 +714,12 @@ class Configuration(object):
             launcherbin = join(bin_dir, launcher_name)
             self.upload_file(launcherbin, '%s/%s' % (full_archive_path, launcher_name))
 
+        # upload gdc tool on desktop platforms
+        if self.target_platform in ['x86_64-linux', 'x86_64-darwin', 'x86_64-win32']:
+            gdc_name = format_exes("gdc", self.target_platform)[0]
+            gdc_bin = join(bin_dir, gdc_name)
+            self.upload_file(gdc_bin, '%s/%s' % (full_archive_path, gdc_name))
+
         for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
             for engine_name in format_exes(n, self.target_platform):
                 engine = join(bin_dir, engine_name)

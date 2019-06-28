@@ -534,7 +534,7 @@ public class ExtenderUtil {
     }
 
     /**
-     * Collect bundle resources from a specific project path and a list of exclude paths.
+     * Collect resources from a specific project path and a list of exclude paths.
      * @param project
      * @param platform String representing the target platform.
      * @param excludes A list of project relative paths for resources to exclude.
@@ -568,6 +568,20 @@ public class ExtenderUtil {
         return project.getProjectProperties().getStringValue("project", "bundle_resources", "").trim().split(",");
     }
 
+    // Removes resources that starts with the string
+    // E.g. remove Android specific resources (aapt) from the list of bundle resources
+    private static Map<String, IResource> pruneResourcesWithString(Map<String, IResource> resources, String pattern) {
+        Map<String, IResource> tmp = new HashMap<>();
+        for (String relativePath : resources.keySet()) {
+
+            if (relativePath.startsWith(pattern)) {
+                continue;
+            }
+            tmp.put(relativePath, resources.get(relativePath));
+        }
+        return tmp;
+    }
+
     /**
      * Collect bundle resources based on a Project and a target platform string used to collect correct platform specific resources.
      * @param project
@@ -575,7 +589,7 @@ public class ExtenderUtil {
      * @return Returns a map with output paths as keys and the corresponding IResource that should be used as value.
      * @throws CompileExceptionError if a output conflict occurs.
      */
-    public static Map<String, IResource> collectResources(Project project, Platform platform) throws CompileExceptionError {
+    public static Map<String, IResource> collectBundleResources(Project project, Platform platform) throws CompileExceptionError {
 
         Map<String, IResource> bundleResources = new HashMap<String, IResource>();
         List<String> bundleExcludeList = trimExcludePaths(Arrays.asList(project.getProjectProperties().getStringValue("project", "bundle_exclude_resources", "").split(",")));
@@ -587,7 +601,10 @@ public class ExtenderUtil {
         String[] bundleResourcesPaths = getBundleResourcePaths(project);
         for (String bundleResourcesPath : bundleResourcesPaths) {
             for (String platformAlt : platformFolderAlternatives) {
-                Map<String, IResource> projectBundleResources = ExtenderUtil.collectResources(project, FilenameUtils.concat(bundleResourcesPath, platformAlt + "/"), bundleExcludeList);
+                String platformPath = FilenameUtils.concat(bundleResourcesPath, platformAlt + "/");
+                Map<String, IResource> projectBundleResources = ExtenderUtil.collectResources(project, platformPath, bundleExcludeList);
+                String platformResourcePath = "res/"; // the paths are relative to platformPath
+                projectBundleResources = ExtenderUtil.pruneResourcesWithString(projectBundleResources, platformResourcePath);
                 mergeBundleMap(bundleResources, projectBundleResources);
             }
         }
@@ -596,7 +613,10 @@ public class ExtenderUtil {
         List<String> extensionFolders = getExtensionFolders(project);
         for (String extension : extensionFolders) {
             for (String platformAlt : platformFolderAlternatives) {
-                Map<String, IResource> extensionBundleResources = ExtenderUtil.collectResources(project, FilenameUtils.concat("/" + extension, "res/" + platformAlt + "/"), bundleExcludeList);
+                String platformPath = FilenameUtils.concat("/" + extension, "res/" + platformAlt + "/");
+                Map<String, IResource> extensionBundleResources = ExtenderUtil.collectResources(project, platformPath, bundleExcludeList);
+                String platformResourcePath = "res/"; // the paths are relative to platformPath
+                extensionBundleResources = ExtenderUtil.pruneResourcesWithString(extensionBundleResources, platformResourcePath);
                 mergeBundleMap(bundleResources, extensionBundleResources);
             }
         }
@@ -616,6 +636,7 @@ public class ExtenderUtil {
         return false;
     }
 
+    // returns true if any sub directory has an android asset directory name
     public static boolean isAndroidAssetDirectory(Project project, String path) {
         List<String> subdirs = new ArrayList<>();
         project.findResourceDirs(path, subdirs);
@@ -630,7 +651,7 @@ public class ExtenderUtil {
     }
 
     // Collects all resources (even those inside the zip packages) and stores them into one single folder
-    public static void storeAndroidResources(File targetDirectory, Map<String, IResource> resources) throws IOException, CompileExceptionError {
+    public static void storeResources(File targetDirectory, Map<String, IResource> resources) throws CompileExceptionError {
         for (String relativePath : resources.keySet()) {
             IResource r = resources.get(relativePath);
             File outputFile = new File(targetDirectory, relativePath);
@@ -639,8 +660,12 @@ public class ExtenderUtil {
             } else if (outputFile.exists()) {
                 throw new CompileExceptionError(r, 0, "The resource already exists in another extension: " + relativePath);
             }
-            byte[] data = r.getContent();
-            FileUtils.writeByteArrayToFile(outputFile, data);
+            try {
+                byte[] data = r.getContent();
+                FileUtils.writeByteArrayToFile(outputFile, data);
+            } catch (Exception e) {
+                throw new CompileExceptionError(r, 0, e);
+            }
         }
     }
 
@@ -713,16 +738,6 @@ public class ExtenderUtil {
         }
 
         return androidResources;
-    }
-
-    /**
-     * Collect bundle resources based on a Project, will automatically retrieve the target platform to collect correct platform specific resources.
-     * @param project
-     * @return Returns a map with output paths as keys and the corresponding IResource that should be used as value.
-     * @throws CompileExceptionError if a output conflict occurs.
-     */
-    public static Map<String, IResource> collectResources(Project project) throws CompileExceptionError {
-        return collectResources(project, Platform.getHostPlatform());
     }
 
     /**
@@ -861,12 +876,22 @@ public class ExtenderUtil {
     In this case the values _under_ 'armv7-android' will be returned.
     */
 
-    public static Map<String, Object> getPlatformSettingsFromExtensions(Project project, String platform) throws IOException, CompileExceptionError {
+    public static Map<String, Object> getPlatformSettingsFromExtensions(Project project, String platform) throws CompileExceptionError {
         List<String> folders = ExtenderUtil.getExtensionFolders(project);
         Map<String, Object> ctx = new HashMap<String, Object>();
         for (String folder : folders) {
             IResource resource = project.getResource(folder + "/" + ExtenderClient.extensionFilename);
-            Map<String, Object> manifest = ExtenderUtil.readYaml(resource);
+
+            Map<String, Object> manifest = null;
+            try {
+                manifest = ExtenderUtil.readYaml(resource);
+            } catch (Exception e) {
+                throw new CompileExceptionError(resource, -1, e);
+            }
+
+            if (manifest == null) {
+                throw new CompileExceptionError(resource, -1, "Could not parse extension manifest file.");
+            }
 
             Map<String, Object> platforms = (Map<String, Object>)manifest.getOrDefault("platforms", null);
             if (platforms == null) {

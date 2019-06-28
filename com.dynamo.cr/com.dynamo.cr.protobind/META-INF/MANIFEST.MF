@@ -1,9 +1,0 @@
-Manifest-Version: 1.0
-Bundle-ManifestVersion: 2
-Bundle-Name: Protobind
-Bundle-SymbolicName: com.dynamo.cr.protobind
-Bundle-Version: 1.0.0.qualifier
-Bundle-Vendor: DYNAMO
-Bundle-RequiredExecutionEnvironment: JavaSE-1.6
-Require-Bundle: com.dynamo.cr.common;bundle-version="1.0.0"
-Export-Package: com.dynamo.cr.protobind

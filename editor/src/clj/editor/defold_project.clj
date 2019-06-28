@@ -4,6 +4,7 @@
   (:require [clojure.java.io :as io]
             [clojure.set :as set]
             [dynamo.graph :as g]
+            [editor.code.script-intelligence :as si]
             [editor.collision-groups :as collision-groups]
             [editor.core :as core]
             [editor.error-reporting :as error-reporting]
@@ -199,6 +200,13 @@
      (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)]
        (get nodes-by-resource-path (resource/proj-path resource))))))
 
+(defn script-intelligence
+  ([project]
+   (g/with-auto-evaluation-context evaluation-context
+     (script-intelligence project evaluation-context)))
+  ([project evaluation-context]
+   (g/node-value project :script-intelligence evaluation-context)))
+
 (defn load-project
   ([project]
    (load-project project (g/node-value project :resources)))
@@ -207,13 +215,15 @@
   ([project resources render-progress!]
    (assert (not (seq (g/node-value project :nodes))) "load-project should only be used when loading an empty project")
    (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
-     (let [nodes (make-nodes! project resources)]
+     (let [nodes (make-nodes! project resources)
+           script-intel (script-intelligence project)]
        (load-nodes! project nodes render-progress! {})
        (when-let [game-project (get-resource-node project "/game.project")]
          (g/transact
            (concat
+             (g/connect script-intel :build-errors game-project :build-errors)
              (g/connect game-project :display-profiles-data project :display-profiles)
-             (g/connect game-project :texture-profiles-data project :texture-profiles)             
+             (g/connect game-project :texture-profiles-data project :texture-profiles)
              (g/connect game-project :settings-map project :settings))))
        project))))
 
@@ -568,6 +578,7 @@
   (property all-selections g/Any)
   (property all-sub-selections g/Any)
 
+  (input script-intelligence g/NodeID :cascade-delete)
   (input all-selected-node-ids g/Any :array)
   (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
@@ -719,16 +730,18 @@
 
 (defn make-project [graph workspace-id]
   (let [project-id
-        (first
+        (second
           (g/tx-nodes-added
             (g/transact
               (g/make-nodes graph
-                            [project [Project :workspace workspace-id]]
-                            (g/connect workspace-id :build-settings project :build-settings)
-                            (g/connect workspace-id :resource-list project :resources)
-                            (g/connect workspace-id :resource-map project :resource-map)
-                            (g/connect workspace-id :resource-types project :resource-types)
-                            (g/set-graph-value graph :project-id project)))))]
+                  [script-intelligence si/ScriptIntelligenceNode
+                   project [Project :workspace workspace-id]]
+                (g/connect script-intelligence :_node-id project :script-intelligence)
+                (g/connect workspace-id :build-settings project :build-settings)
+                (g/connect workspace-id :resource-list project :resources)
+                (g/connect workspace-id :resource-map project :resource-map)
+                (g/connect workspace-id :resource-types project :resource-types)
+                (g/set-graph-value graph :project-id project)))))]
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
     project-id))
 
@@ -782,6 +795,8 @@
     (render-progress! (swap! progress progress/advance 1 "Loading project..."))
     (let [project (make-project graph workspace-id)
           populated-project (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress 8))]
+      ;; Prime the auto completion cache
+      (g/node-value (script-intelligence project) :lua-completions)
       (cache-save-data! populated-project)
       populated-project)))
 
