@@ -29,10 +29,6 @@
 
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
-#import <OpenGLES/EAGL.h>
-#import <OpenGLES/ES2/gl.h>
-#import <OpenGLES/ES2/glext.h>
-#import <OpenGLES/EAGLDrawable.h>
 #import <QuartzCore/QuartzCore.h>
 #import <QuartzCore/CAMetalLayer.h>
 
@@ -89,25 +85,6 @@ order to avoid black screen between launch image and game content.
  *
  *   See TN2244 for more information
  */
-
-static void LogGLError(GLint err)
-{
-#ifdef GL_ES_VERSION_2_0
-    printf("gl error %d\n", err);
-#else
-    printf("gl error %d: %s\n", err, gluErrorString(err));
-#endif
-}
-
-#define CHECK_GL_ERROR \
-    { \
-        GLint err = glGetError(); \
-        if (err != 0) \
-        { \
-            LogGLError(err); \
-            assert(0); \
-        } \
-    }\
 
 
 #define MAX_APP_DELEGATES (32)
@@ -295,10 +272,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 @private
     GLint backingWidth;
     GLint backingHeight;
-    EAGLContext *context;
-    EAGLContext *auxContext;
-    GLuint viewRenderbuffer, viewFramebuffer;
-    GLuint depthStencilRenderbuffer;
     int countDown;
     int swapInterval;
     UIKeyboardType keyboardType;
@@ -315,23 +288,17 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 @interface EAGLView ()
 
-@property (nonatomic, retain) EAGLContext *context;
-@property (nonatomic, retain) EAGLContext *auxContext;
 @property (nonatomic) BOOL keyboardActive;
 // TODO: Cooldown "timer" *hack* for backspace and enter release
 #define TEXT_KEY_COOLDOWN (10)
 @property (nonatomic) int textkeyActive;
 @property (nonatomic) int autoCloseKeyboard;
 
-- (BOOL) createFramebuffer;
-- (void) destroyFramebuffer;
 - (void) clearMarkedText;
 
 @end
 
 @implementation EAGLView
-
-@synthesize context;
 
 /** Returns a Metal-compatible layer. */
 +(Class) layerClass {
@@ -344,9 +311,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
       [self setSwapInterval: 1];
       markedText = [[NSMutableString alloc] initWithCapacity:128];
   }
-    viewRenderbuffer = 0;
-    viewFramebuffer = 0;
-    depthStencilRenderbuffer = 0;
 
   _glfwInput.MouseEmulationTouch = 0;
   return self;
@@ -362,8 +326,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         displayLink = [[UIScreen mainScreen] displayLinkWithTarget:self selector:@selector(newFrame)];
         [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
         displayLink.frameInterval = 1;
-
-        [self setupView];
     }
 
     markedText = [[NSMutableString alloc] initWithCapacity:128];
@@ -377,10 +339,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     }
 
     return self;
-}
-
-- (void)setupView
-{
 }
 
 //========================================================================
@@ -819,73 +777,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)layoutSubviews
 {
-    [EAGLContext setCurrentContext:context];
-    [self destroyFramebuffer];
-    [self createFramebuffer];
-    [self swapBuffers];
-}
 
-- (BOOL)createFramebuffer
-{
-    glGenFramebuffers(1, &viewFramebuffer);
-    glGenRenderbuffers(1, &viewRenderbuffer);
-
-    glBindFramebuffer(GL_FRAMEBUFFER, viewFramebuffer);
-    glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
-    [context renderbufferStorage:GL_RENDERBUFFER fromDrawable:(CAEAGLLayer*)self.layer];
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, viewRenderbuffer);
-
-    glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_WIDTH, &backingWidth);
-    glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_HEIGHT, &backingHeight);
-
-    _glfwWin.width = backingWidth;
-    _glfwWin.height = backingHeight;
-    _glfwWin.frameBuffer = viewFramebuffer;
-
-    if (_glfwWin.windowSizeCallback)
-    {
-        _glfwWin.windowSizeCallback( backingWidth, backingHeight );
-    }
-
-    // Setup packed depth and stencil buffers
-    glGenRenderbuffers(1, &depthStencilRenderbuffer);
-    glBindRenderbuffer(GL_RENDERBUFFER, depthStencilRenderbuffer);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8_OES, backingWidth, backingHeight);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depthStencilRenderbuffer);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthStencilRenderbuffer);
-
-    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-    {
-        NSLog(@"failed to make complete framebuffer object %x", glCheckFramebufferStatus(GL_FRAMEBUFFER));
-        return NO;
-    }
-    CHECK_GL_ERROR
-    return YES;
-}
-
-- (void)destroyFramebuffer
-{
-    if (viewFramebuffer)
-    {
-        glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
-        CHECK_GL_ERROR
-        [context renderbufferStorage:GL_RENDERBUFFER fromDrawable: nil];
-        CHECK_GL_ERROR
-
-        glDeleteFramebuffers(1, &viewFramebuffer);
-        CHECK_GL_ERROR
-        viewFramebuffer = 0;
-        glDeleteRenderbuffers(1, &viewRenderbuffer);
-        CHECK_GL_ERROR
-        viewRenderbuffer = 0;
-
-        if(depthStencilRenderbuffer)
-        {
-            glDeleteRenderbuffers(1, &depthStencilRenderbuffer);
-            CHECK_GL_ERROR
-            depthStencilRenderbuffer = 0;
-        }
-    }
 }
 
 - (void)dealloc
@@ -894,14 +786,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     {
         [displayLink release];
     }
-    [EAGLContext setCurrentContext:context];
-    [self destroyFramebuffer];
-    [EAGLContext setCurrentContext:nil];
-    if (auxContext != 0)
-    {
-        [auxContext release];
-    }
-    [context release];
     [super dealloc];
 }
 
@@ -922,9 +806,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     CGSize cachedViewSize;
 }
 
-- (EAGLContext *)initialiseGlContext;
-- (EAGLContext *)initialiseGlAuxContext;
-- (void)createGlView;
+- (void)createView;
 
 // iOS 8.0.0 - 8.0.2
 - (CGSize)getIntendedViewSize;
@@ -952,7 +834,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.view.autoresizesSubviews = YES;
 
-    [self createGlView];
+    [self createView];
 
     _glfwWin.viewController = self;
 
@@ -967,11 +849,8 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     }
 }
 
-- (void)createGlView
+- (void)createView
 {
-    EAGLContext* glContext = nil;
-    EAGLContext* glAuxContext = nil;
-
     CGRect bounds = self.view.bounds;
     float version = [[UIDevice currentDevice].systemVersion floatValue];
     if (8.0 <= version && 8.1 > version) {
@@ -994,8 +873,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
     CGFloat scaleFactor = [[UIScreen mainScreen] scale];
     glView = [[[EAGLView alloc] initWithFrame: bounds] autorelease];
-    glView.context = glContext;
-    glView.auxContext = glAuxContext;
     glView.contentScaleFactor = scaleFactor;
     glView.layer.contentsScale = scaleFactor;
     [[self view] insertSubview:glView atIndex:0];
@@ -1103,30 +980,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
             break;
     }
     return origin;
-}
-
-- (EAGLContext *)initialiseGlContext
-{
-    EAGLContext *context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
-
-    if (!context || ![EAGLContext setCurrentContext:context])
-    {
-        return nil;
-    }
-
-    return context;
-}
-
-- (EAGLContext *)initialiseGlAuxContext:(EAGLContext *)parentContext
-{
-    EAGLContext *context = [[EAGLContext alloc] initWithAPI:[parentContext API] sharegroup: [parentContext sharegroup]];
-
-    if (!context)
-    {
-        return nil;
-    }
-
-    return context;
 }
 
 - (void)viewDidAppear:(BOOL)animated
@@ -1261,7 +1114,7 @@ _GLFWwin g_Savewin;
     // We then rebuild the GL view back within the application's event loop.
     dispatch_async(dispatch_get_main_queue(), ^{
         ViewController *controller = (ViewController *)window.rootViewController;
-        [controller createGlView];
+        [controller createView];
     });
 }
 
@@ -1438,7 +1291,7 @@ void _glfwPlatformCloseWindow( void )
 
 int _glfwPlatformGetDefaultFramebuffer( )
 {
-    return _glfwWin.frameBuffer;
+    return 0;
 }
 
 //========================================================================
@@ -1648,7 +1501,7 @@ GLFWAPI id glfwGetiOSUIView(void)
 };
 GLFWAPI id glfwGetiOSEAGLContext(void)
 {
-    return _glfwWin.context;
+    return 0;
 };
 
 //========================================================================
@@ -1656,9 +1509,7 @@ GLFWAPI id glfwGetiOSEAGLContext(void)
 //========================================================================
 int _glfwPlatformQueryAuxContext()
 {
-    if(!_glfwWin.aux_context)
-        return 0;
-    return 1;
+    return 0;
 }
 
 //========================================================================
@@ -1666,17 +1517,7 @@ int _glfwPlatformQueryAuxContext()
 //========================================================================
 void* _glfwPlatformAcquireAuxContext()
 {
-    if(!_glfwWin.aux_context)
-    {
-        fprintf( stderr, "Unable to make OpenGL aux context current, is NULL\n" );
-        return 0;
-    }
-    if(![EAGLContext setCurrentContext:_glfwWin.aux_context])
-    {
-        fprintf( stderr, "Unable to make OpenGL aux context current, setCurrentContext failed\n" );
-        return 0;
-    }
-    return _glfwWin.aux_context;
+    return 0;
 }
 
 //========================================================================
@@ -1684,7 +1525,7 @@ void* _glfwPlatformAcquireAuxContext()
 //========================================================================
 void _glfwPlatformUnacquireAuxContext(void* context)
 {
-    [EAGLContext setCurrentContext:nil];
+
 }
 
 
