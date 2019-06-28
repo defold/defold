@@ -92,6 +92,10 @@ message StopSound
 {
 }
 
+message SoundDone
+{
+}
+
 message SetGain
 {
     optional float gain = 1 [default=1.0];

@@ -37,17 +37,17 @@ namespace dmGameSystem
      *
      * [icon:macOS][icon:windows][icon:linux][icon:html5] On non mobile platforms,
      * this function always return `false`.
-     * 
+     *
      * [icon:attention][icon:android] On Android you can only get a correct reading
      * of this state if your game is not playing any sounds itself. This is a limitation
      * in the Android SDK. If your game is playing any sounds, *even with a gain of zero*, this
      * function will return `false`.
-     * 
+     *
      * The best time to call this function is:
-     * 
+     *
      * - In the `init` function of your main collection script before any sounds are triggered
      * - In a window listener callback when the window.WINDOW_EVENT_FOCUS_GAINED event is received
-     * 
+     *
      * Both those times will give you a correct reading of the state even when your application is
      * swapped out and in while playing sounds and it works equally well on Android and iOS.
      *
@@ -361,7 +361,7 @@ namespace dmGameSystem
      *
      * `gain`
      * : [type:number] sound gain between 0 and 1, default is 1. The final gain of the sound will be a combination of this gain, the group gain and the master gain.
-     * 
+     *
      * @examples
      *
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component play its sound after 1 second:
@@ -377,9 +377,13 @@ namespace dmGameSystem
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
 
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+
         float delay = 0.0f, gain = 1.0f;
 
-        if (top > 1) // table with args
+        if (top > 1 && !lua_isnil(L,2)) // table with args
         {
             luaL_checktype(L, 2, LUA_TTABLE);
             lua_pushvalue(L, 2);
@@ -395,13 +399,19 @@ namespace dmGameSystem
             lua_pop(L, 1);
         }
 
+        if (top > 2) // completed cb
+        {
+            if (lua_isfunction(L, 3))
+            {
+                lua_pushvalue(L, 3);
+                // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+                sender.m_FunctionRef = dmScript::RefInInstance(L) - LUA_NOREF;
+            }
+        }
+
         dmGameSystemDDF::PlaySound msg;
         msg.m_Delay = delay;
         msg.m_Gain = gain;
-
-        dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
@@ -412,7 +422,7 @@ namespace dmGameSystem
      *
      * @name sound.stop
      * @param url [type:string|hash|url] the sound that should stop
-     * 
+     *
      * @examples
      *
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component stop all playing voices:

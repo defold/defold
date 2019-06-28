@@ -19,6 +19,7 @@ namespace dmGameSystem
         dmResource::HFactory    m_Factory;
         Sound*                  m_Sound;
         dmSound::HSoundInstance m_SoundInstance;
+        dmMessage::URL          m_Listener;
         float                   m_Delay;
         dmGameObject::HInstance m_Instance;
         uint32_t                m_StopRequested : 1;
@@ -125,6 +126,40 @@ namespace dmGameSystem
                             dmLogError("Error deleting sound: (%d)", r);
                             update_result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
                         }
+                        else
+                        {
+                            if (entry.m_Listener.m_Fragment != 0x0)
+                            {
+                                dmhash_t message_id = dmGameSystemDDF::SoundDone::m_DDFDescriptor->m_NameHash;
+                                dmGameSystemDDF::SoundDone message;
+
+                                dmGameObject::HInstance listener_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(entry.m_Instance), entry.m_Listener.m_Path);
+                                if (!listener_instance)
+                                {
+                                    dmLogError("Could not send sound_done to instance: %s#%s", dmHashReverseSafe64(entry.m_Listener.m_Path), dmHashReverseSafe64(entry.m_Listener.m_Fragment));
+                                }
+                                else
+                                {
+                                    dmMessage::URL receiver = entry.m_Listener;
+                                    if (dmMessage::IsSocketValid(receiver.m_Socket))
+                                    {
+                                        uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SoundDone::m_DDFDescriptor;
+                                        uint32_t data_size = sizeof(dmGameSystemDDF::SoundDone);
+
+                                        dmMessage::Result result = dmMessage::Post(0, &receiver, message_id, 0, descriptor, &message, data_size, 0);
+                                        dmMessage::ResetURL(entry.m_Listener);
+                                        if (result != dmMessage::RESULT_OK)
+                                        {
+                                            dmLogError("Could not send sound_done to listener.");
+                                        }
+                                    }
+                                    else
+                                    {
+                                        dmMessage::ResetURL(entry.m_Listener);
+                                    }
+                                }
+                            }
+                        }
                     }
                     else if (entry.m_StopRequested)
                     {
@@ -226,6 +261,7 @@ namespace dmGameSystem
                 entry.m_StopRequested = 0;
                 entry.m_Instance = params.m_Instance;
                 entry.m_Delay = play_sound->m_Delay;
+                dmMessage::ResetURL(entry.m_Listener);
                 dmSound::Result result = dmSound::NewSoundInstance(sound_data, &entry.m_SoundInstance);
                 if (result == dmSound::RESULT_OK)
                 {
@@ -237,6 +273,8 @@ namespace dmGameSystem
                     float gain = play_sound->m_Gain * entry.m_Sound->m_Gain;
                     dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(gain, 0, 0, 0));
                     dmSound::SetLooping(entry.m_SoundInstance, sound->m_Looping);
+
+                    entry.m_Listener = params.m_Message->m_Sender;
                 }
                 else
                 {
