@@ -79,6 +79,10 @@
       (error-severity packaged-errors)
       :info)))
 
+(defn error-package?
+  [value]
+  (instance? ErrorPackage value))
+
 (defn- unpack-if-package [error-or-package]
   (if (instance? ErrorPackage error-or-package)
     (:packaged-errors error-or-package)
@@ -109,9 +113,9 @@
 
 (defn flatten-errors [& errors]
   (some->> errors
-           (map unpack-if-package)
            flatten
-           (filter #(instance? ErrorValue %))
+           (map unpack-if-package)
+           (filter error-value?)
            not-empty
            error-aggregate))
 

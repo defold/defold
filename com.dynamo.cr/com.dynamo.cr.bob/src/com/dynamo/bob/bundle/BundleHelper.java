@@ -402,7 +402,7 @@ public class BundleHelper {
         extensionsDir.mkdir();
 
         Map<String, IResource> resources = ExtenderUtil.getAndroidResources(project);
-        ExtenderUtil.storeAndroidResources(extensionsDir, resources);
+        ExtenderUtil.storeResources(extensionsDir, resources);
 
         Map<String, Object> bundleContext = null;
         {
@@ -437,20 +437,17 @@ public class BundleHelper {
 
         List<String> extraPackages = new ArrayList<>();
 
-        if (bundleContext != null) {
-            extraPackages.addAll((List<String>)bundleContext.getOrDefault("aapt-extra-packages", new ArrayList<String>()));
-        }
         extraPackages.add("com.google.android.gms");
         extraPackages.add("com.google.android.gms.common");
 
         if (bundleContext != null) {
-            extraPackages.addAll((List<String>)bundleContext.getOrDefault("aaptExtraPackages", new ArrayList<String>()));
-
             List<String> excludePackages = (List<String>)bundleContext.getOrDefault("aaptExcludePackages", new ArrayList<String>());
             List<String> excludeResourceDirs = (List<String>)bundleContext.getOrDefault("aaptExcludeResourceDirs", new ArrayList<String>());
 
             extraPackages = excludeItems(extraPackages, excludePackages);
             resourceDirectories = excludeItems(resourceDirectories, excludeResourceDirs);
+
+            extraPackages.addAll((List<String>)bundleContext.getOrDefault("aaptExtraPackages", new ArrayList<String>()));
         }
 
         return generateRJava(resourceDirectories, extraPackages, manifestFile, apk, javaROutput);

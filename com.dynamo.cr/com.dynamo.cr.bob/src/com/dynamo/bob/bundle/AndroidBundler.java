@@ -179,42 +179,10 @@ public class AndroidBundler implements IBundler {
         // AAPT needs all resources on disc
         Map<String, IResource> androidResources = ExtenderUtil.getAndroidResources(project);
 
-        // Find the actual android resource folders on disc
-        Set<String> androidResourceFolders = new HashSet<>();
-        {
-            for (Map.Entry<String, IResource> entry : androidResources.entrySet()) {
-                String absPath = entry.getValue().getAbsPath();                                 // /topfolder/extension/res/android/res/path/to/res.xml
-                String relativePath = entry.getKey();                                           // path/to/res.xml
-                String dir = absPath.substring(0, absPath.length() - relativePath.length());    // /topfolder/extension/res/android/res
-                androidResourceFolders.add(dir);
-            }
-        }
-
         BundleHelper.throwIfCanceled(canceled);
 
         // Collect bundle/package resources to be included in APK zip
-        Map<String, IResource> allResources = ExtenderUtil.collectResources(project, targetPlatform);
-
-        // bundleResources = allResources - androidResources
-        // Remove any paths that begin with any android resource paths so they are not added twice (once by us, and once by aapt)
-        // This step is used to detect which resources that shouldn't be manually bundled, since aapt does that for us.
-        Map<String, IResource> bundleResources;
-        {
-            Map<String, IResource> newBundleResources = new HashMap<>();
-            for (Map.Entry<String, IResource> entry : allResources.entrySet()) {
-                boolean discarded = false;
-                for (String resourceFolder : androidResourceFolders) {
-                    if (entry.getValue().getAbsPath().startsWith(resourceFolder)) {
-                        discarded = true;
-                        break;
-                    }
-                }
-                if (!discarded) {
-                    newBundleResources.put(entry.getKey(), entry.getValue());
-                }
-            }
-            bundleResources = newBundleResources;
-        }
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, targetPlatform);
 
         BundleHelper.throwIfCanceled(canceled);
 
