@@ -521,14 +521,9 @@ public class GameProjectBuilder extends Builder<Void> {
         FileInputStream resourcePackInputStream = null;
         FileInputStream publicKeyInputStream = null;
 
-        BobProjectProperties properties = new BobProjectProperties();
-        IResource input = task.input(0);
-        try {
-            properties.loadDefaults();
-            properties.load(new ByteArrayInputStream(input.getContent()));
-        } catch (Exception e) {
-            throw new CompileExceptionError(input, -1, "Failed to parse game.project", e);
-        }
+        // Since we already load the properties once at startup, there's no need to do it again.
+        // Also, the project handles using multiple settings files
+        BobProjectProperties properties = project.getProjectProperties();
 
         try {
             if (project.option("archive", "false").equals("true")) {

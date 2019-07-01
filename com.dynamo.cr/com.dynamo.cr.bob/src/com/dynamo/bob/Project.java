@@ -362,6 +362,7 @@ public class Project {
 
     public void loadProjectFile() throws IOException, ParseException {
         clearProjectProperties();
+        projectProperties.loadDefaults();
         IResource gameProject = this.fileSystem.get("/game.project");
         if (gameProject.exists()) {
             ByteArrayInputStream is = new ByteArrayInputStream(gameProject.getContent());
