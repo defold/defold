@@ -37,7 +37,9 @@ def configure(conf):
         if not Options.options.with_vulkan:
             conf.env.append_value('LINKFLAGS', ['-framework', 'OpenGL', '-framework', 'AGL'])
     elif platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
-        conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'QuartzCore', '-framework', 'CoreGraphics'])
+        if not Options.options.with_vulkan:
+            conf.env.append_value('LINKFLAGS', ['-framework', 'OpenGLES'])
     elif re.match('arm.*?android', platform):
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
     elif platform == "linux" or platform == "x86_64-linux":
