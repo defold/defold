@@ -285,7 +285,6 @@ public class BundleHelper {
 
             for( String s : resourceDirectories )
             {
-                System.out.println("generateRJava - s: " + s);
                 args.add("-S"); args.add(s);
             }
 
@@ -375,7 +374,6 @@ public class BundleHelper {
         if (!dir.isDirectory()) {
             return;
         }
-        System.out.println("findAndroidAssetDirs - dir.getName(): " + dir.getName());
         if (ExtenderUtil.matchesAndroidAssetDirectoryName(dir.getName())) {
             String parent = dir.getParentFile().getAbsolutePath();
             if (!result.contains(parent)) {
