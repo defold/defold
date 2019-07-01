@@ -1335,7 +1335,7 @@ run:
 
     // Finds the first level of directories in a path
     public void findResourceDirs(String _path, Collection<String> result) {
-        final String path = Project.stripLeadingSlash(_path);
+        final String path = Project.stripLeadingSlash(FilenameUtils.separatorsToUnix(_path));
         fileSystem.walk(path, new FileSystemWalker() {
             public boolean handleDirectory(String dir, Collection<String> results) {
                 if (path.equals(dir)) {
