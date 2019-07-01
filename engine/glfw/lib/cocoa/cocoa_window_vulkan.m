@@ -496,6 +496,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
 
     _glfwWin.swapInterval = 1;
     _glfwWin.countDown = 1;
+    _glfwWin.clientAPI = GLFW_NO_API;
 
     // Fail if OpenGL 3.0 or above was requested
     if( wndconfig->glMajor > 2 )

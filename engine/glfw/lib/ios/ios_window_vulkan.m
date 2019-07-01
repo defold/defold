@@ -1254,6 +1254,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
     _glfwWin.aux_context = nil;
     _glfwWin.delegate = nil;
     _glfwWin.view = nil;
+    _glfwWin.clientAPI = GLFW_NO_API;
 
     /*
      * NOTE:

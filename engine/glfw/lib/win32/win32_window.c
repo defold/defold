@@ -1347,6 +1347,7 @@ int _glfwPlatformOpenWindow( int width, int height,
     int dpiY;
     float dX,dY;
 
+    _glfwWin.clientAPI = wndconfig->clientAPI;
     _glfwWin.highDPI = 0;
     if (wndconfig->highDPI) {
         if (_glfwLibrary.Libs.SetProcessDPIAware != NULL && _glfwLibrary.Libs.GetDeviceCaps != NULL) {

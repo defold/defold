@@ -1443,6 +1443,7 @@ int _glfwPlatformOpenWindow( int width, int height,
     _glfwWin.Saver.changed    = GL_FALSE;
     _glfwWin.refreshRate      = wndconfig->refreshRate;
     _glfwWin.windowNoResize   = wndconfig->windowNoResize;
+    _glfwWin.clientAPI        = wndconfig->clientAPI;
 
     _glfwWin.wmDeleteWindow    = None;
     _glfwWin.wmPing            = None;
