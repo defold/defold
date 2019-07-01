@@ -643,6 +643,9 @@ public class ExtenderUtil {
     // returns true if any sub directory has an android asset directory name
     public static boolean isAndroidAssetDirectory(Project project, String path) {
         List<String> subdirs = new ArrayList<>();
+
+        // Make sure the path has Unix separators, since this is how
+        // paths are specified game project relative internally.
         path = FilenameUtils.separatorsToUnix(path);
         project.findResourceDirs(path, subdirs);
 
