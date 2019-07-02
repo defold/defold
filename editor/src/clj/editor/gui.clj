@@ -1254,6 +1254,25 @@
                      #(contains? % :renderable)
                      #(update-in % [:renderable :tags] (fn [tags] (set (map (fn [tag] (get replacements tag tag)) tags))))))
 
+(def TEST_DATA
+  {:_node-id 72057594037928249,
+   :id "templatepoop",
+   :template-resource
+   {:workspace 0,
+    :abs-path "C:\\Users\\markus.gustavsson\\Projects\\Raket_Defold\\button.gui",
+    :project-path "/button.gui",
+    :name "button.gui",
+    :ext "gui",
+    :source-type :file,
+    :children []},
+   :template-overrides {"template/box" {}}})
+
+(defn test
+  []
+  (let [{:keys [_node-id id template-resource template-overrides]} TEST_DATA
+        overrides (into {} (map (fn [[k v]] [(subs k (inc (count id))) v]) template-overrides))]
+    {:resource template-resource :overrides overrides}))
+
 (g/defnode TemplateNode
   (inherits GuiNode)
 
