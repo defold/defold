@@ -521,9 +521,9 @@ public class GameProjectBuilder extends Builder<Void> {
         FileInputStream resourcePackInputStream = null;
         FileInputStream publicKeyInputStream = null;
 
-        // Since we already load the properties once at startup, there's no need to do it again.
-        // Also, the project handles using multiple settings files
-        BobProjectProperties properties = project.getProjectProperties();
+        IResource input = task.input(0);
+
+        BobProjectProperties properties = Project.loadProperties(input, project.getPropertyFiles());
 
         try {
             if (project.option("archive", "false").equals("true")) {

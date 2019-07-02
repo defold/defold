@@ -360,33 +360,53 @@ public class Project {
         projectProperties = new BobProjectProperties();
     }
 
-    public void loadProjectFile() throws IOException, ParseException {
-        clearProjectProperties();
-        projectProperties.loadDefaults();
-        IResource gameProject = this.fileSystem.get("/game.project");
-        if (gameProject.exists()) {
-            ByteArrayInputStream is = new ByteArrayInputStream(gameProject.getContent());
-            projectProperties.load(is);
-
-            for (String filepath : propertyFiles) {
-                loadPropertyFile(filepath);
-            }
-        } else {
-            logWarning("No game.project found");
+    public static void loadPropertyFile(BobProjectProperties properties, String filepath) throws IOException {
+        Path pathHandle = Paths.get(filepath);
+        if (!Files.exists(pathHandle) || !pathHandle.toFile().isFile())
+            throw new IOException(filepath + " is not a file");
+        byte[] data = Files.readAllBytes(pathHandle);
+        ByteArrayInputStream is = new ByteArrayInputStream(data);
+        try {
+            properties.load(is);
+        } catch(ParseException e) {
+            throw new IOException("Could not parse: " + filepath);
         }
+    }
+
+    // Loads the properties from a game project settings file
+    // Also adds any properties specified with the "--settings" flag
+    public static BobProjectProperties loadProperties(IResource resource, List<String> settingsFiles) throws IOException {
+        if (!resource.exists()) {
+            System.err.println(String.format("Project file not found: %s", resource.getAbsPath()));
+            return null;
+        }
+
+        BobProjectProperties properties = new BobProjectProperties();
+        try {
+            properties.loadDefaults();
+            Project.loadPropertyFile(properties, resource.getAbsPath());
+        } catch(ParseException e) {
+            throw new IOException("Could not parse: " + resource.getAbsPath());
+        }
+
+        for (String filepath : settingsFiles) {
+            Project.loadPropertyFile(properties, filepath);
+        }
+
+        return properties;
+    }
+
+    public void loadProjectFile() throws IOException, ParseException {
+        projectProperties = Project.loadProperties(getGameProjectResource(), this.getPropertyFiles());
     }
 
     public void addPropertyFile(String filepath) {
         propertyFiles.add(filepath);
     }
 
-    public void loadPropertyFile(String filepath) throws IOException, ParseException {
-        Path pathHandle = Paths.get(filepath);
-        if (!Files.exists(pathHandle) || !pathHandle.toFile().isFile())
-            throw new IOException(filepath + " is not a file");
-        byte[] data = Files.readAllBytes(pathHandle);
-        ByteArrayInputStream is = new ByteArrayInputStream(data);
-        projectProperties.load(is);
+    // Returns the command line specified property files
+    public List<String> getPropertyFiles() {
+        return propertyFiles;
     }
 
     private void logExceptionToStdErr(IResource res, int line)
