@@ -1261,7 +1261,10 @@ static int createWindow( const _GLFWwndconfig *wndconfig,
         return GL_FALSE;
     }
 
-    initWGLExtensions();
+    if (wndconfig->clientAPI != GLFW_NO_API)
+    {
+        initWGLExtensions();
+    }
 
     // Read back window size
     if (GetClientRect(_glfwWin.window, &client_rect))
@@ -1344,6 +1347,7 @@ int _glfwPlatformOpenWindow( int width, int height,
     int dpiY;
     float dX,dY;
 
+    _glfwWin.clientAPI = wndconfig->clientAPI;
     _glfwWin.highDPI = 0;
     if (wndconfig->highDPI) {
         if (_glfwLibrary.Libs.SetProcessDPIAware != NULL && _glfwLibrary.Libs.GetDeviceCaps != NULL) {
@@ -1385,7 +1389,10 @@ int _glfwPlatformOpenWindow( int width, int height,
                            wndconfig->refreshRate );
     }
 
-    initWGLExtensions();
+    if (wndconfig->clientAPI != GLFW_NO_API)
+    {
+        initWGLExtensions();
+    }
 
     if( !createWindow( wndconfig, fbconfig ) )
     {
@@ -1393,82 +1400,85 @@ int _glfwPlatformOpenWindow( int width, int height,
         return GL_FALSE;
     }
 
-    _glfwRefreshContextParams();
-
-    if( fbconfig->samples > 0 )
+    if (wndconfig->clientAPI != GLFW_NO_API)
     {
-        // We want FSAA, but can we get it?
-        // FSAA is not a hard constraint, so otherwise we just don't care
+        _glfwRefreshContextParams();
 
-        if( _glfwWin.has_WGL_ARB_multisample && _glfwWin.has_WGL_ARB_pixel_format )
+        if( fbconfig->samples > 0)
         {
-            // We appear to have both the FSAA extension and the means to ask for it
-            recreateContext = GL_TRUE;
-        }
-    }
+            // We want FSAA, but can we get it?
+            // FSAA is not a hard constraint, so otherwise we just don't care
 
-    if( wndconfig->glMajor > 2 )
-    {
-        if ( wndconfig->glMajor != _glfwWin.glMajor ||
-             wndconfig->glMinor != _glfwWin.glMinor )
-        {
-            // We want a different OpenGL version, but can we get it?
-            // Otherwise, if we got a version greater than required, that's fine,
-            // whereas if we got a version lesser than required, it will be dealt
-            // with in glfwOpenWindow
-
-            if( _glfwWin.has_WGL_ARB_create_context )
+            if( _glfwWin.has_WGL_ARB_multisample && _glfwWin.has_WGL_ARB_pixel_format )
             {
+                // We appear to have both the FSAA extension and the means to ask for it
                 recreateContext = GL_TRUE;
             }
         }
 
-        if( wndconfig->glForward )
+        if( wndconfig->glMajor > 2)
         {
-            if( !_glfwWin.has_WGL_ARB_create_context )
+            if ( wndconfig->glMajor != _glfwWin.glMajor ||
+                 wndconfig->glMinor != _glfwWin.glMinor )
             {
-                // Forward-compatibility is a hard constraint
-                return GL_FALSE;
+                // We want a different OpenGL version, but can we get it?
+                // Otherwise, if we got a version greater than required, that's fine,
+                // whereas if we got a version lesser than required, it will be dealt
+                // with in glfwOpenWindow
+
+                if( _glfwWin.has_WGL_ARB_create_context )
+                {
+                    recreateContext = GL_TRUE;
+                }
             }
 
-            recreateContext = GL_TRUE;
-        }
-
-        if( wndconfig->glProfile )
-        {
-            if( !_glfwWin.has_WGL_ARB_create_context_profile )
+            if( wndconfig->glForward )
             {
-                // Context profile is a hard constraint
-                return GL_FALSE;
+                if( !_glfwWin.has_WGL_ARB_create_context )
+                {
+                    // Forward-compatibility is a hard constraint
+                    return GL_FALSE;
+                }
+
+                recreateContext = GL_TRUE;
             }
 
-            recreateContext = GL_TRUE;
+            if( wndconfig->glProfile )
+            {
+                if( !_glfwWin.has_WGL_ARB_create_context_profile )
+                {
+                    // Context profile is a hard constraint
+                    return GL_FALSE;
+                }
+
+                recreateContext = GL_TRUE;
+            }
         }
-    }
 
-    if( recreateContext )
-    {
-        // Some window hints require us to re-create the context using WGL
-        // extensions retrieved through the current context, as we cannot check
-        // for WGL extensions or retrieve WGL entry points before we have a
-        // current context (actually until we have implicitly loaded the ICD)
-
-        // Yes, this is strange, and yes, this is the proper way on Win32
-
-        // As Windows only allows you to set the pixel format once for a
-        // window, we need to destroy the current window and create a new one
-        // to be able to use the new pixel format
-
-        // Technically, it may be possible to keep the old window around if
-        // we're just creating an OpenGL 3.0+ context with the same pixel
-        // format, but it's not worth the potential compatibility problems
-
-        destroyWindow();
-
-        if( !createWindow( wndconfig, fbconfig ) )
+        if( recreateContext )
         {
-            fprintf( stderr, "Unable to re-create GLFW window\n" );
-            return GL_FALSE;
+            // Some window hints require us to re-create the context using WGL
+            // extensions retrieved through the current context, as we cannot check
+            // for WGL extensions or retrieve WGL entry points before we have a
+            // current context (actually until we have implicitly loaded the ICD)
+
+            // Yes, this is strange, and yes, this is the proper way on Win32
+
+            // As Windows only allows you to set the pixel format once for a
+            // window, we need to destroy the current window and create a new one
+            // to be able to use the new pixel format
+
+            // Technically, it may be possible to keep the old window around if
+            // we're just creating an OpenGL 3.0+ context with the same pixel
+            // format, but it's not worth the potential compatibility problems
+
+            destroyWindow();
+
+            if( !createWindow( wndconfig, fbconfig ) )
+            {
+                fprintf( stderr, "Unable to re-create GLFW window\n" );
+                return GL_FALSE;
+            }
         }
     }
 
@@ -1572,7 +1582,7 @@ void _glfwPlatformSetWindowSize( int width, int height )
     }
 
     // Change fullscreen video mode?
-    if( _glfwWin.fullscreen && mode != _glfwWin.modeID )
+    if( _glfwWin.fullscreen && mode != _glfwWin.modeID && _glfwLibrary.hints.clientAPI != GLFW_NO_API)
     {
         _glfwSetVideoModeMODE( mode );
 

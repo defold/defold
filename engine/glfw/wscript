@@ -9,6 +9,7 @@ blddir = 'build'
 import os, sys, re
 
 import waf_ddf, waf_dynamo
+import Options
 
 def init():
     pass
@@ -32,9 +33,13 @@ def configure(conf):
     dynamo_ext = os.path.join(dynamo_home, "ext")
 
     if platform == 'darwin' or platform == 'x86_64-darwin':
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'CoreVideo'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'IOKit', '-framework', 'CoreVideo'])
+        if not Options.options.with_vulkan:
+            conf.env.append_value('LINKFLAGS', ['-framework', 'OpenGL', '-framework', 'AGL'])
     elif platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
-        conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'QuartzCore', '-framework', 'CoreGraphics'])
+        if not Options.options.with_vulkan:
+            conf.env.append_value('LINKFLAGS', ['-framework', 'OpenGLES'])
     elif re.match('arm.*?android', platform):
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
     elif platform == "linux" or platform == "x86_64-linux":
