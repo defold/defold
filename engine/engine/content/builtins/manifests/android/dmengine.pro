@@ -191,7 +191,7 @@
 -keep public class android.support.v4.app.FragmentTransaction
 -keep public class android.support.v4.app.SharedElementCallback
 -keep public class android.support.v4.app.SupportActivity$ExtraData
--keep public class android.support.v4.content.LocalBroadcastManager
+-keep        class android.support.v4.content.LocalBroadcastManager { *; }
 -keep public class android.arch.lifecycle.Lifecycle$State
 
 # -keep public class com.amazon.device.iap.**
