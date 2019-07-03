@@ -588,10 +588,11 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
 
     // Read back window and context parameters
     _glfwPlatformRefreshWindowParams();
-    _glfwRefreshContextParams();
 
     if (wndconfig.clientAPI != GLFW_NO_API)
     {
+        _glfwRefreshContextParams();
+
         if( _glfwWin.glMajor < wndconfig.glMajor ||
             ( _glfwWin.glMajor == wndconfig.glMajor &&
               _glfwWin.glMinor < wndconfig.glMinor ) )

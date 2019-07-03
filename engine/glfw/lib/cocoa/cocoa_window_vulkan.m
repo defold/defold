@@ -486,8 +486,6 @@ int  _glfwPlatformOpenWindow( int width, int height,
                               const _GLFWwndconfig *wndconfig,
                               const _GLFWfbconfig *fbconfig )
 {
-    int colorBits;
-
     _glfwWin.pixelFormat = nil;
     _glfwWin.window = nil;
     _glfwWin.context = nil;
@@ -498,12 +496,6 @@ int  _glfwPlatformOpenWindow( int width, int height,
     _glfwWin.countDown = 1;
     _glfwWin.clientAPI = GLFW_NO_API;
 
-    // Fail if OpenGL 3.0 or above was requested
-    if( wndconfig->glMajor > 2 )
-    {
-        return GL_FALSE;
-    }
-
     _glfwWin.delegate = [[GLFWWindowDelegate alloc] init];
     if( _glfwWin.delegate == nil )
     {
@@ -511,26 +503,6 @@ int  _glfwPlatformOpenWindow( int width, int height,
     }
 
     [NSApp setDelegate:_glfwWin.delegate];
-
-    // Mac OS X needs non-zero color size, so set resonable values
-    colorBits = fbconfig->redBits + fbconfig->greenBits + fbconfig->blueBits;
-    if( colorBits == 0 )
-    {
-        colorBits = 24;
-    }
-    else if( colorBits < 15 )
-    {
-        colorBits = 15;
-    }
-
-    // Ignored hints:
-    // OpenGLMajor, OpenGLMinor, OpenGLForward:
-    //     pending Mac OS X support for OpenGL 3.x
-    // OpenGLDebug
-    //     pending it meaning anything on Mac OS X
-
-    // Don't use accumulation buffer support; it's not accelerated
-    // Aux buffers probably aren't accelerated either
 
     CGDisplayModeRef fullscreenMode = NULL;
     if( wndconfig->mode == GLFW_FULLSCREEN )
@@ -577,11 +549,6 @@ int  _glfwPlatformOpenWindow( int width, int height,
                     backing:NSBackingStoreBuffered
                       defer:NO];
     [_glfwWin.window setContentView:[[GLFWContentView alloc] init]];
-
-    if (wndconfig->highDPI) {
-        [ [_glfwWin.window contentView] setWantsBestResolutionOpenGLSurface:YES];
-    }
-
     [_glfwWin.window setDelegate:_glfwWin.delegate];
     [_glfwWin.window setAcceptsMouseMovedEvents:YES];
     [_glfwWin.window center];
@@ -590,71 +557,6 @@ int  _glfwPlatformOpenWindow( int width, int height,
     {
         CGCaptureAllDisplays();
         CGDisplaySetDisplayMode( CGMainDisplayID(), fullscreenMode, NULL );
-    }
-
-    unsigned int attribute_count = 0;
-#define ADD_ATTR(x) attributes[attribute_count++] = x
-#define ADD_ATTR2(x, y) (void)({ ADD_ATTR(x); ADD_ATTR(y); })
-#define MAX_ATTRS 24 // urgh
-    NSOpenGLPixelFormatAttribute attributes[MAX_ATTRS];
-
-    ADD_ATTR( NSOpenGLPFADoubleBuffer );
-
-    if( wndconfig->mode == GLFW_FULLSCREEN )
-    {
-        ADD_ATTR( NSOpenGLPFAFullScreen );
-        ADD_ATTR( NSOpenGLPFANoRecovery );
-        ADD_ATTR2( NSOpenGLPFAScreenMask,
-                   CGDisplayIDToOpenGLDisplayMask( CGMainDisplayID() ) );
-    }
-
-    ADD_ATTR2( NSOpenGLPFAColorSize, colorBits );
-
-    if( fbconfig->alphaBits > 0)
-    {
-        ADD_ATTR2( NSOpenGLPFAAlphaSize, fbconfig->alphaBits );
-    }
-
-    if( fbconfig->depthBits > 0)
-    {
-        ADD_ATTR2( NSOpenGLPFADepthSize, fbconfig->depthBits );
-    }
-
-    if( fbconfig->stencilBits > 0)
-    {
-        ADD_ATTR2( NSOpenGLPFAStencilSize, fbconfig->stencilBits );
-    }
-
-    int accumBits = fbconfig->accumRedBits + fbconfig->accumGreenBits +
-                    fbconfig->accumBlueBits + fbconfig->accumAlphaBits;
-
-    if( accumBits > 0)
-    {
-        ADD_ATTR2( NSOpenGLPFAAccumSize, accumBits );
-    }
-
-    if( fbconfig->auxBuffers > 0)
-    {
-        ADD_ATTR2( NSOpenGLPFAAuxBuffers, fbconfig->auxBuffers );
-    }
-
-    if( fbconfig->stereo)
-    {
-        ADD_ATTR( NSOpenGLPFAStereo );
-    }
-
-    if( fbconfig->samples > 0)
-    {
-        ADD_ATTR2( NSOpenGLPFASampleBuffers, 1 );
-        ADD_ATTR2( NSOpenGLPFASamples, fbconfig->samples );
-    }
-
-    ADD_ATTR(0);
-
-    _glfwWin.pixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:attributes];
-    if( _glfwWin.pixelFormat == nil )
-    {
-        return GL_FALSE;
     }
 
     [_glfwWin.window makeKeyAndOrderFront:nil];
@@ -686,19 +588,6 @@ void _glfwPlatformCloseWindow( void )
         CGReleaseAllDisplays();
     }
 
-    [_glfwWin.pixelFormat release];
-    _glfwWin.pixelFormat = nil;
-
-    if( _glfwWin.aux_context != nil )
-    {
-        [_glfwWin.aux_context release];
-        _glfwWin.aux_context = nil;
-    }
-
-    [NSOpenGLContext clearCurrentContext];
-    [_glfwWin.context release];
-    _glfwWin.context = nil;
-
     [_glfwWin.window setDelegate:nil];
     [NSApp setDelegate:nil];
     [_glfwWin.delegate release];
@@ -706,8 +595,6 @@ void _glfwPlatformCloseWindow( void )
 
     [_glfwWin.window close];
     _glfwWin.window = nil;
-
-    // TODO: Probably more cleanup
 }
 
 int _glfwPlatformGetDefaultFramebuffer( )
@@ -777,19 +664,6 @@ void _glfwPlatformRestoreWindow( void )
 
 void _glfwPlatformSwapBuffers( void )
 {
-    while (_glfwWin.countDown > 0)
-    {
-        // Skip frames.
-        // NOTE: We wait up to 1 second for event but in practice
-        // event will fire as soon as a frame is "ready"
-        // (performSelectorOnMainThread)
-
-        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 1, TRUE);
-    }
-    _glfwWin.countDown = _glfwWin.swapInterval;
-
-    // ARP appears to be unnecessary, but this is future-proof
-    [_glfwWin.context flushBuffer];
 }
 
 //========================================================================
@@ -800,8 +674,6 @@ void _glfwPlatformSwapInterval( int interval )
 {
     _glfwWin.swapInterval = interval;
     _glfwWin.countDown = interval;
-    GLint sync = interval > 1 ? 1 : interval;
-    [_glfwWin.context setValues:&sync forParameter:NSOpenGLCPSwapInterval];
 }
 
 //========================================================================
@@ -810,69 +682,6 @@ void _glfwPlatformSwapInterval( int interval )
 
 void _glfwPlatformRefreshWindowParams( void )
 {
-    GLint value;
-
-    // Since GLFW 2.x doesn't understand screens, we use virtual screen zero
-
-    [_glfwWin.pixelFormat getValues:&value
-                       forAttribute:NSOpenGLPFAAccelerated
-                   forVirtualScreen:0];
-    _glfwWin.accelerated = value;
-
-    [_glfwWin.pixelFormat getValues:&value
-                       forAttribute:NSOpenGLPFAAlphaSize
-                   forVirtualScreen:0];
-    _glfwWin.alphaBits = value;
-
-    // It seems that the color size includes the size of the alpha channel
-    [_glfwWin.pixelFormat getValues:&value
-                       forAttribute:NSOpenGLPFAColorSize
-                   forVirtualScreen:0];
-    value -= _glfwWin.alphaBits;
-    _glfwWin.redBits = value / 3;
-    _glfwWin.greenBits = value / 3;
-    _glfwWin.blueBits = value / 3;
-
-    [_glfwWin.pixelFormat getValues:&value
-                       forAttribute:NSOpenGLPFADepthSize
-                   forVirtualScreen:0];
-    _glfwWin.depthBits = value;
-
-    [_glfwWin.pixelFormat getValues:&value
-                       forAttribute:NSOpenGLPFAStencilSize
-                   forVirtualScreen:0];
-    _glfwWin.stencilBits = value;
-
-    [_glfwWin.pixelFormat getValues:&value
-                       forAttribute:NSOpenGLPFAAccumSize
-                   forVirtualScreen:0];
-    _glfwWin.accumRedBits = value / 3;
-    _glfwWin.accumGreenBits = value / 3;
-    _glfwWin.accumBlueBits = value / 3;
-
-    // TODO: Figure out what to set this value to
-    _glfwWin.accumAlphaBits = 0;
-
-    [_glfwWin.pixelFormat getValues:&value
-                       forAttribute:NSOpenGLPFAAuxBuffers
-                   forVirtualScreen:0];
-    _glfwWin.auxBuffers = value;
-
-    [_glfwWin.pixelFormat getValues:&value
-                       forAttribute:NSOpenGLPFAStereo
-                   forVirtualScreen:0];
-    _glfwWin.stereo = value;
-
-    [_glfwWin.pixelFormat getValues:&value
-                       forAttribute:NSOpenGLPFASamples
-                   forVirtualScreen:0];
-    _glfwWin.samples = value;
-
-    // These are forced to false as long as Mac OS X lacks support for OpenGL 3.0+
-    _glfwWin.glForward = GL_FALSE;
-    _glfwWin.glDebug = GL_FALSE;
-    _glfwWin.glProfile = 0;
-
     NSRect contentRectFrame = [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
     NSRect contentRectBacking = [[_glfwWin.window contentView] convertRectToBacking:contentRectFrame];
     _glfwWin.highDPI = 0;
@@ -1015,7 +824,7 @@ GLFWAPI id glfwGetOSXNSView()
 
 GLFWAPI id glfwGetOSXNSOpenGLContext()
 {
-    return _glfwWin.context;
+    return 0;
 }
 
 //========================================================================
@@ -1023,9 +832,7 @@ GLFWAPI id glfwGetOSXNSOpenGLContext()
 //========================================================================
 int _glfwPlatformQueryAuxContext()
 {
-    if(_glfwWin.aux_context == nil)
-        return 0;
-    return 1;
+    return 0;
 }
 
 //========================================================================
@@ -1033,13 +840,7 @@ int _glfwPlatformQueryAuxContext()
 //========================================================================
 void* _glfwPlatformAcquireAuxContext()
 {
-    if(_glfwWin.aux_context == nil)
-    {
-        fprintf( stderr, "Unable to make OpenGL aux context current, is NULL\n" );
-        return 0;
-    }
-    [_glfwWin.aux_context makeCurrentContext];
-    return _glfwWin.aux_context;
+    return 0;
 }
 
 //========================================================================
@@ -1047,7 +848,6 @@ void* _glfwPlatformAcquireAuxContext()
 //========================================================================
 void _glfwPlatformUnacquireAuxContext(void* context)
 {
-    [NSOpenGLContext clearCurrentContext];
 }
 
 GLFWAPI void glfwAccelerometerEnable()
