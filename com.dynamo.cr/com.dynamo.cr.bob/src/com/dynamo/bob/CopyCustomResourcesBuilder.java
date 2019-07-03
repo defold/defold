@@ -14,12 +14,7 @@ public class CopyCustomResourcesBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws CompileExceptionError {
-        BobProjectProperties properties = new BobProjectProperties();
-        try {
-            properties.load(new ByteArrayInputStream(input.getContent()));
-        } catch (Exception e) {
-            throw new CompileExceptionError(input, -1, "Failed to parse game.project", e);
-        }
+        BobProjectProperties properties = this.project.getProjectProperties();
 
         String[] resources = properties.getStringValue("project", "custom_resources", "").split(",");
 
