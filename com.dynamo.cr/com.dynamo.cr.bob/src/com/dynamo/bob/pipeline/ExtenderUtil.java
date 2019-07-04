@@ -569,7 +569,7 @@ public class ExtenderUtil {
         return resources;
     }
     private static String[] getBundleResourcePaths(Project project) {
-        return project.getProjectProperties().getStringValue("project", "bundle_resources", "").trim().split(",");
+        return project.getProjectProperties().getStringArrayValue("project", "bundle_resources", new String[0]);
     }
 
     // Removes resources that starts with the string
