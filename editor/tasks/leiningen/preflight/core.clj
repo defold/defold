@@ -9,21 +9,13 @@
   []
   (filter #(.isFile ^File %) (file-seq (io/file "src/clj/"))))
 
-(defn- make-doter
-  []
-  (let [state (atom 0)]
-    (fn []
-      (print ".")
-      (flush)
-      (swap! state #(rem (inc %) 4)))))
-
 (defn- dots-until-done
   [fut]
-  (let [doter (make-doter)]
-    (while (not (future-done? fut))
-      (doter)
-      (Thread/sleep 500))
-    (newline))
+  (while (not (future-done? fut))
+    (print ".")
+    (flush)
+    (Thread/sleep 500))
+  (newline)
   @fut)
 
 (defn- run-linter
@@ -43,6 +35,7 @@
       (-> (kondo/run! {:lint (map #(.getCanonicalPath ^File %) files)}) kondo/print!)))
 
 (def ^:private ^:const linters
+  ;; Entry signature: [name, (fn [files]), {:print-average boolean}]
   [["clj-fmt" fmt/check-files {:print-average true}]
    ["kibit" kibit/check {:print-average true}]
    ;;["clj-kondo" kondo {:print-average true}]
@@ -55,15 +48,6 @@
         nfiles (count files)]
     (println (str " Found " nfiles " files.\n"))
     (into [] (map #(run-linter % files nfiles)) linters)))
-
-(defn- strings->files
-  [strings]
-  (into
-    []
-    (comp
-      (map io/file)
-      (filter #(.exists ^File %)))
-    strings))
 
 (defn main
   []

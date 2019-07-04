@@ -27,7 +27,7 @@
     {:reporter (fn [{:keys [file line expr alt]}]
                  (try
                    (.lock lock)
-                   (swap! counts #(update % :incorrect inc))
+                   (swap! counts update :incorrect inc)
                    (.print pw (format "\nAt %s:%s:\nConsider using:\n" file line))
                    (.print pw (pprint-code alt))
                    (.print pw "\ninstead of:\n")
@@ -57,7 +57,7 @@
                         lock ^ReentrantLock (:lock reporter)]
                     (try
                       (.lock lock)
-                      (swap! (:counts reporter) #(update % :error inc))
+                      (swap! (:counts reporter) update :error inc)
                       (.print pw (format "Check failed -- skipping rest of file (%s:%s:%s)\n"
                                          (.getPath file)
                                          (:line e-info)

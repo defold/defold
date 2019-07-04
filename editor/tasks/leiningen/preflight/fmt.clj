@@ -13,14 +13,14 @@
    (unified-diff filename original revised 3))
   ([filename original revised context]
    (str/join \newline (DiffUtils/generateUnifiedDiff
-                        (->> filename (str "a"))
-                        (->> filename (str "b"))
+                        (str "a" filename)
+                        (str "b" filename)
                         (str/split-lines original)
                         (DiffUtils/diff (str/split-lines original) (str/split-lines revised))
                         context))))
 
 (defn- format-diff
-  (^String [options ^File file]
+  (^String [options file]
    (let [original (slurp (io/file file))]
      (format-diff file original (reformat-string options original))))
   (^String [^File file original revised]
@@ -57,20 +57,6 @@
       (str "Failed to format file: " path \newline (print-stack-trace ex)))
     (when-let [diff (:diff status)]
       (str path " has incorrect formatting" \newline diff))))
-
-(defn- print-final-result [{:keys [report counts]}]
-  (let [error (:error counts 0)
-        incorrect (:incorrect counts 0)]
-    (str
-      report
-      \newline
-      \newline
-      (when-not (zero? error)
-        (str error " file(s) could not be parsed for formatting"))
-      (when-not (zero? incorrect)
-        (str incorrect " file(s) formatted incorrectly"))
-      (when (and (zero? incorrect) (zero? error))
-        "All source files formatted correctly"))))
 
 (defn- merge-results
   ([] {:report ""
