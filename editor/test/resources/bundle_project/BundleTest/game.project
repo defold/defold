@@ -1,0 +1,22 @@
+[bootstrap]
+main_collection = /main/main.collectionc
+render = /builtins/render/default.renderc
+
+[script]
+shared_state = 1
+
+[display]
+width = 960
+height = 640
+
+[android]
+input_method = HiddenInputField
+push_icon_large_xxxhdpi = /whoop_192.png
+push_icon_small_xxxhdpi = /whoop_192.png
+
+[project]
+title = BundleTest
+custom_resources = 
+bundle_resources = bundle_resource_folder
+dependencies = 
+

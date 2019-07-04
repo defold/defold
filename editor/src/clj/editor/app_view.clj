@@ -1511,8 +1511,8 @@ If you do not specifically require different script states, consider changing th
                arg-tmpl (string/trim (if cursor-range (prefs/get-prefs prefs "code-open-file-at-line" "{file}:{line}") (prefs/get-prefs prefs "code-open-file" "{file}")))
                arg-sub (cond-> {:file (resource/abs-path resource)}
                                cursor-range (assoc :line (CursorRange->line-number cursor-range)))
-               args (->> (string/split arg-tmpl #" ")
-                         (map #(substitute-args % arg-sub)))]
+               args (map #(substitute-args % arg-sub)
+                         (string/split arg-tmpl #" "))]
            (doto (ProcessBuilder. ^List (cons custom-editor args))
              (.directory (workspace/project-path workspace))
              (.start))

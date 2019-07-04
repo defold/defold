@@ -9,7 +9,7 @@
   [x key-transform-fn]
   (let [wlk (fn [x] (walk #(translate % key-transform-fn) identity x))]
     (condp instance? x
-      ;; Turn maps into clojure maps and change keys to keywords, recurse
+      ;; Turn maps into clojure maps and change keys using key-transform-fn, recurse
       Map (wlk (reduce (fn [m [k v]] (assoc m (key-transform-fn k) v)) {} x))
       ;; Turn lists into clojure vectors, recurse
       List (wlk (into [] x))

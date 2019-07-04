@@ -301,8 +301,11 @@
 (defn- seq-children [resource]
   (seq (children resource)))
 
-(defn resource-seq [root]
-  (tree-seq seq-children seq-children root))
+(defn resource-seq
+  ([root]
+   (tree-seq seq-children seq-children root))
+  ([root branch?]
+   (tree-seq #(and (seq-children %) (branch? %)) seq-children root)))
 
 (defn resource-list-seq [resource-list]
   (apply concat (map resource-seq resource-list)))

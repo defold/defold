@@ -148,7 +148,7 @@
     (.setScene stage scene)
 
     (app-view/restore-window-dimensions stage prefs)
-    
+
     (ui/show! stage)
     (targets/start)
 
