@@ -33,6 +33,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -43,14 +44,12 @@ import javax.imageio.ImageIO;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.FileUtils;
 import java.awt.image.DataBufferByte;
+import com.sun.jna.Pointer;
 
-// import com.dynamo.bob.TexcLibrary;
-// import com.dynamo.bob.TexcLibrary.ColorSpace;
-// import com.dynamo.bob.TexcLibrary.DitherType;
-// import com.dynamo.bob.TexcLibrary.PixelFormat;
-//import com.dynamo.bob.TexcLibrary.CompressionLevel;
-//import com.dynamo.bob.TexcLibrary.CompressionType;
-// import com.dynamo.bob.TexcLibrary.FlipAxis;
+import com.dynamo.bob.TexcLibrary;
+import com.dynamo.bob.TexcLibrary.PixelFormat;
+import com.dynamo.bob.TexcLibrary.CompressionLevel;
+import com.dynamo.bob.TexcLibrary.CompressionType;
 
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
@@ -317,6 +316,41 @@ public class Fontc {
         return sdfLimitValue * (1.0f - sdf_edge) + sdf_edge;
     }
 
+    private ByteBuffer toByteArray(BufferedImage image, int width, int height, int bpp, int targetBpp) throws IOException {
+        int dataSize = width * height * bpp;
+        ByteBuffer buffer = ByteBuffer.allocateDirect(dataSize);
+
+        int[] rasterData = new int[width * height * 4];
+        image.getRaster().getPixels(0, 0, width, height, rasterData);
+
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                // BGRA to RGBA
+                int i = y*width*bpp + x*bpp;
+                int green = 0;
+                int red = 0;
+                int alpha = 0;
+                int blue = rasterData[i + 0];
+                if (bpp > 1)
+                    green = rasterData[i + 1];
+                if (bpp > 2)
+                    red = rasterData[i + 2];
+                if (bpp > 3)
+                    alpha = rasterData[i + 3];
+
+                buffer.put((byte)(red & 0xFF));
+                if (targetBpp > 1)
+                    buffer.put((byte)(green & 0xFF));
+                if (targetBpp > 2)
+                    buffer.put((byte)(blue & 0xFF));
+                if (targetBpp > 3)
+                    buffer.put((byte)(alpha & 0xFF));
+            }
+        }
+        buffer.flip(); // limit is set to current position, and position is set to zero
+        return buffer;
+    }
+
     public BufferedImage generateGlyphData(boolean preview, final FontResourceResolver resourceResolver) throws TextureGeneratorException, FontFormatException {
 
         ByteArrayOutputStream glyphDataBank = new ByteArrayOutputStream(1024*1024*4);
@@ -522,112 +556,83 @@ public class Fontc {
                 glyph.image = glyphImage;
 
             } else {
-
-                glyph.cache_entry_offset = dataOffset;
-
-                // TODO: Create a PadImage function
                 BufferedImage paddedGlyphImage = new BufferedImage(glyphImage.getWidth() + cell_padding * 2,
-                                                                    glyphImage.getHeight() + cell_padding * 2, BufferedImage.TYPE_3BYTE_BGR);
+                                                                    glyphImage.getHeight() + cell_padding * 2, BufferedImage.TYPE_4BYTE_ABGR);
 
                 int clearData = 0;
+                int mask = 0xFFFFFFFF;
+                if (channelCount==1)
+                    mask = 0xFF;
+                else if (channelCount==2)
+                    mask = 0xFFFF;
+                else if (channelCount==3)
+                    mask = 0xFFFFFF;
 
                 int py = 0;
                 // Get raster data from rendered glyph and store in glyph data bank
                 for (int x = 0; x < paddedGlyphImage.getWidth(); ++x)
                     paddedGlyphImage.setRGB(x, py, clearData);
                 py++;
-                //repeatedWrite(glyphData, (glyphImage.getWidth() + cell_padding * 2) * channelCount, clearData);
                 for (int y = 0; y < glyphImage.getHeight(); y++, py++) {
                     int px = 0;
                     paddedGlyphImage.setRGB(px++, py, clearData);
                     for (int x = 0; x < glyphImage.getWidth(); x++, px++) {
-
                         int color = glyphImage.getRGB(x, y);
+                        int blue  = (color) & 0xff;
+                        int green = (color >> 8) & 0xff;
+                        int red   = (color >> 16) & 0xff;
+                        int alpha = (color >> 24) & 0xff;
+                        blue = (blue * alpha) / 255;
+                        green = (green * alpha) / 255;
+                        red = (red * alpha) / 255;
+                        color = ((alpha << 24) |
+                                (blue << 16) |
+                                (green << 8) |
+                                (red << 0)) & mask;
+
                         paddedGlyphImage.setRGB(px, py, color);
-
-                        // int color = glyphImage.getRGB(x, y);
-                        // int blue  = (color) & 0xff;
-                        // int green = (color >> 8) & 0xff;
-                        // int red   = (color >> 16) & 0xff;
-                        // int alpha = (color >> 24) & 0xff;
-                        // blue = (blue * alpha) / 255;
-                        // green = (green * alpha) / 255;
-                        // red = (red * alpha) / 255;
-
-
-                        // glyphData.write((byte)red);
-
-                        // if (channelCount > 1) {
-                        //     glyphData.write((byte)green);
-                        //     glyphData.write((byte)blue);
-
-                        //     if (channelCount > 3) {
-
-                        //         glyphData.write((byte)alpha);
-                        //     }
-                        // }
                     }
-
-                    //repeatedWrite(glyphData, channelCount, clearData);
                     paddedGlyphImage.setRGB(px++, py, clearData);
                 }
-                //repeatedWrite(glyphData, (glyphImage.getWidth() + cell_padding * 2) * channelCount, clearData);
                 for (int x = 0; x < paddedGlyphImage.getWidth(); ++x)
                     paddedGlyphImage.setRGB(x, 0, clearData);
 
-                // TextureFormatAlternative.CompressionLevel compressionLevel = TextureFormatAlternative.CompressionLevel.BEST;
-                // TextureImage.CompressionType compressionType = TextureImage.CompressionType.CT_WEBP;
-                // TextureFormat textureFormat = TextureGenerator.pickOptimalFormat(channelCount, TextureGenerator.TEXTURE_FORMAT_RGBA);
-                // TextureImage.Image image = TextureGenerator.generateFromColorAndFormat( paddedGlyphImage,
-                //                                                                         paddedGlyphImage.getColorModel(),
-                //                                                                         textureFormat,
-                //                                                                         compressionLevel,
-                //                                                                         compressionType,
-                //                                                                         false, // no mipmaps
-                //                                                                         );
-
-                TextureFormatAlternative.CompressionLevel compressionLevel = TextureFormatAlternative.CompressionLevel.BEST;
-                TextureImage.CompressionType compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_WEBP;
-                TextureFormat textureFormat = TextureGenerator.pickOptimalFormat(channelCount, TextureFormat.TEXTURE_FORMAT_RGBA);
-
-                TextureFormatAlternative textureFormatAlternative = TextureFormatAlternative.newBuilder()
-                    .setFormat(textureFormat)
-                    .setCompressionLevel(compressionLevel)
-                    .setCompressionType(compressionType)
-                    .build();
-
-                PlatformProfile platformProfile = PlatformProfile.newBuilder()
-                    .setOs(PlatformProfile.OS.OS_ID_GENERIC)
-                    .setPremultiplyAlpha(true) // Premultiply alpha is default, but it's here for clarity
-                    .addFormats(textureFormatAlternative)
-                    .setMipmaps(false)
-                    .setMaxTextureSize(0) // keep original size
-                    .build();
-
-                TextureProfile textureProfile = TextureProfile.newBuilder()
-                    .setName("fontc")
-                    .addPlatforms(platformProfile)
-                    .build();
-
-
-                boolean compress = true;
-
+                Pointer compressedTexture = null;
                 try {
-                    TextureImage textureImages = TextureGenerator.generate(paddedGlyphImage, textureProfile, true);
-                    TextureImage.Image textureImage = textureImages.getAlternatives(0);
+                    int width = paddedGlyphImage.getWidth();
+                    int height = paddedGlyphImage.getHeight();
+                    int compressionLevel = TexcLibrary.CompressionLevel.CL_BEST;
+                    int compressionType = TexcLibrary.CompressionType.CT_WEBP;
 
-                    //int maxTextureSize, boolean compress, boolean premulAlpha, EnumSet<FlipAxis> flipAxis
+                    int pixelFormat = PixelFormat.L8;
+                    if (channelCount > 1)
+                        pixelFormat = PixelFormat.R8G8B8;
+                    else if (channelCount > 3)
+                        pixelFormat = PixelFormat.R8G8B8A8;
 
-                    // int dataSizeOut = (glyphImage.getWidth() + cell_padding * 2) * (glyphImage.getHeight() + cell_padding * 2) * channelCount;
-                    ByteString imageData = textureImage.getData();
-                    glyphDataBank.write(imageData.toByteArray());
-                    dataOffset += imageData.size();
-                    glyph.cache_entry_size = dataOffset - glyph.cache_entry_offset;
+                    ByteBuffer paddedBuffer = toByteArray(paddedGlyphImage, width, height, 4, channelCount);
+
+                    compressedTexture = TexcLibrary.TEXC_CompressWebPBuffer(width, height, channelCount*8, paddedBuffer, width*height*channelCount, pixelFormat, compressionLevel, compressionType);
+
+                    int bufferSize = TexcLibrary.TEXC_GetTotalBufferDataSize(compressedTexture);
+                    ByteBuffer buffer = ByteBuffer.allocateDirect(bufferSize);
+                    TexcLibrary.TEXC_GetBufferData(compressedTexture, buffer, bufferSize);
+
+                    glyph.cache_entry_offset = dataOffset;
+                    dataOffset += bufferSize;
+
+                    byte[] arr = new byte[buffer.limit()];
+                    buffer.get(arr);
+                    glyphDataBank.write(arr);
+
+                    glyph.cache_entry_size = bufferSize;
+
                 } catch(IOException e) {
                     throw new TextureGeneratorException(String.format("Failed to generate font texture: %s", e.getMessage()));
+                } finally {
+                    TexcLibrary.TEXC_DestroyBuffer(compressedTexture);
                 }
             }
-
         }
 
         // Sanity check;
@@ -685,8 +690,6 @@ public class Fontc {
     private BufferedImage drawBMFontGlyph(Glyph glyph, BufferedImage imageBMFontInput) {
         return imageBMFontInput.getSubimage(glyph.x, glyph.y, glyph.width, glyph.ascent + glyph.descent);
     }
-
-    int glyph_count = 0;
 
     private BufferedImage makeDistanceField(Glyph glyph, int padding, float sdf_spread, float sdf_shadow_spread, Font font, float edge, ConvolveOp shadowConvolve) {
         int width = glyph.width + padding * 2;
@@ -806,26 +809,6 @@ public class Fontc {
                 }
             }
         }
-
-        // File file = new File(String.format("../glyphs/glyph%d", glyph_count));
-
-        // byte[] imageBytes = ((DataBufferByte) image.getData().getDataBuffer()).getData();
-        // try {
-        //     FileUtils.writeByteArrayToFile(file, imageBytes);
-        //     System.out.println("Wrote " + file.getAbsolutePath());
-        // } catch (IOException e) {
-        //     System.out.println("Failed to write " + file.getAbsolutePath());
-        // }
-
-        // File imageFile = new File(String.format("../glyphs/glyph%d.png", glyph_count));
-        // try {
-        //     ImageIO.write(image, "png", imageFile);
-        //     System.out.println("Wrote " + imageFile.getAbsolutePath());
-        // } catch (IOException e) {
-        //     System.out.println("Failed to write " + file.getAbsolutePath());
-        // }
-
-        glyph_count++;
 
         return image;
     }

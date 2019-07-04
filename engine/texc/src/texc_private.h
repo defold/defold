@@ -17,6 +17,7 @@ namespace dmTexc
     struct CompressedTextureData
     {
         size_t m_ByteSize;
+        uint8_t m_IsCompressed;
         uint8_t* m_Data;
     };
 
@@ -27,7 +28,9 @@ namespace dmTexc
         uint64_t m_CompressionFlags;
     };
 
+
     bool CompressWebP(HTexture texture, PixelFormat pixel_format, ColorSpace color_space, CompressionLevel compression_level, CompressionType compression_type);
+    HBuffer CompressWebPBuffer(uint32_t width, uint32_t height, uint32_t bpp, void* data, uint32_t size, PixelFormat pixel_format, CompressionLevel compression_level, CompressionType compression_type);
 
     void PVRTCDecomposeBlocks(const uint64_t* data, const uint32_t width, const uint32_t height, uint32_t* color_a_rgba, uint32_t* color_b_rgba, uint32_t* modulation);
 
