@@ -142,7 +142,7 @@
                       :source-maps false}
 
   :aliases           {"benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
-                      "lint" ["with-profile" "+test" "eastwood"]}
+                      "preflight" ["with-profile" "+preflight,+dev,+test" "preflight"]}
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"}
@@ -169,6 +169,8 @@
 
   :profiles          {:test    {:injections [(defonce force-toolkit-init (javafx.application.Platform/startup (fn [])))]
                                 :resource-paths ["test/resources"]}
+                      :preflight {:dependencies [[jonase/kibit "0.1.6" :exclusions [org.clojure/clojure]]
+                                                 [cljfmt-mg "0.6.4" :exclusions [org.clojure/clojure]]]}
                       :uberjar {:prep-tasks  ^:replace ["clean" "protobuf" ["sass" "once"] "javac" ["run" "-m" "aot"]]
                                 :aot          :all
                                 :omit-source  true
@@ -178,8 +180,7 @@
                                    :jvm-opts ["-Ddefold.nrepl=false"]}
                       :release {:jvm-opts          ["-Ddefold.build=release"]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
-                      :dev     {:plugins           [[jonase/eastwood "0.3.5" :exclusions [org.clojure/clojure]]]
-                                :dependencies      [[clj-async-profiler-mg "0.4.1"]
+                      :dev     {:dependencies      [[clj-async-profiler-mg "0.4.1"]
                                                     [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
                                                     [criterium "0.4.3"]
                                                     [org.clojure/test.check   "0.9.0"]
@@ -204,9 +205,4 @@
                                                     "-Djdk.attach.allowAttachSelf"   ; Required for attach to running process.
                                                     "-XX:+UnlockDiagnosticVMOptions" ; Required for DebugNonSafepoints.
                                                     "-XX:+DebugNonSafepoints"]}}     ; Without this, there is a high chance that simple inlined methods will not appear in the profile.
-  :eastwood {:out "eastwood-warnings.txt"
-             :continue-on-exception true
-             :add-linters [:unused-fn-args
-                           :unused-locals
-                           :unused-namespaces
-                           :unused-private-vars]})
+)
