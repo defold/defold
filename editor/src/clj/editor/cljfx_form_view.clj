@@ -21,7 +21,7 @@
             [editor.workspace :as workspace])
   (:import [javafx.event Event EventHandler]
            [javafx.scene Node]
-           [javafx.scene.control ListView$EditEvent ScrollPane TableColumn$CellEditEvent ComboBox TextField Cell TableView]
+           [javafx.scene.control ListView$EditEvent ScrollPane TableColumn$CellEditEvent ComboBox Cell TableView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.util StringConverter]))
 
@@ -133,20 +133,30 @@
                                                 ^TableColumn$CellEditEvent fx/event
                                                 ui-state]}]
   (let [index (.getRow (.getTablePosition event))]
-    {:set-ui-state (assoc-in ui-state [path :edit] {:index index
-                                                    :path column-path
-                                                    :table (.getTableView event)})}))
+    {:set-ui-state (update-in ui-state
+                              [path :edit]
+                              (fn [edit]
+                                (if (and (= (:index edit) index)
+                                         (= (:path edit column-path)))
+                                  edit
+                                  {:index index
+                                   :path column-path
+                                   :table (.getTableView event)})))}))
 
-(defmethod handle-event :on-edit-cancel [{:keys [ui-state path]}]
-  {:set-ui-state (update ui-state path dissoc :edit)})
+(defmethod handle-event :on-edit-cancel [{:keys [ui-state path form-data]}]
+  (let [edit (get-in ui-state [path :edit])]
+    (cond-> {:set-ui-state (update ui-state path dissoc :edit)}
+            (some? (:value edit))
+            (assoc :set (let [field-value (get-in form-data [:values path])
+                              edit-path (into [(:index edit)] (:path edit))]
+                          [path (assoc-in field-value edit-path (:value edit))])))))
 
 (defmethod handle-event :commit-edit [{:keys [path fx/event ui-state]}]
   (.edit ^TableView (get-in ui-state [path :edit :table]) -1 nil)
   {:set [path event]})
 
 (defmethod handle-event :keep-edit [{:keys [path fx/event ui-state]}]
-  (prn :keep-edit event)
-  {:set-ui-state (update-in ui-state [path :edit] vary-meta assoc :value event)})
+  {:set-ui-state (assoc-in ui-state [path :edit :value] event)})
 
 ;; endregion
 
@@ -369,29 +379,54 @@
         (when-let [^Cell cell (ui/closest-node-of-type Cell (.getTarget event))]
           (fx/run-later (.cancelEdit cell)))))))
 
-(defn- edited-cell-view [column i x]
-  {:fx/type ext-with-key-pressed-props
-   :props {:filter-key-pressed cancel-edit-on-escape-handler}
-   :desc (input-view (-> column
-                         (assoc :value x)
-                         (update :path #(into [i] %))))})
+(defn- edited-cell-view [column field-path value i item]
+  (let [input-view {:fx/type ext-with-key-pressed-props
+                    :props {:filter-key-pressed cancel-edit-on-escape-handler}
+                    :desc (input-view (-> column
+                                          (assoc :value item)
+                                          (update :path #(into [i] %))))}]
+    {:fx/type fxui/ext-wrap-map-events
+     :mapper #(case (:event-type %)
+                :set {:event-type :commit-edit
+                      :path field-path
+                      :fx/event (assoc-in value (:path %) (:fx/event %))}
+                %)
+     :desc (case (:type column)
+             :choicebox
+             {:fx/type fx/ext-on-instance-lifecycle
+              :on-created #(.show ^ComboBox %)
+              :desc input-view}
+
+             :vec4
+             {:fx/type fxui/ext-wrap-map-events
+              :mapper #(case (:event-type %)
+                         :set {:event-type :keep-edit
+                               :path field-path
+                               :fx/event (:fx/event %)}
+                         %)
+              :desc {:fx/type fx/ext-on-instance-lifecycle
+                     :on-created #(fxui/focus-when-on-scene! (.lookup ^Node % "TextField"))
+                     :desc input-view}}
+
+             :string
+             {:fx/type fxui/ext-focused-by-default
+              :desc input-view}
+
+             input-view)}))
 
 (defn- table-cell-value-factory [path [i x]]
   [i (get-in x path)])
 
-(defn- table-cell-factory [{:keys [path type] :as column} field-path edit [i x]]
+(defn- table-cell-factory [{:keys [path type] :as column} edit [i x]]
   (let [edited (and (= i (:index edit))
-                    (= path (:path edit)))
-        x (if edited (:value (meta edit) x) x)]
+                    (= path (:path edit)))]
     (case [type edited]
       [:choicebox false]
       {:text (get (into {} (:options column)) x)}
 
       [:choicebox true]
       {:style {:-fx-padding -2}
-       :graphic {:fx/type fx/ext-on-instance-lifecycle
-                 :on-created #(.show ^ComboBox %)
-                 :desc (edited-cell-view column i x)}}
+       :graphic {:fx/type fx/ext-get-ref :ref ::edit}}
 
       [:vec4 false]
       {:text (->> x
@@ -400,50 +435,36 @@
 
       [:vec4 true]
       {:style {:-fx-padding "-2 0 0 0"}
-       :graphic {:fx/type fxui/ext-wrap-map-events
-                 :mapper #(case (:event-type %)
-                            :set {:event-type :keep-edit
-                                  :path field-path
-                                  :fx/event (:fx/event %)}
-                            %)
-                 :desc {:fx/type fx/ext-on-instance-lifecycle
-                        :on-created #(fxui/focus-when-on-scene! (.lookup ^Node % "TextField"))
-                        :desc (edited-cell-view column i x)}}}
+       :graphic {:fx/type fx/ext-get-ref :ref ::edit}}
 
       [:string false]
       {:text x}
 
       [:string true]
       {:style {:-fx-padding -1}
-       :graphic {:fx/type fxui/ext-focused-by-default
-                 :desc (edited-cell-view column i x)}}
+       :graphic {:fx/type fx/ext-get-ref :ref ::edit}}
 
       {:text (str type ": " x)})))
 
-(defn- table-column [{:keys [path label type] :as column} field-path edit value]
-  {:fx/type fxui/ext-wrap-map-events
-   :mapper #(case (:event-type %)
-              :set {:event-type :commit-edit
-                    :path field-path
-                    :fx/event (assoc-in value (:path %) (:fx/event %))}
-              %)
-   :desc {:fx/type :table-column
-          :reorderable false
-          :min-width (cond
-                       (and (= :vec4 type)
-                            (= path (:path edit)))
-                       235
+(defn- table-column [{:keys [path label type] :as column} field-path edit]
+  {:fx/type :table-column
+   :reorderable false
+   :sortable false
+   :min-width (cond
+                (and (= :vec4 type)
+                     (= path (:path edit)))
+                235
 
-                       :else
-                       80)
-          :on-edit-start {:event-type :on-edit-start
-                          :path field-path
-                          :column-path path}
-          :on-edit-cancel {:event-type :on-edit-cancel
-                           :path field-path}
-          :text label
-          :cell-value-factory (fxui/partial table-cell-value-factory path)
-          :cell-factory (fxui/partial table-cell-factory column field-path edit)}})
+                :else
+                80)
+   :on-edit-start {:event-type :on-edit-start
+                   :path field-path
+                   :column-path path}
+   :on-edit-cancel {:event-type :on-edit-cancel
+                    :path field-path}
+   :text label
+   :cell-value-factory (fxui/partial table-cell-value-factory path)
+   :cell-factory (fxui/partial table-cell-factory column (dissoc edit :value))})
 
 (defmethod input-view :table [{:keys [value path columns state]
                                :as field}]
@@ -457,42 +478,50 @@
                    :element default-row}
         remove-event {:event-type :remove-selected
                       :path path}]
-    {:fx/type :v-box
-     :spacing 4
-     :children [{:fx/type :stack-pane
-                 :style-class "cljfx-table-view-wrapper"
-                 :children [{:fx/type fxui/ext-with-advance-events
-                             :desc {:fx/type fx.ext.table-view/with-selection-props
-                                    :props {:selection-mode :multiple
-                                            :selected-indices selected-indices
-                                            :on-selected-indices-changed {:event-type :select
-                                                                          :path path}}
-                                    :desc {:fx/type :table-view
-                                           :style-class ["table-view" "cljfx-table-view"]
-                                           :editable true
-                                           :fixed-cell-size cell-height
-                                           :pref-height (+ cell-height ;; header
-                                                           2 ;; insets
-                                                           9 ;; bottom scrollbar
-                                                           (* cell-height
-                                                              (max 1 (count value))))
-                                           :columns (mapv #(table-column % path edit value) columns)
-                                           :items (into [] (map-indexed vector) value)}}}]}
-                {:fx/type :h-box
-                 :spacing 4
-                 :children [{:fx/type icon-button
-                             :disable disable-add
-                             :on-action add-event
-                             :image "icons/32/Icons_M_07_plus.png"
-                             :fit-size 16}
-                            {:fx/type icon-button
-                             :disable disable-remove
-                             :on-action remove-event
-                             :image "icons/32/Icons_M_11_minus.png"
-                             :fit-size 16}]}
-                #_{:fx/type :label
-                   :wrap-text true
-                   :text (with-out-str (clojure.pprint/pprint field))}]}))
+    {:fx/type fx/ext-let-refs
+     :refs (when edit
+             (let [edited-column (some #(when (= (:path edit) (:path %))
+                                          %)
+                                       columns)
+                   edited-value (or (:value edit)
+                                    (get-in value (into [(:index edit)] (:path edit))))]
+               {::edit (edited-cell-view edited-column path value (:index edit) edited-value)}))
+     :desc {:fx/type :v-box
+            :spacing 4
+            :children [{:fx/type :stack-pane
+                        :style-class "cljfx-table-view-wrapper"
+                        :children [{:fx/type fxui/ext-with-advance-events
+                                    :desc {:fx/type fx.ext.table-view/with-selection-props
+                                           :props {:selection-mode :multiple
+                                                   :selected-indices selected-indices
+                                                   :on-selected-indices-changed {:event-type :select
+                                                                                 :path path}}
+                                           :desc {:fx/type :table-view
+                                                  :style-class ["table-view" "cljfx-table-view"]
+                                                  :editable true
+                                                  :fixed-cell-size cell-height
+                                                  :pref-height (+ cell-height ;; header
+                                                                  2 ;; insets
+                                                                  9 ;; bottom scrollbar
+                                                                  (* cell-height
+                                                                     (max 1 (count value))))
+                                                  :columns (mapv #(table-column % path edit) columns)
+                                                  :items (into [] (map-indexed vector) value)}}}]}
+                       {:fx/type :h-box
+                        :spacing 4
+                        :children [{:fx/type icon-button
+                                    :disable disable-add
+                                    :on-action add-event
+                                    :image "icons/32/Icons_M_07_plus.png"
+                                    :fit-size 16}
+                                   {:fx/type icon-button
+                                    :disable disable-remove
+                                    :on-action remove-event
+                                    :image "icons/32/Icons_M_11_minus.png"
+                                    :fit-size 16}]}
+                       {:fx/type :label
+                        :wrap-text true
+                        :text (with-out-str (clojure.pprint/pprint field))}]}}))
 
 (defmethod input-view :resource [{:keys [path value filter resource-string-converter]}]
   {:fx/type :h-box
