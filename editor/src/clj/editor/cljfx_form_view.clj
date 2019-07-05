@@ -19,9 +19,9 @@
             [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace])
-  (:import [javafx.event Event]
+  (:import [javafx.event Event EventHandler]
            [javafx.scene Node]
-           [javafx.scene.control ListView$EditEvent ScrollPane]
+           [javafx.scene.control ListView$EditEvent ScrollPane TableColumn$CellEditEvent ComboBox TextField Cell TableView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.util StringConverter]))
 
@@ -127,6 +127,26 @@
       (.setVvalue scroll-pane (/ (- (.getMinY (.getBoundsInParent node))
                                     24) ;; form padding
                                  (- content-height viewport-height))))))
+
+(defmethod handle-event :on-edit-start [{:keys [path
+                                                column-path
+                                                ^TableColumn$CellEditEvent fx/event
+                                                ui-state]}]
+  (let [index (.getRow (.getTablePosition event))]
+    {:set-ui-state (assoc-in ui-state [path :edit] {:index index
+                                                    :path column-path
+                                                    :table (.getTableView event)})}))
+
+(defmethod handle-event :on-edit-cancel [{:keys [ui-state path]}]
+  {:set-ui-state (update ui-state path dissoc :edit)})
+
+(defmethod handle-event :commit-edit [{:keys [path fx/event ui-state]}]
+  (.edit ^TableView (get-in ui-state [path :edit :table]) -1 nil)
+  {:set [path event]})
+
+(defmethod handle-event :keep-edit [{:keys [path fx/event ui-state]}]
+  (prn :keep-edit event)
+  {:set-ui-state (update-in ui-state [path :edit] vary-meta assoc :value event)})
 
 ;; endregion
 
@@ -239,6 +259,31 @@
                     :on-value-changed {:event-type :set
                                        :path path}}})
 
+(defmethod input-view :vec4 [{:keys [value path]}]
+  (let [labels ["X" "Y" "Z" "W"]]
+    {:fx/type fxui/ext-wrap-map-events
+     :mapper #(case (:event-type %)
+                :set {:event-type :set
+                      :path path
+                      :fx/event (assoc value (:path %) (:fx/event %))}
+                %)
+     :desc {:fx/type :h-box
+            :padding {:left 5}
+            :spacing 5
+            :children (into []
+                            (map-indexed
+                              (fn [i n]
+                                {:fx/type :h-box
+                                 :alignment :center
+                                 :spacing 5
+                                 :children [{:fx/type :label
+                                             :min-width :use-pref-size
+                                             :text (get labels i)}
+                                            (-> {:type :number :value n :path i}
+                                                input-view
+                                                (assoc :h-box/hgrow :always))]}))
+                            value)}}))
+
 (defmethod input-view :list [{:keys [value path state element resource-string-converter]
                               :or {state {:selected-indices []}}}]
   (let [{:keys [selected-indices]} state
@@ -312,10 +357,98 @@
                              :image "icons/32/Icons_M_11_minus.png"
                              :fit-size 16}]}]}))
 
+(def ^:private ext-with-key-pressed-props
+  (fx/make-ext-with-props
+    {:filter-key-pressed (fxui/make-event-filter-prop KeyEvent/KEY_PRESSED)
+     :on-key-pressed (fxui/make-event-handler-prop KeyEvent/KEY_PRESSED)}))
+
+(def cancel-edit-on-escape-handler
+  (reify EventHandler
+    (handle [_ event]
+      (when (= KeyCode/ESCAPE (.getCode ^KeyEvent event))
+        (when-let [^Cell cell (ui/closest-node-of-type Cell (.getTarget event))]
+          (fx/run-later (.cancelEdit cell)))))))
+
+(defn- edited-cell-view [column i x]
+  {:fx/type ext-with-key-pressed-props
+   :props {:filter-key-pressed cancel-edit-on-escape-handler}
+   :desc (input-view (-> column
+                         (assoc :value x)
+                         (update :path #(into [i] %))))})
+
+(defn- table-cell-value-factory [path [i x]]
+  [i (get-in x path)])
+
+(defn- table-cell-factory [{:keys [path type] :as column} field-path edit [i x]]
+  (let [edited (and (= i (:index edit))
+                    (= path (:path edit)))
+        x (if edited (:value (meta edit) x) x)]
+    (case [type edited]
+      [:choicebox false]
+      {:text (get (into {} (:options column)) x)}
+
+      [:choicebox true]
+      {:style {:-fx-padding -2}
+       :graphic {:fx/type fx/ext-on-instance-lifecycle
+                 :on-created #(.show ^ComboBox %)
+                 :desc (edited-cell-view column i x)}}
+
+      [:vec4 false]
+      {:text (->> x
+                  (mapv field-expression/format-number)
+                  (string/join "  "))}
+
+      [:vec4 true]
+      {:style {:-fx-padding "-2 0 0 0"}
+       :graphic {:fx/type fxui/ext-wrap-map-events
+                 :mapper #(case (:event-type %)
+                            :set {:event-type :keep-edit
+                                  :path field-path
+                                  :fx/event (:fx/event %)}
+                            %)
+                 :desc {:fx/type fx/ext-on-instance-lifecycle
+                        :on-created #(fxui/focus-when-on-scene! (.lookup ^Node % "TextField"))
+                        :desc (edited-cell-view column i x)}}}
+
+      [:string false]
+      {:text x}
+
+      [:string true]
+      {:style {:-fx-padding -1}
+       :graphic {:fx/type fxui/ext-focused-by-default
+                 :desc (edited-cell-view column i x)}}
+
+      {:text (str type ": " x)})))
+
+(defn- table-column [{:keys [path label type] :as column} field-path edit value]
+  {:fx/type fxui/ext-wrap-map-events
+   :mapper #(case (:event-type %)
+              :set {:event-type :commit-edit
+                    :path field-path
+                    :fx/event (assoc-in value (:path %) (:fx/event %))}
+              %)
+   :desc {:fx/type :table-column
+          :reorderable false
+          :min-width (cond
+                       (and (= :vec4 type)
+                            (= path (:path edit)))
+                       235
+
+                       :else
+                       80)
+          :on-edit-start {:event-type :on-edit-start
+                          :path field-path
+                          :column-path path}
+          :on-edit-cancel {:event-type :on-edit-cancel
+                           :path field-path}
+          :text label
+          :cell-value-factory (fxui/partial table-cell-value-factory path)
+          :cell-factory (fxui/partial table-cell-factory column field-path edit)}})
+
 (defmethod input-view :table [{:keys [value path columns state]
-                               :or {state {:selected-indices []}}
                                :as field}]
-  (let [{:keys [selected-indices]} state
+  (let [{:keys [selected-indices edit]
+         :or {selected-indices []}} state
         disable-remove (empty? selected-indices)
         default-row (form/table-row-defaults field)
         disable-add (nil? default-row)
@@ -341,18 +474,10 @@
                                            :pref-height (+ cell-height ;; header
                                                            2 ;; insets
                                                            9 ;; bottom scrollbar
-                                                           (* cell-height (max 1 (count value))))
-                                           :columns (mapv (fn [{:keys [path label type]}]
-                                                            {:fx/type :table-column
-                                                             :reorderable false
-                                                             :min-width 80
-                                                             :on-edit-commit prn
-                                                             :text label
-                                                             :cell-value-factory #(get-in % path)
-                                                             :cell-factory (fn [x]
-                                                                             {:text (pr-str x)})})
-                                                          columns)
-                                           :items value}}}]}
+                                                           (* cell-height
+                                                              (max 1 (count value))))
+                                           :columns (mapv #(table-column % path edit value) columns)
+                                           :items (into [] (map-indexed vector) value)}}}]}
                 {:fx/type :h-box
                  :spacing 4
                  :children [{:fx/type icon-button
@@ -365,9 +490,9 @@
                              :on-action remove-event
                              :image "icons/32/Icons_M_11_minus.png"
                              :fit-size 16}]}
-                {:fx/type :label
-                 :wrap-text true
-                 :text (with-out-str (clojure.pprint/pprint field))}]}))
+                #_{:fx/type :label
+                   :wrap-text true
+                   :text (with-out-str (clojure.pprint/pprint field))}]}))
 
 (defmethod input-view :resource [{:keys [path value filter resource-string-converter]}]
   {:fx/type :h-box

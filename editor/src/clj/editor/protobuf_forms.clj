@@ -38,7 +38,11 @@
 
 (defn- display-name-or-default [[val {:keys [display-name]}] prefix-size]
   (if (str/blank? display-name)
-    (subs (name val) prefix-size)
+    (str/join " " (-> val
+                      name
+                      (subs prefix-size)
+                      str/capitalize
+                      (str/split #"-")))
     display-name))
 
 (defn make-options [enum-values]
