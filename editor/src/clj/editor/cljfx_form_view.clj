@@ -19,9 +19,9 @@
             [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace])
-  (:import [javafx.event Event EventHandler]
+  (:import [javafx.event Event]
            [javafx.scene Node]
-           [javafx.scene.control ListView$EditEvent ScrollPane TableColumn$CellEditEvent ComboBox Cell TableView]
+           [javafx.scene.control Cell ComboBox ListView$EditEvent ScrollPane TableColumn$CellEditEvent TableView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.util StringConverter]))
 
@@ -143,20 +143,38 @@
                                    :path column-path
                                    :table (.getTableView event)})))}))
 
+(defn- value-with-edit [form-data path edit]
+  (let [field-value (get-in form-data [:values path])
+        edit-path (into [(:index edit)] (:path edit))]
+    (assoc-in field-value edit-path (:value edit))))
+
 (defmethod handle-event :on-edit-cancel [{:keys [ui-state path form-data]}]
   (let [edit (get-in ui-state [path :edit])]
     (cond-> {:set-ui-state (update ui-state path dissoc :edit)}
             (some? (:value edit))
-            (assoc :set (let [field-value (get-in form-data [:values path])
-                              edit-path (into [(:index edit)] (:path edit))]
-                          [path (assoc-in field-value edit-path (:value edit))])))))
+            (assoc :set [path (value-with-edit form-data path edit)]))))
 
 (defmethod handle-event :commit-edit [{:keys [path fx/event ui-state]}]
   (.edit ^TableView (get-in ui-state [path :edit :table]) -1 nil)
   {:set [path event]})
 
 (defmethod handle-event :keep-edit [{:keys [path fx/event ui-state]}]
-  {:set-ui-state (assoc-in ui-state [path :edit :value] event)})
+  (when (contains? (get ui-state path) :edit)
+    {:set-ui-state (assoc-in ui-state [path :edit :value] event)}))
+
+(defmethod handle-event :cancel-edit-on-escape [{:keys [^KeyEvent fx/event ui-state path]}]
+  (when (= KeyCode/ESCAPE (.getCode event))
+    (when-let [^Cell cell (ui/closest-node-of-type Cell (.getTarget event))]
+      [[:set-ui-state (update ui-state path dissoc :edit)]
+       [:cancel-edit cell]])))
+
+(defmethod handle-event :commit-edit-on-enter [{:keys [^KeyEvent fx/event ui-state path form-data]}]
+  (when (= KeyCode/ENTER (.getCode event))
+    (when-let [edit (get-in ui-state [path :edit])]
+      (when (some? (:value edit))
+        {:dispatch {:event-type :commit-edit
+                    :path path
+                    :fx/event (value-with-edit form-data path edit)}}))))
 
 ;; endregion
 
@@ -369,19 +387,13 @@
 
 (def ^:private ext-with-key-pressed-props
   (fx/make-ext-with-props
-    {:filter-key-pressed (fxui/make-event-filter-prop KeyEvent/KEY_PRESSED)
+    {:on-filter-key-pressed (fxui/make-event-filter-prop KeyEvent/KEY_PRESSED)
      :on-key-pressed (fxui/make-event-handler-prop KeyEvent/KEY_PRESSED)}))
-
-(def cancel-edit-on-escape-handler
-  (reify EventHandler
-    (handle [_ event]
-      (when (= KeyCode/ESCAPE (.getCode ^KeyEvent event))
-        (when-let [^Cell cell (ui/closest-node-of-type Cell (.getTarget event))]
-          (fx/run-later (.cancelEdit cell)))))))
 
 (defn- edited-cell-view [column field-path value i item]
   (let [input-view {:fx/type ext-with-key-pressed-props
-                    :props {:filter-key-pressed cancel-edit-on-escape-handler}
+                    :props {:on-filter-key-pressed {:event-type :cancel-edit-on-escape
+                                                    :path field-path}}
                     :desc (input-view (-> column
                                           (assoc :value item)
                                           (update :path #(into [i] %))))}]
@@ -404,9 +416,12 @@
                                :path field-path
                                :fx/event (:fx/event %)}
                          %)
-              :desc {:fx/type fx/ext-on-instance-lifecycle
-                     :on-created #(fxui/focus-when-on-scene! (.lookup ^Node % "TextField"))
-                     :desc input-view}}
+              :desc {:fx/type ext-with-key-pressed-props
+                     :props {:on-key-pressed {:event-type :commit-edit-on-enter
+                                              :path field-path}}
+                     :desc {:fx/type fx/ext-on-instance-lifecycle
+                            :on-created #(fxui/focus-when-on-scene! (.lookup ^Node % "TextField"))
+                            :desc input-view}}}
 
              :string
              {:fx/type fxui/ext-focused-by-default
@@ -506,7 +521,16 @@
                                                                   (* cell-height
                                                                      (max 1 (count value))))
                                                   :columns (mapv #(table-column % path edit) columns)
-                                                  :items (into [] (map-indexed vector) value)}}}]}
+                                                  :items (into [] (map-indexed vector) value)
+                                                  :context-menu {:fx/type :context-menu
+                                                                 :items [{:fx/type :menu-item
+                                                                          :text "Add"
+                                                                          :disable disable-add
+                                                                          :on-action add-event}
+                                                                         {:fx/type :menu-item
+                                                                          :text "Remove"
+                                                                          :disable disable-remove
+                                                                          :on-action remove-event}]}}}}]}
                        {:fx/type :h-box
                         :spacing 4
                         :children [{:fx/type icon-button
@@ -518,10 +542,7 @@
                                     :disable disable-remove
                                     :on-action remove-event
                                     :image "icons/32/Icons_M_11_minus.png"
-                                    :fit-size 16}]}
-                       {:fx/type :label
-                        :wrap-text true
-                        :text (with-out-str (clojure.pprint/pprint field))}]}}))
+                                    :fit-size 16}]}]}}))
 
 (defmethod input-view :resource [{:keys [path value filter resource-string-converter]}]
   {:fx/type :h-box
@@ -869,7 +890,8 @@
                     :project (constantly project)
                     :parent (constantly parent)})
                  (fx/wrap-effects
-                   {:set (fn [[path value] _]
+                   {:dispatch fx/dispatch-effect
+                    :set (fn [[path value] _]
                            (let [ops (:form-ops (g/node-value view-id :form-data))]
                              (form/set-value! ops path value)))
                     :clear (fn [path _]
@@ -878,6 +900,8 @@
                                  (form/clear-value! ops path))))
                     :set-ui-state (fn [ui-state _]
                                     (g/set-property! view-id :ui-state ui-state))
+                    :cancel-edit (fn [^Cell cell _]
+                                   (.cancelEdit cell))
                     :open-resource (fn [[node value] _]
                                      (ui/run-command node :open {:resources [value]}))})
                  (wrap-force-refresh view-id))}
@@ -918,4 +942,5 @@
 
 (handler/defhandler :filter-form :form
   (run [^Node root]
-       (.requestFocus (.lookup root "#filter-text-field"))))
+       (when-let [node (.lookup root "#filter-text-field")]
+         (.requestFocus node))))
