@@ -95,7 +95,7 @@ public class AndroidBundler implements IBundler {
         ArrayList<File> classesDex = new ArrayList<File>();
 
         List<Platform> architectures = new ArrayList<Platform>();
-        String[] architecturesStrings = project.option("architectures", "").split(",");
+        String[] architecturesStrings = project.option("architectures", "armv7-android,arm64-android").split(",");
         for (int i = 0; i < architecturesStrings.length; i++) {
             architectures.add(Platform.get(architecturesStrings[i]));
         }

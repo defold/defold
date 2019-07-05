@@ -58,6 +58,7 @@ public class OSXBundlerTest {
         createFile(contentRoot, "builtins/render/default.render", "script: \"/builtins/render/default.render_script\"\n");
         createFile(contentRoot, "builtins/render/default.render_script", "");
         createFile(contentRoot, "builtins/render/default.display_profiles", "");
+        createFile(contentRoot, "builtins/graphics/default.texture_profiles", "");
         createFile(contentRoot, "builtins/input/default.gamepads", "");
         createFile(contentRoot, "builtins/manifests/osx/Info.plist", "");
         createFile(contentRoot, "builtins/manifests/ios/Info.plist", "");
