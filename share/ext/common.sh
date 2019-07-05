@@ -9,7 +9,7 @@ IOS_MIN_SDK_VERSION=6.0
 OSX_MIN_SDK_VERSION=10.7
 
 ANDROID_ROOT=~/android
-ANDROID_NDK_VERSION=10e
+ANDROID_NDK_VERSION=20
 ANDROID_NDK=${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
 
 ANDROID_VERSION=14 # Android 4.0
@@ -271,18 +271,15 @@ function cmi() {
         arm64-android)
             local platform=`uname | awk '{print tolower($0)}'`
             local bin="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/aarch64-linux-android-${ANDROID_64_GCC_VERSION}/prebuilt/${platform}-x86_64/bin"
-            local sysroot="--sysroot=${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_64_VERSION}/arch-arm64"
-            local stl="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_64_GCC_VERSION}/include"
-            local stl_lib="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_64_GCC_VERSION}/libs/arm64-v8a"
-            local stl_arch="${stl_lib}/include"
+            local llvm="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/llvm/prebuilt/${platform}-x86_64/bin"
+            local sysroot="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/llvm/prebuilt/${platform}-x86_64/sysroot"
 
-            export CFLAGS="${CFLAGS} ${sysroot} -fpic -ffunction-sections -funwind-tables -D__aarch64__  -Wno-psabi -march=armv8-a -Os -fomit-frame-pointer -fno-strict-aliasing -finline-limit=64 -DANDROID -Wa,--noexecstack"
+            export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -D__aarch64__  -march=armv8-a -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID -Wa,--noexecstack"
             export CPPFLAGS=${CFLAGS}
-            export CXXFLAGS="${CXXFLAGS} -I${stl} -I${stl_arch} ${CFLAGS}"
-            export LDFLAGS="${sysroot} -Wl,--no-undefined -Wl,-z,noexecstack -L${stl_lib} -lgnustl_static -lsupc++"
-            export CPP=${bin}/aarch64-linux-android-cpp
-            export CC=${bin}/aarch64-linux-android-gcc
-            export CXX=${bin}/aarch64-linux-android-g++
+            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ -arch x86_64 -isysroot ${sysroot} ${CFLAGS}"
+            export CPP="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang -E"
+            export CC="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang"
+            export CXX="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang++"
             export AR=${bin}/aarch64-linux-android-ar
             export AS=${bin}/aarch64-linux-android-as
             export LD=${bin}/aarch64-linux-android-ld
