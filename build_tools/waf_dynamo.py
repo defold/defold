@@ -17,10 +17,10 @@ HOME=os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
 ANDROID_ROOT=os.path.join(HOME, 'android')
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='20'
-ANDROID_NDK_API_VERSION='14' # Android 4.0
+ANDROID_NDK_API_VERSION='16' # Android 4.1
 ANDROID_TARGET_API_LEVEL='23'
-ANDROID_MIN_API_LEVEL='9'
-ANDROID_GCC_VERSION='4.8'
+ANDROID_MIN_API_LEVEL='14'
+ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 ANDROID_64_GCC_VERSION='4.9'
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
@@ -186,6 +186,9 @@ def getAndroidArch(target_arch):
 
 def getAndroidBuildtoolName(target_arch):
     return 'aarch64-linux-android' if 'arm64' == target_arch else 'arm-linux-androideabi'
+
+def getAndroidCompilerPrefix(target_arch):
+    return 'aarch64' if 'arm64' == target_arch else 'armv7a'
 
 def getAndroidGCCVersion(target_arch):
     return ANDROID_64_GCC_VERSION if 'arm64' == target_arch else ANDROID_GCC_VERSION
@@ -1620,14 +1623,15 @@ def detect(conf):
         arch        = 'x86_64'
         target_arch = build_util.get_target_architecture()
         tool_name   = getAndroidBuildtoolName(target_arch)
+        api_version = getAndroidNDKAPIVersion(target_arch)
+        clang_name  = '%s-linux-androideabi%s-clang' % (getAndroidCompilerPrefix(target_arch), api_version)
         bintools    = '%s/android-ndk-r%s/toolchains/%s-%s/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, tool_name, getAndroidGCCVersion(target_arch), build_platform, arch)
         llvm        = '%s/android-ndk-r%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, build_platform, arch)
-        api_version = getAndroidNDKAPIVersion(target_arch)
 
-        conf.env['CC'] = '%s/%s%s-clang' % (llvm, tool_name, api_version)
-        conf.env['CXX'] = '%s/%s%s-clang++' % (llvm, tool_name, api_version)
-        conf.env['LINK_CXX'] = '%s/%s%s-clang++' % (llvm, tool_name, api_version)
-        conf.env['CPP'] = '%s/%s%s-clang -E' % (llvm, tool_name, api_version)
+        conf.env['CC'] = '%s/%s' % (llvm, clang_name)
+        conf.env['CXX'] = '%s/%s++' % (llvm, clang_name)
+        conf.env['LINK_CXX'] = '%s/%s++' % (llvm, clang_name)
+        conf.env['CPP'] = '%s/%s -E' % (llvm, clang_name)
         conf.env['AR'] = '%s/%s-ar' % (bintools, tool_name)
         conf.env['RANLIB'] = '%s/%s-ranlib' % (bintools, tool_name)
         conf.env['LD'] = '%s/%s-ld' % (bintools, tool_name)
