@@ -12,8 +12,8 @@ ANDROID_ROOT=~/android
 ANDROID_NDK_VERSION=20
 ANDROID_NDK=${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}
 
-ANDROID_VERSION=14 # Android 4.0
-ANDROID_GCC_VERSION='4.8'
+ANDROID_VERSION=16 # Android 4.1
+ANDROID_GCC_VERSION='4.9'
 
 ANDROID_64_VERSION=21 # Android 5.0
 ANDROID_64_GCC_VERSION='4.9'
@@ -246,21 +246,19 @@ function cmi() {
          armv7-android)
             local platform=`uname | awk '{print tolower($0)}'`
             local bin="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/${platform}-x86_64/bin"
-            local sysroot="--sysroot=${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_VERSION}/arch-arm"
+            local llvm="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/llvm/prebuilt/${platform}-x86_64/bin"
+            local sysroot="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/llvm/prebuilt/${platform}-x86_64/sysroot"
             #  -fstack-protector
 #            local stl="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/stlport/stlport"
-            local stl="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/include"
-            local stl_lib="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VERSION}/libs/armeabi-v7a"
-            local stl_arch="${stl_lib}/include"
-            local stl_inc="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/platforms/android-${ANDROID_VERSION}/arch-arm/include"
 
-            export CFLAGS="${CFLAGS} ${sysroot} -fpic -ffunction-sections -funwind-tables -D__ARM_ARCH_5__ -D__ARM_ARCH_5T__ -D__ARM_ARCH_5E__ -D__ARM_ARCH_5TE__  -Wno-psabi -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -mthumb -Os -fomit-frame-pointer -fno-strict-aliasing -finline-limit=64 -DANDROID -Wa,--noexecstack"
+            export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -D__ARM_ARCH_5__ -D__ARM_ARCH_5T__ -D__ARM_ARCH_5E__ -D__ARM_ARCH_5TE__  -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -mthumb -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID"
             export CPPFLAGS=${CFLAGS}
-            export CXXFLAGS="${CXXFLAGS} -I${stl} -I${stl_arch} -I${stl_inc} ${CFLAGS}"
-            export LDFLAGS="${sysroot} -Wl,--fix-cortex-a8  -Wl,--no-undefined -Wl,-z,noexecstack -L${stl_lib} -lgnustl_static -lsupc++"
-            export CPP=${bin}/arm-linux-androideabi-cpp
-            export CC=${bin}/arm-linux-androideabi-gcc
-            export CXX=${bin}/arm-linux-androideabi-g++
+            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ -isysroot ${sysroot} ${CFLAGS}"
+            export LDFLAGS="-isysroot ${sysroot} -Wl,--fix-cortex-a8  -Wl,--no-undefined -Wl,-z,noexecstack"
+
+            export CPP="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang -E"
+            export CC="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang"
+            export CXX="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang++"
             export AR=${bin}/arm-linux-androideabi-ar
             export AS=${bin}/arm-linux-androideabi-as
             export LD=${bin}/arm-linux-androideabi-ld
@@ -274,9 +272,9 @@ function cmi() {
             local llvm="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/llvm/prebuilt/${platform}-x86_64/bin"
             local sysroot="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/llvm/prebuilt/${platform}-x86_64/sysroot"
 
-            export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -D__aarch64__  -march=armv8-a -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID -Wa,--noexecstack"
+            export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -D__aarch64__  -march=armv8-a -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID"
             export CPPFLAGS=${CFLAGS}
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ -arch x86_64 -isysroot ${sysroot} ${CFLAGS}"
+            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ -isysroot ${sysroot} ${CFLAGS}"
             export CPP="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang -E"
             export CC="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang"
             export CXX="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang++"
