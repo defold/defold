@@ -267,4 +267,4 @@
     :load-fn load-material
     :sanitize-fn convert-textures-to-samplers
     :icon "icons/32/Icons_31-Material.png"
-    :view-types [:form-view :cljfx-form-view :text]))
+    :view-types [:cljfx-form-view :text]))

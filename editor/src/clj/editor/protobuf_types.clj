@@ -17,7 +17,7 @@
                :icon "icons/32/Icons_35-Inputbinding.png"
                :pb-class Input$InputBinding
                :label "Input Binding"
-               :view-types [:form-view :text]}
+               :view-types [:form-view :cljfx-form-view :text]}
               {:ext "light"
                :label "Light"
                :icon "icons/32/Icons_21-Light.png"
@@ -28,7 +28,7 @@
                :label "Gamepads"
                :icon "icons/32/Icons_34-Gamepad.png"
                :pb-class Input$GamepadMaps
-               :view-types [:form-view :text]}
+               :view-types [:form-view :cljfx-form-view :text]}
               {:ext "convexshape"
                :label "Convex Shape"
                ; TODO - missing icon
@@ -36,10 +36,9 @@
                :pb-class Physics$ConvexShape}
               {:ext "texture_profiles"
                :label "Texture Profiles"
-               :view-types [:form-view :text]
+               :view-types [:form-view :cljfx-form-view :text]
                :icon "icons/32/Icons_37-Texture-profile.png"
-               :pb-class Graphics$TextureProfiles
-               }])
+               :pb-class Graphics$TextureProfiles}])
 
 (defn- build-pb [resource dep-resources user-data]
   {:resource resource :content (protobuf/map->bytes (:pb-class user-data) (:pb user-data))})

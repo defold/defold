@@ -69,7 +69,8 @@
         gamepad-values (butlast (protobuf/enum-values Input$Gamepad)) ; skip MAX_GAMEPAD_COUNT
         touch-values (butlast (protobuf/enum-values Input$Touch)) ; skip MAX_TOUCH_COUNT
         text-values (butlast (protobuf/enum-values Input$Text))] ; skip MAX_TEXT_COUNT
-    {:sections [{:title "Input Bindings"
+    {:navigation false
+     :sections [{:title "Input Bindings"
                  :fields [{:path [:key-trigger]
                            :label "Key Triggers"
                            :type :table
@@ -151,7 +152,8 @@
 (defmethod protobuf-form-data Input$GamepadMaps [node-id pb def]
   (let [gamepad-values (butlast (protobuf/enum-values Input$Gamepad)) ; skip MAX_GAMEPAD_COUNT
         gamepad-type-values (protobuf/enum-values Input$GamepadType)]
-    {:form-ops {:user-data {:node-id node-id}
+    {:navigation false
+     :form-ops {:user-data {:node-id node-id}
                 :set gamepad-set-form-op}
      :sections [{:title "Gamepads"
                  :fields
@@ -205,7 +207,8 @@
         compression-values (protobuf/enum-values Graphics$TextureFormatAlternative$CompressionLevel)
         compression-types (protobuf/enum-values Graphics$TextureImage$CompressionType)
         profile-options (mapv #(do [% %]) (map :name (:profiles pb)))]
-    {:sections
+    {:navigation false
+     :sections
      [{:title "Texture Profiles"
        :fields
        [{:path [:path-settings]
