@@ -187,8 +187,11 @@ def getAndroidArch(target_arch):
 def getAndroidBuildtoolName(target_arch):
     return 'aarch64-linux-android' if 'arm64' == target_arch else 'arm-linux-androideabi'
 
-def getAndroidCompilerPrefix(target_arch):
-    return 'aarch64' if 'arm64' == target_arch else 'armv7a'
+def getAndroidCompilerName(target_arch, api_version):
+    if target_arch == 'arm64':
+        return 'aarch64-linux-android%s-clang' % (api_version)
+    else:
+        return 'armv7a-linux-androideabi%s-clang' % (api_version)
 
 def getAndroidGCCVersion(target_arch):
     return ANDROID_64_GCC_VERSION if 'arm64' == target_arch else ANDROID_GCC_VERSION
@@ -1624,7 +1627,7 @@ def detect(conf):
         target_arch = build_util.get_target_architecture()
         tool_name   = getAndroidBuildtoolName(target_arch)
         api_version = getAndroidNDKAPIVersion(target_arch)
-        clang_name  = '%s-linux-androideabi%s-clang' % (getAndroidCompilerPrefix(target_arch), api_version)
+        clang_name  = getAndroidCompilerName(target_arch, api_version)
         bintools    = '%s/android-ndk-r%s/toolchains/%s-%s/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, tool_name, getAndroidGCCVersion(target_arch), build_platform, arch)
         llvm        = '%s/android-ndk-r%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, build_platform, arch)
 
